@@ -1,0 +1,28 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { ZodError } from "zod";
+import { requireAdmin } from "@/lib/auth/guards";
+import { prisma } from "@/lib/db";
+import { createUser, UserExistsError } from "@/lib/users";
+
+export type CreateUserState = { ok?: true; error?: "exists" | "invalid" } | undefined;
+
+export async function createUserAction(_prev: CreateUserState, formData: FormData): Promise<CreateUserState> {
+  await requireAdmin();
+  try {
+    await createUser(prisma, {
+      email: String(formData.get("email") ?? ""),
+      name: String(formData.get("name") ?? ""),
+      password: String(formData.get("password") ?? ""),
+      role: formData.get("role") === "admin" ? "admin" : "user",
+      locale: formData.get("locale") === "fr" ? "fr" : "en",
+    });
+  } catch (err) {
+    if (err instanceof UserExistsError) return { error: "exists" };
+    if (err instanceof ZodError) return { error: "invalid" };
+    throw err;
+  }
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
