@@ -1,0 +1,133 @@
+id: cs2-alpineski
+status: draft
+title:
+  en: Alpine Ski House
+  fr: Alpine Ski House
+tabs:
+  - key: overview
+    title: { en: Overview, fr: Vue d'ensemble }
+    body:
+      en: |
+        Alpine Ski House operates two ski resorts: **Valmont** in Switzerland and **Kaltberg** in Austria. The head office is in Geneva.
+
+        Each resort runs its own booking, lift ticket and rental applications on Azure virtual machines. The winter season, from December to April, generates 80% of the yearly revenue, so an outage of the booking engine during the season is critical.
+
+        Alpine Ski House wants to improve its backup and disaster recovery strategy before the next season.
+      fr: |
+        Alpine Ski House exploite deux stations de ski : **Valmont** en Suisse et **Kaltberg** en Autriche. Le siège est à Genève.
+
+        Chaque station exécute ses propres applications de réservation, de forfaits de remontées et de location sur des machines virtuelles Azure. La saison d'hiver, de décembre à avril, génère 80 % du chiffre d'affaires annuel ; une panne du moteur de réservation pendant la saison est donc critique.
+
+        Alpine Ski House souhaite améliorer sa stratégie de sauvegarde et de récupération d'urgence avant la prochaine saison.
+  - key: existing
+    title: { en: Existing environment, fr: Environnement existant }
+    body:
+      en: |
+        All resources are in a subscription named **Sub-Alpine**.
+
+        **Resource groups**
+
+        | Resource group | Region | Tag |
+        | --- | --- | --- |
+        | RG-CH | Switzerland North | Site = CH-Valmont |
+        | RG-AT | West Europe | Site = AT-Kaltberg |
+        | RG-DR | Switzerland West | Site = DR |
+
+        Most resources have no **Site** tag, and some resources have an incorrect Site value.
+
+        **Virtual machines**
+
+        | Name | Resource group | Region | Configuration |
+        | --- | --- | --- | --- |
+        | VM-BOOK1 | RG-CH | Switzerland North | Windows Server 2022, Trusted Launch, booking engine with SQL Server |
+        | VM-LIFT1 | RG-CH | Switzerland North | Windows Server 2022, lift ticket application |
+        | VM-RENT1 | RG-AT | West Europe | Windows Server 2022, rental application |
+        | VM-WEBAT1 | RG-AT | West Europe | Ubuntu Server 22.04, Kaltberg website |
+
+        No virtual machine is backed up or replicated. No virtual machine has a public IP address.
+
+        **Network**
+
+        | Virtual network | Region | Address space | Subnets |
+        | --- | --- | --- | --- |
+        | VNet-CH | Switzerland North | 10.40.0.0/16 | snet-app (10.40.1.0/24). 10.40.250.0/24 is not used |
+        | VNet-AT | West Europe | 10.50.0.0/16 | snet-app (10.50.1.0/24) |
+        | VNet-DR-Test | Switzerland West | 10.90.0.0/16 | snet-app (10.90.1.0/24). Isolated: no peering and no connection to the other networks |
+
+        VNet-CH and VNet-AT are connected by global virtual network peering.
+
+        **Storage**
+
+        | Storage account | Configuration |
+        | --- | --- |
+        | stalpinefiles | General-purpose v2, ZRS, Switzerland North. SMB file share **skischool** that stores the schedules of the ski instructors. Share soft delete is enabled with a retention period of 14 days. A share snapshot is created every night at 22:00 |
+      fr: |
+        Toutes les ressources se trouvent dans un abonnement nommé **Sub-Alpine**.
+
+        **Groupes de ressources**
+
+        | Groupe de ressources | Région | Étiquette |
+        | --- | --- | --- |
+        | RG-CH | Switzerland North | Site = CH-Valmont |
+        | RG-AT | West Europe | Site = AT-Kaltberg |
+        | RG-DR | Switzerland West | Site = DR |
+
+        La plupart des ressources n'ont pas d'étiquette **Site**, et certaines ont une valeur Site incorrecte.
+
+        **Machines virtuelles**
+
+        | Nom | Groupe de ressources | Région | Configuration |
+        | --- | --- | --- | --- |
+        | VM-BOOK1 | RG-CH | Switzerland North | Windows Server 2022, lancement fiable (Trusted Launch), moteur de réservation avec SQL Server |
+        | VM-LIFT1 | RG-CH | Switzerland North | Windows Server 2022, application de forfaits de remontées |
+        | VM-RENT1 | RG-AT | West Europe | Windows Server 2022, application de location |
+        | VM-WEBAT1 | RG-AT | West Europe | Ubuntu Server 22.04, site web de Kaltberg |
+
+        Aucune machine virtuelle n'est sauvegardée ni répliquée. Aucune machine virtuelle n'a d'adresse IP publique.
+
+        **Réseau**
+
+        | Réseau virtuel | Région | Espace d'adressage | Sous-réseaux |
+        | --- | --- | --- | --- |
+        | VNet-CH | Switzerland North | 10.40.0.0/16 | snet-app (10.40.1.0/24). La plage 10.40.250.0/24 n'est pas utilisée |
+        | VNet-AT | West Europe | 10.50.0.0/16 | snet-app (10.50.1.0/24) |
+        | VNet-DR-Test | Switzerland West | 10.90.0.0/16 | snet-app (10.90.1.0/24). Isolé : aucun peering ni aucune connexion vers les autres réseaux |
+
+        VNet-CH et VNet-AT sont reliés par un peering de réseaux virtuels mondial.
+
+        **Stockage**
+
+        | Compte de stockage | Configuration |
+        | --- | --- |
+        | stalpinefiles | Usage général v2, ZRS, Switzerland North. Partage de fichiers SMB **skischool** qui stocke les plannings des moniteurs de ski. La suppression réversible des partages est activée avec une période de rétention de 14 jours. Un instantané de partage est créé chaque nuit à 22:00 |
+  - key: requirements
+    title: { en: Requirements, fr: Exigences }
+    body:
+      en: |
+        **Backup and disaster recovery**
+
+        1. All the virtual machines must be backed up by using Azure Backup. The number of Recovery Services vaults used for backup must be minimized.
+        2. The backups of VM-BOOK1 must have a recovery point objective (RPO) of four hours or less.
+        3. VM-BOOK1 must be replicated to Switzerland West by using Azure Site Recovery.
+        4. A disaster recovery drill of VM-BOOK1 must be performed every quarter in VNet-DR-Test, without affecting production or the ongoing replication.
+        5. Files deleted from skischool and the skischool share itself must be recoverable.
+
+        **Administration**
+
+        6. The administrators must connect by RDP to all the virtual machines of VNet-CH and VNet-AT from the Azure portal, and also from the native Remote Desktop client of their workstations. The virtual machines must not receive public IP addresses.
+        7. Every resource must have a **Site** tag whose value matches the Site tag of its resource group, including the existing resources.
+        8. Costs and administrative effort must be minimized.
+      fr: |
+        **Sauvegarde et récupération d'urgence**
+
+        1. Toutes les machines virtuelles doivent être sauvegardées avec Sauvegarde Azure. Le nombre de coffres Recovery Services utilisés pour la sauvegarde doit être réduit au minimum.
+        2. Les sauvegardes de VM-BOOK1 doivent avoir un objectif de point de récupération (RPO) de quatre heures ou moins.
+        3. VM-BOOK1 doit être répliquée vers Switzerland West avec Azure Site Recovery.
+        4. Un exercice de récupération d'urgence de VM-BOOK1 doit être réalisé chaque trimestre dans VNet-DR-Test, sans affecter la production ni la réplication en cours.
+        5. Les fichiers supprimés de skischool et le partage skischool lui-même doivent pouvoir être récupérés.
+
+        **Administration**
+
+        6. Les administrateurs doivent se connecter en RDP à toutes les machines virtuelles de VNet-CH et VNet-AT depuis le portail Azure, mais aussi depuis le client Bureau à distance natif de leurs postes de travail. Les machines virtuelles ne doivent pas recevoir d'adresse IP publique.
+        7. Chaque ressource doit avoir une étiquette **Site** dont la valeur correspond à l'étiquette Site de son groupe de ressources, y compris les ressources existantes.
+        8. Les coûts et l'effort d'administration doivent être réduits au minimum.
