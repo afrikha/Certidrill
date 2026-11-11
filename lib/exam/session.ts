@@ -373,6 +373,9 @@ export async function submitAttempt(
   if (attempt.status !== "in_progress") return attempt; // idempotent
   if (!attempt.startedAt) throw new SessionError("not_started");
 
+  // A submission that arrives after the deadline and its grace period is an
+  // expiry: closed at the deadline, so the time used never exceeds the duration.
+  if (attempt.deadlineAt && now.getTime() > attempt.deadlineAt.getTime() + DEADLINE_GRACE_MS) reason = "expired";
   const submittedAt = reason === "expired" && attempt.deadlineAt && attempt.deadlineAt < now ? attempt.deadlineAt : now;
 
   const result = await db.$transaction(async (tx) => {

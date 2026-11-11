@@ -27,7 +27,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/certidrill_test
       AUTH_SECRET: ci-secret-not-used-in-production
       NEXT_TELEMETRY_DISABLED: "1"
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # Only a boolean here: the token itself is passed to the Sonar step alone
+      # (not to npm ci, whose dependency scripts could read it).
+      HAS_SONAR: ${{ secrets.SONAR_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +54,7 @@ jobs:
       # SonarQube Cloud Free plan: only the main branch and pull requests that
       # target it can be analysed (other branches fail on the server side).
       - name: SonarQube Cloud analysis and quality gate
-        if: env.SONAR_TOKEN != '' && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
+        if: env.HAS_SONAR == 'true' && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -62,7 +64,7 @@ jobs:
             ${{ vars.SONAR_ORGANIZATION && format('-Dsonar.organization={0}', vars.SONAR_ORGANIZATION) || '' }}
             ${{ vars.SONAR_PROJECT_KEY && format('-Dsonar.projectKey={0}', vars.SONAR_PROJECT_KEY) || '' }}
       - name: Sonar skipped
-        if: env.SONAR_TOKEN == '' || !(github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
+        if: env.HAS_SONAR != 'true' || !(github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
         run: echo "::notice::Sonar analysis skipped — it runs on main and on pull requests to main, with the SONAR_TOKEN secret (see README)."
       - run: npm run build
 

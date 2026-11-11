@@ -254,6 +254,24 @@ describe("expiry", () => {
     expect(saved.pointsMax).toBeGreaterThan(0);
   });
 
+  it("records a late submission as expired at the deadline (time used never exceeds the duration)", async () => {
+    const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: T0, seed: "exp-late" });
+    const started = await startAttempt(db, { attemptId, userId, now: T0 });
+    const deadline = started.deadlineAt!.getTime();
+    const late = await submitAttempt(db, { attemptId, userId, now: new Date(deadline + DEADLINE_GRACE_MS + 60_000) });
+    expect(late.status).toBe("expired");
+    expect(late.submittedAt).toEqual(started.deadlineAt);
+  });
+
+  it("records a submission within the grace period as submitted", async () => {
+    const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: T0, seed: "exp-grace" });
+    const started = await startAttempt(db, { attemptId, userId, now: T0 });
+    const within = new Date(started.deadlineAt!.getTime() + DEADLINE_GRACE_MS - 1);
+    const done = await submitAttempt(db, { attemptId, userId, now: within });
+    expect(done.status).toBe("submitted");
+    expect(done.submittedAt).toEqual(within);
+  });
+
   it("expires on read and before creating a new attempt", async () => {
     const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: T0, seed: "exp-2" });
     await startAttempt(db, { attemptId, userId, now: T0 });

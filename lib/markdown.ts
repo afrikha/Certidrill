@@ -20,16 +20,19 @@ function getHighlighter() {
   return highlighter;
 }
 
+/**
+ * Sanitizer schema: GitHub's default (which keeps its "user-content-" prefix on
+ * `id`/`name`, so content cannot clobber DOM globals), plus code-block language
+ * classes. No images: a remote image would make the candidate's browser call a
+ * third-party server (IP leak, RGPD); question content has none.
+ */
 const schema: SanitizeSchema = {
   ...defaultSchema,
-  // No clobber prefix needed: we do not allow ids or names.
-  clobberPrefix: "",
+  tagNames: (defaultSchema.tagNames ?? []).filter((t) => t !== "img"),
   attributes: {
     ...defaultSchema.attributes,
     code: [["className", /^language-[a-z0-9-]+$/]],
-    img: ["src", "alt", "title", "width", "height"],
   },
-  protocols: { ...defaultSchema.protocols, src: ["https"] },
 };
 
 /** Replaces sanitized `<pre><code class="language-x">` blocks with Shiki output. */

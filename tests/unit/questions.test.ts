@@ -128,6 +128,16 @@ describe("completeness", () => {
 });
 
 describe("markdown", () => {
+  it("drops remote images and prefixes ids and names (no DOM clobbering, no third-party requests)", async () => {
+    const html = await renderMarkdown('![logo](https://tracker.example/pixel.png) <img src="https://tracker.example/x.png"> <a id="location" name="cookie">raw</a> [doc](https://learn.microsoft.com/) and a note[^1].\n\n[^1]: Footnote.');
+    expect(html).not.toMatch(/<img|tracker\.example/);
+    expect(html).not.toMatch(/(id|name)="(location|cookie)"/);
+    // Generated ids (footnotes) keep the anti-clobbering prefix.
+    expect(html).toMatch(/id="user-content-/);
+    expect(html).not.toMatch(/ id="(?!user-content-)/);
+    expect(html).toContain('href="https://learn.microsoft.com/"');
+  });
+
   it("sanitizes HTML and scripts", async () => {
     const html = await renderMarkdown('Hello <script>alert(1)</script> <img src="x" onerror="alert(1)"> [x](javascript:alert(1))');
     expect(html).not.toMatch(/<script|onerror|javascript:/);
