@@ -18,6 +18,9 @@ export function smtpOptions(server: string): SMTPTransport.Options {
   if (url.protocol !== "smtp:" && url.protocol !== "smtps:") throw new Error("EMAIL_SERVER must be an smtp:// or smtps:// URL");
   const secure = url.protocol === "smtps:";
   const defaultPort = secure ? 465 : 587;
+  // Port 465 is implicit TLS: smtp:// would wait for a STARTTLS that never comes
+  // (nodemailer never inferred TLS from the port for smtp:// URLs either).
+  if (!secure && url.port === "465") throw new Error("EMAIL_SERVER: port 465 needs smtps:// (implicit TLS)");
   return {
     // An IPv6 literal keeps its brackets in URL.hostname ("[::1]").
     host: url.hostname.replace(/^\[(.*)\]$/, "$1"),

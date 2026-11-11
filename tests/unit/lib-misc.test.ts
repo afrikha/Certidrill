@@ -104,6 +104,8 @@ describe("magic link e-mail", () => {
     expect(smtpOptions("smtps://u:p@smtp.example.com")).toMatchObject({ port: 465, secure: true, requireTLS: true });
     expect(() => smtpOptions("http://smtp.example.com")).toThrow(/smtp:\/\//);
     expect(smtpOptions("smtp://[::1]:25").host).toBe("::1");
+    expect(() => smtpOptions("smtp://u:p@smtp.example.com:465")).toThrow(/port 465 needs smtps/);
+    expect(smtpOptions("smtps://u:p@smtp.example.com:465")).toMatchObject({ port: 465, secure: true });
   });
   it("never puts the SMTP password in an error", () => {
     const failure = (server: string) => {
