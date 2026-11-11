@@ -1,0 +1,76 @@
+id: s1-fw-cli-vnet-rule
+objective: "2.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a storage account named **stcontoso42** and a virtual network named **VNet1** in the same Azure region, both in a resource group named **RG1**. VNet1 contains a subnet named **App**.
+
+    You need to ensure that only resources in the App subnet can reach stcontoso42 through its public endpoint. Requests from all other networks must be blocked.
+
+    How should you complete the Azure CLI script? Select the appropriate options in the answer area.
+  fr: |
+    Vous disposez d'un compte de stockage nommé **stcontoso42** et d'un réseau virtuel nommé **VNet1** dans la même région Azure, tous deux dans un groupe de ressources nommé **RG1**. VNet1 contient un sous-réseau nommé **App**.
+
+    Vous devez faire en sorte que seules les ressources du sous-réseau App puissent joindre stcontoso42 par son point de terminaison public. Les demandes provenant de tous les autres réseaux doivent être bloquées.
+
+    Comment devez-vous compléter le script Azure CLI ? Sélectionnez les options appropriées dans la zone de réponse.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network vnet subnet update -g RG1 --vnet-name VNet1 -n App \
+      --service-endpoints [[ep]]
+
+    subnetid=$(az network vnet subnet show -g RG1 --vnet-name VNet1 -n App --query id -o tsv)
+
+    az storage account network-rule [[op]] -g RG1 --account-name stcontoso42 --subnet $subnetid
+
+    az storage account update -g RG1 -n stcontoso42 [[def]]
+  slots:
+    - id: ep
+      options:
+        - { id: storage, text: Microsoft.Storage }
+        - { id: sql, text: Microsoft.Sql }
+        - { id: kv, text: Microsoft.KeyVault }
+        - { id: web, text: Microsoft.Web }
+    - id: op
+      options:
+        - { id: add, text: add }
+        - { id: create, text: create }
+        - { id: set, text: set }
+        - { id: assign, text: assign }
+    - id: def
+      options:
+        - { id: deny, text: "--default-action Deny" }
+        - { id: allow, text: "--default-action Allow" }
+        - { id: pna, text: "--public-network-access Disabled" }
+        - { id: bypass, text: "--bypass AzureServices" }
+answer:
+  values: { ep: storage, op: add, def: deny }
+explanation:
+  correct:
+    en: The subnet needs the Microsoft.Storage service endpoint, which connects to storage accounts in the same region. `az storage account network-rule add --subnet` creates the virtual network rule. Network rules only take effect when the default action is Deny, which blocks every source that no rule allows.
+    fr: Le sous-réseau doit disposer du point de terminaison de service Microsoft.Storage, qui donne accès aux comptes de stockage de la même région. `az storage account network-rule add --subnet` crée la règle de réseau virtuel. Les règles réseau ne prennent effet que si l'action par défaut est Deny, ce qui bloque toute source non autorisée par une règle.
+  options:
+    sql:
+      en: Microsoft.Sql is the service endpoint for Azure SQL, not for Azure Storage.
+      fr: Microsoft.Sql est le point de terminaison de service d'Azure SQL, pas du Stockage Azure.
+    create:
+      en: The network-rule command group uses `add`, `remove` and `list`; there is no `create` subcommand.
+      fr: Le groupe de commandes network-rule utilise `add`, `remove` et `list` ; il n'existe pas de sous-commande `create`.
+    allow:
+      en: With the default action Allow, every network can still connect and the rules have no effect.
+      fr: Avec l'action par défaut Allow, tous les réseaux peuvent toujours se connecter et les règles n'ont aucun effet.
+    pna:
+      en: Disabling public network access blocks the public endpoint entirely, including the App subnet; only private endpoints would work.
+      fr: Désactiver l'accès réseau public bloque entièrement le point de terminaison public, sous-réseau App compris ; seuls des points de terminaison privés fonctionneraient.
+    bypass:
+      en: "`--bypass` configures trusted service exceptions; it does not block other networks."
+      fr: "`--bypass` configure les exceptions de service approuvé ; il ne bloque pas les autres réseaux."
+references:
+  - title: Create a virtual network rule for Azure Storage
+    url: https://learn.microsoft.com/en-us/azure/storage/common/storage-network-security-virtual-networks
+  - title: "Set the default public network access rule: Azure Storage"
+    url: https://learn.microsoft.com/en-us/azure/storage/common/storage-network-security-set-default-access

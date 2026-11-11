@@ -1,0 +1,65 @@
+id: n2-nsg-rule-cli
+objective: "4.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The network security group **NSG1** is associated with the subnet that hosts the VMs of an application. NSG1 contains an inbound rule named **Deny-Internet** with priority 300 that denies all traffic from the **Internet** service tag. The web server VMs are members of the application security group **ASG-Web**; the database VMs are members of **ASG-Db**.
+
+    You need to allow HTTPS from the internet to the web servers only. The new rule must be processed before Deny-Internet, and it must not allow HTTPS from the virtual network.
+
+    How should you complete the command? To answer, select the appropriate options in the answer area.
+  fr: |
+    Le groupe de sécurité réseau **NSG1** est associé au sous-réseau qui héberge les machines virtuelles d'une application. NSG1 contient une règle entrante nommée **Deny-Internet**, de priorité 300, qui refuse tout le trafic provenant de l'étiquette de service **Internet**. Les machines virtuelles des serveurs web sont membres du groupe de sécurité d'application **ASG-Web** ; celles des bases de données sont membres de **ASG-Db**.
+
+    Vous devez autoriser HTTPS depuis Internet vers les serveurs web uniquement. La nouvelle règle doit être traitée avant Deny-Internet et ne doit pas autoriser HTTPS depuis le réseau virtuel.
+
+    Comment devez-vous compléter la commande ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network nsg rule create \
+      --resource-group RG1 --nsg-name NSG1 \
+      --name Allow-HTTPS-Web \
+      --direction Inbound --access Allow --protocol Tcp \
+      --priority [[prio]] \
+      --source-address-prefixes [[src]] \
+      --destination-asgs [[dst]] \
+      --destination-port-ranges 443
+  slots:
+    - id: prio
+      options:
+        - { id: p50, text: "50" }
+        - { id: p250, text: "250" }
+        - { id: p350, text: "350" }
+        - { id: p4097, text: "4097" }
+    - id: src
+      options:
+        - { id: internet, text: Internet }
+        - { id: vnet, text: VirtualNetwork }
+        - { id: any, text: "'*'" }
+        - { id: cloud, text: AzureCloud }
+    - id: dst
+      options:
+        - { id: web, text: ASG-Web }
+        - { id: db, text: ASG-Db }
+        - { id: both, text: ASG-Web ASG-Db }
+answer:
+  values: { prio: p250, src: internet, dst: web }
+explanation:
+  correct:
+    en: Priorities range from 100 to 4096 and a lower number is processed first, so 250 is evaluated before Deny-Internet (300). The Internet service tag matches only addresses outside the virtual network, and the ASG-Web destination limits the rule to the web servers' network interfaces.
+    fr: "Les priorités vont de 100 à 4096 et le plus petit numéro est traité en premier : 250 est donc évalué avant Deny-Internet (300). L'étiquette de service Internet ne correspond qu'aux adresses situées hors du réseau virtuel, et la destination ASG-Web limite la règle aux interfaces réseau des serveurs web."
+  options:
+    p50: { en: 50 is below the minimum priority of 100., fr: 50 est inférieur à la priorité minimale de 100. }
+    p350: { en: Priority 350 is processed after Deny-Internet, so the traffic would already be denied., fr: "La priorité 350 est traitée après Deny-Internet : le trafic serait déjà refusé." }
+    p4097: { en: 4097 is above the maximum priority of 4096., fr: 4097 dépasse la priorité maximale de 4096. }
+    any: { en: Any would also allow HTTPS from the virtual network., fr: Any autoriserait aussi HTTPS depuis le réseau virtuel. }
+    both: { en: The database servers must not receive HTTPS from the internet., fr: Les serveurs de bases de données ne doivent pas recevoir HTTPS depuis Internet. }
+references:
+  - title: Azure network security groups overview
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview
+  - title: az network nsg rule
+    url: https://learn.microsoft.com/en-us/cli/azure/network/nsg/rule

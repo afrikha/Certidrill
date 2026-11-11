@@ -1,0 +1,77 @@
+id: c1-bicep-loop-storage
+objective: "3.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Bicep file that deploys one storage account. You add an array parameter named **storageNames**.
+
+    You need to modify the file to meet the following requirements:
+
+    - Deploy one storage account for each name in storageNames, using the name as is.
+    - Deploy the storage accounts one at a time.
+
+    How should you complete the file? Select the appropriate options in the answer area.
+  fr: |
+    Vous disposez d'un fichier Bicep qui déploie un compte de stockage. Vous ajoutez un paramètre de type tableau nommé **storageNames**.
+
+    Vous devez modifier le fichier pour répondre aux exigences suivantes :
+
+    - déployer un compte de stockage pour chaque nom de storageNames, en utilisant le nom tel quel ;
+    - déployer les comptes de stockage un par un.
+
+    Comment devez-vous compléter le fichier ? Sélectionnez les options appropriées dans la zone de réponse.
+body:
+  layout: code
+  language: bicep
+  template: |
+    param storageNames array = [
+      'stcontosologs01'
+      'stcontosoaudit01'
+      'stcontosoarch01'
+    ]
+
+    [[batch]]
+    resource stg 'Microsoft.Storage/storageAccounts@2023-05-01' = [[loop]]
+      name: [[nameExpr]]
+      location: resourceGroup().location
+      sku: {
+        name: 'Standard_LRS'
+      }
+      kind: 'StorageV2'
+    }]
+  slots:
+    - id: batch
+      options:
+        - { id: b1, text: "@batchSize(1)" }
+        - { id: b0, text: "@batchSize(0)" }
+        - { id: serial, text: "@serial()" }
+        - { id: seq, text: "@sequential(1)" }
+    - id: loop
+      options:
+        - { id: for, text: "[for name in storageNames: {" }
+        - { id: nobracket, text: "for name in storageNames {" }
+        - { id: foreach, text: "[foreach name in storageNames: {" }
+        - { id: copy, text: "copy(storageNames) {" }
+    - id: nameExpr
+      options:
+        - { id: name, text: name }
+        - { id: idx, text: "storageNames[name]" }
+        - { id: ci, text: copyIndex() }
+        - { id: interp, text: "'${storageNames}'" }
+answer:
+  values: { batch: b1, loop: for, nameExpr: name }
+explanation:
+  correct:
+    en: "A Bicep loop is written `[for <item> in <array>: { ... }]`, and the loop variable (here `name`) holds the current element. Bicep deploys loop instances in parallel by default; the `@batchSize(1)` decorator deploys them one at a time."
+    fr: "Une boucle Bicep s'écrit `[for <élément> in <tableau>: { ... }]`, et la variable de boucle (ici `name`) contient l'élément courant. Bicep déploie par défaut les instances de la boucle en parallèle ; le décorateur `@batchSize(1)` les déploie une par une."
+  options:
+    b0: { en: The batch size must be at least 1., fr: "La taille de lot doit être d'au moins 1." }
+    serial: { en: "Bicep has no @serial() decorator; serial deployment uses @batchSize().", fr: "Bicep n'a pas de décorateur @serial() ; le déploiement en série utilise @batchSize()." }
+    nobracket: { en: A resource loop must be enclosed in square brackets with a colon after the array., fr: "Une boucle de ressources doit être entourée de crochets, avec un deux-points après le tableau." }
+    ci: { en: copyIndex() is the ARM JSON loop function; Bicep uses the loop variable., fr: "copyIndex() est la fonction de boucle d'ARM JSON ; Bicep utilise la variable de boucle." }
+    idx: { en: name is a string element, not an index into the array., fr: "name est un élément de type chaîne, pas un index du tableau." }
+references:
+  - title: Iterative loops in Bicep
+    url: https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/loops

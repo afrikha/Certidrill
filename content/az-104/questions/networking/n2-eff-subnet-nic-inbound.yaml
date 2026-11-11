@@ -1,0 +1,43 @@
+id: n2-eff-subnet-nic-inbound
+objective: "4.2.2"
+type: hotarea
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A VM named **VM1** has a public IP address. Its network interface is associated with the network security group **NSG-NIC**, and its subnet is associated with **NSG-Subnet**. The inbound security rules of both NSGs are shown in the following table.
+
+    Each of the following flows is denied. Answer each prompt by selecting the rule that denies the traffic.
+  fr: |
+    Une machine virtuelle nommée **VM1** possède une adresse IP publique. Son interface réseau est associée au groupe de sécurité réseau **NSG-NIC**, et son sous-réseau à **NSG-Subnet**. Les règles de sécurité entrantes des deux NSG figurent dans le tableau suivant.
+
+    Chacun des flux suivants est refusé. Répondez à chaque consigne en sélectionnant la règle qui refuse le trafic.
+body:
+  prompts:
+    - id: p1
+      text: { en: HTTP (TCP 80) from a computer on the internet to VM1, fr: HTTP (TCP 80) depuis un ordinateur sur Internet vers VM1 }
+    - id: p2
+      text: { en: "RDP (TCP 3389) from 10.0.9.4, a management VM in a peered virtual network, to VM1", fr: "RDP (TCP 3389) depuis 10.0.9.4, une machine virtuelle d'administration d'un réseau virtuel appairé, vers VM1" }
+  grid:
+    header: [NSG, { en: Priority, fr: Priorité }, { en: Name, fr: Nom }, Port, Source, Action]
+    rows:
+      - [{ text: NSG-Subnet }, { text: "100" }, { text: Allow-HTTP, area: s100 }, { text: "80" }, { text: Internet }, { text: Allow }]
+      - [{ text: NSG-Subnet }, { text: "200" }, { text: Deny-RDP, area: s200 }, { text: "3389" }, { text: Any }, { text: Deny }]
+      - [{ text: NSG-Subnet }, { text: "65000" }, { text: AllowVnetInBound, area: s65000 }, { text: Any }, { text: VirtualNetwork }, { text: Allow }]
+      - [{ text: NSG-Subnet }, { text: "65500" }, { text: DenyAllInBound, area: s65500 }, { text: Any }, { text: Any }, { text: Deny }]
+      - [{ text: NSG-NIC }, { text: "100" }, { text: Allow-HTTPS, area: n100 }, { text: "443" }, { text: Internet }, { text: Allow }]
+      - [{ text: NSG-NIC }, { text: "150" }, { text: Allow-RDP-Mgmt, area: n150 }, { text: "3389" }, { text: 10.0.9.0/24 }, { text: Allow }]
+      - [{ text: NSG-NIC }, { text: "65000" }, { text: AllowVnetInBound, area: n65000 }, { text: Any }, { text: VirtualNetwork }, { text: Allow }]
+      - [{ text: NSG-NIC }, { text: "65500" }, { text: DenyAllInBound, area: n65500 }, { text: Any }, { text: Any }, { text: Deny }]
+answer:
+  values: { p1: n65500, p2: s200 }
+explanation:
+  correct:
+    en: For inbound traffic, Azure evaluates the subnet NSG first, then the NIC NSG, and both must allow the flow. HTTP from the internet is allowed by Allow-HTTP in NSG-Subnet, but NSG-NIC has no rule for port 80 from the internet, so its DenyAllInBound blocks it. RDP from 10.0.9.4 is denied by Deny-RDP (200) in NSG-Subnet; NSG-NIC, whose Allow-RDP-Mgmt would allow it, never evaluates the traffic.
+    fr: "Pour le trafic entrant, Azure évalue d'abord le NSG du sous-réseau, puis celui de l'interface réseau, et les deux doivent autoriser le flux. HTTP depuis Internet est autorisé par Allow-HTTP dans NSG-Subnet, mais NSG-NIC n'a aucune règle pour le port 80 depuis Internet : sa règle DenyAllInBound le bloque. RDP depuis 10.0.9.4 est refusé par Deny-RDP (200) dans NSG-Subnet ; NSG-NIC, dont la règle Allow-RDP-Mgmt l'autoriserait, n'évalue jamais ce trafic."
+  options:
+    s65500: { en: Allow-HTTP (100) matches first in NSG-Subnet, so its DenyAllInBound is never reached for HTTP., fr: "Allow-HTTP (100) correspond en premier dans NSG-Subnet : sa règle DenyAllInBound n'est jamais atteinte pour HTTP." }
+    n150: { en: The subnet NSG is evaluated first for inbound traffic and already denies RDP., fr: "Le NSG du sous-réseau est évalué en premier pour le trafic entrant et refuse déjà RDP." }
+references:
+  - title: How Network Security Groups Filter Network Traffic in Azure
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/network-security-group-how-it-works
