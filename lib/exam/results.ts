@@ -62,58 +62,54 @@ async function choiceLabel(list: Choice[], id: string, locale: Locale): Promise<
   return c ? renderInline(text(c.text, locale)) : id;
 }
 
-/** Readable expected answer of a question, per type. */
-export async function describeAnswer(type: QuestionTypeCode, rawBody: unknown, rawAnswer: unknown, locale: Locale, yesNo: [string, string]) {
-  const lines: { label?: string; html: string }[] = [];
-  switch (type) {
-    case "single": {
-      const b = rawBody as QuestionBody<"single">;
-      lines.push({ html: await choiceLabel(b.options, (rawAnswer as QuestionAnswer<"single">).optionId, locale) });
-      break;
-    }
-    case "multi": {
-      const b = rawBody as QuestionBody<"multi">;
-      for (const id of (rawAnswer as QuestionAnswer<"multi">).optionIds) lines.push({ html: await choiceLabel(b.options, id, locale) });
-      break;
-    }
-    case "yesno_statements": {
-      const b = rawBody as QuestionBody<"yesno_statements">;
-      const a = rawAnswer as QuestionAnswer<"yesno_statements">;
-      for (const s of b.statements) lines.push({ label: await renderInline(text(s.text, locale)), html: a.values[s.id] ? yesNo[0] : yesNo[1] });
-      break;
-    }
-    case "dropdown": {
-      const b = rawBody as QuestionBody<"dropdown">;
-      const a = rawAnswer as QuestionAnswer<"dropdown">;
-      for (const [i, slot] of b.slots.entries()) lines.push({ label: `${i + 1}`, html: await choiceLabel(slot.options, a.values[slot.id]!, locale) });
-      break;
-    }
-    case "dragdrop": {
-      const b = rawBody as QuestionBody<"dragdrop">;
-      const a = rawAnswer as QuestionAnswer<"dragdrop">;
-      for (const t of b.targets) lines.push({ label: await renderInline(text(t.text, locale)), html: await choiceLabel(b.items, a.mapping[t.id]!, locale) });
-      break;
-    }
-    case "ordering": {
-      const b = rawBody as QuestionBody<"ordering">;
-      for (const [i, id] of (rawAnswer as QuestionAnswer<"ordering">).sequence.entries()) lines.push({ label: `${i + 1}`, html: await choiceLabel(b.actions, id, locale) });
-      break;
-    }
-    case "hotarea": {
-      const b = rawBody as QuestionBody<"hotarea">;
-      const a = rawAnswer as QuestionAnswer<"hotarea">;
-      const areas = b.grid.rows.flat().filter((c) => c.area);
-      for (const p of b.prompts) {
+type AnswerLine = { label?: string; html: string };
+type Describer = (body: unknown, answer: unknown, locale: Locale, yesNo: [string, string]) => Promise<AnswerLine[]>;
+
+/** Readable expected answer, per question type. Lines keep the body's order. */
+const DESCRIBERS: Record<QuestionTypeCode, Describer> = {
+  single: async (body, answer, locale) => [
+    { html: await choiceLabel((body as QuestionBody<"single">).options, (answer as QuestionAnswer<"single">).optionId, locale) },
+  ],
+  multi: (body, answer, locale) =>
+    Promise.all((answer as QuestionAnswer<"multi">).optionIds.map(async (id) => ({ html: await choiceLabel((body as QuestionBody<"multi">).options, id, locale) }))),
+  yesno_statements: (body, answer, locale, yesNo) => {
+    const a = answer as QuestionAnswer<"yesno_statements">;
+    return Promise.all(
+      (body as QuestionBody<"yesno_statements">).statements.map(async (s) => ({ label: await renderInline(text(s.text, locale)), html: a.values[s.id] ? yesNo[0] : yesNo[1] })),
+    );
+  },
+  dropdown: (body, answer, locale) => {
+    const a = answer as QuestionAnswer<"dropdown">;
+    return Promise.all(
+      (body as QuestionBody<"dropdown">).slots.map(async (slot, i) => ({ label: `${i + 1}`, html: await choiceLabel(slot.options, a.values[slot.id]!, locale) })),
+    );
+  },
+  dragdrop: (body, answer, locale) => {
+    const b = body as QuestionBody<"dragdrop">;
+    const a = answer as QuestionAnswer<"dragdrop">;
+    return Promise.all(b.targets.map(async (t) => ({ label: await renderInline(text(t.text, locale)), html: await choiceLabel(b.items, a.mapping[t.id]!, locale) })));
+  },
+  ordering: (body, answer, locale) =>
+    Promise.all(
+      (answer as QuestionAnswer<"ordering">).sequence.map(async (id, i) => ({ label: `${i + 1}`, html: await choiceLabel((body as QuestionBody<"ordering">).actions, id, locale) })),
+    ),
+  hotarea: (body, answer, locale) => {
+    const b = body as QuestionBody<"hotarea">;
+    const a = answer as QuestionAnswer<"hotarea">;
+    const areas = b.grid.rows.flat().filter((c) => c.area);
+    return Promise.all(
+      b.prompts.map(async (p) => {
         const cell = areas.find((c) => c.area === a.values[p.id]);
-        lines.push({ label: await renderInline(text(p.text, locale)), html: cell?.text ? await renderInline(text(cell.text, locale)) : (a.values[p.id] ?? "") });
-      }
-      break;
-    }
-    case "series_yesno":
-      lines.push({ html: (rawAnswer as QuestionAnswer<"series_yesno">).value ? yesNo[0] : yesNo[1] });
-      break;
-  }
-  return lines;
+        return { label: await renderInline(text(p.text, locale)), html: cell?.text ? await renderInline(text(cell.text, locale)) : (a.values[p.id] ?? "") };
+      }),
+    );
+  },
+  series_yesno: (_body, answer, _locale, yesNo) => Promise.resolve([{ html: (answer as QuestionAnswer<"series_yesno">).value ? yesNo[0] : yesNo[1] }]),
+};
+
+/** Readable expected answer of a question, per type. */
+export async function describeAnswer(type: QuestionTypeCode, rawBody: unknown, rawAnswer: unknown, locale: Locale, yesNo: [string, string]): Promise<AnswerLine[]> {
+  return DESCRIBERS[type](rawBody, rawAnswer, locale, yesNo);
 }
 
 /** Labels of the elements that per-option explanations refer to. */
@@ -255,7 +251,7 @@ export async function getProgress(db: PrismaClient, userId: string, locale: Loca
 
   const domainLevels: Progress["domainLevels"] = [];
   const readiness: Progress["readiness"] = [];
-  for (const code of [...new Set(list.map((a) => a.certification))]) {
+  for (const code of new Set(list.map((a) => a.certification))) {
     const mine = list.filter((a) => a.certification === code);
     const last = mine.at(-1)!;
     const recent = mine.slice(-3);

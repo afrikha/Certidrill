@@ -193,71 +193,74 @@ export const questionFileSchema = z
   });
 export type QuestionFile = z.infer<typeof questionFileSchema>;
 
+/** Reports problems of an answer key: `report` collects messages, `missing` reports unknown ids. */
+interface AnswerCheck {
+  report: (message: string) => void;
+  missing: (list: { id: string }[], ids: string[], what: string) => void;
+}
+
+const ANSWER_CHECKS: Partial<Record<string, (body: unknown, answer: unknown, c: AnswerCheck) => void>> = {
+  single: (body, answer, c) => {
+    c.missing((body as QuestionBody<"single">).options, [(answer as QuestionAnswer<"single">).optionId], "option");
+  },
+  multi: (body, answer, c) => {
+    const b = body as QuestionBody<"multi">;
+    const a = answer as QuestionAnswer<"multi">;
+    c.missing(b.options, a.optionIds, "option");
+    if (new Set(a.optionIds).size !== b.choose || a.optionIds.length !== b.choose) c.report(`answer must list exactly ${b.choose} distinct options`);
+  },
+  yesno_statements: (body, answer, c) => {
+    const b = body as QuestionBody<"yesno_statements">;
+    const a = answer as QuestionAnswer<"yesno_statements">;
+    c.missing(b.statements, Object.keys(a.values), "statement");
+    if (b.statements.some((s) => a.values[s.id] === undefined)) c.report("every statement needs a value");
+  },
+  dropdown: (body, answer, c) => {
+    const b = body as QuestionBody<"dropdown">;
+    const a = answer as QuestionAnswer<"dropdown">;
+    for (const slot of b.slots) {
+      const v = a.values[slot.id];
+      if (v === undefined) c.report(`slot "${slot.id}" has no answer`);
+      else c.missing(slot.options, [v], `option of slot ${slot.id}`);
+    }
+    c.missing(b.slots, Object.keys(a.values), "slot");
+  },
+  dragdrop: (body, answer, c) => {
+    const b = body as QuestionBody<"dragdrop">;
+    const a = answer as QuestionAnswer<"dragdrop">;
+    c.missing(b.targets, Object.keys(a.mapping), "target");
+    c.missing(b.items, Object.values(a.mapping), "item");
+    if (b.targets.some((t) => a.mapping[t.id] === undefined)) c.report("every target needs an item");
+    const used = Object.values(a.mapping);
+    if (!b.reuse && new Set(used).size !== used.length) c.report("an item is used twice but reuse is false");
+  },
+  ordering: (body, answer, c) => {
+    const b = body as QuestionBody<"ordering">;
+    const a = answer as QuestionAnswer<"ordering">;
+    c.missing(b.actions, a.sequence, "action");
+    if (a.sequence.length !== b.count) c.report(`sequence must contain exactly ${b.count} actions`);
+    if (new Set(a.sequence).size !== a.sequence.length) c.report("sequence contains duplicates");
+  },
+  hotarea: (body, answer, c) => {
+    const b = body as QuestionBody<"hotarea">;
+    const a = answer as QuestionAnswer<"hotarea">;
+    const areas = b.grid.rows.flat().flatMap((cell) => (cell.area ? [{ id: cell.area }] : []));
+    c.missing(b.prompts, Object.keys(a.values), "prompt");
+    c.missing(areas, Object.values(a.values), "area");
+    if (b.prompts.some((p) => a.values[p.id] === undefined)) c.report("every prompt needs an area");
+  },
+};
+
 /** Checks that an answer key is consistent with its body (ids exist, counts match). */
 export function answerIssues(q: { type: string; body: unknown; answer: unknown }): string[] {
   const issues: string[] = [];
-  const has = (list: { id: string }[], ids: string[], what: string) => {
-    for (const i of ids) if (!list.some((x) => x.id === i)) issues.push(`unknown ${what} "${i}"`);
+  const check: AnswerCheck = {
+    report: (message) => issues.push(message),
+    missing: (list, ids, what) => {
+      for (const i of ids) if (!list.some((x) => x.id === i)) issues.push(`unknown ${what} "${i}"`);
+    },
   };
-  switch (q.type) {
-    case "single": {
-      const b = q.body as QuestionBody<"single">;
-      has(b.options, [(q.answer as QuestionAnswer<"single">).optionId], "option");
-      break;
-    }
-    case "multi": {
-      const b = q.body as QuestionBody<"multi">;
-      const a = q.answer as QuestionAnswer<"multi">;
-      has(b.options, a.optionIds, "option");
-      if (new Set(a.optionIds).size !== b.choose || a.optionIds.length !== b.choose) issues.push(`answer must list exactly ${b.choose} distinct options`);
-      break;
-    }
-    case "yesno_statements": {
-      const b = q.body as QuestionBody<"yesno_statements">;
-      const a = q.answer as QuestionAnswer<"yesno_statements">;
-      has(b.statements, Object.keys(a.values), "statement");
-      if (b.statements.some((s) => a.values[s.id] === undefined)) issues.push("every statement needs a value");
-      break;
-    }
-    case "dropdown": {
-      const b = q.body as QuestionBody<"dropdown">;
-      const a = q.answer as QuestionAnswer<"dropdown">;
-      for (const slot of b.slots) {
-        const v = a.values[slot.id];
-        if (v === undefined) issues.push(`slot "${slot.id}" has no answer`);
-        else has(slot.options, [v], `option of slot ${slot.id}`);
-      }
-      has(b.slots, Object.keys(a.values), "slot");
-      break;
-    }
-    case "dragdrop": {
-      const b = q.body as QuestionBody<"dragdrop">;
-      const a = q.answer as QuestionAnswer<"dragdrop">;
-      has(b.targets, Object.keys(a.mapping), "target");
-      has(b.items, Object.values(a.mapping), "item");
-      if (b.targets.some((t) => a.mapping[t.id] === undefined)) issues.push("every target needs an item");
-      const used = Object.values(a.mapping);
-      if (!b.reuse && new Set(used).size !== used.length) issues.push("an item is used twice but reuse is false");
-      break;
-    }
-    case "ordering": {
-      const b = q.body as QuestionBody<"ordering">;
-      const a = q.answer as QuestionAnswer<"ordering">;
-      has(b.actions, a.sequence, "action");
-      if (a.sequence.length !== b.count) issues.push(`sequence must contain exactly ${b.count} actions`);
-      if (new Set(a.sequence).size !== a.sequence.length) issues.push("sequence contains duplicates");
-      break;
-    }
-    case "hotarea": {
-      const b = q.body as QuestionBody<"hotarea">;
-      const a = q.answer as QuestionAnswer<"hotarea">;
-      const areas = b.grid.rows.flat().flatMap((c) => (c.area ? [{ id: c.area }] : []));
-      has(b.prompts, Object.keys(a.values), "prompt");
-      has(areas, Object.values(a.values), "area");
-      if (b.prompts.some((p) => a.values[p.id] === undefined)) issues.push("every prompt needs an area");
-      break;
-    }
-  }
+  ANSWER_CHECKS[q.type]?.(q.body, q.answer, check);
   return issues;
 }
 

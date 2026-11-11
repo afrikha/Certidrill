@@ -41,14 +41,14 @@ function rehypeShiki(hl: Highlighter) {
     visit(tree, "element", (node: Element, index, parent) => {
       if (node.tagName !== "pre" || !parent || index === undefined) return;
       const code = node.children[0];
-      if (!code || code.type !== "element" || code.tagName !== "code") return;
+      if (code?.type !== "element" || code.tagName !== "code") return;
       const cls = (code.properties?.className as string[] | undefined)?.find((c) => c.startsWith("language-"));
       const raw = cls?.slice("language-".length);
       const lang = raw ? (ALIASES[raw] ?? raw) : undefined;
       if (!lang || !hl.getLoadedLanguages().includes(lang)) return;
       const hast = hl.codeToHast(toString(code).replace(/\n$/, ""), { lang, theme: "github-light" });
       const pre = hast.children[0];
-      if (pre && pre.type === "element") {
+      if (pre?.type === "element") {
         pre.properties = { ...pre.properties, tabIndex: 0, dataLanguage: lang };
         parent.children[index] = pre;
       }

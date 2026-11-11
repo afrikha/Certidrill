@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
-import { defaultLocale, isLocale, locales, type Locale } from "@/lib/i18n/config";
+import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 
 export const LOCALE_COOKIE = "NEXT_LOCALE";
 
@@ -25,4 +25,4 @@ export default getRequestConfig(async () => {
   };
 });
 
-export { locales };
+export { locales } from "@/lib/i18n/config";

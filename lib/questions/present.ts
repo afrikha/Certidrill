@@ -60,32 +60,8 @@ async function presentBody(type: QuestionTypeCode, raw: unknown, locale: Locale,
       const b = raw as QuestionBody<"yesno_statements">;
       return { type, statements: await choices(b.statements, locale) };
     }
-    case "dropdown": {
-      const b = raw as QuestionBody<"dropdown">;
-      const template = text(b.template, locale);
-      const segments: DropdownSegment[] = [];
-      let last = 0;
-      for (const m of template.matchAll(/\[\[([a-zA-Z0-9_-]+)\]\]/g)) {
-        const before = template.slice(last, m.index);
-        if (before) segments.push(await textSegment(b.layout, before));
-        const slot = b.slots.find((s) => s.id === m[1]);
-        if (slot) {
-          const options = applyOrder(slot.options, order[`slot:${slot.id}`]);
-          segments.push({
-            kind: "slot",
-            id: slot.id,
-            // Options inside code are shown verbatim; in prose they may use inline Markdown.
-            options: b.layout === "code"
-              ? options.map((o) => ({ id: o.id, html: escapeHtml(text(o.text, locale)) }))
-              : await choices(options, locale),
-          });
-        }
-        last = (m.index ?? 0) + m[0].length;
-      }
-      const rest = template.slice(last);
-      if (rest) segments.push(await textSegment(b.layout, rest));
-      return { type, layout: b.layout, language: b.language, segments };
-    }
+    case "dropdown":
+      return presentDropdown(raw as QuestionBody<"dropdown">, locale, order);
     case "dragdrop": {
       const b = raw as QuestionBody<"dragdrop">;
       return { type, items: await choices(b.items, locale, order.items), targets: await choices(b.targets, locale), reuse: b.reuse };
@@ -115,10 +91,37 @@ async function presentBody(type: QuestionTypeCode, raw: unknown, locale: Locale,
   }
 }
 
+/** Splits the template around its [[slot]] markers; segments keep the template order. */
+async function presentDropdown(b: QuestionBody<"dropdown">, locale: Locale, order: OptionOrder): Promise<PublicBody> {
+  const template = text(b.template, locale);
+  const segments: Promise<DropdownSegment>[] = [];
+  let last = 0;
+  for (const m of template.matchAll(/\[\[([a-zA-Z0-9_-]+)\]\]/g)) {
+    const before = template.slice(last, m.index);
+    if (before) segments.push(textSegment(b.layout, before));
+    const slot = b.slots.find((s) => s.id === m[1]);
+    if (slot) segments.push(slotSegment(b.layout, slot, locale, order[`slot:${slot.id}`]));
+    last = (m.index ?? 0) + m[0].length;
+  }
+  const rest = template.slice(last);
+  if (rest) segments.push(textSegment(b.layout, rest));
+  return { type: "dropdown", layout: b.layout, language: b.language, segments: await Promise.all(segments) };
+}
+
+async function slotSegment(layout: "code" | "text", slot: QuestionBody<"dropdown">["slots"][number], locale: Locale, slotOrder: OptionOrder[string] | undefined): Promise<DropdownSegment> {
+  const options = applyOrder(slot.options, slotOrder);
+  return {
+    kind: "slot",
+    id: slot.id,
+    // Options inside code are shown verbatim; in prose they may use inline Markdown.
+    options: layout === "code" ? options.map((o) => ({ id: o.id, html: escapeHtml(text(o.text, locale)) })) : await choices(options, locale),
+  };
+}
+
 async function textSegment(layout: "code" | "text", value: string): Promise<DropdownSegment> {
   return layout === "code" ? { kind: "text", text: value } : { kind: "html", html: await renderInline(value) };
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }

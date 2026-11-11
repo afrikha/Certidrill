@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { ContentError, parseWith, readYaml, type CertificationContent } from "./loader";
+import { ContentError, parseWith, readYamlFiles, type CertificationContent } from "./loader";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema, type CaseStudyFile, type QuestionFile, type SeriesFile } from "@/lib/questions/schema";
 import { compareCodeUnits } from "@/lib/sort";
 
@@ -34,48 +34,61 @@ export async function loadBank(content: CertificationContent): Promise<QuestionB
     for (const g of groups) for (const o of g.objectives) objectiveDomain.set(o.code, domain);
   }
 
-  const caseStudies = [];
-  for (const file of await yamlFiles(path.join(content.dir, "case-studies"))) {
-    const cs = parseWith(caseStudyFileSchema, await readYaml(file), file);
+  const caseStudies = await loadFiles(path.join(content.dir, "case-studies"), (raw, file) => {
+    const cs = parseWith(caseStudyFileSchema, raw, file);
     checkFileName(file, cs.id);
-    caseStudies.push({ ...cs, file });
-  }
-  const series = [];
-  for (const file of await yamlFiles(path.join(content.dir, "series"))) {
-    const s = parseWith(seriesFileSchema, await readYaml(file), file);
+    return { ...cs, file };
+  });
+  const series = await loadFiles(path.join(content.dir, "series"), (raw, file) => {
+    const s = parseWith(seriesFileSchema, raw, file);
     checkFileName(file, s.id);
-    series.push({ ...s, file });
-  }
-
+    return { ...s, file };
+  });
   const ids = new Set<string>([...caseStudies.map((c) => c.id), ...series.map((s) => s.id)]);
   if (ids.size !== caseStudies.length + series.length) throw new ContentError(content.dir, "case study and series ids must be unique");
 
-  const questions = [];
   const seriesOrders = new Map<string, Set<number>>();
   const questionsRoot = path.join(content.dir, "questions");
-  for (const file of await yamlFiles(questionsRoot)) {
-    const q = parseWith(questionFileSchema, await readYaml(file), file);
+  const questions = await loadFiles(questionsRoot, (raw, file) => {
+    const q = parseWith(questionFileSchema, raw, file);
     checkFileName(file, q.id);
     if (ids.has(q.id)) throw new ContentError(file, `duplicate id "${q.id}"`);
     ids.add(q.id);
-
-    const domain = objectiveDomain.get(q.objective);
-    if (!domain) throw new ContentError(file, `unknown objective "${q.objective}"`);
-    const folder = path.relative(questionsRoot, file).split(path.sep)[0];
-    if (folder !== domain) throw new ContentError(file, `objective ${q.objective} belongs to domain "${domain}", but the file is in "${folder}/"`);
-
+    const domain = questionDomain(q, file, questionsRoot, objectiveDomain);
     if (q.caseStudy && !caseStudies.some((c) => c.id === q.caseStudy)) throw new ContentError(file, `unknown case study "${q.caseStudy}"`);
-    if (q.series) {
-      if (!series.some((s) => s.id === q.series)) throw new ContentError(file, `unknown series "${q.series}"`);
-      if (q.seriesOrder === undefined) throw new ContentError(file, "series questions need seriesOrder");
-      const orders = seriesOrders.get(q.series) ?? new Set();
-      if (orders.has(q.seriesOrder)) throw new ContentError(file, `seriesOrder ${q.seriesOrder} is used twice in series "${q.series}"`);
-      orders.add(q.seriesOrder);
-      seriesOrders.set(q.series, orders);
-    }
-    questions.push({ ...q, file, domain });
-  }
+    if (q.series) checkSeriesMember(q.series, q.seriesOrder, file, series, seriesOrders);
+    return { ...q, file, domain };
+  });
   return { questions, caseStudies, series };
+}
+
+/** Reads every YAML file of a folder (sorted) and checks each one, in order. */
+async function loadFiles<T>(dir: string, check: (raw: unknown, file: string) => T): Promise<T[]> {
+  const files = await yamlFiles(dir);
+  const reads = await readYamlFiles(files);
+  return files.map((file, i) => {
+    const read = reads[i]!;
+    if (!read.ok) throw read.error;
+    return check(read.value, file);
+  });
+}
+
+/** The domain of a question's objective, which must also be its folder. */
+function questionDomain(q: QuestionFile, file: string, questionsRoot: string, objectiveDomain: Map<string, string>): string {
+  const domain = objectiveDomain.get(q.objective);
+  if (!domain) throw new ContentError(file, `unknown objective "${q.objective}"`);
+  const folder = path.relative(questionsRoot, file).split(path.sep)[0];
+  if (folder !== domain) throw new ContentError(file, `objective ${q.objective} belongs to domain "${domain}", but the file is in "${folder}/"`);
+  return domain;
+}
+
+function checkSeriesMember(seriesId: string, order: number | undefined, file: string, series: readonly SeriesFile[], seriesOrders: Map<string, Set<number>>): void {
+  if (!series.some((s) => s.id === seriesId)) throw new ContentError(file, `unknown series "${seriesId}"`);
+  if (order === undefined) throw new ContentError(file, "series questions need seriesOrder");
+  const orders = seriesOrders.get(seriesId) ?? new Set();
+  if (orders.has(order)) throw new ContentError(file, `seriesOrder ${order} is used twice in series "${seriesId}"`);
+  orders.add(order);
+  seriesOrders.set(seriesId, orders);
 }
 
 function checkFileName(file: string, id: string) {
