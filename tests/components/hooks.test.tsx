@@ -89,6 +89,18 @@ describe("useCountdown", () => {
     expect(result.current).toBe(0);
   });
 
+  it("shows the new remaining time in the same render when the exam starts (regression: timer appeared one tick late)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T10:00:00Z"));
+    const { result, rerender } = renderHook(({ d, now }) => useCountdown(d, now), {
+      initialProps: { d: null as string | null, now: "2026-01-01T09:59:00Z" },
+    });
+    expect(result.current).toBeNull();
+    // Start: the server returns its deadline and its clock; no timer has run yet.
+    rerender({ d: "2026-01-01T11:40:05Z", now: "2026-01-01T10:00:05Z" });
+    expect(result.current).toBe(100 * 60_000);
+  });
+
   it("resets when the deadline changes", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T10:00:00Z"));

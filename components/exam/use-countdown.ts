@@ -13,6 +13,15 @@ function remainingMs(deadlineAt: string | null, offset: number): number | null {
 export function useCountdown(deadlineAt: string | null, serverNow: string) {
   const offset = useRef(0);
   const [remaining, setRemaining] = useState<number | null>(() => remainingMs(deadlineAt, new Date(serverNow).getTime() - Date.now()));
+  // When the deadline or the server time changes (exam started, view
+  // refreshed), compute the remaining time in this same render, so the timer
+  // never shows a stale value or appears one tick after the question.
+  const [synced, setSynced] = useState({ deadlineAt, serverNow });
+  if (synced.deadlineAt !== deadlineAt || synced.serverNow !== serverNow) {
+    setSynced({ deadlineAt, serverNow });
+    // Right after a fetch, browser time + offset = server time: no clock read needed.
+    setRemaining(deadlineAt ? Math.max(0, new Date(deadlineAt).getTime() - new Date(serverNow).getTime()) : null);
+  }
 
   useEffect(() => {
     offset.current = new Date(serverNow).getTime() - Date.now();
