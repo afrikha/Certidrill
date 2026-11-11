@@ -425,8 +425,9 @@ export async function expireOverdue(db: PrismaClient, userId: string, now = new 
     where: { userId, status: "in_progress", deadlineAt: { lt: new Date(now.getTime() - DEADLINE_GRACE_MS) } },
     select: { id: true },
   });
-  // At most one in-progress attempt per user and certification (partial unique
-  // index), so only a few; each is closed in its own transaction, which locks
-  // only that attempt's row.
-  await Promise.all(overdue.map((a) => submitAttempt(db, { attemptId: a.id, userId, now, reason: "expired" })));
+  // One attempt per certification at most; closed one after the other, stopping
+  // at the first error, as before.
+  for (const a of overdue) {
+    await submitAttempt(db, { attemptId: a.id, userId, now, reason: "expired" }); // NOSONAR: sequential on purpose (stop at the first failure)
+  }
 }
