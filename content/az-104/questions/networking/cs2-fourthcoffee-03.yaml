@@ -1,0 +1,47 @@
+id: cs2-fourthcoffee-03
+objective: "4.2.2"
+type: hotarea
+caseStudy: cs2-fourthcoffee
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The inbound security rules of NSG-POS are shown in the following table. No NSG is associated with the network interfaces of the virtual machines.
+
+    Answer each prompt by selecting the rule that processes the traffic.
+  fr: |
+    Les règles de sécurité entrantes de NSG-POS figurent dans le tableau suivant. Aucun NSG n'est associé aux interfaces réseau des machines virtuelles.
+
+    Répondez à chaque consigne en sélectionnant la règle qui traite le trafic.
+body:
+  prompts:
+    - id: p1
+      text: { en: "TCP 1433 from VM-IOTGW1 (10.60.1.4) to VM-POSDB1", fr: "TCP 1433 depuis VM-IOTGW1 (10.60.1.4) vers VM-POSDB1" }
+    - id: p2
+      text: { en: "RDP (TCP 3389) from a computer in a coffee shop (172.16.8.20) to VM-POSDB1", fr: "RDP (TCP 3389) depuis un ordinateur d'un café (172.16.8.20) vers VM-POSDB1" }
+  grid:
+    header: [{ en: Priority, fr: Priorité }, { en: Name, fr: Nom }, Port, Source, Destination, Action]
+    rows:
+      - [{ text: "100" }, { text: Allow-POSApp-SQL, area: r100 }, { text: "TCP 1433" }, { text: ASG-POSApp }, { text: ASG-POSDB }, { text: Allow }]
+      - [{ text: "200" }, { text: Deny-Ingest-SQL, area: r200 }, { text: "TCP 1433" }, { text: "10.60.1.0/24" }, { text: Any }, { text: Deny }]
+      - [{ text: "300" }, { text: Allow-Shops-HTTPS, area: r300 }, { text: "TCP 443" }, { text: "172.16.0.0/12" }, { text: ASG-POSApp }, { text: Allow }]
+      - [{ text: "400" }, { text: Allow-Ingest-HTTPS, area: r400 }, { text: "TCP 443" }, { text: "10.60.1.0/24" }, { text: Any }, { text: Allow }]
+      - [{ text: "65000" }, { text: AllowVnetInBound, area: r65000 }, { text: Any }, { text: VirtualNetwork }, { text: VirtualNetwork }, { text: Allow }]
+      - [{ text: "65001" }, { text: AllowAzureLoadBalancerInBound, area: r65001 }, { text: Any }, { text: AzureLoadBalancer }, { text: Any }, { text: Allow }]
+      - [{ text: "65500" }, { text: DenyAllInBound, area: r65500 }, { text: Any }, { text: Any }, { text: Any }, { text: Deny }]
+answer:
+  values: { p1: r200, p2: r65000 }
+explanation:
+  correct:
+    en: |
+      Rules are processed by priority and processing stops at the first match. VM-IOTGW1 is a member of ASG-IoTGateways, not ASG-POSApp, so rule 100 does not match and rule 200 denies the flow. RDP on 3389 matches no custom rule; the VirtualNetwork service tag includes the on-premises address spaces connected through the VPN gateway, so AllowVnetInBound (65000) allows the flow.
+    fr: |
+      Les règles sont traitées par priorité et le traitement s'arrête à la première correspondance. VM-IOTGW1 est membre d'ASG-IoTGateways et non d'ASG-POSApp ; la règle 100 ne correspond donc pas et la règle 200 refuse le flux. Le RDP sur 3389 ne correspond à aucune règle personnalisée ; l'étiquette de service VirtualNetwork inclut les espaces d'adressage locaux connectés via la passerelle VPN, donc AllowVnetInBound (65000) autorise le flux.
+  options:
+    r100: { en: "Rule 100 applies only to sources in ASG-POSApp.", fr: "La règle 100 ne s'applique qu'aux sources membres d'ASG-POSApp." }
+    r65500: { en: "DenyAllInBound is never reached by the shop traffic, because AllowVnetInBound matches first.", fr: "DenyAllInBound n'est jamais atteinte par le trafic des cafés, car AllowVnetInBound correspond avant." }
+references:
+  - title: Network security groups
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview
+  - title: Virtual network service tags
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/service-tags-overview

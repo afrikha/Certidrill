@@ -1,0 +1,59 @@
+id: cs2-fourthcoffee-02
+objective: "5.1.3"
+type: dropdown
+caseStudy: cs2-fourthcoffee
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The performance counters of the IoT gateways are collected in LAW-Retail. You need to write the query that meets the charting requirement for the last 24 hours.
+
+    How should you complete the query? To answer, select the appropriate options in the answer area.
+  fr: |
+    Les compteurs de performances des passerelles IoT sont collectés dans LAW-Retail. Vous devez écrire la requête qui satisfait l'exigence de représentation graphique pour les dernières 24 heures.
+
+    Comment devez-vous compléter la requête ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated > ago(24h)
+    | where ObjectName == "Processor" and CounterName == "% Processor Time" and InstanceName == "_Total"
+    | where Computer startswith "VM-IOTGW"
+    | [[operator]] AvgCpu = [[func]](CounterValue) by Computer, bin(TimeGenerated, 5m)
+    | render timechart
+  slots:
+    - id: table
+      options:
+        - { id: perf, text: "Perf" }
+        - { id: heartbeat, text: "Heartbeat" }
+        - { id: event, text: "Event" }
+    - id: operator
+      options:
+        - { id: summarize, text: "summarize" }
+        - { id: extend, text: "extend" }
+        - { id: project, text: "project" }
+    - id: func
+      options:
+        - { id: avg, text: "avg" }
+        - { id: count, text: "count" }
+        - { id: max, text: "max" }
+answer:
+  values: { table: perf, operator: summarize, func: avg }
+explanation:
+  correct:
+    en: |
+      Windows performance counters sent to a Log Analytics workspace land in the Perf table, with the value in CounterValue. The summarize operator aggregates rows by the listed columns; grouping by Computer and bin(TimeGenerated, 5m) with avg() gives the average per gateway in 5-minute intervals.
+    fr: |
+      Les compteurs de performances Windows envoyés vers un espace de travail Log Analytics arrivent dans la table Perf, avec la valeur dans CounterValue. L'opérateur summarize agrège les lignes selon les colonnes indiquées ; un regroupement par Computer et bin(TimeGenerated, 5m) avec avg() donne la moyenne par passerelle par intervalles de 5 minutes.
+  options:
+    heartbeat: { en: "Heartbeat records agent availability, not performance counters.", fr: "Heartbeat enregistre la disponibilité des agents, pas les compteurs de performances." }
+    event: { en: "Event stores Windows event log entries.", fr: "Event stocke les entrées des journaux d'événements Windows." }
+    extend: { en: "extend adds a calculated column to each row; it does not aggregate.", fr: "extend ajoute une colonne calculée à chaque ligne ; il n'agrège pas." }
+    count: { en: "count returns the number of samples, not the average value.", fr: "count renvoie le nombre d'échantillons, pas la valeur moyenne." }
+references:
+  - title: summarize operator
+    url: https://learn.microsoft.com/en-us/kusto/query/summarize-operator
+  - title: Collect performance counters from virtual machines with Azure Monitor
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/vm/data-collection-performance
