@@ -1,0 +1,91 @@
+id: n2-pe-keyvault-template
+objective: "4.2.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing an ARM template that deploys a private endpoint named **pe-kv1** for the Key Vault **kv1** in the subnet **Subnet-PE**, and the private DNS zone used to resolve the vault name.
+
+    The network security group associated with Subnet-PE must filter the traffic sent to the private endpoint. The route table associated with Subnet-PE must not affect the private endpoint.
+
+    How should you complete the template fragments? To answer, select the appropriate options in the answer area.
+  fr: |
+    Vous écrivez un modèle ARM qui déploie un point de terminaison privé nommé **pe-kv1** pour le coffre Key Vault **kv1** dans le sous-réseau **Subnet-PE**, ainsi que la zone DNS privée utilisée pour résoudre le nom du coffre.
+
+    Le groupe de sécurité réseau associé à Subnet-PE doit filtrer le trafic envoyé au point de terminaison privé. La table de routage associée à Subnet-PE ne doit pas affecter le point de terminaison privé.
+
+    Comment devez-vous compléter les fragments du modèle ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+body:
+  layout: code
+  language: json
+  template: |
+    // Subnet-PE (in the subnets array of VNet1)
+    {
+      "name": "Subnet-PE",
+      "properties": {
+        "addressPrefix": "10.1.2.0/24",
+        "networkSecurityGroup": { "id": "<NSG-PE resource ID>" },
+        "routeTable": { "id": "<RT-PE resource ID>" },
+        "privateEndpointNetworkPolicies": "[[pol]]"
+      }
+    }
+
+    // Private endpoint
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "name": "pe-kv1",
+      "properties": {
+        "subnet": { "id": "<Subnet-PE resource ID>" },
+        "privateLinkServiceConnections": [ {
+          "name": "kv1-connection",
+          "properties": {
+            "privateLinkServiceId": "<kv1 resource ID>",
+            "groupIds": [ "[[grp]]" ]
+          }
+        } ]
+      }
+    }
+
+    // Private DNS zone
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "name": "[[zone]]",
+      "location": "global"
+    }
+  slots:
+    - id: pol
+      options:
+        - { id: disabled, text: Disabled }
+        - { id: enabled, text: Enabled }
+        - { id: nsg, text: NetworkSecurityGroupEnabled }
+        - { id: rt, text: RouteTableEnabled }
+    - id: grp
+      options:
+        - { id: vault, text: vault }
+        - { id: keyvault, text: keyvault }
+        - { id: secrets, text: secrets }
+        - { id: sites, text: sites }
+    - id: zone
+      options:
+        - { id: vaultcore, text: privatelink.vaultcore.azure.net }
+        - { id: vaultpl, text: privatelink.vault.azure.net }
+        - { id: public, text: vault.azure.net }
+        - { id: kvpl, text: privatelink.keyvault.azure.net }
+answer:
+  values: { pol: nsg, grp: vault, zone: vaultcore }
+explanation:
+  correct:
+    en: Network policies for private endpoints are disabled by default; NetworkSecurityGroupEnabled applies the subnet NSG to the private endpoints without applying the route table. The target subresource (group ID) of a Key Vault is vault, and the recommended private DNS zone is privatelink.vaultcore.azure.net.
+    fr: "Les stratégies réseau des points de terminaison privés sont désactivées par défaut ; NetworkSecurityGroupEnabled applique le NSG du sous-réseau aux points de terminaison privés sans appliquer la table de routage. La sous-ressource cible (group ID) d'un Key Vault est vault, et la zone DNS privée recommandée est privatelink.vaultcore.azure.net."
+  options:
+    disabled: { en: With Disabled, neither the NSG nor the route table applies to the private endpoints., fr: "Avec Disabled, ni le NSG ni la table de routage ne s'appliquent aux points de terminaison privés." }
+    enabled: { en: Enabled applies both the NSG and the route table., fr: Enabled applique à la fois le NSG et la table de routage. }
+    rt: { en: RouteTableEnabled applies only the route table., fr: RouteTableEnabled n'applique que la table de routage. }
+    vaultpl: { en: Key Vault private endpoints use the vaultcore zone., fr: Les points de terminaison privés Key Vault utilisent la zone vaultcore. }
+    public: { en: Overriding the public zone would break resolution of every other vault., fr: Remplacer la zone publique casserait la résolution de tous les autres coffres. }
+references:
+  - title: Manage network policies for private endpoints
+    url: https://learn.microsoft.com/en-us/azure/private-link/disable-private-endpoint-network-policy
+  - title: Azure Private Endpoint private DNS zone values
+    url: https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-dns

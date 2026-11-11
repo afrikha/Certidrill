@@ -1,0 +1,188 @@
+id: cs2-fourthcoffee
+status: draft
+title:
+  en: Fourth Coffee
+  fr: Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: Overview, fr: Vue d'ensemble }
+    body:
+      en: |
+        Fourth Coffee is a chain of 350 coffee shops in the United Kingdom and Ireland. The head office is in London.
+
+        Each coffee shop is a branch office that connects to Azure by using a site-to-site VPN. The shops run a point-of-sale (POS) application hosted in Azure, and their connected espresso machines send telemetry to IoT gateway virtual machines in Azure.
+
+        A central IT team of five administrators manages Azure. Each region of the chain has a store manager who acts as the first contact for IT issues.
+      fr: |
+        Fourth Coffee est une chaîne de 350 cafés au Royaume-Uni et en Irlande. Le siège est à Londres.
+
+        Chaque café est une agence qui se connecte à Azure via un VPN site à site. Les cafés utilisent une application de point de vente (POS) hébergée dans Azure, et leurs machines à expresso connectées envoient des données de télémétrie à des machines virtuelles de passerelle IoT dans Azure.
+
+        Une équipe informatique centrale de cinq administrateurs gère Azure. Chaque région de la chaîne a un responsable de magasin qui sert de premier contact pour les problèmes informatiques.
+  - key: existing
+    title: { en: Existing environment, fr: Environnement existant }
+    body:
+      en: |
+        **Identity**
+
+        Fourth Coffee has a cloud-only Microsoft Entra tenant with the custom domain fourthcoffee.com. All the users have Microsoft Entra ID P1 licenses.
+
+        | Group or user | Description |
+        | --- | --- |
+        | SG-StoreManagers | Security group with the 350 store managers |
+        | SG-ITAdmins | Security group with the five administrators |
+        | Store managers Ana and Liam | Members of SG-StoreManagers who are also assigned the **Helpdesk Administrator** role |
+
+        Self-service password reset (SSPR) is disabled for users.
+
+        **Subscription**
+
+        All resources are in a subscription named **Sub-Retail** in the UK South region, which supports availability zones.
+
+        **Network**
+
+        | Virtual network | Address space | Subnets |
+        | --- | --- | --- |
+        | VNet-Hub | 10.60.0.0/16 | GatewaySubnet (10.60.0.0/27), Snet-Ingest (10.60.1.0/24), Snet-POS (10.60.2.0/24) |
+
+        The VPN gateway of VNet-Hub connects the networks of the coffee shops (172.16.0.0/12).
+
+        **Virtual machines**
+
+        | Name | Subnet | IP address | Application security group | Role |
+        | --- | --- | --- | --- | --- |
+        | VM-IOTGW1, VM-IOTGW2 | Snet-Ingest | 10.60.1.4, 10.60.1.5 | ASG-IoTGateways | IoT gateways |
+        | VM-POSAPP1 | Snet-POS | 10.60.2.4 | ASG-POSApp | POS application server |
+        | VM-POSDB1 | Snet-POS | 10.60.2.10 | ASG-POSDB | POS database (SQL Server). Not deployed in an availability zone |
+
+        All the virtual machines run Windows Server 2022. No monitoring agent is installed.
+
+        **Network security group NSG-POS** (associated with Snet-POS), inbound rules:
+
+        | Priority | Name | Port | Source | Destination | Action |
+        | --- | --- | --- | --- | --- | --- |
+        | 100 | Allow-POSApp-SQL | TCP 1433 | ASG-POSApp | ASG-POSDB | Allow |
+        | 200 | Deny-Ingest-SQL | TCP 1433 | 10.60.1.0/24 | Any | Deny |
+        | 300 | Allow-Shops-HTTPS | TCP 443 | 172.16.0.0/12 | ASG-POSApp | Allow |
+        | 400 | Allow-Ingest-HTTPS | TCP 443 | 10.60.1.0/24 | Any | Allow |
+        | 65000 | AllowVnetInBound | Any | VirtualNetwork | VirtualNetwork | Allow |
+        | 65001 | AllowAzureLoadBalancerInBound | Any | AzureLoadBalancer | Any | Allow |
+        | 65500 | DenyAllInBound | Any | Any | Any | Deny |
+
+        **Storage and monitoring**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | stfctelemetry | General-purpose v2, LRS. Container **telemetry** written by the IoT gateways. Public network access is enabled from all networks |
+        | LAW-Retail | Log Analytics workspace in UK South |
+
+        The data analysts of the head office use Azure Storage Explorer from the head office network, whose public IP address range is 203.0.113.0/27.
+      fr: |
+        **Identité**
+
+        Fourth Coffee dispose d'un locataire Microsoft Entra uniquement cloud avec le domaine personnalisé fourthcoffee.com. Tous les utilisateurs disposent de licences Microsoft Entra ID P1.
+
+        | Groupe ou utilisateur | Description |
+        | --- | --- |
+        | SG-StoreManagers | Groupe de sécurité contenant les 350 responsables de magasin |
+        | SG-ITAdmins | Groupe de sécurité contenant les cinq administrateurs |
+        | Responsables de magasin Ana et Liam | Membres de SG-StoreManagers à qui le rôle **Helpdesk Administrator** est également attribué |
+
+        La réinitialisation de mot de passe en libre-service (SSPR) est désactivée pour les utilisateurs.
+
+        **Abonnement**
+
+        Toutes les ressources se trouvent dans un abonnement nommé **Sub-Retail** dans la région UK South, qui prend en charge les zones de disponibilité.
+
+        **Réseau**
+
+        | Réseau virtuel | Espace d'adressage | Sous-réseaux |
+        | --- | --- | --- |
+        | VNet-Hub | 10.60.0.0/16 | GatewaySubnet (10.60.0.0/27), Snet-Ingest (10.60.1.0/24), Snet-POS (10.60.2.0/24) |
+
+        La passerelle VPN de VNet-Hub connecte les réseaux des cafés (172.16.0.0/12).
+
+        **Machines virtuelles**
+
+        | Nom | Sous-réseau | Adresse IP | Groupe de sécurité d'application | Rôle |
+        | --- | --- | --- | --- | --- |
+        | VM-IOTGW1, VM-IOTGW2 | Snet-Ingest | 10.60.1.4, 10.60.1.5 | ASG-IoTGateways | Passerelles IoT |
+        | VM-POSAPP1 | Snet-POS | 10.60.2.4 | ASG-POSApp | Serveur d'applications POS |
+        | VM-POSDB1 | Snet-POS | 10.60.2.10 | ASG-POSDB | Base de données POS (SQL Server). Non déployée dans une zone de disponibilité |
+
+        Toutes les machines virtuelles exécutent Windows Server 2022. Aucun agent de supervision n'est installé.
+
+        **Groupe de sécurité réseau NSG-POS** (associé à Snet-POS), règles entrantes :
+
+        | Priorité | Nom | Port | Source | Destination | Action |
+        | --- | --- | --- | --- | --- | --- |
+        | 100 | Allow-POSApp-SQL | TCP 1433 | ASG-POSApp | ASG-POSDB | Allow |
+        | 200 | Deny-Ingest-SQL | TCP 1433 | 10.60.1.0/24 | Any | Deny |
+        | 300 | Allow-Shops-HTTPS | TCP 443 | 172.16.0.0/12 | ASG-POSApp | Allow |
+        | 400 | Allow-Ingest-HTTPS | TCP 443 | 10.60.1.0/24 | Any | Allow |
+        | 65000 | AllowVnetInBound | Any | VirtualNetwork | VirtualNetwork | Allow |
+        | 65001 | AllowAzureLoadBalancerInBound | Any | AzureLoadBalancer | Any | Allow |
+        | 65500 | DenyAllInBound | Any | Any | Any | Deny |
+
+        **Stockage et supervision**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | stfctelemetry | Usage général v2, LRS. Conteneur **telemetry** alimenté par les passerelles IoT. L'accès réseau public est activé à partir de tous les réseaux |
+        | LAW-Retail | Espace de travail Log Analytics dans UK South |
+
+        Les analystes de données du siège utilisent l'Explorateur Stockage Azure depuis le réseau du siège, dont la plage d'adresses IP publiques est 203.0.113.0/27.
+  - key: planned
+    title: { en: Planned changes, fr: Changements prévus }
+    body:
+      en: |
+        Fourth Coffee plans to replace VM-POSDB1 with two new SQL Server virtual machines, **VM-POSDB2** and **VM-POSDB3**, configured as an Always On availability group.
+      fr: |
+        Fourth Coffee prévoit de remplacer VM-POSDB1 par deux nouvelles machines virtuelles SQL Server, **VM-POSDB2** et **VM-POSDB3**, configurées en groupe de disponibilité Always On.
+  - key: requirements
+    title: { en: Requirements, fr: Exigences }
+    body:
+      en: |
+        **Identity**
+
+        1. Only the members of SG-StoreManagers must be able to reset their own password. They must use two methods among the Microsoft Authenticator app notification, email and security questions.
+
+        **Monitoring**
+
+        2. The Error and Critical events of the Application and System event logs of VM-POSAPP1 and VM-POSDB1 must be collected in LAW-Retail.
+        3. The % Processor Time counter of the IoT gateways must be collected in LAW-Retail every 60 seconds, and the administrators must be able to chart its average per gateway in 5-minute intervals.
+
+        **Network and storage**
+
+        4. stfctelemetry must be reachable only from Snet-Ingest and from the head office network. Costs must be minimized.
+        5. The administrators must understand which NSG-POS rule processes each inbound flow before they change the rules.
+
+        **Compute**
+
+        6. The POS database tier must be protected against the failure of a whole datacenter in UK South, with a virtual machine connectivity SLA of 99.99%.
+
+        **General**
+
+        7. Administrative effort must be minimized.
+      fr: |
+        **Identité**
+
+        1. Seuls les membres de SG-StoreManagers doivent pouvoir réinitialiser leur propre mot de passe. Ils doivent utiliser deux méthodes parmi la notification sur l'application Microsoft Authenticator, l'e-mail et les questions de sécurité.
+
+        **Supervision**
+
+        2. Les événements Error et Critical des journaux d'événements Application et System de VM-POSAPP1 et VM-POSDB1 doivent être collectés dans LAW-Retail.
+        3. Le compteur % Processor Time des passerelles IoT doit être collecté dans LAW-Retail toutes les 60 secondes, et les administrateurs doivent pouvoir en représenter la moyenne par passerelle par intervalles de 5 minutes.
+
+        **Réseau et stockage**
+
+        4. stfctelemetry ne doit être joignable que depuis Snet-Ingest et depuis le réseau du siège. Les coûts doivent être réduits au minimum.
+        5. Les administrateurs doivent comprendre quelle règle de NSG-POS traite chaque flux entrant avant de modifier les règles.
+
+        **Calcul**
+
+        6. Le niveau base de données POS doit être protégé contre la défaillance d'un centre de données entier dans UK South, avec un contrat de niveau de service (SLA) de connectivité des machines virtuelles de 99,99 %.
+
+        **Général**
+
+        7. L'effort d'administration doit être réduit au minimum.
