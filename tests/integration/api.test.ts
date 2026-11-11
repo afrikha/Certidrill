@@ -158,6 +158,9 @@ describe("exam flow over HTTP", () => {
     expect(rep.status).toBe(200);
     expect(rep.body.id).toEqual(expect.any(String));
     expect((await report.POST(req("POST", `/api/questions/${qid}/report`, { reason: "spam" }), ctx({ id: qid }))).status).toBe(400);
+    // Rate limit: 20 reports per hour per user (the first one above counts).
+    for (let i = 1; i < 20; i++) expect((await report.POST(req("POST", `/api/questions/${qid}/report`, { reason: "typo" }), ctx({ id: qid }))).status).toBe(200);
+    expect(await json(await report.POST(req("POST", `/api/questions/${qid}/report`, { reason: "typo" }), ctx({ id: qid })))).toEqual({ status: 429, body: { error: "rate_limited" } });
     as(bob);
     expect((await report.POST(req("POST", `/api/questions/${qid}/report`, { reason: "typo" }), ctx({ id: qid }))).status).toBeGreaterThanOrEqual(400);
   });

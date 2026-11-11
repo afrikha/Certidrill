@@ -3,7 +3,7 @@
  * Domain scores are computed on the fly from attempt_item (spec §8).
  */
 import "server-only";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { pick, type Locale } from "@/lib/i18n/config";
 import { renderInline, renderMarkdown } from "@/lib/markdown";
 import { presentQuestion, text } from "@/lib/questions/present";
@@ -284,16 +284,34 @@ export async function getProgress(db: PrismaClient, userId: string, locale: Loca
 
 export const REPORT_REASONS = ["wrong_answer", "ambiguous", "outdated", "typo", "translation", "other"] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
-/** A question reported this many times (open reports) goes back to review (spec §7). */
+/** A question reported by this many different users (open reports) goes back to review (spec §7). */
 export const REPORTS_BEFORE_REVIEW = 3;
 
-/** Records a report; only for a question the user has seen in a finished attempt. */
+/**
+ * Records a report; only for a question the user has seen in a finished
+ * attempt. A user has at most one open report per question (a new report
+ * replaces their reason and comment), and the review threshold counts distinct
+ * users, so a single account cannot take a question out of the exams.
+ */
 export async function reportQuestion(db: PrismaClient, { questionId, userId, reason, comment }: { questionId: string; userId: string; reason: ReportReason; comment?: string }) {
   const seen = await db.attemptItem.count({ where: { questionId, attempt: { userId, status: { in: ["submitted", "expired"] } } } });
   if (!seen) throw new SessionError("not_found");
-  const report = await db.questionReport.create({ data: { questionId, userId, reason, comment: comment?.trim() || null } });
-  const open = await db.questionReport.count({ where: { questionId, status: "open" } });
-  if (open >= REPORTS_BEFORE_REVIEW) {
+  const data = { reason, comment: comment?.trim() || null };
+  const existing = await db.questionReport.findFirst({ where: { questionId, userId, status: "open" }, select: { id: true } });
+  let report;
+  if (existing) {
+    report = await db.questionReport.update({ where: { id: existing.id }, data });
+  } else {
+    try {
+      report = await db.questionReport.create({ data: { questionId, userId, ...data } });
+    } catch (err) {
+      // Concurrent double submit: the partial unique index (one open report per user and question) wins.
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
+      report = await db.questionReport.update({ where: { id: (await db.questionReport.findFirstOrThrow({ where: { questionId, userId, status: "open" } })).id }, data });
+    }
+  }
+  const reporters = await db.questionReport.findMany({ where: { questionId, status: "open" }, distinct: ["userId"], select: { userId: true } });
+  if (reporters.length >= REPORTS_BEFORE_REVIEW) {
     await db.question.updateMany({ where: { id: questionId, status: "published" }, data: { status: "needs_review" } });
   }
   return report;

@@ -37,7 +37,8 @@ export type SessionErrorCode =
   | "final_answer"
   | "out_of_order"
   | "invalid_response"
-  | "last_section";
+  | "last_section"
+  | "rate_limited";
 
 const STATUS: Record<SessionErrorCode, number> = {
   not_found: 404,
@@ -53,6 +54,7 @@ const STATUS: Record<SessionErrorCode, number> = {
   out_of_order: 409,
   invalid_response: 400,
   last_section: 400,
+  rate_limited: 429,
 };
 
 export class SessionError extends Error {

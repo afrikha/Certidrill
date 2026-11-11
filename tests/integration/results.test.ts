@@ -30,7 +30,8 @@ afterAll(() => db.$disconnect());
  * Plays an attempt: `answer(questionId)` returns the response to give (or
  * undefined to leave it blank). Sections are walked in order.
  */
-async function play(seed: string, start: Date, answer: (questionId: string, key: unknown) => unknown) {
+async function play(seed: string, start: Date, answer: (questionId: string, key: unknown) => unknown, uid = userId) {
+  const userId = uid;
   const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: start, seed });
   await startAttempt(db, { attemptId, userId, now: start });
   const view = await getAttemptView(db, { attemptId, userId, now: start });
@@ -134,15 +135,69 @@ describe("progress", () => {
   });
 });
 
+/**
+ * A client whose first questionReport.findFirst sees no open report (as when two
+ * requests run at the same time); optionally its create fails with `createError`.
+ */
+function withMissedLookup(client: PrismaClient, createError?: Error): PrismaClient {
+  let missed = false;
+  const reports = new Proxy(client.questionReport, {
+    get(target, key, receiver) {
+      if (key === "findFirst" && !missed) {
+        missed = true;
+        return async () => null;
+      }
+      if (key === "create" && createError) return async () => Promise.reject(createError);
+      const value = Reflect.get(target, key, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  return new Proxy(client, { get: (target, key, receiver) => (key === "questionReport" ? reports : Reflect.get(target, key, receiver)) });
+}
+
 describe("question reports", () => {
-  it("records reports on seen questions and sends a question back to review after 3 reports", async () => {
-    const qid = "stor-lifecycle-cool-delete";
-    await reportQuestion(db, { questionId: qid, userId, reason: "ambiguous", comment: "  " });
-    expect((await db.questionReport.findFirstOrThrow({ where: { questionId: qid } })).comment).toBeNull();
-    for (let i = 1; i < REPORTS_BEFORE_REVIEW; i++) await reportQuestion(db, { questionId: qid, userId, reason: "typo" });
-    expect((await db.question.findUniqueOrThrow({ where: { id: qid } })).status).toBe("needs_review");
+  it("keeps one open report per user and sends a question back to review only after 3 different users", async () => {
+    // A question every player has seen: take one from the user's first attempt.
+    const seenBy = async (uid: string) => new Set((await db.attemptItem.findMany({ where: { attempt: { userId: uid } }, select: { questionId: true } })).map((i) => i.questionId));
+    const mine = await seenBy(userId);
+    const reporters: string[] = [];
+    for (let n = 0; n < 6 && reporters.length < 2; n++) {
+      const other = (await createUser(db, { email: `reporter${n}@example.com` })).id;
+      await play(`reporter-${n}`, at(600 + n * 100), () => undefined, other);
+      reporters.push(other);
+    }
+    const [a, b] = await Promise.all(reporters.map(seenBy));
+    const qid = [...mine].find((q) => a!.has(q) && b!.has(q));
+    expect(qid).toBeDefined();
+    await db.question.update({ where: { id: qid! }, data: { status: "published" } });
+
+    // One user reporting three times: a single open report (the last one), question still published.
+    await reportQuestion(db, { questionId: qid!, userId, reason: "ambiguous", comment: "  " });
+    expect((await db.questionReport.findFirstOrThrow({ where: { questionId: qid! } })).comment).toBeNull();
+    for (let i = 1; i < REPORTS_BEFORE_REVIEW; i++) await reportQuestion(db, { questionId: qid!, userId, reason: "typo", comment: `again ${i}` });
+    const open = await db.questionReport.findMany({ where: { questionId: qid!, status: "open" } });
+    expect(open).toHaveLength(1);
+    expect(open[0]).toMatchObject({ userId, reason: "typo", comment: `again ${REPORTS_BEFORE_REVIEW - 1}` });
+    expect((await db.question.findUniqueOrThrow({ where: { id: qid! } })).status).toBe("published");
+
+    // The database refuses a second open report from the same user (concurrent submits).
+    await expect(db.questionReport.create({ data: { questionId: qid!, userId, reason: "other" } })).rejects.toMatchObject({ code: "P2002" });
+
+    // Two more users: three distinct reporters → back to review.
+    await reportQuestion(db, { questionId: qid!, userId: reporters[0]!, reason: "wrong_answer" });
+    expect((await db.question.findUniqueOrThrow({ where: { id: qid! } })).status).toBe("published");
+    await reportQuestion(db, { questionId: qid!, userId: reporters[1]!, reason: "outdated" });
+    expect((await db.question.findUniqueOrThrow({ where: { id: qid! } })).status).toBe("needs_review");
+
+    // Race: two submits from the same user both find no open report; the index
+    // rejects the second insert and it updates the existing report instead.
+    const racing = withMissedLookup(db);
+    await reportQuestion(racing, { questionId: qid!, userId: reporters[0]!, reason: "translation", comment: "race" });
+    expect(await db.questionReport.findMany({ where: { questionId: qid!, userId: reporters[0]!, status: "open" } })).toMatchObject([{ reason: "translation", comment: "race" }]);
+    // Any other database error is not swallowed.
+    await expect(reportQuestion(withMissedLookup(db, new Error("db down")), { questionId: qid!, userId, reason: "other" })).rejects.toThrow("db down");
 
     const stranger = await createUser(db, { email: "stranger@example.com" });
-    await expect(reportQuestion(db, { questionId: qid, userId: stranger.id, reason: "other" })).rejects.toBeInstanceOf(SessionError);
+    await expect(reportQuestion(db, { questionId: qid!, userId: stranger.id, reason: "other" })).rejects.toBeInstanceOf(SessionError);
   });
 });

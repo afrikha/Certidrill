@@ -37,3 +37,6 @@ export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs
 
 /** 10 failed sign-ins per 15 minutes, per e-mail and per IP; magic links per e-mail. */
 export const authLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60_000 });
+
+/** Question reports: 20 per hour per user (a report can send a question back to review). */
+export const reportLimiter = createRateLimiter({ limit: 20, windowMs: 60 * 60_000 });

@@ -66,9 +66,11 @@ export default async function DashboardPage() {
       {certifications.map((c) => {
         const history = progress.attempts.filter((a) => a.certification === c.code);
         if (history.length === 0) return null;
+        // Scores only make sense against the certification's own blueprint (data, never a default).
         const bp = c.blueprints[0];
-        const max = bp?.maxScore ?? 1000;
-        const pass = bp?.passScore ?? 700;
+        if (!bp) return null;
+        const max = bp.maxScore;
+        const pass = bp.passScore;
         const last = history.at(-1)!;
         const ready = progress.readiness.find((r) => r.certification === c.code)!;
         const levels = progress.domainLevels.filter((d) => d.certification === c.code);
