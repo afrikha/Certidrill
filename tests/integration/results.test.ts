@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadCertification } from "@/lib/content/loader";
 import { loadBank } from "@/lib/content/bank";
 import { seedBank, seedReferential } from "@/lib/content/seed";
+import { publishSampleBank } from "./sample-bank";
 import { createUser } from "@/lib/users";
 import { createAttempt, getAttemptView, lockSection, saveItem, SessionError, startAttempt, submitAttempt } from "@/lib/exam/session";
 import { getAttemptResults, getProgress, reportQuestion, REPORTS_BEFORE_REVIEW } from "@/lib/exam/results";
@@ -20,9 +21,7 @@ beforeAll(async () => {
   const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
   await seedReferential(db, content);
   await seedBank(db, content, await loadBank(content));
-  await db.question.updateMany({ data: { status: "published" } });
-  await db.caseStudy.updateMany({ data: { status: "published" } });
-  await db.questionSeries.updateMany({ data: { status: "published" } });
+  expect(await publishSampleBank(db)).toBe(28);
   userId = (await createUser(db, { email: "results@example.com" })).id;
 });
 afterAll(() => db.$disconnect());

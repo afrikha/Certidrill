@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Text available in every supported locale. */
-export const localizedSchema = z.object({
+export const localizedSchema = z.strictObject({
   en: z.string().min(1),
   fr: z.string().min(1),
 });

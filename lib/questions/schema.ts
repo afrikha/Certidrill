@@ -16,7 +16,7 @@ const id = z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/, "ids are 1-40 chars of [a-z
 export const textSchema = z.union([z.string().min(1), localizedSchema]);
 export type Text = z.infer<typeof textSchema>;
 
-const choice = z.object({ id, text: textSchema });
+const choice = z.strictObject({ id, text: textSchema });
 export type Choice = z.infer<typeof choice>;
 
 function uniqueIds(list: { id: string }[], ctx: z.RefinementCtx, path: string) {
@@ -58,7 +58,7 @@ export const dropdownBody = z
     layout: z.enum(["code", "text"]),
     language: z.string().optional(),
     template: textSchema,
-    slots: z.array(z.object({ id, options: z.array(choice).min(2).max(10) })).min(1).max(6),
+    slots: z.array(z.strictObject({ id, options: z.array(choice).min(2).max(10) })).min(1).max(6),
   })
   .superRefine((b, ctx) => {
     uniqueIds(b.slots, ctx, "slots");
@@ -103,7 +103,7 @@ export const orderingResponse = z.object({ sequence: z.array(id).max(10) });
  * Hot area: a table (configuration screen, settings grid…) whose cells marked
  * with an `area` id are clickable. Each prompt is answered by clicking one area.
  */
-const hotCell = z.object({ text: textSchema.optional(), area: id.optional() });
+const hotCell = z.strictObject({ text: textSchema.optional(), area: id.optional() });
 export const hotareaBody = z
   .object({
     prompts: z.array(choice).min(1).max(4),
@@ -145,9 +145,9 @@ export type QuestionResponse<T extends keyof Schemas = keyof Schemas> = z.infer<
 
 // ---------------------------------------------------------------- common envelope
 
-export const exhibitSchema = z.object({ id, title: textSchema, body: textSchema });
-export const referenceSchema = z.object({ title: z.string().min(1), url: z.url() });
-export const explanationSchema = z.object({
+export const exhibitSchema = z.strictObject({ id, title: textSchema, body: textSchema });
+export const referenceSchema = z.strictObject({ title: z.string().min(1), url: z.url() });
+export const explanationSchema = z.strictObject({
   correct: localizedSchema,
   /** Why each wrong option / statement / slot choice is wrong, keyed by its id. */
   options: z.record(z.string(), localizedSchema).optional(),
@@ -172,7 +172,7 @@ const envelope = {
 };
 
 const variant = <T extends keyof Schemas>(type: T) =>
-  z.object({ ...envelope, type: z.literal(type), body: typeSchemas[type].body, answer: typeSchemas[type].answer });
+  z.strictObject({ ...envelope, type: z.literal(type), body: typeSchemas[type].body, answer: typeSchemas[type].answer });
 
 /** A question as stored in content/<cert>/questions/**.yaml. */
 export const questionFileSchema = z
@@ -291,7 +291,7 @@ export const caseStudyFileSchema = z.object({
   status: statusSchema.default("draft"),
   version: z.number().int().min(1).default(1),
   title: localizedSchema,
-  tabs: z.array(z.object({ key: id, title: localizedSchema, body: localizedSchema })).min(1),
+  tabs: z.array(z.strictObject({ key: id, title: localizedSchema, body: localizedSchema })).min(1),
 });
 export type CaseStudyFile = z.infer<typeof caseStudyFileSchema>;
 

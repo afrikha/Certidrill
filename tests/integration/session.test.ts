@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadCertification } from "@/lib/content/loader";
 import { loadBank } from "@/lib/content/bank";
 import { seedBank, seedReferential } from "@/lib/content/seed";
+import { publishSampleBank } from "./sample-bank";
 import { createUser } from "@/lib/users";
 import { loadHistory } from "@/lib/exam/bank-query";
 import {
@@ -59,9 +60,7 @@ beforeAll(async () => {
   const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
   await seedReferential(db, content);
   await seedBank(db, content, await loadBank(content));
-  await db.question.updateMany({ data: { status: "published" } });
-  await db.caseStudy.updateMany({ data: { status: "published" } });
-  await db.questionSeries.updateMany({ data: { status: "published" } });
+  expect(await publishSampleBank(db)).toBe(28);
   userId = (await createUser(db, { email: "candidate@example.com" })).id;
   otherId = (await createUser(db, { email: "other@example.com" })).id;
 });
@@ -271,9 +270,7 @@ describe("bank and history queries", () => {
     try {
       await expectCode(createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: T0 }), "empty_bank");
     } finally {
-      await db.question.updateMany({ data: { status: "published" } });
-      await db.caseStudy.updateMany({ data: { status: "published" } });
-      await db.questionSeries.updateMany({ data: { status: "published" } });
+      await publishSampleBank(db);
     }
   });
 

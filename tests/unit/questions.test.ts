@@ -163,5 +163,5 @@ describe("AZ-104 sample bank", () => {
         expect(pub.maxPoints).toBe(maxPoints(q.type, q.body));
       }
     }
-  });
+  }, 120_000); // renders the whole bank (≈ 600 questions × 2 languages)
 });
