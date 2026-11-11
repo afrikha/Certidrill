@@ -13,14 +13,17 @@ function countBy<T>(items: readonly T[], key: (item: T) => string): string {
 }
 
 async function main() {
-  // Each certification is independent: load them all at once, report in order.
-  const loaded = await Promise.all(
+  // Each certification is independent: load them all at once, then report in
+  // order and stop at the first failing one, as a sequential loop would.
+  const loaded = await Promise.allSettled(
     (await listCertificationDirs()).map(async (dir) => {
       const content = await loadCertification(dir);
       return { content, bank: await loadBank(content) };
     }),
   );
-  for (const { content, bank } of loaded) {
+  for (const result of loaded) {
+    if (result.status === "rejected") throw result.reason;
+    const { content, bank } = result.value;
     console.log(`✔ ${content.blueprint.certification.code}: ${bank.questions.length} questions, ${bank.caseStudies.length} case studies, ${bank.series.length} series`);
     console.log(`  by type:   ${countBy(bank.questions, (q) => q.type)}`);
     console.log(`  by status: ${countBy(bank.questions, (q) => q.status)}`);

@@ -44,6 +44,11 @@ describe("withKeys", () => {
     expect(withKeys(["a", "b", "a", "a"], (s) => s).map((k) => k.key)).toEqual(["a", "b", "a#1", "a#2"]);
     expect(withKeys([], String)).toEqual([]);
   });
+  it("never produces the same key twice, even when content looks like a suffix", () => {
+    const keys = withKeys(["a", "a", "a#1", "a#1", "a"], (s) => s).map((k) => k.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toEqual(["a", "a#1", "a#1#1", "a#1#2", "a#2"]);
+  });
 });
 
 describe("readYamlFiles", () => {
