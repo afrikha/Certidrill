@@ -49,8 +49,10 @@ jobs:
           name: coverage
           path: coverage/
           retention-days: 14
+      # SonarQube Cloud Free plan: only the main branch and pull requests that
+      # target it can be analysed (other branches fail on the server side).
       - name: SonarQube Cloud analysis and quality gate
-        if: env.SONAR_TOKEN != ''
+        if: env.SONAR_TOKEN != '' && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -60,8 +62,8 @@ jobs:
             ${{ vars.SONAR_ORGANIZATION && format('-Dsonar.organization={0}', vars.SONAR_ORGANIZATION) || '' }}
             ${{ vars.SONAR_PROJECT_KEY && format('-Dsonar.projectKey={0}', vars.SONAR_PROJECT_KEY) || '' }}
       - name: Sonar skipped
-        if: env.SONAR_TOKEN == ''
-        run: echo "::notice::Sonar analysis skipped — add the SONAR_TOKEN repository secret (see README)."
+        if: env.SONAR_TOKEN == '' || !(github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
+        run: echo "::notice::Sonar analysis skipped — it runs on main and on pull requests to main, with the SONAR_TOKEN secret (see README)."
       - run: npm run build
 
   # Developers run the app on Windows too: content loading, paths, unit and

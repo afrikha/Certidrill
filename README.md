@@ -114,7 +114,7 @@ Les inscriptions sont fermées : les comptes se créent avec `npm run user:creat
 3. Créer un jeton (*My Account → Security*) et l'ajouter comme secret de dépôt GitHub `SONAR_TOKEN`.
 4. Si la clé de projet ou l'organisation diffère de `afrikha_Certidrill` / `afrikha`, définir les variables de dépôt `SONAR_PROJECT_KEY` / `SONAR_ORGANIZATION`. Pour un SonarQube auto-hébergé, définir `SONAR_HOST_URL`.
 
-Sans `SONAR_TOKEN`, l'étape est ignorée et un avertissement s'affiche.
+Sans `SONAR_TOKEN`, l'étape est ignorée et un avertissement s'affiche. L'offre gratuite n'analyse que la branche principale `main` et les pull requests qui la visent : sur toute autre branche, l'étape est ignorée.
 
 ## Revue automatique des PR
 
