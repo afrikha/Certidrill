@@ -31,7 +31,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text-summary", "text", "lcov", "html"],
       include: ["lib/**", "components/**", "app/api/**"],
-      exclude: ["**/*.d.ts", "lib/db.ts"],
+      exclude: ["**/*.d.ts", "lib/db.ts", "tests/**"],
       thresholds: {
         lines: 80,
         statements: 80,

@@ -20,6 +20,9 @@ import { ReviewScreen } from "./review-screen";
 type Item = AttemptView["items"][number];
 type Dialog = null | "leaveCase" | "leaveMain" | "seriesNext" | "finish";
 
+/** A pending answer could not be saved: the action is refused until it is. */
+class UnsavedError extends Error {}
+
 export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed: boolean }) {
   const t = useTranslations("exam");
   const router = useRouter();
@@ -126,6 +129,7 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
       await fn();
     } catch (err) {
       if (err instanceof ApiError && (err.code === "expired" || err.code === "finished")) return goToResults();
+      if (err instanceof UnsavedError) return setError(t("unsavedRetry"));
       setError(t("error"));
       await refresh();
     } finally {
@@ -140,9 +144,14 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
       applyView(next);
     });
 
+  /** Leaving a section or submitting must never drop an answer that is not saved yet. */
+  const flushOrFail = async () => {
+    if (!(await queue.flush())) throw new UnsavedError();
+  };
+
   const lockCurrent = () =>
     run(async () => {
-      await queue.flush();
+      await flushOrFail();
       await api(`/api/attempts/${view.id}/sections/${section!.id}/lock`, { method: "POST" });
       applyView(await getView(view.id));
       setCurrentId(null);
@@ -164,7 +173,7 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
 
   const finish = () =>
     run(async () => {
-      await queue.flush();
+      await flushOrFail();
       await api(`/api/attempts/${view.id}/submit`, { method: "POST" });
       goToResults();
     });
@@ -177,8 +186,9 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
   };
 
   // ------------------------------------------------------------ render
+  if (finished) return <p className="p-8 text-center" role="status">{t("submitting")}</p>;
   if (view.status === "not_started") return <Welcome view={view} onStart={start} busy={busy} error={error} blueprintRange={view.questionRange} />;
-  if (finished || !section) {
+  if (!section) {
     return <p className="p-8 text-center" role="status">{t("submitting")}</p>;
   }
 

@@ -19,7 +19,7 @@ export function useSaveQueue(attemptId: string, onConflict: (code: string) => vo
   const pending = useRef(new Map<string, SavePatch>());
   const timer = useRef<number | undefined>(undefined);
   const backoff = useRef(1000);
-  const flushing = useRef<Promise<void> | null>(null);
+  const flushing = useRef<Promise<boolean> | null>(null);
   const retry = useRef<() => void>(() => undefined);
   const [status, setStatus] = useState<SaveStatus>("saved");
   const conflict = useRef(onConflict);
@@ -36,7 +36,11 @@ export function useSaveQueue(attemptId: string, onConflict: (code: string) => vo
     }
   }, [storageKey]);
 
-  const flush = useCallback(async (): Promise<void> => {
+  /**
+   * Sends everything pending. Resolves to true when the queue is empty, false
+   * when a save failed (network or server error) and is scheduled for retry.
+   */
+  const flush = useCallback(async (): Promise<boolean> => {
     if (flushing.current) return flushing.current;
     const run = async () => {
       window.clearTimeout(timer.current);
@@ -59,10 +63,11 @@ export function useSaveQueue(attemptId: string, onConflict: (code: string) => vo
           setStatus("error");
           timer.current = window.setTimeout(() => retry.current(), backoff.current);
           backoff.current = Math.min(MAX_BACKOFF_MS, backoff.current * 2);
-          return;
+          return false;
         }
       }
       setStatus("saved");
+      return true;
     };
     flushing.current = run().finally(() => {
       flushing.current = null;

@@ -28,7 +28,7 @@ test.describe("question types", () => {
     for (const [type, id] of QUESTIONS) {
       test(`${type} (${lang})`, async ({ page }) => {
         await page.goto(`/admin/questions/${id}?lang=${lang}`);
-        const question = page.locator(`#q-${id}`);
+        const question = page.locator("main article");
         await expect(question).toBeVisible();
         await expect(question).toMatchAriaSnapshot({ name: `${type}-${lang}.aria.yml` });
       });

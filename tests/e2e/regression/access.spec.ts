@@ -16,7 +16,7 @@ test.beforeAll(async () => {
 test.afterAll(() => db.$disconnect());
 
 test("anonymous visitors are sent to the login page", async ({ page }) => {
-  for (const path of ["/dashboard", "/account", "/admin", "/admin/questions", "/exam/unknown", "/results/unknown"]) {
+  for (const path of ["/dashboard", "/account", "/admin/users", "/admin/questions", "/exam/unknown", "/results/unknown"]) {
     await page.goto(path);
     await expect(page, path).toHaveURL(/\/login/);
   }
@@ -27,7 +27,7 @@ test("a non-admin user cannot open the back-office, and wrong passwords are refu
   await page.locator("#email").fill(USER.email);
   await page.locator("#password").fill("not the password");
   await page.locator("main form button[type=submit]").first().click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("Invalid e-mail or password.")).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
 
   await page.locator("#password").fill(USER.password);
