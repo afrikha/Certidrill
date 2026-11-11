@@ -39,7 +39,19 @@ Ajouter une certification = ajouter un dossier `content/<code>/` puis `npm run s
 
 Les énoncés sont en Markdown (tableaux, blocs de code PowerShell / Azure CLI / JSON / Bicep / KQL colorés par Shiki), assainis côté serveur. Le navigateur ne reçoit qu'une projection sans réponse ni explication (`lib/questions/present.ts`). Aperçu interactif : **Administration → Questions**.
 
-Les 24 questions d'exemple (3 par type) sont en statut `draft` : elles doivent être relues avant publication.
+### Banque AZ-104
+
+598 questions originales, en anglais et en français, de quoi faire **10 examens blancs sans aucune question en double** (`npx tsx tools/questions/simulate.ts 10`). Elles se répartissent en 16 études de cas, 11 séries Oui/Non et 8 types de questions. Par domaine, la répartition suit les pondérations du rapport de score Microsoft. La terminologie française reprend celle de Microsoft Learn (`content/az-104/glossary.yaml` : 564 termes en-us → fr-fr, intitulés officiels du guide d'étude). Les règles de rédaction sont dans `tools/questions/WRITING_GUIDE.md`.
+
+Toutes les questions ont été vérifiées à l'aveugle : un agent indépendant y a répondu sans voir le corrigé, puis on a comparé ses réponses au corrigé (`tools/questions/export-blind.ts` puis `compare-blind.ts`). Les écarts ont été corrigés ou justifiés à partir de Learn.
+
+Toutes les questions sont en statut `draft`, car une **relecture humaine reste nécessaire** avant la publication (§7 des specs) :
+
+```bash
+npm run content:status -- reviewed <préfixe-id>         # après relecture
+npm run content:status -- published all --from reviewed
+npm run seed
+```
 
 ## Démarrage en local
 
@@ -68,9 +80,15 @@ Les inscriptions sont fermées : les comptes se créent avec `npm run user:creat
 | `npm run test:coverage` | Tests unitaires + d'intégration avec couverture (seuil 90 % sur `lib/exam`) — base jetable requise |
 | `npm run test:e2e` | Tests Playwright sur un build de production — même contrainte de base jetable |
 | `npm run content:check` | Valide `content/` (schémas et références croisées) |
+| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et liste tous les problèmes |
+| `npm run content:status -- <statut> <préfixe\|all> [--from <statut>]` | Change le statut de questions en masse |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |
 | `npm run user:create` | Crée un compte (`--email`, `--password`, `--name`, `--admin`, `--locale`) |
+
+## Revue automatique des PR
+
+Le workflow `.github/workflows/claude-review.yml` fait relire chaque pull request par Claude. La relecture porte en priorité sur l'intégrité de l'examen, les bugs dans `lib/exam`, la sécurité et le RGPD, et la qualité des questions. Les problèmes sont signalés en commentaires sur les lignes concernées, avec une synthèse en français. Il faut définir **un** secret de dépôt : `ANTHROPIC_API_KEY`, ou bien `CLAUDE_CODE_OAUTH_TOKEN` (obtenu avec `claude setup-token`). Il faut aussi installer l'application GitHub Claude sur le dépôt. Sans secret, la revue est simplement ignorée.
 
 ## Production (VPS)
 
@@ -105,5 +123,5 @@ Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiemen
 
 Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi côté serveur (`deadlineAt`, 5 s de tolérance réseau) ; seule la section courante accepte des écritures ; une section quittée est verrouillée ; dans une série, chaque réponse est définitive et donnée dans l'ordre ; à l'échéance, la tentative passe en `expired` avec les réponses enregistrées ; les questions ne sont envoyées qu'une fois le chrono lancé ; les routes vérifient la propriété de la tentative et l'origine des requêtes (CSRF). Les études de cas sont tirées au début ou à la fin ; la dernière section se termine par « Terminer l'examen ».
 - [x] **Lot 5 — Résultats** : rapport de score (sur 1000, réussite à 700, barres par domaine face au seuil, temps, types), correction détaillée (réponse donnée, bonne réponse, explications, liens Microsoft Learn, filtres ratées / marquées / domaine, FR ou EN), signalement (3 signalements → retour en relecture), tableau de bord (dernier score, courbe, niveau par domaine, indicateur « prêt »)
-- [ ] Lot 6 — Banque
+- [x] **Lot 6 — Banque** : 598 questions EN/FR, 16 études de cas, 11 séries, glossaire Learn, vérification à l'aveugle (statut `draft`, relecture humaine à faire)
 - [ ] Lot 7 — Mise en production
