@@ -38,6 +38,7 @@ export type SessionErrorCode =
   | "out_of_order"
   | "invalid_response"
   | "last_section"
+  | "flag_not_allowed"
   | "rate_limited";
 
 const STATUS: Record<SessionErrorCode, number> = {
@@ -54,6 +55,7 @@ const STATUS: Record<SessionErrorCode, number> = {
   out_of_order: 409,
   invalid_response: 400,
   last_section: 400,
+  flag_not_allowed: 400,
   rate_limited: 429,
 };
 
@@ -322,7 +324,11 @@ export async function saveItem(
       if (earlierUnanswered > 0) throw new SessionError("out_of_order");
     }
   }
-  if (flagged !== undefined && item.section.kind === "main") data.flagged = flagged;
+  if (flagged !== undefined) {
+    // Only main-section questions can be marked for review (as the exam UI shows).
+    if (item.section.kind !== "main") throw new SessionError("flag_not_allowed");
+    data.flagged = flagged;
+  }
   if (Object.keys(data).length === 0) return item;
 
   const updated = await db.$transaction(async (tx) => {

@@ -143,6 +143,10 @@ describe("sections", () => {
       } else {
         for (const it of items) await saveItem(db, { attemptId, itemId: it.id, userId, response: anyResponse(it), now: at(minute) });
       }
+      if (section.kind !== "main") {
+        // Flags exist only in the main section: refused, not silently ignored.
+        await expectCode(saveItem(db, { attemptId, itemId: items[0]!.id, userId, flagged: true, now: at(minute) }), "flag_not_allowed");
+      }
       if (section.kind === "main") {
         const it = items[0]!;
         await expectCode(saveItem(db, { attemptId, itemId: it.id, userId, response: { nonsense: 1 }, now: at(minute) }), "invalid_response");
