@@ -55,16 +55,22 @@ npm run seed
 
 ## Démarrage en local
 
-Prérequis : Node 22, PostgreSQL 16.
+Prérequis : Node 22 et Docker Desktop (ou un PostgreSQL 16 déjà installé).
 
 ```bash
-cp .env.example .env            # renseigner DATABASE_URL et AUTH_SECRET
+cp .env.example .env            # Windows (PowerShell) : copy .env.example .env
+#   puis dans .env : AUTH_SECRET = une valeur aléatoire (openssl rand -base64 32)
+#                    EXAM_INCLUDE_UNPUBLISHED="true"   (la banque est encore en draft)
+#                    AUTH_LOG_MAGIC_LINKS="true"       (pas de SMTP en local)
 npm install
+npm run db:up                   # PostgreSQL 16 dans Docker (docker-compose.dev.yml)
 npx prisma migrate deploy       # crée le schéma
-npm run seed                    # charge content/ (référentiel AZ-104)
-npm run user:create -- --email vous@example.com --password 'au-moins-12-caracteres' --admin --locale fr
-npm run dev
+npm run seed                    # charge content/ : référentiel et 598 questions
+npm run user:create -- --email vous@example.com --password "au-moins-12-caracteres" --admin --locale fr
+npm run dev                     # http://localhost:3000
 ```
+
+Se connecter sur http://localhost:3000/login avec ce compte, puis **Nouvel examen blanc** depuis le tableau de bord. **Administration → Questions** permet de prévisualiser chaque question en FR/EN. `npm run db:down` arrête la base (les données restent dans le volume `certidrill-dev`). Après une modification de `content/`, relancer `npm run seed`.
 
 Pour essayer le moteur d'examen avant que la banque soit relue et publiée, mettre `EXAM_INCLUDE_UNPUBLISHED="true"` : les questions `draft` entrent alors dans les examens (l'écran d'accueil signale qu'il y a moins de questions qu'à l'examen réel).
 
