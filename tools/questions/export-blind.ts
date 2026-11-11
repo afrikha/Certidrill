@@ -10,6 +10,7 @@ import fs from "node:fs";
 import { parse } from "yaml";
 import { createRng } from "../../lib/exam/random";
 import { shuffleArray } from "../../lib/questions/order";
+import { compareCodeUnits } from "../../lib/sort";
 
 const root = path.resolve("content/az-104");
 type T = string | { en: string; fr: string };
@@ -23,7 +24,7 @@ async function yamlFiles(dir: string) {
 async function main() {
   const [prefix, out] = process.argv.slice(2);
   if (!prefix || !out) throw new Error("usage: export-blind <prefix> <out.md>");
-  const files = (await yamlFiles(path.join(root, "questions"))).filter((f) => (prefix.startsWith("@") ? fs.readFileSync(prefix.slice(1), "utf8").split("\n").filter(Boolean).includes(path.basename(f, ".yaml")) : path.basename(f).startsWith(prefix))).sort();
+  const files = (await yamlFiles(path.join(root, "questions"))).filter((f) => (prefix.startsWith("@") ? fs.readFileSync(prefix.slice(1), "utf8").split("\n").filter(Boolean).includes(path.basename(f, ".yaml")) : path.basename(f).startsWith(prefix))).sort(compareCodeUnits);
   const parts: string[] = [];
   const shown = new Set<string>();
   // Lists are shown in a shuffled order (like in the exam) and single/multi

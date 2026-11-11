@@ -11,6 +11,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { loadCertification } from "../lib/content/loader";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
+import { compareCodeUnits } from "../lib/sort";
 
 const root = path.resolve("content/az-104");
 
@@ -48,7 +49,7 @@ async function main() {
     console.log(`✘ ${path.relative(process.cwd(), file)}: ${msg}`);
   };
   const byType = new Map<string, number>();
-  for (const file of files.sort()) {
+  for (const file of files.sort(compareCodeUnits)) {
     let raw: unknown;
     try {
       raw = parse(await readFile(file, "utf8"));

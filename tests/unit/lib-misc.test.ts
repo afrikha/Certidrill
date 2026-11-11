@@ -6,7 +6,8 @@ vi.mock("nodemailer", () => ({ createTransport: vi.fn(() => ({ sendMail })) }));
 import { isSameOrigin } from "@/lib/security/csrf";
 import { isAnswered, isComplete, type PublicBody } from "@/lib/questions/public";
 import { logError, logEvent } from "@/lib/log";
-import { sendMagicLink } from "@/lib/auth/email";
+import { createTransport } from "nodemailer";
+import { sendMagicLink, smtpOptions } from "@/lib/auth/email";
 import { cn } from "@/lib/utils";
 
 afterEach(() => {
@@ -88,6 +89,46 @@ describe("magic link e-mail", () => {
     await sendMagicLink({ to: "a@example.com", url: "https://certidrill.com/api/auth/callback/email?token=t" });
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: "a@example.com", from: "Certidrill <noreply@example.com>", subject: expect.stringContaining("certidrill.com") }));
     expect(sendMail.mock.calls[0]![0].text).toContain("Utilisez ce lien");
+    // The transport gets the encrypted options, not the raw URL.
+    expect(createTransport).toHaveBeenLastCalledWith(expect.objectContaining({ host: "smtp.example.com", port: 587, requireTLS: true }));
+  });
+  it("always encrypts the SMTP connection", () => {
+    expect(smtpOptions("smtp://user%40x:p%3Ass@smtp.example.com:2525")).toEqual({
+      host: "smtp.example.com",
+      port: 2525,
+      secure: false,
+      requireTLS: true,
+      auth: { user: "user@x", pass: "p:ss" },
+    });
+    expect(smtpOptions("smtp://smtp.example.com")).toMatchObject({ port: 587, secure: false, requireTLS: true, auth: undefined });
+    expect(smtpOptions("smtps://u:p@smtp.example.com")).toMatchObject({ port: 465, secure: true, requireTLS: true });
+    expect(() => smtpOptions("http://smtp.example.com")).toThrow(/smtp:\/\//);
+    expect(smtpOptions("smtp://[::1]:25").host).toBe("::1");
+    expect(() => smtpOptions("smtp://u:p@smtp.example.com:465")).toThrow(/port 465 needs smtps/);
+    expect(() => smtpOptions("smtp://u:p@smtp.example.com:587?ignoreTLS=true")).toThrow(/query parameters are not supported/);
+    // "u:12#x@…" parses as host "u", port 12, fragment "#x@…": refused, not truncated.
+    expect(() => smtpOptions("smtp://u:12#x@smtp.example.com")).toThrow(/%23 for #/);
+    expect(() => smtpOptions("smtp://smtp.example.com:587/mail")).toThrow(/unexpected path/);
+    expect(smtpOptions("smtp://u:12%23x@smtp.example.com:587/").auth).toEqual({ user: "u", pass: "12#x" });
+    expect(smtpOptions("smtps://u:p@smtp.example.com:465")).toMatchObject({ port: 465, secure: true });
+  });
+  it("never puts the SMTP password in an error", () => {
+    const failure = (server: string) => {
+      try {
+        smtpOptions(server);
+      } catch (err) {
+        return err as Error & { input?: unknown };
+      }
+      throw new Error("expected an error");
+    };
+    const badlyEncoded = failure("smtp://u:secret%zz@smtp.example.com");
+    expect(badlyEncoded.message).toMatch(/not URL-encoded/);
+    const invalid = failure("smtp//u:secret@smtp.example.com");
+    expect(invalid.message).toBe("EMAIL_SERVER is not a valid URL");
+    for (const err of [badlyEncoded, invalid]) {
+      expect(err.input).toBeUndefined();
+      expect(JSON.stringify({ ...err, message: err.message, stack: err.stack })).not.toContain("secret");
+    }
   });
 });
 

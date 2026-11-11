@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { blueprintFileSchema, objectivesFileSchema, type BlueprintFile, type ObjectivesFile } from "./schema";
+import { compareCodeUnits } from "../sort";
 
 export const CONTENT_ROOT = path.resolve(process.cwd(), "content");
 
@@ -25,7 +26,7 @@ export async function listCertificationDirs(root = CONTENT_ROOT): Promise<string
     const dir = path.join(root, e.name);
     if (await exists(path.join(dir, "blueprint.yaml"))) dirs.push(dir);
   }
-  return dirs.sort();
+  return dirs.sort(compareCodeUnits);
 }
 
 export interface CertificationContent {

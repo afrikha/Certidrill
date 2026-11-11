@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { ContentError, parseWith, readYaml, type CertificationContent } from "./loader";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema, type CaseStudyFile, type QuestionFile, type SeriesFile } from "@/lib/questions/schema";
+import { compareCodeUnits } from "@/lib/sort";
 
 export interface QuestionBank {
   questions: (QuestionFile & { file: string; domain: string })[];
@@ -19,7 +20,7 @@ async function yamlFiles(dir: string): Promise<string[]> {
   return entries
     .filter((e) => e.isFile() && /\.ya?ml$/.test(e.name))
     .map((e) => path.join(e.parentPath, e.name))
-    .sort();
+    .sort(compareCodeUnits);
 }
 
 /**
