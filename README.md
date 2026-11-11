@@ -17,12 +17,29 @@ content/az-104/
   blueprint.yaml     durée, nombre de questions, seuil, domaines et pondérations,
                      mix de types et de difficultés, structure (études de cas, séries)
   objectives.yaml    objectifs du guide d'étude, rattachés aux domaines
-  questions/         (lot 2) une question par fichier YAML, EN + FR
-  case-studies/      (lot 2) scénarios d'études de cas
-  series/            (lot 2) séries Oui/Non
+  questions/<domaine>/<id>.yaml   une question par fichier, EN + FR
+  case-studies/<id>.yaml          scénarios d'études de cas (onglets)
+  series/<id>.yaml                énoncés communs des séries Oui/Non
 ```
 
-Ajouter une certification = ajouter un dossier `content/<code>/` puis `npm run seed`. Les fichiers sont validés par les schémas Zod de `lib/content/schema.ts` (pondérations sommables à 100 %, mix de difficulté = 1, codes uniques…).
+Ajouter une certification = ajouter un dossier `content/<code>/` puis `npm run seed`. Les fichiers sont validés par les schémas Zod de `lib/content/schema.ts` (pondérations sommables à 100 %, mix de difficulté = 1, codes uniques…) et `lib/questions/schema.ts` (un schéma par type de question : affichage, réponse attendue, réponse du candidat ; cohérence réponse/énoncé). `npm run content:check` valide tout le contenu sans base de données.
+
+### Types de questions
+
+| Code | Saisie (clavier compris) |
+| --- | --- |
+| `single` | boutons radio (flèches) |
+| `multi` | cases à cocher « choisissez N » |
+| `yesno_statements` | tableau Oui/Non par affirmation |
+| `dropdown` | listes déroulantes dans une commande, un fichier ARM/Bicep/KQL (`layout: code`) ou un texte |
+| `dragdrop` | glisser-déposer (souris, tactile, clavier) + liste déroulante par cible (alternative accessible, saisie principale sur mobile) |
+| `ordering` | boutons « Ajouter », ↑ ↓ ✕, glisser pour réordonner |
+| `hotarea` | tableau dont certaines cellules sont cliquables ; plusieurs consignes possibles |
+| `series_yesno` | Oui/Non, énoncé commun à la série |
+
+Les énoncés sont en Markdown (tableaux, blocs de code PowerShell / Azure CLI / JSON / Bicep / KQL colorés par Shiki), assainis côté serveur. Le navigateur ne reçoit qu'une projection sans réponse ni explication (`lib/questions/present.ts`). Aperçu interactif : **Administration → Questions**.
+
+Les 24 questions d'exemple (3 par type) sont en statut `draft` : elles doivent être relues avant publication.
 
 ## Démarrage en local
 
@@ -47,6 +64,8 @@ Les inscriptions sont fermées : les comptes se créent avec `npm run user:creat
 | `npm run lint` / `typecheck` | ESLint, `tsc --noEmit` |
 | `npm test` | Tests unitaires (Vitest) |
 | `npm run test:coverage` | Tests unitaires + couverture (seuil 90 % sur `lib/exam`) |
+| `npm run test:e2e` | Tests Playwright sur un build de production — même contrainte de base jetable |
+| `npm run content:check` | Valide `content/` (schémas et références croisées) |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |
 | `npm run user:create` | Crée un compte (`--email`, `--password`, `--name`, `--admin`, `--locale`) |
@@ -64,7 +83,7 @@ Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiemen
 ## Avancement (plan du §12 des specs)
 
 - [x] **Lot 1 — Socle** : Next.js, Prisma (schéma complet), Auth.js, i18n FR/EN, CI, Docker, `blueprint.yaml` et 81 objectifs AZ-104
-- [ ] Lot 2 — Questions
+- [x] **Lot 2 — Questions** : schémas Zod des 8 types, composants de saisie accessibles, 24 questions d'exemple, aperçu
 - [ ] Lot 3 — Notation et assemblage
 - [ ] Lot 4 — Session d'examen
 - [ ] Lot 5 — Résultats

@@ -1,11 +1,15 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { CertificationContent } from "./loader";
+import type { QuestionBank } from "./bank";
 
 export interface SeedReport {
   certification: string;
   blueprintVersion: string;
   domains: number;
   objectives: number;
+  questions?: number;
+  caseStudies?: number;
+  series?: number;
 }
 
 /**
@@ -70,4 +74,58 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
 
     return { certification: c.code, blueprintVersion: b.version, domains: file.domains.length, objectives: objectiveCount };
   }, { timeout: 60_000 });
+}
+
+/**
+ * Upserts the question bank (case studies, series, questions). Questions keep
+ * their id across versions; a question removed from the repository is retired,
+ * never deleted, because past attempts reference it.
+ */
+export async function seedBank(db: PrismaClient, content: CertificationContent, bank: QuestionBank) {
+  const code = content.blueprint.certification.code;
+  const version = content.blueprint.blueprint.version;
+  return db.$transaction(async (tx) => {
+    const certification = await tx.certification.findUniqueOrThrow({ where: { code } });
+    const blueprint = await tx.blueprint.findUniqueOrThrow({
+      where: { certificationId_version: { certificationId: certification.id, version } },
+      include: { domains: { include: { objectives: true } } },
+    });
+    const objectiveIds = new Map(blueprint.domains.flatMap((d) => d.objectives.map((o) => [o.code, o.id] as const)));
+
+    for (const cs of bank.caseStudies) {
+      const data = { title: cs.title, tabs: cs.tabs as Prisma.InputJsonValue, status: cs.status, version: cs.version };
+      await tx.caseStudy.upsert({ where: { id: cs.id }, create: { id: cs.id, certificationId: certification.id, ...data }, update: data });
+    }
+    for (const s of bank.series) {
+      const data = { stem: s.stem, status: s.status, version: s.version };
+      await tx.questionSeries.upsert({ where: { id: s.id }, create: { id: s.id, certificationId: certification.id, ...data }, update: data });
+    }
+    for (const q of bank.questions) {
+      const data = {
+        objectiveId: objectiveIds.get(q.objective)!,
+        type: q.type,
+        difficulty: q.difficulty,
+        stem: q.stem,
+        exhibits: q.exhibits as Prisma.InputJsonValue,
+        body: q.body as Prisma.InputJsonValue,
+        answer: q.answer as Prisma.InputJsonValue,
+        explanation: q.explanation as Prisma.InputJsonValue,
+        references: q.references as Prisma.InputJsonValue,
+        caseStudyId: q.caseStudy ?? null,
+        seriesId: q.series ?? null,
+        seriesOrder: q.seriesOrder ?? null,
+        shuffle: q.shuffle,
+        status: q.status,
+        version: q.version,
+        blueprintVersion: version,
+      };
+      await tx.question.upsert({ where: { id: q.id }, create: { id: q.id, certificationId: certification.id, ...data }, update: data });
+    }
+    const keep = bank.questions.map((q) => q.id);
+    const retired = await tx.question.updateMany({
+      where: { certificationId: certification.id, id: { notIn: keep }, status: { not: "retired" } },
+      data: { status: "retired" },
+    });
+    return { questions: bank.questions.length, caseStudies: bank.caseStudies.length, series: bank.series.length, retired: retired.count };
+  }, { timeout: 120_000 });
 }

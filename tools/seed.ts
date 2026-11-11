@@ -4,7 +4,8 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
-import { seedReferential } from "../lib/content/seed";
+import { seedBank, seedReferential } from "../lib/content/seed";
+import { loadBank } from "../lib/content/bank";
 
 async function main() {
   const db = new PrismaClient();
@@ -13,10 +14,13 @@ async function main() {
     if (dirs.length === 0) throw new Error("No certification found in content/");
     for (const dir of dirs) {
       const content = await loadCertification(dir);
+      const bank = await loadBank(content); // validate everything before writing
       const report = await seedReferential(db, content);
       console.log(
         `✔ ${report.certification} — blueprint ${report.blueprintVersion}: ${report.domains} domains, ${report.objectives} objectives`,
       );
+      const b = await seedBank(db, content, bank);
+      console.log(`  ${b.questions} questions, ${b.caseStudies} case studies, ${b.series} series${b.retired ? `, ${b.retired} retired` : ""}`);
     }
   } finally {
     await db.$disconnect();
