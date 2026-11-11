@@ -26,13 +26,22 @@ export function apiRoute<P>(handler: (ctx: { request: Request; user: ApiUser; pa
       if (err instanceof SessionError) return NextResponse.json({ error: err.code }, { status: err.status });
       if (err instanceof ZodError) return NextResponse.json({ error: "invalid_request", issues: err.issues.map((i) => i.message) }, { status: 400 });
       if (err instanceof SyntaxError) return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+      if (err instanceof PayloadTooLargeError) return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
       logError("api.error", err, { url: request.url, method: request.method });
       return NextResponse.json({ error: "internal" }, { status: 500 });
     }
   };
 }
 
+/** Largest JSON body accepted by the API (a response or a report is a few KB). */
+export const MAX_BODY_BYTES = 64 * 1024;
+
+export class PayloadTooLargeError extends Error {}
+
 export async function jsonBody(request: Request): Promise<unknown> {
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > MAX_BODY_BYTES) throw new PayloadTooLargeError();
   const text = await request.text();
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) throw new PayloadTooLargeError();
   return text ? JSON.parse(text) : {};
 }

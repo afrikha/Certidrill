@@ -8,7 +8,9 @@ import type { AssemblyBank, AssemblyBlueprint, AssemblyHistory, CandidateQuestio
  * try the engine locally before the bank has been reviewed.
  */
 export function examStatuses(): ContentStatus[] {
-  return process.env.EXAM_INCLUDE_UNPUBLISHED === "true" ? ["published", "reviewed", "draft", "needs_review"] : ["published"];
+  // Local trials may use questions not yet reviewed, never the ones users
+  // reported as wrong (needs_review) or removed (retired).
+  return process.env.EXAM_INCLUDE_UNPUBLISHED === "true" ? ["published", "reviewed", "draft"] : ["published"];
 }
 
 type Row = { id: string; type: QuestionTypeCode; difficulty: number; objective: { code: string; domain: { code: string } } };

@@ -380,7 +380,9 @@ export async function submitAttempt(
   // A submission that arrives after the deadline and its grace period is an
   // expiry: closed at the deadline, so the time used never exceeds the duration.
   if (attempt.deadlineAt && now.getTime() > attempt.deadlineAt.getTime() + DEADLINE_GRACE_MS) reason = "expired";
-  const submittedAt = reason === "expired" && attempt.deadlineAt && attempt.deadlineAt < now ? attempt.deadlineAt : now;
+  // Never later than the deadline: a submission during the grace period stays
+  // "submitted" but is dated at the deadline.
+  const submittedAt = attempt.deadlineAt && attempt.deadlineAt < now ? attempt.deadlineAt : now;
 
   const result = await db.$transaction(async (tx) => {
     // Exclusive lock on the attempt: no answer can be saved between the

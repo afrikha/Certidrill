@@ -270,13 +270,13 @@ describe("expiry", () => {
     expect(late.submittedAt).toEqual(started.deadlineAt);
   });
 
-  it("records a submission within the grace period as submitted", async () => {
+  it("records a submission within the grace period as submitted, dated at the deadline", async () => {
     const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: T0, seed: "exp-grace" });
     const started = await startAttempt(db, { attemptId, userId, now: T0 });
     const within = new Date(started.deadlineAt!.getTime() + DEADLINE_GRACE_MS - 1);
     const done = await submitAttempt(db, { attemptId, userId, now: within });
     expect(done.status).toBe("submitted");
-    expect(done.submittedAt).toEqual(within);
+    expect(done.submittedAt).toEqual(started.deadlineAt);
   });
 
   it("expires on read and before creating a new attempt", async () => {

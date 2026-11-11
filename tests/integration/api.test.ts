@@ -84,6 +84,13 @@ describe("API guards", () => {
     expect(bad.body.error).toBe("invalid_request");
   });
 
+  it("refuses bodies larger than 64 KB with 413", async () => {
+    const big = JSON.stringify({ certification: "az-104", locale: "en", padding: "x".repeat(70 * 1024) });
+    expect(await json(await attempts.POST(req("POST", "/api/attempts", big), ctx({})))).toEqual({ status: 413, body: { error: "payload_too_large" } });
+    const declared = req("POST", "/api/attempts", { certification: "az-104", locale: "en" }, { origin: ORIGIN, "content-length": String(1024 * 1024) });
+    expect((await attempts.POST(declared, ctx({}))).status).toBe(413);
+  });
+
   it("maps domain errors to their HTTP status and hides internal errors", async () => {
     expect((await attempts.POST(req("POST", "/api/attempts", { certification: "zz-999", locale: "en" }), ctx({}))).status).toBe(404);
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
