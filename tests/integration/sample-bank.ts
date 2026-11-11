@@ -1,3 +1,4 @@
+import type { AttemptView } from "@/lib/exam/session";
 import type { PrismaClient } from "@prisma/client";
 
 /**
@@ -17,3 +18,27 @@ export async function publishSampleBank(db: PrismaClient) {
   await db.questionSeries.updateMany({ where: { id: "series-auditors-read" }, data: { status: "published" } });
   return ids.length;
 }
+
+/** Answers every item of a section with a schema-valid (not necessarily correct) response. */
+export function anyResponse(item: AttemptView["items"][number]): unknown {
+  const b = item.question.body;
+  switch (b.type) {
+    case "single":
+      return { optionId: b.options[0]!.id };
+    case "multi":
+      return { optionIds: b.options.slice(0, b.choose).map((o) => o.id) };
+    case "yesno_statements":
+      return { values: Object.fromEntries(b.statements.map((s) => [s.id, true])) };
+    case "dropdown":
+      return { values: Object.fromEntries(b.segments.flatMap((s) => (s.kind === "slot" ? [[s.id, s.options[0]!.id]] : []))) };
+    case "dragdrop":
+      return { mapping: Object.fromEntries(b.targets.map((t) => [t.id, b.items[0]!.id])) };
+    case "ordering":
+      return { sequence: b.actions.slice(0, b.count).map((a) => a.id) };
+    case "hotarea":
+      return { values: Object.fromEntries(b.prompts.map((p) => [p.id, b.rows.flat().find((c) => c.area)!.area!])) };
+    case "series_yesno":
+      return { value: true };
+  }
+}
+

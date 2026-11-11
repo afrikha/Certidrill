@@ -9,8 +9,12 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   globalSetup: "./tests/e2e/global-setup.ts",
+  // Non-regression snapshots (tests/e2e/regression) are committed next to the specs.
+  // CI never writes them: a missing or different snapshot fails the run.
+  snapshotPathTemplate: "{testDir}/regression/__snapshots__/{arg}{ext}",
+  updateSnapshots: process.env.CI ? "none" : "missing",
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "off",

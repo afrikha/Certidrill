@@ -77,14 +77,38 @@ Les inscriptions sont fermées : les comptes se créent avec `npm run user:creat
 | `npm run dev` / `build` / `start` | Next.js |
 | `npm run lint` / `typecheck` | ESLint, `tsc --noEmit` |
 | `npm test` | Tests unitaires (Vitest) |
-| `npm run test:coverage` | Tests unitaires + d'intégration avec couverture (seuil 90 % sur `lib/exam`) — base jetable requise |
-| `npm run test:e2e` | Tests Playwright sur un build de production — même contrainte de base jetable |
+| `npm run test:components` | Tests des composants React (Testing Library, jsdom) |
+| `npm run test:coverage` | Unitaires + intégration + composants avec couverture (≥ 80 % global, ≥ 90 % sur `lib/exam`, rapport `coverage/`) — base jetable requise |
+| `npm run test:e2e` | Tous les tests Playwright (parcours + non-régression) sur un build de production — même contrainte de base jetable |
+| `npm run test:regression` | Seulement la suite de non-régression Playwright (`tests/e2e/regression`) |
 | `npm run content:check` | Valide `content/` (schémas et références croisées) |
 | `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et liste tous les problèmes |
 | `npm run content:status -- <statut> <préfixe\|all> [--from <statut>]` | Change le statut de questions en masse |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |
 | `npm run user:create` | Crée un compte (`--email`, `--password`, `--name`, `--admin`, `--locale`) |
+
+## Tests et qualité
+
+| Niveau | Outil | Dossier | Ce qui est vérifié |
+| --- | --- | --- | --- |
+| Unitaires | Vitest | `tests/unit` | Notation, assembleur, schémas, rendu de toute la banque, sécurité (CSRF, limitation de débit, mots de passe), journaux |
+| Composants | Vitest + Testing Library (jsdom) | `tests/components` | Saisie des 8 types de questions, écran d'examen (chrono, sauvegarde hors ligne, sections, série, révision, soumission) en FR/EN |
+| Intégration | Vitest + PostgreSQL réel | `tests/integration` | Routes `app/api/**` (authentification, CSRF, propriété, aucune réponse avant soumission), server actions, Auth.js (mots de passe, limitation, inscriptions fermées), session d'examen, résultats |
+| End-to-end | Playwright (build de production) | `tests/e2e` | Parcours complets dans Chromium : examen, reprise, expiration, résultats, saisie au clavier |
+| Non-régression | Playwright | `tests/e2e/regression` | Instantanés de l'arbre d'accessibilité (ARIA) de chaque type de question et des pages publiques en FR/EN, contrôle d'accès des pages, contrat HTTP de l'API, en-têtes de sécurité |
+
+**Couverture** : la CI échoue sous **80 %** (lignes, instructions, fonctions ; 70 % des branches) sur `lib/`, `components/` et `app/api/`, et sous 90 % sur `lib/exam`. Les pages Next.js (`app/**/page.tsx`, layouts) sont couvertes par Playwright, pas par la mesure lcov.
+
+**Non-régression** : les instantanés ARIA (`tests/e2e/regression/__snapshots__/*.aria.yml`) sont versionnés. Ils ne dépendent ni des polices ni du système, contrairement aux captures d'écran. Un changement d'interface voulu se valide avec `npm run test:regression -- --update-snapshots`, puis la relecture et le commit du diff. En CI, un instantané absent ou différent fait échouer le build. Chaque bug corrigé doit être accompagné du test qui l'aurait détecté.
+
+**Sonar (SonarQube Cloud)** : `sonar-project.properties` et l'étape Sonar du job `check`. L'analyse reprend la couverture lcov de Vitest. La CI attend le résultat de la *quality gate* (par défaut « Sonar way » : couverture du nouveau code ≥ 80 %, pas de nouveau bug ni de vulnérabilité, duplication ≤ 3 %, hotspots de sécurité relus) et échoue si elle est rouge. Mise en place :
+1. Sur https://sonarcloud.io, se connecter avec GitHub, importer l'organisation et le dépôt (offre gratuite : jusqu'à 50 000 lignes de code privé).
+2. Dans le projet, *Administration → Analysis Method* : désactiver *Automatic Analysis* (l'analyse passe par la CI).
+3. Créer un jeton (*My Account → Security*) et l'ajouter comme secret de dépôt GitHub `SONAR_TOKEN`.
+4. Si la clé de projet ou l'organisation diffère de `afrikha_Certidrill` / `afrikha`, définir les variables de dépôt `SONAR_PROJECT_KEY` / `SONAR_ORGANIZATION`. Pour un SonarQube auto-hébergé, définir `SONAR_HOST_URL`.
+
+Sans `SONAR_TOKEN`, l'étape est ignorée et un avertissement s'affiche.
 
 ## Revue automatique des PR
 

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadCertification } from "@/lib/content/loader";
 import { loadBank } from "@/lib/content/bank";
 import { seedBank, seedReferential } from "@/lib/content/seed";
-import { publishSampleBank } from "./sample-bank";
+import { anyResponse, publishSampleBank } from "./sample-bank";
 import { createUser } from "@/lib/users";
 import { loadHistory } from "@/lib/exam/bank-query";
 import {
@@ -17,7 +17,6 @@ import {
   SessionError,
   startAttempt,
   submitAttempt,
-  type AttemptView,
 } from "@/lib/exam/session";
 
 const db = new PrismaClient();
@@ -28,29 +27,6 @@ const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
 
 async function expectCode(p: Promise<unknown>, code: string) {
   await expect(p).rejects.toSatisfy((e: unknown) => e instanceof SessionError && e.code === code);
-}
-
-/** Answers every item of a section with a schema-valid (not necessarily correct) response. */
-function anyResponse(item: AttemptView["items"][number]): unknown {
-  const b = item.question.body;
-  switch (b.type) {
-    case "single":
-      return { optionId: b.options[0]!.id };
-    case "multi":
-      return { optionIds: b.options.slice(0, b.choose).map((o) => o.id) };
-    case "yesno_statements":
-      return { values: Object.fromEntries(b.statements.map((s) => [s.id, true])) };
-    case "dropdown":
-      return { values: Object.fromEntries(b.segments.flatMap((s) => (s.kind === "slot" ? [[s.id, s.options[0]!.id]] : []))) };
-    case "dragdrop":
-      return { mapping: Object.fromEntries(b.targets.map((t) => [t.id, b.items[0]!.id])) };
-    case "ordering":
-      return { sequence: b.actions.slice(0, b.count).map((a) => a.id) };
-    case "hotarea":
-      return { values: Object.fromEntries(b.prompts.map((p) => [p.id, b.rows.flat().find((c) => c.area)!.area!])) };
-    case "series_yesno":
-      return { value: true };
-  }
 }
 
 beforeAll(async () => {
