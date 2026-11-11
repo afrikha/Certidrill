@@ -1,0 +1,111 @@
+id: cs1-tailspin
+status: draft
+title:
+  en: Tailspin Toys
+  fr: Tailspin Toys
+tabs:
+  - key: overview
+    title: { en: Overview, fr: Vue d'ensemble }
+    body:
+      en: |
+        Tailspin Toys is an online gaming studio based in Seattle. Its multiplayer game **Skyraiders** has 400,000 monthly players. Player traffic is very uneven: it peaks in the evening and on weekends and is almost zero at night.
+
+        The studio employs 180 people and works with 40 external contractors. A live operations (LiveOps) team of six engineers runs the game platform in Azure.
+      fr: |
+        Tailspin Toys est un studio de jeux en ligne basé à Seattle. Son jeu multijoueur **Skyraiders** compte 400 000 joueurs par mois. Le trafic des joueurs est très irrégulier : il culmine le soir et le week-end et est presque nul la nuit.
+
+        Le studio emploie 180 personnes et travaille avec 40 prestataires externes. Une équipe d'exploitation en direct (LiveOps) de six ingénieurs exploite la plateforme de jeu dans Azure.
+  - key: existing
+    title: { en: Existing environment, fr: Environnement existant }
+    body:
+      en: |
+        **Identity**
+
+        Tailspin has a Microsoft Entra tenant named tailspintoys.com that uses Microsoft Entra ID Free. All the users are cloud-only accounts; there is no on-premises directory.
+
+        | Group | Type | Members |
+        | --- | --- | --- |
+        | GG-Studio | Security | The 180 employees |
+        | GG-Contractors | Security | The 40 external contractors |
+        | GG-AllStaff | Security | GG-Studio and GG-Contractors (nested) |
+
+        **Azure resources**
+
+        All the resources are in a subscription named **Sub-Games**, in the West US 2 region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | VMSS-Match | Virtual Machine Scale Set | Ubuntu 22.04, Flexible orchestration, zones 1, 2, and 3; autoscale between 4 and 40 instances on CPU; scale-in policy **Default** |
+        | VNet-Games | Virtual network | 10.60.0.0/16, subnet Match (10.60.1.0/24) used by VMSS-Match |
+        | cae-tailspin | Container Apps environment | Hosts the container app **lobby-api** |
+        | lobby-api | Container app | HTTP ingress; scale rule: minimum 3 replicas, maximum 3 replicas |
+        | stbuilds | Storage account | General-purpose v2, contains the SMB file share **builds** used by the build servers; file share soft delete disabled |
+        | AG-OnCall | Action group | Sends an SMS and an email to the LiveOps on-call engineer |
+        | Metric alert rules | Alert rules | Five rules on VMSS-Match (CPU, network, available memory); all use AG-OnCall |
+
+        **Game traffic**
+
+        Each game client opens a TCP control connection on port 7778 and sends the game traffic over UDP port 7777. Both flows from a player must reach the same game server instance for the whole match. VMSS-Match instances have no public IP addresses.
+      fr: |
+        **Identité**
+
+        Tailspin dispose d'un locataire Microsoft Entra nommé tailspintoys.com qui utilise Microsoft Entra ID Free. Tous les utilisateurs sont des comptes cloud uniquement ; il n'existe pas d'annuaire local.
+
+        | Groupe | Type | Membres |
+        | --- | --- | --- |
+        | GG-Studio | Sécurité | Les 180 employés |
+        | GG-Contractors | Sécurité | Les 40 prestataires externes |
+        | GG-AllStaff | Sécurité | GG-Studio et GG-Contractors (imbriqués) |
+
+        **Ressources Azure**
+
+        Toutes les ressources se trouvent dans un abonnement nommé **Sub-Games**, dans la région West US 2.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | VMSS-Match | Groupe de machines virtuelles identiques | Ubuntu 22.04, orchestration Flexible, zones 1, 2 et 3 ; mise à l'échelle automatique entre 4 et 40 instances selon l'UC ; stratégie de scale-in **Default** |
+        | VNet-Games | Réseau virtuel | 10.60.0.0/16, sous-réseau Match (10.60.1.0/24) utilisé par VMSS-Match |
+        | cae-tailspin | Environnement Container Apps | Héberge l'application conteneur **lobby-api** |
+        | lobby-api | Application conteneur | Entrée HTTP ; règle de mise à l'échelle : minimum 3 réplicas, maximum 3 réplicas |
+        | stbuilds | Compte de stockage | Usage général v2, contient le partage de fichiers SMB **builds** utilisé par les serveurs de build ; suppression réversible des partages de fichiers désactivée |
+        | AG-OnCall | Groupe d'actions | Envoie un SMS et un e-mail à l'ingénieur d'astreinte LiveOps |
+        | Règles d'alerte de métrique | Règles d'alerte | Cinq règles sur VMSS-Match (UC, réseau, mémoire disponible) ; toutes utilisent AG-OnCall |
+
+        **Trafic de jeu**
+
+        Chaque client de jeu ouvre une connexion de contrôle TCP sur le port 7778 et envoie le trafic de jeu sur le port UDP 7777. Les deux flux d'un joueur doivent atteindre la même instance de serveur de jeu pendant toute la partie. Les instances de VMSS-Match n'ont pas d'adresse IP publique.
+  - key: requirements
+    title: { en: Requirements, fr: Exigences }
+    body:
+      en: |
+        **Platform requirements**
+
+        1. lobby-api must run no replicas when no player is connected, and must add replicas automatically when the number of concurrent HTTP requests increases.
+        2. When VMSS-Match scales in, the instances that were created first must be removed first, after the instances are balanced across the zones.
+        3. Player traffic from the internet on UDP 7777 and TCP 7778 must be distributed across the VMSS-Match instances, and both flows of a player must reach the same instance.
+
+        **Studio requirements**
+
+        4. The employees in GG-Studio must be able to reset their forgotten passwords themselves. Contractors must not be able to use self-service password reset. Licensing cost must be minimized.
+        5. If the builds file share is deleted by mistake, it must be recoverable for 14 days. Individual build files that are deleted or overwritten must be recoverable from point-in-time copies of the share.
+
+        **Operations requirements**
+
+        6. Every Tuesday from 06:00 to 08:00 UTC, VMSS-Match is patched. During this window, the alerts on VMSS-Match must still be fired and recorded, but AG-OnCall must not send any notification. Do not modify the existing alert rules.
+        7. Administrative effort and cost must be minimized.
+      fr: |
+        **Exigences de la plateforme**
+
+        1. lobby-api ne doit exécuter aucun réplica quand aucun joueur n'est connecté, et doit ajouter des réplicas automatiquement quand le nombre de requêtes HTTP simultanées augmente.
+        2. Lors d'un scale-in de VMSS-Match, les instances créées en premier doivent être supprimées en premier, après l'équilibrage des instances entre les zones.
+        3. Le trafic des joueurs venant d'Internet sur UDP 7777 et TCP 7778 doit être réparti entre les instances de VMSS-Match, et les deux flux d'un joueur doivent atteindre la même instance.
+
+        **Exigences du studio**
+
+        4. Les employés de GG-Studio doivent pouvoir réinitialiser eux-mêmes leur mot de passe oublié. Les prestataires ne doivent pas pouvoir utiliser la réinitialisation de mot de passe en libre-service. Le coût des licences doit être réduit au minimum.
+        5. Si le partage de fichiers builds est supprimé par erreur, il doit pouvoir être récupéré pendant 14 jours. Les fichiers de build individuels supprimés ou écrasés doivent pouvoir être récupérés à partir de copies à un instant donné du partage.
+
+        **Exigences d'exploitation**
+
+        6. Chaque mardi de 06 h 00 à 08 h 00 UTC, VMSS-Match est mis à jour. Pendant cette fenêtre, les alertes sur VMSS-Match doivent toujours être déclenchées et enregistrées, mais AG-OnCall ne doit envoyer aucune notification. Ne modifiez pas les règles d'alerte existantes.
+        7. L'effort d'administration et les coûts doivent être réduits au minimum.
