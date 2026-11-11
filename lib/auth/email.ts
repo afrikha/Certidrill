@@ -13,12 +13,22 @@ export function smtpOptions(server: string): SMTPTransport.Options {
   const secure = url.protocol === "smtps:";
   const defaultPort = secure ? 465 : 587;
   return {
-    host: url.hostname,
+    // An IPv6 literal keeps its brackets in URL.hostname ("[::1]").
+    host: url.hostname.replace(/^\[(.*)\]$/, "$1"),
     port: url.port ? Number(url.port) : defaultPort,
     secure,
     requireTLS: true,
-    auth: url.username ? { user: decodeURIComponent(url.username), pass: decodeURIComponent(url.password) } : undefined,
+    auth: url.username ? { user: decodeCredential(url.username), pass: decodeCredential(url.password) } : undefined,
   };
+}
+
+function decodeCredential(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    // Never echo the value: it is a password.
+    throw new Error("EMAIL_SERVER: the user name or password is not URL-encoded (write %25 for %, %40 for @)");
+  }
 }
 
 /**

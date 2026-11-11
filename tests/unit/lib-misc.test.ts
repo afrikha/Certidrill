@@ -100,6 +100,10 @@ describe("magic link e-mail", () => {
     expect(smtpOptions("smtp://smtp.example.com")).toMatchObject({ port: 587, secure: false, requireTLS: true, auth: undefined });
     expect(smtpOptions("smtps://u:p@smtp.example.com")).toMatchObject({ port: 465, secure: true, requireTLS: true });
     expect(() => smtpOptions("http://smtp.example.com")).toThrow(/smtp:\/\//);
+    expect(smtpOptions("smtp://[::1]:25").host).toBe("::1");
+    // A badly encoded password gives a clear error that does not contain it.
+    expect(() => smtpOptions("smtp://u:secret%zz@smtp.example.com")).toThrow(/not URL-encoded/);
+    expect(() => smtpOptions("smtp://u:secret%zz@smtp.example.com")).not.toThrow(/secret/);
   });
 });
 
