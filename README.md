@@ -72,6 +72,8 @@ npm run user:create -- --email vous@example.com --password "au-moins-12-caracter
 npm run dev                     # http://localhost:3000
 ```
 
+Si le port 5432 est déjà pris (autre PostgreSQL sur le poste), `npm run db:up` échoue avec « port is already allocated » : mettre `DB_PORT=5433` dans `.env` et `localhost:5433` dans `DATABASE_URL`.
+
 Se connecter sur http://localhost:3000/login avec ce compte, puis **Nouvel examen blanc** depuis le tableau de bord. **Administration → Questions** permet de prévisualiser chaque question en FR/EN. `npm run db:down` arrête la base (les données restent dans le volume `certidrill-dev`). Après une modification de `content/`, relancer `npm run seed`.
 
 Pour essayer le moteur d'examen avant que la banque soit relue et publiée, mettre `EXAM_INCLUDE_UNPUBLISHED="true"` : les questions `draft` et `reviewed` entrent alors dans les examens (jamais celles signalées, en `needs_review`) (l'écran d'accueil signale qu'il y a moins de questions qu'à l'examen réel).
