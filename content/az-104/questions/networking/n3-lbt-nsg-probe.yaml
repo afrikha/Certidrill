@@ -1,0 +1,47 @@
+id: n3-lbt-nsg-probe
+objective: "4.3.3"
+type: hotarea
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum publishes a website through a public Standard Load Balancer named **LB1**. The backend virtual machines are in a subnet associated with the network security group **NSG-Web**. No NSG is associated with the network interfaces. LB1 uses an HTTP health probe on TCP port 80 with the path /.
+
+    After a colleague changed NSG-Web, the **Health Probe Status** metric of LB1 dropped to 0 percent, although the web servers still answer HTTP requests from other virtual machines in the virtual network. The inbound security rules of NSG-Web are shown in the following table.
+
+    Answer each prompt by selecting the appropriate rule.
+  fr: |
+    Adatum publie un site web par l'intermédiaire d'un équilibreur de charge public Standard nommé **LB1**. Les machines virtuelles back-end se trouvent dans un sous-réseau associé au groupe de sécurité réseau **NSG-Web**. Aucun NSG n'est associé aux interfaces réseau. LB1 utilise une sonde d'intégrité HTTP sur le port TCP 80 avec le chemin /.
+
+    Après une modification de NSG-Web par un collègue, la métrique **État de la sonde d'intégrité** de LB1 est tombée à 0 %, alors que les serveurs web répondent toujours aux requêtes HTTP provenant d'autres machines virtuelles du réseau virtuel. Les règles de sécurité entrantes de NSG-Web figurent dans le tableau suivant.
+
+    Répondez à chaque consigne en sélectionnant la règle appropriée.
+body:
+  prompts:
+    - id: p1
+      text: { en: The rule that processes the health probe traffic, fr: La règle qui traite le trafic de la sonde d'intégrité }
+    - id: p2
+      text: { en: The rule that processes HTTP traffic from a virtual machine in the same virtual network, fr: La règle qui traite le trafic HTTP provenant d'une machine virtuelle du même réseau virtuel }
+  grid:
+    header: [{ en: Priority, fr: Priorité }, { en: Name, fr: Nom }, Port, { en: Source, fr: Source }, Action]
+    rows:
+      - [{ text: "100" }, { text: Allow-HTTP-Internet, area: r100 }, { text: "80" }, { text: Internet }, { text: Allow }]
+      - [{ text: "110" }, { text: Allow-HTTP-Vnet, area: r110 }, { text: "80" }, { text: VirtualNetwork }, { text: Allow }]
+      - [{ text: "4000" }, { text: Deny-All-Other, area: r4000 }, { text: Any }, { text: Any }, { text: Deny }]
+      - [{ text: "65000" }, { text: AllowVnetInBound, area: r65000 }, { text: Any }, { text: VirtualNetwork }, { text: Allow }]
+      - [{ text: "65001" }, { text: AllowAzureLoadBalancerInBound, area: r65001 }, { text: Any }, { text: AzureLoadBalancer }, { text: Allow }]
+      - [{ text: "65500" }, { text: DenyAllInBound, area: r65500 }, { text: Any }, { text: Any }, { text: Deny }]
+answer:
+  values: { p1: r4000, p2: r110 }
+explanation:
+  correct:
+    en: Health probes come from 168.63.129.16, which is identified by the AzureLoadBalancer service tag, not by the Internet or VirtualNetwork tags. The probe therefore matches no rule until Deny-All-Other (4000), which is evaluated before the default AllowAzureLoadBalancerInBound rule (65001) and blocks it. HTTP from the virtual network matches Allow-HTTP-Vnet (110). To fix the issue, add an allow rule for the AzureLoadBalancer source with a priority lower than 4000.
+    fr: "Les sondes d'intégrité proviennent de 168.63.129.16, identifiée par l'étiquette de service AzureLoadBalancer et non par les étiquettes Internet ou VirtualNetwork. La sonde ne correspond donc à aucune règle jusqu'à Deny-All-Other (4000), évaluée avant la règle par défaut AllowAzureLoadBalancerInBound (65001), et elle est bloquée. Le trafic HTTP issu du réseau virtuel correspond à Allow-HTTP-Vnet (110). Pour corriger le problème, ajoutez une règle d'autorisation pour la source AzureLoadBalancer avec une priorité inférieure à 4000."
+  options:
+    r100: { en: The probe source is not part of the Internet service tag., fr: La source de la sonde ne fait pas partie de l'étiquette de service Internet. }
+    r65001: { en: This default rule would allow the probe, but Deny-All-Other has a lower priority number and is processed first., fr: "Cette règle par défaut autoriserait la sonde, mais Deny-All-Other a un numéro de priorité plus petit et est traitée en premier." }
+references:
+  - title: Azure Load Balancer health probes
+    url: https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-custom-probe-overview
+  - title: Troubleshoot Azure Load Balancer health probe status
+    url: https://learn.microsoft.com/en-us/troubleshoot/azure/load-balancer/load-balancer-troubleshoot-health-probe-status
