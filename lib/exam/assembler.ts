@@ -167,7 +167,9 @@ export function assembleExam(input: {
   }
 
   // --- Yes/No series
-  let seriesSection: AssembledSection | undefined;
+  // A blueprint may ask for several series (structure.series.count.max > 1):
+  // every drawn series gets its own section.
+  const seriesSections: AssembledSection[] = [];
   const seriesCount = Math.min(randInt(random, s.series.count.min, s.series.count.max), series.length);
   for (const sr of pickGroups(series, seriesCount, s.series.count.min)) {
     const want = Math.min(randInt(random, s.series.questionsEach.min, s.series.questionsEach.max), sr.questions.length, budget);
@@ -175,7 +177,7 @@ export function assembleExam(input: {
     const kept = sr.questions.slice(0, want);
     chosen.push(...kept);
     budget -= kept.length;
-    seriesSection = { kind: "series", seriesId: sr.id, questionIds: kept.map((q) => q.id) };
+    seriesSections.push({ kind: "series", seriesId: sr.id, questionIds: kept.map((q) => q.id) });
   }
 
   // --- targets for the whole exam
@@ -245,7 +247,7 @@ export function assembleExam(input: {
   const placement = s.caseStudies.placement === "random" ? (random() < 0.5 ? "start" : "end") : s.caseStudies.placement;
   const mainSection: AssembledSection = { kind: "main", questionIds: shuffleArray(main, random).map((q) => q.id) };
   if (placement === "start") sections.push(...caseSections);
-  if (seriesSection) sections.push(seriesSection);
+  sections.push(...seriesSections);
   if (mainSection.questionIds.length) sections.push(mainSection);
   if (placement === "end") sections.push(...caseSections);
 

@@ -58,6 +58,20 @@ describe("assembleExam", () => {
     expect(ids(c)).not.toEqual(ids(a));
   });
 
+  it("keeps every series when the blueprint asks for several (regression: only the last one was kept)", () => {
+    const twoSeries = { ...az104Blueprint, structure: { ...az104Blueprint.structure, series: { ...az104Blueprint.structure.series, count: { min: 2, max: 2 } } } };
+    for (let i = 0; i < 20; i++) {
+      const exam = assembleExam({ blueprint: twoSeries, bank, history: emptyHistory(), seed: `two-series-${i}` });
+      const series = exam.sections.filter((s) => s.kind === "series");
+      expect(series).toHaveLength(2);
+      expect(new Set(series.map((s) => s.seriesId)).size).toBe(2);
+      for (const s of series) expect(s.questionIds.length).toBeGreaterThanOrEqual(3);
+      expect(exam.shortfall).toBe(0);
+      expect(ids(exam).length).toBe(exam.targetTotal);
+      expect(exam.sections.map((s) => s.kind).join(",")).toMatch(/^(case_study,)*series,series,main(,case_study)*$/);
+    }
+  });
+
   it("respects the blueprint over many seeds: size, sections, weights, mix, no duplicates", () => {
     const typeTotals = new Map<string, number>();
     const diffTotals = [0, 0, 0];
