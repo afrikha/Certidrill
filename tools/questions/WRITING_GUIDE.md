@@ -157,9 +157,12 @@ The schemas are in `lib/questions/schema.ts` (read it). Key points:
   it out of exams.
 - ids inside a question (`a`, `b`, `s1`, slot ids…) match `[a-zA-Z0-9_-]{1,40}`.
 - `single`: usually 4 options. `multi`: 4–6 options, `choose: 2` (sometimes 3);
-  the stem ends with "Each correct answer presents a complete solution." or
-  "…part of the solution." (FR : « Chaque bonne réponse constitue une solution
-  complète. » / « …une partie de la solution. »).
+  the stem ends with "Each correct answer presents a complete solution." when
+  the correct options are alternative ways to meet the goal, or "…part of the
+  solution." when they are needed together (FR : « Chaque bonne réponse
+  constitue une solution complète. » / « Chaque bonne réponse présente une
+  partie de la solution. »). For "Which two statements are true?" or "Which two
+  issues could cause…", use neither: only the scoring NOTE.
 - `yesno_statements`: 3 statements, not all with the same answer.
 - `dropdown`: `layout: code` (with `language`: bash, powershell, json, bicep,
   kusto) or `layout: text`; the template contains each `[[slotId]]` marker exactly
