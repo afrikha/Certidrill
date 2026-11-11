@@ -41,7 +41,29 @@ export class PayloadTooLargeError extends Error {}
 export async function jsonBody(request: Request): Promise<unknown> {
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_BODY_BYTES) throw new PayloadTooLargeError();
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) throw new PayloadTooLargeError();
+  const text = await readText(request, MAX_BODY_BYTES);
   return text ? JSON.parse(text) : {};
+}
+
+/**
+ * Reads the body as text, giving up as soon as it exceeds `limit` bytes. The
+ * Content-Length check above only covers honest clients: a chunked body has
+ * none, and would otherwise be read in full before being measured.
+ */
+async function readText(request: Request, limit: number): Promise<string> {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let text = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return text + decoder.decode();
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw new PayloadTooLargeError();
+    }
+    text += decoder.decode(value, { stream: true });
+  }
 }

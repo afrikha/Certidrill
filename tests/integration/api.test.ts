@@ -91,6 +91,36 @@ describe("API guards", () => {
     expect((await attempts.POST(declared, ctx({}))).status).toBe(413);
   });
 
+  it("stops reading a body without Content-Length (chunked) as soon as it exceeds 64 KB", async () => {
+    let pulled = 0;
+    const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+    // An endless stream: the request only ends if the server stops reading.
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled++;
+        controller.enqueue(chunk);
+      },
+    });
+    const chunked = new Request(`${ORIGIN}/api/attempts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: endless,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    expect(chunked.headers.get("content-length")).toBeNull();
+    expect(await json(await attempts.POST(chunked, ctx({})))).toEqual({ status: 413, body: { error: "payload_too_large" } });
+    expect(pulled).toBeLessThan(10);
+
+    // A small chunked body is still accepted.
+    const small = new Request(`${ORIGIN}/api/attempts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: new Blob([JSON.stringify({ certification: "zz-999", locale: "en" })]).stream(),
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    expect((await attempts.POST(small, ctx({}))).status).toBe(404);
+  });
+
   it("maps domain errors to their HTTP status and hides internal errors", async () => {
     expect((await attempts.POST(req("POST", "/api/attempts", { certification: "zz-999", locale: "en" }), ctx({}))).status).toBe(404);
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
