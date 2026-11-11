@@ -1,0 +1,127 @@
+id: cs1-fabrikam
+status: draft
+title:
+  en: Fabrikam Inc
+  fr: Fabrikam Inc
+tabs:
+  - key: overview
+    title: { en: Overview, fr: Vue d'ensemble }
+    body:
+      en: |
+        Fabrikam Inc is a manufacturer of industrial pumps. The head office is in Amsterdam. Fabrikam operates two plants today: one in Ohio (United States) and one in Penang (Malaysia). A third plant will open in 2027.
+
+        A central IT team in Amsterdam manages Azure governance and networking. A plant operations team manages the plant servers.
+      fr: |
+        Fabrikam Inc fabrique des pompes industrielles. Le siège est à Amsterdam. Fabrikam exploite aujourd'hui deux usines : une dans l'Ohio (États-Unis) et une à Penang (Malaisie). Une troisième usine ouvrira en 2027.
+
+        Une équipe informatique centrale à Amsterdam gère la gouvernance Azure et le réseau. Une équipe d'exploitation des usines gère les serveurs des usines.
+  - key: existing
+    title: { en: Existing environment, fr: Environnement existant }
+    body:
+      en: |
+        **Management groups and subscriptions**
+
+        The management group **MG-Fabrikam** is a child of the Tenant root group. It contains two child management groups:
+
+        | Management group | Subscriptions |
+        | --- | --- |
+        | MG-Corp | Sub-Corp |
+        | MG-Plants | Sub-Plant-US, Sub-Plant-APAC |
+
+        Each new plant will receive its own subscription in MG-Plants.
+
+        **Resources**
+
+        | Subscription | Resource group | Region | Resources |
+        | --- | --- | --- | --- |
+        | Sub-Corp | RG-Corp-Net | West Europe | VNet-Corp (10.0.0.0/16), subnets Servers (10.0.1.0/24) and Endpoints (10.0.2.0/24) |
+        | Sub-Corp | RG-ERP | West Europe | VM-ERP1 (subnet Servers), stfabanalytics |
+        | Sub-Plant-US | RG-Plant-US | East US | VNet-PlantUS (10.1.0.0/16), VM-MES-US1, stfabussensors |
+        | Sub-Plant-APAC | RG-Plant-APAC | Southeast Asia | VNet-PlantAPAC (10.2.0.0/16), VM-MES-AP1, VM-HIST-AP1 |
+
+        VNet-Corp is peered with VNet-PlantUS and with VNet-PlantAPAC. The Network Watcher agent virtual machine extension is installed on all the virtual machines.
+
+        **Storage accounts**
+
+        | Name | Kind | Redundancy | Configuration |
+        | --- | --- | --- | --- |
+        | stfabussensors | General-purpose v2 | LRS | Container **telemetry**; plant sensors write new block blobs every minute |
+        | stfabanalytics | General-purpose v2 | ZRS | Container **telemetry-us**; public network access enabled from all networks |
+
+        **Microsoft Entra groups**
+
+        | Group | Members |
+        | --- | --- |
+        | GG-PlantOps | Plant operations team |
+        | GG-CorpIT | Central IT team |
+      fr: |
+        **Groupes d'administration et abonnements**
+
+        Le groupe d'administration **MG-Fabrikam** est un enfant du Groupe racine du locataire. Il contient deux groupes d'administration enfants :
+
+        | Groupe d'administration | Abonnements |
+        | --- | --- |
+        | MG-Corp | Sub-Corp |
+        | MG-Plants | Sub-Plant-US, Sub-Plant-APAC |
+
+        Chaque nouvelle usine recevra son propre abonnement dans MG-Plants.
+
+        **Ressources**
+
+        | Abonnement | Groupe de ressources | Région | Ressources |
+        | --- | --- | --- | --- |
+        | Sub-Corp | RG-Corp-Net | West Europe | VNet-Corp (10.0.0.0/16), sous-réseaux Servers (10.0.1.0/24) et Endpoints (10.0.2.0/24) |
+        | Sub-Corp | RG-ERP | West Europe | VM-ERP1 (sous-réseau Servers), stfabanalytics |
+        | Sub-Plant-US | RG-Plant-US | East US | VNet-PlantUS (10.1.0.0/16), VM-MES-US1, stfabussensors |
+        | Sub-Plant-APAC | RG-Plant-APAC | Southeast Asia | VNet-PlantAPAC (10.2.0.0/16), VM-MES-AP1, VM-HIST-AP1 |
+
+        VNet-Corp a un peering avec VNet-PlantUS et avec VNet-PlantAPAC. L'extension de machine virtuelle de l'agent Network Watcher est installée sur toutes les machines virtuelles.
+
+        **Comptes de stockage**
+
+        | Nom | Type | Redondance | Configuration |
+        | --- | --- | --- | --- |
+        | stfabussensors | Usage général v2 | LRS | Conteneur **telemetry** ; les capteurs des usines écrivent de nouveaux objets blob de blocs chaque minute |
+        | stfabanalytics | Usage général v2 | ZRS | Conteneur **telemetry-us** ; accès réseau public activé depuis tous les réseaux |
+
+        **Groupes Microsoft Entra**
+
+        | Groupe | Membres |
+        | --- | --- |
+        | GG-PlantOps | Équipe d'exploitation des usines |
+        | GG-CorpIT | Équipe informatique centrale |
+  - key: requirements
+    title: { en: Requirements, fr: Exigences }
+    body:
+      en: |
+        **Governance and identity requirements**
+
+        1. In all the current and future Fabrikam subscriptions, resources can be deployed only to the West Europe, East US, and Southeast Asia regions.
+        2. GG-PlantOps must be able to create, start, stop, resize, and delete virtual machines in all the plant subscriptions, including the subscriptions of future plants. GG-PlantOps must not be able to manage virtual networks or storage accounts, or to grant access to other users. Follow the principle of least privilege.
+
+        **Data and compute requirements**
+
+        3. New blobs written to the **telemetry** container of stfabussensors must be copied asynchronously to the **telemetry-us** container of stfabanalytics. The copy must be managed by Azure Storage, without any custom code.
+        4. VM-HIST-AP1 must be moved from Southeast Asia to East US, in the same subscription, together with its network interface and the other resources it depends on. Use a managed service that validates the dependencies. The source virtual machine must be kept for 30 days after the move is completed.
+
+        **Network and monitoring requirements**
+
+        5. VM-ERP1 must access the blob service of stfabanalytics through a private IP address in the Endpoints subnet. Public network access to stfabanalytics must be disabled, and the name stfabanalytics.blob.core.windows.net must resolve to the private IP address from VNet-Corp.
+        6. The central IT team must continuously measure the round-trip time and the packet loss between VM-MES-US1 and VM-ERP1, and must be alerted when the round-trip time exceeds 150 ms.
+        7. Administrative effort must be minimized.
+      fr: |
+        **Exigences de gouvernance et d'identité**
+
+        1. Dans tous les abonnements actuels et futurs de Fabrikam, les ressources ne peuvent être déployées que dans les régions West Europe, East US et Southeast Asia.
+        2. GG-PlantOps doit pouvoir créer, démarrer, arrêter, redimensionner et supprimer des machines virtuelles dans tous les abonnements des usines, y compris les abonnements des futures usines. GG-PlantOps ne doit pas pouvoir gérer les réseaux virtuels ni les comptes de stockage, ni accorder des accès à d'autres utilisateurs. Respectez le principe du moindre privilège.
+
+        **Exigences de données et de calcul**
+
+        3. Les nouveaux objets blob écrits dans le conteneur **telemetry** de stfabussensors doivent être copiés de manière asynchrone vers le conteneur **telemetry-us** de stfabanalytics. La copie doit être gérée par Stockage Azure, sans code personnalisé.
+        4. VM-HIST-AP1 doit être déplacée de Southeast Asia vers East US, dans le même abonnement, avec son interface réseau et les autres ressources dont elle dépend. Utilisez un service managé qui valide les dépendances. La machine virtuelle source doit être conservée pendant 30 jours après la fin du déplacement.
+
+        **Exigences de réseau et de supervision**
+
+        5. VM-ERP1 doit accéder au service blob de stfabanalytics via une adresse IP privée du sous-réseau Endpoints. L'accès réseau public à stfabanalytics doit être désactivé, et le nom stfabanalytics.blob.core.windows.net doit être résolu en adresse IP privée depuis VNet-Corp.
+        6. L'équipe informatique centrale doit mesurer en continu le temps aller-retour et la perte de paquets entre VM-MES-US1 et VM-ERP1, et doit être alertée quand le temps aller-retour dépasse 150 ms.
+        7. L'effort d'administration doit être réduit au minimum.
