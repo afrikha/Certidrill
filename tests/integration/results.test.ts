@@ -111,6 +111,11 @@ describe("score report", () => {
 });
 
 describe("progress", () => {
+  it("is empty for a user without finished attempts", async () => {
+    const fresh = await createUser(db, { email: "fresh@example.com" });
+    expect(await getProgress(db, fresh.id, "fr")).toEqual({ attempts: [], domainLevels: [], readiness: [] });
+  });
+
   it("lists attempts, averages domains over the last 3 and computes readiness", async () => {
     // Two perfect exams after the two above: the streak is 2 (the first scored low).
     await play("perfect-2", at(400), (_id, key) => key);
