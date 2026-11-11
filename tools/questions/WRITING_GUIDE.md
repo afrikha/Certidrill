@@ -55,6 +55,25 @@ people and agents who author or review questions.
   en-us / fr-fr). Product and feature names Microsoft keeps in English stay in
   English; commands, code, parameters, role names, SKU names and portal blade
   names stay in English.
+- Terminology decisions (from the glossary — apply them everywhere):
+  - Blob tiers: « niveau chaud (Hot) », « niveau froid (Cool) », « niveau froid (Cold) »,
+    « niveau archive (Archive) » — always keep the English tier name in parentheses
+    since Microsoft FR uses « froid » for both Cool and Cold.
+  - SAS stays « SAS » (« jeton SAS », « SAS de service », « SAS de délégation
+    d'utilisateur », « SAS de compte ») as in the official study guide, not « SAP ».
+  - Role names in English (Owner, Contributor, Role Based Access Control Administrator…).
+  - « Sauvegarde Azure » for Azure Backup in prose, « coffre Recovery Services »,
+    « coffre de sauvegarde » (Backup vault), « Stockage Azure », « Stockage Blob Azure »,
+    « Explorateur Stockage Azure », « groupes de machines virtuelles identiques »
+    (VM Scale Sets), « groupe à haute disponibilité », « groupe d'administration »,
+    « étendue », « étiquette » (tag), « peering de réseaux virtuels », « itinéraire
+    défini par l'utilisateur » / « tronçon suivant », « pool principal » (backend
+    pool), « configuration IP frontale », « sonde d'intégrité », « basculement »
+    (failover), « restauration automatique » (failback), « suppression réversible »
+    (soft delete), « locataire » (tenant), « stratégie » (policy), « verrou
+    Suppression / Lecture seule » (CanNotDelete / ReadOnly in CLI/PowerShell).
+  - Azure Bastion, Network Watcher, Azure Policy, Azure Monitor, Log Analytics,
+    Azure Site Recovery, AzCopy stay in English (see `keep_in_english`).
 - French typography: non-breaking-style space before `:` `?` `!` `;`, « » quotes.
 - Language-neutral texts (a command, `Standard_LRS`, a role name) can be a plain
   string instead of `{ en, fr }`.
