@@ -325,10 +325,15 @@ export async function saveItem(
   if (flagged !== undefined && item.section.kind === "main") data.flagged = flagged;
   if (Object.keys(data).length === 0) return item;
 
-  // Guard against a concurrent lock: only update while the section is still open.
-  const updated = await db.attemptItem.updateMany({
-    where: { id: item.id, section: { lockedAt: null }, ...(item.section.kind === "series" && response !== undefined ? { answeredAt: null } : {}) },
-    data: data as Prisma.AttemptItemUpdateManyMutationInput,
+  const updated = await db.$transaction(async (tx) => {
+    // Shared lock on the attempt: a submission (FOR UPDATE) either scores
+    // after this write, or has closed the attempt and this write is refused.
+    if ((await lockAttempt(tx, attemptId, "share")) !== "in_progress") throw new SessionError("finished");
+    // Guard against a concurrent section lock: only update while the section is still open.
+    return tx.attemptItem.updateMany({
+      where: { id: item.id, section: { lockedAt: null }, ...(item.section.kind === "series" && response !== undefined ? { answeredAt: null } : {}) },
+      data: data as Prisma.AttemptItemUpdateManyMutationInput,
+    });
   });
   if (updated.count === 0) throw new SessionError(item.section.kind === "series" ? "final_answer" : "locked");
   return db.attemptItem.findUniqueOrThrow({ where: { id: item.id } });
@@ -350,6 +355,15 @@ export async function lockSection(db: PrismaClient, { attemptId, sectionId, user
   return locked;
 }
 
+/** Row lock on the attempt inside a transaction; returns its status. */
+async function lockAttempt(tx: Prisma.TransactionClient, attemptId: string, mode: "share" | "update") {
+  const rows =
+    mode === "update"
+      ? await tx.$queryRaw<{ status: string }[]>`SELECT "status"::text FROM "attempt" WHERE "id" = ${attemptId} FOR UPDATE`
+      : await tx.$queryRaw<{ status: string }[]>`SELECT "status"::text FROM "attempt" WHERE "id" = ${attemptId} FOR SHARE`;
+  return rows[0]?.status;
+}
+
 /** Scores every item and closes the attempt (final submission or expiry). */
 export async function submitAttempt(
   db: PrismaClient,
@@ -359,23 +373,22 @@ export async function submitAttempt(
   if (attempt.status !== "in_progress") return attempt; // idempotent
   if (!attempt.startedAt) throw new SessionError("not_started");
 
-  const items = await db.attemptItem.findMany({ where: { attemptId }, include: { question: { select: { type: true, body: true, answer: true } } } });
-  const scores = items.map((i) => ({ id: i.id, ...scoreItem(i.question, i.response) }));
-  const total = scoreExam(scores, attempt.blueprint);
   const submittedAt = reason === "expired" && attempt.deadlineAt && attempt.deadlineAt < now ? attempt.deadlineAt : now;
 
   const result = await db.$transaction(async (tx) => {
-    // Only one closer wins (double click, timer and expiry racing).
-    const closed = await tx.attempt.updateMany({
-      where: { id: attemptId, status: "in_progress" },
-      data: { status: reason, submittedAt, scaledScore: total.scaledScore, passed: total.passed },
-    });
-    if (closed.count === 0) return false;
+    // Exclusive lock on the attempt: no answer can be saved between the
+    // scoring below and the closing (saveItem takes a shared lock), and only
+    // one closer wins (double click, timer and expiry racing).
+    if ((await lockAttempt(tx, attemptId, "update")) !== "in_progress") return null;
+    const items = await tx.attemptItem.findMany({ where: { attemptId }, include: { question: { select: { type: true, body: true, answer: true } } } });
+    const scores = items.map((i) => ({ id: i.id, ...scoreItem(i.question, i.response) }));
+    const total = scoreExam(scores, attempt.blueprint);
+    await tx.attempt.update({ where: { id: attemptId }, data: { status: reason, submittedAt, scaledScore: total.scaledScore, passed: total.passed } });
     for (const s of scores) await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max } });
     await tx.attemptSection.updateMany({ where: { attemptId, lockedAt: null }, data: { lockedAt: submittedAt } });
-    return true;
+    return total;
   });
-  if (result) logEvent(reason === "expired" ? "exam.expired" : "exam.submitted", { attemptId, userId, scaledScore: total.scaledScore, passed: total.passed });
+  if (result) logEvent(reason === "expired" ? "exam.expired" : "exam.submitted", { attemptId, userId, scaledScore: result.scaledScore, passed: result.passed });
   return db.attempt.findUniqueOrThrow({ where: { id: attemptId } });
 }
 

@@ -188,6 +188,54 @@ describe("sections", () => {
   });
 });
 
+describe("submission and saves racing", () => {
+  /** A client whose next $transaction first runs `before` (another request landing at that moment). */
+  function withBeforeTransaction(client: PrismaClient, before: () => Promise<unknown>): PrismaClient {
+    let pending = true;
+    return new Proxy(client, {
+      get(target, key, receiver) {
+        if (key === "$transaction" && pending) {
+          pending = false;
+          return async (...args: unknown[]) => {
+            await before();
+            return (target.$transaction as (...a: unknown[]) => unknown)(...args);
+          };
+        }
+        const value = Reflect.get(target, key, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  }
+
+  async function startedExam(seed: string) {
+    const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: T0, seed });
+    await startAttempt(db, { attemptId, userId, now: T0 });
+    const view = await getAttemptView(db, { attemptId, userId, now: at(1) });
+    const item = view.items.find((i) => i.sectionId === view.currentSectionId)!;
+    const { answer } = await db.question.findUniqueOrThrow({ where: { id: item.question.id }, select: { answer: true } });
+    return { attemptId, item, answer };
+  }
+
+  it("scores an answer saved while the submission starts (regression: saved but not scored)", async () => {
+    const { attemptId, item, answer } = await startedExam("race-save-first");
+    const racing = withBeforeTransaction(db, () => saveItem(db, { attemptId, itemId: item.id, userId, response: answer, now: at(2) }));
+    await submitAttempt(racing, { attemptId, userId, now: at(2) });
+    const stored = await db.attemptItem.findUniqueOrThrow({ where: { id: item.id } });
+    expect(stored.response).toEqual(answer);
+    expect(stored.pointsEarned).toBe(stored.pointsMax);
+    expect(stored.pointsEarned).toBeGreaterThan(0);
+  });
+
+  it("refuses an answer that arrives once the attempt is closed", async () => {
+    const { attemptId, item, answer } = await startedExam("race-submit-first");
+    const racing = withBeforeTransaction(db, () => submitAttempt(db, { attemptId, userId, now: at(2) }));
+    await expectCode(saveItem(racing, { attemptId, itemId: item.id, userId, response: answer, now: at(2) }), "finished");
+    const stored = await db.attemptItem.findUniqueOrThrow({ where: { id: item.id } });
+    expect(stored.response).toBeNull();
+    expect(stored.pointsEarned).toBe(0);
+  });
+});
+
 describe("expiry", () => {
   it("accepts writes within the grace period, then auto-submits as expired with the saved answers", async () => {
     const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: T0, seed: "exp-1" });
