@@ -77,7 +77,10 @@ test("complete exam: sections, review, submission, no answer in network traffic"
 
   let lockedItemId: string | undefined;
   let sawMain = false;
-  for (let guard = 0; guard < 50 && !page.url().includes("/results/"); guard++) {
+  for (let guard = 0; guard < 50; guard++) {
+    // Either the next section is on screen, or the exam is over and we are on the results page.
+    await page.waitForFunction(() => location.pathname.includes("/results/") || !!document.querySelector("header span.text-muted-foreground"));
+    if (page.url().includes("/results/")) break;
     const label = await sectionLabel(page);
     const view = await (await page.request.get(`/api/attempts/${attemptId}`)).json();
     const firstItemOfSection = view.items.find((i: { sectionId: string }) => i.sectionId === view.currentSectionId)?.id;
@@ -207,4 +210,40 @@ test("an expired attempt is closed when the page is opened after the deadline", 
   await db.attempt.update({ where: { id: attemptId }, data: { deadlineAt: new Date(Date.now() - 60_000) } });
   const res = await page.context().request.get(`/api/attempts/${attemptId}`);
   expect((await res.json()).status).toBe("expired");
+});
+
+test("results: report, correction with filters and language, question report, dashboard progress", async ({ page }) => {
+  const attemptId = await startExam(page);
+  await answerAndWaitSaved(page);
+  await page.request.post(`/api/attempts/${attemptId}/submit`, { headers: { Origin: new URL(page.url()).origin } });
+  await page.goto(`/results/${attemptId}`);
+  await expect(page.getByTestId("scaled-score")).toBeVisible();
+  await expect(page.getByTestId("verdict")).toHaveText(/Fail|Pass/);
+  await expect(page.getByTestId("domain-table").locator("tr")).toHaveCount(5);
+  await expect(page.getByText(/approximation/)).toBeVisible();
+
+  await page.getByRole("link", { name: /See the detailed correction/ }).click();
+  await page.waitForURL(/\/review/);
+  await expect(page.getByTestId("correction-item").first()).toBeVisible();
+  const all = await page.getByTestId("correction-item").count();
+  expect(all).toBeGreaterThan(10);
+  await expect(page.getByText("Correct answer").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Microsoft Learn/ }).first()).toHaveAttribute("href", /learn\.microsoft\.com/);
+  await page.getByRole("link", { name: "Missed", exact: true }).click();
+  await expect(page).toHaveURL(/filter=missed/);
+  await page.waitForLoadState("networkidle");
+  expect(await page.getByTestId("correction-item").count()).toBeLessThanOrEqual(all);
+  await page.getByRole("link", { name: "fr", exact: true }).click();
+  await expect(page.getByText("Bonne réponse").first()).toBeVisible();
+
+  const first = page.getByTestId("correction-item").first();
+  await first.getByText(/Signaler cette question|Report this question/).click();
+  await first.getByRole("button", { name: /Envoyer|Send/ }).click();
+  await expect(first.getByRole("status")).toHaveText(/Thank you|Merci/);
+
+  await page.goto("/dashboard");
+  await expect(page.getByTestId("last-score")).toBeVisible();
+  await expect(page.getByTestId("readiness")).toContainText(/Not ready|Pas encore prêt/);
+  const progress = await (await page.request.get("/api/me/progress")).json();
+  expect(progress.attempts.length).toBeGreaterThan(0);
 });

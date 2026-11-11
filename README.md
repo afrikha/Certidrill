@@ -99,8 +99,11 @@ Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiemen
 | `PUT /api/attempts/:id/items/:itemId` | Enregistre une réponse et/ou le marquage |
 | `POST /api/attempts/:id/sections/:sectionId/lock` | Quitte et verrouille la section courante |
 | `POST /api/attempts/:id/submit` | Note et clôt la tentative |
+| `GET /api/attempts/:id/results` | Rapport et correction (après soumission uniquement, `?lang=fr`) |
+| `GET /api/me/progress` | Historique, niveau par domaine, indicateur « prêt » |
+| `POST /api/questions/:id/report` | Signaler une question vue dans un examen terminé |
 
 Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi côté serveur (`deadlineAt`, 5 s de tolérance réseau) ; seule la section courante accepte des écritures ; une section quittée est verrouillée ; dans une série, chaque réponse est définitive et donnée dans l'ordre ; à l'échéance, la tentative passe en `expired` avec les réponses enregistrées ; les questions ne sont envoyées qu'une fois le chrono lancé ; les routes vérifient la propriété de la tentative et l'origine des requêtes (CSRF). Les études de cas sont tirées au début ou à la fin ; la dernière section se termine par « Terminer l'examen ».
-- [ ] Lot 5 — Résultats
+- [x] **Lot 5 — Résultats** : rapport de score (sur 1000, réussite à 700, barres par domaine face au seuil, temps, types), correction détaillée (réponse donnée, bonne réponse, explications, liens Microsoft Learn, filtres ratées / marquées / domaine, FR ou EN), signalement (3 signalements → retour en relecture), tableau de bord (dernier score, courbe, niveau par domaine, indicateur « prêt »)
 - [ ] Lot 6 — Banque
 - [ ] Lot 7 — Mise en production
