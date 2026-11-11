@@ -1,0 +1,73 @@
+# Automatic code review of every pull request by Claude.
+# Requires ONE repository secret (Settings → Secrets and variables → Actions):
+#   ANTHROPIC_API_KEY        — an Anthropic API key, or
+#   CLAUDE_CODE_OAUTH_TOKEN  — a Claude subscription token (`claude setup-token`).
+# Without a secret the review is skipped (the job stays green).
+name: Claude PR review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    env:
+      HAS_CREDENTIALS: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - name: Skip when no Claude credentials are configured
+        if: env.HAS_CREDENTIALS != 'true'
+        run: echo "::notice::Claude review skipped — add ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN to the repository secrets."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_CREDENTIALS == 'true'
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        if: env.HAS_CREDENTIALS == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You review this pull request of Certidrill, a mock-exam platform for IT
+            certifications (Next.js, TypeScript, Prisma/PostgreSQL). Read README.md and
+            the diff (`gh pr diff ${{ github.event.pull_request.number }}`), then review
+            only what the PR changes. Focus on, in this order:
+
+            1. Exam integrity: correct answers and explanations must never reach the
+               browser before submission (lib/questions/present.ts, lib/exam/session.ts,
+               API routes); the server owns time, section locks and scoring; every API
+               route checks authentication, ownership and same-origin.
+            2. Correctness bugs and regressions in lib/exam (assembler, scoring, session),
+               with missing or weakened tests (coverage ≥ 90 % on lib/exam).
+            3. Security: injection, unsanitized Markdown/HTML, secrets, access control,
+               RGPD (no unnecessary personal data).
+            4. Content files (content/**): follow tools/questions/WRITING_GUIDE.md —
+               original and technically current AZ-104 content, exactly one defensible
+               answer, French terminology from content/az-104/glossary.yaml, Microsoft
+               Learn references; flag ambiguous or factually doubtful questions with the
+               reason. For large content PRs, sample at least 20 questions.
+            5. Certification data must stay data: no blueprint parameter hard-coded.
+
+            Post your review with inline comments on the precise lines
+            (mcp__github_inline_comment__create_inline_comment) for concrete problems,
+            then one summary comment (`gh pr comment`) in French with: verdict
+            (OK / changes requested), the issues ranked by severity, and what you checked.
+            Do not comment on style that ESLint/Prettier already enforce. Be concise;
+            no praise padding.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
