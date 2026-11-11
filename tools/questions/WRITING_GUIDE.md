@@ -47,6 +47,53 @@ people and agents who author or review questions.
    that really exist and cover the point. Prefer URLs you have fetched. Title =
    the page title.
 
+7. **Scoring note.** Every `multi`, `yesno_statements`, `dropdown`, `hotarea` and
+   `dragdrop` stem ends with "NOTE: Each correct selection is worth one point." /
+   « Remarque : chaque sélection correcte vaut un point. » (they are scored per
+   element). Not on `single`, `ordering` (all or nothing) or series.
+
+## Recurring problems found by the full review (Nov. 2026) — check each one
+
+- **Giveaways.** The correct option is longer, more precise, the only one that
+  reuses the stem's words, or the only value not copied from the case text.
+  Give all options the same structure ("Do X so that Y") and similar length.
+  Hint phrases in the stem ("by using a currently supported feature", "before
+  you configure any backup") point at the answer: remove them.
+- **Invented distractors.** Every option must be a real feature, cmdlet,
+  parameter or value (check the `az` / Az PowerShell reference). Watch the
+  opposite trap too: a "wrong" option that is in fact valid (`az vm update
+  --size` exists).
+- **Unstated conditions.** "Complete solution" options that only work if an
+  unstated quantity suffices; defaults the scenario relies on without saying
+  so (management group hierarchy settings, App Service HTTPS-only / TLS 1.2
+  defaults, Premium SSD bursting); requirements the case asks for but a
+  question proves impossible.
+- **Service tags.** `VirtualNetwork` includes the VNet, peered VNets,
+  on-premises ranges behind a gateway *and* 168.63.129.16 (health probes):
+  never rely on a `VirtualNetwork` rule ignoring probe traffic.
+- **Costs and limits.** When minimum retention decides the answer, compute it
+  (Cold + early-deletion charge can beat Cool); check limits on the current
+  Learn page (they move).
+- **Yes/No.** No statement true by its own wording, no "cannot" statements,
+  not all the same answer.
+- **Parallel case studies.** Two case studies must not test the same decision
+  with the same answer under different names.
+- **Fixed-order options** (`shuffle: false`, ascending numbers): vary the
+  position of the correct value across questions.
+- **French.** « présente une partie de la solution » ; « objet blob » ;
+  « balise » for container image tags (« étiquette » is for Azure tags) ;
+  « région jumelée » ; « peering » (not « appairé ») ; « itinéraire » (not
+  « route ») for UDRs ; « Stockage Azure » ; « processeur » (not « UC ») ;
+  « approuver » (not « faire confiance à ») ; portal blade and enum values in
+  English (Detach, None) ; « Que devez-vous… ? » ; infinitive for ordering
+  actions.
+- **References.** Title = the current page title, exactly.
+- **Retired or changing features (2026):** Basic public IP / Basic LB, MMA,
+  NSG flow logs (creation blocked — VNet flow logs), TLS 1.0/1.1 on Storage,
+  Docker Content Trust / AcrImageSigner, default outbound access for VMs,
+  Azure Disk Encryption (retires 15 Sept 2028), complete deployment mode
+  (moving to deployment stacks), Standard v2 public IP SKU now exists.
+
 ## Languages and terminology
 
 - Every text exists in English (`en`) and French (`fr`), same meaning.
