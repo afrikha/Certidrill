@@ -6,6 +6,7 @@ vi.mock("nodemailer", () => ({ createTransport: vi.fn(() => ({ sendMail })) }));
 import { isSameOrigin } from "@/lib/security/csrf";
 import { isAnswered, isComplete, type PublicBody } from "@/lib/questions/public";
 import { logError, logEvent } from "@/lib/log";
+import { createTransport } from "nodemailer";
 import { sendMagicLink, smtpOptions } from "@/lib/auth/email";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +89,8 @@ describe("magic link e-mail", () => {
     await sendMagicLink({ to: "a@example.com", url: "https://certidrill.com/api/auth/callback/email?token=t" });
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: "a@example.com", from: "Certidrill <noreply@example.com>", subject: expect.stringContaining("certidrill.com") }));
     expect(sendMail.mock.calls[0]![0].text).toContain("Utilisez ce lien");
+    // The transport gets the encrypted options, not the raw URL.
+    expect(createTransport).toHaveBeenLastCalledWith(expect.objectContaining({ host: "smtp.example.com", port: 587, requireTLS: true }));
   });
   it("always encrypts the SMTP connection", () => {
     expect(smtpOptions("smtp://user%40x:p%3Ass@smtp.example.com:2525")).toEqual({
@@ -101,9 +104,24 @@ describe("magic link e-mail", () => {
     expect(smtpOptions("smtps://u:p@smtp.example.com")).toMatchObject({ port: 465, secure: true, requireTLS: true });
     expect(() => smtpOptions("http://smtp.example.com")).toThrow(/smtp:\/\//);
     expect(smtpOptions("smtp://[::1]:25").host).toBe("::1");
-    // A badly encoded password gives a clear error that does not contain it.
-    expect(() => smtpOptions("smtp://u:secret%zz@smtp.example.com")).toThrow(/not URL-encoded/);
-    expect(() => smtpOptions("smtp://u:secret%zz@smtp.example.com")).not.toThrow(/secret/);
+  });
+  it("never puts the SMTP password in an error", () => {
+    const failure = (server: string) => {
+      try {
+        smtpOptions(server);
+      } catch (err) {
+        return err as Error & { input?: unknown };
+      }
+      throw new Error("expected an error");
+    };
+    const badlyEncoded = failure("smtp://u:secret%zz@smtp.example.com");
+    expect(badlyEncoded.message).toMatch(/not URL-encoded/);
+    const invalid = failure("smtp//u:secret@smtp.example.com");
+    expect(invalid.message).toBe("EMAIL_SERVER is not a valid URL");
+    for (const err of [badlyEncoded, invalid]) {
+      expect(err.input).toBeUndefined();
+      expect(JSON.stringify({ ...err, message: err.message, stack: err.stack })).not.toContain("secret");
+    }
   });
 });
 

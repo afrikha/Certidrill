@@ -8,7 +8,13 @@ import type SMTPTransport from "nodemailer/lib/smtp-transport";
  * clear text, even if the server does not offer STARTTLS.
  */
 export function smtpOptions(server: string): SMTPTransport.Options {
-  const url = new URL(server);
+  let url: URL;
+  try {
+    url = new URL(server);
+  } catch {
+    // The TypeError of new URL() carries the input (password included) in error.input.
+    throw new Error("EMAIL_SERVER is not a valid URL");
+  }
   if (url.protocol !== "smtp:" && url.protocol !== "smtps:") throw new Error("EMAIL_SERVER must be an smtp:// or smtps:// URL");
   const secure = url.protocol === "smtps:";
   const defaultPort = secure ? 465 : 587;
