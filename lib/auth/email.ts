@@ -16,6 +16,9 @@ export function smtpOptions(server: string): SMTPTransport.Options {
     throw new Error("EMAIL_SERVER is not a valid URL");
   }
   if (url.protocol !== "smtp:" && url.protocol !== "smtps:") throw new Error("EMAIL_SERVER must be an smtp:// or smtps:// URL");
+  // nodemailer used to read options from the query string (?pool=true,
+  // ?ignoreTLS=true…). They are refused rather than silently ignored.
+  if (url.search) throw new Error("EMAIL_SERVER: query parameters are not supported");
   const secure = url.protocol === "smtps:";
   const defaultPort = secure ? 465 : 587;
   // Port 465 is implicit TLS: smtp:// would wait for a STARTTLS that never comes
