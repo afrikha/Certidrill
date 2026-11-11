@@ -1,4 +1,25 @@
 import { createTransport } from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
+
+/**
+ * SMTP options from EMAIL_SERVER (smtp://user:pass@host:587 or smtps://…:465).
+ * The connection is always encrypted: implicit TLS for smtps://, and STARTTLS
+ * required for smtp:// — a magic link is a credential and is never sent in
+ * clear text, even if the server does not offer STARTTLS.
+ */
+export function smtpOptions(server: string): SMTPTransport.Options {
+  const url = new URL(server);
+  if (url.protocol !== "smtp:" && url.protocol !== "smtps:") throw new Error("EMAIL_SERVER must be an smtp:// or smtps:// URL");
+  const secure = url.protocol === "smtps:";
+  const defaultPort = secure ? 465 : 587;
+  return {
+    host: url.hostname,
+    port: url.port ? Number(url.port) : defaultPort,
+    secure,
+    requireTLS: true,
+    auth: url.username ? { user: decodeURIComponent(url.username), pass: decodeURIComponent(url.password) } : undefined,
+  };
+}
 
 /**
  * Sends the magic link by SMTP (EMAIL_SERVER). Without SMTP, the link is only
@@ -13,7 +34,7 @@ export async function sendMagicLink({ to, url }: { to: string; url: string }): P
     return;
   }
   const { host } = new URL(url);
-  const transport = createTransport(server);
+  const transport = createTransport(smtpOptions(server));
   await transport.sendMail({
     to,
     from: process.env.EMAIL_FROM ?? "Certidrill <no-reply@certidrill.com>",

@@ -6,7 +6,7 @@ vi.mock("nodemailer", () => ({ createTransport: vi.fn(() => ({ sendMail })) }));
 import { isSameOrigin } from "@/lib/security/csrf";
 import { isAnswered, isComplete, type PublicBody } from "@/lib/questions/public";
 import { logError, logEvent } from "@/lib/log";
-import { sendMagicLink } from "@/lib/auth/email";
+import { sendMagicLink, smtpOptions } from "@/lib/auth/email";
 import { cn } from "@/lib/utils";
 
 afterEach(() => {
@@ -88,6 +88,18 @@ describe("magic link e-mail", () => {
     await sendMagicLink({ to: "a@example.com", url: "https://certidrill.com/api/auth/callback/email?token=t" });
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: "a@example.com", from: "Certidrill <noreply@example.com>", subject: expect.stringContaining("certidrill.com") }));
     expect(sendMail.mock.calls[0]![0].text).toContain("Utilisez ce lien");
+  });
+  it("always encrypts the SMTP connection", () => {
+    expect(smtpOptions("smtp://user%40x:p%3Ass@smtp.example.com:2525")).toEqual({
+      host: "smtp.example.com",
+      port: 2525,
+      secure: false,
+      requireTLS: true,
+      auth: { user: "user@x", pass: "p:ss" },
+    });
+    expect(smtpOptions("smtp://smtp.example.com")).toMatchObject({ port: 587, secure: false, requireTLS: true, auth: undefined });
+    expect(smtpOptions("smtps://u:p@smtp.example.com")).toMatchObject({ port: 465, secure: true, requireTLS: true });
+    expect(() => smtpOptions("http://smtp.example.com")).toThrow(/smtp:\/\//);
   });
 });
 
