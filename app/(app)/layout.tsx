@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth/guards";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await requireUser();
   return (
     <>

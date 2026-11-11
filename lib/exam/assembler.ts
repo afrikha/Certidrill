@@ -14,6 +14,7 @@
  */
 import type { BlueprintStructure, QuestionTypeCode } from "@/lib/content/schema";
 import { shuffleArray } from "@/lib/questions/order";
+import { compareCodeUnits } from "@/lib/sort";
 import { createRng, randInt } from "./random";
 
 export interface CandidateQuestion {
@@ -94,7 +95,7 @@ export function drawDomainCounts(domains: AssemblyBlueprint["domains"], total: n
     const pool = open.length ? open : counts.map((_, i) => i);
     const weights = pool.map((i) => Math.max(1e-6, (hi[i] ?? 0) - counts[i]! + (open.length ? 0 : 1)));
     let r = random() * weights.reduce((a, b) => a + b, 0);
-    let chosen = pool[pool.length - 1]!;
+    let chosen = pool.at(-1)!;
     for (let k = 0; k < pool.length; k++) {
       r -= weights[k]!;
       if (r < 0) {
@@ -108,6 +109,87 @@ export function drawDomainCounts(domains: AssemblyBlueprint["domains"], total: n
   return new Map(domains.map((d, i) => [d.code, counts[i]!]));
 }
 
+type Freshness = (ids: string[]) => number;
+
+/**
+ * Picks `n` groups (case studies, series) preferring fresh ones, random among
+ * equals. When fewer fresh groups remain than drawn, takes fewer groups —
+ * but never fewer than the blueprint minimum — rather than repeat one.
+ */
+function pickGroups<G extends { questions: CandidateQuestion[] }>(groups: G[], drawn: number, min: number, fresh: Freshness, random: () => number): G[] {
+  const freshCount = groups.filter((g) => fresh(g.questions.map((q) => q.id)) === 0).length;
+  const n = freshCount >= drawn ? drawn : Math.min(drawn, Math.max(min, freshCount));
+  return groups
+    .map((g) => ({ g, f: fresh(g.questions.map((q) => q.id)), r: random() }))
+    .sort((a, b) => a.f - b.f || a.r - b.r)
+    .slice(0, n)
+    .map((x) => x.g);
+}
+
+/** Running counts of the drawn questions, against the exam targets. */
+interface Tally {
+  domainNeed: Map<string, number>;
+  typeTarget: Map<string, { min: number; max: number }>;
+  typeCount: Map<string, number>;
+  diffTarget: Map<string, number>;
+  diffCount: Map<string, number>;
+  objectiveCount: Map<string, number>;
+}
+
+function increment(m: Map<string, number>, k: string): void {
+  m.set(k, (m.get(k) ?? 0) + 1);
+}
+
+function record(t: Tally, q: CandidateQuestion): void {
+  t.domainNeed.set(q.domain, (t.domainNeed.get(q.domain) ?? 0) - 1);
+  increment(t.typeCount, q.type);
+  increment(t.diffCount, DIFFICULTY_KEYS[q.difficulty]);
+  increment(t.objectiveCount, q.objective);
+}
+
+/** Cost of adding `q` to the main section (lower is better), before the random tie-break. */
+function candidateScore(q: CandidateQuestion, domain: string | undefined, t: Tally, maxPerObjective: number, fresh: Freshness): number {
+  let score = fresh([q.id]) * 1000; // unseen first, then oldest / missed
+  if (domain !== undefined && q.domain !== domain) score += 500;
+  if ((t.objectiveCount.get(q.objective) ?? 0) >= maxPerObjective) score += 300;
+  const target = t.typeTarget.get(q.type);
+  const typeCount = t.typeCount.get(q.type) ?? 0;
+  if (!target) score += 100; // type not expected among independent questions
+  else if (typeCount >= target.max) score += 100;
+  else if (typeCount < target.min) score -= 20 * (target.min - typeCount);
+  const dk = DIFFICULTY_KEYS[q.difficulty];
+  score -= 10 * ((t.diffTarget.get(dk) ?? 0) - (t.diffCount.get(dk) ?? 0));
+  return score;
+}
+
+/** Main section: greedy, one question at a time, from `pool` (consumed). */
+function fillMainSection(pool: CandidateQuestion[], budget: number, t: Tally, maxPerObjective: number, fresh: Freshness, random: () => number): CandidateQuestion[] {
+  const main: CandidateQuestion[] = [];
+  while (main.length < budget && pool.length > 0) {
+    // Domain with the largest remaining need (ties broken randomly); domains
+    // without any remaining question in the pool are skipped.
+    const available = new Set(pool.map((q) => q.domain));
+    const needs = [...t.domainNeed].filter(([d]) => available.has(d)).map(([d, n]) => ({ d, n, r: random() }));
+    needs.sort((a, b) => b.n - a.n || a.r - b.r);
+    const domain = needs[0]?.d;
+
+    let best = { index: 0, score: Infinity };
+    pool.forEach((q, index) => {
+      const score = candidateScore(q, domain, t, maxPerObjective, fresh) + random(); // random tie-break
+      if (score < best.score) best = { index, score };
+    });
+    const [q] = pool.splice(best.index, 1);
+    main.push(q!);
+    record(t, q!);
+  }
+  return main;
+}
+
+function casePlacement(placement: "start" | "end" | "random", random: () => number): "start" | "end" {
+  if (placement !== "random") return placement;
+  return random() < 0.5 ? "start" : "end";
+}
+
 export function assembleExam(input: {
   blueprint: AssemblyBlueprint;
   bank: AssemblyBank;
@@ -119,48 +201,35 @@ export function assembleExam(input: {
   const s = blueprint.structure;
 
   // Deterministic input order, whatever the database returned.
-  const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const byId = (a: { id: string }, b: { id: string }) => compareCodeUnits(a.id, b.id);
   const questions = [...input.bank.questions].sort(byId);
   const caseStudies = [...input.bank.caseStudies].sort(byId).filter((c) => c.questions.length > 0);
   const series = [...input.bank.series].sort(byId).filter((x) => x.questions.length > 0);
 
   const seenSorted = [...history.seenAt].sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1));
   const recencyRank = new Map(seenSorted.map(([id], i) => [id, seenSorted.length > 1 ? i / (seenSorted.length - 1) : 0]));
-  const fresh = (ids: string[]) => freshness(ids, history, recencyRank);
+  const fresh: Freshness = (ids) => freshness(ids, history, recencyRank);
 
   const total = randInt(random, blueprint.minQuestions, blueprint.maxQuestions);
   const chosen: CandidateQuestion[] = [];
   const sections: AssembledSection[] = [];
   const caseSections: AssembledSection[] = [];
 
-  /**
-   * Picks `n` groups (case studies, series) preferring fresh ones, random among
-   * equals. When fewer fresh groups remain than drawn, takes fewer groups —
-   * but never fewer than the blueprint minimum — rather than repeat one.
-   */
-  const pickGroups = <G extends { questions: CandidateQuestion[] }>(groups: G[], drawn: number, min: number): G[] => {
-    const freshCount = groups.filter((g) => fresh(g.questions.map((q) => q.id)) === 0).length;
-    const n = freshCount >= drawn ? drawn : Math.min(drawn, Math.max(min, freshCount));
-    return groups
-      .map((g) => ({ g, f: fresh(g.questions.map((q) => q.id)), r: random() }))
-      .sort((a, b) => a.f - b.f || a.r - b.r)
-      .slice(0, n)
-      .map((x) => x.g);
-  };
-
   // --- case studies
   const csCount = Math.min(randInt(random, s.caseStudies.count.min, s.caseStudies.count.max), caseStudies.length);
   let budget = total;
-  for (const cs of pickGroups(caseStudies, csCount, s.caseStudies.count.min)) {
+  for (const cs of pickGroups(caseStudies, csCount, s.caseStudies.count.min, fresh, random)) {
     const want = Math.min(randInt(random, s.caseStudies.questionsEach.min, s.caseStudies.questionsEach.max), cs.questions.length, budget);
     if (want <= 0) break;
-    const picked = cs.questions
-      .map((q) => ({ q, f: fresh([q.id]), r: random() }))
-      .sort((a, b) => a.f - b.f || a.r - b.r)
-      .slice(0, want)
-      .map((x) => x.q);
+    const picked = new Set(
+      cs.questions
+        .map((q) => ({ q, f: fresh([q.id]), r: random() }))
+        .sort((a, b) => a.f - b.f || a.r - b.r)
+        .slice(0, want)
+        .map((x) => x.q),
+    );
     // Keep the authoring order inside a case study.
-    const ordered = cs.questions.filter((q) => picked.includes(q));
+    const ordered = cs.questions.filter((q) => picked.has(q));
     chosen.push(...ordered);
     budget -= ordered.length;
     caseSections.push({ kind: "case_study", caseStudyId: cs.id, questionIds: ordered.map((q) => q.id) });
@@ -171,7 +240,7 @@ export function assembleExam(input: {
   // every drawn series gets its own section.
   const seriesSections: AssembledSection[] = [];
   const seriesCount = Math.min(randInt(random, s.series.count.min, s.series.count.max), series.length);
-  for (const sr of pickGroups(series, seriesCount, s.series.count.min)) {
+  for (const sr of pickGroups(series, seriesCount, s.series.count.min, fresh, random)) {
     const want = Math.min(randInt(random, s.series.questionsEach.min, s.series.questionsEach.max), sr.questions.length, budget);
     if (want <= 0) break;
     const kept = sr.questions.slice(0, want);
@@ -181,70 +250,24 @@ export function assembleExam(input: {
   }
 
   // --- targets for the whole exam
-  const domainTargets = drawDomainCounts(blueprint.domains, total, random);
-  const domainNeed = new Map(domainTargets);
-  for (const q of chosen) domainNeed.set(q.domain, (domainNeed.get(q.domain) ?? 0) - 1);
+  const tally: Tally = {
+    domainNeed: new Map(drawDomainCounts(blueprint.domains, total, random)),
+    typeTarget: new Map(Object.entries(blueprint.typeMix).map(([type, r]) => [type, { min: Math.floor(r!.min * total), max: Math.ceil(r!.max * total) }])),
+    typeCount: new Map(),
+    diffTarget: new Map(Object.entries(blueprint.difficultyMix).map(([k, v]) => [k, v * total])),
+    diffCount: new Map(),
+    objectiveCount: new Map(),
+  };
+  for (const q of chosen) record(tally, q);
 
-  const typeTarget = new Map<string, { min: number; max: number }>();
-  for (const [type, r] of Object.entries(blueprint.typeMix)) {
-    typeTarget.set(type, { min: Math.floor(r!.min * total), max: Math.ceil(r!.max * total) });
-  }
-  const typeCount = new Map<string, number>();
-  const diffTarget = new Map(Object.entries(blueprint.difficultyMix).map(([k, v]) => [k, v * total]));
-  const diffCount = new Map<string, number>();
-  const objectiveCount = new Map<string, number>();
-  const count = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
-  for (const q of chosen) {
-    count(typeCount, q.type);
-    count(diffCount, DIFFICULTY_KEYS[q.difficulty]);
-    count(objectiveCount, q.objective);
-  }
-
-  // --- main section: greedy, one question at a time
+  // --- main section
   const used = new Set(chosen.map((q) => q.id));
   const pool = questions.filter((q) => !used.has(q.id));
-  const main: CandidateQuestion[] = [];
-  let reused = chosen.filter((q) => history.seenAt.has(q.id)).length;
-
-  while (main.length < budget && pool.length > 0) {
-    // Domain with the largest remaining need (ties broken randomly); domains
-    // without any remaining question in the pool are skipped.
-    const available = new Set(pool.map((q) => q.domain));
-    const needs = [...domainNeed].filter(([d]) => available.has(d)).map(([d, n]) => ({ d, n, r: random() }));
-    needs.sort((a, b) => b.n - a.n || a.r - b.r);
-    const domain = needs[0]?.d;
-
-    let best: { q: CandidateQuestion; score: number; index: number } | undefined;
-    for (let i = 0; i < pool.length; i++) {
-      const q = pool[i]!;
-      let score = fresh([q.id]) * 1000; // unseen first, then oldest / missed
-      if (domain !== undefined && q.domain !== domain) score += 500;
-      if ((objectiveCount.get(q.objective) ?? 0) >= s.maxPerObjective) score += 300;
-      const t = typeTarget.get(q.type);
-      const tc = typeCount.get(q.type) ?? 0;
-      if (t) {
-        if (tc >= t.max) score += 100;
-        else if (tc < t.min) score -= 20 * (t.min - tc);
-      } else {
-        score += 100; // type not expected among independent questions
-      }
-      const dk = DIFFICULTY_KEYS[q.difficulty];
-      score -= 10 * ((diffTarget.get(dk) ?? 0) - (diffCount.get(dk) ?? 0));
-      score += random(); // random tie-break
-      if (!best || score < best.score) best = { q, score, index: i };
-    }
-    const q = best!.q;
-    pool.splice(best!.index, 1);
-    main.push(q);
-    if (history.seenAt.has(q.id)) reused += 1;
-    domainNeed.set(q.domain, (domainNeed.get(q.domain) ?? 0) - 1);
-    count(typeCount, q.type);
-    count(diffCount, DIFFICULTY_KEYS[q.difficulty]);
-    count(objectiveCount, q.objective);
-  }
+  const main = fillMainSection(pool, budget, tally, s.maxPerObjective, fresh, random);
+  const reused = [...chosen, ...main].filter((q) => history.seenAt.has(q.id)).length;
 
   // --- section order: case studies at the start or the end, series before the main section
-  const placement = s.caseStudies.placement === "random" ? (random() < 0.5 ? "start" : "end") : s.caseStudies.placement;
+  const placement = casePlacement(s.caseStudies.placement, random);
   const mainSection: AssembledSection = { kind: "main", questionIds: shuffleArray(main, random).map((q) => q.id) };
   if (placement === "start") sections.push(...caseSections);
   sections.push(...seriesSections);

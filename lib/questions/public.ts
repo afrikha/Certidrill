@@ -82,7 +82,11 @@ export function isComplete(body: PublicBody, response: unknown): boolean {
 /** Whether any part of the response has been given. */
 export function isAnswered(response: unknown): boolean {
   if (!response || typeof response !== "object") return false;
-  return Object.values(response as Record<string, unknown>).some((v) =>
-    Array.isArray(v) ? v.length > 0 : v && typeof v === "object" ? Object.keys(v).length > 0 : v !== undefined && v !== null,
-  );
+  return Object.values(response as Record<string, unknown>).some(isGiven);
+}
+
+function isGiven(v: unknown): boolean {
+  if (Array.isArray(v)) return v.length > 0;
+  if (v && typeof v === "object") return Object.keys(v).length > 0;
+  return v !== undefined && v !== null;
 }

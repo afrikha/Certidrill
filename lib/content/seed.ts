@@ -52,7 +52,7 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
 
     let objectiveCount = 0;
     for (const d of file.domains) {
-      const domain = await tx.domain.upsert({
+      const domain = await tx.domain.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
         where: { blueprintId_code: { blueprintId: blueprint.id, code: d.code } },
         create: { blueprintId: blueprint.id, code: d.code, order: d.order, title: d.title, weightMin: d.weight.min, weightMax: d.weight.max },
         update: { order: d.order, title: d.title, weightMin: d.weight.min, weightMax: d.weight.max },
@@ -62,7 +62,7 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
         for (const o of group.objectives) {
           order += 1;
           const values = { order, group: group.group, title: { en: o.en, fr: o.fr }, learnUrl: o.learnUrl ?? null };
-          await tx.objective.upsert({
+          await tx.objective.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
             where: { domainId_code: { domainId: domain.id, code: o.code } },
             create: { domainId: domain.id, code: o.code, ...values },
             update: values,
@@ -94,11 +94,11 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
 
     for (const cs of bank.caseStudies) {
       const data = { title: cs.title, tabs: cs.tabs as Prisma.InputJsonValue, status: cs.status, version: cs.version };
-      await tx.caseStudy.upsert({ where: { id: cs.id }, create: { id: cs.id, certificationId: certification.id, ...data }, update: data });
+      await tx.caseStudy.upsert({ where: { id: cs.id }, create: { id: cs.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     for (const s of bank.series) {
       const data = { stem: s.stem, status: s.status, version: s.version };
-      await tx.questionSeries.upsert({ where: { id: s.id }, create: { id: s.id, certificationId: certification.id, ...data }, update: data });
+      await tx.questionSeries.upsert({ where: { id: s.id }, create: { id: s.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     // A question sent back to review by user reports (needs_review) keeps that
     // status at re-seed while its file is unchanged: it goes back to published
@@ -128,7 +128,7 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
         version: q.version,
         blueprintVersion: version,
       };
-      await tx.question.upsert({ where: { id: q.id }, create: { id: q.id, certificationId: certification.id, ...data }, update: data });
+      await tx.question.upsert({ where: { id: q.id }, create: { id: q.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     const keep = bank.questions.map((q) => q.id);
     const retired = await tx.question.updateMany({

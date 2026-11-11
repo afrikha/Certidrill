@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { requireAdmin } from "@/lib/auth/guards";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await requireAdmin();
   const t = await getTranslations("admin");
   return (

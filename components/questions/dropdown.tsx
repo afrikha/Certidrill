@@ -5,21 +5,22 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Html } from "./html";
 import type { BodyOf, QuestionInputProps } from "./types";
+import { htmlToText } from "./plain-text";
+import { withKeys } from "@/components/with-keys";
 
 type R = { values: Record<string, string> };
-
-/** Strip tags from sanitized inline HTML for <option> labels (options cannot hold markup). */
-function label(html: string) {
-  return html.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, "&");
-}
 
 export function DropdownInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"dropdown">, R>) {
   const t = useTranslations("question");
   const values = response?.values ?? {};
   const slotNumbers = new Map(body.segments.filter((s) => s.kind === "slot").map((s, i) => [s.id, i + 1]));
-  const content = body.segments.map((seg, i) => {
-    if (seg.kind === "text") return <Fragment key={i}>{seg.text}</Fragment>;
-    if (seg.kind === "html") return <Html key={i} html={seg.html} inline />;
+  const segmentText = (seg: (typeof body.segments)[number]) => {
+    if (seg.kind === "slot") return `slot:${seg.id}`;
+    return seg.kind === "text" ? `text:${seg.text}` : `html:${seg.html}`;
+  };
+  const content = withKeys(body.segments, segmentText).map(({ key, item: seg }) => {
+    if (seg.kind === "text") return <Fragment key={key}>{seg.text}</Fragment>;
+    if (seg.kind === "html") return <Html key={key} html={seg.html} inline />;
     return (
       <select
         key={seg.id}
@@ -40,7 +41,7 @@ export function DropdownInput({ body, response, onChange, disabled, uid }: Quest
       >
         <option value="">{t("choose")}</option>
         {seg.options.map((o) => (
-          <option key={o.id} value={o.id}>{label(o.html)}</option>
+          <option key={o.id} value={o.id}>{htmlToText(o.html)}</option>
         ))}
       </select>
     );

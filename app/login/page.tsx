@@ -10,7 +10,7 @@ import { PasswordForm } from "./password-form";
 
 export const metadata = { title: "Sign in" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ type?: string; error?: string }> }) {
+export default async function LoginPage({ searchParams }: Readonly<{ searchParams: Promise<{ type?: string; error?: string }> }>) {
   if ((await auth())?.user) redirect("/dashboard");
   const { type, error } = await searchParams;
   const sent = type === "email";

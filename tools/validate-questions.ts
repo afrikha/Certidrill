@@ -24,10 +24,48 @@ async function listYaml(dir: string): Promise<string[]> {
   }
 }
 
+function schemaFor(folder: string | undefined) {
+  if (folder === "case-studies") return caseStudyFileSchema;
+  if (folder === "series") return seriesFileSchema;
+  return questionFileSchema;
+}
+
+type Context = { objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string> };
+type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string };
+
+/** Problems of a question that passed its schema: objective, folder, case study, series. */
+function questionProblems(data: FileData, folder: string | undefined, ctx: Context): string[] {
+  const problems: string[] = [];
+  const domain = ctx.objectiveDomain.get(data.objective!);
+  if (!domain) problems.push(`unknown objective ${data.objective}`);
+  else if (folder !== domain) problems.push(`objective ${data.objective} belongs to ${domain}/, file is in ${folder}/`);
+  if (data.caseStudy && !ctx.caseIds.has(data.caseStudy)) problems.push(`unknown case study ${data.caseStudy}`);
+  if (data.series && !ctx.seriesIds.has(data.series)) problems.push(`unknown series ${data.series}`);
+  return problems;
+}
+
+/** Every problem of one file, and its question type (questions only). */
+function validateFile(file: string, text: string, ctx: Context): { problems: string[]; type?: string } {
+  let raw: unknown;
+  try {
+    raw = parse(text);
+  } catch (e) {
+    return { problems: [`YAML: ${(e as Error).message.split("\n")[0]}`] };
+  }
+  const rel = path.relative(root, file).split(path.sep);
+  const r = schemaFor(rel[0]).safeParse(raw);
+  if (!r.success) return { problems: r.error.issues.map((i) => `${i.path.map(String).join(".") || "(root)"}: ${i.message}`) };
+  const data = r.data as FileData;
+  const problems = path.basename(file, ".yaml") === data.id ? [] : [`file name must be ${data.id}.yaml`];
+  if (rel[0] !== "questions") return { problems };
+  return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], type: data.type };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const prefixIdx = args.indexOf("--prefix");
-  const all = [...(await listYaml(path.join(root, "questions"))), ...(await listYaml(path.join(root, "case-studies"))), ...(await listYaml(path.join(root, "series")))];
+  const [questions, caseStudies, series] = await Promise.all(["questions", "case-studies", "series"].map((d) => listYaml(path.join(root, d))));
+  const all = [...questions!, ...caseStudies!, ...series!];
   let files: string[];
   if (prefixIdx >= 0) {
     const prefix = args[prefixIdx + 1] ?? "";
@@ -40,46 +78,31 @@ async function main() {
   const content = await loadCertification(root);
   const objectiveDomain = new Map<string, string>();
   for (const [domain, groups] of Object.entries(content.objectives)) for (const g of groups) for (const o of g.objectives) objectiveDomain.set(o.code, domain);
-  const caseIds = new Set((await listYaml(path.join(root, "case-studies"))).map((f) => path.basename(f, ".yaml")));
-  const seriesIds = new Set((await listYaml(path.join(root, "series"))).map((f) => path.basename(f, ".yaml")));
-
-  let errors = 0;
-  const report = (file: string, msg: string) => {
-    errors += 1;
-    console.log(`✘ ${path.relative(process.cwd(), file)}: ${msg}`);
+  const ctx: Context = {
+    objectiveDomain,
+    caseIds: new Set(caseStudies!.map((f) => path.basename(f, ".yaml"))),
+    seriesIds: new Set(series!.map((f) => path.basename(f, ".yaml"))),
   };
+
+  files.sort(compareCodeUnits);
+  // Files are independent: read them all at once, then report in order.
+  const texts = await Promise.all(files.map((file) => readFile(file, "utf8")));
+  let errors = 0;
   const byType = new Map<string, number>();
-  for (const file of files.sort(compareCodeUnits)) {
-    let raw: unknown;
-    try {
-      raw = parse(await readFile(file, "utf8"));
-    } catch (e) {
-      report(file, `YAML: ${(e as Error).message.split("\n")[0]}`);
-      continue;
-    }
-    const rel = path.relative(root, file).split(path.sep);
-    const schema = rel[0] === "case-studies" ? caseStudyFileSchema : rel[0] === "series" ? seriesFileSchema : questionFileSchema;
-    const r = schema.safeParse(raw);
-    if (!r.success) {
-      for (const i of r.error.issues) report(file, `${i.path.map(String).join(".") || "(root)"}: ${i.message}`);
-      continue;
-    }
-    const data = r.data as { id: string; objective?: string; caseStudy?: string; series?: string; type?: string };
-    if (path.basename(file, ".yaml") !== data.id) report(file, `file name must be ${data.id}.yaml`);
-    if (rel[0] === "questions") {
-      byType.set(data.type!, (byType.get(data.type!) ?? 0) + 1);
-      const domain = objectiveDomain.get(data.objective!);
-      if (!domain) report(file, `unknown objective ${data.objective}`);
-      else if (rel[1] !== domain) report(file, `objective ${data.objective} belongs to ${domain}/, file is in ${rel[1]}/`);
-      if (data.caseStudy && !caseIds.has(data.caseStudy)) report(file, `unknown case study ${data.caseStudy}`);
-      if (data.series && !seriesIds.has(data.series)) report(file, `unknown series ${data.series}`);
-    }
-  }
-  console.log(`${files.length} files, ${errors} problem(s). Types: ${[...byType].map(([k, v]) => `${k}=${v}`).join(" ")}`);
+  files.forEach((file, n) => {
+    const { problems, type } = validateFile(file, texts[n]!, ctx);
+    for (const msg of problems) console.log(`✘ ${path.relative(process.cwd(), file)}: ${msg}`);
+    errors += problems.length;
+    if (type) byType.set(type, (byType.get(type) ?? 0) + 1);
+  });
+  const types = [...byType].map(([k, v]) => k + "=" + v).join(" ");
+  console.log(`${files.length} files, ${errors} problem(s). Types: ${types}`);
   process.exit(errors ? 1 : 0);
 }
 
-main().catch((e) => {
+try {
+  await main();
+} catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exit(1);
-});
+}

@@ -1,14 +1,16 @@
+import { withKeys } from "@/components/with-keys";
+
 /**
  * Score history: single series line (2 px, 8 px markers) over a recessive grid,
  * with the pass mark as a dashed reference line. Each point has a hover title;
  * a table view is provided by the caller.
  */
-export function ScoreLine({ points, max, threshold, label }: {
+export function ScoreLine({ points, max, threshold, label }: Readonly<{
   points: { x: string; score: number; title: string }[];
   max: number;
   threshold: number;
   label: string;
-}) {
+}>) {
   const W = 640, H = 220, L = 40, R = 12, T = 12, B = 28;
   const iw = W - L - R, ih = H - T - B;
   const x = (i: number) => L + (points.length === 1 ? iw / 2 : (i / (points.length - 1)) * iw);
@@ -27,8 +29,8 @@ export function ScoreLine({ points, max, threshold, label }: {
       <line x1={L} x2={W - R} y1={y(threshold)} y2={y(threshold)} stroke="var(--color-foreground)" strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="5 4" />
       <text x={W - R} y={y(threshold) - 4} textAnchor="end" fontSize={11} fill="var(--color-muted-foreground)">{threshold}</text>
       <path d={path} fill="none" stroke="var(--color-primary)" strokeWidth={2} strokeLinejoin="round" />
-      {points.map((p, i) => (
-        <g key={i}>
+      {withKeys(points, (p) => `${p.x}|${p.title}`).map(({ key, item: p }, i) => (
+        <g key={key}>
           <circle cx={x(i)} cy={y(p.score)} r={4} fill="var(--color-primary)" stroke="var(--color-background)" strokeWidth={2} />
           {/* larger invisible hit target for the hover title */}
           <circle cx={x(i)} cy={y(p.score)} r={12} fill="transparent"><title>{p.title}</title></circle>

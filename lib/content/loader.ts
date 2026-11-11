@@ -17,16 +17,36 @@ export async function readYaml(file: string): Promise<unknown> {
   return parse(await readFile(file, "utf8"));
 }
 
+export type YamlRead = { ok: true; value: unknown } | { ok: false; error: unknown };
+
+/**
+ * Reads and parses YAML files, a few at a time (the bank has hundreds of files:
+ * opening them all at once could exhaust file descriptors). Each result says
+ * whether that file could be read, in the order of `files`, so that callers can
+ * report problems in file order, as a sequential read would.
+ */
+export async function readYamlFiles(files: readonly string[], concurrency = 16): Promise<YamlRead[]> {
+  const results: YamlRead[] = new Array(files.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    const i = next++;
+    if (i >= files.length) return;
+    results[i] = await readYaml(files[i]!).then(
+      (value): YamlRead => ({ ok: true, value }),
+      (error: unknown): YamlRead => ({ ok: false, error }),
+    );
+    return worker();
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, files.length) }, worker));
+  return results;
+}
+
 /** Every directory of content/ holding a blueprint.yaml is a certification. */
 export async function listCertificationDirs(root = CONTENT_ROOT): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true });
-  const dirs: string[] = [];
-  for (const e of entries) {
-    if (!e.isDirectory()) continue;
-    const dir = path.join(root, e.name);
-    if (await exists(path.join(dir, "blueprint.yaml"))) dirs.push(dir);
-  }
-  return dirs.sort(compareCodeUnits);
+  const candidates = entries.filter((e) => e.isDirectory()).map((e) => path.join(root, e.name));
+  const hasBlueprint = await Promise.all(candidates.map((dir) => exists(path.join(dir, "blueprint.yaml"))));
+  return candidates.filter((_, i) => hasBlueprint[i]).sort(compareCodeUnits);
 }
 
 export interface CertificationContent {
@@ -44,6 +64,12 @@ export async function loadCertification(dir: string): Promise<CertificationConte
   if (path.basename(dir) !== blueprint.certification.code) {
     throw new ContentError(bpFile, `certification.code "${blueprint.certification.code}" must match its folder name`);
   }
+  checkObjectives(blueprint, objectives, objFile);
+  return { dir, blueprint, objectives };
+}
+
+/** Objectives cover exactly the blueprint's domains, with unique codes. */
+function checkObjectives(blueprint: BlueprintFile, objectives: ObjectivesFile, objFile: string): void {
   const domainCodes = new Set(blueprint.domains.map((d) => d.code));
   for (const code of Object.keys(objectives)) {
     if (!domainCodes.has(code)) throw new ContentError(objFile, `unknown domain "${code}"`);
@@ -52,15 +78,10 @@ export async function loadCertification(dir: string): Promise<CertificationConte
     if (!objectives[code]) throw new ContentError(objFile, `domain "${code}" has no objectives`);
   }
   const seen = new Set<string>();
-  for (const groups of Object.values(objectives)) {
-    for (const g of groups) {
-      for (const o of g.objectives) {
-        if (seen.has(o.code)) throw new ContentError(objFile, `duplicate objective code "${o.code}"`);
-        seen.add(o.code);
-      }
-    }
+  for (const o of Object.values(objectives).flatMap((groups) => groups.flatMap((g) => g.objectives))) {
+    if (seen.has(o.code)) throw new ContentError(objFile, `duplicate objective code "${o.code}"`);
+    seen.add(o.code);
   }
-  return { dir, blueprint, objectives };
 }
 
 export function parseWith<T>(schema: { safeParse(v: unknown): { success: true; data: T } | { success: false; error: { issues: { path: PropertyKey[]; message: string }[] } } }, value: unknown, file: string): T {

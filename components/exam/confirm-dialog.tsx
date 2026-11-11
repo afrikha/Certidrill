@@ -4,7 +4,7 @@ import { useEffect, useId, useRef } from "react";
 import { Button } from "@/components/ui/button";
 
 /** Accessible modal confirmation built on the native <dialog> element. */
-export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel, onConfirm, onCancel, busy }: {
+export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel, onConfirm, onCancel, busy }: Readonly<{
   open: boolean;
   title: string;
   children?: React.ReactNode;
@@ -13,7 +13,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
-}) {
+}>) {
   const ref = useRef<HTMLDialogElement>(null);
   // Several dialogs can be mounted at once: each needs its own title id.
   const titleId = useId();

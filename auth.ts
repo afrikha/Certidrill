@@ -2,7 +2,7 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
-import { allowSignIn, authorizeCredentials, RateLimitedError, refreshToken, sessionUser, VERIFY_REQUEST_URL } from "@/lib/auth/callbacks";
+import { allowSignIn, authorizeCredentials, RateLimitedError, refreshToken, sessionUser } from "@/lib/auth/callbacks";
 import { sendMagicLink } from "@/lib/auth/email";
 import { authLimiter } from "@/lib/security/rate-limit";
 import type { Role } from "@prisma/client";
@@ -17,7 +17,7 @@ class RateLimited extends CredentialsSignin {
   code = "rate_limited";
 }
 
-export { VERIFY_REQUEST_URL };
+export { VERIFY_REQUEST_URL } from "@/lib/auth/callbacks";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),

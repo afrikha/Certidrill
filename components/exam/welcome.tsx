@@ -5,13 +5,13 @@ import type { AttemptView } from "@/lib/exam/session";
 import { Button } from "@/components/ui/button";
 import { Alert, Card } from "@/components/ui/card";
 
-export function Welcome({ view, onStart, busy, error, blueprintRange }: {
+export function Welcome({ view, onStart, busy, error, blueprintRange }: Readonly<{
   view: AttemptView;
   onStart: () => void;
   busy: boolean;
   error: string | null;
   blueprintRange?: { min: number; max: number };
-}) {
+}>) {
   const t = useTranslations("exam");
   const kinds = new Set(view.sectionKinds);
   return (

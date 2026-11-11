@@ -5,6 +5,7 @@ import { ZodError } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { createUser, UserExistsError } from "@/lib/users";
+import { formString } from "@/lib/form-data";
 
 export type CreateUserState = { ok?: true; error?: "exists" | "invalid" } | undefined;
 
@@ -12,9 +13,9 @@ export async function createUserAction(_prev: CreateUserState, formData: FormDat
   await requireAdmin();
   try {
     await createUser(prisma, {
-      email: String(formData.get("email") ?? ""),
-      name: String(formData.get("name") ?? ""),
-      password: String(formData.get("password") ?? ""),
+      email: formString(formData, "email"),
+      name: formString(formData, "name"),
+      password: formString(formData, "password"),
       role: formData.get("role") === "admin" ? "admin" : "user",
       locale: formData.get("locale") === "fr" ? "fr" : "en",
     });

@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { Html } from "./html";
 import type { BodyOf, QuestionInputProps } from "./types";
 
-export function SingleInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"single">, { optionId: string }>) {
+export function SingleInput({ body, response, onChange, disabled, uid }: Readonly<QuestionInputProps<BodyOf<"single">, { optionId: string }>>) {
   const t = useTranslations("question");
   return (
     <fieldset disabled={disabled}>
@@ -25,7 +25,7 @@ export function SingleInput({ body, response, onChange, disabled, uid }: Questio
                 onChange={() => onChange({ optionId: o.id })}
                 className="mt-1 size-4 accent-primary"
               />
-              <span className="font-semibold text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
+              <span className="font-semibold text-muted-foreground">{String.fromCodePoint(65 + i)}.</span>
               <Html html={o.html} inline />
             </label>
           </li>

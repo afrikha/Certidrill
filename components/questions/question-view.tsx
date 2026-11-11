@@ -22,7 +22,7 @@ export interface QuestionViewProps {
 }
 
 /** Displays a question (stem, exhibits) and the input matching its type. */
-export function QuestionView({ question, response, onChange, disabled, seriesStemHtml }: QuestionViewProps) {
+export function QuestionView({ question, response, onChange, disabled, seriesStemHtml }: Readonly<QuestionViewProps>) {
   const t = useTranslations("question");
   const uid = `q-${question.id}`;
   return (
@@ -54,7 +54,7 @@ export function QuestionView({ question, response, onChange, disabled, seriesSte
   );
 }
 
-function Input({ body, response, onChange, disabled, uid }: { body: PublicBody; response: unknown; onChange: (r: unknown) => void; disabled?: boolean; uid: string }) {
+function Input({ body, response, onChange, disabled, uid }: Readonly<{ body: PublicBody; response: unknown; onChange: (r: unknown) => void; disabled?: boolean; uid: string }>) {
   const common = { onChange, disabled, uid };
   switch (body.type) {
     case "single":

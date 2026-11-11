@@ -57,13 +57,12 @@ async function readText(request: Request, limit: number): Promise<string> {
   let size = 0;
   let text = "";
   for (;;) {
-    const { done, value } = await reader.read();
+    const { done, value } = await reader.read(); // NOSONAR: a stream is read chunk by chunk, in order
     if (done) return text + decoder.decode();
     size += value.byteLength;
-    if (size > limit) {
-      await reader.cancel();
-      throw new PayloadTooLargeError();
-    }
+    if (size > limit) break;
     text += decoder.decode(value, { stream: true });
   }
+  await reader.cancel();
+  throw new PayloadTooLargeError();
 }

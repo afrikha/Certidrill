@@ -7,7 +7,9 @@
 function cyrb128(str: string): [number, number, number, number] {
   let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
   for (let i = 0; i < str.length; i++) {
-    const k = str.charCodeAt(i);
+    // UTF-16 code units, as in the reference cyrb128: changing them would change
+    // every exam drawn from a seed.
+    const k = str.charCodeAt(i); // NOSONAR: code units on purpose (seeds must stay reproducible)
     h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
     h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
     h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
@@ -24,17 +26,21 @@ function cyrb128(str: string): [number, number, number, number] {
   return [h1 >>> 0, h2 >>> 0, h3 >>> 0, h4 >>> 0];
 }
 
+/** Wraps to a signed 32-bit integer (ToInt32), like `x | 0`. */
+function int32(x: number): number {
+  return Math.imul(x, 1);
+}
+
 /** sfc32 generator: returns floats in [0, 1). */
 export function createRng(seed: string): () => number {
   let [a, b, c, d] = cyrb128(seed);
   return () => {
-    a |= 0; b |= 0; c |= 0; d |= 0;
-    const t = (((a + b) | 0) + d) | 0;
-    d = (d + 1) | 0;
+    // a + b + d is exact in a double, so wrapping once equals wrapping each sum.
+    const t = int32(a + b + d);
+    d = int32(d + 1);
     a = b ^ (b >>> 9);
-    b = (c + (c << 3)) | 0;
-    c = (c << 21) | (c >>> 11);
-    c = (c + t) | 0;
+    b = int32(c + (c << 3));
+    c = int32(((c << 21) | (c >>> 11)) + t);
     return (t >>> 0) / 4294967296;
   };
 }

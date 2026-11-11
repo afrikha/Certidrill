@@ -3,15 +3,16 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn, VERIFY_REQUEST_URL } from "@/auth";
+import { formString } from "@/lib/form-data";
 
 export type LoginState = { error?: "invalid" | "rateLimited" | "error"; email?: string } | undefined;
 
 export async function loginWithPassword(_prev: LoginState, formData: FormData): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "");
+  const email = formString(formData, "email");
   try {
     await signIn("credentials", {
       email,
-      password: String(formData.get("password") ?? ""),
+      password: formString(formData, "password"),
       redirectTo: "/dashboard",
     });
   } catch (err) {
@@ -27,7 +28,7 @@ export async function loginWithPassword(_prev: LoginState, formData: FormData): 
 
 export async function loginWithMagicLink(formData: FormData) {
   try {
-    await signIn("email", { email: String(formData.get("email") ?? "").toLowerCase().trim(), redirectTo: "/dashboard" });
+    await signIn("email", { email: formString(formData, "email").toLowerCase().trim(), redirectTo: "/dashboard" });
   } catch (err) {
     if (err instanceof AuthError) redirect(VERIFY_REQUEST_URL);
     throw err;

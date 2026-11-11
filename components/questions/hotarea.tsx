@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Html } from "./html";
 import type { BodyOf, QuestionInputProps } from "./types";
+import { withKeys } from "@/components/with-keys";
 
 type R = { values: Record<string, string> };
 
@@ -12,7 +13,7 @@ type R = { values: Record<string, string> };
  * Hot area rendered as a table whose clickable cells are buttons. With several
  * prompts, the active prompt is chosen first, then the area.
  */
-export function HotAreaInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"hotarea">, R>) {
+export function HotAreaInput({ body, response, onChange, disabled, uid }: Readonly<QuestionInputProps<BodyOf<"hotarea">, R>>) {
   const t = useTranslations("question");
   const values = response?.values ?? {};
   const [active, setActive] = useState(body.prompts[0]?.id ?? "");
@@ -41,14 +42,14 @@ export function HotAreaInput({ body, response, onChange, disabled, uid }: Questi
           {body.caption && <caption className="mb-2 text-left font-semibold"><Html html={body.caption} inline /></caption>}
           {body.header && (
             <thead>
-              <tr>{body.header.map((h, i) => <th key={i} scope="col" className="border border-border bg-muted px-3 py-2 text-left"><Html html={h} inline /></th>)}</tr>
+              <tr>{withKeys(body.header, (h) => h).map(({ key, item: h }) => <th key={key} scope="col" className="border border-border bg-muted px-3 py-2 text-left"><Html html={h} inline /></th>)}</tr>
             </thead>
           )}
           <tbody>
-            {body.rows.map((row, r) => (
-              <tr key={r}>
-                {row.map((cell, c) => (
-                  <td key={c} className="border border-border p-0">
+            {withKeys(body.rows, (row) => row.map((cell) => cell.area ?? cell.html ?? "").join("|")).map(({ key: rowKey, item: row }) => (
+              <tr key={rowKey}>
+                {withKeys(row, (cell) => cell.area ?? cell.html ?? "").map(({ key: cellKey, item: cell }) => (
+                  <td key={cellKey} className="border border-border p-0">
                     {cell.area ? (
                       <button
                         type="button"

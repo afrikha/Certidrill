@@ -462,7 +462,7 @@ describe("ExamClient — timer", () => {
   it("announces time warnings and highlights the low timer", async () => {
     const now = new Date().toISOString();
     renderIntl(<ExamClient initial={mainView({ serverNow: now, deadlineAt: at(9.5 * 60_000) })} resumed={false} />);
-    const banner = await screen.findByText("10 minutes left.", { selector: "[role=status]" });
+    const banner = await screen.findByText("10 minutes left.", { selector: "output" });
     expect(banner).toBeInTheDocument();
     expect(screen.getByRole("timer")).toHaveClass("text-danger");
     expect(screen.getByRole("timer")).toHaveTextContent(/^09:[23]\d$/);
@@ -471,7 +471,7 @@ describe("ExamClient — timer", () => {
   it("does not show the banner when a warning is far from the end", async () => {
     renderIntl(<ExamClient initial={mainView({ serverNow: new Date().toISOString(), deadlineAt: at(29.5 * 60_000), warningsMin: [30] })} resumed={false} />);
     await waitFor(() => expect(screen.getByText("30 minutes left.")).toBeInTheDocument());
-    expect(screen.queryByText("30 minutes left.", { selector: "[role=status]" })).not.toBeInTheDocument();
+    expect(screen.queryByText("30 minutes left.", { selector: "output" })).not.toBeInTheDocument();
     expect(screen.getByRole("timer")).not.toHaveClass("text-danger");
   });
 
@@ -487,7 +487,7 @@ describe("ExamClient — timer", () => {
     const now = new Date().toISOString();
     renderIntl(<ExamClient initial={mainView({ serverNow: now, deadlineAt: now })} resumed={false} />);
     await act(() => vi.advanceTimersByTimeAsync(100));
-    expect(screen.getByText("Time is up: your exam has been submitted.", { selector: "[role=status]" })).toBeInTheDocument();
+    expect(screen.getByText("Time is up: your exam has been submitted.", { selector: "output" })).toBeInTheDocument();
     expect(screen.getByRole("timer")).toHaveTextContent("00:00");
     expect(calls()).toEqual([`PUT ${A}/items/i1`]);
     await act(() => vi.advanceTimersByTimeAsync(5_000));

@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { Html } from "./html";
 import type { BodyOf, QuestionInputProps } from "./types";
 
-export function MultiInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"multi">, { optionIds: string[] }>) {
+export function MultiInput({ body, response, onChange, disabled, uid }: Readonly<QuestionInputProps<BodyOf<"multi">, { optionIds: string[] }>>) {
   const t = useTranslations("question");
   const selected = response?.optionIds ?? [];
   const toggle = (id: string) => {
@@ -29,7 +29,7 @@ export function MultiInput({ body, response, onChange, disabled, uid }: Question
                 onChange={() => toggle(o.id)}
                 className="mt-1 size-4 accent-primary"
               />
-              <span className="font-semibold text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
+              <span className="font-semibold text-muted-foreground">{String.fromCodePoint(65 + i)}.</span>
               <Html html={o.html} inline />
             </label>
           </li>

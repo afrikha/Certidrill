@@ -12,7 +12,7 @@ import { DomainBars } from "@/components/charts/domain-bars";
 export const metadata = { title: "Results" };
 export const dynamic = "force-dynamic";
 
-export default async function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ResultsPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
   const { id } = await params;
   const user = await requireUser();
   let r;

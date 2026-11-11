@@ -104,7 +104,7 @@ export async function createAttempt(
       });
       let order = 0;
       for (const [i, section] of exam.sections.entries()) {
-        const created = await tx.attemptSection.create({
+        const created = await tx.attemptSection.create({ // NOSONAR: in one transaction, each section before its items (FK)
           data: {
             attemptId: attempt.id,
             order: i + 1,
@@ -113,7 +113,7 @@ export async function createAttempt(
             seriesId: section.kind === "series" ? section.seriesId : null,
           },
         });
-        await tx.attemptItem.createMany({
+        await tx.attemptItem.createMany({ // NOSONAR: in one transaction, after its section (FK)
           data: section.questionIds.map((questionId) => {
             const q = byId.get(questionId)!;
             order += 1;
@@ -295,6 +295,28 @@ async function writableAttempt(db: PrismaClient, attemptId: string, userId: stri
   return { attempt, sections, current };
 }
 
+type ItemWithSection = Prisma.AttemptItemGetPayload<{ include: { question: { select: { type: true } }; section: true } }>;
+
+/** The response part of an item update (null clears it). Series are one-way and answered in order. */
+async function responseUpdate(db: PrismaClient, item: ItemWithSection, response: unknown, now: Date): Promise<Prisma.AttemptItemUpdateInput> {
+  let data: Prisma.AttemptItemUpdateInput;
+  if (response === null) {
+    data = { response: Prisma.DbNull, answeredAt: null };
+  } else {
+    const parsed = parseResponse(item.question.type as QuestionType, response);
+    if (!parsed.success) throw new SessionError("invalid_response");
+    data = { response: parsed.data as Prisma.InputJsonValue, answeredAt: now };
+  }
+  if (item.section.kind === "series") {
+    // One-way series: every answer is final, and questions are answered in order.
+    if (item.answeredAt) throw new SessionError("final_answer");
+    if (response === null) throw new SessionError("invalid_response");
+    const earlierUnanswered = await db.attemptItem.count({ where: { sectionId: item.sectionId, order: { lt: item.order }, answeredAt: null } });
+    if (earlierUnanswered > 0) throw new SessionError("out_of_order");
+  }
+  return data;
+}
+
 export async function saveItem(
   db: PrismaClient,
   { attemptId, itemId, userId, response, flagged, now = new Date() }: { attemptId: string; itemId: string; userId: string; response?: unknown; flagged?: boolean; now?: Date },
@@ -305,25 +327,7 @@ export async function saveItem(
   if (item.section.lockedAt) throw new SessionError("locked");
   if (item.sectionId !== current?.id) throw new SessionError("not_current_section");
 
-  const data: Prisma.AttemptItemUpdateInput = {};
-  if (response !== undefined) {
-    if (response !== null) {
-      const parsed = parseResponse(item.question.type as QuestionType, response);
-      if (!parsed.success) throw new SessionError("invalid_response");
-      data.response = parsed.data as Prisma.InputJsonValue;
-      data.answeredAt = now;
-    } else {
-      data.response = Prisma.DbNull;
-      data.answeredAt = null;
-    }
-    if (item.section.kind === "series") {
-      // One-way series: every answer is final, and questions are answered in order.
-      if (item.answeredAt) throw new SessionError("final_answer");
-      if (response === null) throw new SessionError("invalid_response");
-      const earlierUnanswered = await db.attemptItem.count({ where: { sectionId: item.sectionId, order: { lt: item.order }, answeredAt: null } });
-      if (earlierUnanswered > 0) throw new SessionError("out_of_order");
-    }
-  }
+  const data: Prisma.AttemptItemUpdateInput = response === undefined ? {} : await responseUpdate(db, item, response, now);
   if (flagged !== undefined) {
     // Only main-section questions can be marked for review (as the exam UI shows).
     if (item.section.kind !== "main") throw new SessionError("flag_not_allowed");
@@ -399,7 +403,7 @@ export async function submitAttempt(
     const scores = items.map((i) => ({ id: i.id, ...scoreItem(i.question, i.response) }));
     const total = scoreExam(scores, attempt.blueprint);
     await tx.attempt.update({ where: { id: attemptId }, data: { status: reason, submittedAt, scaledScore: total.scaledScore, passed: total.passed } });
-    for (const s of scores) await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max } });
+    for (const s of scores) await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max } }); // NOSONAR: one interactive transaction (single connection)
     await tx.attemptSection.updateMany({ where: { attemptId, lockedAt: null }, data: { lockedAt: submittedAt } });
     return total;
   }, { maxWait: 10_000, timeout: 30_000 }); // ~60 item updates: leave room on a slow or busy database
@@ -421,5 +425,9 @@ export async function expireOverdue(db: PrismaClient, userId: string, now = new 
     where: { userId, status: "in_progress", deadlineAt: { lt: new Date(now.getTime() - DEADLINE_GRACE_MS) } },
     select: { id: true },
   });
-  for (const a of overdue) await submitAttempt(db, { attemptId: a.id, userId, now, reason: "expired" });
+  // One attempt per certification at most; closed one after the other, stopping
+  // at the first error, as before.
+  for (const a of overdue) {
+    await submitAttempt(db, { attemptId: a.id, userId, now, reason: "expired" }); // NOSONAR: sequential on purpose (stop at the first failure)
+  }
 }
