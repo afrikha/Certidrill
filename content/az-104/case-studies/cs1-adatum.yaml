@@ -1,0 +1,157 @@
+id: cs1-adatum
+status: draft
+title:
+  en: A. Datum Corporation
+  fr: A. Datum Corporation
+tabs:
+  - key: overview
+    title: { en: Overview, fr: Vue d'ensemble }
+    body:
+      en: |
+        A. Datum Corporation is an investment services company headquartered in Paris. It is supervised by a financial regulator that audits its IT controls every year.
+
+        A. Datum runs its trade ledger application in Azure. The compliance department defines the retention and access rules, and the security operations (SecOps) team reviews every change to permissions.
+      fr: |
+        A. Datum Corporation est une société de services d'investissement dont le siège est à Paris. Elle est supervisée par un régulateur financier qui audite chaque année ses contrôles informatiques.
+
+        A. Datum exécute son application de registre des transactions dans Azure. Le service conformité définit les règles de rétention et d'accès, et l'équipe des opérations de sécurité (SecOps) examine chaque modification des autorisations.
+  - key: existing
+    title: { en: Existing environment, fr: Environnement existant }
+    body:
+      en: |
+        All the production resources are in a subscription named **Sub-Fin-Prod**.
+
+        **Resource groups**
+
+        | Resource group | Region | Resources |
+        | --- | --- | --- |
+        | RG-Ledger | France Central | VNet-Fin, NSG-Db, VM-APP1, VM-APP2, VM-SQL1, VM-SQL2, VM-MGMT1, VM-LEDGER1 |
+        | RG-Records | France Central | stadatumrecords, stadatumlogs |
+        | RG-Security | West Europe | kv-adatum-sec (Azure Key Vault, soft delete and purge protection enabled) |
+
+        **Network**
+
+        VNet-Fin (10.40.0.0/16) contains the following subnets:
+
+        | Subnet | Address range | Virtual machines | Network security group |
+        | --- | --- | --- | --- |
+        | App | 10.40.1.0/24 | VM-APP1 (10.40.1.4), VM-APP2 (10.40.1.5), VM-MGMT1 (10.40.1.10), VM-LEDGER1 (10.40.1.20) | None |
+        | Db | 10.40.2.0/24 | VM-SQL1 (10.40.2.4), VM-SQL2 (10.40.2.5) | NSG-Db |
+
+        The application security group **ASG-App** contains the network interfaces of VM-APP1 and VM-APP2. The application security group **ASG-Db** contains the network interfaces of VM-SQL1 and VM-SQL2. No network interface has an NSG.
+
+        NSG-Db contains the following inbound security rules, in addition to the default rules:
+
+        | Priority | Name | Source | Destination | Port | Protocol | Action |
+        | --- | --- | --- | --- | --- | --- | --- |
+        | 100 | Allow-SQL-App | ASG-App | ASG-Db | 1433 | TCP | Allow |
+        | 200 | Deny-SQL-VNet | VirtualNetwork | Any | 1433 | TCP | Deny |
+        | 300 | Allow-RDP-Mgmt | 10.40.1.10 | ASG-Db | 3389 | TCP | Allow |
+        | 4000 | Deny-VNet-Inbound | VirtualNetwork | Any | Any | Any | Deny |
+
+        **Virtual machines**
+
+        | Name | Operating system | Disks |
+        | --- | --- | --- |
+        | VM-LEDGER1 | Windows Server 2022 | OS disk and two data disks, Premium SSD, encrypted only with platform-managed keys (server-side encryption) |
+
+        **Storage accounts**
+
+        | Name | Kind | Configuration |
+        | --- | --- | --- |
+        | stadatumrecords | General-purpose v2, GRS | Container **trade-records**; the ledger application writes one blob per trade |
+        | stadatumlogs | General-purpose v2, LRS | Container **insights-activity-logs** is reserved for archived logs |
+
+        **Groups**
+
+        | Group | Members |
+        | --- | --- |
+        | GG-Compliance | Compliance officers |
+        | GG-Auditors | Internal auditors |
+        | GG-SecOps | Security operations team |
+      fr: |
+        Toutes les ressources de production se trouvent dans un abonnement nommé **Sub-Fin-Prod**.
+
+        **Groupes de ressources**
+
+        | Groupe de ressources | Région | Ressources |
+        | --- | --- | --- |
+        | RG-Ledger | France Central | VNet-Fin, NSG-Db, VM-APP1, VM-APP2, VM-SQL1, VM-SQL2, VM-MGMT1, VM-LEDGER1 |
+        | RG-Records | France Central | stadatumrecords, stadatumlogs |
+        | RG-Security | West Europe | kv-adatum-sec (Azure Key Vault, suppression réversible et protection contre le vidage activées) |
+
+        **Réseau**
+
+        VNet-Fin (10.40.0.0/16) contient les sous-réseaux suivants :
+
+        | Sous-réseau | Plage d'adresses | Machines virtuelles | Groupe de sécurité réseau |
+        | --- | --- | --- | --- |
+        | App | 10.40.1.0/24 | VM-APP1 (10.40.1.4), VM-APP2 (10.40.1.5), VM-MGMT1 (10.40.1.10), VM-LEDGER1 (10.40.1.20) | Aucun |
+        | Db | 10.40.2.0/24 | VM-SQL1 (10.40.2.4), VM-SQL2 (10.40.2.5) | NSG-Db |
+
+        Le groupe de sécurité d'application **ASG-App** contient les interfaces réseau de VM-APP1 et VM-APP2. Le groupe de sécurité d'application **ASG-Db** contient les interfaces réseau de VM-SQL1 et VM-SQL2. Aucune interface réseau n'a de NSG.
+
+        NSG-Db contient les règles de sécurité entrantes suivantes, en plus des règles par défaut :
+
+        | Priorité | Nom | Source | Destination | Port | Protocole | Action |
+        | --- | --- | --- | --- | --- | --- | --- |
+        | 100 | Allow-SQL-App | ASG-App | ASG-Db | 1433 | TCP | Allow |
+        | 200 | Deny-SQL-VNet | VirtualNetwork | Any | 1433 | TCP | Deny |
+        | 300 | Allow-RDP-Mgmt | 10.40.1.10 | ASG-Db | 3389 | TCP | Allow |
+        | 4000 | Deny-VNet-Inbound | VirtualNetwork | Any | Any | Any | Deny |
+
+        **Machines virtuelles**
+
+        | Nom | Système d'exploitation | Disques |
+        | --- | --- | --- |
+        | VM-LEDGER1 | Windows Server 2022 | Disque du système d'exploitation et deux disques de données, SSD Premium, chiffrés uniquement avec des clés gérées par la plateforme (chiffrement côté serveur) |
+
+        **Comptes de stockage**
+
+        | Nom | Type | Configuration |
+        | --- | --- | --- |
+        | stadatumrecords | Usage général v2, GRS | Conteneur **trade-records** ; l'application de registre écrit un objet blob par transaction |
+        | stadatumlogs | Usage général v2, LRS | Le conteneur **insights-activity-logs** est réservé aux journaux archivés |
+
+        **Groupes**
+
+        | Groupe | Membres |
+        | --- | --- |
+        | GG-Compliance | Responsables de la conformité |
+        | GG-Auditors | Auditeurs internes |
+        | GG-SecOps | Équipe des opérations de sécurité |
+  - key: requirements
+    title: { en: Requirements, fr: Exigences }
+    body:
+      en: |
+        **Compliance requirements**
+
+        1. Every blob in trade-records must be kept for seven years (2,555 days) in a WORM (write once, read many) state. During this period, no user, including the subscription owners, can modify or delete a trade record. Once validated, the retention period must never be shortened.
+        2. No resource in RG-Ledger can be deleted. Authorized administrators must still be able to resize, start, and restart the virtual machines in RG-Ledger.
+        3. All the activity log events of Sub-Fin-Prod must be kept for seven years in the stadatumlogs storage account.
+        4. The OS disk and the data disks of VM-LEDGER1 must be encrypted inside the guest operating system by using BitLocker, with the keys stored in a key vault that A. Datum controls. Encryption secrets must not leave the region of the virtual machine.
+
+        **Access requirements**
+
+        5. GG-Compliance must be able to read the trade records in stadatumrecords, without being able to read any other storage account or change any configuration.
+        6. GG-Auditors must be able to view the configuration of all the resources in Sub-Fin-Prod, without changing anything.
+        7. GG-SecOps must be able to manage the role assignments in Sub-Fin-Prod, without being able to manage the resources themselves.
+        8. Only the application servers in ASG-App can connect to SQL Server (TCP 1433) on VM-SQL1 and VM-SQL2.
+
+        Follow the principle of least privilege and minimize administrative effort.
+      fr: |
+        **Exigences de conformité**
+
+        1. Chaque objet blob de trade-records doit être conservé pendant sept ans (2 555 jours) dans un état WORM (écriture unique, lectures multiples). Pendant cette période, aucun utilisateur, y compris les propriétaires de l'abonnement, ne peut modifier ni supprimer un enregistrement de transaction. Une fois validée, la période de rétention ne doit jamais pouvoir être raccourcie.
+        2. Aucune ressource de RG-Ledger ne peut être supprimée. Les administrateurs autorisés doivent toujours pouvoir redimensionner, démarrer et redémarrer les machines virtuelles de RG-Ledger.
+        3. Tous les événements du journal d'activité de Sub-Fin-Prod doivent être conservés pendant sept ans dans le compte de stockage stadatumlogs.
+        4. Le disque du système d'exploitation et les disques de données de VM-LEDGER1 doivent être chiffrés dans le système d'exploitation invité à l'aide de BitLocker, avec des clés stockées dans un coffre de clés contrôlé par A. Datum. Les secrets de chiffrement ne doivent pas quitter la région de la machine virtuelle.
+
+        **Exigences d'accès**
+
+        5. GG-Compliance doit pouvoir lire les enregistrements de transactions dans stadatumrecords, sans pouvoir lire un autre compte de stockage ni modifier une configuration.
+        6. GG-Auditors doit pouvoir consulter la configuration de toutes les ressources de Sub-Fin-Prod, sans rien modifier.
+        7. GG-SecOps doit pouvoir gérer les attributions de rôles dans Sub-Fin-Prod, sans pouvoir gérer les ressources elles-mêmes.
+        8. Seuls les serveurs d'applications de ASG-App peuvent se connecter à SQL Server (TCP 1433) sur VM-SQL1 et VM-SQL2.
+
+        Respectez le principe du moindre privilège et réduisez au minimum l'effort d'administration.
