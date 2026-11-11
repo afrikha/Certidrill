@@ -106,6 +106,10 @@ describe("magic link e-mail", () => {
     expect(smtpOptions("smtp://[::1]:25").host).toBe("::1");
     expect(() => smtpOptions("smtp://u:p@smtp.example.com:465")).toThrow(/port 465 needs smtps/);
     expect(() => smtpOptions("smtp://u:p@smtp.example.com:587?ignoreTLS=true")).toThrow(/query parameters are not supported/);
+    // "u:12#x@…" parses as host "u", port 12, fragment "#x@…": refused, not truncated.
+    expect(() => smtpOptions("smtp://u:12#x@smtp.example.com")).toThrow(/%23 for #/);
+    expect(() => smtpOptions("smtp://smtp.example.com:587/mail")).toThrow(/unexpected path/);
+    expect(smtpOptions("smtp://u:12%23x@smtp.example.com:587/").auth).toEqual({ user: "u", pass: "12#x" });
     expect(smtpOptions("smtps://u:p@smtp.example.com:465")).toMatchObject({ port: 465, secure: true });
   });
   it("never puts the SMTP password in an error", () => {

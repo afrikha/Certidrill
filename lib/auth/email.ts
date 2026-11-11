@@ -19,6 +19,10 @@ export function smtpOptions(server: string): SMTPTransport.Options {
   // nodemailer used to read options from the query string (?pool=true,
   // ?ignoreTLS=true…). They are refused rather than silently ignored.
   if (url.search) throw new Error("EMAIL_SERVER: query parameters are not supported");
+  // An unencoded # in the password starts a fragment: the rest would be lost silently.
+  if (url.hash || (url.pathname !== "" && url.pathname !== "/")) {
+    throw new Error("EMAIL_SERVER: unexpected path or # (write %23 for # in the password)");
+  }
   const secure = url.protocol === "smtps:";
   const defaultPort = secure ? 465 : 587;
   // Port 465 is implicit TLS: smtp:// would wait for a STARTTLS that never comes
