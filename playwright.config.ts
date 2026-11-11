@@ -26,9 +26,15 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     timeout: 240_000,
     reuseExistingServer: !process.env.CI,
+    // Build and server logs in the CI output, so a server that never answers can be diagnosed.
+    stdout: "pipe",
+    stderr: "pipe",
     env: {
       DATABASE_URL: process.env.DATABASE_URL ?? "",
       PORT: String(PORT),
+      // The standalone server binds to $HOSTNAME. Docker sets it to the container id
+      // (CI runs in the Playwright image), which leaves localhost unanswered.
+      HOSTNAME: "0.0.0.0",
       AUTH_URL: `http://localhost:${PORT}`,
       AUTH_TRUST_HOST: "true",
       AUTH_LOG_MAGIC_LINKS: "true",
