@@ -12,10 +12,10 @@ import { Preview } from "./preview";
 
 export const metadata = { title: "Question preview" };
 
-export default async function QuestionPreviewPage({ params, searchParams }: {
+export default async function QuestionPreviewPage({ params, searchParams }: Readonly<{
   params: Promise<{ id: string }>;
   searchParams: Promise<{ lang?: string; shuffle?: string }>;
-}) {
+}>) {
   // Checked here too: layouts are not re-run on every navigation (Next.js guidance).
   await requireAdmin();
   const { id } = await params;

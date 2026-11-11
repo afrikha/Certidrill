@@ -14,8 +14,13 @@ export function itemState(item: Item, response: unknown): "answered" | "incomple
   return isAnswered(response) ? "incomplete" : "unanswered";
 }
 
+type Filter = "all" | "flagged" | "incomplete";
+const FILTER_LABEL = { all: "filterAll", flagged: "filterFlagged", incomplete: "filterIncomplete" } as const;
+const STATE_BORDER = { answered: "border-primary", incomplete: "border-warning", unanswered: "border-dashed border-muted-foreground" } as const;
+const STATE_TEXT = { answered: "text-primary", incomplete: "text-warning", unanswered: "text-muted-foreground" } as const;
+
 /** Review screen of the main section: states, filters, direct access, finish. */
-export function ReviewScreen({ items, responses, flags, onOpen, onBack, onFinish, finishLabel }: {
+export function ReviewScreen({ items, responses, flags, onOpen, onBack, onFinish, finishLabel }: Readonly<{
   items: Item[];
   responses: Record<string, unknown>;
   flags: Record<string, boolean>;
@@ -23,12 +28,15 @@ export function ReviewScreen({ items, responses, flags, onOpen, onBack, onFinish
   onBack: () => void;
   onFinish: () => void;
   finishLabel: string;
-}) {
+}>) {
   const t = useTranslations("exam");
-  const [filter, setFilter] = useState<"all" | "flagged" | "incomplete">("all");
-  const shown = items.filter((i) =>
-    filter === "flagged" ? flags[i.id] : filter === "incomplete" ? itemState(i, responses[i.id]) !== "answered" : true,
-  );
+  const [filter, setFilter] = useState<Filter>("all");
+  const matches = (f: Filter, i: Item) => {
+    if (f === "flagged") return !!flags[i.id];
+    if (f === "incomplete") return itemState(i, responses[i.id]) !== "answered";
+    return true;
+  };
+  const shown = items.filter((i) => matches(filter, i));
   const label = { answered: t("stateAnswered"), incomplete: t("stateIncomplete"), unanswered: t("stateUnanswered") };
   return (
     <section aria-labelledby="review-title" className="space-y-6">
@@ -46,27 +54,28 @@ export function ReviewScreen({ items, responses, flags, onOpen, onBack, onFinish
             onClick={() => setFilter(f)}
             className={cn("rounded-full border px-3 py-1 text-sm", filter === f ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted")}
           >
-            {t(f === "all" ? "filterAll" : f === "flagged" ? "filterFlagged" : "filterIncomplete")}
-            {" "}({f === "all" ? items.length : f === "flagged" ? items.filter((i) => flags[i.id]).length : items.filter((i) => itemState(i, responses[i.id]) !== "answered").length})
+            {t(FILTER_LABEL[f])}
+            {" "}({items.filter((i) => matches(f, i)).length})
           </button>
         ))}
       </div>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2">
         {shown.map((i) => {
           const state = itemState(i, responses[i.id]);
+          const flagged = flags[i.id] ? ` — ${t("stateFlagged")}` : "";
           return (
             <li key={i.id}>
               <button
                 type="button"
                 onClick={() => onOpen(i)}
-                aria-label={`${t("goToQuestion", { n: i.order })} — ${label[state]}${flags[i.id] ? ` — ${t("stateFlagged")}` : ""}`}
+                aria-label={`${t("goToQuestion", { n: i.order })} — ${label[state]}${flagged}`}
                 className={cn(
                   "flex w-full flex-col items-start rounded-md border px-3 py-2 text-left text-sm hover:bg-muted",
-                  state === "answered" ? "border-primary" : state === "incomplete" ? "border-warning" : "border-dashed border-muted-foreground",
+                  STATE_BORDER[state],
                 )}
               >
                 <span className="font-semibold">{i.order}</span>
-                <span className={cn("text-xs", state === "answered" ? "text-primary" : state === "incomplete" ? "text-warning" : "text-muted-foreground")}>
+                <span className={cn("text-xs", STATE_TEXT[state])}>
                   {label[state]}
                 </span>
                 {flags[i.id] && <span className="text-xs font-medium text-danger">⚑ {t("stateFlagged")}</span>}

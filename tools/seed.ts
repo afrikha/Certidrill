@@ -12,22 +12,27 @@ async function main() {
   try {
     const dirs = await listCertificationDirs();
     if (dirs.length === 0) throw new Error("No certification found in content/");
+    // One certification after the other: each one is validated before anything
+    // of it is written, and the log stays in order.
     for (const dir of dirs) {
-      const content = await loadCertification(dir);
-      const bank = await loadBank(content); // validate everything before writing
-      const report = await seedReferential(db, content);
+      const content = await loadCertification(dir); // NOSONAR: sequential on purpose (see above)
+      const bank = await loadBank(content); // NOSONAR: validate everything before writing
+      const report = await seedReferential(db, content); // NOSONAR: database writes, in order
       console.log(
         `✔ ${report.certification} — blueprint ${report.blueprintVersion}: ${report.domains} domains, ${report.objectives} objectives`,
       );
-      const b = await seedBank(db, content, bank);
-      console.log(`  ${b.questions} questions, ${b.caseStudies} case studies, ${b.series} series${b.retired ? `, ${b.retired} retired` : ""}`);
+      const b = await seedBank(db, content, bank); // NOSONAR: database writes, in order
+      const retired = b.retired ? ", " + b.retired + " retired" : "";
+      console.log(`  ${b.questions} questions, ${b.caseStudies} case studies, ${b.series} series${retired}`);
     }
   } finally {
     await db.$disconnect();
   }
 }
 
-main().catch((err) => {
+try {
+  await main();
+} catch (err) {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
-});
+}

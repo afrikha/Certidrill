@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "Realistic IT certification practice exams.",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();
   return (
     <html lang={locale}>

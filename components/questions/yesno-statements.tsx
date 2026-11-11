@@ -6,7 +6,7 @@ import type { BodyOf, QuestionInputProps } from "./types";
 
 type R = { values: Record<string, boolean> };
 
-export function YesNoStatementsInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"yesno_statements">, R>) {
+export function YesNoStatementsInput({ body, response, onChange, disabled, uid }: Readonly<QuestionInputProps<BodyOf<"yesno_statements">, R>>) {
   const t = useTranslations("question");
   const values = response?.values ?? {};
   const set = (id: string, v: boolean) => onChange({ values: { ...values, [id]: v } });

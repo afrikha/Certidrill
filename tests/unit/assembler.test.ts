@@ -67,7 +67,7 @@ describe("assembleExam", () => {
       expect(new Set(series.map((s) => s.seriesId)).size).toBe(2);
       for (const s of series) expect(s.questionIds.length).toBeGreaterThanOrEqual(3);
       expect(exam.shortfall).toBe(0);
-      expect(ids(exam).length).toBe(exam.targetTotal);
+      expect(ids(exam)).toHaveLength(exam.targetTotal);
       expect(exam.sections.map((s) => s.kind).join(",")).toMatch(/^(case_study,)*series,series,main(,case_study)*$/);
     }
   });
@@ -80,7 +80,7 @@ describe("assembleExam", () => {
       const exam = assembleExam({ blueprint: az104Blueprint, bank, history: emptyHistory(), seed: `many-${i}` });
       const list = ids(exam);
       expect(exam.shortfall).toBe(0);
-      expect(list.length).toBe(exam.targetTotal);
+      expect(list).toHaveLength(exam.targetTotal);
       expect(list.length).toBeGreaterThanOrEqual(45);
       expect(list.length).toBeLessThanOrEqual(58);
       expect(new Set(list).size).toBe(list.length);
@@ -97,7 +97,7 @@ describe("assembleExam", () => {
       // case studies are grouped at the start or at the end
       const kinds = exam.sections.map((s) => s.kind).join(",");
       expect(kinds).toMatch(/^(case_study,)*(series,)?main(,case_study)*$/);
-      expect(kinds.startsWith("case_study") !== kinds.endsWith("case_study")).toBe(true);
+      expect(kinds.startsWith("case_study")).not.toBe(kinds.endsWith("case_study"));
 
       // domain weights: inside the range (±1 question of rounding slack)
       const qs = list.map((id) => index.get(id)!);

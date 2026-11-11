@@ -2,17 +2,21 @@
  * Horizontal bars: score per domain on the blueprint scale, with the pass mark
  * as a reference line. Single series → one hue, no legend; values in text ink.
  */
-export function DomainBars({ rows, max, threshold, thresholdLabel }: {
+function detailSuffix(detail?: string): string {
+  return detail ? ` (${detail})` : "";
+}
+
+export function DomainBars({ rows, max, threshold, thresholdLabel }: Readonly<{
   rows: { key: string; title: string; score: number; detail?: string }[];
   max: number;
   threshold: number;
   thresholdLabel: string;
-}) {
+}>) {
   const pct = (v: number) => `${Math.max(0, Math.min(100, (v / max) * 100))}%`;
   return (
     <div className="space-y-4">
       {rows.map((r) => (
-        <div key={r.key} title={`${r.title}: ${r.score} / ${max}${r.detail ? ` (${r.detail})` : ""}`}>
+        <div key={r.key} title={`${r.title}: ${r.score} / ${max}${detailSuffix(r.detail)}`}>
           <div className="mb-1 flex justify-between gap-4 text-sm">
             <span>{r.title}</span>
             <span className="font-semibold tabular-nums">

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
 import { Alert } from "@/components/ui/card";
 
-export function NewExamForm({ code, defaultLocale }: { code: string; defaultLocale: string }) {
+export function NewExamForm({ code, defaultLocale }: Readonly<{ code: string; defaultLocale: string }>) {
   const t = useTranslations("dashboard");
   const [state, action, pending] = useActionState(startNewExam, undefined);
   return (

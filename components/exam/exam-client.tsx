@@ -23,7 +23,7 @@ type Dialog = null | "leaveCase" | "leaveMain" | "seriesNext" | "finish";
 /** A pending answer could not be saved: the action is refused until it is. */
 class UnsavedError extends Error {}
 
-export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed: boolean }) {
+export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView; resumed: boolean }>) {
   const t = useTranslations("exam");
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -53,7 +53,7 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
     [goToResults],
   );
 
-  const refreshRef = useRef<() => Promise<void>>(async () => undefined);
+  const refreshRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const queue = useSaveQueue(view.id, (code) => {
     if (code === "expired" || code === "finished") goToResults();
     else void refreshRef.current();
@@ -186,13 +186,14 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
   };
 
   // ------------------------------------------------------------ render
-  if (finished) return <p className="p-8 text-center" role="status">{t("submitting")}</p>;
+  if (finished) return <output className="block p-8 text-center">{t("submitting")}</output>;
   if (view.status === "not_started") return <Welcome view={view} onStart={start} busy={busy} error={error} blueprintRange={view.questionRange} />;
   if (!section) {
-    return <p className="p-8 text-center" role="status">{t("submitting")}</p>;
+    return <output className="block p-8 text-center">{t("submitting")}</output>;
   }
 
   const unansweredIn = (items: Item[]) => items.filter((i) => !isAnswered(responses[i.id])).length;
+  const showReview = mode === "review" && section.kind === "main";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -205,12 +206,12 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
       />
       <div aria-live="assertive" className="sr-only">{announcement}</div>
       {announcement && remaining !== null && remaining < 11 * 60_000 && (
-        <div className="bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-950" role="status">{announcement}</div>
+        <output className="block bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-950">{announcement}</output>
       )}
       {error && <Alert tone="error" className="m-4">{error}</Alert>}
 
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
-        {mode === "review" && section.kind === "main" ? (
+        {showReview && (
           <ReviewScreen
             items={sectionItems}
             responses={responses}
@@ -220,7 +221,8 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
             onFinish={() => setDialog(isLastSection ? "finish" : "leaveMain")}
             finishLabel={isLastSection ? t("finish") : t("leaveSection")}
           />
-        ) : current ? (
+        )}
+        {!showReview && current && (
           <div className={cn(section.kind === "case_study" && "grid gap-6 lg:grid-cols-2")}>
             {section.kind === "case_study" && section.caseStudy && <CaseStudyPanel caseStudy={section.caseStudy} />}
             <div>
@@ -234,115 +236,50 @@ export function ExamClient({ initial, resumed }: { initial: AttemptView; resumed
                 disabled={busy}
               />
 
-              <nav aria-label={t("section_" + section.kind)} className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-                {section.kind === "series" ? (
-                  <>
-                    <Button onClick={() => setDialog("seriesNext")} disabled={busy || responses[current.id] == null}>{t("seriesNext")}</Button>
-                    {responses[current.id] == null && <span className="text-sm text-muted-foreground">{t("seriesChoose")}</span>}
-                  </>
-                ) : (
-                  <>
-                    <Button variant="secondary" onClick={() => go(sectionItems[index - 1])} disabled={index <= 0}>← {t("previous")}</Button>
-                    {index < sectionItems.length - 1 ? (
-                      <Button variant="secondary" onClick={() => go(sectionItems[index + 1])}>{t("next")} →</Button>
-                    ) : section.kind === "main" ? (
-                      <Button variant="secondary" onClick={() => setMode("review")}>{t("review")} →</Button>
-                    ) : null}
-                    {section.kind === "main" && (
-                      <>
-                        <label className="ml-2 flex items-center gap-2 text-sm">
-                          <input type="checkbox" checked={!!flags[current.id]} onChange={() => toggleFlag(current)} className="size-4 accent-primary" />
-                          {t("flag")}
-                        </label>
-                        <Button variant="ghost" className="ml-auto" onClick={() => setMode("review")}>{t("review")}</Button>
-                      </>
-                    )}
-                    {section.kind === "case_study" && (
-                      <Button className="ml-auto" onClick={() => setDialog(isLastSection ? "finish" : "leaveCase")}>
-                        {isLastSection ? t("finish") : t("leaveCase")}
-                      </Button>
-                    )}
-                  </>
-                )}
-              </nav>
+              <QuestionNav
+                sectionKind={section.kind}
+                index={index}
+                count={sectionItems.length}
+                busy={busy}
+                answered={responses[current.id] != null}
+                flagged={!!flags[current.id]}
+                isLastSection={isLastSection}
+                onPrevious={() => go(sectionItems[index - 1])}
+                onNext={() => go(sectionItems[index + 1])}
+                onReview={() => setMode("review")}
+                onToggleFlag={() => toggleFlag(current)}
+                onDialog={setDialog}
+              />
 
               {section.kind === "case_study" && (
-                <nav aria-label={t("caseQuestions")} className="mt-4 flex flex-wrap gap-2">
-                  {sectionItems.map((it) => (
-                    <button
-                      key={it.id}
-                      type="button"
-                      onClick={() => go(it)}
-                      aria-current={it.id === current.id ? "step" : undefined}
-                      aria-label={t("goToQuestion", { n: it.order })}
-                      className={cn(
-                        "size-9 rounded border text-sm",
-                        it.id === current.id ? "border-primary bg-primary text-primary-foreground" : isAnswered(responses[it.id]) ? "border-primary bg-blue-50" : "border-border",
-                      )}
-                    >
-                      {it.order}
-                    </button>
-                  ))}
-                </nav>
+                <CaseQuestionNav items={sectionItems} currentId={current.id} responses={responses} onOpen={go} />
               )}
             </div>
           </div>
-        ) : null}
+        )}
       </main>
 
-      <ConfirmDialog
-        open={dialog === "leaveCase"}
-        title={t("leaveCaseConfirm")}
-        confirmLabel={t("leaveCase")}
-        cancelLabel={t("cancel")}
-        onConfirm={lockCurrent}
-        onCancel={() => setDialog(null)}
+      <ExamDialogs
+        dialog={dialog}
         busy={busy}
-      >
-        {t("leaveCaseUnanswered", { n: unansweredIn(sectionItems) })}
-      </ConfirmDialog>
-      <ConfirmDialog
-        open={dialog === "leaveMain"}
-        title={t("leaveSectionConfirm")}
-        confirmLabel={t("leaveSection")}
-        cancelLabel={t("cancel")}
-        onConfirm={lockCurrent}
+        unanswered={unansweredIn(sectionItems)}
+        incomplete={sectionItems.filter((i) => !isComplete(i.question.body, responses[i.id])).length}
+        onLock={lockCurrent}
+        onConfirmSeries={confirmSeriesAnswer}
+        onFinish={finish}
         onCancel={() => setDialog(null)}
-        busy={busy}
-      >
-        {t("finishUnanswered", { n: sectionItems.filter((i) => !isComplete(i.question.body, responses[i.id])).length })}
-      </ConfirmDialog>
-      <ConfirmDialog
-        open={dialog === "seriesNext"}
-        title={t("seriesConfirm")}
-        confirmLabel={t("confirm")}
-        cancelLabel={t("cancel")}
-        onConfirm={confirmSeriesAnswer}
-        onCancel={() => setDialog(null)}
-        busy={busy}
       />
-      <ConfirmDialog
-        open={dialog === "finish"}
-        title={t("finishConfirm")}
-        confirmLabel={t("finish")}
-        cancelLabel={t("cancel")}
-        onConfirm={finish}
-        onCancel={() => setDialog(null)}
-        busy={busy}
-      >
-        {t("finishUnanswered", { n: sectionItems.filter((i) => !isComplete(i.question.body, responses[i.id])).length })}
-      </ConfirmDialog>
     </div>
   );
 }
 
-function TopBar({ view, sectionKind, number, remaining, saveStatus }: {
+function TopBar({ view, sectionKind, number, remaining, saveStatus }: Readonly<{
   view: AttemptView;
   sectionKind: "case_study" | "series" | "main";
   number: number | null;
   remaining: number | null;
   saveStatus: SaveStatus;
-}) {
+}>) {
   const t = useTranslations("exam");
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
@@ -351,20 +288,20 @@ function TopBar({ view, sectionKind, number, remaining, saveStatus }: {
     return () => document.removeEventListener("fullscreenchange", on);
   }, []);
   const low = remaining !== null && remaining <= 10 * 60_000;
+  const saveLabel: Record<SaveStatus, string> = { saved: `✓ ${t("saved")}`, saving: t("saving"), error: `⚠ ${t("unsaved")}` };
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2 text-sm">
         <span className="font-mono font-semibold uppercase">{view.certification.code}</span>
         <span className="text-muted-foreground">{t("section_" + sectionKind)}</span>
         {number !== null && <span className="font-medium">{t("question", { n: number, total: view.totalQuestions })}</span>}
-        <span
-          role="status"
+        <output
           aria-live="polite"
           data-testid="save-status"
           className={cn("text-xs", saveStatus === "error" ? "font-semibold text-danger" : "text-muted-foreground")}
         >
-          {saveStatus === "saved" ? `✓ ${t("saved")}` : saveStatus === "saving" ? t("saving") : `⚠ ${t("unsaved")}`}
-        </span>
+          {saveLabel[saveStatus]}
+        </output>
         <span className="ml-auto flex items-center gap-4">
           {remaining !== null && (
             <span role="timer" aria-label={t("timeLeft")} data-testid="timer" className={cn("font-mono text-base font-semibold tabular-nums", low && "text-danger")}>
@@ -384,13 +321,16 @@ function TopBar({ view, sectionKind, number, remaining, saveStatus }: {
   );
 }
 
-function CaseStudyPanel({ caseStudy }: { caseStudy: NonNullable<AttemptView["sections"][number]["caseStudy"]> }) {
+const TAB_STEP: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
+
+function CaseStudyPanel({ caseStudy }: Readonly<{ caseStudy: NonNullable<AttemptView["sections"][number]["caseStudy"]> }>) {
   const t = useTranslations("exam");
   const [tab, setTab] = useState(caseStudy.tabs[0]?.key);
   const onKey = (e: React.KeyboardEvent, i: number) => {
+    const step = TAB_STEP[e.key];
+    if (step === undefined) return;
     const n = caseStudy.tabs.length;
-    const next = e.key === "ArrowRight" ? (i + 1) % n : e.key === "ArrowLeft" ? (i - 1 + n) % n : -1;
-    if (next < 0) return;
+    const next = (i + step + n) % n;
     e.preventDefault();
     setTab(caseStudy.tabs[next]!.key);
     document.getElementById(`cs-tab-${caseStudy.tabs[next]!.key}`)?.focus();
@@ -422,5 +362,143 @@ function CaseStudyPanel({ caseStudy }: { caseStudy: NonNullable<AttemptView["sec
         </div>
       ))}
     </section>
+  );
+}
+
+/** Buttons under the question: depend on the kind of section. */
+function QuestionNav({ sectionKind, index, count, busy, answered, flagged, isLastSection, onPrevious, onNext, onReview, onToggleFlag, onDialog }: Readonly<{
+  sectionKind: "case_study" | "series" | "main";
+  index: number;
+  count: number;
+  busy: boolean;
+  answered: boolean;
+  flagged: boolean;
+  isLastSection: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  onReview: () => void;
+  onToggleFlag: () => void;
+  onDialog: (dialog: Dialog) => void;
+}>) {
+  const t = useTranslations("exam");
+  if (sectionKind === "series") {
+    return (
+      <nav aria-label={t("section_" + sectionKind)} className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <Button onClick={() => onDialog("seriesNext")} disabled={busy || !answered}>{t("seriesNext")}</Button>
+        {!answered && <span className="text-sm text-muted-foreground">{t("seriesChoose")}</span>}
+      </nav>
+    );
+  }
+  const hasNext = index < count - 1;
+  return (
+    <nav aria-label={t("section_" + sectionKind)} className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+      <Button variant="secondary" onClick={onPrevious} disabled={index <= 0}>← {t("previous")}</Button>
+      {hasNext && <Button variant="secondary" onClick={onNext}>{t("next")} →</Button>}
+      {!hasNext && sectionKind === "main" && <Button variant="secondary" onClick={onReview}>{t("review")} →</Button>}
+      {sectionKind === "main" && (
+        <>
+          <label className="ml-2 flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={flagged} onChange={onToggleFlag} className="size-4 accent-primary" />
+            {t("flag")}
+          </label>
+          <Button variant="ghost" className="ml-auto" onClick={onReview}>{t("review")}</Button>
+        </>
+      )}
+      {sectionKind === "case_study" && (
+        <Button className="ml-auto" onClick={() => onDialog(isLastSection ? "finish" : "leaveCase")}>
+          {isLastSection ? t("finish") : t("leaveCase")}
+        </Button>
+      )}
+    </nav>
+  );
+}
+
+/** Direct access to the questions of a case study. */
+function CaseQuestionNav({ items, currentId, responses, onOpen }: Readonly<{
+  items: Item[];
+  currentId: string;
+  responses: Record<string, unknown>;
+  onOpen: (item: Item) => void;
+}>) {
+  const t = useTranslations("exam");
+  const style = (it: Item) => {
+    if (it.id === currentId) return "border-primary bg-primary text-primary-foreground";
+    return isAnswered(responses[it.id]) ? "border-primary bg-blue-50" : "border-border";
+  };
+  return (
+    <nav aria-label={t("caseQuestions")} className="mt-4 flex flex-wrap gap-2">
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          onClick={() => onOpen(it)}
+          aria-current={it.id === currentId ? "step" : undefined}
+          aria-label={t("goToQuestion", { n: it.order })}
+          className={cn("size-9 rounded border text-sm", style(it))}
+        >
+          {it.order}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/** Confirmations before leaving a section, answering in a series or submitting. */
+function ExamDialogs({ dialog, busy, unanswered, incomplete, onLock, onConfirmSeries, onFinish, onCancel }: Readonly<{
+  dialog: Dialog;
+  busy: boolean;
+  unanswered: number;
+  incomplete: number;
+  onLock: () => void;
+  onConfirmSeries: () => void;
+  onFinish: () => void;
+  onCancel: () => void;
+}>) {
+  const t = useTranslations("exam");
+  return (
+    <>
+      <ConfirmDialog
+        open={dialog === "leaveCase"}
+        title={t("leaveCaseConfirm")}
+        confirmLabel={t("leaveCase")}
+        cancelLabel={t("cancel")}
+        onConfirm={onLock}
+        onCancel={onCancel}
+        busy={busy}
+      >
+        {t("leaveCaseUnanswered", { n: unanswered })}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={dialog === "leaveMain"}
+        title={t("leaveSectionConfirm")}
+        confirmLabel={t("leaveSection")}
+        cancelLabel={t("cancel")}
+        onConfirm={onLock}
+        onCancel={onCancel}
+        busy={busy}
+      >
+        {t("finishUnanswered", { n: incomplete })}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={dialog === "seriesNext"}
+        title={t("seriesConfirm")}
+        confirmLabel={t("confirm")}
+        cancelLabel={t("cancel")}
+        onConfirm={onConfirmSeries}
+        onCancel={onCancel}
+        busy={busy}
+      />
+      <ConfirmDialog
+        open={dialog === "finish"}
+        title={t("finishConfirm")}
+        confirmLabel={t("finish")}
+        cancelLabel={t("cancel")}
+        onConfirm={onFinish}
+        onCancel={onCancel}
+        busy={busy}
+      >
+        {t("finishUnanswered", { n: incomplete })}
+      </ConfirmDialog>
+    </>
   );
 }

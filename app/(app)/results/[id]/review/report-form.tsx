@@ -7,10 +7,10 @@ import { Label, Select } from "@/components/ui/input";
 
 const REASONS = ["wrong_answer", "ambiguous", "outdated", "typo", "translation", "other"] as const;
 
-export function ReportForm({ questionId }: { questionId: string }) {
+export function ReportForm({ questionId }: Readonly<{ questionId: string }>) {
   const t = useTranslations("results");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  if (state === "sent") return <p role="status" className="text-sm text-success">{t("reportSent")}</p>;
+  if (state === "sent") return <output className="block text-sm text-success">{t("reportSent")}</output>;
   return (
     <details className="text-sm">
       <summary className="cursor-pointer text-muted-foreground underline">{t("report")}</summary>

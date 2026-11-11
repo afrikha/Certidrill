@@ -37,4 +37,9 @@ async function main() {
   }
   console.log(`distinct questions seen: ${history.seenAt.size}/${bank.questions.length}`);
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+try {
+  await main();
+} catch (e) {
+  console.error(e);
+  process.exit(1);
+}

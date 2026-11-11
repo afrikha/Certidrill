@@ -12,7 +12,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   variant?: keyof typeof variants;
 }
 
-export function Button({ className, variant = "primary", type = "button", ...props }: ButtonProps) {
+export function Button({ className, variant = "primary", type = "button", ...props }: Readonly<ButtonProps>) {
   return (
     <button
       type={type}

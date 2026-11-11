@@ -8,7 +8,7 @@ import { parseResponse } from "@/lib/questions/schema";
 import { QuestionView } from "@/components/questions/question-view";
 
 /** Interactive preview: the question as in the exam, plus its serialized response. */
-export function Preview({ question, seriesStemHtml }: { question: PublicQuestion; seriesStemHtml?: string }) {
+export function Preview({ question, seriesStemHtml }: Readonly<{ question: PublicQuestion; seriesStemHtml?: string }>) {
   const t = useTranslations("admin");
   const [response, setResponse] = useState<unknown>(null);
   const valid = response === null || parseResponse(question.type, response).success;

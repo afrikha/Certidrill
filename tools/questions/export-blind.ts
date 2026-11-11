@@ -14,17 +14,91 @@ import { compareCodeUnits } from "../../lib/sort";
 
 const root = path.resolve("content/az-104");
 type T = string | { en: string; fr: string };
-const en = (t: T | undefined) => (t === undefined ? "" : typeof t === "string" ? t : t.en);
+type Item = { id: string; text: T };
+function en(t: T | undefined): string {
+  if (t === undefined) return "";
+  return typeof t === "string" ? t : t.en;
+}
+/** "[id] text | [id] text" */
+const listInline = (items: Item[]) => items.map((o) => "[" + o.id + "] " + en(o.text)).join(" | ");
 
 async function yamlFiles(dir: string) {
   const entries = await readdir(dir, { withFileTypes: true, recursive: true });
   return entries.filter((e) => e.isFile() && e.name.endsWith(".yaml")).map((e) => path.join(e.parentPath, e.name));
 }
 
+/** A parsed YAML document (untyped, as in the rest of these review tools). */
+type Doc = ReturnType<typeof parse>;
+const readYaml = async (file: string): Promise<Doc> => parse(await readFile(file, "utf8"));
+
+/** Parsed YAML of each file, read in parallel (keyed by path). */
+async function readAll(files: string[]): Promise<Map<string, Doc>> {
+  return new Map(await Promise.all(files.map(async (f) => [f, await readYaml(f)] as const)));
+}
+
+function selectFiles(all: string[], prefix: string): string[] {
+  if (!prefix.startsWith("@")) return all.filter((f) => path.basename(f).startsWith(prefix));
+  const ids = new Set(fs.readFileSync(prefix.slice(1), "utf8").split("\n").filter(Boolean));
+  return all.filter((f) => ids.has(path.basename(f, ".yaml")));
+}
+
+type Mix = <X>(list: X[]) => X[];
+type Render = (b: Doc, mix: Mix, labels: Record<string, string>) => string[];
+
+function optionLines(b: Doc, mix: Mix, labels: Record<string, string>): string[] {
+  return mix(b.options as Item[]).map((o, i) => {
+    const letter = String.fromCodePoint(65 + i);
+    labels[letter] = o.id;
+    return `- [${letter}] ${en(o.text)}`;
+  });
+}
+
+function hotareaLines(b: Doc): string[] {
+  const cell = (c: { text?: T; area?: string }) => en(c.text) + (c.area ? " {area:" + c.area + "}" : "");
+  const lines = b.grid.header ? ["| " + b.grid.header.map(en).join(" | ") + " |"] : [];
+  for (const row of b.grid.rows) lines.push("| " + row.map(cell).join(" | ") + " |");
+  for (const pr of b.prompts) lines.push(`- prompt [${pr.id}] ${en(pr.text)}`);
+  return lines;
+}
+
+/** Answer area of a question, by type. `mix` shuffles a list like the exam does. */
+const RENDER: Record<string, Render> = {
+  single: (b, mix, labels) => [...optionLines(b, mix, labels), 'ANSWER FORMAT: {"optionId": "<letter>"}'],
+  multi: (b, mix, labels) => [`Choose ${b.choose}.`, ...optionLines(b, mix, labels), 'ANSWER FORMAT: {"optionIds": ["<letter>", ..]}'],
+  yesno_statements: (b) => [
+    ...b.statements.map((st: Item) => `- [${st.id}] ${en(st.text)}`),
+    'ANSWER FORMAT: {"values": {"<statementId>": true|false}}',
+  ],
+  dropdown: (b, mix) => [
+    "Template:\n```\n" + en(b.template) + "\n```",
+    ...b.slots.map((slot: { id: string; options: Item[] }) => `- slot [${slot.id}]: ${listInline(mix(slot.options))}`),
+    'ANSWER FORMAT: {"values": {"<slotId>": "<optionId>"}}',
+  ],
+  dragdrop: (b, mix) => [
+    `Items (${b.reuse ? "may be reused" : "each used at most once"}): ${listInline(mix(b.items as Item[]))}`,
+    ...b.targets.map((t: Item) => `- target [${t.id}] ${en(t.text)}`),
+    'ANSWER FORMAT: {"mapping": {"<targetId>": "<itemId>"}}',
+  ],
+  ordering: (b, mix) => [
+    `Select ${b.count} actions in order:`,
+    ...mix(b.actions as Item[]).map((a) => `- [${a.id}] ${en(a.text)}`),
+    'ANSWER FORMAT: {"sequence": ["..", ".."]}',
+  ],
+  hotarea: (b) => [...hotareaLines(b), 'ANSWER FORMAT: {"values": {"<promptId>": "<areaId>"}}'],
+  series_yesno: (b) => [`Solution: ${en(b.solution)}\nDoes the solution meet the goal?`, 'ANSWER FORMAT: {"value": true|false}'],
+};
+
 async function main() {
   const [prefix, out] = process.argv.slice(2);
   if (!prefix || !out) throw new Error("usage: export-blind <prefix> <out.md>");
-  const files = (await yamlFiles(path.join(root, "questions"))).filter((f) => (prefix.startsWith("@") ? fs.readFileSync(prefix.slice(1), "utf8").split("\n").filter(Boolean).includes(path.basename(f, ".yaml")) : path.basename(f).startsWith(prefix))).sort(compareCodeUnits);
+  const files = selectFiles(await yamlFiles(path.join(root, "questions")), prefix).sort(compareCodeUnits);
+  // Every file is read up front, in parallel; the export is then built in order.
+  const questions = await readAll(files);
+  const qs = files.map((f) => questions.get(f));
+  const refs = (key: "caseStudy" | "series", dir: string) =>
+    [...new Set(qs.map((q) => q[key]).filter(Boolean))].map((id) => path.join(root, dir, `${id}.yaml`));
+  const caseStudies = await readAll(refs("caseStudy", "case-studies"));
+  const series = await readAll(refs("series", "series"));
   const parts: string[] = [];
   const shown = new Set<string>();
   // Lists are shown in a shuffled order (like in the exam) and single/multi
@@ -32,74 +106,31 @@ async function main() {
   // ids hint at the answer. The letter → option id map is written next to the
   // export (<out>.map.json) for compare-blind.
   const labelMap: Record<string, Record<string, string>> = {};
-  for (const f of files) {
-    const q = parse(await readFile(f, "utf8"));
-    const b = q.body;
+  for (const q of qs) {
     const rnd = createRng(`blind:${q.id}`);
     const mix = <X,>(list: X[]): X[] => (q.shuffle === false && q.type !== "ordering" ? list : shuffleArray(list, rnd));
     const lines: string[] = [`## ${q.id} (type: ${q.type})`];
     if (q.caseStudy && !shown.has(q.caseStudy)) {
-      const cs = parse(await readFile(path.join(root, "case-studies", `${q.caseStudy}.yaml`), "utf8"));
-      parts.push(`# Case study ${q.caseStudy}\n\n${cs.tabs.map((t: { title: T; body: T }) => `### ${en(t.title)}\n\n${en(t.body)}`).join("\n\n")}`);
+      const cs = caseStudies.get(path.join(root, "case-studies", `${q.caseStudy}.yaml`));
+      const tabs = cs.tabs.map((t: { title: T; body: T }) => "### " + en(t.title) + "\n\n" + en(t.body));
+      parts.push(`# Case study ${q.caseStudy}\n\n${tabs.join("\n\n")}`);
       shown.add(q.caseStudy);
     }
     if (q.caseStudy) lines.push(`(Case study: ${q.caseStudy})`);
-    if (q.series) {
-      const s = parse(await readFile(path.join(root, "series", `${q.series}.yaml`), "utf8"));
-      lines.push(en(s.stem));
-    } else {
-      lines.push(en(q.stem));
-    }
+    lines.push(en(q.series ? series.get(path.join(root, "series", `${q.series}.yaml`)).stem : q.stem));
     for (const e of q.exhibits ?? []) lines.push(`Exhibit ${en(e.title)}:\n${en(e.body)}`);
-    switch (q.type) {
-      case "single":
-      case "multi":
-        if (q.type === "multi") lines.push(`Choose ${b.choose}.`);
-        labelMap[q.id] = {};
-        mix(b.options as { id: string; text: T }[]).forEach((o, i) => {
-          const letter = String.fromCharCode(65 + i);
-          labelMap[q.id]![letter] = o.id;
-          lines.push(`- [${letter}] ${en(o.text)}`);
-        });
-        lines.push(q.type === "single" ? 'ANSWER FORMAT: {"optionId": "<letter>"}' : 'ANSWER FORMAT: {"optionIds": ["<letter>", ..]}');
-        break;
-      case "yesno_statements":
-        for (const s of b.statements) lines.push(`- [${s.id}] ${en(s.text)}`);
-        lines.push('ANSWER FORMAT: {"values": {"<statementId>": true|false}}');
-        break;
-      case "dropdown":
-        lines.push("Template:\n```\n" + en(b.template) + "\n```");
-        for (const s of b.slots) lines.push(`- slot [${s.id}]: ${mix(s.options as { id: string; text: T }[]).map((o) => `[${o.id}] ${en(o.text)}`).join(" | ")}`);
-        lines.push('ANSWER FORMAT: {"values": {"<slotId>": "<optionId>"}}');
-        break;
-      case "dragdrop":
-        lines.push(`Items (${b.reuse ? "may be reused" : "each used at most once"}): ${mix(b.items as { id: string; text: T }[]).map((i) => `[${i.id}] ${en(i.text)}`).join(" | ")}`);
-        for (const t of b.targets) lines.push(`- target [${t.id}] ${en(t.text)}`);
-        lines.push('ANSWER FORMAT: {"mapping": {"<targetId>": "<itemId>"}}');
-        break;
-      case "ordering":
-        lines.push(`Select ${b.count} actions in order:`);
-        for (const a of mix(b.actions as { id: string; text: T }[])) lines.push(`- [${a.id}] ${en(a.text)}`);
-        lines.push('ANSWER FORMAT: {"sequence": ["..", ".."]}');
-        break;
-      case "hotarea":
-        if (b.grid.header) lines.push("| " + b.grid.header.map(en).join(" | ") + " |");
-        for (const row of b.grid.rows) lines.push("| " + row.map((c: { text?: T; area?: string }) => `${en(c.text)}${c.area ? ` {area:${c.area}}` : ""}`).join(" | ") + " |");
-        for (const p of b.prompts) lines.push(`- prompt [${p.id}] ${en(p.text)}`);
-        lines.push('ANSWER FORMAT: {"values": {"<promptId>": "<areaId>"}}');
-        break;
-      case "series_yesno":
-        lines.push(`Solution: ${en(b.solution)}\nDoes the solution meet the goal?`);
-        lines.push('ANSWER FORMAT: {"value": true|false}');
-        break;
-    }
+    if (q.type === "single" || q.type === "multi") labelMap[q.id] = {};
+    lines.push(...(RENDER[q.type]?.(q.body, mix, labelMap[q.id] ?? {}) ?? []));
     parts.push(lines.join("\n\n"));
   }
   await writeFile(out, parts.join("\n\n---\n\n") + "\n");
   await writeFile(`${out}.map.json`, JSON.stringify(labelMap, null, 1) + "\n");
   console.log(`${files.length} questions → ${out}`);
 }
-main().catch((e) => {
+
+try {
+  await main();
+} catch (e) {
   console.error(e);
   process.exit(1);
-});
+}

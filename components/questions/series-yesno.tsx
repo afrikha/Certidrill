@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { Html } from "./html";
 import type { BodyOf, QuestionInputProps } from "./types";
 
-export function SeriesYesNoInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"series_yesno">, { value: boolean }>) {
+export function SeriesYesNoInput({ body, response, onChange, disabled, uid }: Readonly<QuestionInputProps<BodyOf<"series_yesno">, { value: boolean }>>) {
   const t = useTranslations("question");
   return (
     <div className="space-y-4">

@@ -69,6 +69,6 @@ describe("page guards (layouts are not re-run on every navigation: each page che
     const src = readFileSync(path.join(root, "lib/actions/admin.ts"), "utf8");
     const actions = src.match(/export async function \w+/g) ?? [];
     expect(actions.length).toBeGreaterThan(0);
-    expect((src.match(/await requireAdmin\(\)/g) ?? []).length).toBe(actions.length);
+    expect(src.match(/await requireAdmin\(\)/g) ?? []).toHaveLength(actions.length);
   });
 });

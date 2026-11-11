@@ -6,14 +6,11 @@ import { cn } from "@/lib/utils";
 import type { PublicChoice } from "@/lib/questions/public";
 import { Html } from "./html";
 import type { BodyOf, QuestionInputProps } from "./types";
+import { htmlToText } from "./plain-text";
 
 type R = { mapping: Record<string, string> };
 
-function plain(html: string) {
-  return html.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, "&");
-}
-
-function DraggableItem({ item, disabled }: { item: PublicChoice; disabled?: boolean }) {
+function DraggableItem({ item, disabled }: Readonly<{ item: PublicChoice; disabled?: boolean }>) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `item:${item.id}`, disabled });
   return (
     <li
@@ -28,7 +25,7 @@ function DraggableItem({ item, disabled }: { item: PublicChoice; disabled?: bool
   );
 }
 
-function Target({ target, children }: { target: PublicChoice; children: React.ReactNode }) {
+function Target({ target, children }: Readonly<{ target: PublicChoice; children: React.ReactNode }>) {
   const { setNodeRef, isOver } = useDroppable({ id: `target:${target.id}` });
   return (
     <li ref={setNodeRef} className={cn("rounded-md border border-border p-3", isOver && "border-primary bg-blue-50")}>
@@ -43,7 +40,7 @@ function Target({ target, children }: { target: PublicChoice; children: React.Re
  * Space to drop). Every target also offers a drop-down list, which is the
  * accessible alternative and the main input on small screens.
  */
-export function DragDropInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"dragdrop">, R>) {
+export function DragDropInput({ body, response, onChange, disabled, uid }: Readonly<QuestionInputProps<BodyOf<"dragdrop">, R>>) {
   const t = useTranslations("question");
   const mapping = response?.mapping ?? {};
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(TouchSensor), useSensor(KeyboardSensor));
@@ -90,7 +87,7 @@ export function DragDropInput({ body, response, onChange, disabled, uid }: Quest
                     </div>
                   )}
                   <select
-                    aria-label={t("chooseFor", { target: plain(target.html) })}
+                    aria-label={t("chooseFor", { target: htmlToText(target.html) })}
                     value={mapping[target.id] ?? ""}
                     disabled={disabled}
                     onChange={(e) => assign(target.id, e.target.value || null)}
@@ -98,7 +95,7 @@ export function DragDropInput({ body, response, onChange, disabled, uid }: Quest
                   >
                     <option value="">{t("choose")}</option>
                     {body.items.map((i) => (
-                      <option key={i.id} value={i.id}>{plain(i.html)}</option>
+                      <option key={i.id} value={i.id}>{htmlToText(i.html)}</option>
                     ))}
                   </select>
                 </Target>

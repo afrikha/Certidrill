@@ -13,7 +13,7 @@ export const metadata = { title: "Questions" };
 
 const statuses: ContentStatus[] = ["draft", "needs_review", "reviewed", "published", "retired"];
 
-export default async function AdminQuestionsPage({ searchParams }: { searchParams: Promise<{ type?: string; status?: string; domain?: string }> }) {
+export default async function AdminQuestionsPage({ searchParams }: Readonly<{ searchParams: Promise<{ type?: string; status?: string; domain?: string }> }>) {
   // Checked here too: layouts are not re-run on every navigation (Next.js guidance).
   await requireAdmin();
   const sp = await searchParams;

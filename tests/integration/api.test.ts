@@ -184,10 +184,10 @@ describe("exam flow over HTTP", () => {
     const fr = await json(await results.GET(req("GET", `/api/attempts/${id}/results?lang=fr`), ctx({ id })));
     expect(fr.status).toBe(200);
     expect(fr.body.scaledScore).toEqual(expect.any(Number));
-    expect((fr.body.items as unknown[]).length).toBe(view.items.length);
+    expect(fr.body.items as unknown[]).toHaveLength(view.items.length);
 
     const p = await json(await progress.GET(req("GET", "/api/me/progress"), ctx({})));
-    expect((p.body.attempts as unknown[]).length).toBe(1);
+    expect(p.body.attempts as unknown[]).toHaveLength(1);
 
     // Reporting a question seen in the finished attempt.
     const qid = first.question.id;

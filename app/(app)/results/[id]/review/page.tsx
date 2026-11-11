@@ -11,14 +11,17 @@ import { Card } from "@/components/ui/card";
 import { Html } from "@/components/questions/html";
 import { AnsweredQuestion } from "./answered-question";
 import { ReportForm } from "./report-form";
+import { withKeys } from "@/components/with-keys";
 
 export const metadata = { title: "Correction" };
 export const dynamic = "force-dynamic";
 
-export default async function CorrectionPage({ params, searchParams }: {
+const FILTER_LABEL = { all: "filterAll", missed: "filterMissed", flagged: "filterFlagged" } as const;
+
+export default async function CorrectionPage({ params, searchParams }: Readonly<{
   params: Promise<{ id: string }>;
   searchParams: Promise<{ lang?: string; filter?: string; domain?: string }>;
-}) {
+}>) {
   const { id } = await params;
   const sp = await searchParams;
   const user = await requireUser();
@@ -53,7 +56,7 @@ export default async function CorrectionPage({ params, searchParams }: {
       <nav aria-label={t("correction")} className="flex flex-wrap items-center gap-2">
         {(["all", "missed", "flagged"] as const).map((f) => (
           <Link key={f} href={href({ filter: f })} aria-current={filter === f ? "page" : undefined} className={pill(filter === f)}>
-            {t(f === "all" ? "filterAll" : f === "missed" ? "filterMissed" : "filterFlagged")}
+            {t(FILTER_LABEL[f])}
           </Link>
         ))}
         <span className="mx-2 h-5 border-l border-border" aria-hidden />
@@ -86,8 +89,8 @@ export default async function CorrectionPage({ params, searchParams }: {
             <section className="rounded-md bg-green-50 p-4 text-sm">
               <h2 className="mb-2 font-semibold text-green-900">{t("correctAnswer")}</h2>
               <ul className="space-y-1">
-                {i.correctAnswer.map((line, k) => (
-                  <li key={k}>{line.label && <><Html html={line.label} inline /> → </>}<strong><Html html={line.html} inline /></strong></li>
+                {withKeys(i.correctAnswer, (l) => `${l.label ?? ""}|${l.html}`).map(({ key, item: line }) => (
+                  <li key={key}>{line.label && <><Html html={line.label} inline /> → </>}<strong><Html html={line.html} inline /></strong></li>
                 ))}
               </ul>
             </section>
@@ -98,8 +101,8 @@ export default async function CorrectionPage({ params, searchParams }: {
                 <>
                   <h3 className="mb-1 mt-3 font-semibold">{t("whyNot")}</h3>
                   <ul className="list-disc space-y-1 pl-5">
-                    {i.optionExplanations.map((o, k) => (
-                      <li key={k}><Html html={o.label} inline /> — <Html html={o.html} inline /></li>
+                    {withKeys(i.optionExplanations, (o) => o.label).map(({ key, item: o }) => (
+                      <li key={key}><Html html={o.label} inline /> — <Html html={o.html} inline /></li>
                     ))}
                   </ul>
                 </>

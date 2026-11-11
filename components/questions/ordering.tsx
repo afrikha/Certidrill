@@ -11,10 +11,10 @@ import type { BodyOf, QuestionInputProps } from "./types";
 
 type R = { sequence: string[] };
 
-function SortableStep({ item, index, count, disabled, onMove, onRemove }: {
+function SortableStep({ item, index, count, disabled, onMove, onRemove }: Readonly<{
   item: PublicChoice; index: number; count: number; disabled?: boolean;
   onMove: (from: number, to: number) => void; onRemove: () => void;
-}) {
+}>) {
   const t = useTranslations("question");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled });
   return (
@@ -37,7 +37,7 @@ function SortableStep({ item, index, count, disabled, onMove, onRemove }: {
  * Build a sequence: add actions to the answer area, then reorder them with the
  * arrow buttons, by dragging, or with the keyboard on the handle.
  */
-export function OrderingInput({ body, response, onChange, disabled, uid }: QuestionInputProps<BodyOf<"ordering">, R>) {
+export function OrderingInput({ body, response, onChange, disabled, uid }: Readonly<QuestionInputProps<BodyOf<"ordering">, R>>) {
   const t = useTranslations("question");
   const sequence = response?.sequence ?? [];
   const byId = new Map(body.actions.map((a) => [a.id, a]));
