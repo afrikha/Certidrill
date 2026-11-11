@@ -54,6 +54,8 @@ npm run user:create -- --email vous@example.com --password 'au-moins-12-caracter
 npm run dev
 ```
 
+Pour essayer le moteur d'examen avant que la banque soit relue et publiée, mettre `EXAM_INCLUDE_UNPUBLISHED="true"` : les questions `draft` entrent alors dans les examens (l'écran d'accueil signale qu'il y a moins de questions qu'à l'examen réel).
+
 Les inscriptions sont fermées : les comptes se créent avec `npm run user:create` ou depuis **Administration → Utilisateurs**. Sans serveur SMTP (`EMAIL_SERVER`), mettre `AUTH_LOG_MAGIC_LINKS="true"` pour que les liens magiques s'affichent dans le journal du serveur.
 
 ## Scripts
@@ -63,7 +65,7 @@ Les inscriptions sont fermées : les comptes se créent avec `npm run user:creat
 | `npm run dev` / `build` / `start` | Next.js |
 | `npm run lint` / `typecheck` | ESLint, `tsc --noEmit` |
 | `npm test` | Tests unitaires (Vitest) |
-| `npm run test:coverage` | Tests unitaires + couverture (seuil 90 % sur `lib/exam`) |
+| `npm run test:coverage` | Tests unitaires + d'intégration avec couverture (seuil 90 % sur `lib/exam`) — base jetable requise |
 | `npm run test:e2e` | Tests Playwright sur un build de production — même contrainte de base jetable |
 | `npm run content:check` | Valide `content/` (schémas et références croisées) |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
@@ -85,7 +87,20 @@ Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiemen
 - [x] **Lot 1 — Socle** : Next.js, Prisma (schéma complet), Auth.js, i18n FR/EN, CI, Docker, `blueprint.yaml` et 81 objectifs AZ-104
 - [x] **Lot 2 — Questions** : schémas Zod des 8 types, composants de saisie accessibles, 24 questions d'exemple, aperçu
 - [x] **Lot 3 — Notation et assemblage** : `lib/exam/scoring.ts` et `lib/exam/assembler.ts` (fonctions pures, graine déterministe), couverture > 90 %
-- [ ] Lot 4 — Session d'examen
+- [x] **Lot 4 — Session d'examen** : API des tentatives, chrono serveur, sections à sens unique et verrouillage, série Oui/Non sans retour, révision, soumission, expiration, reprise, sauvegarde avec file hors ligne
+
+### Moteur d'examen (lot 4)
+
+| Route | Rôle |
+| --- | --- |
+| `POST /api/attempts` | Assemble un examen et crée la tentative (ou renvoie celle en cours) |
+| `POST /api/attempts/:id/start` | Démarre le chrono (clic sur « Démarrer ») |
+| `GET /api/attempts/:id` | Sections, questions **sans** réponses, réponses saisies, temps restant |
+| `PUT /api/attempts/:id/items/:itemId` | Enregistre une réponse et/ou le marquage |
+| `POST /api/attempts/:id/sections/:sectionId/lock` | Quitte et verrouille la section courante |
+| `POST /api/attempts/:id/submit` | Note et clôt la tentative |
+
+Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi côté serveur (`deadlineAt`, 5 s de tolérance réseau) ; seule la section courante accepte des écritures ; une section quittée est verrouillée ; dans une série, chaque réponse est définitive et donnée dans l'ordre ; à l'échéance, la tentative passe en `expired` avec les réponses enregistrées ; les questions ne sont envoyées qu'une fois le chrono lancé ; les routes vérifient la propriété de la tentative et l'origine des requêtes (CSRF). Les études de cas sont tirées au début ou à la fin ; la dernière section se termine par « Terminer l'examen ».
 - [ ] Lot 5 — Résultats
 - [ ] Lot 6 — Banque
 - [ ] Lot 7 — Mise en production

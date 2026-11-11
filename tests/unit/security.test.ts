@@ -13,6 +13,11 @@ describe("rate limiter", () => {
     expect(rl.hit("k", 1001)).toBe(true);
     rl.reset("k");
     expect(rl.hit("k", 1002)).toBe(true);
+    expect(rl.blocked("k", 1003)).toBe(false);
+    rl.hit("k", 1003);
+    expect(rl.blocked("k", 1004)).toBe(true);
+    expect(rl.blocked("k", 3000)).toBe(false);
+    expect(rl.blocked("unknown", 0)).toBe(false);
   });
 });
 

@@ -22,6 +22,14 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     timeout: 240_000,
     reuseExistingServer: !process.env.CI,
-    env: { PORT: String(PORT), AUTH_URL: `http://localhost:${PORT}`, AUTH_TRUST_HOST: "true", AUTH_LOG_MAGIC_LINKS: "true" },
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL ?? "",
+      PORT: String(PORT),
+      AUTH_URL: `http://localhost:${PORT}`,
+      AUTH_TRUST_HOST: "true",
+      AUTH_LOG_MAGIC_LINKS: "true",
+      // The sample bank is still in draft: let it enter exams in tests.
+      EXAM_INCLUDE_UNPUBLISHED: "true",
+    },
   },
 });

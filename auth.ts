@@ -38,10 +38,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
         const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-        if (!authLimiter.hit(`email:${email}`) || !authLimiter.hit(`ip:${ip}`)) throw new RateLimited();
+        if (authLimiter.blocked(`email:${email}`) || authLimiter.blocked(`ip:${ip}`)) throw new RateLimited();
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user?.passwordHash || !(await verifyPassword(user.passwordHash, password))) return null;
+        if (!user?.passwordHash || !(await verifyPassword(user.passwordHash, password))) {
+          // Only failures count towards the limit.
+          authLimiter.hit(`email:${email}`);
+          authLimiter.hit(`ip:${ip}`);
+          return null;
+        }
         authLimiter.reset(`email:${email}`);
         return { id: user.id, email: user.email, name: user.name };
       },
