@@ -9,12 +9,14 @@ export function withKeys<T>(items: readonly T[], content: (item: T) => string): 
   return items.map((item) => {
     const base = content(item);
     let key = base;
+    let n = repeats.get(base) ?? 0;
     // A suffixed key can equal another item's content ("a", "a", "a#1"):
     // keep counting until the key is free.
-    for (let n = repeats.get(base) ?? 0; used.has(key); n++) {
-      key = `${base}#${n + 1}`;
-      repeats.set(base, n + 1);
+    while (used.has(key)) {
+      n += 1;
+      key = `${base}#${n}`;
     }
+    repeats.set(base, n);
     used.add(key);
     return { key, item };
   });
