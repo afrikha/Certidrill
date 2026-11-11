@@ -84,7 +84,7 @@ Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiemen
 
 - [x] **Lot 1 — Socle** : Next.js, Prisma (schéma complet), Auth.js, i18n FR/EN, CI, Docker, `blueprint.yaml` et 81 objectifs AZ-104
 - [x] **Lot 2 — Questions** : schémas Zod des 8 types, composants de saisie accessibles, 24 questions d'exemple, aperçu
-- [ ] Lot 3 — Notation et assemblage
+- [x] **Lot 3 — Notation et assemblage** : `lib/exam/scoring.ts` et `lib/exam/assembler.ts` (fonctions pures, graine déterministe), couverture > 90 %
 - [ ] Lot 4 — Session d'examen
 - [ ] Lot 5 — Résultats
 - [ ] Lot 6 — Banque
