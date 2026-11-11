@@ -6,7 +6,7 @@
  * the browser before submission) and `response` (what the candidate submits).
  */
 import { z } from "zod";
-import { localizedSchema } from "@/lib/content/schema";
+import { localizedSchema, type QuestionTypeCode } from "@/lib/content/schema";
 
 export { questionTypes, type QuestionTypeCode } from "@/lib/content/schema";
 
@@ -199,7 +199,8 @@ interface AnswerCheck {
   missing: (list: { id: string }[], ids: string[], what: string) => void;
 }
 
-const ANSWER_CHECKS: Partial<Record<string, (body: unknown, answer: unknown, c: AnswerCheck) => void>> = {
+// Every question type is listed: a new type without an entry does not compile.
+const ANSWER_CHECKS: Record<QuestionTypeCode, ((body: unknown, answer: unknown, c: AnswerCheck) => void) | null> = {
   single: (body, answer, c) => {
     c.missing((body as QuestionBody<"single">).options, [(answer as QuestionAnswer<"single">).optionId], "option");
   },
@@ -249,6 +250,8 @@ const ANSWER_CHECKS: Partial<Record<string, (body: unknown, answer: unknown, c: 
     c.missing(areas, Object.values(a.values), "area");
     if (b.prompts.some((p) => a.values[p.id] === undefined)) c.report("every prompt needs an area");
   },
+  // Yes/No answer of a series: nothing to cross-check with the body.
+  series_yesno: null,
 };
 
 /** Checks that an answer key is consistent with its body (ids exist, counts match). */
@@ -260,7 +263,7 @@ export function answerIssues(q: { type: string; body: unknown; answer: unknown }
       for (const i of ids) if (!list.some((x) => x.id === i)) issues.push(`unknown ${what} "${i}"`);
     },
   };
-  ANSWER_CHECKS[q.type]?.(q.body, q.answer, check);
+  ANSWER_CHECKS[q.type as QuestionTypeCode]?.(q.body, q.answer, check);
   return issues;
 }
 

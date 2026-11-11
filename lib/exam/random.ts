@@ -7,8 +7,9 @@
 function cyrb128(str: string): [number, number, number, number] {
   let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
   for (let i = 0; i < str.length; i++) {
-    // Seeds are ASCII (UUID + question ids): same value as charCodeAt.
-    const k = str.codePointAt(i) ?? 0;
+    // UTF-16 code units, as in the reference cyrb128: changing them would change
+    // every exam drawn from a seed.
+    const k = str.charCodeAt(i); // NOSONAR: code units on purpose (seeds must stay reproducible)
     h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
     h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
     h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
