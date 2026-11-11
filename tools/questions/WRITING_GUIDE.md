@@ -152,6 +152,9 @@ The schemas are in `lib/questions/schema.ts` (read it). Key points:
 - `difficulty`: 1 (easy, recall), 2 (medium, apply), 3 (hard, multi-step / tricky).
   Target mix 30 % / 50 % / 20 %.
 - `status: draft`.
+- `version` (optional, default 1): increment it when you fix a question that
+  users reported (`needs_review` in the database); otherwise the next seed keeps
+  it out of exams.
 - ids inside a question (`a`, `b`, `s1`, slot ids…) match `[a-zA-Z0-9_-]{1,40}`.
 - `single`: usually 4 options. `multi`: 4–6 options, `choose: 2` (sometimes 3);
   the stem ends with "Each correct answer presents a complete solution." or

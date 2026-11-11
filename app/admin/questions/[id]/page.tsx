@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth/guards";
 import { isLocale, pick, type Locale } from "@/lib/i18n/config";
 import { presentQuestion } from "@/lib/questions/present";
 import { buildOptionOrder } from "@/lib/questions/order";
@@ -15,6 +16,8 @@ export default async function QuestionPreviewPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ lang?: string; shuffle?: string }>;
 }) {
+  // Checked here too: layouts are not re-run on every navigation (Next.js guidance).
+  await requireAdmin();
   const { id } = await params;
   const sp = await searchParams;
   const locale: Locale = isLocale(sp.lang) ? sp.lang : "en";

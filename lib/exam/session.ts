@@ -350,7 +350,11 @@ export async function lockSection(db: PrismaClient, { attemptId, sectionId, user
   if (section.lockedAt) return section; // idempotent
   if (section.id === sections.at(-1)?.id) throw new SessionError("last_section");
   if (section.id !== current?.id) throw new SessionError("not_current_section");
-  const locked = await db.attemptSection.update({ where: { id: section.id }, data: { lockedAt: now } });
+  const locked = await db.$transaction(async (tx) => {
+    // Same invariant as saveItem: no change to a closed attempt.
+    if ((await lockAttempt(tx, attemptId, "share")) !== "in_progress") throw new SessionError("finished");
+    return tx.attemptSection.update({ where: { id: section.id }, data: { lockedAt: now } });
+  });
   logEvent("exam.section_locked", { attemptId, userId, sectionId, kind: section.kind });
   return locked;
 }
@@ -390,7 +394,7 @@ export async function submitAttempt(
     for (const s of scores) await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max } });
     await tx.attemptSection.updateMany({ where: { attemptId, lockedAt: null }, data: { lockedAt: submittedAt } });
     return total;
-  });
+  }, { maxWait: 10_000, timeout: 30_000 }); // ~60 item updates: leave room on a slow or busy database
   if (result) logEvent(reason === "expired" ? "exam.expired" : "exam.submitted", { attemptId, userId, scaledScore: result.scaledScore, passed: result.passed });
   return db.attempt.findUniqueOrThrow({ where: { id: attemptId } });
 }

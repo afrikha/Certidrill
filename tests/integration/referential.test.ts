@@ -47,6 +47,43 @@ describe("question bank", () => {
   });
 });
 
+describe("re-seed and review decisions", () => {
+  it("keeps a question sent back to review until its file changes version (regression: re-seed republished it)", async () => {
+    const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
+    const bank = await loadBank(content);
+    const [q, ...rest] = bank.questions;
+    const published = { ...q!, status: "published" as const };
+    await seedBank(db, content, { ...bank, questions: [published, ...rest] });
+    // Three users reported it: back to review.
+    await db.question.update({ where: { id: q!.id }, data: { status: "needs_review" } });
+
+    await seedBank(db, content, { ...bank, questions: [published, ...rest] });
+    expect((await db.question.findUniqueOrThrow({ where: { id: q!.id } })).status).toBe("needs_review");
+
+    // Fixed after review: new version → published again.
+    await seedBank(db, content, { ...bank, questions: [{ ...published, version: published.version + 1 }, ...rest] });
+    expect((await db.question.findUniqueOrThrow({ where: { id: q!.id } })).status).toBe("published");
+
+    // An explicit non-published status in the file always wins.
+    await db.question.update({ where: { id: q!.id }, data: { status: "needs_review" } });
+    await seedBank(db, content, { ...bank, questions: [{ ...q!, status: "draft" }, ...rest] });
+    expect((await db.question.findUniqueOrThrow({ where: { id: q!.id } })).status).toBe("draft");
+  });
+
+  it("retires case studies and series removed from the repository", async () => {
+    const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
+    const bank = await loadBank(content);
+    const [cs, ...otherCs] = bank.caseStudies;
+    const [sr, ...otherSr] = bank.series;
+    const keep = bank.questions.filter((x) => x.caseStudy !== cs!.id && x.series !== sr!.id);
+    await seedBank(db, content, { questions: keep, caseStudies: otherCs, series: otherSr });
+    expect((await db.caseStudy.findUniqueOrThrow({ where: { id: cs!.id } })).status).toBe("retired");
+    expect((await db.questionSeries.findUniqueOrThrow({ where: { id: sr!.id } })).status).toBe("retired");
+    await seedBank(db, content, bank);
+    expect((await db.caseStudy.findUniqueOrThrow({ where: { id: cs!.id } })).status).toBe(cs!.status);
+  });
+});
+
 describe("users", () => {
   it("creates a user with a hashed password and refuses duplicates", async () => {
     const u = await createUser(db, { email: "Admin@Example.com", password: "a-very-long-password", role: "admin" });

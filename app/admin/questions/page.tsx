@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { ContentStatus, Prisma, QuestionType } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth/guards";
 import { pick, type Locale } from "@/lib/i18n/config";
 import { questionTypes } from "@/lib/content/schema";
 import { Card } from "@/components/ui/card";
@@ -13,6 +14,8 @@ export const metadata = { title: "Questions" };
 const statuses: ContentStatus[] = ["draft", "needs_review", "reviewed", "published", "retired"];
 
 export default async function AdminQuestionsPage({ searchParams }: { searchParams: Promise<{ type?: string; status?: string; domain?: string }> }) {
+  // Checked here too: layouts are not re-run on every navigation (Next.js guidance).
+  await requireAdmin();
   const sp = await searchParams;
   const t = await getTranslations("admin");
   const locale = (await getLocale()) as Locale;

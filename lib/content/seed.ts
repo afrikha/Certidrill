@@ -100,7 +100,16 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
       const data = { stem: s.stem, status: s.status, version: s.version };
       await tx.questionSeries.upsert({ where: { id: s.id }, create: { id: s.id, certificationId: certification.id, ...data }, update: data });
     }
+    // A question sent back to review by user reports (needs_review) keeps that
+    // status at re-seed while its file is unchanged: it goes back to published
+    // only with a new `version` (the fix after review) or an explicit YAML status
+    // other than published.
+    const existing = new Map(
+      (await tx.question.findMany({ where: { certificationId: certification.id }, select: { id: true, status: true, version: true } })).map((q) => [q.id, q]),
+    );
     for (const q of bank.questions) {
+      const before = existing.get(q.id);
+      const keepNeedsReview = before?.status === "needs_review" && q.status === "published" && q.version <= before.version;
       const data = {
         objectiveId: objectiveIds.get(q.objective)!,
         type: q.type,
@@ -115,7 +124,7 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
         seriesId: q.series ?? null,
         seriesOrder: q.seriesOrder ?? null,
         shuffle: q.shuffle,
-        status: q.status,
+        status: keepNeedsReview ? ("needs_review" as const) : q.status,
         version: q.version,
         blueprintVersion: version,
       };
@@ -124,6 +133,15 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
     const keep = bank.questions.map((q) => q.id);
     const retired = await tx.question.updateMany({
       where: { certificationId: certification.id, id: { notIn: keep }, status: { not: "retired" } },
+      data: { status: "retired" },
+    });
+    // Case studies and series removed from the repository are retired too.
+    await tx.caseStudy.updateMany({
+      where: { certificationId: certification.id, id: { notIn: bank.caseStudies.map((c) => c.id) }, status: { not: "retired" } },
+      data: { status: "retired" },
+    });
+    await tx.questionSeries.updateMany({
+      where: { certificationId: certification.id, id: { notIn: bank.series.map((x) => x.id) }, status: { not: "retired" } },
       data: { status: "retired" },
     });
     return { questions: bank.questions.length, caseStudies: bank.caseStudies.length, series: bank.series.length, retired: retired.count };

@@ -53,6 +53,8 @@ npm run content:status -- published all --from reviewed
 npm run seed
 ```
 
+Une question signalée par 3 utilisateurs différents passe en `needs_review` en base et sort des examens. `npm run seed` ne la republie pas tant que son fichier n'a pas changé : après correction, incrémenter son `version` dans le YAML. Les questions, études de cas et séries supprimées du dépôt passent en `retired`.
+
 ## Démarrage en local
 
 Prérequis : Node 22 et Docker Desktop (ou un PostgreSQL 16 déjà installé).

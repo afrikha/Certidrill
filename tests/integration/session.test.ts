@@ -226,6 +226,13 @@ describe("submission and saves racing", () => {
     expect(stored.pointsEarned).toBeGreaterThan(0);
   });
 
+  it("refuses to lock a section once the attempt is closed", async () => {
+    const { attemptId } = await startedExam("race-lock");
+    const view = await getAttemptView(db, { attemptId, userId, now: at(1) });
+    const racing = withBeforeTransaction(db, () => submitAttempt(db, { attemptId, userId, now: at(2) }));
+    await expectCode(lockSection(racing, { attemptId, sectionId: view.currentSectionId!, userId, now: at(2) }), "finished");
+  });
+
   it("refuses an answer that arrives once the attempt is closed", async () => {
     const { attemptId, item, answer } = await startedExam("race-submit-first");
     const racing = withBeforeTransaction(db, () => submitAttempt(db, { attemptId, userId, now: at(2) }));
