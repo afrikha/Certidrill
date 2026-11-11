@@ -1,0 +1,52 @@
+id: cs2-fourthcoffee-03
+objective: "4.2.2"
+type: hotarea
+caseStudy: cs2-fourthcoffee
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The inbound security rules of NSG-POS are shown in the following table. No NSG is associated with the network interfaces of the virtual machines.
+
+    Answer each prompt by selecting the rule that processes the traffic.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Les règles de sécurité entrantes de NSG-POS figurent dans le tableau suivant. Aucun NSG n'est associé aux interfaces réseau des machines virtuelles.
+
+    Répondez à chaque consigne en sélectionnant la règle qui traite le trafic.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text: { en: "TCP 1433 from a computer in a coffee shop (172.16.8.20) to VM-POSDB1", fr: "TCP 1433 depuis un ordinateur d'un café (172.16.8.20) vers VM-POSDB1" }
+    - id: p2
+      text: { en: "TCP 443 from VM-IOTGW1 (10.60.1.4) to VM-POSDB1", fr: "TCP 443 depuis VM-IOTGW1 (10.60.1.4) vers VM-POSDB1" }
+  grid:
+    header: [{ en: "Priority", fr: "Priorité" }, { en: Name, fr: Nom }, Port, Source, Destination, Action]
+    rows:
+      - [{ text: "100" }, { text: Allow-POSApp-SQL, area: r100 }, { text: "TCP 1433" }, { text: ASG-POSApp }, { text: ASG-POSDB }, { text: Allow }]
+      - [{ text: "200" }, { text: Deny-Ingest-SQL, area: r200 }, { text: "TCP 1433" }, { text: "10.60.1.0/24" }, { text: Any }, { text: Deny }]
+      - [{ text: "300" }, { text: Allow-Shops-HTTPS, area: r300 }, { text: "TCP 443" }, { text: "172.16.0.0/12" }, { text: ASG-POSApp }, { text: Allow }]
+      - [{ text: "400" }, { text: Allow-Ingest-HTTPS, area: r400 }, { text: "TCP 443" }, { text: "10.60.1.0/24" }, { text: Any }, { text: Allow }]
+      - [{ text: "65000" }, { text: AllowVnetInBound, area: r65000 }, { text: Any }, { text: VirtualNetwork }, { text: VirtualNetwork }, { text: Allow }]
+      - [{ text: "65001" }, { text: AllowAzureLoadBalancerInBound, area: r65001 }, { text: Any }, { text: AzureLoadBalancer }, { text: Any }, { text: Allow }]
+      - [{ text: "65500" }, { text: DenyAllInBound, area: r65500 }, { text: Any }, { text: Any }, { text: Any }, { text: Deny }]
+answer:
+  values: { p1: r65000, p2: r400 }
+explanation:
+  correct:
+    en: |
+      Rules are processed by priority and processing stops at the first match. The SQL flow from the coffee shop does not come from ASG-POSApp (rule 100) or from Snet-Ingest (rule 200), and rules 300 and 400 concern TCP 443 only. The VirtualNetwork service tag includes the on-premises address spaces connected through the VPN gateway, so AllowVnetInBound (65000) allows the flow. The HTTPS flow from VM-IOTGW1 does not match rule 300, whose source is the shops' range, but matches Allow-Ingest-HTTPS (400), whose destination is Any.
+    fr: |
+      Les règles sont traitées par priorité et le traitement s'arrête à la première correspondance. Le flux SQL du café ne provient ni d'ASG-POSApp (règle 100) ni de Snet-Ingest (règle 200), et les règles 300 et 400 ne concernent que TCP 443. L'étiquette de service VirtualNetwork inclut les espaces d'adressage locaux connectés via la passerelle VPN ; AllowVnetInBound (65000) autorise donc le flux. Le flux HTTPS de VM-IOTGW1 ne correspond pas à la règle 300, dont la source est la plage des cafés, mais correspond à Allow-Ingest-HTTPS (400), dont la destination est Any.
+  options:
+    r200: { en: "Rule 200 denies SQL traffic only when the source is Snet-Ingest (10.60.1.0/24).", fr: "La règle 200 ne refuse le trafic SQL que lorsque la source est Snet-Ingest (10.60.1.0/24)." }
+    r300: { en: "Rule 300 matches only sources in 172.16.0.0/12 and destinations in ASG-POSApp.", fr: "La règle 300 ne correspond qu'aux sources de 172.16.0.0/12 et aux destinations membres d'ASG-POSApp." }
+    r65500: { en: "DenyAllInBound is not reached by the shop traffic, because the VirtualNetwork tag includes the on-premises ranges and AllowVnetInBound matches first.", fr: "DenyAllInBound n'est pas atteinte par le trafic des cafés, car l'étiquette VirtualNetwork inclut les plages locales et AllowVnetInBound correspond avant." }
+references:
+  - title: "Azure network security groups overview"
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview
+  - title: "Azure service tags overview"
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/service-tags-overview

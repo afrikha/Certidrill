@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createRateLimiter } from "@/lib/security/rate-limit";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
@@ -13,6 +15,11 @@ describe("rate limiter", () => {
     expect(rl.hit("k", 1001)).toBe(true);
     rl.reset("k");
     expect(rl.hit("k", 1002)).toBe(true);
+    expect(rl.blocked("k", 1003)).toBe(false);
+    rl.hit("k", 1003);
+    expect(rl.blocked("k", 1004)).toBe(true);
+    expect(rl.blocked("k", 3000)).toBe(false);
+    expect(rl.blocked("unknown", 0)).toBe(false);
   });
 });
 
@@ -36,5 +43,32 @@ describe("user creation input", () => {
   it("rejects short passwords and bad e-mails", () => {
     expect(createUserSchema.safeParse({ email: "a@b.co", password: "short" }).success).toBe(false);
     expect(createUserSchema.safeParse({ email: "nope" }).success).toBe(false);
+  });
+});
+
+describe("page guards (layouts are not re-run on every navigation: each page checks itself)", () => {
+  const root = path.resolve(__dirname, "../..");
+  const pages = (dir: string): string[] =>
+    readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? pages(path.join(dir, e.name)) : e.name === "page.tsx" ? [path.join(dir, e.name)] : [],
+    );
+
+  it("every admin page calls requireAdmin()", () => {
+    const list = pages("app/admin");
+    expect(list.length).toBeGreaterThan(0);
+    for (const f of list) expect(readFileSync(path.join(root, f), "utf8"), f).toMatch(/await requireAdmin\(\)/);
+  });
+
+  it("every signed-in page calls requireUser() or requireAdmin()", () => {
+    const list = [...pages("app/(app)"), ...pages("app/(exam)")];
+    expect(list.length).toBeGreaterThan(0);
+    for (const f of list) expect(readFileSync(path.join(root, f), "utf8"), f).toMatch(/await require(User|Admin)\(\)/);
+  });
+
+  it("every admin server action calls requireAdmin()", () => {
+    const src = readFileSync(path.join(root, "lib/actions/admin.ts"), "utf8");
+    const actions = src.match(/export async function \w+/g) ?? [];
+    expect(actions.length).toBeGreaterThan(0);
+    expect((src.match(/await requireAdmin\(\)/g) ?? []).length).toBe(actions.length);
   });
 });

@@ -1,11 +1,14 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth/guards";
 import { Card } from "@/components/ui/card";
 import { CreateUserForm } from "./create-user-form";
 
 export const metadata = { title: "Users" };
 
 export default async function AdminUsersPage() {
+  // Checked here too: layouts are not re-run on every navigation (Next.js guidance).
+  await requireAdmin();
   const t = await getTranslations("admin");
   const tc = await getTranslations("common");
   const format = await getFormatter();

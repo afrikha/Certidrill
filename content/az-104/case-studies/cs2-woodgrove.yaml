@@ -1,0 +1,178 @@
+id: cs2-woodgrove
+status: draft
+title:
+  en: Woodgrove Bank
+  fr: Woodgrove Bank
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Woodgrove Bank is a retail bank that has its head office in Paris and 120 branch offices in France. The on-premises datacenter is in Paris.
+
+        The IT department has the following teams:
+
+        - **Network team**: manages the hybrid connectivity and the Azure networks.
+        - **Application team**: manages the application servers.
+        - **Internal audit**: reviews the configuration of all the Azure resources.
+
+        Woodgrove is extending its datacenter to Azure and plans to move several workloads to the France Central region.
+      fr: |
+        Woodgrove Bank est une banque de détail dont le siège se trouve à Paris et qui compte 120 agences en France. Le centre de données local est à Paris.
+
+        Le service informatique comprend les équipes suivantes :
+
+        - **Équipe réseau** : gère la connectivité hybride et les réseaux Azure.
+        - **Équipe applicative** : gère les serveurs d'applications.
+        - **Audit interne** : examine la configuration de toutes les ressources Azure.
+
+        Woodgrove étend son centre de données vers Azure et prévoit de déplacer plusieurs charges de travail vers la région France Central.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity**
+
+        Woodgrove has an on-premises Active Directory Domain Services (AD DS) domain named corp.woodgrovebank.com with two domain controllers, DC1 and DC2, in the Paris datacenter. Microsoft Entra Connect Sync synchronizes the users and groups to a Microsoft Entra tenant named woodgrovebank.com. All the computers of the head office and the branch offices are joined to the AD DS domain. They are **not** Microsoft Entra joined or Microsoft Entra hybrid joined.
+
+        The following groups are synchronized from AD DS:
+
+        | Group | Members |
+        | --- | --- |
+        | GRP-NetOps | Network team |
+        | GRP-AppOps | Application team |
+        | GRP-Audit | Internal audit |
+        | GRP-Finance | Finance staff of the head office and the branch offices |
+
+        **Subscriptions and resource groups**
+
+        A management group named **MG-Woodgrove** contains two subscriptions: **Sub-Core** and **Sub-Dev**. Woodgrove plans to add more subscriptions to MG-Woodgrove.
+
+        | Subscription | Resource group | Contents |
+        | --- | --- | --- |
+        | Sub-Core | RG-Network | VNet-Hub, ERGW-Hub, VPNGW-Hub |
+        | Sub-Core | RG-CoreApps | VNet-Core, VM-CORE1, VM-CORE2 |
+        | Sub-Core | RG-Data | stwgfinance, stwgaudit |
+        | Sub-Dev | RG-DevTest | Test virtual machines |
+
+        **Network**
+
+        | Virtual network | Address space | Subnets | Notes |
+        | --- | --- | --- | --- |
+        | VNet-Hub | 10.10.0.0/16 | GatewaySubnet (10.10.0.0/27), Snet-Shared (10.10.1.0/24) | Contains the ExpressRoute gateway ERGW-Hub and the site-to-site VPN gateway VPNGW-Hub |
+        | VNet-Core | 10.20.0.0/16 | Snet-App (10.20.1.0/24) | Peered with VNet-Hub; uses the gateways of VNet-Hub |
+
+        The ExpressRoute circuit **ER-Paris** uses private peering and connects the Paris datacenter (192.168.0.0/16) to ERGW-Hub. VPNGW-Hub provides a backup site-to-site VPN connection to the same datacenter.
+
+        **Servers**
+
+        | Name | Location | Configuration |
+        | --- | --- | --- |
+        | VM-CORE1, VM-CORE2 | Snet-App | Windows Server 2022, core banking front end |
+        | SRV-LEGACY | Paris datacenter (192.168.20.15) | Legacy payment gateway that listens on TCP 443. Not Azure Arc-enabled |
+
+        **Storage**
+
+        | Storage account | Configuration |
+        | --- | --- |
+        | stwgfinance | General-purpose v2, ZRS. Contains an SMB file share named **finance-reports**. Identity-based access is not configured |
+        | stwgaudit | General-purpose v2, GRS. Contains a container named **audit-logs**. Public network access is enabled from all networks |
+      fr: |
+        **Identité**
+
+        Woodgrove dispose d'un domaine Active Directory Domain Services (AD DS) local nommé corp.woodgrovebank.com avec deux contrôleurs de domaine, DC1 et DC2, dans le centre de données de Paris. Microsoft Entra Connect Sync synchronise les utilisateurs et les groupes avec un locataire Microsoft Entra nommé woodgrovebank.com. Tous les ordinateurs du siège et des agences sont joints au domaine AD DS. Ils ne sont **pas** joints à Microsoft Entra ni joints à Microsoft Entra hybride.
+
+        Les groupes suivants sont synchronisés depuis AD DS :
+
+        | Groupe | Membres |
+        | --- | --- |
+        | GRP-NetOps | Équipe réseau |
+        | GRP-AppOps | Équipe applicative |
+        | GRP-Audit | Audit interne |
+        | GRP-Finance | Personnel financier du siège et des agences |
+
+        **Abonnements et groupes de ressources**
+
+        Un groupe d'administration nommé **MG-Woodgrove** contient deux abonnements : **Sub-Core** et **Sub-Dev**. Woodgrove prévoit d'ajouter d'autres abonnements à MG-Woodgrove.
+
+        | Abonnement | Groupe de ressources | Contenu |
+        | --- | --- | --- |
+        | Sub-Core | RG-Network | VNet-Hub, ERGW-Hub, VPNGW-Hub |
+        | Sub-Core | RG-CoreApps | VNet-Core, VM-CORE1, VM-CORE2 |
+        | Sub-Core | RG-Data | stwgfinance, stwgaudit |
+        | Sub-Dev | RG-DevTest | Machines virtuelles de test |
+
+        **Réseau**
+
+        | Réseau virtuel | Espace d'adressage | Sous-réseaux | Remarques |
+        | --- | --- | --- | --- |
+        | VNet-Hub | 10.10.0.0/16 | GatewaySubnet (10.10.0.0/27), Snet-Shared (10.10.1.0/24) | Contient la passerelle ExpressRoute ERGW-Hub et la passerelle VPN site à site VPNGW-Hub |
+        | VNet-Core | 10.20.0.0/16 | Snet-App (10.20.1.0/24) | Appairé avec VNet-Hub ; utilise les passerelles de VNet-Hub |
+
+        Le circuit ExpressRoute **ER-Paris** utilise le peering privé et relie le centre de données de Paris (192.168.0.0/16) à ERGW-Hub. VPNGW-Hub fournit une connexion VPN site à site de secours vers le même centre de données.
+
+        **Serveurs**
+
+        | Nom | Emplacement | Configuration |
+        | --- | --- | --- |
+        | VM-CORE1, VM-CORE2 | Snet-App | Windows Server 2022, front-end du système bancaire central |
+        | SRV-LEGACY | Centre de données de Paris (192.168.20.15) | Ancienne passerelle de paiement qui écoute sur TCP 443. Non activée pour Azure Arc |
+
+        **Stockage**
+
+        | Compte de stockage | Configuration |
+        | --- | --- |
+        | stwgfinance | Usage général v2, ZRS. Contient un partage de fichiers SMB nommé **finance-reports**. L'accès basé sur l'identité n'est pas configuré |
+        | stwgaudit | Usage général v2, GRS. Contient un conteneur nommé **audit-logs**. L'accès réseau public est activé à partir de tous les réseaux |
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Woodgrove plans to implement the following changes:
+
+        - Create a virtual network named **VNet-Payments** (10.30.0.0/16) in Sub-Core and peer it with VNet-Hub. Later in the year, the address range 10.31.0.0/16 will be added to VNet-Payments.
+        - Migrate the on-premises finance file server to the **finance-reports** file share.
+        - Make stwgaudit the central store for the audit logs written by the on-premises servers.
+      fr: |
+        Woodgrove prévoit d'apporter les changements suivants :
+
+        - Créer un réseau virtuel nommé **VNet-Payments** (10.30.0.0/16) dans Sub-Core et l'appairer avec VNet-Hub. Plus tard dans l'année, la plage d'adresses 10.31.0.0/16 sera ajoutée à VNet-Payments.
+        - Migrer le serveur de fichiers financier local vers le partage de fichiers **finance-reports**.
+        - Faire de stwgaudit le magasin central des journaux d'audit écrits par les serveurs locaux.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Business requirements**
+
+        1. The finance staff must open finance-reports from their existing domain-joined computers by using their existing AD DS credentials, without entering other credentials. The configuration of the client computers must not be changed.
+        2. Internal audit must be able to view all the resources in all the current and future subscriptions of MG-Woodgrove, without making changes.
+
+        **Technical requirements**
+
+        3. GRP-NetOps must manage the network resources of RG-Network only.
+        4. GRP-AppOps must manage the virtual machines in all the resource groups of Sub-Dev, including resource groups created later.
+        5. The members of GRP-Finance must be able to read, create, modify and delete files in finance-reports, but they must not be able to change the Windows ACLs (NTFS permissions).
+        6. Woodgrove must not deploy additional directory services or domain controllers.
+        7. The resources in VNet-Payments must reach the Paris datacenter through the existing gateways of VNet-Hub. No virtual network gateway must be deployed in VNet-Payments. The resources in VNet-Payments must also communicate directly with VM-CORE1 and VM-CORE2, without passing through a network virtual appliance, including after the address space of VNet-Payments changes.
+        8. The on-premises servers must access stwgaudit over the ExpressRoute private peering by using a private IP address. Public network access to stwgaudit must be disabled.
+        9. The network team must continuously measure the round-trip time and the percentage of failed checks between VM-CORE1 and SRV-LEGACY on TCP 443, and keep the history of these measurements.
+        10. Nobody, including the subscription owners, must be able to delete a resource in RG-Network by mistake. The network team must still be able to change the configuration of the gateways.
+        11. Administrative effort and costs must be minimized.
+      fr: |
+        **Exigences métier**
+
+        1. Le personnel financier doit ouvrir finance-reports depuis ses ordinateurs existants joints au domaine, avec ses informations d'identification AD DS existantes, sans saisir d'autres informations d'identification. La configuration des ordinateurs clients ne doit pas être modifiée.
+        2. L'audit interne doit pouvoir consulter toutes les ressources de tous les abonnements actuels et futurs de MG-Woodgrove, sans rien modifier.
+
+        **Exigences techniques**
+
+        3. GRP-NetOps doit gérer uniquement les ressources réseau de RG-Network.
+        4. GRP-AppOps doit gérer les machines virtuelles de tous les groupes de ressources de Sub-Dev, y compris les groupes de ressources créés ultérieurement.
+        5. Les membres de GRP-Finance doivent pouvoir lire, créer, modifier et supprimer des fichiers dans finance-reports, mais ils ne doivent pas pouvoir modifier les listes ACL Windows (autorisations NTFS).
+        6. Woodgrove ne doit pas déployer de services d'annuaire ni de contrôleurs de domaine supplémentaires.
+        7. Les ressources de VNet-Payments doivent atteindre le centre de données de Paris via les passerelles existantes de VNet-Hub. Aucune passerelle de réseau virtuel ne doit être déployée dans VNet-Payments. Les ressources de VNet-Payments doivent aussi communiquer directement avec VM-CORE1 et VM-CORE2, sans passer par une appliance virtuelle réseau, y compris après une modification de l'espace d'adressage de VNet-Payments.
+        8. Les serveurs locaux doivent accéder à stwgaudit via le peering privé ExpressRoute en utilisant une adresse IP privée. L'accès réseau public à stwgaudit doit être désactivé.
+        9. L'équipe réseau doit mesurer en continu le temps d'aller-retour et le pourcentage de vérifications en échec entre VM-CORE1 et SRV-LEGACY sur TCP 443, et conserver l'historique de ces mesures.
+        10. Personne, y compris les propriétaires des abonnements, ne doit pouvoir supprimer par erreur une ressource de RG-Network. L'équipe réseau doit toujours pouvoir modifier la configuration des passerelles.
+        11. L'effort d'administration et les coûts doivent être réduits au minimum.

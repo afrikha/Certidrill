@@ -12,6 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="mx-auto max-w-6xl px-4 py-8">
         <nav aria-label={t("title")} className="mb-6 flex gap-4 border-b border-border pb-3 text-sm">
           <span className="font-semibold">{t("title")}</span>
+          <Link href="/admin/questions" className="hover:underline">{t("questions")}</Link>
           <Link href="/admin/users" className="hover:underline">{t("users")}</Link>
         </nav>
         <main id="main">{children}</main>

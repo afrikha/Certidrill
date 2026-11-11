@@ -1,0 +1,78 @@
+id: c1-arm-nic-dependson
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an ARM template that deploys a virtual network and a network interface. The virtual network is named by the variable `vnetName` and contains a subnet named **snet-web**. Deployments of the template sometimes fail because Resource Manager tries to create the network interface before the virtual network.
+
+    You need to modify the network interface definition so that it is always deployed after the virtual network and is connected to the snet-web subnet.
+
+    How should you complete the definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un modèle ARM qui déploie un réseau virtuel et une interface réseau. Le nom du réseau virtuel est fourni par la variable `vnetName` et celui-ci contient un sous-réseau nommé **snet-web**. Les déploiements du modèle échouent parfois, car Resource Manager tente de créer l'interface réseau avant le réseau virtuel.
+
+    Vous devez modifier la définition de l'interface réseau pour qu'elle soit toujours déployée après le réseau virtuel et connectée au sous-réseau snet-web.
+
+    Comment devez-vous compléter la définition ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "nic-web01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[[dep]]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[[subnetId]]"
+              }
+            }
+          }
+        ]
+      }
+    }
+  slots:
+    - id: dep
+      options:
+        - { id: rid, text: "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]" }
+        - { id: subrid, text: "[subscriptionResourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]" }
+        - { id: ref, text: "[reference(variables('vnetName')).id]" }
+        - { id: varid, text: "[variables('vnetName').id]" }
+    - id: subnetId
+      options:
+        - { id: subnet, text: "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), 'snet-web')]" }
+        - { id: vnet, text: "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'), 'snet-web')]" }
+        - { id: concat, text: "[concat(variables('vnetName'), '/snet-web')]" }
+        - { id: nested, text: "[resourceId('Microsoft.Network/subnets', 'snet-web')]" }
+answer:
+  values: { dep: rid, subnetId: subnet }
+explanation:
+  correct:
+    en: "`dependsOn` takes the name or the resource ID of a resource deployed in the same template; `resourceId()` with the virtual network type and name returns that ID. The subnet ID is built with the child type `Microsoft.Network/virtualNetworks/subnets` followed by the parent name and the subnet name."
+    fr: "`dependsOn` accepte le nom ou l'ID de ressource d'une ressource déployée dans le même modèle ; `resourceId()` avec le type et le nom du réseau virtuel renvoie cet ID. L'ID du sous-réseau se construit avec le type enfant `Microsoft.Network/virtualNetworks/subnets`, suivi du nom du parent et du nom du sous-réseau."
+  options:
+    subrid: { en: "subscriptionResourceId() is for resources deployed at subscription scope, not in a resource group.", fr: "subscriptionResourceId() est destinée aux ressources déployées dans l'étendue de l'abonnement, pas dans un groupe de ressources." }
+    ref: { en: "reference() returns the runtime properties of the resource, which do not include its ID; dependsOn needs a name or resource ID.", fr: "reference() renvoie les propriétés d'exécution de la ressource, qui ne contiennent pas son ID ; dependsOn attend un nom ou un ID de ressource." }
+    varid: { en: A variable holds a string; it has no id property., fr: "Une variable contient une chaîne ; elle n'a pas de propriété id." }
+    vnet: { en: "With two name segments, the type must include the child type subnets.", fr: "Avec deux segments de nom, le type doit inclure le type enfant subnets." }
+    concat: { en: "This returns a name, not a full resource ID.", fr: "Cela renvoie un nom, pas un ID de ressource complet." }
+references:
+  - title: Set deployment order for resources
+    url: https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/resource-dependency
+  - title: Template functions - resources
+    url: https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/template-functions-resource

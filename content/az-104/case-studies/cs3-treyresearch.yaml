@@ -1,0 +1,121 @@
+id: cs3-treyresearch
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a life sciences research laboratory based in Oslo. Its scientists run large genome sequencing and protein folding simulations on high-performance computing (HPC) virtual machines in Azure.
+
+        Simulation jobs save a checkpoint to storage every 10 minutes and can restart from the last checkpoint, so they tolerate the loss of a compute node. Research grants pay for compute, and the board has asked IT to reduce the monthly Azure bill without slowing down research.
+
+        A cloud team of three administrators manages Azure for all the research projects.
+      fr: |
+        Trey Research est un laboratoire de recherche en sciences de la vie basé à Oslo. Ses scientifiques exécutent de grandes simulations de séquençage de génomes et de repliement de protéines sur des machines virtuelles de calcul haute performance (HPC) dans Azure.
+
+        Les travaux de simulation enregistrent un point de contrôle dans le stockage toutes les 10 minutes et peuvent redémarrer à partir du dernier point de contrôle : ils tolèrent donc la perte d'un nœud de calcul. Les subventions de recherche financent le calcul, et le conseil d'administration a demandé à l'informatique de réduire la facture Azure mensuelle sans ralentir la recherche.
+
+        Une équipe cloud de trois administrateurs gère Azure pour tous les projets de recherche.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Management groups and subscriptions**
+
+        The Microsoft Entra tenant is treyresearch.net. The management group **MG-Trey** is a child of the Tenant root group.
+
+        | Management group | Parent | Subscriptions |
+        | --- | --- | --- |
+        | MG-Trey | Tenant root group | Sub-Shared |
+        | MG-Research | MG-Trey | Sub-Genomics, Sub-Climate |
+
+        Azure Policy initiatives that restrict the allowed regions and VM sizes are assigned to MG-Trey and MG-Research. A new subscription named **Sub-Proteomics** was created yesterday for a new project. Nobody has changed its position in the hierarchy, and nobody has changed the hierarchy settings of the management groups.
+
+        **Resources in Sub-Genomics**
+
+        All the resources are in the resource group **RG-HPC** in the Norway East region.
+
+        | Name | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-HPC | Virtual network | 10.70.0.0/16, subnet snet-hpc (10.70.0.0/22). No service endpoints and no private endpoints. |
+        | VM-HEAD1 | Virtual machine | Job scheduler, subnet snet-hpc |
+        | vmss-geno | Virtual Machine Scale Set | Flexible orchestration, Standard_F32s_v2, regular priority, 0 to 50 instances, subnet snet-hpc |
+        | sttreydata | Storage account | General-purpose v2, LRS, container **datasets**. Public network access: enabled from all networks. |
+        | law-trey | Log Analytics workspace | Norway East |
+
+        The jobs on vmss-geno and VM-HEAD1 access sttreydata by using a connection string that contains **key1** of the storage account. The connection string is stored in the scheduler configuration on VM-HEAD1, which distributes it to the jobs. **key2** isn't used.
+
+        **Deployment**
+
+        The scale sets are deployed from Bicep files. A new file named **vmss-geno-spot.bicep** has `targetScope = 'resourceGroup'`.
+      fr: |
+        **Groupes d'administration et abonnements**
+
+        Le locataire Microsoft Entra est treyresearch.net. Le groupe d'administration **MG-Trey** est un enfant du Groupe racine du locataire.
+
+        | Groupe d'administration | Parent | Abonnements |
+        | --- | --- | --- |
+        | MG-Trey | Groupe racine du locataire | Sub-Shared |
+        | MG-Research | MG-Trey | Sub-Genomics, Sub-Climate |
+
+        Des initiatives Azure Policy qui limitent les régions et les tailles de machines virtuelles autorisées sont attribuées à MG-Trey et à MG-Research. Un nouvel abonnement nommé **Sub-Proteomics** a été créé hier pour un nouveau projet. Personne n'a modifié sa position dans la hiérarchie, et personne n'a modifié les paramètres de hiérarchie des groupes d'administration.
+
+        **Ressources de Sub-Genomics**
+
+        Toutes les ressources se trouvent dans le groupe de ressources **RG-HPC**, dans la région Norway East.
+
+        | Nom | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-HPC | Réseau virtuel | 10.70.0.0/16, sous-réseau snet-hpc (10.70.0.0/22). Aucun point de terminaison de service et aucun point de terminaison privé. |
+        | VM-HEAD1 | Machine virtuelle | Planificateur de travaux, sous-réseau snet-hpc |
+        | vmss-geno | Groupe de machines virtuelles identiques | Mode d'orchestration Flexible, Standard_F32s_v2, priorité normale, de 0 à 50 instances, sous-réseau snet-hpc |
+        | sttreydata | Compte de stockage | Usage général v2, LRS, conteneur **datasets**. Accès réseau public : activé à partir de tous les réseaux. |
+        | law-trey | Espace de travail Log Analytics | Norway East |
+
+        Les travaux de vmss-geno et VM-HEAD1 accèdent à sttreydata à l'aide d'une chaîne de connexion qui contient **key1** du compte de stockage. La chaîne de connexion est stockée dans la configuration du planificateur sur VM-HEAD1, qui la distribue aux travaux. **key2** n'est pas utilisée.
+
+        **Déploiement**
+
+        Les groupes de machines virtuelles identiques sont déployés à partir de fichiers Bicep. Un nouveau fichier nommé **vmss-geno-spot.bicep** contient `targetScope = 'resourceGroup'`.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Compute**
+
+        1. A new scale set named vmss-geno-spot will run the simulation jobs at the lowest possible compute cost. When Azure needs the capacity back, the evicted instances must not generate any storage charges and must not count against the scale set instance quota.
+        2. Before vmss-geno-spot.bicep is deployed to RG-HPC, the administrators must review the changes that the deployment would make, without applying them.
+
+        **Governance**
+
+        3. Sub-Proteomics must be governed by the same policy assignments as Sub-Genomics and Sub-Climate, with minimum administrative effort.
+
+        **Storage and network**
+
+        4. sttreydata must accept connections only from snet-hpc. Traffic from snet-hpc to sttreydata must use the Azure backbone network. The solution must not add any network resource that is billed.
+        5. Both access keys of sttreydata must be regenerated every six months. Running jobs must not lose access to sttreydata during a rotation.
+
+        **Monitoring**
+
+        6. The administrators must use VM insights to analyze guest operating system performance (CPU, memory, disk) of all the instances of vmss-geno in law-trey.
+      fr: |
+        **Calcul**
+
+        1. Un nouveau groupe de machines virtuelles identiques nommé vmss-geno-spot exécutera les travaux de simulation au coût de calcul le plus bas possible. Quand Azure a besoin de récupérer la capacité, les instances évincées ne doivent générer aucun frais de stockage et ne doivent pas être comptabilisées dans le quota d'instances du groupe.
+        2. Avant que vmss-geno-spot.bicep soit déployé dans RG-HPC, les administrateurs doivent examiner les modifications que le déploiement apporterait, sans les appliquer.
+
+        **Gouvernance**
+
+        3. Sub-Proteomics doit être régi par les mêmes attributions de stratégies que Sub-Genomics et Sub-Climate, avec un effort d'administration minimal.
+
+        **Stockage et réseau**
+
+        4. sttreydata ne doit accepter que les connexions provenant de snet-hpc. Le trafic de snet-hpc vers sttreydata doit emprunter le réseau principal Azure. La solution ne doit ajouter aucune ressource réseau facturée.
+        5. Les deux clés d'accès de sttreydata doivent être régénérées tous les six mois. Les travaux en cours ne doivent pas perdre l'accès à sttreydata pendant une rotation.
+
+        **Supervision**
+
+        6. Les administrateurs doivent utiliser VM Insights pour analyser les performances du système d'exploitation invité (UC, mémoire, disque) de toutes les instances de vmss-geno dans law-trey.

@@ -1,0 +1,129 @@
+id: cs3-relecloud
+status: draft
+title:
+  en: Relecloud
+  fr: Relecloud
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Relecloud is a video streaming service that has 12 million subscribers in 40 countries. The head office is in Dublin.
+
+        Film studios upload master video files to Relecloud. Relecloud transcodes each master into several renditions that subscribers stream on their devices. Relecloud does not use a content delivery network for the workloads in this case study.
+
+        A media operations team (MediaOps) of seven administrators manages the Azure environment. A finance team reviews the monthly Azure costs.
+      fr: |
+        Relecloud est un service de streaming vidéo qui compte 12 millions d'abonnés dans 40 pays. Le siège est à Dublin.
+
+        Les studios de cinéma déposent des fichiers vidéo maîtres chez Relecloud. Relecloud transcode chaque fichier maître en plusieurs déclinaisons que les abonnés regardent en streaming sur leurs appareils. Relecloud n'utilise pas de réseau de distribution de contenu pour les charges de travail de cette étude de cas.
+
+        Une équipe d'exploitation multimédia (MediaOps) de sept administrateurs gère l'environnement Azure. Une équipe financière examine les coûts Azure mensuels.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        All the resources are in a subscription named **Sub-Media**.
+
+        **Resource groups and network**
+
+        | Resource group | Region | Content |
+        | --- | --- | --- |
+        | RG-Ingest | North Europe | VM-ING1, VNet-Media (10.30.0.0/16) with the subnets snet-ingest (10.30.1.0/24) and snet-transcode (10.30.2.0/24) |
+        | RG-Transcode | North Europe | VM-TRN1, VM-TRN2, VM-DEV1, the availability set AS-TRN |
+        | RG-Catalog | West US 2 | The catalog web application and the storage account stmediavod |
+
+        **Virtual machines**
+
+        | Name | Size | Disks | Role |
+        | --- | --- | --- | --- |
+        | VM-ING1 | Standard_D8s_v5 | Premium SSD OS disk | Receives the live feeds of sports events |
+        | VM-TRN1, VM-TRN2 | Standard_D16s_v5 (16 vCPUs, 64 GiB) | Premium SSD OS disks; Standard HDD data disk **logs** (transcoding logs, read once a month) | Transcoding servers in the availability set AS-TRN |
+        | VM-DEV1 | Standard_D2s_v5 | Standard HDD OS disk | Test server used by developers during business hours |
+
+        **Storage accounts**
+
+        | Name | Configuration | Content |
+        | --- | --- | --- |
+        | stmediaraw | General-purpose v2, Standard, LRS, default access tier Hot | Container **raw-uploads**: master files uploaded by the studios (block blobs) |
+        | stmediavod | General-purpose v2, Standard, RA-GRS | Container **vod-renditions**: renditions streamed to the players |
+
+        **Azure role assignments**
+
+        Ana is a member of the Microsoft Entra group GG-MediaOps. Ben is not a member of any group.
+
+        | Principal | Role | Scope |
+        | --- | --- | --- |
+        | GG-MediaOps | Reader | Sub-Media |
+        | GG-MediaOps | Virtual Machine Contributor | RG-Transcode |
+        | Ana | Storage Account Contributor | stmediaraw |
+        | Ben | Contributor | RG-Catalog |
+        | GG-Finance | Cost Management Reader | Sub-Media |
+      fr: |
+        Toutes les ressources se trouvent dans un abonnement nommé **Sub-Media**.
+
+        **Groupes de ressources et réseau**
+
+        | Groupe de ressources | Région | Contenu |
+        | --- | --- | --- |
+        | RG-Ingest | North Europe | VM-ING1, VNet-Media (10.30.0.0/16) avec les sous-réseaux snet-ingest (10.30.1.0/24) et snet-transcode (10.30.2.0/24) |
+        | RG-Transcode | North Europe | VM-TRN1, VM-TRN2, VM-DEV1, le groupe à haute disponibilité AS-TRN |
+        | RG-Catalog | West US 2 | L'application web du catalogue et le compte de stockage stmediavod |
+
+        **Machines virtuelles**
+
+        | Nom | Taille | Disques | Rôle |
+        | --- | --- | --- | --- |
+        | VM-ING1 | Standard_D8s_v5 | Disque du système d'exploitation SSD Premium | Reçoit les flux en direct des événements sportifs |
+        | VM-TRN1, VM-TRN2 | Standard_D16s_v5 (16 vCPU, 64 Gio) | Disques du système d'exploitation SSD Premium ; disque de données HDD Standard **logs** (journaux de transcodage, lus une fois par mois) | Serveurs de transcodage dans le groupe à haute disponibilité AS-TRN |
+        | VM-DEV1 | Standard_D2s_v5 | Disque du système d'exploitation HDD Standard | Serveur de test utilisé par les développeurs aux heures de bureau |
+
+        **Comptes de stockage**
+
+        | Nom | Configuration | Contenu |
+        | --- | --- | --- |
+        | stmediaraw | Usage général v2, Standard, LRS, niveau d'accès par défaut chaud (Hot) | Conteneur **raw-uploads** : fichiers maîtres déposés par les studios (objets blob de blocs) |
+        | stmediavod | Usage général v2, Standard, RA-GRS | Conteneur **vod-renditions** : déclinaisons diffusées vers les lecteurs |
+
+        **Attributions de rôles Azure**
+
+        Ana est membre du groupe Microsoft Entra GG-MediaOps. Ben n'est membre d'aucun groupe.
+
+        | Principal | Rôle | Étendue |
+        | --- | --- | --- |
+        | GG-MediaOps | Reader | Sub-Media |
+        | GG-MediaOps | Virtual Machine Contributor | RG-Transcode |
+        | Ana | Storage Account Contributor | stmediaraw |
+        | Ben | Contributor | RG-Catalog |
+        | GG-Finance | Cost Management Reader | Sub-Media |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Business requirements**
+
+        1. Storage and compute costs must be minimized.
+        2. Changes to permissions must follow the principle of least privilege.
+
+        **Technical requirements**
+
+        1. **Masters:** a master is read many times during the first 14 days after upload. From day 15 to day 120, a master is rarely read, but it must be readable within milliseconds when a rendition must be re-encoded. After day 120, a master is kept for three years and retrieval can take several hours.
+        2. **Live ingest:** VM-ING1 needs a new data disk for its ingest buffer. The disk type must support submillisecond latency and up to 200,000 IOPS per disk, because VM-ING1 will later be resized to a larger size. The IOPS must be adjustable without detaching the disk or restarting VM-ING1.
+        3. **Disks:** the OS disks of the transcoding servers must stay on high-performance SSD storage. The OS disk of VM-DEV1 must move off Standard HDD to the least expensive SSD-based disk type. The **logs** data disks must use the least expensive disk type.
+        4. **Transcoding:** VM-TRN1 and VM-TRN2 must be resized to 16 vCPUs and 128 GiB of memory. They must keep their Premium SSD disks.
+        5. **Thumbnails:** a new storage account named stcatalogthumbs will store millions of small thumbnail images. The catalog application reads and writes them at a very high transaction rate and requires consistently low storage latency. Locally redundant storage is acceptable.
+        6. **Monitoring:** MediaOps must chart, for stmediavod, the number of requests per type of response so that throttled requests can be distinguished from successful ones.
+      fr: |
+        **Exigences métier**
+
+        1. Les coûts de stockage et de calcul doivent être réduits au minimum.
+        2. Les modifications d'autorisations doivent respecter le principe du privilège minimum.
+
+        **Exigences techniques**
+
+        1. **Fichiers maîtres :** un fichier maître est lu de nombreuses fois pendant les 14 premiers jours qui suivent son dépôt. Du jour 15 au jour 120, il est rarement lu, mais il doit être lisible en quelques millisecondes quand une déclinaison doit être réencodée. Après le jour 120, il est conservé trois ans et sa récupération peut prendre plusieurs heures.
+        2. **Ingestion en direct :** VM-ING1 a besoin d'un nouveau disque de données pour sa mémoire tampon d'ingestion. Le type de disque doit prendre en charge une latence inférieure à la milliseconde et jusqu'à 200 000 IOPS par disque, car VM-ING1 sera ensuite redimensionnée vers une taille plus grande. Les IOPS doivent pouvoir être ajustées sans détacher le disque ni redémarrer VM-ING1.
+        3. **Disques :** les disques du système d'exploitation des serveurs de transcodage doivent rester sur un stockage SSD hautes performances. Le disque du système d'exploitation de VM-DEV1 doit quitter le HDD Standard pour le type de disque SSD le moins cher. Les disques de données **logs** doivent utiliser le type de disque le moins cher.
+        4. **Transcodage :** VM-TRN1 et VM-TRN2 doivent être redimensionnées à 16 vCPU et 128 Gio de mémoire. Elles doivent conserver leurs disques SSD Premium.
+        5. **Miniatures :** un nouveau compte de stockage nommé stcatalogthumbs stockera des millions de petites images miniatures. L'application du catalogue les lit et les écrit avec un taux de transactions très élevé et exige une latence de stockage constamment faible. Le stockage localement redondant est acceptable.
+        6. **Supervision :** MediaOps doit afficher sous forme de graphique, pour stmediavod, le nombre de requêtes par type de réponse, afin de distinguer les requêtes limitées (throttling) des requêtes réussies.

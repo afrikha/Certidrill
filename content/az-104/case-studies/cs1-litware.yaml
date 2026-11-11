@@ -1,0 +1,109 @@
+id: cs1-litware
+status: draft
+title:
+  en: Litware Inc
+  fr: Litware Inc
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Litware Inc is a software vendor based in Toronto. Its main product, **LitwareDesk**, is a help desk application sold as a multi-tenant SaaS service to about 1,500 customers in Canada.
+
+        Litware is signing its first customers in Europe and must prepare its platform for them. A platform team of five engineers runs the Azure environment.
+      fr: |
+        Litware Inc est un éditeur de logiciels basé à Toronto. Son produit principal, **LitwareDesk**, est une application de support technique vendue en tant que service SaaS multilocataire à environ 1 500 clients au Canada.
+
+        Litware signe ses premiers clients en Europe et doit préparer sa plateforme pour eux. Une équipe plateforme de cinq ingénieurs exploite l'environnement Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        All the resources are in a subscription named **Sub-SaaS-Prod**, in the Canada Central region.
+
+        **Application and containers**
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | ASP-Desk | App Service plan | Windows, Basic B2, 2 instances, scaled manually |
+        | app-litwaredesk | Web app | Runs in ASP-Desk; connection string **TenantDb** points to the production database **ProductionDb**; no deployment slots |
+        | crlitware | Container registry | Basic tier; stores the images of the background worker containers |
+        | law-litware | Log Analytics workspace | A diagnostic setting of app-litwaredesk sends the **AppServiceHTTPLogs** category to law-litware |
+
+        **Storage**
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | stlitwareuploads | Storage account | General-purpose v2, ZRS, container **tenant-uploads**; **Allow storage account key access** is set to **Disabled** |
+
+        The web app has a system-assigned managed identity that has the Storage Blob Data Contributor role on stlitwareuploads.
+
+        **Networking**
+
+        | Virtual network | Address space | Subnets | Virtual machines |
+        | --- | --- | --- | --- |
+        | VNet-App | 10.30.0.0/16 | Workers (10.30.1.0/24), Data (10.30.2.0/24) | VM-WRK1, VM-WRK2, VM-WRK3 (Workers) |
+        | VNet-Mgmt | 10.31.0.0/16 | Jump (10.31.1.0/24) | VM-JUMP1 |
+
+        VNet-App and VNet-Mgmt are peered. Both virtual networks use the default Azure-provided DNS. There is no private DNS zone.
+      fr: |
+        Toutes les ressources se trouvent dans un abonnement nommé **Sub-SaaS-Prod**, dans la région Canada Central.
+
+        **Application et conteneurs**
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | ASP-Desk | Plan App Service | Windows, Basic B2, 2 instances, mise à l'échelle manuelle |
+        | app-litwaredesk | Application web | S'exécute dans ASP-Desk ; la chaîne de connexion **TenantDb** pointe vers la base de données de production **ProductionDb** ; aucun emplacement de déploiement |
+        | crlitware | Registre de conteneurs | Niveau Basic ; stocke les images des conteneurs de traitement en arrière-plan |
+        | law-litware | Espace de travail Log Analytics | Un paramètre de diagnostic de app-litwaredesk envoie la catégorie **AppServiceHTTPLogs** à law-litware |
+
+        **Stockage**
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | stlitwareuploads | Compte de stockage | Usage général v2, ZRS, conteneur **tenant-uploads** ; **Autoriser l'accès à la clé du compte de stockage** est défini sur **Désactivé** |
+
+        L'application web possède une identité managée affectée par le système qui dispose du rôle Storage Blob Data Contributor sur stlitwareuploads.
+
+        **Réseau**
+
+        | Réseau virtuel | Espace d'adressage | Sous-réseaux | Machines virtuelles |
+        | --- | --- | --- | --- |
+        | VNet-App | 10.30.0.0/16 | Workers (10.30.1.0/24), Data (10.30.2.0/24) | VM-WRK1, VM-WRK2, VM-WRK3 (Workers) |
+        | VNet-Mgmt | 10.31.0.0/16 | Jump (10.31.1.0/24) | VM-JUMP1 |
+
+        VNet-App et VNet-Mgmt ont un peering. Les deux réseaux virtuels utilisent le DNS par défaut fourni par Azure. Il n'existe aucune zone DNS privée.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Application requirements**
+
+        1. Each new release of LitwareDesk must be deployed to a slot named **staging**, validated, and then swapped into production. In the staging slot, the TenantDb connection string must always point to the test database **StagingDb**; in the production slot, it must always point to **ProductionDb**. A swap must never move a connection string value from one slot to the other.
+        2. ASP-Desk must scale out automatically between 2 and 8 instances based on the average CPU percentage. The App Service plan must support requirement 1. Cost must be minimized.
+        3. The worker container images must be served from replicas in Canada Central and West Europe by using a single registry name. The registry will later be reachable only through private endpoints.
+
+        **Data requirements**
+
+        4. Customer browsers must upload attachments directly to the tenant-uploads container. Each upload receives a token that allows only creating and writing blobs and that expires after 24 hours. Storage account keys must not be used.
+
+        **Infrastructure requirements**
+
+        5. All the virtual machines in VNet-App and VNet-Mgmt must resolve each other's names in the zone **litware.internal**. The DNS records of the VMs in VNet-App must be created and deleted automatically. The records of VM-JUMP1 are created manually by the platform team and must never be created automatically.
+        6. The support team needs a query that returns, for the last 24 hours, the number of HTTP responses with a server error status code (5xx) returned by app-litwaredesk for each hour.
+      fr: |
+        **Exigences applicatives**
+
+        1. Chaque nouvelle version de LitwareDesk doit être déployée dans un emplacement nommé **staging**, validée, puis échangée vers la production. Dans l'emplacement staging, la chaîne de connexion TenantDb doit toujours pointer vers la base de données de test **StagingDb** ; dans l'emplacement de production, elle doit toujours pointer vers **ProductionDb**. Un échange ne doit jamais faire passer la valeur d'une chaîne de connexion d'un emplacement à l'autre.
+        2. ASP-Desk doit faire un scale-out automatique entre 2 et 8 instances selon le pourcentage moyen d'UC. Le plan App Service doit prendre en charge l'exigence 1. Les coûts doivent être réduits au minimum.
+        3. Les images conteneur de traitement doivent être servies à partir de réplicas situés dans Canada Central et West Europe, avec un seul nom de registre. Le registre ne sera plus tard accessible que par des points de terminaison privés.
+
+        **Exigences de données**
+
+        4. Les navigateurs des clients doivent charger les pièces jointes directement dans le conteneur tenant-uploads. Chaque chargement reçoit un jeton qui permet uniquement de créer et d'écrire des objets blob et qui expire au bout de 24 heures. Les clés du compte de stockage ne doivent pas être utilisées.
+
+        **Exigences d'infrastructure**
+
+        5. Toutes les machines virtuelles de VNet-App et de VNet-Mgmt doivent résoudre les noms les unes des autres dans la zone **litware.internal**. Les enregistrements DNS des machines virtuelles de VNet-App doivent être créés et supprimés automatiquement. Les enregistrements de VM-JUMP1 sont créés manuellement par l'équipe plateforme et ne doivent jamais être créés automatiquement.
+        6. L'équipe de support a besoin d'une requête qui renvoie, pour les dernières 24 heures, le nombre de réponses HTTP avec un code d'état d'erreur serveur (5xx) renvoyées par app-litwaredesk pour chaque heure.
