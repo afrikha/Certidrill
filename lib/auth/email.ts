@@ -56,7 +56,9 @@ export async function sendMagicLink({ to, url }: { to: string; url: string }): P
     return;
   }
   const { host } = new URL(url);
-  const transport = createTransport(smtpOptions(server));
+  const { host: smtpHost, port, secure, auth } = smtpOptions(server);
+  // Spelled out so that static analysis sees the TLS settings at the call.
+  const transport = createTransport({ host: smtpHost, port, secure, requireTLS: true, auth });
   await transport.sendMail({
     to,
     from: process.env.EMAIL_FROM ?? "Certidrill <no-reply@certidrill.com>",
