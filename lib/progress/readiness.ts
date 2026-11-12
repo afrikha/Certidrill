@@ -10,7 +10,9 @@
  *     how long ago the last exam was (scoring on known questions inflates scores).
  * "Ready" also requires hard rules (enough exams, a streak at `minScore`, no
  * domain under `domainFloor`); while one fails, the index stays under the
- * "ready" band, so the gauge and the verdict always agree.
+ * "ready" band, so the gauge and the verdict always agree. The "index" check
+ * says when the rules are met but the scores do not reach the band yet, and
+ * which criterion costs the most points.
  *
  * Every threshold comes from the blueprint (ReadinessConfig): nothing here is
  * specific to a certification. Pure functions, no I/O.
@@ -26,6 +28,8 @@ export interface ExamSummary {
   domains: readonly { code: string; scaledScore: number }[];
 }
 
+export type Criterion = "level" | "consistency" | "domains" | "freshness";
+
 export type Verdict = "not_ready" | "progressing" | "almost" | "ready";
 
 /**
@@ -36,6 +40,8 @@ export type ReadinessCheck =
   | { code: "attempts"; blocking: true; ok: boolean; value: number; target: number }
   | { code: "streak"; blocking: true; ok: boolean; value: number; target: number; min: number }
   | { code: "weakest_domain"; blocking: true; ok: boolean; value: number; target: number; domain: string }
+  /** The index itself, before any cap, against the "ready" band; `criterion` loses the most weighted points. */
+  | { code: "index"; blocking: true; ok: boolean; value: number; target: number; criterion: Criterion }
   | { code: "average"; blocking: false; ok: boolean; value: number; target: number }
   | { code: "new_questions"; blocking: false; ok: boolean; value: number; target: number }
   | { code: "recent_exam"; blocking: false; ok: boolean; value: number; target: number };
@@ -158,13 +164,16 @@ export function computeReadiness(history: readonly ExamSummary[], config: Readin
   if (weakest) {
     checks.push({ code: "weakest_domain", blocking: true, ok: weakest.scaledScore >= config.domainFloor, value: weakest.scaledScore, target: config.domainFloor, domain: weakest.code });
   }
+  // Meeting the rules is not enough by itself: the scores must also reach the "ready" band.
+  const criterion = (Object.keys(criteria) as Criterion[]).reduce((worst, k) => (w[k] * (100 - criteria[k]) > w[worst] * (100 - criteria[worst]) ? k : worst));
   checks.push(
+    { code: "index", blocking: true, ok: index >= config.bands.ready, value: index, target: config.bands.ready, criterion },
     { code: "average", blocking: false, ok: average >= config.minScore, value: Math.round(average), target: config.minScore },
     { code: "new_questions", blocking: false, ok: newShare >= config.freshness.minNewShare, value: Math.round(newShare * 100), target: Math.round(config.freshness.minNewShare * 100) },
     { code: "recent_exam", blocking: false, ok: days <= config.freshness.staleDays, value: days, target: config.freshness.staleDays },
   );
 
-  const blocked = checks.some((c) => c.blocking && !c.ok);
+  const blocked = checks.some((c) => c.blocking && c.code !== "index" && !c.ok);
   if (blocked) index = Math.min(index, Math.ceil(config.bands.ready) - 1);
   const verdict = verdictOf(index, config.bands);
   const round = (x: number) => Math.round(x);

@@ -86,6 +86,17 @@ describe("computeReadiness", () => {
     expect(weak.index).toBe(83); // 50 + 20 + 16 × 0.2 + 10: under the cap already
   });
 
+  it("says when every rule is met but the scores do not reach the ready band yet", () => {
+    // The weakest combination that meets all the rules: 3 exams at exactly 800, weakest domain at 760.
+    const history = [0, 7, 14].map((d) => exam(d, 800, { domains: { networking: 760 } }));
+    const r = computeReadiness(history, READINESS, day(14))!;
+    expect(r.criteria).toEqual({ level: 80, consistency: 80, domains: 64, freshness: 100 });
+    expect(r).toMatchObject({ index: 79, verdict: "almost", ready: false });
+    for (const code of ["attempts", "streak", "weakest_domain"]) expect(check(r, code).ok).toBe(true);
+    // Level loses 0.5 × 20 = 10 points, more than domains (0.2 × 36 = 7.2): it is the one to work on.
+    expect(check(r, "index")).toMatchObject({ ok: false, blocking: true, value: 79, target: 85, criterion: "level" });
+  });
+
   it("needs the streak: one exam under the minimum score breaks it", () => {
     const r = computeReadiness([exam(0, 900), exam(7, 790), exam(14, 900), exam(21, 900)], READINESS, day(21))!;
     expect(check(r, "streak")).toMatchObject({ ok: false, value: 2 });

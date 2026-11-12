@@ -45,6 +45,8 @@ function checkText(t: T, c: ReadinessCheck, domainTitle: (code: string) => strin
       return t(`streak_${state}`, { value: c.value, target: c.target, min: c.min });
     case "weakest_domain":
       return t(`weakest_domain_${state}`, { value: c.value, target: c.target, domain: domainTitle(c.domain) });
+    case "index":
+      return t(`index_${state}`, { value: c.value, target: c.target, criterion: t(`criterion_${c.criterion}`) });
     default:
       return t(`${c.code}_${state}`, { value: c.value, target: c.target });
   }
