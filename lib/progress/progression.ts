@@ -95,6 +95,7 @@ function badgesOf(history: readonly ProgressExam[], i: number, best: number, con
   const previous = history[i - 1];
   const earned: BadgeCode[] = ["first_exam"];
   if (exam.passed) earned.push("first_pass");
+  // XP rewards the best score so far, the first exam included; the badge needs a record to beat.
   if (previous && exam.scaledScore > best) earned.push("personal_best");
   if (exam.domains.some((d) => d.scaledScore >= config.mastery.gold)) earned.push("gold_domain");
   const { count, min } = config.badges.hatTrick;
