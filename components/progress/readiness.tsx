@@ -94,6 +94,7 @@ export function ReadinessCard({ readiness: r, bands, weights, domainTitles }: Re
             {r.index}<span className="text-lg text-muted-foreground"> / 100</span>
           </p>
           <p className={cn("mt-1 text-lg font-bold", tone.text)} data-testid="readiness-verdict">{t(`verdict_${r.verdict}`)}</p>
+          {r.capped && <p className="mt-1 max-w-56 text-center text-xs text-muted-foreground" data-testid="readiness-capped">{t("capped", { raw: r.raw })}</p>}
         </div>
         <div className="space-y-4">
           <p className="text-sm">{t(`summary_${r.verdict}`)}</p>

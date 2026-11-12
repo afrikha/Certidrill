@@ -10,6 +10,8 @@ const BANDS = [50, 70, 85];
 function readiness(over: Partial<Readiness> = {}): Readiness {
   return {
     index: 72,
+    raw: 72,
+    capped: false,
     verdict: "almost",
     ready: false,
     criteria: { level: 87, consistency: 76, domains: 16, freshness: 100 },
@@ -38,6 +40,7 @@ describe("ReadinessCard", () => {
     expect(screen.getByTestId("readiness-index")).toHaveTextContent("72 / 100");
     expect(screen.getByTestId("readiness-verdict")).toHaveTextContent("Almost ready");
     expect(within(card).getByText(/Nearly there/)).toBeInTheDocument();
+    expect(screen.queryByTestId("readiness-capped")).toBeNull();
 
     const rules = within(card).getByRole("heading", { name: "Required to be ready" }).nextElementSibling as HTMLElement;
     expect(within(rules).getAllByRole("listitem")).toHaveLength(4);
@@ -54,6 +57,11 @@ describe("ReadinessCard", () => {
     const table = within(card).getByRole("table");
     expect(within(table).getByRole("row", { name: /Weakest domain/ })).toHaveTextContent("20 %16 / 100");
     expect(within(card).getByText(/not a guarantee/)).toBeInTheDocument();
+  });
+
+  it("says when a failing condition holds the index under ready", () => {
+    renderIntl(<ReadinessCard readiness={readiness({ index: 84, raw: 100, capped: true })} bands={BANDS} weights={WEIGHTS} domainTitles={{}} />);
+    expect(screen.getByTestId("readiness-capped")).toHaveTextContent("Your scores give 100: the index stays under “Ready” until every condition is met.");
   });
 
   it("falls back to the domain code and speaks French", () => {

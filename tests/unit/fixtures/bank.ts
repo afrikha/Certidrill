@@ -13,7 +13,7 @@ export const READINESS: ReadinessConfig = {
   scale: { from: 600, to: 850 },
   weights: { level: 0.5, consistency: 0.2, domains: 0.2, freshness: 0.1 },
   bands: { progressing: 50, almost: 70, ready: 85 },
-  freshness: { staleDays: 30, minNewShare: 0.5 },
+  freshness: { staleDays: 30, zeroDays: 90, minNewShare: 0.5 },
 };
 
 /** The AZ-104 blueprint values (content/az-104/blueprint.yaml). */

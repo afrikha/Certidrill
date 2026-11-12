@@ -219,7 +219,7 @@ export async function getAttemptResults(
 
 // ------------------------------------------------------------------ progress
 
-/** Exams averaged for domain levels when a certification has no readiness settings. */
+/** Exams averaged for domain levels when a certification has no valid readiness settings (blueprint stored before them). */
 export const DEFAULT_RECENT = 3;
 
 /** Readiness of a certification, with the settings it was computed with. */
@@ -242,9 +242,9 @@ type HistoryEntry = ExamSummary & {
 };
 
 /** Finished attempts of a user, oldest first, with what progress and readiness need. */
-async function loadHistory(db: PrismaClient, userId: string): Promise<HistoryEntry[]> {
+async function loadHistory(db: PrismaClient, userId: string, certificationId?: string): Promise<HistoryEntry[]> {
   const attempts = await db.attempt.findMany({
-    where: { userId, status: { in: ["submitted", "expired"] } },
+    where: { userId, status: { in: ["submitted", "expired"] }, ...(certificationId ? { certificationId } : {}) },
     orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     include: {
       certification: true,
@@ -328,7 +328,10 @@ export interface ReadinessChange {
  * has no readiness settings.
  */
 export async function getReadinessChange(db: PrismaClient, { attemptId, userId }: { attemptId: string; userId: string }): Promise<ReadinessChange | null> {
-  const list = await loadHistory(db, userId);
+  // Only the attempts of this attempt's certification: the others play no part in its index.
+  const owned = await db.attempt.findFirst({ where: { id: attemptId, userId }, select: { certificationId: true } });
+  if (!owned) return null;
+  const list = await loadHistory(db, userId, owned.certificationId);
   const attempt = list.find((a) => a.id === attemptId);
   if (!attempt) return null;
   const config = (await readinessConfigs(db, [attempt])).get(attempt.certification);

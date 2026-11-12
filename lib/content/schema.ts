@@ -59,12 +59,16 @@ export const readinessSchema = z
     bands: z
       .object({ progressing: z.number().min(0).max(100), almost: z.number().min(0).max(100), ready: z.number().min(0).max(100) })
       .refine((b) => b.progressing < b.almost && b.almost < b.ready, "bands must increase: progressing < almost < ready"),
-    freshness: z.object({
-      /** The last exam starts to count less after this many days. */
-      staleDays: z.number().int().min(1),
-      /** Share of never-seen questions expected in recent exams. */
-      minNewShare: share,
-    }),
+    freshness: z
+      .object({
+        /** The last exam starts to count less after this many days… */
+        staleDays: z.number().int().min(1),
+        /** …and no longer counts for recency after this many days. */
+        zeroDays: z.number().int().min(1),
+        /** Share of never-seen questions expected in recent exams. */
+        minNewShare: share,
+      })
+      .refine((f) => f.staleDays < f.zeroDays, "zeroDays must be > staleDays"),
   });
 export type ReadinessConfig = z.infer<typeof readinessSchema>;
 

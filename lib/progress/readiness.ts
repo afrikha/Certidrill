@@ -49,6 +49,10 @@ export type ReadinessCheck =
 export interface Readiness {
   /** 0–100. */
   index: number;
+  /** The index computed from the scores, before the cap applied while a rule fails. */
+  raw: number;
+  /** True when a failing rule holds the index under the "ready" band. */
+  capped: boolean;
   verdict: Verdict;
   ready: boolean;
   /** Points of each criterion, 0–100, before weighting. */
@@ -116,9 +120,9 @@ function newQuestionShare(history: readonly ExamSummary[], recent: number): numb
   return mean(shares);
 }
 
-/** 1 up to `staleDays` after the last exam, then down to 0 at three times `staleDays`. */
-function recency(days: number, staleDays: number): number {
-  return days <= staleDays ? 1 : clamp(1 - (days - staleDays) / (2 * staleDays), 0, 1);
+/** 1 up to `staleDays` after the last exam, then linearly down to 0 at `zeroDays`. */
+function recency(days: number, { staleDays, zeroDays }: ReadinessConfig["freshness"]): number {
+  return days <= staleDays ? 1 : clamp(1 - (days - staleDays) / (zeroDays - staleDays), 0, 1);
 }
 
 export function verdictOf(index: number, bands: ReadinessConfig["bands"]): Verdict {
@@ -151,7 +155,7 @@ export function computeReadiness(history: readonly ExamSummary[], config: Readin
     consistency: scorePoints(lowest, config.scale),
     // An exam always has domains; without any, the criterion gives nothing.
     domains: weakest ? scorePoints(weakest.scaledScore, config.scale) : 0,
-    freshness: ((newShare + recency(days, config.freshness.staleDays)) / 2) * 100,
+    freshness: ((newShare + recency(days, config.freshness)) / 2) * 100,
   };
   const w = config.weights;
   let index = Math.round(criteria.level * w.level + criteria.consistency * w.consistency + criteria.domains * w.domains + criteria.freshness * w.freshness);
@@ -174,11 +178,14 @@ export function computeReadiness(history: readonly ExamSummary[], config: Readin
   );
 
   const blocked = checks.some((c) => c.blocking && c.code !== "index" && !c.ok);
+  const raw = index;
   if (blocked) index = Math.min(index, Math.ceil(config.bands.ready) - 1);
   const verdict = verdictOf(index, config.bands);
   const round = (x: number) => Math.round(x);
   return {
     index,
+    raw,
+    capped: index < raw,
     verdict,
     ready: verdict === "ready",
     criteria: { level: round(criteria.level), consistency: round(criteria.consistency), domains: round(criteria.domains), freshness: round(criteria.freshness) },

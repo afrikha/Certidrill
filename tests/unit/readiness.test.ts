@@ -62,7 +62,7 @@ describe("computeReadiness", () => {
 
   it("is ready after 3 strong exams on new questions", () => {
     const r = computeReadiness([exam(0, 900), exam(7, 880), exam(14, 920)], READINESS, day(15))!;
-    expect(r).toMatchObject({ index: 100, verdict: "ready", ready: true, attempts: 3, streak: 3, needed: 3, minScore: 800 });
+    expect(r).toMatchObject({ index: 100, raw: 100, capped: false, verdict: "ready", ready: true, attempts: 3, streak: 3, needed: 3, minScore: 800 });
     expect(r.criteria).toEqual({ level: 100, consistency: 100, domains: 100, freshness: 100 });
     expect(r.checks.every((c) => c.ok)).toBe(true);
   });
@@ -70,7 +70,7 @@ describe("computeReadiness", () => {
   it("never says ready before the minimum number of exams, however good", () => {
     const r = computeReadiness([exam(0, 1000)], READINESS, day(0))!;
     expect(r.criteria).toEqual({ level: 100, consistency: 100, domains: 100, freshness: 100 });
-    expect(r).toMatchObject({ index: 84, verdict: "almost", ready: false });
+    expect(r).toMatchObject({ index: 84, raw: 100, capped: true, verdict: "almost", ready: false });
     expect(check(r, "attempts")).toMatchObject({ ok: false, value: 1, target: 3, blocking: true });
     expect(check(r, "streak")).toMatchObject({ ok: false, value: 1, target: 3, min: 800 });
   });
@@ -132,7 +132,8 @@ describe("computeReadiness", () => {
     const old = computeReadiness(history, READINESS, day(74))!; // 60 days: recency 0.5
     expect(old.criteria.freshness).toBe(75);
     expect(check(old, "recent_exam")).toMatchObject({ ok: false, value: 60, target: 30, blocking: false });
-    expect(computeReadiness(history, READINESS, day(200))!.criteria.freshness).toBe(50); // recency 0
+    expect(computeReadiness(history, READINESS, day(104))!.criteria.freshness).toBe(50); // 90 days (zeroDays): recency 0
+    expect(computeReadiness(history, { ...READINESS, freshness: { ...READINESS.freshness, zeroDays: 150 } }, day(104))!.criteria.freshness).toBe(75);
   });
 
   it("counts less when recent exams repeat known questions", () => {
@@ -169,9 +170,10 @@ describe("readiness settings", () => {
     expect(readinessSchema.parse(READINESS)).toEqual(READINESS);
   });
 
-  it("rejects weights that do not sum to 1, bands out of order and an empty scale", () => {
+  it("rejects weights that do not sum to 1, bands out of order, an empty scale and a recency that never decays", () => {
     expect(readinessSchema.safeParse({ ...READINESS, weights: { level: 0.5, consistency: 0.2, domains: 0.2, freshness: 0.2 } }).success).toBe(false);
     expect(readinessSchema.safeParse({ ...READINESS, bands: { progressing: 50, almost: 90, ready: 85 } }).success).toBe(false);
     expect(readinessSchema.safeParse({ ...READINESS, scale: { from: 850, to: 850 } }).success).toBe(false);
+    expect(readinessSchema.safeParse({ ...READINESS, freshness: { staleDays: 30, zeroDays: 30, minNewShare: 0.5 } }).success).toBe(false);
   });
 });
