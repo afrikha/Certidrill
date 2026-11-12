@@ -63,7 +63,7 @@ export const readinessSchema = z
       .object({
         /** The last exam starts to count less after this many days… */
         staleDays: z.number().int().min(1),
-        /** …and no longer counts for recency after this many days. */
+        /** …no longer counts for recency after this many days, and then "ready" is out of reach until a new exam. */
         zeroDays: z.number().int().min(1),
         /** No "ready" while recent exams have less than this share of never-seen questions. */
         minNewShare: share,

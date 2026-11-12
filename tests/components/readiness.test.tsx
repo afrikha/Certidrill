@@ -22,7 +22,7 @@ function readiness(over: Partial<Readiness> = {}): Readiness {
       { code: "index", blocking: true, ok: false, value: 72, target: 85, criterion: "domains" },
       { code: "average", blocking: false, ok: true, value: 817, target: 800 },
       { code: "new_questions", blocking: true, ok: false, value: 30, target: 50 },
-      { code: "recent_exam", blocking: false, ok: true, value: 0, target: 30 },
+      { code: "recent_exam", blocking: true, ok: true, value: 0, target: 90 },
     ],
     attempts: 3,
     streak: 2,
@@ -43,7 +43,7 @@ describe("ReadinessCard", () => {
     expect(screen.queryByTestId("readiness-capped")).toBeNull();
 
     const rules = within(card).getByRole("heading", { name: "Required to be ready" }).nextElementSibling as HTMLElement;
-    expect(within(rules).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(rules).getAllByRole("listitem")).toHaveLength(6);
     expect(rules.querySelector('[data-check="attempts"]')).toHaveTextContent("Met: 3 exams taken (at least 3)");
     expect(rules.querySelector('[data-check="streak"]')).toHaveTextContent("Not met: 2 of 3 consecutive exams at 800 or more");
     expect(rules.querySelector('[data-check="weakest_domain"]')).toHaveTextContent("Virtual networking at 640, under 650: that is your weak point");
@@ -51,7 +51,7 @@ describe("ReadinessCard", () => {
 
     expect(card.querySelector('[data-check="average"]')).toHaveTextContent("Average of your recent exams: 817 (target 800)");
     expect(rules.querySelector('[data-check="new_questions"]')).toHaveTextContent("New questions in your recent exams: 30 %, at least 50 % needed");
-    expect(card.querySelector('[data-check="recent_exam"]')).toHaveTextContent("Last exam today");
+    expect(rules.querySelector('[data-check="recent_exam"]')).toHaveTextContent("Last exam today");
 
     // How the index is computed: weights and points per criterion.
     const table = within(card).getByRole("table");
@@ -65,10 +65,10 @@ describe("ReadinessCard", () => {
   });
 
   it("falls back to the domain code and speaks French", () => {
-    renderIntl(<ReadinessCard readiness={readiness({ index: 92, verdict: "ready", ready: true, checks: [{ code: "weakest_domain", blocking: true, ok: true, value: 700, target: 650, domain: "networking" }, { code: "index", blocking: true, ok: true, value: 92, target: 85, criterion: "freshness" }, { code: "recent_exam", blocking: false, ok: false, value: 45, target: 30 }] })} bands={BANDS} weights={WEIGHTS} domainTitles={{}} />, "fr");
+    renderIntl(<ReadinessCard readiness={readiness({ index: 92, verdict: "ready", ready: true, checks: [{ code: "weakest_domain", blocking: true, ok: true, value: 700, target: 650, domain: "networking" }, { code: "index", blocking: true, ok: true, value: 92, target: 85, criterion: "freshness" }, { code: "recent_exam", blocking: true, ok: false, value: 120, target: 90 }] })} bands={BANDS} weights={WEIGHTS} domainTitles={{}} />, "fr");
     expect(screen.getByTestId("readiness-verdict")).toHaveTextContent("Prêt");
     expect(screen.getByText(/Domaine le plus faible : networking à 700/)).toBeInTheDocument();
-    expect(screen.getByText(/Dernier examen il y a 45 jours/)).toBeInTheDocument();
+    expect(screen.getByText(/Dernier examen il y a 120 jours \(plus de 90\)/)).toBeInTheDocument();
     expect(screen.getByText("Vos scores atteignent le palier « Prêt » (85 / 100)")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Préparation à la vraie certification" })).toHaveClass("border-success");
   });

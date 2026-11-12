@@ -129,11 +129,21 @@ describe("computeReadiness", () => {
   it("counts less when the last exam gets old", () => {
     const history = [exam(0, 900), exam(7, 900), exam(14, 900)];
     expect(computeReadiness(history, READINESS, day(44))!.criteria.freshness).toBe(100); // 30 days: still fresh
-    const old = computeReadiness(history, READINESS, day(74))!; // 60 days: recency 0.5
+    const old = computeReadiness(history, READINESS, day(74))!; // 60 days: recency 0.5, still under zeroDays
     expect(old.criteria.freshness).toBe(75);
-    expect(check(old, "recent_exam")).toMatchObject({ ok: false, value: 60, target: 30, blocking: false });
+    expect(check(old, "recent_exam")).toMatchObject({ ok: true, value: 60, target: 90, blocking: true });
+    expect(old.ready).toBe(true);
     expect(computeReadiness(history, READINESS, day(104))!.criteria.freshness).toBe(50); // 90 days (zeroDays): recency 0
     expect(computeReadiness(history, { ...READINESS, freshness: { ...READINESS.freshness, zeroDays: 150 } }, day(104))!.criteria.freshness).toBe(75);
+  });
+
+  it("is not ready once the last exam is older than zeroDays, however good", () => {
+    const history = [exam(0, 920), exam(7, 920), exam(14, 920)];
+    const r = computeReadiness(history, READINESS, day(14 + 365))!;
+    // 100 / 100 / 100 and freshness 50 (new questions, no recency): 95 before the cap.
+    expect(r).toMatchObject({ raw: 95, capped: true, index: 84, verdict: "almost", ready: false });
+    expect(check(r, "recent_exam")).toMatchObject({ ok: false, blocking: true, value: 365, target: 90 });
+    expect(computeReadiness(history, READINESS, day(14 + 90))!.ready).toBe(true);
   });
 
   it("is never ready on recent exams made of known questions", () => {

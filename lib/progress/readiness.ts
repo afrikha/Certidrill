@@ -9,7 +9,8 @@
  *   - freshness: share of never-seen questions in the last `recent` exams, and
  *     how long ago the last exam was (scoring on known questions inflates scores).
  * "Ready" also requires hard rules (enough exams, a streak at `minScore`, no
- * domain under `domainFloor`, enough never-seen questions in recent exams); while one fails, the index stays under the
+ * domain under `domainFloor`, enough never-seen questions in recent exams, a
+ * last exam less than `zeroDays` old); while one fails, the index stays under the
  * "ready" band, so the gauge and the verdict always agree. The "index" check
  * says when the rules are met but the scores do not reach the band yet, and
  * which criterion costs the most points.
@@ -45,7 +46,7 @@ export type ReadinessCheck =
   | { code: "index"; blocking: true; ok: boolean; value: number; target: number; criterion: Criterion }
   | { code: "average"; blocking: false; ok: boolean; value: number; target: number }
   | { code: "new_questions"; blocking: true; ok: boolean; value: number; target: number }
-  | { code: "recent_exam"; blocking: false; ok: boolean; value: number; target: number };
+  | { code: "recent_exam"; blocking: true; ok: boolean; value: number; target: number };
 
 export interface Readiness {
   /** 0–100. */
@@ -174,9 +175,10 @@ export function computeReadiness(history: readonly ExamSummary[], config: Readin
   checks.push(
     // Scores on questions already seen overestimate the level: no "ready" on a re-run bank.
     { code: "new_questions", blocking: true, ok: newShare >= config.freshness.minNewShare, value: Math.round(newShare * 100), target: Math.round(config.freshness.minNewShare * 100) },
+    // A level measured long ago says nothing about today: no "ready" once recency is gone.
+    { code: "recent_exam", blocking: true, ok: days <= config.freshness.zeroDays, value: days, target: config.freshness.zeroDays },
     { code: "index", blocking: true, ok: index >= config.bands.ready, value: index, target: config.bands.ready, criterion },
     { code: "average", blocking: false, ok: average >= config.minScore, value: Math.round(average), target: config.minScore },
-    { code: "recent_exam", blocking: false, ok: days <= config.freshness.staleDays, value: days, target: config.freshness.staleDays },
   );
 
   const blocked = checks.some((c) => c.blocking && c.code !== "index" && !c.ok);
