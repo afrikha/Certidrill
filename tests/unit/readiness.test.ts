@@ -155,12 +155,12 @@ describe("computeReadiness", () => {
     expect(r.ready).toBe(true);
   });
 
-  it("counts an exam without questions as new, and without domains as giving nothing", () => {
+  it("counts an exam without questions as new, and fails the domain rule without domains", () => {
     const empty: ExamSummary = { submittedAt: day(0), scaledScore: 900, questionIds: [], domains: [] };
     const r = computeReadiness([empty], READINESS, day(0))!;
     expect(r.criteria.domains).toBe(0);
     expect(r.criteria.freshness).toBe(100);
-    expect(r.checks.some((c) => c.code === "weakest_domain")).toBe(false);
+    expect(check(r, "weakest_domain")).toMatchObject({ ok: false, blocking: true, value: 0 });
   });
 
   it("uses the level window and recent exams from the settings", () => {

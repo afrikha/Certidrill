@@ -166,9 +166,8 @@ export function computeReadiness(history: readonly ExamSummary[], config: Readin
     { code: "attempts", blocking: true, ok: history.length >= config.minAttempts, value: history.length, target: config.minAttempts },
     { code: "streak", blocking: true, ok: streak >= config.consecutive, value: streak, target: config.consecutive, min: config.minScore },
   ];
-  if (weakest) {
-    checks.push({ code: "weakest_domain", blocking: true, ok: weakest.scaledScore >= config.domainFloor, value: weakest.scaledScore, target: config.domainFloor, domain: weakest.code });
-  }
+  // Exams always have domains; without any, nothing proves the floor is met: the rule fails.
+  checks.push({ code: "weakest_domain", blocking: true, ok: weakest !== null && weakest.scaledScore >= config.domainFloor, value: weakest?.scaledScore ?? 0, target: config.domainFloor, domain: weakest?.code ?? "" });
   // Meeting the rules is not enough by itself: the scores must also reach the "ready" band.
   const lost = (k: Criterion) => w[k] * (100 - criteria[k]);
   const criterion = CRITERIA.reduce<Criterion>((worst, k) => (lost(k) > lost(worst) ? k : worst), "level");
