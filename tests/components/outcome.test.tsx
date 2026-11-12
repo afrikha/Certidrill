@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { render } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import en from "@/messages/en.json";
 import { renderIntl } from "./render";
 
 const { reportOutcomeAction, deleteOutcomeAction } = vi.hoisted(() => ({ reportOutcomeAction: vi.fn(), deleteOutcomeAction: vi.fn() }));
@@ -81,5 +84,18 @@ describe("OutcomeCard", () => {
     await userEvent.click(within(first).getByRole("button", { name: "Supprimer le résultat du 2026-11-05" }));
     expect(Object.fromEntries(deleteOutcomeAction.mock.calls[0]![0] as FormData)).toEqual({ id: "o1" });
     expect(screen.getByText(/sans votre nom/)).toBeInTheDocument();
+  });
+
+  it("shows the day of the exam whatever the time zone", () => {
+    for (const timeZone of ["Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
+      const { unmount } = render(
+        <NextIntlClientProvider locale="en" messages={en} timeZone={timeZone}>
+          <OutcomeCard certification="az-104" maxScore={1000} passScore={700} today="2026-11-13" outcomes={[{ id: "o1", takenOn: "2026-11-05", passed: true, score: null }]} />
+        </NextIntlClientProvider>,
+      );
+      // UTC+14 and UTC-11: the extremes, where a midnight or noon UTC instant falls on another day.
+      expect(document.querySelector('[data-outcome="2026-11-05"]')).toHaveTextContent("November 5, 2026");
+      unmount();
+    }
   });
 });

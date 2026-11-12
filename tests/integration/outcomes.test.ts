@@ -106,6 +106,16 @@ describe("real exam outcomes", () => {
     for (const takenOn of days) await deleteOutcome(db, { id: (await listOutcomes(db, userId)).find((o) => o.takenOn === takenOn)!.id, userId }); // NOSONAR: sequential deletes of the user's own reports
   });
 
+  it("keeps the limit when reports of the same user arrive at the same time", async () => {
+    const racer = await createUser(db, { email: "race-outcome@example.com" });
+    const days = Array.from({ length: MAX_OUTCOMES + 3 }, (_, i) => `2026-08-${String(i + 1).padStart(2, "0")}`);
+    const results = await Promise.all(days.map((takenOn) => code(recordOutcome(db, { userId: racer.id, certificationCode: "az-104", takenOn, passed: false, now: NOW }))));
+    expect(results.filter((r) => r === "ok")).toHaveLength(MAX_OUTCOMES);
+    expect(results.filter((r) => r === "too_many")).toHaveLength(3);
+    expect(await listOutcomes(db, racer.id)).toHaveLength(MAX_OUTCOMES);
+    await db.user.delete({ where: { id: racer.id } });
+  });
+
   it("lets a user delete only their own reports", async () => {
     const other = await createUser(db, { email: "other-outcome@example.com" });
     const [mine] = await listOutcomes(db, userId);

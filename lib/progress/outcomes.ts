@@ -66,19 +66,20 @@ export async function recordOutcome(db: PrismaClient, { userId, certificationCod
     if ((score >= blueprint.passScore) !== passed) throw new OutcomeError("inconsistent_score");
   }
 
-  // Replacing the report of the same day is always allowed; a new day counts against the limit.
-  const where = { userId, certificationId: certification.id };
-  const sameDay = await db.examOutcome.findUnique({ where: { userId_certificationId_takenOn: { ...where, takenOn: day } }, select: { id: true } });
-  if (!sameDay && (await db.examOutcome.count({ where })) >= MAX_OUTCOMES) throw new OutcomeError("too_many");
-
   const before = (await loadHistory(db, userId, certification.id)).filter((a) => a.submittedAt < day);
   const config = before.length ? (await certificationSettings(db, before)).get(certificationCode)?.readiness : null;
   const readiness = config ? computeReadiness(before, config, day) : null;
   const data = { passed, score, readinessIndex: readiness?.index ?? null, readinessVerdict: readiness?.verdict ?? null, mockExams: before.length };
-  return db.examOutcome.upsert({
-    where: { userId_certificationId_takenOn: { userId, certificationId: certification.id, takenOn: day } },
-    create: { userId, certificationId: certification.id, takenOn: day, ...data },
-    update: data,
+  const key = { userId, certificationId: certification.id, takenOn: day };
+
+  return db.$transaction(async (tx) => {
+    // Locks the user's row: concurrent reports of the same user wait here, so the
+    // count below cannot be passed by two of them at once.
+    await tx.$queryRaw`SELECT "id" FROM "user" WHERE "id" = ${userId} FOR UPDATE`;
+    // Replacing the report of the same day is always allowed; a new day counts against the limit.
+    const sameDay = await tx.examOutcome.findUnique({ where: { userId_certificationId_takenOn: key }, select: { id: true } });
+    if (!sameDay && (await tx.examOutcome.count({ where: { userId, certificationId: certification.id } })) >= MAX_OUTCOMES) throw new OutcomeError("too_many");
+    return tx.examOutcome.upsert({ where: { userId_certificationId_takenOn: key }, create: { ...key, ...data }, update: data });
   });
 }
 

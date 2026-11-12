@@ -24,8 +24,9 @@ export function OutcomeCard({ certification, maxScore, passScore, today, outcome
           <h3 className="mb-2 text-sm font-semibold">{t("mine")}</h3>
           <ul className="space-y-2 text-sm">
             {outcomes.map((o) => (
+              // A calendar day: formatted in UTC so that no time zone moves it to another day.
               <li key={o.id} className="flex flex-wrap items-center gap-3" data-outcome={o.takenOn}>
-                <span>{format.dateTime(new Date(`${o.takenOn}T12:00:00Z`), { dateStyle: "long" })}</span>
+                <span>{format.dateTime(new Date(`${o.takenOn}T00:00:00Z`), { dateStyle: "long", timeZone: "UTC" })}</span>
                 <span className={o.passed ? "font-semibold text-success" : "font-semibold text-danger"}>{o.passed ? t("passed") : t("failed")}</span>
                 {o.score !== null && <span className="tabular-nums">{o.score} / {maxScore}</span>}
                 <form action={deleteOutcomeAction}>
