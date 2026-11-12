@@ -130,23 +130,42 @@ describe("progress", () => {
     const third = await play("perfect-3", at(500), (_id, key) => key);
     p = await getProgress(db, userId, "en", at(501));
     ready = p.readiness.find((r) => r.certification === "az-104")!;
-    expect(ready).toMatchObject({ ready: true, verdict: "ready", streak: 3 });
-    expect(ready.index).toBeGreaterThanOrEqual(85);
     const levels = p.domainLevels.filter((d) => d.certification === "az-104");
     expect(levels).toHaveLength(5);
     for (const l of levels) expect(l.scaledScore).toBe(1000);
     expect(p.attempts).toHaveLength(4);
+    // The test bank has 28 published questions: every exam repeats most of them,
+    // so perfect scores are not enough to be ready.
+    expect(ready).toMatchObject({ ready: false, verdict: "almost", streak: 3, capped: true });
+    expect(ready.raw).toBeGreaterThanOrEqual(85);
+    expect(ready.checks.find((c) => c.code === "new_questions")).toMatchObject({ ok: false, blocking: true });
 
-    // The results page shows how each exam moved the index.
-    const change = (await getReadinessChange(db, { attemptId: third, userId }))!;
-    expect(change.after.index).toBe(ready.index);
-    expect(change.before!.index).toBeLessThan(change.after.index);
-    expect(change.before!.verdict).not.toBe("ready");
-    const first = p.attempts.find((a) => a.certification === "az-104")!;
-    expect((await getReadinessChange(db, { attemptId: first.id, userId }))!.before).toBeNull();
-    expect((await getReadinessChange(db, { attemptId: second, userId }))!.after.streak).toBe(2);
-    expect(await getReadinessChange(db, { attemptId: "missing", userId })).toBeNull();
-    expect(await getReadinessChange(db, { attemptId: third, userId: (await createUser(db, { email: "other-change@example.com" })).id })).toBeNull();
+    // Without that rule (minNewShare 0), the same history is ready.
+    const bp = await db.blueprint.findFirstOrThrow({ where: { current: true, certification: { code: "az-104" } } });
+    const structure = bp.structure as { readiness: { freshness: Record<string, unknown> } };
+    try {
+      await db.blueprint.update({
+        where: { id: bp.id },
+        data: { structure: { ...structure, readiness: { ...structure.readiness, freshness: { ...structure.readiness.freshness, minNewShare: 0 } } } },
+      });
+      p = await getProgress(db, userId, "en", at(501));
+      ready = p.readiness.find((r) => r.certification === "az-104")!;
+      expect(ready).toMatchObject({ ready: true, verdict: "ready", streak: 3, capped: false });
+      expect(ready.index).toBeGreaterThanOrEqual(85);
+
+      // The results page shows how each exam moved the index.
+      const change = (await getReadinessChange(db, { attemptId: third, userId }))!;
+      expect(change.after.index).toBe(ready.index);
+      expect(change.before!.index).toBeLessThan(change.after.index);
+      expect(change.before!.verdict).not.toBe("ready");
+      const first = p.attempts.find((a) => a.certification === "az-104")!;
+      expect((await getReadinessChange(db, { attemptId: first.id, userId }))!.before).toBeNull();
+      expect((await getReadinessChange(db, { attemptId: second, userId }))!.after.streak).toBe(2);
+      expect(await getReadinessChange(db, { attemptId: "missing", userId })).toBeNull();
+      expect(await getReadinessChange(db, { attemptId: third, userId: (await createUser(db, { email: "other-change@example.com" })).id })).toBeNull();
+    } finally {
+      await db.blueprint.update({ where: { id: bp.id }, data: { structure: bp.structure as object } });
+    }
   });
 
   it("follows the readiness settings of the current blueprint, and skips invalid ones", async () => {

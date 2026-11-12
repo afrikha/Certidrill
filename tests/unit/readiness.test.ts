@@ -136,14 +136,22 @@ describe("computeReadiness", () => {
     expect(computeReadiness(history, { ...READINESS, freshness: { ...READINESS.freshness, zeroDays: 150 } }, day(104))!.criteria.freshness).toBe(75);
   });
 
-  it("counts less when recent exams repeat known questions", () => {
+  it("is never ready on recent exams made of known questions", () => {
     const same = Array.from({ length: 10 }, (_, i) => `same-${i}`);
     const history = [exam(0, 900, { questionIds: same }), exam(7, 900, { questionIds: same }), exam(14, 900, { questionIds: same }), exam(21, 900, { questionIds: same })];
     const r = computeReadiness(history, READINESS, day(21))!;
     // The last 3 exams only had known questions: novelty 0, recency 1.
     expect(r.criteria.freshness).toBe(50);
-    expect(check(r, "new_questions")).toMatchObject({ ok: false, value: 0, target: 50 });
-    expect(r.index).toBe(95);
+    expect(check(r, "new_questions")).toMatchObject({ ok: false, blocking: true, value: 0, target: 50 });
+    expect(r).toMatchObject({ raw: 95, capped: true, index: 84, verdict: "almost", ready: false });
+  });
+
+  it("is ready again once recent exams bring enough new questions", () => {
+    const seen = Array.from({ length: 10 }, (_, i) => `seen-${i}`);
+    // Half known, half new in each recent exam: exactly the 50 % required.
+    const half = (d: number) => exam(d, 900, { questionIds: [...seen.slice(0, 5), ...Array.from({ length: 5 }, (_, i) => `new-${d}-${i}`)] });
+    const r = computeReadiness([exam(0, 900, { questionIds: seen }), half(7), half(14), half(21)], READINESS, day(21))!;
+    expect(check(r, "new_questions")).toMatchObject({ ok: true, value: 50 });
     expect(r.ready).toBe(true);
   });
 

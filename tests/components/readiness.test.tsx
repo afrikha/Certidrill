@@ -21,7 +21,7 @@ function readiness(over: Partial<Readiness> = {}): Readiness {
       { code: "weakest_domain", blocking: true, ok: false, value: 640, target: 650, domain: "networking" },
       { code: "index", blocking: true, ok: false, value: 72, target: 85, criterion: "domains" },
       { code: "average", blocking: false, ok: true, value: 817, target: 800 },
-      { code: "new_questions", blocking: false, ok: false, value: 30, target: 50 },
+      { code: "new_questions", blocking: true, ok: false, value: 30, target: 50 },
       { code: "recent_exam", blocking: false, ok: true, value: 0, target: 30 },
     ],
     attempts: 3,
@@ -43,14 +43,14 @@ describe("ReadinessCard", () => {
     expect(screen.queryByTestId("readiness-capped")).toBeNull();
 
     const rules = within(card).getByRole("heading", { name: "Required to be ready" }).nextElementSibling as HTMLElement;
-    expect(within(rules).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(rules).getAllByRole("listitem")).toHaveLength(5);
     expect(rules.querySelector('[data-check="attempts"]')).toHaveTextContent("Met: 3 exams taken (at least 3)");
     expect(rules.querySelector('[data-check="streak"]')).toHaveTextContent("Not met: 2 of 3 consecutive exams at 800 or more");
     expect(rules.querySelector('[data-check="weakest_domain"]')).toHaveTextContent("Virtual networking at 640, under 650: that is your weak point");
     expect(rules.querySelector('[data-check="index"]')).toHaveTextContent("Your scores give 72 / 100, 85 needed: the criterion costing you the most points is “Weakest domain”");
 
     expect(card.querySelector('[data-check="average"]')).toHaveTextContent("Average of your recent exams: 817 (target 800)");
-    expect(card.querySelector('[data-check="new_questions"]')).toHaveTextContent("30 % (under 50 %)");
+    expect(rules.querySelector('[data-check="new_questions"]')).toHaveTextContent("New questions in your recent exams: 30 %, at least 50 % needed");
     expect(card.querySelector('[data-check="recent_exam"]')).toHaveTextContent("Last exam today");
 
     // How the index is computed: weights and points per criterion.

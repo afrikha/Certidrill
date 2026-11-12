@@ -65,7 +65,7 @@ export const readinessSchema = z
         staleDays: z.number().int().min(1),
         /** …and no longer counts for recency after this many days. */
         zeroDays: z.number().int().min(1),
-        /** Share of never-seen questions expected in recent exams. */
+        /** No "ready" while recent exams have less than this share of never-seen questions. */
         minNewShare: share,
       })
       .refine((f) => f.staleDays < f.zeroDays, "zeroDays must be > staleDays"),
