@@ -255,6 +255,16 @@ test("results: report, correction with filters and language, question report, da
   // Level, domain mastery and badges: a first exam always earns "first exam".
   await expect(page.getByTestId("progression").getByTestId("level")).toHaveText(/(Level|Niveau) \d+/);
   await expect(page.getByTestId("progression").locator('[data-badge="first_exam"]')).toHaveAttribute("data-earned", "true");
+  // "I took the real exam": the report appears in the user's list and in the admin calibration.
+  const outcome = page.getByTestId("outcome");
+  await outcome.getByLabel(/Date of the exam|Date de l'examen/).fill("2026-01-15");
+  await outcome.getByRole("radio", { name: /Failed|Échoué/ }).check();
+  await outcome.getByRole("button", { name: /Save|Enregistrer/ }).click();
+  await expect(outcome.getByRole("status")).toHaveText(/Thank you|Merci/);
+  await expect(outcome.locator('[data-outcome="2026-01-15"]')).toBeVisible();
+  await page.goto("/admin/calibration");
+  await expect(page.getByTestId("calibration-az-104").getByTestId("calibration-total")).toHaveText(/[1-9]\d* (reports?|déclarations?)/);
+  await page.goto("/dashboard");
   const progress = await (await page.request.get("/api/me/progress")).json();
   expect(progress.attempts.length).toBeGreaterThan(0);
 });

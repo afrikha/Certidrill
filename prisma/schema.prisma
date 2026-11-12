@@ -76,6 +76,7 @@ model User {
   sessions Session[]
   attempts Attempt[]
   reports  QuestionReport[]
+  outcomes ExamOutcome[]
 
   @@map("user")
 }
@@ -137,26 +138,27 @@ model Certification {
   questionSeries QuestionSeries[]
   questions      Question[]
   attempts       Attempt[]
+  outcomes       ExamOutcome[]
 
   @@map("certification")
 }
 
 model Blueprint {
-  id              String  @id @default(cuid())
+  id              String   @id @default(cuid())
   certificationId String
   version         String
   durationMin     Int
   minQuestions    Int
   maxQuestions    Int
   passScore       Int
-  maxScore        Int     @default(1000)
+  maxScore        Int      @default(1000)
   /// { [QuestionType]: { min: number, max: number } } — share of the exam (0..1)
   typeMix         Json
   /// { easy: number, medium: number, hard: number } — shares summing to 1
   difficultyMix   Json
   /// Sections layout & assembly rules (case studies, series, per-objective cap…)
   structure       Json
-  current         Boolean @default(false)
+  current         Boolean  @default(false)
   createdAt       DateTime @default(now())
 
   certification Certification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
@@ -237,32 +239,32 @@ model QuestionSeries {
 }
 
 model Question {
-  id              String        @id // stable id from content/ (same for en and fr)
-  certificationId String
-  objectiveId     String
-  type            QuestionType
-  difficulty      Int // 1..3
+  id               String        @id // stable id from content/ (same for en and fr)
+  certificationId  String
+  objectiveId      String
+  type             QuestionType
+  difficulty       Int // 1..3
   /// { en, fr } — Markdown
-  stem            Json
+  stem             Json
   /// [{ id, kind: "image"|"table"|"code", ... localized }]
-  exhibits        Json          @default("[]")
+  exhibits         Json          @default("[]")
   /// type-specific: options, statements, lists, targets… (localized texts)
-  body            Json
+  body             Json
   /// type-specific correct answer — NEVER sent before submission
-  answer          Json
+  answer           Json
   /// { correct: {en,fr}, options?: { [optionId]: {en,fr} } } — NEVER sent before submission
-  explanation     Json
+  explanation      Json
   /// [{ title, url }]
-  references      Json          @default("[]")
-  caseStudyId     String?
-  seriesId        String?
-  seriesOrder     Int?
-  shuffle         Boolean       @default(true)
-  status          ContentStatus @default(draft)
-  version         Int           @default(1)
+  references       Json          @default("[]")
+  caseStudyId      String?
+  seriesId         String?
+  seriesOrder      Int?
+  shuffle          Boolean       @default(true)
+  status           ContentStatus @default(draft)
+  version          Int           @default(1)
   blueprintVersion String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   certification Certification    @relation(fields: [certificationId], references: [id], onDelete: Cascade)
   objective     Objective        @relation(fields: [objectiveId], references: [id])
@@ -361,4 +363,32 @@ model QuestionReport {
 
   @@index([questionId, status])
   @@map("question_report")
+}
+
+// ---------------------------------------------------------------- real exam outcomes
+
+/// Result of the real certification exam, as reported by the candidate. Used
+/// to calibrate the readiness index against reality (admin page), never shown
+/// to other users. One report per user, certification and day.
+model ExamOutcome {
+  id               String   @id @default(cuid())
+  userId           String
+  certificationId  String
+  takenOn          DateTime @db.Date
+  passed           Boolean
+  /// Score announced by the vendor, if the candidate gives it.
+  score            Int?
+  /// What the readiness index said at the end of the day before the real exam
+  /// (null without any mock exam by then), and how many mock exams it saw.
+  readinessIndex   Int?
+  readinessVerdict String?
+  mockExams        Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certification Certification @relation(fields: [certificationId], references: [id])
+
+  @@unique([userId, certificationId, takenOn])
+  @@index([certificationId])
+  @@map("exam_outcome")
 }
