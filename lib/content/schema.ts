@@ -57,7 +57,7 @@ export const readinessSchema = z
       .refine((w) => Math.abs(w.level + w.consistency + w.domains + w.freshness - 1) < 1e-6, "readiness weights must sum to 1"),
     /** Lower bound of each verdict on the index; below `progressing`: not ready. */
     bands: z
-      .object({ progressing: z.number().min(0).max(100), almost: z.number().min(0).max(100), ready: z.number().min(0).max(100) })
+      .object({ progressing: z.number().int().min(0).max(100), almost: z.number().int().min(0).max(100), ready: z.number().int().min(0).max(100) })
       .refine((b) => b.progressing < b.almost && b.almost < b.ready, "bands must increase: progressing < almost < ready"),
     freshness: z
       .object({

@@ -192,6 +192,8 @@ describe("readiness settings", () => {
     expect(readinessSchema.safeParse({ ...READINESS, weights: { level: 0.5, consistency: 0.2, domains: 0.2, freshness: 0.2 } }).success).toBe(false);
     expect(readinessSchema.safeParse({ ...READINESS, bands: { progressing: 50, almost: 90, ready: 85 } }).success).toBe(false);
     expect(readinessSchema.safeParse({ ...READINESS, scale: { from: 850, to: 850 } }).success).toBe(false);
+    // Whole-number bands keep the cap (ready - 1) inside the "almost" band.
+    expect(readinessSchema.safeParse({ ...READINESS, bands: { progressing: 50, almost: 84.5, ready: 85 } }).success).toBe(false);
     expect(readinessSchema.safeParse({ ...READINESS, freshness: { staleDays: 30, zeroDays: 30, minNewShare: 0.5 } }).success).toBe(false);
   });
 });

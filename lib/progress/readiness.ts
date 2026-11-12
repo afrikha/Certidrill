@@ -183,7 +183,8 @@ export function computeReadiness(history: readonly ExamSummary[], config: Readin
 
   const blocked = checks.some((c) => c.blocking && c.code !== "index" && !c.ok);
   const raw = index;
-  if (blocked) index = Math.min(index, Math.ceil(config.bands.ready) - 1);
+  // Bands are whole numbers (schema): ready - 1 is still in the "almost" band.
+  if (blocked) index = Math.min(index, config.bands.ready - 1);
   const verdict = verdictOf(index, config.bands);
   const round = (x: number) => Math.round(x);
   return {
