@@ -28,7 +28,8 @@ export interface ExamSummary {
   domains: readonly { code: string; scaledScore: number }[];
 }
 
-export type Criterion = "level" | "consistency" | "domains" | "freshness";
+export const CRITERIA = ["level", "consistency", "domains", "freshness"] as const;
+export type Criterion = (typeof CRITERIA)[number];
 
 export type Verdict = "not_ready" | "progressing" | "almost" | "ready";
 
@@ -169,7 +170,8 @@ export function computeReadiness(history: readonly ExamSummary[], config: Readin
     checks.push({ code: "weakest_domain", blocking: true, ok: weakest.scaledScore >= config.domainFloor, value: weakest.scaledScore, target: config.domainFloor, domain: weakest.code });
   }
   // Meeting the rules is not enough by itself: the scores must also reach the "ready" band.
-  const criterion = (Object.keys(criteria) as Criterion[]).reduce((worst, k) => (w[k] * (100 - criteria[k]) > w[worst] * (100 - criteria[worst]) ? k : worst));
+  const lost = (k: Criterion) => w[k] * (100 - criteria[k]);
+  const criterion = CRITERIA.reduce<Criterion>((worst, k) => (lost(k) > lost(worst) ? k : worst), "level");
   checks.push(
     // Scores on questions already seen overestimate the level: no "ready" on a re-run bank.
     { code: "new_questions", blocking: true, ok: newShare >= config.freshness.minNewShare, value: Math.round(newShare * 100), target: Math.round(config.freshness.minNewShare * 100) },
