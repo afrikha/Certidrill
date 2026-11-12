@@ -14,6 +14,7 @@ export async function reportOutcomeAction(_prev: OutcomeState, formData: FormDat
   const result = formString(formData, "result");
   if (result !== "passed" && result !== "failed") return { error: "missing_result" };
   const rawScore = formString(formData, "score").trim();
+  if (rawScore !== "" && !/^\d{1,5}$/.test(rawScore)) return { error: "invalid_score" };
   const score = rawScore === "" ? null : Number(rawScore);
   try {
     await recordOutcome(prisma, {

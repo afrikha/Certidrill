@@ -222,6 +222,8 @@ describe("real exam outcome actions", () => {
     const report = (fields: Record<string, string>) => reportOutcomeAction(undefined, form({ certification: "az-104", takenOn: "2026-01-15", ...fields }));
     expect(await report({ result: "maybe" })).toEqual({ error: "missing_result" });
     expect(await report({ result: "passed", score: "abc" })).toEqual({ error: "invalid_score" });
+    expect(await report({ result: "passed", score: "1e3" })).toEqual({ error: "invalid_score" });
+    expect(await report({ result: "passed", score: "0x10" })).toEqual({ error: "invalid_score" });
     expect(await report({ result: "failed", takenOn: "15/01/2026" })).toEqual({ error: "invalid_date" });
     expect(h.revalidatePath).not.toHaveBeenCalled();
     expect(await report({ result: "passed", score: " 850 " })).toEqual({ ok: "passed" });

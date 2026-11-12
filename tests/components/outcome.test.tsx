@@ -16,7 +16,7 @@ beforeEach(() => {
 describe("OutcomeCard", () => {
   it("asks for the date, the result and an optional score, and thanks for a pass (EN)", async () => {
     reportOutcomeAction.mockResolvedValue({ ok: "passed" });
-    renderIntl(<OutcomeCard certification="az-104" maxScore={1000} today="2026-11-13" outcomes={[]} />);
+    renderIntl(<OutcomeCard certification="az-104" maxScore={1000} passScore={700} today="2026-11-13" outcomes={[]} />);
     const card = screen.getByRole("region", { name: "You took the real exam?" });
     const date = within(card).getByLabelText("Date of the exam");
     expect(date).toHaveAttribute("max", "2026-11-13");
@@ -33,9 +33,18 @@ describe("OutcomeCard", () => {
     expect(Object.fromEntries(data)).toEqual({ certification: "az-104", takenOn: "2026-11-05", result: "passed", score: "812" });
   });
 
+  it("names the pass mark when the score contradicts the result", async () => {
+    reportOutcomeAction.mockResolvedValue({ error: "inconsistent_score" });
+    renderIntl(<OutcomeCard certification="az-104" maxScore={1000} passScore={700} today="2026-11-13" outcomes={[]} />, "fr");
+    await userEvent.type(screen.getByLabelText("Date de l'examen"), "2026-11-05");
+    await userEvent.click(screen.getByRole("radio", { name: "Réussi" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ce score ne correspond pas au résultat : le seuil de réussite est de 700.");
+  });
+
   it("shows an error from the server", async () => {
     reportOutcomeAction.mockResolvedValue({ error: "future_date" });
-    renderIntl(<OutcomeCard certification="az-104" maxScore={1000} today="2026-11-13" outcomes={[]} />);
+    renderIntl(<OutcomeCard certification="az-104" maxScore={1000} passScore={700} today="2026-11-13" outcomes={[]} />);
     await userEvent.type(screen.getByLabelText("Date of the exam"), "2026-11-05");
     await userEvent.click(screen.getByRole("radio", { name: "Failed" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -47,6 +56,7 @@ describe("OutcomeCard", () => {
       <OutcomeCard
         certification="az-104"
         maxScore={1000}
+        passScore={700}
         today="2026-11-13"
         outcomes={[
           { id: "o1", takenOn: "2026-11-05", passed: true, score: 812 },

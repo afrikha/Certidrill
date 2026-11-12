@@ -100,7 +100,7 @@ export default async function DashboardPage() {
               </div>
             )}
             <div className="lg:col-span-3">
-              <OutcomeCard certification={c.code} maxScore={max} today={latestDay} outcomes={outcomes.filter((o) => o.certification === c.code)} />
+              <OutcomeCard certification={c.code} maxScore={max} passScore={pass} today={latestDay} outcomes={outcomes.filter((o) => o.certification === c.code)} />
             </div>
             <Card>
               <h2 className="text-sm text-muted-foreground">{t("lastScore")} — <span className="font-mono uppercase">{c.code}</span></h2>

@@ -75,6 +75,16 @@ describe("real exam outcomes", () => {
     expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", score: -1 }))).toBe("invalid_score");
     expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", score: Number.NaN }))).toBe("invalid_score");
     expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", certificationCode: "nope" }))).toBe("not_found");
+    // A score must agree with the result (pass mark 700).
+    expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", passed: true, score: 120 }))).toBe("inconsistent_score");
+    expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", passed: false, score: 950 }))).toBe("inconsistent_score");
+    // Without a current blueprint, no scale to check against.
+    await db.blueprint.updateMany({ where: { certification: { code: "az-104" } }, data: { current: false } });
+    try {
+      expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", score: 99_999_999_999 }))).toBe("not_found");
+    } finally {
+      await db.blueprint.updateMany({ where: { certification: { code: "az-104" } }, data: { current: true } });
+    }
     // Tomorrow (time zones ahead of UTC) is still accepted.
     expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", score: 1000 }))).toBe("ok");
   });

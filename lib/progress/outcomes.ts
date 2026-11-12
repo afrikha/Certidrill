@@ -10,7 +10,7 @@ import { compareCodeUnits } from "@/lib/sort";
 import { calibrate, type Calibration } from "./calibration";
 import { computeReadiness } from "./readiness";
 
-export type OutcomeErrorCode = "invalid_date" | "future_date" | "invalid_score" | "not_found";
+export type OutcomeErrorCode = "invalid_date" | "future_date" | "invalid_score" | "inconsistent_score" | "not_found";
 
 export class OutcomeError extends Error {
   constructor(readonly code: OutcomeErrorCode) {
@@ -56,9 +56,14 @@ export async function recordOutcome(db: PrismaClient, { userId, certificationCod
   const day = parseDay(takenOn);
   if (takenOn > latestOutcomeDay(now)) throw new OutcomeError("future_date");
   const certification = await db.certification.findUnique({ where: { code: certificationCode }, include: { blueprints: { where: { current: true } } } });
-  if (!certification) throw new OutcomeError("not_found");
-  const maxScore = certification.blueprints[0]?.maxScore;
-  if (score !== null && (!Number.isInteger(score) || score < 0 || (maxScore !== undefined && score > maxScore))) throw new OutcomeError("invalid_score");
+  // The current blueprint gives the score scale: without it, nothing to check a score against.
+  const blueprint = certification?.blueprints[0];
+  if (!certification || !blueprint) throw new OutcomeError("not_found");
+  if (score !== null) {
+    if (!Number.isInteger(score) || score < 0 || score > blueprint.maxScore) throw new OutcomeError("invalid_score");
+    // A contradictory report would skew the calibration.
+    if ((score >= blueprint.passScore) !== passed) throw new OutcomeError("inconsistent_score");
+  }
 
   const before = (await loadHistory(db, userId, certification.id)).filter((a) => a.submittedAt < day);
   const config = before.length ? (await certificationSettings(db, before)).get(certificationCode)?.readiness : null;

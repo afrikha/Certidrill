@@ -11,14 +11,14 @@ export interface OutcomeItem {
 }
 
 /** Dashboard: report the result of the real exam, and see or delete one's own reports. */
-export function OutcomeCard({ certification, maxScore, today, outcomes }: Readonly<{ certification: string; maxScore: number; today: string; outcomes: readonly OutcomeItem[] }>) {
+export function OutcomeCard({ certification, maxScore, passScore, today, outcomes }: Readonly<{ certification: string; maxScore: number; passScore: number; today: string; outcomes: readonly OutcomeItem[] }>) {
   const t = useTranslations("outcome");
   const format = useFormatter();
   return (
     <section aria-labelledby={`outcome-title-${certification}`} className="rounded-lg border border-border bg-background p-6 shadow-sm" data-testid="outcome">
       <h2 id={`outcome-title-${certification}`} className="font-semibold">{t("title")}</h2>
       <p className="mt-1 mb-4 text-sm text-muted-foreground">{t("why")}</p>
-      <OutcomeForm certification={certification} maxScore={maxScore} today={today} />
+      <OutcomeForm certification={certification} maxScore={maxScore} passScore={passScore} today={today} />
       {outcomes.length > 0 && (
         <div className="mt-6">
           <h3 className="mb-2 text-sm font-semibold">{t("mine")}</h3>

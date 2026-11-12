@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
 /** "I took the real exam": date, result and (optional) score. */
-export function OutcomeForm({ certification, maxScore, today }: Readonly<{ certification: string; maxScore: number; today: string }>) {
+export function OutcomeForm({ certification, maxScore, passScore, today }: Readonly<{ certification: string; maxScore: number; passScore: number; today: string }>) {
   const t = useTranslations("outcome");
   const [state, action, pending] = useActionState(reportOutcomeAction, undefined);
   const id = (name: string) => `outcome-${certification}-${name}`;
   return (
     <form action={action} className="space-y-4">
       {state?.ok && <Alert tone="success">{t(`thanks_${state.ok}`)}</Alert>}
-      {state?.error && <Alert tone="error">{t(`error_${state.error}`)}</Alert>}
+      {state?.error && <Alert tone="error">{t(`error_${state.error}`, { pass: passScore })}</Alert>}
       <input type="hidden" name="certification" value={certification} />
       <div className="flex flex-wrap items-end gap-4">
         <div>
