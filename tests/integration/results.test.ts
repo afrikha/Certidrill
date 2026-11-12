@@ -153,7 +153,7 @@ describe("progress", () => {
     expect(step.badges.map((b) => b.code)).toContain("hat_trick");
     expect(step.previousTitle === null).toBe(step.gain.levelBefore === step.gain.levelAfter);
 
-        // The test bank has 28 published questions: every exam repeats most of them,
+    // The test bank has 28 published questions: every exam repeats most of them,
     // so perfect scores are not enough to be ready.
     expect(ready).toMatchObject({ ready: false, verdict: "almost", streak: 3, capped: true });
     expect(ready.raw).toBeGreaterThanOrEqual(85);
@@ -203,7 +203,8 @@ describe("progress", () => {
       expect(await getReadinessChange(db, { attemptId: p.attempts.at(-1)!.id, userId })).toBeNull();
 
       // A blueprint stored before progression existed: no XP card either.
-      const { progression: _drop, ...withoutProgression } = structure as Record<string, unknown>;
+      const withoutProgression: Record<string, unknown> = { ...structure };
+      delete withoutProgression.progression;
       await db.blueprint.update({ where: { id: bp.id }, data: { structure: withoutProgression as object } });
       p = await getProgress(db, userId, "en", at(501));
       expect(p.progression).toEqual([]);

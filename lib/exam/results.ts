@@ -239,7 +239,7 @@ export interface Progress {
   progression: CertificationProgression[];
 }
 
-type HistoryEntry = ExamSummary & {
+export type HistoryEntry = ExamSummary & {
   id: string;
   certification: string;
   passed: boolean;
@@ -248,7 +248,7 @@ type HistoryEntry = ExamSummary & {
 };
 
 /** Finished attempts of a user, oldest first, with what progress and readiness need. */
-async function loadHistory(db: PrismaClient, userId: string, certificationId?: string): Promise<HistoryEntry[]> {
+export async function loadHistory(db: PrismaClient, userId: string, certificationId?: string): Promise<HistoryEntry[]> {
   const attempts = await db.attempt.findMany({
     where: { userId, status: { in: ["submitted", "expired"] }, ...(certificationId ? { certificationId } : {}) },
     orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
@@ -286,7 +286,7 @@ interface Settings {
  * attempts too; else those of the blueprint of its latest attempt. Null (no
  * indicator) if the stored blueprint predates them: `npm run seed` updates it.
  */
-async function certificationSettings(db: PrismaClient, history: readonly HistoryEntry[]): Promise<Map<string, Settings>> {
+export async function certificationSettings(db: PrismaClient, history: readonly HistoryEntry[]): Promise<Map<string, Settings>> {
   const codes = [...new Set(history.map((a) => a.certification))];
   const current = await db.blueprint.findMany({ where: { current: true, certification: { code: { in: codes } } }, include: { certification: true } });
   const settings = new Map<string, Settings>();

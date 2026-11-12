@@ -8,6 +8,8 @@ import { ScoreLine } from "@/components/charts/score-line";
 import { DomainBars } from "@/components/charts/domain-bars";
 import { ReadinessCard } from "@/components/progress/readiness";
 import { ProgressionCard } from "@/components/progress/progression";
+import { OutcomeCard } from "@/components/progress/outcome-card";
+import { latestOutcomeDay, listOutcomes } from "@/lib/progress/outcomes";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
@@ -34,6 +36,8 @@ export default async function DashboardPage() {
     take: 10,
   });
   const progress = await getProgress(prisma, user.id, user.locale === "fr" ? "fr" : "en");
+  const outcomes = await listOutcomes(prisma, user.id);
+  const latestDay = latestOutcomeDay();
 
   return (
     <div className="space-y-6">
@@ -95,6 +99,9 @@ export default async function DashboardPage() {
                 <ProgressionCard progression={progression} rules={progression.config} domainTitles={domainTitles} />
               </div>
             )}
+            <div className="lg:col-span-3">
+              <OutcomeCard certification={c.code} maxScore={max} passScore={pass} today={latestDay} outcomes={outcomes.filter((o) => o.certification === c.code)} />
+            </div>
             <Card>
               <h2 className="text-sm text-muted-foreground">{t("lastScore")} — <span className="font-mono uppercase">{c.code}</span></h2>
               <p className="mt-2 text-4xl font-bold tabular-nums" data-testid="last-score">{last.scaledScore}<span className="text-lg text-muted-foreground"> / {max}</span></p>

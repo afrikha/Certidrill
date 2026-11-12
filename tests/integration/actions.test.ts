@@ -58,6 +58,7 @@ import { createUserAction } from "@/lib/actions/admin";
 import { loginWithMagicLink, loginWithPassword } from "@/lib/actions/auth";
 import { startNewExam } from "@/lib/actions/exam";
 import { setLocale } from "@/lib/actions/locale";
+import { deleteOutcomeAction, reportOutcomeAction } from "@/lib/actions/outcome";
 import { requireAdmin, requireUser } from "@/lib/auth/guards";
 
 const PASSWORD = "correct horse battery";
@@ -80,7 +81,7 @@ async function redirectOf(p: Promise<unknown>) {
 
 beforeAll(async () => {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "attempt_item","attempt_section","attempt","question_report","question","case_study","question_series","objective","domain","blueprint","certification","auth_account","auth_session","auth_verification_token","user" CASCADE',
+    'TRUNCATE "exam_outcome","attempt_item","attempt_section","attempt","question_report","question","case_study","question_series","objective","domain","blueprint","certification","auth_account","auth_session","auth_verification_token","user" CASCADE',
   );
   const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
   await seedReferential(prisma, content);
@@ -213,5 +214,34 @@ describe("server actions", () => {
     as(null);
     await setLocale(form({ locale: "en" }));
     expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("en");
+  });
+});
+
+describe("real exam outcome actions", () => {
+  it("records a result, rejects a missing result or a bad score, and deletes only one's own", async () => {
+    const report = (fields: Record<string, string>) => reportOutcomeAction(undefined, form({ certification: "az-104", takenOn: "2026-01-15", ...fields }));
+    expect(await report({ result: "maybe" })).toEqual({ error: "missing_result" });
+    expect(await report({ result: "passed", score: "abc" })).toEqual({ error: "invalid_score" });
+    expect(await report({ result: "passed", score: "1e3" })).toEqual({ error: "invalid_score" });
+    expect(await report({ result: "passed", score: "0x10" })).toEqual({ error: "invalid_score" });
+    expect(await report({ result: "failed", takenOn: "15/01/2026" })).toEqual({ error: "invalid_date" });
+    expect(h.revalidatePath).not.toHaveBeenCalled();
+    expect(await report({ result: "passed", score: " 850 " })).toEqual({ ok: "passed" });
+    expect(await report({ result: "failed", takenOn: "2026-01-20", score: "" })).toEqual({ ok: "failed" });
+    expect(h.revalidatePath).toHaveBeenCalledWith("/dashboard");
+    const mine = await prisma.examOutcome.findMany({ where: { userId }, orderBy: { takenOn: "asc" } });
+    expect(mine.map((o) => [o.passed, o.score])).toEqual([[true, 850], [false, null]]);
+
+    // Another user cannot delete it; a second delete is silent.
+    as(adminId, "admin");
+    await deleteOutcomeAction(form({ id: mine[0]!.id }));
+    expect(await prisma.examOutcome.count({ where: { userId } })).toBe(2);
+    as(userId);
+    await deleteOutcomeAction(form({ id: mine[0]!.id }));
+    await deleteOutcomeAction(form({ id: mine[0]!.id }));
+    expect(await prisma.examOutcome.count({ where: { userId } })).toBe(1);
+
+    as(null);
+    await expect(report({ result: "passed" })).rejects.toThrow();
   });
 });
