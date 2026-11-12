@@ -18,7 +18,7 @@ export type CalibrationBand = Verdict | "none" | "unknown";
  * either of the others.
  */
 export const CALIBRATION_BANDS: readonly CalibrationBand[] = ["none", "not_ready", "progressing", "almost", "ready", "unknown"];
-const VERDICTS: readonly string[] = ["not_ready", "progressing", "almost", "ready"];
+const VERDICTS: ReadonlySet<string> = new Set(["not_ready", "progressing", "almost", "ready"]);
 
 /** Below this many reports in a band, its pass rate says little. */
 export const MIN_REPORTS = 20;
@@ -33,7 +33,7 @@ export interface Calibration {
 
 function bandOf(verdict: string | null): CalibrationBand {
   if (verdict === null) return "none";
-  return VERDICTS.includes(verdict) ? (verdict as Verdict) : "unknown";
+  return VERDICTS.has(verdict) ? (verdict as Verdict) : "unknown";
 }
 
 function mean(xs: readonly number[]): number | null {
