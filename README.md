@@ -152,10 +152,11 @@ Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiemen
 | `POST /api/attempts/:id/sections/:sectionId/lock` | Quitte et verrouille la section courante |
 | `POST /api/attempts/:id/submit` | Note et clôt la tentative |
 | `GET /api/attempts/:id/results` | Rapport et correction (après soumission uniquement, `?lang=fr`) |
-| `GET /api/me/progress` | Historique, niveau par domaine, indicateur « prêt » |
+| `GET /api/me/progress` | Historique, niveau par domaine, indice de préparation (0–100, verdict, conditions) |
 | `POST /api/questions/:id/report` | Signaler une question vue dans un examen terminé |
 
 Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi côté serveur (`deadlineAt`, 5 s de tolérance réseau) ; seule la section courante accepte des écritures ; une section quittée est verrouillée ; dans une série, chaque réponse est définitive et donnée dans l'ordre ; à l'échéance, la tentative passe en `expired` avec les réponses enregistrées ; les questions ne sont envoyées qu'une fois le chrono lancé ; les routes vérifient la propriété de la tentative et l'origine des requêtes (CSRF). Les études de cas sont tirées au début ou à la fin ; la dernière section se termine par « Terminer l'examen ».
 - [x] **Lot 5 — Résultats** : rapport de score (sur 1000, réussite à 700, barres par domaine face au seuil, temps, types), correction détaillée (réponse donnée, bonne réponse, explications, liens Microsoft Learn, filtres ratées / marquées / domaine, FR ou EN), signalement (3 signalements → retour en relecture), tableau de bord (dernier score, courbe, niveau par domaine, indicateur « prêt »)
+- [x] **Indice de préparation** : indicateur central du tableau de bord, de 0 à 100, avec quatre verdicts (pas prêt, en progression, presque prêt, prêt). Il combine le niveau des examens récents, la régularité, le domaine le plus faible et la fraîcheur (questions nouvelles, examen récent). « Prêt » exige en plus au moins 3 examens, les 3 derniers à 800 ou plus et aucun domaine sous 650. La liste de ce qui manque est affichée, et le rapport de score montre l'évolution de l'indice. Tous les seuils sont dans `structure.readiness` du `blueprint.yaml` ; calcul dans `lib/progress/readiness.ts`.
 - [x] **Lot 6 — Banque** : 598 questions EN/FR, 16 études de cas, 11 séries, glossaire Learn, vérification à l'aveugle (statut `draft`, relecture humaine à faire)
 - [ ] Lot 7 — Mise en production

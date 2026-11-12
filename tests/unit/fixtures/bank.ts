@@ -1,6 +1,20 @@
 import type { AssemblyBank, AssemblyBlueprint, CandidateQuestion } from "@/lib/exam/assembler";
-import type { QuestionTypeCode } from "@/lib/content/schema";
+import type { QuestionTypeCode, ReadinessConfig } from "@/lib/content/schema";
 import { createRng } from "@/lib/exam/random";
+
+/** Readiness settings of the AZ-104 blueprint (content/az-104/blueprint.yaml). */
+export const READINESS: ReadinessConfig = {
+  minAttempts: 3,
+  consecutive: 3,
+  minScore: 800,
+  domainFloor: 650,
+  recent: 3,
+  window: 5,
+  scale: { from: 600, to: 850 },
+  weights: { level: 0.5, consistency: 0.2, domains: 0.2, freshness: 0.1 },
+  bands: { progressing: 50, almost: 70, ready: 85 },
+  freshness: { staleDays: 30, minNewShare: 0.5 },
+};
 
 /** The AZ-104 blueprint values (content/az-104/blueprint.yaml). */
 export const az104Blueprint: AssemblyBlueprint = {
@@ -21,7 +35,7 @@ export const az104Blueprint: AssemblyBlueprint = {
     series: { count: { min: 0, max: 1 }, questionsEach: { min: 3, max: 4 } },
     maxPerObjective: 2,
     warningsMin: [10, 5],
-    readiness: { consecutive: 3, minScore: 800 },
+    readiness: READINESS,
   },
   domains: [
     { code: "identities", weightMin: 0.2, weightMax: 0.25 },

@@ -4,6 +4,7 @@ import os from "node:os";
 import { describe, expect, it } from "vitest";
 import { listCertificationDirs, loadCertification, ContentError } from "@/lib/content/loader";
 import { blueprintFileSchema } from "@/lib/content/schema";
+import { READINESS } from "./fixtures/bank";
 
 const AZ104 = path.resolve(__dirname, "../../content/az-104");
 
@@ -39,7 +40,7 @@ describe("blueprint schema", () => {
         caseStudies: { count: { min: 0, max: 0 }, questionsEach: { min: 0, max: 0 }, placement: "end" },
         series: { count: { min: 0, max: 0 }, questionsEach: { min: 0, max: 0 } },
         maxPerObjective: 2,
-        readiness: { consecutive: 3, minScore: 800 },
+        readiness: READINESS,
       },
     },
     domains: [

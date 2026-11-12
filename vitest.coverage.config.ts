@@ -4,7 +4,8 @@ import path from "node:path";
 
 /**
  * Coverage over unit + integration + component tests.
- * Thresholds: ≥ 80 % on the whole measured code, ≥ 90 % on lib/exam (spec §11).
+ * Thresholds: ≥ 80 % on the whole measured code, ≥ 90 % on lib/exam (spec §11)
+ * and on lib/progress (readiness index).
  * Needs a disposable PostgreSQL in DATABASE_URL, like the integration tests.
  *
  * Measured: lib/**, components/**, app/api/** (route handlers).
@@ -38,6 +39,7 @@ export default defineConfig({
         functions: 80,
         branches: 70,
         "lib/exam/**": { lines: 90, functions: 90, branches: 85, statements: 90 },
+        "lib/progress/**": { lines: 90, functions: 90, branches: 85, statements: 90 },
       },
     },
   },

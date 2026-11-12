@@ -3,9 +3,10 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { expireOverdue } from "@/lib/exam/session";
-import { getProgress } from "@/lib/exam/results";
+import { DEFAULT_RECENT, getProgress } from "@/lib/exam/results";
 import { ScoreLine } from "@/components/charts/score-line";
 import { DomainBars } from "@/components/charts/domain-bars";
+import { ReadinessCard } from "@/components/progress/readiness";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
@@ -72,17 +73,24 @@ export default async function DashboardPage() {
         const max = bp.maxScore;
         const pass = bp.passScore;
         const last = history.at(-1)!;
-        const ready = progress.readiness.find((r) => r.certification === c.code)!;
+        const ready = progress.readiness.find((r) => r.certification === c.code);
         const levels = progress.domainLevels.filter((d) => d.certification === c.code);
         return (
           <div key={`p-${c.id}`} className="grid gap-6 lg:grid-cols-3">
+            {ready && (
+              <div className="lg:col-span-3">
+                <ReadinessCard
+                  readiness={ready}
+                  bands={[ready.config.bands.progressing, ready.config.bands.almost, ready.config.bands.ready]}
+                  weights={ready.config.weights}
+                  domainTitles={Object.fromEntries(levels.map((d) => [d.code, d.title]))}
+                />
+              </div>
+            )}
             <Card>
               <h2 className="text-sm text-muted-foreground">{t("lastScore")} — <span className="font-mono uppercase">{c.code}</span></h2>
               <p className="mt-2 text-4xl font-bold tabular-nums" data-testid="last-score">{last.scaledScore}<span className="text-lg text-muted-foreground"> / {max}</span></p>
               <p className={"mt-1 font-semibold " + (last.passed ? "text-success" : "text-danger")}>{last.passed ? `✓ ${t("passed")}` : `✗ ${t("failed")}`}</p>
-              <p className={"mt-4 rounded-md border px-3 py-2 text-sm " + (ready.ready ? "border-success text-success" : "border-border text-muted-foreground")} data-testid="readiness">
-                {ready.ready ? `✓ ${t("ready", { n: ready.needed, min: ready.minScore })}` : t("notReady", { streak: ready.streak, n: ready.needed, min: ready.minScore })}
-              </p>
             </Card>
             <Card className="lg:col-span-2">
               <h2 className="mb-2 font-semibold">{t("progress")}</h2>
@@ -111,7 +119,7 @@ export default async function DashboardPage() {
               </details>
             </Card>
             <Card className="lg:col-span-3">
-              <h2 className="mb-4 font-semibold">{t("levels")}</h2>
+              <h2 className="mb-4 font-semibold">{t("levels", { n: ready?.config.recent ?? DEFAULT_RECENT })}</h2>
               <DomainBars rows={levels.map((d) => ({ key: d.code, title: d.title, score: d.scaledScore }))} max={max} threshold={pass} thresholdLabel={t("passMark")} />
             </Card>
           </div>

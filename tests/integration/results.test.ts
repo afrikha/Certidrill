@@ -7,7 +7,7 @@ import { seedBank, seedReferential } from "@/lib/content/seed";
 import { publishSampleBank } from "./sample-bank";
 import { createUser } from "@/lib/users";
 import { createAttempt, getAttemptView, lockSection, saveItem, SessionError, startAttempt, submitAttempt } from "@/lib/exam/session";
-import { getAttemptResults, getProgress, reportQuestion, REPORTS_BEFORE_REVIEW } from "@/lib/exam/results";
+import { getAttemptResults, getProgress, getReadinessChange, reportQuestion, REPORTS_BEFORE_REVIEW } from "@/lib/exam/results";
 
 const db = new PrismaClient();
 let userId: string;
@@ -118,20 +118,54 @@ describe("progress", () => {
 
   it("lists attempts, averages domains over the last 3 and computes readiness", async () => {
     // Two perfect exams after the two above: the streak is 2 (the first scored low).
-    await play("perfect-2", at(400), (_id, key) => key);
-    let p = await getProgress(db, userId, "en");
+    const second = await play("perfect-2", at(400), (_id, key) => key);
+    let p = await getProgress(db, userId, "en", at(401));
     expect(p.attempts.map((a) => a.scaledScore).slice(-2)).toEqual([1000, 1000]);
     let ready = p.readiness.find((r) => r.certification === "az-104")!;
-    expect(ready).toMatchObject({ ready: false, streak: 2, needed: 3, minScore: 800 });
+    expect(ready).toMatchObject({ ready: false, streak: 2, needed: 3, minScore: 800, attempts: 3 });
+    expect(ready.config).toMatchObject({ minAttempts: 3, domainFloor: 650, bands: { ready: 85 } });
+    expect(ready.checks.find((c) => c.code === "streak")).toMatchObject({ ok: false, value: 2, target: 3 });
+    expect(ready.index).toBeLessThan(85);
 
-    await play("perfect-3", at(500), (_id, key) => key);
-    p = await getProgress(db, userId, "en");
+    const third = await play("perfect-3", at(500), (_id, key) => key);
+    p = await getProgress(db, userId, "en", at(501));
     ready = p.readiness.find((r) => r.certification === "az-104")!;
-    expect(ready).toMatchObject({ ready: true, streak: 3 });
+    expect(ready).toMatchObject({ ready: true, verdict: "ready", streak: 3 });
+    expect(ready.index).toBeGreaterThanOrEqual(85);
     const levels = p.domainLevels.filter((d) => d.certification === "az-104");
     expect(levels).toHaveLength(5);
     for (const l of levels) expect(l.scaledScore).toBe(1000);
     expect(p.attempts).toHaveLength(4);
+
+    // The results page shows how each exam moved the index.
+    const change = (await getReadinessChange(db, { attemptId: third, userId }))!;
+    expect(change.after.index).toBe(ready.index);
+    expect(change.before!.index).toBeLessThan(change.after.index);
+    expect(change.before!.verdict).not.toBe("ready");
+    const first = p.attempts.find((a) => a.certification === "az-104")!;
+    expect((await getReadinessChange(db, { attemptId: first.id, userId }))!.before).toBeNull();
+    expect((await getReadinessChange(db, { attemptId: second, userId }))!.after.streak).toBe(2);
+    expect(await getReadinessChange(db, { attemptId: "missing", userId })).toBeNull();
+    expect(await getReadinessChange(db, { attemptId: third, userId: (await createUser(db, { email: "other-change@example.com" })).id })).toBeNull();
+  });
+
+  it("follows the readiness settings of the current blueprint, and skips invalid ones", async () => {
+    const bp = await db.blueprint.findFirstOrThrow({ where: { current: true, certification: { code: "az-104" } } });
+    const structure = bp.structure as { readiness: Record<string, unknown> };
+    try {
+      await db.blueprint.update({ where: { id: bp.id }, data: { structure: { ...structure, readiness: { ...structure.readiness, minAttempts: 10 } } } });
+      let p = await getProgress(db, userId, "en", at(501));
+      expect(p.readiness[0]).toMatchObject({ ready: false, config: { minAttempts: 10 } });
+
+      // A blueprint stored before the readiness index existed: no indicator, domain levels still there.
+      await db.blueprint.update({ where: { id: bp.id }, data: { structure: { ...structure, readiness: { consecutive: 3, minScore: 800 } } } });
+      p = await getProgress(db, userId, "en", at(501));
+      expect(p.readiness).toEqual([]);
+      expect(p.domainLevels).toHaveLength(5);
+      expect(await getReadinessChange(db, { attemptId: p.attempts.at(-1)!.id, userId })).toBeNull();
+    } finally {
+      await db.blueprint.update({ where: { id: bp.id }, data: { structure: bp.structure as object } });
+    }
   });
 });
 
