@@ -10,7 +10,7 @@
  *     how long ago the last exam was (scoring on known questions inflates scores).
  * "Ready" also requires hard rules (enough exams, a streak at `minScore`, no
  * domain under `domainFloor`, enough never-seen questions in recent exams, a
- * last exam less than `zeroDays` old); while one fails, the index stays under the
+ * last exam at most `zeroDays` old); while one fails, the index stays under the
  * "ready" band, so the gauge and the verdict always agree. The "index" check
  * says when the rules are met but the scores do not reach the band yet, and
  * which criterion costs the most points.
