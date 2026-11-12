@@ -7,7 +7,7 @@ describe("calibrate", () => {
   it("is empty without reports", () => {
     const c = calibrate([]);
     expect(c).toMatchObject({ reports: 0, passed: 0, meanIndex: { passed: null, failed: null } });
-    expect(c.bands.map((b) => b.band)).toEqual(["none", "not_ready", "progressing", "almost", "ready"]);
+    expect(c.bands.map((b) => b.band)).toEqual(["none", "not_ready", "progressing", "almost", "ready", "unknown"]);
     expect(c.bands.every((b) => b.reports === 0 && b.passRate === null && !b.enough)).toBe(true);
   });
 
@@ -18,14 +18,15 @@ describe("calibrate", () => {
       sample(false, "ready", 86),
       sample(false, "not_ready", 30),
       sample(true, null),
-      // An unknown verdict (renamed since) counts as no index.
+      // An unknown verdict (renamed since) has its own band, apart from "no index".
       sample(false, "legacy", null),
     ]);
     expect(c).toMatchObject({ reports: 6, passed: 3, meanIndex: { passed: 89, failed: 58 } });
     const band = (b: string) => c.bands.find((x) => x.band === b)!;
     expect(band("ready")).toEqual({ band: "ready", reports: 3, passed: 2, passRate: 2 / 3, enough: false });
     expect(band("not_ready")).toMatchObject({ reports: 1, passed: 0, passRate: 0 });
-    expect(band("none")).toMatchObject({ reports: 2, passed: 1, passRate: 0.5 });
+    expect(band("none")).toMatchObject({ reports: 1, passed: 1, passRate: 1 });
+    expect(band("unknown")).toMatchObject({ reports: 1, passed: 0, passRate: 0 });
     expect(band("almost")).toMatchObject({ reports: 0, passRate: null });
   });
 

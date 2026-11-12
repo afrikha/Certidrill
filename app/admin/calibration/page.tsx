@@ -2,7 +2,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/guards";
 import { getCalibration } from "@/lib/progress/outcomes";
-import { MIN_REPORTS } from "@/lib/progress/calibration";
+import { MIN_REPORTS, type CalibrationBand } from "@/lib/progress/calibration";
 import { Card } from "@/components/ui/card";
 
 export const metadata = { title: "Calibration" };
@@ -16,6 +16,11 @@ export default async function CalibrationPage() {
   const tr = await getTranslations("readiness");
   const format = await getFormatter();
   const certifications = await getCalibration(prisma);
+  const bandLabel = (band: CalibrationBand) => {
+    if (band === "none") return t("noIndex");
+    if (band === "unknown") return t("unknownVerdict");
+    return tr(`verdict_${band}`);
+  };
   const percent = (x: number | null) => (x === null ? "—" : format.number(x, { style: "percent", maximumFractionDigits: 0 }));
 
   return (
@@ -39,9 +44,10 @@ export default async function CalibrationPage() {
               </tr>
             </thead>
             <tbody>
-              {c.bands.map((b) => (
+              {/* The "unknown" band only appears when it has reports. */}
+              {c.bands.filter((b) => b.band !== "unknown" || b.reports > 0).map((b) => (
                 <tr key={b.band} className="border-b border-border" data-band={b.band}>
-                  <th scope="row" className="py-2 font-normal">{b.band === "none" ? t("noIndex") : tr(`verdict_${b.band}`)}</th>
+                  <th scope="row" className="py-2 font-normal">{bandLabel(b.band)}</th>
                   <td className="tabular-nums">{b.reports}</td>
                   <td className="tabular-nums">{b.passed}</td>
                   <td className="tabular-nums">
