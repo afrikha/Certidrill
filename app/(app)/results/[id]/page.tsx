@@ -3,11 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
-import { getAttemptResults } from "@/lib/exam/results";
+import { getAttemptResults, getReadinessChange } from "@/lib/exam/results";
 import { SessionError } from "@/lib/exam/session";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DomainBars } from "@/components/charts/domain-bars";
+import { ReadinessChange } from "@/components/progress/readiness";
 
 export const metadata = { title: "Results" };
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
     if (err instanceof SessionError && err.code === "not_started") redirect(`/exam/${id}`);
     throw err;
   }
+  const change = await getReadinessChange(prisma, { attemptId: r.id, userId: user.id });
   const t = await getTranslations("results");
   const minutes = Math.round(r.timeUsedMs / 60_000);
 
@@ -48,6 +50,8 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
           <li>{t("points", { earned: r.earned, possible: r.possible })}</li>
         </ul>
       </Card>
+
+      {change && <ReadinessChange before={change.before} after={change.after} />}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

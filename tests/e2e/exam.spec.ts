@@ -221,6 +221,9 @@ test("results: report, correction with filters and language, question report, da
   await expect(page.getByTestId("verdict")).toHaveText(/Fail|Pass/);
   await expect(page.getByTestId("domain-table").locator("tr")).toHaveCount(5);
   await expect(page.getByText(/approximation/)).toBeVisible();
+  // How this exam moved the readiness index.
+  await expect(page.getByTestId("readiness-change")).toContainText(/\/ 100/);
+  await expect(page.getByTestId("readiness-delta")).toHaveText(/First measure|since your previous exam/);
 
   await page.getByRole("link", { name: /See the detailed correction/ }).click();
   await page.waitForURL(/\/review/);
@@ -243,7 +246,10 @@ test("results: report, correction with filters and language, question report, da
 
   await page.goto("/dashboard");
   await expect(page.getByTestId("last-score")).toBeVisible();
-  await expect(page.getByTestId("readiness")).toContainText(/Not ready|Pas encore prêt/);
+  // One nearly blank exam: far from ready, and the checklist says why.
+  await expect(page.getByTestId("readiness-verdict")).toHaveText(/^(Not ready|Pas prêt)$/);
+  await expect(page.getByTestId("readiness-index")).toHaveText(/^\d+ \/ 100$/);
+  await expect(page.getByTestId("readiness").locator('[data-check="attempts"]')).toBeVisible();
   const progress = await (await page.request.get("/api/me/progress")).json();
   expect(progress.attempts.length).toBeGreaterThan(0);
 });

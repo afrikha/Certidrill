@@ -10,7 +10,9 @@ import { presentQuestion, text } from "@/lib/questions/present";
 import type { OptionOrder } from "@/lib/questions/order";
 import type { PublicQuestion } from "@/lib/questions/public";
 import type { Choice, QuestionAnswer, QuestionBody, QuestionTypeCode } from "@/lib/questions/schema";
-import type { BlueprintStructure } from "@/lib/content/schema";
+import { readinessSchema, type ReadinessConfig } from "@/lib/content/schema";
+import { logError } from "@/lib/log";
+import { computeReadiness, domainAverages, type ExamSummary, type Readiness } from "@/lib/progress/readiness";
 import { breakdownBy, type Breakdown } from "./scoring";
 import { SessionError, finalizeIfExpired } from "./session";
 
@@ -217,62 +219,129 @@ export async function getAttemptResults(
 
 // ------------------------------------------------------------------ progress
 
+/** Exams averaged for domain levels when a certification has no valid readiness settings (blueprint stored before them). */
+export const DEFAULT_RECENT = 3;
+
+/** Readiness of a certification, with the settings it was computed with. */
+export type CertificationReadiness = Readiness & { certification: string; config: ReadinessConfig };
+
 export interface Progress {
   attempts: { id: string; certification: string; submittedAt: string; scaledScore: number; passed: boolean; domains: { code: string; scaledScore: number }[] }[];
-  /** Per certification: average domain score over the last 3 attempts. */
+  /** Per certification: average domain score over the `readiness.recent` last attempts. */
   domainLevels: { certification: string; code: string; title: string; scaledScore: number; passScore: number }[];
-  readiness: { certification: string; ready: boolean; streak: number; needed: number; minScore: number }[];
+  /** Per certification with at least one finished attempt (see lib/progress/readiness.ts). */
+  readiness: CertificationReadiness[];
 }
 
-export async function getProgress(db: PrismaClient, userId: string, locale: Locale): Promise<Progress> {
+type HistoryEntry = ExamSummary & {
+  id: string;
+  certification: string;
+  passed: boolean;
+  passScore: number;
+  blueprint: { structure: Prisma.JsonValue; domains: { code: string; order: number; title: Prisma.JsonValue }[] };
+};
+
+/** Finished attempts of a user, oldest first, with what progress and readiness need. */
+async function loadHistory(db: PrismaClient, userId: string, certificationId?: string): Promise<HistoryEntry[]> {
   const attempts = await db.attempt.findMany({
-    where: { userId, status: { in: ["submitted", "expired"] } },
-    orderBy: { submittedAt: "asc" },
+    where: { userId, status: { in: ["submitted", "expired"] }, ...(certificationId ? { certificationId } : {}) },
+    orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
     include: {
       certification: true,
       blueprint: { include: { domains: true } },
-      items: { select: { pointsEarned: true, pointsMax: true, question: { select: { objective: { select: { domain: { select: { code: true } } } } } } } },
+      items: { select: { questionId: true, pointsEarned: true, pointsMax: true, question: { select: { objective: { select: { domain: { select: { code: true } } } } } } } },
     },
   });
-  const list = attempts.map((a) => ({
+  return attempts.map((a) => ({
     id: a.id,
     certification: a.certification.code,
-    submittedAt: a.submittedAt!.toISOString(),
+    submittedAt: a.submittedAt!,
     scaledScore: a.scaledScore ?? 0,
     passed: a.passed ?? false,
     passScore: a.blueprint.passScore,
     blueprint: a.blueprint,
+    questionIds: a.items.map((i) => i.questionId),
     domains: breakdownBy(
       a.items.map((i) => ({ earned: i.pointsEarned ?? 0, max: i.pointsMax ?? 0, d: i.question.objective.domain.code })),
       (i) => i.d,
       a.blueprint.maxScore,
     ).map((d) => ({ code: d.key, scaledScore: d.scaledScore })),
   }));
+}
+
+/**
+ * Readiness settings of a certification: those of its current blueprint, so
+ * that a change in blueprint.yaml applies to past attempts too; else those of
+ * the blueprint of its latest attempt. Null (no indicator) if the stored
+ * blueprint predates them: `npm run seed` updates it.
+ */
+async function readinessConfigs(db: PrismaClient, history: readonly HistoryEntry[]): Promise<Map<string, ReadinessConfig | null>> {
+  const codes = [...new Set(history.map((a) => a.certification))];
+  const current = await db.blueprint.findMany({ where: { current: true, certification: { code: { in: codes } } }, include: { certification: true } });
+  const configs = new Map<string, ReadinessConfig | null>();
+  for (const code of codes) {
+    const structure = current.find((b) => b.certification.code === code)?.structure ?? history.findLast((a) => a.certification === code)!.blueprint.structure;
+    const parsed = readinessSchema.safeParse((structure as { readiness?: unknown } | null)?.readiness);
+    if (!parsed.success) logError("readiness.config_invalid", parsed.error, { certification: code });
+    configs.set(code, parsed.success ? parsed.data : null);
+  }
+  return configs;
+}
+
+export async function getProgress(db: PrismaClient, userId: string, locale: Locale, now: Date = new Date()): Promise<Progress> {
+  const list = await loadHistory(db, userId);
+  const configs = await readinessConfigs(db, list);
 
   const domainLevels: Progress["domainLevels"] = [];
   const readiness: Progress["readiness"] = [];
-  for (const code of new Set(list.map((a) => a.certification))) {
+  for (const [code, config] of configs) {
     const mine = list.filter((a) => a.certification === code);
     const last = mine.at(-1)!;
-    const recent = mine.slice(-3);
+    const levels = new Map(domainAverages(mine.slice(-(config?.recent ?? DEFAULT_RECENT))).map((d) => [d.code, d.scaledScore]));
     for (const d of [...last.blueprint.domains].sort((a, b) => a.order - b.order)) {
-      const scores = recent.flatMap((a) => a.domains.filter((x) => x.code === d.code).map((x) => x.scaledScore));
-      if (scores.length) {
-        domainLevels.push({ certification: code, code: d.code, title: pick(d.title as L, locale), scaledScore: Math.round(scores.reduce((s, x) => s + x, 0) / scores.length), passScore: last.passScore });
+      const scaledScore = levels.get(d.code);
+      if (scaledScore !== undefined) {
+        domainLevels.push({ certification: code, code: d.code, title: pick(d.title as L, locale), scaledScore, passScore: last.passScore });
       }
     }
-    const { consecutive, minScore } = (last.blueprint.structure as BlueprintStructure).readiness;
-    let streak = 0;
-    for (const a of [...mine].reverse()) {
-      if (a.scaledScore >= minScore) streak += 1;
-      else break;
-    }
-    readiness.push({ certification: code, ready: streak >= consecutive, streak, needed: consecutive, minScore });
+    const r = config ? computeReadiness(mine, config, now) : null;
+    if (config && r) readiness.push({ certification: code, config, ...r });
   }
   return {
-    attempts: list.map((a) => ({ id: a.id, certification: a.certification, submittedAt: a.submittedAt, scaledScore: a.scaledScore, passed: a.passed, domains: a.domains })),
+    attempts: list.map((a) => ({ id: a.id, certification: a.certification, submittedAt: a.submittedAt.toISOString(), scaledScore: a.scaledScore, passed: a.passed, domains: [...a.domains] })),
     domainLevels,
     readiness,
+  };
+}
+
+export interface ReadinessChange {
+  /** Readiness right after the previous attempt of the certification; null for a first attempt. */
+  before: Readiness | null;
+  /** Readiness right after this attempt. */
+  after: Readiness;
+}
+
+/**
+ * How an attempt moved the readiness index. Each side is computed at the time
+ * of its own last attempt, so the change reflects the exam, not the time that
+ * has passed since. Null if the attempt is not finished or the certification
+ * has no readiness settings.
+ */
+export async function getReadinessChange(db: PrismaClient, { attemptId, userId }: { attemptId: string; userId: string }): Promise<ReadinessChange | null> {
+  // Only the attempts of this attempt's certification: the others play no part in its index.
+  const owned = await db.attempt.findFirst({ where: { id: attemptId, userId }, select: { certificationId: true } });
+  if (!owned) return null;
+  const list = await loadHistory(db, userId, owned.certificationId);
+  const attempt = list.find((a) => a.id === attemptId);
+  if (!attempt) return null;
+  const config = (await readinessConfigs(db, [attempt])).get(attempt.certification);
+  if (!config) return null;
+  const mine = list.filter((a) => a.certification === attempt.certification);
+  const i = mine.indexOf(attempt);
+  const previous = mine[i - 1];
+  return {
+    before: previous ? computeReadiness(mine.slice(0, i), config, previous.submittedAt) : null,
+    after: computeReadiness(mine.slice(0, i + 1), config, attempt.submittedAt)!,
   };
 }
 

@@ -33,6 +33,45 @@ export const difficultyMixSchema = z
   .object({ easy: share, medium: share, hard: share })
   .refine((d) => Math.abs(d.easy + d.medium + d.hard - 1) < 1e-6, "difficulty shares must sum to 1");
 
+/**
+ * Readiness index (0–100) and the rules for "ready". See lib/progress/readiness.ts.
+ * Scores are on the blueprint scale (scaledScore).
+ */
+export const readinessSchema = z
+  .object({
+    /** No "ready" before this many finished exams. */
+    minAttempts: z.number().int().min(1),
+    /** No "ready" unless the last `consecutive` exams all scored `minScore` or more. */
+    consecutive: z.number().int().min(1),
+    minScore: z.number().int().min(0),
+    /** No "ready" while a domain averages less than this over the `recent` exams. */
+    domainFloor: z.number().int().min(0),
+    /** Exams used for consistency, domain levels and freshness. */
+    recent: z.number().int().min(1),
+    /** Exams used for the level criterion (weighted, the latest weighs most). */
+    window: z.number().int().min(1),
+    /** A score of `from` or less gives 0 points, `to` or more gives 100. */
+    scale: z.object({ from: z.number().int().min(0), to: z.number().int().min(0) }).refine((r) => r.from < r.to, "from must be < to"),
+    weights: z
+      .object({ level: share, consistency: share, domains: share, freshness: share })
+      .refine((w) => Math.abs(w.level + w.consistency + w.domains + w.freshness - 1) < 1e-6, "readiness weights must sum to 1"),
+    /** Lower bound of each verdict on the index; below `progressing`: not ready. */
+    bands: z
+      .object({ progressing: z.number().int().min(0).max(100), almost: z.number().int().min(0).max(100), ready: z.number().int().min(0).max(100) })
+      .refine((b) => b.progressing < b.almost && b.almost < b.ready, "bands must increase: progressing < almost < ready"),
+    freshness: z
+      .object({
+        /** The last exam starts to count less after this many days… */
+        staleDays: z.number().int().min(1),
+        /** …no longer counts for recency after this many days, and then "ready" is out of reach until a new exam. */
+        zeroDays: z.number().int().min(1),
+        /** No "ready" while recent exams have less than this share of never-seen questions. */
+        minNewShare: share,
+      })
+      .refine((f) => f.staleDays < f.zeroDays, "zeroDays must be > staleDays"),
+  });
+export type ReadinessConfig = z.infer<typeof readinessSchema>;
+
 export const structureSchema = z.object({
   caseStudies: z.object({
     count: range,
@@ -42,10 +81,7 @@ export const structureSchema = z.object({
   series: z.object({ count: range, questionsEach: range }),
   maxPerObjective: z.number().int().min(1),
   warningsMin: z.array(z.number().int().positive()).default([]),
-  readiness: z.object({
-    consecutive: z.number().int().min(1),
-    minScore: z.number().int().min(0),
-  }),
+  readiness: readinessSchema,
 });
 export type BlueprintStructure = z.infer<typeof structureSchema>;
 

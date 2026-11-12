@@ -42,8 +42,33 @@ blueprint:
       questionsEach: { min: 3, max: 4 }
     maxPerObjective: 2
     warningsMin: [10, 5]
-    # "Ready" indicator on the dashboard.
-    readiness: { consecutive: 3, minScore: 800 }
+    # Readiness index (0–100), the central indicator of the dashboard.
+    # index = weighted sum of four criteria, each worth 0–100 points:
+    #   level       — weighted average of the last `window` exams, weights 1, 2, …, n
+    #                 from the oldest to the latest
+    #   consistency — lowest of the last `recent` exams
+    #   domains     — weakest domain, averaged over the last `recent` exams
+    #   freshness   — share of never-seen questions, and date of the last exam
+    # Scores map to points linearly: `scale.from` or less → 0, `scale.to` or more → 100.
+    # "Ready" = index at `bands.ready` or more AND five rules (minAttempts,
+    # consecutive × minScore, domainFloor, freshness.minNewShare: at least that
+    # share of never-seen questions in the `recent` exams, freshness.zeroDays: a
+    # last exam at most that old); while a rule fails, the index stays
+    # under `bands.ready`. Meeting the rules alone is not enough: 3 exams at
+    # exactly 800 with a weakest domain at 760 give 79 ("almost ready").
+    readiness:
+      minAttempts: 3
+      consecutive: 3
+      minScore: 800
+      domainFloor: 650
+      recent: 3
+      window: 5
+      scale: { from: 600, to: 850 }
+      weights: { level: 0.5, consistency: 0.2, domains: 0.2, freshness: 0.1 }
+      bands: { progressing: 50, almost: 70, ready: 85 }
+      # Recency: full up to staleDays after the last exam, then down to 0 at zeroDays;
+      # past zeroDays, no "ready" until a new exam.
+      freshness: { staleDays: 30, zeroDays: 90, minNewShare: 0.5 }
 
 domains:
   - code: identities
