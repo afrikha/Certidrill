@@ -10,9 +10,10 @@ import { presentQuestion, text } from "@/lib/questions/present";
 import type { OptionOrder } from "@/lib/questions/order";
 import type { PublicQuestion } from "@/lib/questions/public";
 import type { Choice, QuestionAnswer, QuestionBody, QuestionTypeCode } from "@/lib/questions/schema";
-import { readinessSchema, type ReadinessConfig } from "@/lib/content/schema";
+import { progressionSchema, readinessSchema, type ProgressionConfig, type ReadinessConfig } from "@/lib/content/schema";
 import { logError } from "@/lib/log";
 import { computeReadiness, domainAverages, type ExamSummary, type Readiness } from "@/lib/progress/readiness";
+import { computeProgression, type Badge, type Progression, type XpGain } from "@/lib/progress/progression";
 import { breakdownBy, type Breakdown } from "./scoring";
 import { SessionError, finalizeIfExpired } from "./session";
 
@@ -225,12 +226,17 @@ export const DEFAULT_RECENT = 3;
 /** Readiness of a certification, with the settings it was computed with. */
 export type CertificationReadiness = Readiness & { certification: string; config: ReadinessConfig };
 
+/** XP, level and badges of a certification (see lib/progress/progression.ts), with the localized level titles. */
+export type CertificationProgression = Progression & { certification: string; title: string; nextTitle: string | null; config: ProgressionConfig };
+
 export interface Progress {
   attempts: { id: string; certification: string; submittedAt: string; scaledScore: number; passed: boolean; domains: { code: string; scaledScore: number }[] }[];
   /** Per certification: average domain score over the `readiness.recent` last attempts. */
   domainLevels: { certification: string; code: string; title: string; scaledScore: number; passScore: number }[];
   /** Per certification with at least one finished attempt (see lib/progress/readiness.ts). */
   readiness: CertificationReadiness[];
+  /** Per certification with at least one finished attempt and progression settings. */
+  progression: CertificationProgression[];
 }
 
 type HistoryEntry = ExamSummary & {
@@ -269,32 +275,52 @@ async function loadHistory(db: PrismaClient, userId: string, certificationId?: s
   }));
 }
 
+interface Settings {
+  readiness: ReadinessConfig | null;
+  progression: ProgressionConfig | null;
+}
+
 /**
- * Readiness settings of a certification: those of its current blueprint, so
- * that a change in blueprint.yaml applies to past attempts too; else those of
- * the blueprint of its latest attempt. Null (no indicator) if the stored
- * blueprint predates them: `npm run seed` updates it.
+ * Readiness and progression settings of each certification: those of its
+ * current blueprint, so that a change in blueprint.yaml applies to past
+ * attempts too; else those of the blueprint of its latest attempt. Null (no
+ * indicator) if the stored blueprint predates them: `npm run seed` updates it.
  */
-async function readinessConfigs(db: PrismaClient, history: readonly HistoryEntry[]): Promise<Map<string, ReadinessConfig | null>> {
+async function certificationSettings(db: PrismaClient, history: readonly HistoryEntry[]): Promise<Map<string, Settings>> {
   const codes = [...new Set(history.map((a) => a.certification))];
   const current = await db.blueprint.findMany({ where: { current: true, certification: { code: { in: codes } } }, include: { certification: true } });
-  const configs = new Map<string, ReadinessConfig | null>();
+  const settings = new Map<string, Settings>();
   for (const code of codes) {
-    const structure = current.find((b) => b.certification.code === code)?.structure ?? history.findLast((a) => a.certification === code)!.blueprint.structure;
-    const parsed = readinessSchema.safeParse((structure as { readiness?: unknown } | null)?.readiness);
-    if (!parsed.success) logError("readiness.config_invalid", parsed.error, { certification: code });
-    configs.set(code, parsed.success ? parsed.data : null);
+    const structure = (current.find((b) => b.certification.code === code)?.structure ?? history.findLast((a) => a.certification === code)!.blueprint.structure) as {
+      readiness?: unknown;
+      progression?: unknown;
+    } | null;
+    const readiness = readinessSchema.safeParse(structure?.readiness);
+    if (!readiness.success) logError("readiness.config_invalid", readiness.error, { certification: code });
+    const progression = progressionSchema.safeParse(structure?.progression);
+    if (!progression.success) logError("progression.config_invalid", progression.error, { certification: code });
+    settings.set(code, { readiness: readiness.success ? readiness.data : null, progression: progression.success ? progression.data : null });
   }
-  return configs;
+  return settings;
+}
+
+function certificationProgression(code: string, history: readonly HistoryEntry[], rules: ProgressionConfig, recent: number, locale: Locale): CertificationProgression {
+  const p = computeProgression(history, rules, recent);
+  const next = rules.levels[p.level.n];
+  // Domains in the blueprint's order, like the other domain charts.
+  const order = new Map(history.at(-1)!.blueprint.domains.map((d) => [d.code, d.order]));
+  p.mastery.sort((a, b) => (order.get(a.code) ?? 0) - (order.get(b.code) ?? 0));
+  return { certification: code, config: rules, ...p, title: pick(rules.levels[p.level.n - 1]!.title, locale), nextTitle: next ? pick(next.title, locale) : null };
 }
 
 export async function getProgress(db: PrismaClient, userId: string, locale: Locale, now: Date = new Date()): Promise<Progress> {
   const list = await loadHistory(db, userId);
-  const configs = await readinessConfigs(db, list);
+  const settings = await certificationSettings(db, list);
 
   const domainLevels: Progress["domainLevels"] = [];
   const readiness: Progress["readiness"] = [];
-  for (const [code, config] of configs) {
+  const progression: Progress["progression"] = [];
+  for (const [code, { readiness: config, progression: rules }] of settings) {
     const mine = list.filter((a) => a.certification === code);
     const last = mine.at(-1)!;
     const levels = new Map(domainAverages(mine.slice(-(config?.recent ?? DEFAULT_RECENT))).map((d) => [d.code, d.scaledScore]));
@@ -306,11 +332,13 @@ export async function getProgress(db: PrismaClient, userId: string, locale: Loca
     }
     const r = config ? computeReadiness(mine, config, now) : null;
     if (config && r) readiness.push({ certification: code, config, ...r });
+    if (rules) progression.push(certificationProgression(code, mine, rules, config?.recent ?? DEFAULT_RECENT, locale));
   }
   return {
     attempts: list.map((a) => ({ id: a.id, certification: a.certification, submittedAt: a.submittedAt.toISOString(), scaledScore: a.scaledScore, passed: a.passed, domains: [...a.domains] })),
     domainLevels,
     readiness,
+    progression,
   };
 }
 
@@ -321,28 +349,68 @@ export interface ReadinessChange {
   after: Readiness;
 }
 
+export interface ProgressionGain {
+  gain: XpGain;
+  /** Badges this attempt earned for the first time. */
+  badges: Badge[];
+  /** Total XP and level right after this attempt. */
+  xp: number;
+  level: { n: number; title: string; from: number; next: number | null };
+  levels: number;
+  /** Title of the level before this attempt, when it changed. */
+  previousTitle: string | null;
+}
+
+export interface AttemptProgress {
+  readiness: ReadinessChange | null;
+  progression: ProgressionGain | null;
+}
+
 /**
- * How an attempt moved the readiness index. Each side is computed at the time
- * of its own last attempt, so the change reflects the exam, not the time that
- * has passed since. Null if the attempt is not finished or the certification
- * has no readiness settings.
+ * How an attempt moved the readiness index and the progression. Each side of
+ * the readiness change is computed at the time of its own last attempt, so the
+ * change reflects the exam, not the time that has passed since. Both are null
+ * if the attempt is not this user's finished attempt or the certification has
+ * no such settings.
  */
-export async function getReadinessChange(db: PrismaClient, { attemptId, userId }: { attemptId: string; userId: string }): Promise<ReadinessChange | null> {
-  // Only the attempts of this attempt's certification: the others play no part in its index.
+export async function getAttemptProgress(db: PrismaClient, { attemptId, userId, locale = "en" }: { attemptId: string; userId: string; locale?: Locale }): Promise<AttemptProgress> {
+  const none = { readiness: null, progression: null };
+  // Only the attempts of this attempt's certification: the others play no part in it.
   const owned = await db.attempt.findFirst({ where: { id: attemptId, userId }, select: { certificationId: true } });
-  if (!owned) return null;
-  const list = await loadHistory(db, userId, owned.certificationId);
-  const attempt = list.find((a) => a.id === attemptId);
-  if (!attempt) return null;
-  const config = (await readinessConfigs(db, [attempt])).get(attempt.certification);
-  if (!config) return null;
-  const mine = list.filter((a) => a.certification === attempt.certification);
+  if (!owned) return none;
+  const mine = await loadHistory(db, userId, owned.certificationId);
+  const attempt = mine.find((a) => a.id === attemptId);
+  if (!attempt) return none;
+  const { readiness: config, progression: rules } = (await certificationSettings(db, [attempt])).get(attempt.certification)!;
   const i = mine.indexOf(attempt);
   const previous = mine[i - 1];
+  const upTo = mine.slice(0, i + 1);
+
+  let progression: ProgressionGain | null = null;
+  if (rules) {
+    const p = computeProgression(upTo, rules, config?.recent ?? DEFAULT_RECENT);
+    const gain = p.gains.at(-1)!;
+    const title = (n: number) => pick(rules.levels[n - 1]!.title, locale);
+    progression = {
+      gain,
+      badges: p.badges.filter((b) => b.attemptId === attemptId),
+      xp: p.xp,
+      level: { n: p.level.n, title: title(p.level.n), from: p.level.from, next: p.level.next },
+      levels: p.levels,
+      previousTitle: gain.levelBefore === gain.levelAfter ? null : title(gain.levelBefore),
+    };
+  }
   return {
-    before: previous ? computeReadiness(mine.slice(0, i), config, previous.submittedAt) : null,
-    after: computeReadiness(mine.slice(0, i + 1), config, attempt.submittedAt)!,
+    readiness: config
+      ? { before: previous ? computeReadiness(mine.slice(0, i), config, previous.submittedAt) : null, after: computeReadiness(upTo, config, attempt.submittedAt)! }
+      : null,
+    progression,
   };
+}
+
+/** How an attempt moved the readiness index (see getAttemptProgress). */
+export async function getReadinessChange(db: PrismaClient, ids: { attemptId: string; userId: string }): Promise<ReadinessChange | null> {
+  return (await getAttemptProgress(db, ids)).readiness;
 }
 
 // ------------------------------------------------------------------ reports
