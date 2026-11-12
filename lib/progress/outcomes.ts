@@ -8,9 +8,10 @@ import type { PrismaClient } from "@prisma/client";
 import { certificationSettings, loadHistory } from "@/lib/exam/results";
 import { compareCodeUnits } from "@/lib/sort";
 import { calibrate, type Calibration } from "./calibration";
+import { MAX_OUTCOMES } from "./outcome-limits";
 import { computeReadiness } from "./readiness";
 
-export type OutcomeErrorCode = "invalid_date" | "future_date" | "invalid_score" | "inconsistent_score" | "not_found";
+export type OutcomeErrorCode = "invalid_date" | "future_date" | "invalid_score" | "inconsistent_score" | "too_many" | "not_found";
 
 export class OutcomeError extends Error {
   constructor(readonly code: OutcomeErrorCode) {
@@ -64,6 +65,11 @@ export async function recordOutcome(db: PrismaClient, { userId, certificationCod
     // A contradictory report would skew the calibration.
     if ((score >= blueprint.passScore) !== passed) throw new OutcomeError("inconsistent_score");
   }
+
+  // Replacing the report of the same day is always allowed; a new day counts against the limit.
+  const where = { userId, certificationId: certification.id };
+  const sameDay = await db.examOutcome.findUnique({ where: { userId_certificationId_takenOn: { ...where, takenOn: day } }, select: { id: true } });
+  if (!sameDay && (await db.examOutcome.count({ where })) >= MAX_OUTCOMES) throw new OutcomeError("too_many");
 
   const before = (await loadHistory(db, userId, certification.id)).filter((a) => a.submittedAt < day);
   const config = before.length ? (await certificationSettings(db, before)).get(certificationCode)?.readiness : null;

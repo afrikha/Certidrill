@@ -7,6 +7,7 @@ import { seedBank, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { createAttempt, getAttemptView, lockSection, saveItem, startAttempt, submitAttempt } from "@/lib/exam/session";
 import { deleteOutcome, getCalibration, latestOutcomeDay, listOutcomes, OutcomeError, recordOutcome } from "@/lib/progress/outcomes";
+import { MAX_OUTCOMES } from "@/lib/progress/outcome-limits";
 import { publishSampleBank } from "./sample-bank";
 
 const db = new PrismaClient();
@@ -87,6 +88,22 @@ describe("real exam outcomes", () => {
     }
     // Tomorrow (time zones ahead of UTC) is still accepted.
     expect(await code(recordOutcome(db, { ...input, takenOn: "2026-11-13", score: 1000 }))).toBe("ok");
+  });
+
+  it("keeps at most MAX_OUTCOMES reports per user and certification, replacing the same day still allowed", async () => {
+    const input = { userId, certificationCode: "az-104", passed: false, now: NOW };
+    const existing = (await listOutcomes(db, userId)).length;
+    const days = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"].slice(0, MAX_OUTCOMES - existing);
+    for (const takenOn of days) await recordOutcome(db, { ...input, takenOn }); // NOSONAR: one report after the other, the limit depends on the count
+    expect(await listOutcomes(db, userId)).toHaveLength(MAX_OUTCOMES);
+    expect(await code(recordOutcome(db, { ...input, takenOn: "2026-09-30" }))).toBe("too_many");
+    expect(await code(recordOutcome(db, { ...input, takenOn: days[0]!, passed: true }))).toBe("ok");
+    // Another user is not affected.
+    const other = await createUser(db, { email: "limit-outcome@example.com" });
+    expect(await code(recordOutcome(db, { ...input, userId: other.id, takenOn: "2026-09-30" }))).toBe("ok");
+    await db.user.delete({ where: { id: other.id } });
+    // Back under the limit for the next tests.
+    for (const takenOn of days) await deleteOutcome(db, { id: (await listOutcomes(db, userId)).find((o) => o.takenOn === takenOn)!.id, userId }); // NOSONAR: sequential deletes of the user's own reports
   });
 
   it("lets a user delete only their own reports", async () => {

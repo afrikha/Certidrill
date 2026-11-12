@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { reportOutcomeAction } from "@/lib/actions/outcome";
+import { MAX_OUTCOMES } from "@/lib/progress/outcome-limits";
 import { Alert } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -15,7 +16,7 @@ export function OutcomeForm({ certification, maxScore, passScore, today }: Reado
   return (
     <form action={action} className="space-y-4">
       {state?.ok && <Alert tone="success">{t(`thanks_${state.ok}`)}</Alert>}
-      {state?.error && <Alert tone="error">{t(`error_${state.error}`, { pass: passScore })}</Alert>}
+      {state?.error && <Alert tone="error">{t(`error_${state.error}`, { pass: passScore, max: MAX_OUTCOMES })}</Alert>}
       <input type="hidden" name="certification" value={certification} />
       <div className="flex flex-wrap items-end gap-4">
         <div>

@@ -42,6 +42,15 @@ describe("OutcomeCard", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Ce score ne correspond pas au résultat : le seuil de réussite est de 700.");
   });
 
+  it("explains the limit of reports", async () => {
+    reportOutcomeAction.mockResolvedValue({ error: "too_many" });
+    renderIntl(<OutcomeCard certification="az-104" maxScore={1000} passScore={700} today="2026-11-13" outcomes={[]} />);
+    await userEvent.type(screen.getByLabelText("Date of the exam"), "2026-11-05");
+    await userEvent.click(screen.getByRole("radio", { name: "Failed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("You already reported 5 results for this certification: delete one to add another.");
+  });
+
   it("shows an error from the server", async () => {
     reportOutcomeAction.mockResolvedValue({ error: "future_date" });
     renderIntl(<OutcomeCard certification="az-104" maxScore={1000} passScore={700} today="2026-11-13" outcomes={[]} />);
