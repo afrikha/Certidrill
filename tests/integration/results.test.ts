@@ -7,7 +7,7 @@ import { seedBank, seedReferential } from "@/lib/content/seed";
 import { publishSampleBank } from "./sample-bank";
 import { createUser } from "@/lib/users";
 import { createAttempt, getAttemptView, lockSection, saveItem, SessionError, startAttempt, submitAttempt } from "@/lib/exam/session";
-import { getAttemptResults, getProgress, getReadinessChange, reportQuestion, REPORTS_BEFORE_REVIEW } from "@/lib/exam/results";
+import { getAttemptProgress, getAttemptResults, getProgress, getReadinessChange, reportQuestion, REPORTS_BEFORE_REVIEW } from "@/lib/exam/results";
 
 const db = new PrismaClient();
 let userId: string;
@@ -113,7 +113,7 @@ describe("score report", () => {
 describe("progress", () => {
   it("is empty for a user without finished attempts", async () => {
     const fresh = await createUser(db, { email: "fresh@example.com" });
-    expect(await getProgress(db, fresh.id, "fr")).toEqual({ attempts: [], domainLevels: [], readiness: [] });
+    expect(await getProgress(db, fresh.id, "fr")).toEqual({ attempts: [], domainLevels: [], readiness: [], progression: [] });
   });
 
   it("lists attempts, averages domains over the last 3 and computes readiness", async () => {
@@ -134,7 +134,26 @@ describe("progress", () => {
     expect(levels).toHaveLength(5);
     for (const l of levels) expect(l.scaledScore).toBe(1000);
     expect(p.attempts).toHaveLength(4);
-    // The test bank has 28 published questions: every exam repeats most of them,
+    // XP and levels: every exam gives XP, the four exams here reach level 4 or more.
+    const prog = p.progression.find((x) => x.certification === "az-104")!;
+    expect(prog.gains).toHaveLength(4);
+    expect(prog.xp).toBe(prog.gains.reduce((sum, g) => sum + g.total, 0));
+    expect(prog.level.n).toBeGreaterThanOrEqual(4);
+    expect(prog.title).toBe(prog.config.levels[prog.level.n - 1]!.title.en);
+    expect(prog.badges.map((b) => b.code)).toEqual(expect.arrayContaining(["first_exam", "first_pass", "personal_best", "gold_domain", "hat_trick"]));
+    expect(prog.mastery.every((m) => m.tier === "gold")).toBe(true);
+    expect(prog.mastery.map((m) => m.code)).toEqual(["identities", "storage", "compute", "networking", "monitoring"]);
+    const fr = (await getProgress(db, userId, "fr", at(501))).progression[0]!;
+    expect(fr.title).toBe(prog.config.levels[prog.level.n - 1]!.title.fr);
+
+    // The results page: XP of this exam, level and badges it earned.
+    const step = (await getAttemptProgress(db, { attemptId: third, userId, locale: "fr" })).progression!;
+    expect(step.gain).toEqual(prog.gains.at(-1));
+    expect(step).toMatchObject({ xp: prog.xp, levels: 10, level: { n: prog.level.n, title: fr.title } });
+    expect(step.badges.map((b) => b.code)).toContain("hat_trick");
+    expect(step.previousTitle === null).toBe(step.gain.levelBefore === step.gain.levelAfter);
+
+        // The test bank has 28 published questions: every exam repeats most of them,
     // so perfect scores are not enough to be ready.
     expect(ready).toMatchObject({ ready: false, verdict: "almost", streak: 3, capped: true });
     expect(ready.raw).toBeGreaterThanOrEqual(85);
@@ -182,6 +201,14 @@ describe("progress", () => {
       expect(p.readiness).toEqual([]);
       expect(p.domainLevels).toHaveLength(5);
       expect(await getReadinessChange(db, { attemptId: p.attempts.at(-1)!.id, userId })).toBeNull();
+
+      // A blueprint stored before progression existed: no XP card either.
+      const { progression: _drop, ...withoutProgression } = structure as Record<string, unknown>;
+      await db.blueprint.update({ where: { id: bp.id }, data: { structure: withoutProgression as object } });
+      p = await getProgress(db, userId, "en", at(501));
+      expect(p.progression).toEqual([]);
+      expect(p.readiness).toHaveLength(1);
+      expect(await getAttemptProgress(db, { attemptId: p.attempts.at(-1)!.id, userId })).toMatchObject({ progression: null });
     } finally {
       await db.blueprint.update({ where: { id: bp.id }, data: { structure: bp.structure as object } });
     }

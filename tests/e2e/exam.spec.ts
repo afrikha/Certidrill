@@ -224,6 +224,8 @@ test("results: report, correction with filters and language, question report, da
   // How this exam moved the readiness index.
   await expect(page.getByTestId("readiness-change")).toContainText(/\/ 100/);
   await expect(page.getByTestId("readiness-delta")).toHaveText(/First measure|since your previous exam/);
+  // XP earned by this exam: at least the base XP of a finished exam.
+  await expect(page.getByTestId("xp-total")).toHaveText(/^\+\d+ XP$/);
 
   await page.getByRole("link", { name: /See the detailed correction/ }).click();
   await page.waitForURL(/\/review/);
@@ -250,6 +252,9 @@ test("results: report, correction with filters and language, question report, da
   await expect(page.getByTestId("readiness-verdict")).toHaveText(/^(Not ready|Pas prêt)$/);
   await expect(page.getByTestId("readiness-index")).toHaveText(/^\d+ \/ 100$/);
   await expect(page.getByTestId("readiness").locator('[data-check="attempts"]')).toBeVisible();
+  // Level, domain mastery and badges: a first exam always earns "first exam".
+  await expect(page.getByTestId("progression").getByTestId("level")).toHaveText(/(Level|Niveau) \d+/);
+  await expect(page.getByTestId("progression").locator('[data-badge="first_exam"]')).toHaveAttribute("data-earned", "true");
   const progress = await (await page.request.get("/api/me/progress")).json();
   expect(progress.attempts.length).toBeGreaterThan(0);
 });

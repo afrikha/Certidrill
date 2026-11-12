@@ -72,6 +72,51 @@ export const readinessSchema = z
   });
 export type ReadinessConfig = z.infer<typeof readinessSchema>;
 
+const nonNegInt = z.number().int().min(0);
+
+/**
+ * XP, levels, domain mastery and badges (see lib/progress/progression.ts).
+ * They reward effort and progress; they never say "ready" (that is the
+ * readiness index). Scores are on the blueprint scale.
+ */
+export const progressionSchema = z.object({
+  xp: z.object({
+    /** XP for any finished exam. */
+    base: nonNegInt,
+    /** Score XP = (score - scoreFrom) × perPoint, never negative. */
+    scoreFrom: nonNegInt,
+    perPoint: z.number().min(0),
+    /** Share of the score XP kept for an exam made only of questions already seen (linear up to all new). */
+    knownShare: share,
+    /** Exam at the pass score or more. */
+    passBonus: nonNegInt,
+    /** Score higher than every earlier exam (the first exam included). */
+    bestBonus: nonNegInt,
+    /** Per domain scoring `domainGain` or more above the previous exam. */
+    domainBonus: nonNegInt,
+    domainGain: z.number().int().min(1),
+  }),
+  /** Levels in order: `xp` is the total needed to reach each one; the first starts at 0. */
+  levels: z
+    .array(z.object({ xp: nonNegInt, title: localizedSchema }))
+    .min(2)
+    .refine((l) => l[0]!.xp === 0, "the first level starts at 0 XP")
+    .refine((l) => l.every((x, i) => i === 0 || x.xp > l[i - 1]!.xp), "level XP must increase"),
+  /** Domain mastery tiers, on the domain average over the `readiness.recent` exams. */
+  mastery: z
+    .object({ bronze: nonNegInt, silver: nonNegInt, gold: nonNegInt })
+    .refine((m) => m.bronze < m.silver && m.silver < m.gold, "mastery tiers must increase: bronze < silver < gold"),
+  badges: z.object({
+    /** `count` consecutive exams at `min` or more. */
+    hatTrick: z.object({ count: z.number().int().min(2), min: nonNegInt }),
+    /** At least one exam in each of `weeks` consecutive weeks (Monday to Sunday, UTC). */
+    regular: z.object({ weeks: z.number().int().min(2) }),
+    /** Score at least `gain` above the previous exam. */
+    comeback: z.object({ gain: z.number().int().min(1) }),
+  }),
+});
+export type ProgressionConfig = z.infer<typeof progressionSchema>;
+
 export const structureSchema = z.object({
   caseStudies: z.object({
     count: range,
@@ -82,6 +127,7 @@ export const structureSchema = z.object({
   maxPerObjective: z.number().int().min(1),
   warningsMin: z.array(z.number().int().positive()).default([]),
   readiness: readinessSchema,
+  progression: progressionSchema,
 });
 export type BlueprintStructure = z.infer<typeof structureSchema>;
 

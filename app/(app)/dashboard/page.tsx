@@ -7,6 +7,7 @@ import { DEFAULT_RECENT, getProgress } from "@/lib/exam/results";
 import { ScoreLine } from "@/components/charts/score-line";
 import { DomainBars } from "@/components/charts/domain-bars";
 import { ReadinessCard } from "@/components/progress/readiness";
+import { ProgressionCard } from "@/components/progress/progression";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
@@ -75,6 +76,8 @@ export default async function DashboardPage() {
         const last = history.at(-1)!;
         const ready = progress.readiness.find((r) => r.certification === c.code);
         const levels = progress.domainLevels.filter((d) => d.certification === c.code);
+        const progression = progress.progression.find((p) => p.certification === c.code);
+        const domainTitles = Object.fromEntries(levels.map((d) => [d.code, d.title]));
         return (
           <div key={`p-${c.id}`} className="grid gap-6 lg:grid-cols-3">
             {ready && (
@@ -83,8 +86,13 @@ export default async function DashboardPage() {
                   readiness={ready}
                   bands={[ready.config.bands.progressing, ready.config.bands.almost, ready.config.bands.ready]}
                   weights={ready.config.weights}
-                  domainTitles={Object.fromEntries(levels.map((d) => [d.code, d.title]))}
+                  domainTitles={domainTitles}
                 />
+              </div>
+            )}
+            {progression && (
+              <div className="lg:col-span-3">
+                <ProgressionCard progression={progression} rules={progression.config} domainTitles={domainTitles} />
               </div>
             )}
             <Card>

@@ -1,5 +1,5 @@
 import type { AssemblyBank, AssemblyBlueprint, CandidateQuestion } from "@/lib/exam/assembler";
-import type { QuestionTypeCode, ReadinessConfig } from "@/lib/content/schema";
+import type { ProgressionConfig, QuestionTypeCode, ReadinessConfig } from "@/lib/content/schema";
 import { createRng } from "@/lib/exam/random";
 
 /** Readiness settings of the AZ-104 blueprint (content/az-104/blueprint.yaml). */
@@ -14,6 +14,25 @@ export const READINESS: ReadinessConfig = {
   weights: { level: 0.5, consistency: 0.2, domains: 0.2, freshness: 0.1 },
   bands: { progressing: 50, almost: 70, ready: 85 },
   freshness: { staleDays: 30, zeroDays: 90, minNewShare: 0.5 },
+};
+
+/** Progression settings of the AZ-104 blueprint (content/az-104/blueprint.yaml). */
+export const PROGRESSION: ProgressionConfig = {
+  xp: { base: 50, scoreFrom: 400, perPoint: 0.5, knownShare: 0.5, passBonus: 100, bestBonus: 75, domainBonus: 50, domainGain: 50 },
+  levels: [
+    { xp: 0, title: { en: "Cloud intern", fr: "Stagiaire cloud" } },
+    { xp: 150, title: { en: "Portal novice", fr: "Novice du portail" } },
+    { xp: 400, title: { en: "Resource pilot", fr: "Pilote de ressources" } },
+    { xp: 750, title: { en: "Identity keeper", fr: "Responsable des identités" } },
+    { xp: 1200, title: { en: "Junior admin", fr: "Admin junior" } },
+    { xp: 1750, title: { en: "Network specialist", fr: "Spécialiste réseau" } },
+    { xp: 2400, title: { en: "Storage strategist", fr: "Stratège du stockage" } },
+    { xp: 3150, title: { en: "Azure admin", fr: "Admin Azure" } },
+    { xp: 4000, title: { en: "Cloud architect", fr: "Architecte cloud" } },
+    { xp: 5000, title: { en: "Cloud legend", fr: "Légende du cloud" } },
+  ],
+  mastery: { bronze: 650, silver: 700, gold: 850 },
+  badges: { hatTrick: { count: 3, min: 800 }, regular: { weeks: 4 }, comeback: { gain: 150 } },
 };
 
 /** The AZ-104 blueprint values (content/az-104/blueprint.yaml). */
@@ -36,6 +55,7 @@ export const az104Blueprint: AssemblyBlueprint = {
     maxPerObjective: 2,
     warningsMin: [10, 5],
     readiness: READINESS,
+    progression: PROGRESSION,
   },
   domains: [
     { code: "identities", weightMin: 0.2, weightMax: 0.25 },
