@@ -91,6 +91,16 @@ describe("free quota", () => {
     expect(await db.attempt.count({ where: { userId: user } })).toBe(1);
   });
 
+  it("does not count the exam being started against itself (two starts of the same exam)", async () => {
+    const user = await newUser("double-click@example.com");
+    const { attemptId } = await createAttempt(db, { userId: user, certificationCode: "az-104", locale: "en", now: at(0) });
+    await startAttempt(db, { attemptId, userId: user, now: at(1) });
+    // A second start that read the exam before the first one marked it started
+    // checks the access after: this exam must not use up its own quota.
+    await expect(assertCanTakeExam(db, { userId: user, certificationId, attemptId, now: at(1) })).resolves.toBeUndefined();
+    expect(await refusal(assertCanTakeExam(db, { userId: user, certificationId, now: at(1) }))).toBe("quota_exhausted");
+  });
+
   it("counts an abandoned exam", async () => {
     const user = await newUser("quitter@example.com");
     const { attemptId } = await createAttempt(db, { userId: user, certificationCode: "az-104", locale: "en", now: at(0) });

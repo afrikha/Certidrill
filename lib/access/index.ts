@@ -15,9 +15,12 @@ export async function freeExamQuota(db: PrismaClient): Promise<number | null> {
   return plan?.active ? plan.examQuota : 0;
 }
 
-/** Mock exams of this certification whose clock was started: a started exam counts, even if abandoned. */
-export function startedExams(db: PrismaClient, userId: string, certificationId: string): Promise<number> {
-  return db.attempt.count({ where: { userId, certificationId, mode: "exam", startedAt: { not: null } } });
+/**
+ * Mock exams of this certification whose clock was started: a started exam
+ * counts, even if abandoned. `except` leaves out the exam being started.
+ */
+export function startedExams(db: PrismaClient, userId: string, certificationId: string, except?: string): Promise<number> {
+  return db.attempt.count({ where: { userId, certificationId, mode: "exam", startedAt: { not: null }, ...(except ? { id: { not: except } } : {}) } });
 }
 
 /** What is the same for every certification of a user. */
@@ -50,9 +53,9 @@ export interface CertificationAccess extends Access {
   examsLeft: number | null;
 }
 
-async function evaluate(db: PrismaClient, userId: string, certification: { id: string; freeAccess: boolean }, now: Date, base?: UserFacts) {
+async function evaluate(db: PrismaClient, userId: string, certification: { id: string; freeAccess: boolean }, now: Date, base?: UserFacts, except?: string) {
   const user = base ?? (await loadUserFacts(db, userId));
-  const [facts, started] = await Promise.all([loadFacts(db, userId, certification, user), startedExams(db, userId, certification.id)]);
+  const [facts, started] = await Promise.all([loadFacts(db, userId, certification, user), startedExams(db, userId, certification.id, except)]);
   const access = resolveAccess(facts, now);
   return { facts, access, started, left: examsLeft(access, started, user.quota) };
 }
@@ -76,8 +79,13 @@ export async function getAccess(db: PrismaClient, userId: string, certificationI
  * certification (unique index attempt_one_in_progress), so a new exam can only
  * be created once the previous one is over, and that one already counts.
  */
-export async function assertCanTakeExam(db: PrismaClient, { userId, certificationId, now = new Date() }: { userId: string; certificationId: string; now?: Date }): Promise<void> {
-  const { facts, left } = await evaluate(db, userId, await certificationById(db, certificationId), now);
+export async function assertCanTakeExam(
+  db: PrismaClient,
+  { userId, certificationId, attemptId, now = new Date() }: { userId: string; certificationId: string; attemptId?: string; now?: Date },
+): Promise<void> {
+  // When starting `attemptId`, it does not count against itself: a concurrent
+  // start of the same exam (double click) may already have marked it started.
+  const { facts, left } = await evaluate(db, userId, await certificationById(db, certificationId), now, undefined, attemptId);
   if (left !== null && left <= 0) throw new AccessError(refusalReason(facts, now));
 }
 

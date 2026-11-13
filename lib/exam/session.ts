@@ -150,7 +150,7 @@ export async function startAttempt(db: PrismaClient, { attemptId, userId, now = 
   if (attempt.status !== "in_progress") throw new SessionError("finished");
   if (attempt.startedAt) return attempt; // idempotent: a double click does not restart the clock
   // The access may have changed since the exam was created (quota used elsewhere, Pass ended).
-  await assertCanTakeExam(db, { userId, certificationId: attempt.certificationId, now });
+  await assertCanTakeExam(db, { userId, certificationId: attempt.certificationId, attemptId: attempt.id, now });
   const deadlineAt = new Date(now.getTime() + attempt.blueprint.durationMin * 60_000);
   const updated = await db.attempt.updateMany({ where: { id: attempt.id, startedAt: null }, data: { startedAt: now, deadlineAt } });
   if (updated.count) logEvent("exam.started", { attemptId, userId, deadlineAt: deadlineAt.toISOString() });
