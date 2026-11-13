@@ -6,7 +6,7 @@ import { defaultLocale, isLocale, locales, type Locale } from "./config";
  * a prefixed address to the page itself and tells it the language through
  * LOCALE_HEADER; an address without prefix is redirected to the visitor's
  * language. The rest of the site (sign-in, the application, the admin) keeps a
- * single address and its language comes from the NEXT_LOCALE cookie.
+ * single address and its language comes from the cookies (lib/i18n/cookie.ts).
  */
 export const PUBLIC_PATHS = ["/", "/pricing"] as const;
 export type PublicPath = (typeof PUBLIC_PATHS)[number];
@@ -32,7 +32,7 @@ export function parseLocalizedPath(pathname: string): { locale: Locale; path: Pu
   return isPublicPath(path) ? { locale: first, path } : null;
 }
 
-/** The visitor's language: the NEXT_LOCALE cookie (set from their choice), else Accept-Language, else English. */
+/** The visitor's language: the language from the cookies (lib/i18n/cookie.ts), else Accept-Language, else English. */
 export function preferredLocale(cookie: string | undefined, acceptLanguage: string | null | undefined): Locale {
   if (isLocale(cookie)) return cookie;
   for (const part of (acceptLanguage ?? "").split(",")) {

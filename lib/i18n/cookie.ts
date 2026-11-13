@@ -1,13 +1,19 @@
-/** The visitor's language choice, read by i18n/request.ts and the proxy. */
-export const LOCALE_COOKIE = "NEXT_LOCALE";
+import { isLocale, type Locale } from "./config";
 
 /**
- * First-party only, never read by scripts. A language the visitor chose
- * (setLocale) is kept one year; one set by the proxy because the visitor opened
- * /fr or /en is a session cookie, gone when the browser closes, since no choice
- * was made. Neither changes the language of the account (User.locale, used for
- * e-mails), which only setLocale writes.
+ * Two cookies, first-party only and never read by scripts:
+ * - LOCALE_COOKIE, the language the visitor chose with the switcher
+ *   (setLocale), kept one year. Only setLocale writes it, together with the
+ *   language of the account (User.locale, used for e-mails).
+ * - PAGE_LOCALE_COOKIE, the language of the last public page opened (/fr, /en),
+ *   set by the proxy so that the pages reached from there (sign-in, the
+ *   application) stay in the language being read. No choice was made: it is a
+ *   session cookie, gone when the browser closes, and it never replaces the
+ *   chosen one.
  */
+export const LOCALE_COOKIE = "NEXT_LOCALE";
+export const PAGE_LOCALE_COOKIE = "NEXT_LOCALE_PAGE";
+
 export function localeCookieOptions({ chosen }: { chosen: boolean }) {
   return {
     path: "/",
@@ -16,4 +22,12 @@ export function localeCookieOptions({ chosen }: { chosen: boolean }) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
   };
+}
+
+/** The language from the cookies: the last public page opened in this session, else the visitor's choice. */
+export function cookieLocale(get: (name: string) => string | undefined): Locale | undefined {
+  const page = get(PAGE_LOCALE_COOKIE);
+  if (isLocale(page)) return page;
+  const chosen = get(LOCALE_COOKIE);
+  return isLocale(chosen) ? chosen : undefined;
 }

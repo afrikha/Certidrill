@@ -52,6 +52,9 @@ describe("proxy", () => {
     expect(res.headers.get("vary")).toBe("Cookie, Accept-Language");
     const fromCookie = proxy(req("/", { "accept-language": "fr", cookie: "NEXT_LOCALE=en" }));
     expect(fromCookie.headers.get("location")).toBe("https://certidrill.com/en");
+    // The last public page opened in this session comes before the choice.
+    const fromPage = proxy(req("/", { cookie: "NEXT_LOCALE=en; NEXT_LOCALE_PAGE=fr" }));
+    expect(fromPage.headers.get("location")).toBe("https://certidrill.com/fr");
   });
 
   it("serves a prefixed page from the bare one, tells it the language, and makes the cookie follow", () => {
@@ -60,15 +63,25 @@ describe("proxy", () => {
     // Request headers passed upstream, the client's own value replaced.
     expect(res.headers.get("x-middleware-request-x-certidrill-locale")).toBe("fr");
     expect(res.headers.get("x-middleware-request-x-certidrill-path")).toBe("/pricing");
-    const cookie = res.cookies.get("NEXT_LOCALE");
+    const cookie = res.cookies.get("NEXT_LOCALE_PAGE");
     expect(cookie).toMatchObject({ value: "fr", httpOnly: true, sameSite: "lax", path: "/" });
     // A session cookie: opening an address is not a choice.
     expect(cookie?.maxAge).toBeUndefined();
     expect(cookie?.expires).toBeUndefined();
+    expect(res.cookies.get("NEXT_LOCALE")).toBeUndefined();
 
-    const same = proxy(req("/fr", { cookie: "NEXT_LOCALE=fr" }));
-    expect(same.headers.get("x-middleware-rewrite")).toBe("https://certidrill.com/");
-    expect(same.cookies.get("NEXT_LOCALE")).toBeUndefined();
+    // Already in that language (chosen, or from an earlier page): nothing set.
+    for (const jar of ["NEXT_LOCALE=fr", "NEXT_LOCALE=en; NEXT_LOCALE_PAGE=fr"]) {
+      const same = proxy(req("/fr", { cookie: jar }));
+      expect(same.headers.get("x-middleware-rewrite")).toBe("https://certidrill.com/");
+      expect(same.cookies.getAll()).toEqual([]);
+    }
+  });
+
+  it("never replaces the language the visitor chose", () => {
+    const res = proxy(req("/en/pricing", { cookie: "NEXT_LOCALE=fr" }));
+    expect(res.cookies.get("NEXT_LOCALE")).toBeUndefined();
+    expect(res.cookies.get("NEXT_LOCALE_PAGE")?.value).toBe("en");
   });
 
   it("lets any other address through", () => {

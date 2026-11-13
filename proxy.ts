@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { LOCALE_COOKIE, localeCookieOptions } from "@/lib/i18n/cookie";
+import { PAGE_LOCALE_COOKIE, cookieLocale, localeCookieOptions } from "@/lib/i18n/cookie";
 import { LOCALE_HEADER, PATH_HEADER, isPublicPath, localizedPath, parseLocalizedPath, preferredLocale } from "@/lib/i18n/routing";
 
 /**
@@ -8,9 +8,9 @@ import { LOCALE_HEADER, PATH_HEADER, isPublicPath, localizedPath, parseLocalized
  *
  * - /fr/pricing is served by the /pricing page, told its language and path
  *   through request headers (read by i18n/request.ts and the locale switcher).
- *   The NEXT_LOCALE cookie follows that language, so the pages reached from
- *   there (sign-in, the application) stay in the language being read. It is
- *   then a session cookie: the visitor made no choice (lib/i18n/cookie.ts).
+ *   A session cookie (PAGE_LOCALE_COOKIE) records that language, so the pages
+ *   reached from there (sign-in, the application) stay in the language being
+ *   read; the language the visitor chose is left as it is (lib/i18n/cookie.ts).
  * - /pricing is redirected (307: it depends on the visitor) to the visitor's
  *   language, the query kept.
  */
@@ -20,7 +20,7 @@ export function proxy(request: NextRequest) {
 
   if (!localized) {
     if (!isPublicPath(pathname)) return NextResponse.next();
-    const locale = preferredLocale(request.cookies.get(LOCALE_COOKIE)?.value, request.headers.get("accept-language"));
+    const locale = preferredLocale(cookieLocale((n) => request.cookies.get(n)?.value), request.headers.get("accept-language"));
     const url = request.nextUrl.clone();
     url.pathname = localizedPath(locale, pathname);
     url.search = search;
@@ -35,8 +35,8 @@ export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = localized.path;
   const response = NextResponse.rewrite(url, { request: { headers } });
-  if (request.cookies.get(LOCALE_COOKIE)?.value !== localized.locale) {
-    response.cookies.set(LOCALE_COOKIE, localized.locale, localeCookieOptions({ chosen: false }));
+  if (cookieLocale((n) => request.cookies.get(n)?.value) !== localized.locale) {
+    response.cookies.set(PAGE_LOCALE_COOKIE, localized.locale, localeCookieOptions({ chosen: false }));
   }
   return response;
 }
