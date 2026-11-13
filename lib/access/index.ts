@@ -7,7 +7,8 @@ import type { PrismaClient } from "@prisma/client";
 import { AccessError, examsLeft, refusalReason, resolveAccess, type Access, type AccessFacts } from "./rules";
 
 export { AccessError } from "./rules";
-export type { Access, AccessLevel, AccessSource, RefusalCode } from "./rules";
+export { isRefusalCode } from "./rules";
+export type { Access, AccessErrorCode, AccessLevel, AccessSource, RefusalCode } from "./rules";
 
 /** Full mock exams a free user may take per certification, from the "free" plan (0 when it is missing or inactive). */
 export async function freeExamQuota(db: PrismaClient): Promise<number | null> {
@@ -26,12 +27,13 @@ export function startedExams(db: PrismaClient, userId: string, certificationId: 
 /** What is the same for every certification of a user. */
 interface UserFacts {
   isAdmin: boolean;
+  emailVerified: boolean;
   quota: number | null;
 }
 
 async function loadUserFacts(db: PrismaClient, userId: string): Promise<UserFacts> {
-  const [user, quota] = await Promise.all([db.user.findUnique({ where: { id: userId }, select: { role: true } }), freeExamQuota(db)]);
-  return { isAdmin: user?.role === "admin", quota };
+  const [user, quota] = await Promise.all([db.user.findUnique({ where: { id: userId }, select: { role: true, emailVerified: true } }), freeExamQuota(db)]);
+  return { isAdmin: user?.role === "admin", emailVerified: !!user?.emailVerified, quota };
 }
 
 async function loadFacts(db: PrismaClient, userId: string, certification: { id: string; freeAccess: boolean }, base: UserFacts): Promise<AccessFacts> {
@@ -72,7 +74,9 @@ export async function getAccess(db: PrismaClient, userId: string, certificationI
 }
 
 /**
- * Refuses (AccessError, 402) a new mock exam when the free quota is used up.
+ * Refuses a new mock exam (AccessError): 403 email_unverified while the
+ * address is not verified (specs des offres §4), 402 when the free quota is
+ * used up.
  * Called when an exam is created and when its clock starts; an exam already
  * started can always be finished, even if the access ends meanwhile.
  * No lock is needed: a user has at most one in-progress attempt per
@@ -85,7 +89,9 @@ export async function assertCanTakeExam(
 ): Promise<void> {
   // When starting `attemptId`, it does not count against itself: a concurrent
   // start of the same exam (double click) may already have marked it started.
-  const { facts, left } = await evaluate(db, userId, await certificationById(db, certificationId), now, undefined, attemptId);
+  const user = await loadUserFacts(db, userId);
+  if (!user.emailVerified) throw new AccessError("email_unverified");
+  const { facts, left } = await evaluate(db, userId, await certificationById(db, certificationId), now, user, attemptId);
   if (left !== null && left <= 0) throw new AccessError(refusalReason(facts, now));
 }
 

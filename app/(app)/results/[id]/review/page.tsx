@@ -82,7 +82,7 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
       {r.correction.level === "free" && r.correction.locked.length > 0 && (
         <Card className="flex flex-wrap items-center justify-between gap-4 border-primary bg-primary/5" data-testid="correction-locked-banner">
           <p className="text-sm">{t("lockedBanner", { n: r.correction.locked.length })}</p>
-          <Link href={`/offer?reason=correction&certification=${r.certification.code}`} className={buttonClasses("primary")}>{t("unlock")}</Link>
+          <Link href={`/offer?${new URLSearchParams({ reason: "correction", certification: r.certification.code })}`} className={buttonClasses("primary")}>{t("unlock")}</Link>
         </Card>
       )}
 

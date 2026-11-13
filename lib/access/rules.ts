@@ -120,7 +120,12 @@ export function examsLeft(access: Access, started: number, quota: number | null)
   return Math.max(0, quota - started);
 }
 
-export type RefusalCode = "quota_exhausted" | "pass_expired" | "subscription_inactive";
+export const REFUSAL_CODES = ["quota_exhausted", "pass_expired", "subscription_inactive"] as const;
+/** A refusal that an offer lifts: the offer screen explains it. */
+export type RefusalCode = (typeof REFUSAL_CODES)[number];
+export const isRefusalCode = (code: unknown): code is RefusalCode => (REFUSAL_CODES as readonly unknown[]).includes(code);
+/** email_unverified: no offer lifts it, the address must be verified first (403). */
+export type AccessErrorCode = RefusalCode | "email_unverified";
 
 /** Why a free user may not start another exam: the most specific reason for the offer screen. */
 export function refusalReason(facts: AccessFacts, now: Date): RefusalCode {
@@ -129,11 +134,12 @@ export function refusalReason(facts: AccessFacts, now: Date): RefusalCode {
   return "quota_exhausted";
 }
 
-/** Refusal of an access-controlled action; the API answers 402 with the code. */
+/** Refusal of an access-controlled action; the API answers 402 with the code (403 for email_unverified). */
 export class AccessError extends Error {
-  readonly status = 402;
-  constructor(readonly code: RefusalCode) {
+  readonly status: 402 | 403;
+  constructor(readonly code: AccessErrorCode) {
     super(code);
     this.name = "AccessError";
+    this.status = code === "email_unverified" ? 403 : 402;
   }
 }

@@ -105,6 +105,8 @@ model User {
   reports      QuestionReport[]
   outcomes     ExamOutcome[]
   entitlements Entitlement[]
+  auditActions AuditLog[]    @relation("audit_actor")
+  auditEntries AuditLog[]    @relation("audit_target")
 
   @@map("user")
 }
@@ -476,4 +478,43 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 
   @@map("app_setting")
+}
+
+/// Sensitive actions (specs des offres §8): manual rights, switches, accounts.
+/// Kept when a user is deleted (ids set to null, the e-mails stay in details).
+model AuditLog {
+  id           String   @id @default(cuid())
+  /// The administrator who acted; null when done from the command line.
+  actorId      String?
+  /// entitlement.grant, entitlement.revoke, setting.update, user.create
+  action       String
+  targetUserId String?
+  details      Json
+  createdAt    DateTime @default(now())
+
+  actor  User? @relation("audit_actor", fields: [actorId], references: [id], onDelete: SetNull)
+  target User? @relation("audit_target", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+/// A sign-up waiting for its e-mail verification (offers lot A3). The account
+/// is only created when the link is followed, with the password chosen here:
+/// nobody can create an account on an address they do not control. Removed
+/// once used, or after it expires.
+model SignupRequest {
+  id           String   @id @default(cuid())
+  email        String
+  passwordHash String
+  locale       String
+  /// SHA-256 of the token sent by e-mail; the clear value is never stored.
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("signup_request")
 }

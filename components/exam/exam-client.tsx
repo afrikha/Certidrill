@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/card";
 import { QuestionView } from "@/components/questions/question-view";
 import { Html } from "@/components/questions/html";
+import { isRefusalCode } from "@/lib/access/rules";
 import { api, ApiError, getView } from "./api";
 import { ConfirmDialog } from "./confirm-dialog";
 import { formatDuration, useCountdown } from "./use-countdown";
@@ -130,7 +131,8 @@ export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView
     } catch (err) {
       if (err instanceof ApiError && (err.code === "expired" || err.code === "finished")) return goToResults();
       // Access refused when the clock starts (quota used meanwhile, Pass ended): the offer screen says why.
-      if (err instanceof ApiError && err.status === 402) return router.push(`/offer?${new URLSearchParams({ reason: err.code, certification: view.certification.code })}`);
+      if (err instanceof ApiError && err.status === 402 && isRefusalCode(err.code)) return router.push(`/offer?${new URLSearchParams({ reason: err.code, certification: view.certification.code })}`);
+      if (err instanceof ApiError && err.code === "email_unverified") return setError(t("emailUnverified"));
       if (err instanceof UnsavedError) return setError(t("unsavedRetry"));
       setError(t("error"));
       await refresh();

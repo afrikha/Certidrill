@@ -7,6 +7,8 @@ import fr from "@/messages/fr.json";
 
 /** Lifetime of a magic link (Auth.js email provider maxAge), in minutes. */
 export const MAGIC_LINK_MINUTES = 15;
+/** Lifetime of the link that confirms a sign-up (lib/auth/signup.ts), in hours. */
+export const EMAIL_VERIFY_HOURS = 24;
 const DEFAULT_FROM = "Certidrill <no-reply@certidrill.com>";
 const MESSAGES = { en, fr } as const;
 
@@ -76,53 +78,125 @@ export interface EmailMessage {
   html: string;
 }
 
+interface Layout {
+  locale: string;
+  subject: string;
+  preheader: string;
+  intro: string;
+  button: { label: string; url: string };
+  /** Short paragraphs under the button (expiry, what to do if unexpected). */
+  notes: string[];
+  fallback: string;
+}
+
+/** Plain text and simple HTML (inline styles, as mail clients need) around one call to action. */
+function render({ locale, subject, preheader, intro, button, notes, fallback }: Layout): EmailMessage {
+  const lang = isLocale(locale) ? locale : defaultLocale;
+  const link = escapeHtml(button.url);
+  const muted = "margin:16px 0 0;font-size:13px;line-height:1.5;color:#555";
+  const [first, ...rest] = notes;
+  const html = [
+    "<!doctype html>",
+    `<html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(subject)}</title></head>`,
+    '<body style="margin:0;padding:24px 12px;background:#f4f5f7;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a">',
+    // Preview text shown by mail clients next to the subject; hidden in the body.
+    `<div style="display:none;max-height:0;overflow:hidden">${escapeHtml(preheader)}</div>`,
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:8px;padding:32px">',
+    "<tr><td>",
+    '<p style="margin:0 0 24px;font-size:20px;font-weight:700">Certidrill</p>',
+    `<p style="margin:0 0 24px;font-size:16px;line-height:1.5">${escapeHtml(intro)}</p>`,
+    `<p style="margin:0"><a href="${link}" style="display:inline-block;padding:12px 24px;background:#0f6cbd;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600">${escapeHtml(button.label)}</a></p>`,
+    ...(first ? [`<p style="${muted}">${escapeHtml(first)}</p>`] : []),
+    `<p style="${muted}">${escapeHtml(fallback)}<br><a href="${link}" style="color:#0f6cbd;word-break:break-all">${link}</a></p>`,
+    ...rest.map((n) => `<p style="${muted}">${escapeHtml(n)}</p>`),
+    "</td></tr></table>",
+    "</td></tr></table>",
+    "</body></html>",
+  ].join("\n");
+  return { subject, text: [intro, "", button.url, ...notes.flatMap((n) => ["", n])].join("\n"), html };
+}
+
 /** The magic link e-mail, in the user's language: plain text and a simple HTML version. */
 export function magicLinkMessage({ url, locale }: { url: string; locale: string }): EmailMessage {
   const t = translator(locale);
   const { host } = new URL(url);
   const minutes = MAGIC_LINK_MINUTES;
-  const lang = isLocale(locale) ? locale : defaultLocale;
-  const link = escapeHtml(url);
-  const muted = "margin:16px 0 0;font-size:13px;line-height:1.5;color:#555";
-  const html = [
-    "<!doctype html>",
-    `<html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(t("subject", { host }))}</title></head>`,
-    '<body style="margin:0;padding:24px 12px;background:#f4f5f7;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a">',
-    // Preview text shown by mail clients next to the subject; hidden in the body.
-    `<div style="display:none;max-height:0;overflow:hidden">${escapeHtml(t("preheader", { minutes }))}</div>`,
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">',
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:8px;padding:32px">',
-    "<tr><td>",
-    '<p style="margin:0 0 24px;font-size:20px;font-weight:700">Certidrill</p>',
-    `<p style="margin:0 0 24px;font-size:16px;line-height:1.5">${escapeHtml(t("intro"))}</p>`,
-    `<p style="margin:0"><a href="${link}" style="display:inline-block;padding:12px 24px;background:#0f6cbd;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600">${escapeHtml(t("button"))}</a></p>`,
-    `<p style="${muted}">${escapeHtml(t("expires", { minutes }))}</p>`,
-    `<p style="${muted}">${escapeHtml(t("fallback"))}<br><a href="${link}" style="color:#0f6cbd;word-break:break-all">${link}</a></p>`,
-    `<p style="${muted}">${escapeHtml(t("ignore"))}</p>`,
-    "</td></tr></table>",
-    "</td></tr></table>",
-    "</body></html>",
-  ].join("\n");
-  return {
+  return render({
+    locale,
     subject: t("subject", { host }),
-    text: [t("intro"), "", url, "", t("expires", { minutes }), "", t("ignore")].join("\n"),
-    html,
-  };
+    preheader: t("preheader", { minutes }),
+    intro: t("intro"),
+    button: { label: t("button"), url },
+    notes: [t("expires", { minutes }), t("ignore")],
+    fallback: t("fallback"),
+  });
+}
+
+/** Sent after a sign-up: the link that verifies the address (lib/auth/signup.ts). */
+export function verificationMessage({ url, locale }: { url: string; locale: string }): EmailMessage {
+  const t = translator(locale);
+  const hours = EMAIL_VERIFY_HOURS;
+  return render({
+    locale,
+    subject: t("verifySubject"),
+    preheader: t("verifyPreheader", { hours }),
+    intro: t("verifyIntro"),
+    button: { label: t("verifyButton"), url },
+    notes: [t("verifyExpires", { hours }), t("verifyIgnore")],
+    fallback: t("fallback"),
+  });
 }
 
 /**
- * Sends the magic link by SMTP (EMAIL_SERVER), in the user's language. Without
- * SMTP, the link is only written to the server log when AUTH_LOG_MAGIC_LINKS=true
- * (development, or a personal instance whose administrator reads the logs).
+ * Sent instead of a verification link when someone signs up with an address
+ * that already has an account: the sign-up page answers the same either way,
+ * so it does not reveal which addresses are registered.
  */
-export async function sendMagicLink({ to, url, locale = defaultLocale }: { to: string; url: string; locale?: string }): Promise<void> {
+export function accountExistsMessage({ url, locale }: { url: string; locale: string }): EmailMessage {
+  const t = translator(locale);
+  return render({
+    locale,
+    subject: t("existsSubject"),
+    preheader: t("existsIntro"),
+    intro: t("existsIntro"),
+    button: { label: t("existsButton"), url },
+    notes: [t("existsIgnore")],
+    fallback: t("fallback"),
+  });
+}
+
+/**
+ * Sends a message by SMTP (EMAIL_SERVER). Without SMTP, the link is only
+ * written to the server log when AUTH_LOG_MAGIC_LINKS=true (development, or a
+ * personal instance whose administrator reads the logs).
+ */
+async function send({ to, message, link, kind }: { to: string; message: EmailMessage; link: string; kind: string }): Promise<void> {
   const server = process.env.EMAIL_SERVER;
   if (!server) {
     if (process.env.AUTH_LOG_MAGIC_LINKS !== "true") throw new Error("EMAIL_SERVER is not configured");
-    console.info(`[auth] magic link for ${to}: ${url}`);
+    console.info(`[auth] ${kind} for ${to}: ${link}`);
     return;
   }
-  await transportFor(server).sendMail({ to, from: sender(), ...magicLinkMessage({ url, locale }) });
+  try {
+    await transportFor(server).sendMail({ to, from: sender(), ...message });
+  } catch (err) {
+    // The error is logged by the caller: never with the SMTP credentials.
+    throw new Error(redactSmtp(err instanceof Error ? err.message : String(err), server));
+  }
+}
+
+/** Sends the magic link, in the user's language. */
+export function sendMagicLink({ to, url, locale = defaultLocale }: { to: string; url: string; locale?: string }): Promise<void> {
+  return send({ to, message: magicLinkMessage({ url, locale }), link: url, kind: "magic link" });
+}
+
+export function sendVerificationEmail({ to, url, locale = defaultLocale }: { to: string; url: string; locale?: string }): Promise<void> {
+  return send({ to, message: verificationMessage({ url, locale }), link: url, kind: "e-mail verification link" });
+}
+
+export function sendAccountExistsEmail({ to, url, locale = defaultLocale }: { to: string; url: string; locale?: string }): Promise<void> {
+  return send({ to, message: accountExistsMessage({ url, locale }), link: url, kind: "account exists notice" });
 }
 
 function transportFor(server: string) {

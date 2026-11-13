@@ -125,6 +125,18 @@ describe("ExamClient — start", () => {
     expect(calls()).toEqual([`POST ${A}/start`]);
   });
 
+  it("shows an error, not the offer screen, for a refusal that no offer lifts", async () => {
+    for (const [status, error, text] of [[403, "email_unverified", "Confirm your e-mail address before starting a mock exam."], [402, "something_new", "Something went wrong"]] as const) {
+      push.mockClear();
+      mockApi({ [`POST ${A}/start`]: () => res(status, { error }), [`GET ${A}`]: () => res(200, mainView({ status: "not_started" })) });
+      const { unmount } = renderIntl(<ExamClient initial={mainView({ status: "not_started" })} resumed={false} />);
+      await userEvent.click(screen.getByRole("button", { name: "Start" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(text);
+      expect(push).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
   it("goes to the results when the attempt is already finished", async () => {
     mockApi({ [`POST ${A}/start`]: () => res(409, { error: "finished" }) });
     renderIntl(<ExamClient initial={mainView({ status: "not_started" })} resumed={false} />);

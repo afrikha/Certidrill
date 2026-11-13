@@ -1,5 +1,5 @@
 /**
- * Creates an account (sign-ups are closed).
+ * Creates an account, its e-mail taken as verified (recorded in the audit log).
  *   npm run user:create -- --email me@example.com [--password '…'] [--name Anis] [--admin] [--locale fr]
  */
 import { parseArgs } from "node:util";

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import { readSwitches } from "@/lib/settings";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -10,7 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const t = await getTranslations("home");
   const session = await auth();
-  const certifications = await prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" } });
+  const [certifications, { signupOpen }] = await Promise.all([
+    prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" } }),
+    readSwitches(prisma),
+  ]);
   const features = ["realistic", "variety", "report", "progress"] as const;
 
   return (
@@ -19,10 +23,19 @@ export default async function HomePage() {
         <h1 className="max-w-3xl text-4xl font-bold tracking-tight">{t("title")}</h1>
         <p className="mt-4 max-w-2xl text-lg text-muted-foreground">{t("subtitle")}</p>
         <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Link href={session ? "/dashboard" : "/login"} className={buttonClasses("primary")}>
-            {session ? t("ctaDashboard") : t("cta")}
-          </Link>
-          {!session && <p className="text-sm text-muted-foreground">{t("closed")}</p>}
+          {session && <Link href="/dashboard" className={buttonClasses("primary")}>{t("ctaDashboard")}</Link>}
+          {!session && signupOpen && (
+            <>
+              <Link href="/signup" className={buttonClasses("primary")}>{t("ctaSignup")}</Link>
+              <Link href="/login" className={buttonClasses("secondary")}>{t("cta")}</Link>
+            </>
+          )}
+          {!session && !signupOpen && (
+            <>
+              <Link href="/login" className={buttonClasses("primary")}>{t("cta")}</Link>
+              <p className="text-sm text-muted-foreground">{t("closed")}</p>
+            </>
+          )}
         </div>
       </section>
 

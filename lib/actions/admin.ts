@@ -10,7 +10,7 @@ import { formString } from "@/lib/form-data";
 export type CreateUserState = { ok?: true; error?: "exists" | "invalid" } | undefined;
 
 export async function createUserAction(_prev: CreateUserState, formData: FormData): Promise<CreateUserState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   try {
     await createUser(prisma, {
       email: formString(formData, "email"),
@@ -18,7 +18,7 @@ export async function createUserAction(_prev: CreateUserState, formData: FormDat
       password: formString(formData, "password"),
       role: formData.get("role") === "admin" ? "admin" : "user",
       locale: formData.get("locale") === "fr" ? "fr" : "en",
-    });
+    }, { actorId: admin.id });
   } catch (err) {
     if (err instanceof UserExistsError) return { error: "exists" };
     if (err instanceof ZodError) return { error: "invalid" };
