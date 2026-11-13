@@ -172,13 +172,14 @@ Cloudflare Email Routing (gratuit) peut rediriger `dmarc@` ou `contact@<domaine>
 
 | Route | Rôle |
 | --- | --- |
-| `POST /api/attempts` | Assemble un examen et crée la tentative (ou renvoie celle en cours) |
-| `POST /api/attempts/:id/start` | Démarre le chrono (clic sur « Démarrer ») |
+| `POST /api/attempts` | Assemble un examen et crée la tentative (ou renvoie celle en cours). 402 si l'accès le refuse : `quota_exhausted`, `pass_expired`, `subscription_inactive` |
+| `POST /api/attempts/:id/start` | Démarre le chrono (clic sur « Démarrer »). Même contrôle d'accès, même 402 |
 | `GET /api/attempts/:id` | Sections, questions **sans** réponses, réponses saisies, temps restant |
 | `PUT /api/attempts/:id/items/:itemId` | Enregistre une réponse et/ou le marquage |
 | `POST /api/attempts/:id/sections/:sectionId/lock` | Quitte et verrouille la section courante |
 | `POST /api/attempts/:id/submit` | Note et clôt la tentative |
 | `GET /api/attempts/:id/results` | Rapport et correction (après soumission uniquement, `?lang=fr`) |
+| `GET /api/me/access` | Niveau d'accès par certification (`free` ou `full`, source, fin), examens gratuits restants |
 | `GET /api/me/progress` | Historique, niveau par domaine, indice de préparation (0–100, verdict, conditions), progression (XP, niveau, maîtrise, badges) |
 | `POST /api/questions/:id/report` | Signaler une question vue dans un examen terminé |
 
@@ -189,4 +190,5 @@ Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi c
 - [x] **Animation des résultats** : une fois par examen, quand les cartes de résultat apparaissent à l'écran, la jauge de l'indice part de l'ancienne valeur (repère pointillé) et change de couleur en franchissant les paliers. Les règles validées par cet examen se cochent une à une. Chaque source d'XP remplit la barre, avec disque qui pivote et confettis au passage de niveau, puis les nouveaux badges apparaissent. Environ 4 s ; un clic saute à la fin. Rien ne bouge avec « réduire les animations ». Le serveur affiche les valeurs finales, l'animation est purement décorative, et seul le navigateur retient qu'elle a déjà été jouée. Code dans `components/progress/celebration.tsx` et `lib/progress/celebration.ts`.
 - [x] **Résultat de l'examen réel** : sur le tableau de bord, le candidat déclare la date, le résultat et, s'il le souhaite, le score de son examen réel ; il voit et peut supprimer ses déclarations. Chaque déclaration garde ce que disait l'indice de préparation la veille (examens blancs terminés avant ce jour). La page **Administration → Calibrage** donne, par verdict de l'indice, le nombre de déclarations et le taux de réussite, sans nom (avertissement sous 20 déclarations). Aucun taux n'est montré aux candidats tant que les données ne suffisent pas. Table `exam_outcome` (supprimée avec le compte) ; code dans `lib/progress/outcomes.ts` et `calibration.ts`.
 - [x] **Lot 6 — Banque** : 598 questions EN/FR, 16 études de cas, 11 séries, glossaire Learn, vérification à l'aveugle (statut `draft`, relecture humaine à faire)
+- [x] **Offres, lot A1 — Droits** (specs des offres) : catalogue des tarifs (table `plan`, prix et limites modifiables sans déploiement), droits de type Pass (`entitlement`), interrupteurs (`app_setting` : offres Tout accès, Équipes et packs, inscriptions publiques, tous fermés au départ) et `certification.freeAccess`. Une seule fonction décide de l'accès à une certification, `getAccess` (règles pures dans `lib/access/rules.ts`) : administrateur, certification gratuite, siège d'équipe, abonnement, puis Pass ; sinon niveau gratuit. Le niveau gratuit donne un examen blanc complet par certification (`plan.examQuota` du tarif `free`), compté dès que son chrono démarre, même s'il est abandonné. Le contrôle se fait à la création et au démarrage d'un examen : `POST /api/attempts` répond 402 avec la raison (`quota_exhausted`, `pass_expired`, `subscription_inactive`), et un examen déjà démarré peut toujours être terminé. `GET /api/me/access` donne le niveau d'accès par certification et les examens gratuits restants.
 - [ ] Lot 7 — Mise en production

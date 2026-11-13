@@ -117,6 +117,14 @@ describe("ExamClient — start", () => {
     expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
   });
 
+  it("explains a refusal of access when starting", async () => {
+    mockApi({ [`POST ${A}/start`]: () => res(402, { error: "quota_exhausted" }), [`GET ${A}`]: () => res(200, mainView({ status: "not_started" })) });
+    renderIntl(<ExamClient initial={mainView({ status: "not_started" })} resumed={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("You have used your free mock exam for this certification.");
+    expect(calls()).toEqual([`POST ${A}/start`]);
+  });
+
   it("goes to the results when the attempt is already finished", async () => {
     mockApi({ [`POST ${A}/start`]: () => res(409, { error: "finished" }) });
     renderIntl(<ExamClient initial={mainView({ status: "not_started" })} resumed={false} />);

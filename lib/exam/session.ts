@@ -15,6 +15,7 @@ import { buildOptionOrder, type OptionOrder } from "@/lib/questions/order";
 import { parseResponse } from "@/lib/questions/schema";
 import type { PublicQuestion } from "@/lib/questions/public";
 import type { BlueprintStructure } from "@/lib/content/schema";
+import { assertCanTakeExam } from "@/lib/access";
 import { logEvent } from "@/lib/log";
 import { assembleExam } from "./assembler";
 import { loadAssemblyBank, loadAssemblyBlueprint, loadHistory } from "./bank-query";
@@ -87,6 +88,8 @@ export async function createAttempt(
   await expireOverdue(db, userId, now);
   const existing = await db.attempt.findFirst({ where: { userId, certificationId: certification.id, status: "in_progress" } });
   if (existing) return { attemptId: existing.id, resumed: true, shortfall: 0 };
+  // Free quota and rights (offers): checked again when the clock starts.
+  await assertCanTakeExam(db, { userId, certificationId: certification.id, now });
 
   const { row: blueprintRow, blueprint } = await loadAssemblyBlueprint(db, certification.id);
   const [bank, history] = await Promise.all([loadAssemblyBank(db, certification.id), loadHistory(db, userId, certification.id)]);
@@ -146,6 +149,8 @@ export async function startAttempt(db: PrismaClient, { attemptId, userId, now = 
   const attempt = await ownedAttempt(db, attemptId, userId);
   if (attempt.status !== "in_progress") throw new SessionError("finished");
   if (attempt.startedAt) return attempt; // idempotent: a double click does not restart the clock
+  // The access may have changed since the exam was created (quota used elsewhere, Pass ended).
+  await assertCanTakeExam(db, { userId, certificationId: attempt.certificationId, attemptId: attempt.id, now });
   const deadlineAt = new Date(now.getTime() + attempt.blueprint.durationMin * 60_000);
   const updated = await db.attempt.updateMany({ where: { id: attempt.id, startedAt: null }, data: { startedAt: now, deadlineAt } });
   if (updated.count) logEvent("exam.started", { attemptId, userId, deadlineAt: deadlineAt.toISOString() });

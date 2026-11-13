@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { auth } from "@/auth";
 import { isSameOrigin } from "@/lib/security/csrf";
 import { SessionError } from "@/lib/exam/session";
+import { AccessError } from "@/lib/access";
 import { logError } from "@/lib/log";
 
 export type ApiUser = { id: string; role: "user" | "admin"; locale: string };
@@ -24,6 +25,8 @@ export function apiRoute<P>(handler: (ctx: { request: Request; user: ApiUser; pa
       return NextResponse.json(result ?? { ok: true }, { headers: { "Cache-Control": "no-store" } });
     } catch (err) {
       if (err instanceof SessionError) return NextResponse.json({ error: err.code }, { status: err.status });
+      // 402 with the reason (quota_exhausted, pass_expired, subscription_inactive): the offer screen.
+      if (err instanceof AccessError) return NextResponse.json({ error: err.code }, { status: err.status });
       if (err instanceof ZodError) return NextResponse.json({ error: "invalid_request", issues: err.issues.map((i) => i.message) }, { status: 400 });
       if (err instanceof SyntaxError) return NextResponse.json({ error: "invalid_json" }, { status: 400 });
       if (err instanceof PayloadTooLargeError) return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
