@@ -8,7 +8,8 @@ import path from "node:path";
  * and on lib/progress (readiness index).
  * Needs a disposable PostgreSQL in DATABASE_URL, like the integration tests.
  *
- * Measured: lib/**, components/**, app/api/** (route handlers).
+ * Measured: lib/**, components/**, app/api/** (route handlers), robots.txt,
+ * the sitemap and proxy.ts.
  * Not measured here: Next.js pages and layouts (app/**\/page.tsx…), which are
  * server-rendered wiring covered by the Playwright end-to-end suite.
  */
@@ -31,7 +32,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "text", "lcov", "html"],
-      include: ["lib/**", "components/**", "app/api/**"],
+      include: ["lib/**", "components/**", "app/api/**", "app/robots.ts", "app/sitemap.ts", "proxy.ts"],
       exclude: ["**/*.d.ts", "lib/db.ts", "tests/**"],
       thresholds: {
         lines: 80,

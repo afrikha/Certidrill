@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -9,8 +10,9 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { Alert, Card } from "@/components/ui/card";
 import { SignupForm } from "./signup-form";
+import { NO_INDEX } from "@/lib/seo";
 
-export const metadata = { title: "Sign up" };
+export const metadata: Metadata = { title: "Sign up", ...NO_INDEX };
 export const dynamic = "force-dynamic";
 
 /** Public sign-up, open while the switch signup.open is on (Administration → Billing). */

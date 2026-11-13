@@ -1,19 +1,22 @@
 import { cookies, headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
-import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
+import type { Locale } from "@/lib/i18n/config";
+import { cookieLocale } from "@/lib/i18n/cookie";
+import { currentPublicPage } from "@/lib/i18n/public-page";
+import { preferredLocale } from "@/lib/i18n/routing";
 
-export const LOCALE_COOKIE = "NEXT_LOCALE";
+export { LOCALE_COOKIE } from "@/lib/i18n/cookie";
 
-/** Locale = explicit cookie (set from the user's preference), else Accept-Language. */
+/**
+ * Locale = the language of the address on a public page (/fr/pricing, both
+ * headers set by the proxy and checked), else the cookies (the last public page
+ * opened in this session, then the visitor's choice), else Accept-Language.
+ */
 export async function resolveLocale(): Promise<Locale> {
-  const fromCookie = (await cookies()).get(LOCALE_COOKIE)?.value;
-  if (isLocale(fromCookie)) return fromCookie;
-  const accept = (await headers()).get("accept-language") ?? "";
-  for (const part of accept.split(",")) {
-    const tag = part.split(";")[0]?.trim().slice(0, 2).toLowerCase();
-    if (isLocale(tag)) return tag;
-  }
-  return defaultLocale;
+  const page = await currentPublicPage();
+  if (page) return page.locale;
+  const jar = await cookies();
+  return preferredLocale(cookieLocale((n) => jar.get(n)?.value), (await headers()).get("accept-language"));
 }
 
 export default getRequestConfig(async () => {

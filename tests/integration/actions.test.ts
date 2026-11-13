@@ -49,7 +49,10 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: h.revalidatePath }));
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ set: (name: string, value: string, options: unknown) => h.cookies.set(name, { value, options }) }),
+  cookies: async () => ({
+    set: (name: string, value: string, options: unknown) => h.cookies.set(name, { value, options }),
+    delete: (name: string) => h.cookies.set(name, { value: "", options: { deleted: true } }),
+  }),
   headers: async () => new Headers(),
 }));
 
@@ -256,12 +259,24 @@ describe("server actions", () => {
     await setLocale(form({ locale: "de" }));
     expect(h.cookies.size).toBe(0);
     await setLocale(form({ locale: "fr" }));
-    expect(h.cookies.get("NEXT_LOCALE")).toMatchObject({ value: "fr", options: { httpOnly: true, sameSite: "lax" } });
+    expect(h.cookies.get("NEXT_LOCALE")).toMatchObject({ value: "fr", options: { httpOnly: true, sameSite: "lax", maxAge: 365 * 24 * 60 * 60 } });
+    // The explicit choice prevails over the language of the last public page opened.
+    expect(h.cookies.get("NEXT_LOCALE_PAGE")).toMatchObject({ options: { deleted: true } });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).locale).toBe("fr");
     expect(h.revalidatePath).toHaveBeenCalledWith("/", "layout");
     as(null);
     await setLocale(form({ locale: "en" }));
     expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("en");
+  });
+
+  it("locale: on a public page, opens the same page in the chosen language; any other path is ignored", async () => {
+    expect(await redirectOf(setLocale(form({ locale: "fr", path: "/pricing" })))).toBe("/fr/pricing");
+    expect(await redirectOf(setLocale(form({ locale: "en", path: "/" })))).toBe("/en");
+    expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("en");
+    // Not a public page: no redirect (an open redirect would need any path).
+    await expect(setLocale(form({ locale: "fr", path: "https://evil.example" }))).resolves.toBeUndefined();
+    await expect(setLocale(form({ locale: "fr", path: "/dashboard" }))).resolves.toBeUndefined();
+    expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("fr");
   });
 });
 
