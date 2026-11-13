@@ -151,6 +151,14 @@ describe("following the link", () => {
     expect(await confirm(tokenOf(), PASSWORD)).toMatchObject({ status: "verified" });
   });
 
+  it("tries sent at once count against the limit too", async () => {
+    await signup("parallel@example.com");
+    const lim = createRateLimiter({ limit: 5, windowMs: 60_000 });
+    const results = await Promise.all(Array.from({ length: 20 }, (_, n) => confirm(tokenOf(), `wrong password ${n}`, hours(1), lim)));
+    expect(results.filter((r) => r.status === "wrong_password")).toHaveLength(5);
+    expect(results.filter((r) => r.status === "rate_limited")).toHaveLength(15);
+  });
+
   it("refuses an expired link, an unknown one and an empty one, without creating an account", async () => {
     await signup("late@example.com");
     expect(await peekSignup(db, tokenOf(), hours(EMAIL_VERIFY_HOURS))).toEqual({ status: "expired" });

@@ -96,7 +96,7 @@ export type ConfirmResult =
 /**
  * Creates the account of a verification link, its address verified, once
  * the password chosen at sign-up is given again. A wrong password keeps the
- * link (5 tries per 15 minutes). The request is deleted in the transaction
+ * link (5 tries per link per 15 minutes, the right one included). The request is deleted in the transaction
  * that creates the account: two submissions at once create it once, and a
  * failure keeps the link.
  */
@@ -114,11 +114,10 @@ export async function confirmSignup(
     await db.signupRequest.deleteMany({ where: { id: request.id } });
     return { status: "expired" };
   }
-  if (limiter.blocked(`confirm:${tokenHash}`)) return { status: "rate_limited" };
-  if (!(await verifyPassword(request.passwordHash, password))) {
-    limiter.hit(`confirm:${tokenHash}`);
-    return { status: "wrong_password" };
-  }
+  // Counted before the check, so that tries sent at once cannot all pass
+  // before the first failure is recorded. The right password ends the link.
+  if (!limiter.hit(`confirm:${tokenHash}`)) return { status: "rate_limited" };
+  if (!(await verifyPassword(request.passwordHash, password))) return { status: "wrong_password" };
   const { email } = request;
   try {
     // One transaction: if the account cannot be created, the link is kept.
