@@ -70,7 +70,7 @@ export default async function AccountBillingPage() {
                 <td className="px-4 py-2 tabular-nums">{money(p.chargedCents ?? p.amountCents, p.currency)}</td>
                 <td className="px-4 py-2">
                   {t(`status_${p.status}`)}
-                  {p.invoiceUrl && <> · <a href={p.invoiceUrl} className="text-primary underline" rel="noopener noreferrer" target="_blank">{t("invoice")}</a></>}
+                  {p.invoiceUrl?.startsWith("https://") && <> · <a href={p.invoiceUrl} className="text-primary underline" rel="noopener noreferrer" target="_blank">{t("invoice")}</a></>}
                 </td>
               </tr>
             ))}

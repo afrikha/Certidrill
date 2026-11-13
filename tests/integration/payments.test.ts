@@ -40,7 +40,8 @@ let certificationId: string;
 let n = 0;
 
 /** A Stripe stand-in: records what Certidrill asks, answers like the API. */
-function fakeStripe({ failCheckout = false, noUrl = false } = {}) {
+/** failCheckout: "refused" answers like a 4xx from Stripe, "timeout" like a call whose outcome is unknown. */
+function fakeStripe({ failCheckout = null as "refused" | "timeout" | null, noUrl = false } = {}) {
   const calls = { customers: [] as unknown[][], sessions: [] as unknown[][], expired: [] as string[] };
   const api = {
     customers: {
@@ -53,7 +54,8 @@ function fakeStripe({ failCheckout = false, noUrl = false } = {}) {
       sessions: {
         create: vi.fn(async (...args: unknown[]) => {
           calls.sessions.push(args);
-          if (failCheckout) throw new Error("Stripe is down");
+          if (failCheckout === "refused") throw Object.assign(new Error("No such price"), { type: "StripeInvalidRequestError", statusCode: 400 });
+          if (failCheckout === "timeout") throw Object.assign(new Error("Request timed out"), { type: "StripeConnectionError" });
           const id = `cs_test_${++n}`;
           return { id, url: noUrl ? null : `https://checkout.stripe.test/${id}` };
         }),
@@ -214,11 +216,11 @@ describe("checkout", () => {
   it("sends a new idempotency key once the address changed, so Stripe does not refuse it", async () => {
     await openSales();
     const user = await verifiedUser("moved@example.com");
-    const { api, calls } = fakeStripe({ failCheckout: true });
-    await expect(checkout(user, api)).rejects.toThrow("Stripe is down");
+    const { api, calls } = fakeStripe({ failCheckout: "refused" });
+    await expect(checkout(user, api)).rejects.toThrow("No such price");
     await db.billingCustomer.deleteMany({ where: { userId: user } });
     await db.user.update({ where: { id: user }, data: { email: "moved-again@example.com" } });
-    await expect(checkout(user, api)).rejects.toThrow("Stripe is down");
+    await expect(checkout(user, api)).rejects.toThrow("No such price");
     const [first, second] = calls.customers.map((c) => (c[1] as { idempotencyKey: string }).idempotencyKey);
     expect(first).not.toBe(second);
   });
@@ -232,11 +234,19 @@ describe("checkout", () => {
     expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user } } })).toMatchObject({ status: "expired", stripeCheckoutSessionId: calls.expired[0] });
   });
 
-  it("keeps no payment when Stripe refuses the session", async () => {
+  it("keeps no payment when Stripe refuses the session, and keeps it when the outcome is unknown", async () => {
     await openSales();
     const user = await verifiedUser("stripe-down@example.com");
-    await expect(checkout(user, fakeStripe({ failCheckout: true }).api)).rejects.toThrow("Stripe is down");
+    await expect(checkout(user, fakeStripe({ failCheckout: "refused" }).api)).rejects.toThrow("No such price");
     expect(await db.payment.count({ where: { customer: { userId: user } } })).toBe(0);
+    // A time-out: Stripe may have created the session. Paid later, it still grants the Pass.
+    await expect(checkout(user, fakeStripe({ failCheckout: "timeout" }).api)).rejects.toThrow("Request timed out");
+    const kept = await db.payment.findFirstOrThrow({ where: { customer: { userId: user } } });
+    expect(kept).toMatchObject({ status: "pending", stripeCheckoutSessionId: null });
+    const session = { ...sessionObject(kept), id: "cs_created_anyway" };
+    expect(await handleStripeEvent(db, event("checkout.session.completed", session), T0)).toBe("processed");
+    expect(await db.payment.findUniqueOrThrow({ where: { id: kept.id } })).toMatchObject({ status: "paid", stripeCheckoutSessionId: "cs_created_anyway" });
+    expect(await db.entitlement.count({ where: { paymentId: kept.id } })).toBe(1);
   });
 
   it("answers the session URL through the API, with a rate limit", async () => {

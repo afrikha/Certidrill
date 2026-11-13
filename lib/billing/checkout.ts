@@ -106,8 +106,11 @@ export async function startCheckout(
       { idempotencyKey: `checkout-${payment.id}` },
     );
   } catch (err) {
-    // No session: nothing to pay, nothing to keep.
-    await db.payment.delete({ where: { id: payment.id } });
+    // Refused by Stripe (a 4xx answer): no session, nothing to pay, nothing
+    // to keep. Any other failure (time-out, network, Stripe down) may come
+    // after Stripe created the session: the payment stays pending, so that
+    // the webhook still finds it if the buyer pays.
+    if (refusedByStripe(err)) await db.payment.delete({ where: { id: payment.id } });
     throw err;
   }
   if (!session.url) {
@@ -119,6 +122,12 @@ export async function startCheckout(
   // If this fails, the webhook still finds the payment by metadata.paymentId.
   await db.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id } });
   return { url: session.url };
+}
+
+/** A definitive answer from Stripe: the request was refused, nothing was created. 409 (a conflict) is not. */
+function refusedByStripe(err: unknown): boolean {
+  const status = (err as { statusCode?: unknown } | null)?.statusCode;
+  return typeof status === "number" && status >= 400 && status < 500 && status !== 409;
 }
 
 /** State of one of the user's purchases, by its Checkout session (the return page polls it). */
