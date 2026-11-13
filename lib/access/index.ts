@@ -59,6 +59,9 @@ export async function getAccess(db: PrismaClient, userId: string, certificationI
  * Refuses (AccessError, 402) a new mock exam when the free quota is used up.
  * Called when an exam is created and when its clock starts; an exam already
  * started can always be finished, even if the access ends meanwhile.
+ * No lock is needed: a user has at most one in-progress attempt per
+ * certification (unique index attempt_one_in_progress), so a new exam can only
+ * be created once the previous one is over, and that one already counts.
  */
 export async function assertCanTakeExam(db: PrismaClient, { userId, certificationId, now = new Date() }: { userId: string; certificationId: string; now?: Date }): Promise<void> {
   const { facts, left } = await evaluate(db, userId, certificationId, now);

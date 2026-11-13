@@ -74,6 +74,23 @@ describe("free quota", () => {
     expect(await refusal(createAttempt(db, { userId: user, certificationCode: "az-104", locale: "en", now: at(5) }))).toBe("quota_exhausted");
   });
 
+  it("holds under concurrent requests: one free exam, never two", async () => {
+    const user = await newUser("racer@example.com");
+    const create = () => createAttempt(db, { userId: user, certificationCode: "az-104", locale: "en", now: at(0) });
+    // A single in-progress attempt per user and certification (unique index): parallel creations share it…
+    const ids = new Set((await Promise.all(Array.from({ length: 5 }, create))).map((r) => r.attemptId));
+    expect(ids.size).toBe(1);
+    const [attemptId] = [...ids];
+    // …and its clock starts once.
+    await Promise.all(Array.from({ length: 5 }, () => startAttempt(db, { attemptId: attemptId!, userId: user, now: at(1) })));
+    expect(await db.attempt.count({ where: { userId: user, startedAt: { not: null } } })).toBe(1);
+    await submitAttempt(db, { attemptId: attemptId!, userId: user, now: at(2) });
+    // Once it is over, every parallel request for another one is refused.
+    const outcomes = await Promise.all(Array.from({ length: 5 }, () => refusal(create())));
+    expect(outcomes).toEqual(Array(5).fill("quota_exhausted"));
+    expect(await db.attempt.count({ where: { userId: user } })).toBe(1);
+  });
+
   it("counts an abandoned exam", async () => {
     const user = await newUser("quitter@example.com");
     const { attemptId } = await createAttempt(db, { userId: user, certificationCode: "az-104", locale: "en", now: at(0) });
