@@ -11,8 +11,8 @@ export default async function globalSetup() {
     const passwordHash = await hashPassword(E2E_ADMIN.password);
     await db.user.upsert({
       where: { email: E2E_ADMIN.email },
-      create: { email: E2E_ADMIN.email, passwordHash, role: "admin", name: "E2E Admin" },
-      update: { passwordHash, role: "admin" },
+      create: { email: E2E_ADMIN.email, passwordHash, role: "admin", name: "E2E Admin", emailVerified: new Date() },
+      update: { passwordHash, role: "admin", emailVerified: new Date() },
     });
   } finally {
     await db.$disconnect();

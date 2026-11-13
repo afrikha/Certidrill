@@ -40,3 +40,16 @@ export const authLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60_000 
 
 /** Question reports: 20 per hour per user (a report can send a question back to review). */
 export const reportLimiter = createRateLimiter({ limit: 20, windowMs: 60 * 60_000 });
+
+/** Sign-ups: 5 per hour per IP and per address (each one sends an e-mail). */
+export const signupLimiter = createRateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+
+/**
+ * The client address. In production Caddy sets X-Real-IP (deploy/Caddyfile:
+ * the visitor behind Cloudflare, never a value sent by the client); without
+ * it, the first X-Forwarded-For entry; "unknown" without either, so limits
+ * still apply.
+ */
+export function clientIp(headers: Headers): string {
+  return headers.get("x-real-ip")?.trim() || headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+}

@@ -1,7 +1,7 @@
 import type { PrismaClient, Role } from "@prisma/client";
 import { z } from "zod";
 import { verifyPassword } from "@/lib/auth/password";
-import type { RateLimiter } from "@/lib/security/rate-limit";
+import { clientIp, type RateLimiter } from "@/lib/security/rate-limit";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 
 /**
@@ -28,7 +28,7 @@ export async function authorizeCredentials(db: PrismaClient, limiter: RateLimite
   const parsed = credentialsSchema.safeParse(raw);
   if (!parsed.success) return null;
   const { email, password } = parsed.data;
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(request.headers);
   if (limiter.blocked(`email:${email}`) || limiter.blocked(`ip:${ip}`)) throw new RateLimitedError();
 
   const user = await db.user.findUnique({ where: { email } });
@@ -43,8 +43,8 @@ export async function authorizeCredentials(db: PrismaClient, limiter: RateLimite
 }
 
 /**
- * signIn callback. Closed sign-ups (decision of 2026-11-11): accounts are
- * created by an administrator, a magic link is only sent to an existing account.
+ * signIn callback. A magic link is only sent to an existing account: it never
+ * creates one (public sign-ups go through lib/auth/signup.ts, with a password).
  */
 export async function allowSignIn(db: PrismaClient, limiter: RateLimiter, provider: string | undefined, email: string | null | undefined) {
   if (provider !== "email") return true;

@@ -11,10 +11,13 @@ import { loadBank } from "@/lib/content/bank";
 import { seedBank, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { AccessError, assertCanTakeExam, getAccess, getAccessSummary } from "@/lib/access";
-import { createAttempt, getAttemptView, lockSection, saveItem, startAttempt, submitAttempt } from "@/lib/exam/session";
+import { createAttempt, getAttemptView, saveItem, startAttempt, submitAttempt } from "@/lib/exam/session";
 import { getAttemptResults } from "@/lib/exam/results";
 import { getOffers } from "@/lib/access/offers";
 import { anyResponse, publishSampleBank } from "./sample-bank";
+import { playHalf as play } from "./access";
+
+const playHalf = (userId: string, start: Date) => play(db, userId, start);
 
 const session = vi.hoisted(() => ({ current: null as null | { user: { id: string; role: string; locale: string } } }));
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => session.current) }));
@@ -198,23 +201,6 @@ describe("API", () => {
 });
 
 /** Plays an exam: storage questions answered correctly, the rest left blank (or wrong in a series). */
-async function playHalf(userId: string, start: Date) {
-  const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: start });
-  await startAttempt(db, { attemptId, userId, now: start });
-  const view = await getAttemptView(db, { attemptId, userId, now: start });
-  const keys = new Map((await db.question.findMany()).map((q) => [q.id, q.answer as { value?: boolean }]));
-  for (const section of view.sections) {
-    for (const item of view.items.filter((i) => i.sectionId === section.id)) {
-      const key = keys.get(item.question.id)!;
-      if (item.question.id.startsWith("stor-")) await saveItem(db, { attemptId, itemId: item.id, userId, response: key, now: start });
-      else if (section.kind === "series") await saveItem(db, { attemptId, itemId: item.id, userId, response: { value: !key.value }, now: start });
-    }
-    if (section.id !== view.sections.at(-1)!.id) await lockSection(db, { attemptId, sectionId: section.id, userId, now: start });
-  }
-  await submitAttempt(db, { attemptId, userId, now: new Date(start.getTime() + 60_000) });
-  return attemptId;
-}
-
 describe("correction by access level", () => {
   it("sends only the missed questions at the free level, without the explanations of the wrong options", async () => {
     const user = await newUser("free-correction@example.com");
@@ -240,6 +226,10 @@ describe("correction by access level", () => {
     expect(res.status).toBe(200);
     for (const i of right) expect(body).not.toContain(`"${i.question.id}"`);
     for (const i of wrong) expect(body).toContain(`"${i.question.id}"`);
+    // No explanation of the wrong options; nothing but its place for a correct question.
+    const json = JSON.parse(body) as { items: { optionExplanations: unknown[] }[]; correction: { locked: object[] } };
+    expect(json.items.every((i) => i.optionExplanations.length === 0)).toBe(true);
+    expect(json.correction.locked.every((l) => Object.keys(l).sort().join() === "domain,flagged,id,order")).toBe(true);
 
     // With a Pass: the full correction, same score report.
     const right_ = await grant(user, 0, 90 * DAY);
@@ -247,6 +237,12 @@ describe("correction by access level", () => {
     expect(full.correction).toEqual({ level: "full", locked: [] });
     expect(full.items).toHaveLength(items.length);
     expect(full.items.some((i) => i.optionExplanations.length > 0)).toBe(true);
+    // The explanations of the correct questions, as the full level renders them, were not in the free answer.
+    const rightIds = new Set(right.map((i) => i.id));
+    const hidden = full.items.filter((i) => rightIds.has(i.id)).map((i) => JSON.stringify(i.explanationHtml).slice(1, -1));
+    expect(hidden.length).toBe(right.length);
+    for (const html of hidden) expect(body).not.toContain(html);
+    for (const i of full.items.filter((i) => !rightIds.has(i.id))) expect(body).toContain(JSON.stringify(i.explanationHtml).slice(1, -1));
     expect({ score: full.scaledScore, domains: full.domains, types: full.types, earned: full.earned, possible: full.possible }).toEqual({
       score: free.scaledScore,
       domains: free.domains,

@@ -78,7 +78,7 @@ Se connecter sur http://localhost:3000/login avec ce compte, puis **Nouvel exame
 
 Pour essayer le moteur d'examen avant que la banque soit relue et publiée, mettre `EXAM_INCLUDE_UNPUBLISHED="true"` : les questions `draft` et `reviewed` entrent alors dans les examens (jamais celles signalées, en `needs_review`) (l'écran d'accueil signale qu'il y a moins de questions qu'à l'examen réel).
 
-Les inscriptions sont fermées : les comptes se créent avec `npm run user:create` ou depuis **Administration → Utilisateurs**. Sans serveur SMTP (`EMAIL_SERVER`), mettre `AUTH_LOG_MAGIC_LINKS="true"` pour que les liens magiques s'affichent dans le journal du serveur.
+Les comptes se créent avec `npm run user:create` ou depuis **Administration → Utilisateurs** ; les inscriptions publiques (`/signup`) s'ouvrent depuis **Administration → Droits** (interrupteur `signup.open`, fermé par défaut). Sans serveur SMTP (`EMAIL_SERVER`), mettre `AUTH_LOG_MAGIC_LINKS="true"` pour que les liens magiques et les liens de confirmation d'inscription s'affichent dans le journal du serveur.
 
 ## Scripts
 
@@ -104,8 +104,8 @@ Les inscriptions sont fermées : les comptes se créent avec `npm run user:creat
 | --- | --- | --- | --- |
 | Unitaires | Vitest | `tests/unit` | Notation, assembleur, schémas, rendu de toute la banque, sécurité (CSRF, limitation de débit, mots de passe), journaux |
 | Composants | Vitest + Testing Library (jsdom) | `tests/components` | Saisie des 8 types de questions, écran d'examen (chrono, sauvegarde hors ligne, sections, série, révision, soumission) en FR/EN |
-| Intégration | Vitest + PostgreSQL réel | `tests/integration` | Routes `app/api/**` (authentification, CSRF, propriété, aucune réponse avant soumission), server actions, Auth.js (mots de passe, limitation, inscriptions fermées), session d'examen, résultats |
-| End-to-end | Playwright (build de production) | `tests/e2e` | Parcours complets dans Chromium : examen, reprise, expiration, résultats, saisie au clavier |
+| Intégration | Vitest + PostgreSQL réel | `tests/integration` | Routes `app/api/**` (authentification, CSRF, propriété, aucune réponse avant soumission), server actions, Auth.js (mots de passe, limitation), inscription et confirmation d'adresse, droits (quota, Pass, correction filtrée, attribution manuelle, journal d'audit), session d'examen, résultats |
+| End-to-end | Playwright (build de production) | `tests/e2e` | Parcours complets dans Chromium : examen, reprise, expiration, résultats, saisie au clavier ; inscription, attribution d'un Pass, écran d'offre |
 | Non-régression | Playwright | `tests/e2e/regression` | Instantanés de l'arbre d'accessibilité (ARIA) de chaque type de question et des pages publiques en FR/EN, contrôle d'accès des pages, contrat HTTP de l'API, en-têtes de sécurité |
 
 **Couverture** : la CI échoue sous **80 %** (lignes, instructions, fonctions ; 70 % des branches) sur `lib/`, `components/` et `app/api/`, et sous 90 % sur `lib/exam`. Les pages Next.js (`app/**/page.tsx`, layouts) sont couvertes par Playwright, pas par la mesure lcov.
@@ -133,6 +133,13 @@ docker compose run --rm migrate npm run user:create -- --email vous@example.com 
 ```
 
 Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiement), `app` (Next.js standalone), `caddy` (HTTPS), `backup` (pg_dump quotidien dans `./backups`, 14 jours). Cloudflare en frontal pour le DNS et le cache.
+
+Caddy fait confiance aux plages d'adresses de Cloudflare (liste dans `deploy/Caddyfile`, à mettre à jour si Cloudflare la change) : pour ces requêtes, l'adresse du visiteur est lue dans `CF-Connecting-IP` et transmise à l'application dans `X-Real-IP`. Sans cela, les limites par IP (connexion, inscription) compteraient ensemble tous les visiteurs d'un même nœud Cloudflare. Après une modification du Caddyfile, le valider avant de recharger :
+
+```bash
+docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
 
 Caddy redirige `www.<SITE_DOMAIN>` vers `<SITE_DOMAIN>` (301, chemin et paramètres conservés). Il faut pour cela un enregistrement DNS `www` (CNAME vers le domaine, proxifié comme l'apex) : sans lui, Caddy ne peut pas obtenir le certificat de `www` (le site principal n'est pas affecté).
 
@@ -192,4 +199,9 @@ Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi c
 - [x] **Lot 6 — Banque** : 598 questions EN/FR, 16 études de cas, 11 séries, glossaire Learn, vérification à l'aveugle (statut `draft`, relecture humaine à faire)
 - [x] **Offres, lot A1 — Droits** (specs des offres) : catalogue des tarifs (table `plan`, prix et limites modifiables sans déploiement), droits de type Pass (`entitlement`), interrupteurs (`app_setting` : offres Tout accès, Équipes et packs, inscriptions publiques, tous fermés au départ) et `certification.freeAccess`. Une seule fonction décide de l'accès à une certification, `getAccess` (règles pures dans `lib/access/rules.ts`) : administrateur, certification gratuite, siège d'équipe, abonnement, puis Pass ; sinon niveau gratuit. Le niveau gratuit donne un examen blanc complet par certification (`plan.examQuota` du tarif `free`), compté dès que son chrono démarre, même s'il est abandonné. Le contrôle se fait à la création et au démarrage d'un examen : `POST /api/attempts` répond 402 avec la raison (`quota_exhausted`, `pass_expired`, `subscription_inactive`), et un examen déjà démarré peut toujours être terminé. `GET /api/me/access` donne le niveau d'accès par certification et les examens gratuits restants.
 - [x] **Offres, lot A2 — Correction filtrée et écran d'offre** : au niveau gratuit, la correction (page et `GET /api/attempts/:id/results`) ne contient que les questions ratées, sans l'explication de chaque mauvaise option ; les questions réussies ne sont pas envoyées, la page les montre floutées à leur place avec un bandeau « Débloquer la correction complète ». Le rapport de score reste complet. Le niveau suit l'accès du jour : une correction repasse au niveau gratuit quand un Pass prend fin. Un refus (402) mène à l'écran d'offre `/offer` : la raison, ce que donne l'accès complet, et les offres en vente avec leurs prix tirés de la table `plan` (Tout accès, Équipes et packs n'apparaissent que si leur interrupteur `app_setting` est activé). Le paiement en ligne arrive au lot B. Le tableau de bord affiche le niveau d'accès par certification : examens gratuits restants, ou jours restants d'un Pass.
+- [x] **Offres, lot A3 — Inscriptions et back-office des droits** :
+  - **Inscription publique** (`/signup`), ouverte tant que l'interrupteur `signup.open` est activé : e-mail et mot de passe (12 caractères minimum), puis un lien de confirmation valable 24 heures, envoyé dans la langue choisie. Le compte n'est créé qu'en suivant le lien, avec le mot de passe choisi : la demande attend dans `signup_request` (mot de passe haché, jeton haché). Ainsi personne ne peut créer de compte, ni en fixer le mot de passe, sur une adresse qu'il ne contrôle pas. La réponse est la même pour une adresse déjà inscrite, dont le titulaire reçoit à la place un rappel avec un lien de connexion : le formulaire ne révèle pas qui a un compte. Limitation à 5 inscriptions par heure, par IP et par adresse.
+  - **Adresse vérifiée** obligatoire pour démarrer un examen blanc (403 `email_unverified`). Les comptes créés par un administrateur, et ceux qui existaient avant ce lot, sont considérés comme vérifiés.
+  - **Administration → Droits** (`/admin/billing`) : recherche d'un utilisateur par e-mail ; son accès par certification et ses Pass ; attribution manuelle ou prolongation d'un Pass (durée, origine « attribution manuelle » ou « prolongation après échec », motif obligatoire), qui prend la suite du Pass en cours comme un achat ; révocation immédiate ; interrupteurs des offres et des inscriptions.
+  - **Journal d'audit** (`audit_log`), écrit dans la même transaction que l'action : attribution et révocation d'un droit, changement d'interrupteur, création de compte (depuis l'administration ou la ligne de commande). Les entrées restent quand l'utilisateur est supprimé. Les demandes de prolongation déposées par les candidats arrivent avec le lot C.
 - [ ] Lot 7 — Mise en production

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { createRateLimiter } from "@/lib/security/rate-limit";
+import { clientIp, createRateLimiter } from "@/lib/security/rate-limit";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createUserSchema } from "@/lib/users";
 
@@ -70,5 +70,14 @@ describe("page guards (layouts are not re-run on every navigation: each page che
     const actions = src.match(/export async function \w+/g) ?? [];
     expect(actions.length).toBeGreaterThan(0);
     expect(src.match(/await requireAdmin\(\)/g) ?? []).toHaveLength(actions.length);
+  });
+});
+
+describe("client address", () => {
+  it("is X-Real-IP (set by Caddy), else the first X-Forwarded-For entry, else unknown", () => {
+    expect(clientIp(new Headers({ "x-real-ip": "198.51.100.4", "x-forwarded-for": "203.0.113.7" }))).toBe("198.51.100.4");
+    expect(clientIp(new Headers({ "x-forwarded-for": " 203.0.113.7 , 10.0.0.1" }))).toBe("203.0.113.7");
+    expect(clientIp(new Headers({ "x-forwarded-for": "" }))).toBe("unknown");
+    expect(clientIp(new Headers())).toBe("unknown");
   });
 });

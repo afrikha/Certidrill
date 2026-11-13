@@ -14,6 +14,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
           <span className="font-semibold">{t("title")}</span>
           <Link href="/admin/questions" className="hover:underline">{t("questions")}</Link>
           <Link href="/admin/users" className="hover:underline">{t("users")}</Link>
+          <Link href="/admin/billing" className="hover:underline">{t("billing")}</Link>
           <Link href="/admin/calibration" className="hover:underline">{t("calibration")}</Link>
         </nav>
         <main id="main">{children}</main>

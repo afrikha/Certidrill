@@ -55,7 +55,9 @@ vi.mock("next/headers", () => ({
 
 import { changePassword } from "@/lib/actions/account";
 import { createUserAction } from "@/lib/actions/admin";
-import { loginWithMagicLink, loginWithPassword } from "@/lib/actions/auth";
+import { loginWithMagicLink, loginWithPassword, signupAction } from "@/lib/actions/auth";
+import { grantPassAction, revokeEntitlementAction, setSwitchAction } from "@/lib/actions/billing";
+import { SWITCHES } from "@/lib/settings";
 import { startNewExam } from "@/lib/actions/exam";
 import { setLocale } from "@/lib/actions/locale";
 import { deleteOutcomeAction, reportOutcomeAction } from "@/lib/actions/outcome";
@@ -81,7 +83,7 @@ async function redirectOf(p: Promise<unknown>) {
 
 beforeAll(async () => {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE "exam_outcome","attempt_item","attempt_section","attempt","question_report","question","case_study","question_series","objective","domain","blueprint","certification","auth_account","auth_session","auth_verification_token","user" CASCADE',
+    'TRUNCATE "exam_outcome","attempt_item","attempt_section","attempt","question_report","question","case_study","question_series","objective","domain","blueprint","certification","auth_account","auth_session","auth_verification_token","signup_request","entitlement","user" CASCADE',
   );
   const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
   await seedReferential(prisma, content);
@@ -222,6 +224,12 @@ describe("server actions", () => {
     expect(await redirectOf(startNewExam(undefined, form({ certification: "az-104", locale: "en" })))).toBe("/offer?reason=quota_exhausted&certification=az-104");
   });
 
+  it("new exam: an unverified address is told to confirm it, not sent to the offer screen", async () => {
+    const unverified = await prisma.user.create({ data: { email: "unverified-action@example.com" } });
+    as(unverified.id);
+    expect(await startNewExam(undefined, form({ certification: "az-104", locale: "en" }))).toEqual({ error: "emailUnverified" });
+  });
+
   it("locale: sets the cookie, saves the preference of a signed-in user, ignores unknown locales", async () => {
     await setLocale(form({ locale: "de" }));
     expect(h.cookies.size).toBe(0);
@@ -261,5 +269,74 @@ describe("real exam outcome actions", () => {
 
     as(null);
     await expect(report({ result: "passed" })).rejects.toThrow();
+  });
+});
+
+describe("sign-up action", () => {
+  const signup = (fields: Record<string, string>) =>
+    signupAction(undefined, form({ email: "signup-action@example.com", password: PASSWORD, confirm: PASSWORD, locale: "fr", ...fields }));
+  const setOpen = (value: boolean) => prisma.appSetting.upsert({ where: { key: SWITCHES.signupOpen }, create: { key: SWITCHES.signupOpen, value }, update: { value } });
+
+  it("checks the confirmation, then sends the link; says when sign-ups are closed or the input is invalid", async () => {
+    vi.stubEnv("AUTH_URL", "https://certidrill.test");
+    vi.stubEnv("EMAIL_SERVER", "");
+    vi.stubEnv("AUTH_LOG_MAGIC_LINKS", "true");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await setOpen(false);
+      expect(await signup({})).toEqual({ email: "signup-action@example.com", error: "closed" });
+      await setOpen(true);
+      expect(await signup({ confirm: "something else" })).toEqual({ email: "signup-action@example.com", error: "mismatch" });
+      expect(await signup({ email: "nope" })).toEqual({ email: "nope", error: "invalid" });
+      expect(await signup({})).toEqual({ sent: true, email: "signup-action@example.com" });
+      expect(info).toHaveBeenCalledWith(expect.stringMatching(/e-mail verification link for signup-action@example\.com: https:\/\/certidrill\.test\/verify-email\?token=/));
+      expect(await prisma.signupRequest.findFirstOrThrow({ where: { email: "signup-action@example.com" } })).toMatchObject({ locale: "fr" });
+      // No SMTP and links not logged: the e-mail fails, the form says so (and the error is logged).
+      vi.stubEnv("AUTH_LOG_MAGIC_LINKS", "");
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(await signup({ email: "smtp-down@example.com" })).toEqual({ email: "smtp-down@example.com", error: "error" });
+      expect(error).toHaveBeenCalledWith(expect.stringContaining("signup.error"));
+      error.mockRestore();
+    } finally {
+      info.mockRestore();
+      await setOpen(false);
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe("rights back-office actions", () => {
+  it("are for administrators only", async () => {
+    as(userId);
+    expect(await redirectOf(grantPassAction(undefined, form({})))).toBe("/dashboard");
+    expect(await redirectOf(revokeEntitlementAction(undefined, form({})))).toBe("/dashboard");
+    expect(await redirectOf(setSwitchAction(form({ name: "team", enabled: "true" })))).toBe("/dashboard");
+  });
+
+  it("grant and revoke a Pass, with the errors of the form", async () => {
+    as(adminId, "admin");
+    const grant = (fields: Record<string, string>) => grantPassAction(undefined, form({ userId, certification: "az-104", days: "30", source: "admin", reason: "support ticket", ...fields }));
+    expect(await grant({ days: "zero" })).toEqual({ error: "invalid" });
+    expect(await grant({ certification: "zz-999" })).toEqual({ error: "not_found" });
+    expect(h.revalidatePath).not.toHaveBeenCalled();
+    expect(await grant({})).toEqual({ ok: true });
+    expect(h.revalidatePath).toHaveBeenCalledWith("/admin/billing");
+    const pass = await prisma.entitlement.findFirstOrThrow({ where: { userId, revokedAt: null } });
+    expect(pass.source).toBe("admin");
+    expect(await revokeEntitlementAction(undefined, form({ entitlementId: pass.id, reason: "" }))).toEqual({ error: "invalid" });
+    expect(await revokeEntitlementAction(undefined, form({ entitlementId: pass.id, reason: "refund" }))).toEqual({ ok: true });
+    expect((await prisma.entitlement.findUniqueOrThrow({ where: { id: pass.id } })).revokedAt).not.toBeNull();
+  });
+
+  it("switches: turns one on and off, ignores unknown names", async () => {
+    as(adminId, "admin");
+    const value = async () => (await prisma.appSetting.findUnique({ where: { key: SWITCHES.team } }))?.value;
+    await setSwitchAction(form({ name: "team", enabled: "true" }));
+    expect(await value()).toBe(true);
+    await setSwitchAction(form({ name: "team", enabled: "false" }));
+    expect(await value()).toBe(false);
+    await setSwitchAction(form({ name: "toString", enabled: "true" }));
+    await setSwitchAction(form({ name: "unknown", enabled: "true" }));
+    expect(await prisma.appSetting.count({ where: { key: { notIn: Object.values(SWITCHES) } } })).toBe(0);
   });
 });

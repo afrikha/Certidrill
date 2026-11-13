@@ -11,7 +11,7 @@ const db = new PrismaClient();
 
 test.beforeAll(async () => {
   const passwordHash = await hashPassword(USER.password);
-  await db.user.upsert({ where: { email: USER.email }, create: { email: USER.email, passwordHash }, update: { passwordHash, role: "user" } });
+  await db.user.upsert({ where: { email: USER.email }, create: { email: USER.email, passwordHash, emailVerified: new Date() }, update: { passwordHash, role: "user", emailVerified: new Date() } });
 });
 test.afterAll(() => db.$disconnect());
 

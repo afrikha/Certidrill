@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AccessError, examsLeft, passWindow, PAST_DUE_GRACE_DAYS, refusalReason, resolveAccess, subscriptionAccess, type AccessFacts, type PassRight, type SubscriptionRight } from "@/lib/access/rules";
+import { AccessError, examsLeft, isRefusalCode, passWindow, PAST_DUE_GRACE_DAYS, refusalReason, resolveAccess, subscriptionAccess, type AccessFacts, type PassRight, type SubscriptionRight } from "@/lib/access/rules";
 
 const NOW = new Date("2026-11-13T12:00:00Z");
 const days = (n: number) => new Date(NOW.getTime() + n * 86_400_000);
@@ -103,8 +103,14 @@ describe("free quota and refusals", () => {
     expect(refusalReason(facts({ subscriptions: [sub("canceled", -1)] }), NOW)).toBe("subscription_inactive");
   });
 
-  it("carries the reason and the 402 status", () => {
+  it("carries the reason and the 402 status (403 for an unverified address, which no offer lifts)", () => {
     const err = new AccessError("pass_expired");
     expect(err).toMatchObject({ code: "pass_expired", status: 402, name: "AccessError" });
+    expect(new AccessError("email_unverified").status).toBe(403);
+  });
+
+  it("knows which refusals the offer screen explains", () => {
+    for (const code of ["quota_exhausted", "pass_expired", "subscription_inactive"]) expect(isRefusalCode(code)).toBe(true);
+    for (const code of ["email_unverified", "correction", "", null, 402]) expect(isRefusalCode(code)).toBe(false);
   });
 });

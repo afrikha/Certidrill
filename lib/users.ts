@@ -2,6 +2,7 @@ import type { PrismaClient, Role } from "@prisma/client";
 import { z } from "zod";
 import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { locales } from "@/lib/i18n/config";
+import { audit } from "@/lib/audit";
 
 export const createUserSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
@@ -24,19 +25,22 @@ export class UserExistsError extends Error {
   }
 }
 
-/** Sign-ups are closed: accounts are created by an administrator (CLI or back-office). */
-export async function createUser(db: PrismaClient, input: CreateUserInput) {
+/**
+ * An account created by an administrator (CLI or back-office). Its e-mail is
+ * taken as verified: the administrator vouches for it. Public sign-ups go
+ * through lib/auth/signup.ts instead.
+ */
+export async function createUser(db: PrismaClient, input: CreateUserInput, { actorId = null }: { actorId?: string | null } = {}) {
   const data = createUserSchema.parse(input);
   const existing = await db.user.findUnique({ where: { email: data.email }, select: { id: true } });
   if (existing) throw new UserExistsError(data.email);
-  return db.user.create({
-    data: {
-      email: data.email,
-      name: data.name ?? null,
-      role: data.role as Role,
-      locale: data.locale,
-      passwordHash: data.password ? await hashPassword(data.password) : null,
-    },
-    select: { id: true, email: true, name: true, role: true, locale: true, createdAt: true },
+  const passwordHash = data.password ? await hashPassword(data.password) : null;
+  return db.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: { email: data.email, name: data.name ?? null, role: data.role as Role, locale: data.locale, passwordHash, emailVerified: new Date() },
+      select: { id: true, email: true, name: true, role: true, locale: true, createdAt: true },
+    });
+    await audit(tx, { actorId, action: "user.create", targetUserId: user.id, details: { email: user.email, role: user.role } });
+    return user;
   });
 }

@@ -7,7 +7,7 @@ import { isSameOrigin } from "@/lib/security/csrf";
 import { isAnswered, isComplete, type PublicBody } from "@/lib/questions/public";
 import { logError, logEvent } from "@/lib/log";
 import { createTransport } from "nodemailer";
-import { MAGIC_LINK_MINUTES, magicLinkMessage, redactSmtp, sendMagicLink, sendTestEmail, smtpOptions } from "@/lib/auth/email";
+import { accountExistsMessage, EMAIL_VERIFY_HOURS, MAGIC_LINK_MINUTES, magicLinkMessage, redactSmtp, sendAccountExistsEmail, sendMagicLink, sendTestEmail, sendVerificationEmail, smtpOptions, verificationMessage } from "@/lib/auth/email";
 import { cn } from "@/lib/utils";
 
 afterEach(() => {
@@ -70,6 +70,55 @@ describe("structured logs", () => {
     logError("boom", "plain");
     expect(JSON.parse(error.mock.calls[0]![0] as string)).toMatchObject({ level: "error", url: "/x", error: { message: "bad" } });
     expect(JSON.parse(error.mock.calls[1]![0] as string).error).toEqual({ message: "plain" });
+  });
+});
+
+describe("sign-up e-mails", () => {
+  const url = "https://certidrill.com/verify-email?token=abc&x=1";
+
+  it("the verification link: what it does, how long it lasts, in the user's language", () => {
+    const fr = verificationMessage({ url, locale: "fr" });
+    expect(fr.subject).toBe("Confirmez votre adresse pour créer votre compte Certidrill");
+    expect(fr.text.split("\n")).toEqual([
+      "Merci de votre inscription à Certidrill. Cliquez sur le bouton ci-dessous pour confirmer votre adresse : votre compte sera créé.",
+      "",
+      url,
+      "",
+      `Ce lien expire dans ${EMAIL_VERIFY_HOURS} heures et ne sert qu'une fois.`,
+      "",
+      "Si vous ne vous êtes pas inscrit, ignorez ce message : aucun compte ne sera créé.",
+    ]);
+    expect(fr.html).toContain('<html lang="fr">');
+    expect(fr.html).toContain('href="https://certidrill.com/verify-email?token=abc&amp;x=1"');
+    expect(fr.html).toContain(">Confirmer mon adresse</a>");
+    expect(verificationMessage({ url, locale: "de" }).subject).toBe("Confirm your address to create your Certidrill account");
+  });
+
+  it("the notice to an address that already has an account links to the sign-in page", () => {
+    const en = accountExistsMessage({ url: "https://certidrill.com/login", locale: "en" });
+    expect(en.subject).toBe("You already have a Certidrill account");
+    expect(en.html).toContain('href="https://certidrill.com/login"');
+    expect(en.text).toContain("your account has not changed");
+  });
+
+  it("are sent like magic links, and an SMTP failure never carries the credentials", async () => {
+    vi.stubEnv("EMAIL_SERVER", "smtp://mailer:s3cret-pass@smtp.example.com:587");
+    sendMail.mockClear();
+    await sendVerificationEmail({ to: "a@example.com", url, locale: "fr" });
+    await sendAccountExistsEmail({ to: "b@example.com", url: "https://certidrill.com/login" });
+    expect(sendMail.mock.calls.map((c) => [c[0].to, c[0].subject])).toEqual([
+      ["a@example.com", "Confirmez votre adresse pour créer votre compte Certidrill"],
+      ["b@example.com", "You already have a Certidrill account"],
+    ]);
+    sendMail.mockRejectedValueOnce(new Error("535 auth failed for mailer / s3cret-pass"));
+    await expect(sendVerificationEmail({ to: "a@example.com", url })).rejects.toThrow("535 auth failed for *** / ***");
+    sendMail.mockRejectedValueOnce("socket hang up");
+    await expect(sendAccountExistsEmail({ to: "a@example.com", url })).rejects.toThrow("socket hang up");
+    vi.stubEnv("EMAIL_SERVER", "");
+    vi.stubEnv("AUTH_LOG_MAGIC_LINKS", "true");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    await sendVerificationEmail({ to: "a@example.com", url });
+    expect(info).toHaveBeenCalledWith(`[auth] e-mail verification link for a@example.com: ${url}`);
   });
 });
 

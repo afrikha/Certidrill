@@ -166,6 +166,8 @@ export async function getAttemptResults(
 
   // The correction follows the access of today (it goes back to free when a Pass ends).
   const full = (await getAccess(db, userId, attempt.certificationId)).level === "full";
+  // Missed: fewer points than possible, so a partly right answer counts as
+  // missed (its correction is sent). An unscored item (null) counts as 0.
   const missed = (it: { pointsEarned: number | null; pointsMax: number | null }) => (it.pointsEarned ?? 0) < (it.pointsMax ?? 0);
   const shown = full ? attempt.items : attempt.items.filter(missed);
   const locked = full
