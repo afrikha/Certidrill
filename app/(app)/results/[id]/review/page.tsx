@@ -8,6 +8,7 @@ import { SessionError } from "@/lib/exam/session";
 import { isLocale } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { buttonClasses } from "@/components/ui/button";
 import { Html } from "@/components/questions/html";
 import { AnsweredQuestion } from "./answered-question";
 import { ReportForm } from "./report-form";
@@ -40,6 +41,12 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
       (filter === "all" || (filter === "missed" ? i.earned < i.max : i.flagged)) &&
       (!sp.domain || i.domain.code === sp.domain),
   );
+  // Questions answered correctly are locked at the free level: shown in place, without content (never under "missed").
+  const locked = r.correction.locked.filter((l) => filter !== "missed" && (filter === "all" || l.flagged) && (!sp.domain || l.domain.code === sp.domain));
+  const cards = [
+    ...items.map((item) => ({ kind: "item" as const, order: item.order, item })),
+    ...locked.map((item) => ({ kind: "locked" as const, order: item.order, item })),
+  ].sort((a, b) => a.order - b.order);
   const href = (patch: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
     const merged = { lang: r.locale, filter, domain: sp.domain, ...patch };
@@ -72,8 +79,36 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
         </span>
       </nav>
 
-      {items.length === 0 && <p className="text-muted-foreground">{t("none")}</p>}
-      {items.map((i) => {
+      {r.correction.level === "free" && r.correction.locked.length > 0 && (
+        <Card className="flex flex-wrap items-center justify-between gap-4 border-primary bg-primary/5" data-testid="correction-locked-banner">
+          <p className="text-sm">{t("lockedBanner", { n: r.correction.locked.length })}</p>
+          <Link href={`/offer?reason=correction&certification=${r.certification.code}`} className={buttonClasses("primary")}>{t("unlock")}</Link>
+        </Card>
+      )}
+
+      {cards.length === 0 && <p className="text-muted-foreground">{t("none")}</p>}
+      {cards.map((card) => {
+        if (card.kind === "locked") {
+          const l = card.item;
+          return (
+            <Card key={l.id} className="relative overflow-hidden border-l-4 border-l-success" data-testid="correction-locked">
+              <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                <span className="text-base font-semibold">Q{l.order}</span>
+                <span className="font-semibold text-success">✓ {t("lockedCorrect")}</span>
+                <span className="text-muted-foreground">{l.domain.title}</span>
+                {l.flagged && <span className="text-danger">⚑ {t("filterFlagged")}</span>}
+              </header>
+              {/* Decorative: no question content is sent at the free level. */}
+              <div aria-hidden className="mt-4 space-y-2 blur-sm select-none">
+                <div className="h-3 w-11/12 rounded bg-muted-foreground/30" />
+                <div className="h-3 w-9/12 rounded bg-muted-foreground/30" />
+                <div className="h-3 w-10/12 rounded bg-muted-foreground/30" />
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">{t("lockedHint")}</p>
+            </Card>
+          );
+        }
+        const i = card.item;
         const correct = i.earned === i.max;
         return (
           <Card key={i.id} className={cn("space-y-5 border-l-4", correct ? "border-l-success" : "border-l-danger")} data-testid="correction-item">

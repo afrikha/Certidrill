@@ -15,6 +15,7 @@ import { logError } from "@/lib/log";
 import { computeReadiness, domainAverages, type ExamSummary, type Readiness } from "@/lib/progress/readiness";
 import { computeProgression, type Badge, type Progression, type XpGain } from "@/lib/progress/progression";
 import { breakdownBy, type Breakdown } from "./scoring";
+import { getAccess, type AccessLevel } from "@/lib/access";
 import { SessionError, finalizeIfExpired } from "./session";
 
 type L = { en: string; fr: string };
@@ -57,7 +58,13 @@ export interface AttemptResults {
   durationMin: number;
   domains: (Breakdown & { title: string })[];
   types: Breakdown[];
+  /**
+   * The correction at the user's current access level. At the free level, only
+   * the missed questions are sent, without the explanations of the wrong
+   * options; the others are listed in `locked`, with no content.
+   */
   items: CorrectionItem[];
+  correction: { level: AccessLevel; locked: { id: string; order: number; flagged: boolean; domain: { code: string; title: string } }[] };
 }
 
 async function choiceLabel(list: Choice[], id: string, locale: Locale): Promise<string> {
@@ -157,18 +164,34 @@ export async function getAttemptResults(
   const domainTitle = new Map(attempt.blueprint.domains.map((d) => [d.code, pick(d.title as L, locale)]));
   const domainOrder = new Map(attempt.blueprint.domains.map((d) => [d.code, d.order]));
 
+  // The correction follows the access of today (it goes back to free when a Pass ends).
+  const full = (await getAccess(db, userId, attempt.certificationId)).level === "full";
+  const missed = (it: { pointsEarned: number | null; pointsMax: number | null }) => (it.pointsEarned ?? 0) < (it.pointsMax ?? 0);
+  const shown = full ? attempt.items : attempt.items.filter(missed);
+  const locked = full
+    ? []
+    : attempt.items
+        .filter((it) => !missed(it))
+        .map((it) => {
+          const code = it.question.objective.domain.code;
+          return { id: it.id, order: it.order, flagged: it.flagged, domain: { code, title: domainTitle.get(code) ?? code } };
+        });
+
   const items: CorrectionItem[] = await Promise.all(
-    attempt.items.map(async (it) => {
+    shown.map(async (it) => {
       const q = it.question;
       const section = attempt.sections.find((s) => s.id === it.sectionId)!;
       const explanation = q.explanation as { correct: L; options?: Record<string, L> };
       const elements = explainedElements(q.type, q.body);
-      const optionExplanations = await Promise.all(
-        Object.entries(explanation.options ?? {}).map(async ([id, e]) => {
-          const el = elements.find((x) => x.id === id);
-          return { label: el ? await renderInline(text(el.text, locale)) : id, html: await renderInline(pick(e, locale)) };
-        }),
-      );
+      // Why each wrong option is wrong: full access only.
+      const optionExplanations = full
+        ? await Promise.all(
+            Object.entries(explanation.options ?? {}).map(async ([id, e]) => {
+              const el = elements.find((x) => x.id === id);
+              return { label: el ? await renderInline(text(el.text, locale)) : id, html: await renderInline(pick(e, locale)) };
+            }),
+          )
+        : [];
       return {
         id: it.id,
         order: it.order,
@@ -190,7 +213,13 @@ export async function getAttemptResults(
     }),
   );
 
-  const scored = items.map((i) => ({ ...i, max: i.max, earned: i.earned }));
+  // The score report covers every question, whatever the correction shows.
+  const scored = attempt.items.map((it) => ({
+    earned: it.pointsEarned ?? 0,
+    max: it.pointsMax ?? 0,
+    domain: { code: it.question.objective.domain.code },
+    question: { type: it.question.type },
+  }));
   const maxScore = attempt.blueprint.maxScore;
   const domains = breakdownBy(scored, (i) => i.domain.code, maxScore)
     .sort((a, b) => (domainOrder.get(a.key) ?? 0) - (domainOrder.get(b.key) ?? 0))
@@ -215,6 +244,7 @@ export async function getAttemptResults(
     domains,
     types: breakdownBy(scored, (i) => i.question.type, maxScore),
     items,
+    correction: { level: full ? "full" : "free", locked },
   };
 }
 

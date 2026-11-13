@@ -214,12 +214,12 @@ describe("server actions", () => {
     await expect(startNewExam(undefined, form({ certification: "zz-999" }))).rejects.toThrow();
   });
 
-  it("new exam: explains a refusal once the free exam is used", async () => {
+  it("new exam: sends to the offer screen once the free exam is used", async () => {
     // The exam created above starts, then ends: the free quota (1) is used.
     const attempt = await prisma.attempt.findFirstOrThrow({ where: { userId, status: "in_progress" } });
     const now = new Date();
     await prisma.attempt.update({ where: { id: attempt.id }, data: { startedAt: now, deadlineAt: now, status: "expired", submittedAt: now } });
-    expect(await startNewExam(undefined, form({ certification: "az-104", locale: "en" }))).toEqual({ error: "quota_exhausted" });
+    expect(await redirectOf(startNewExam(undefined, form({ certification: "az-104", locale: "en" })))).toBe("/offer?reason=quota_exhausted&certification=az-104");
   });
 
   it("locale: sets the cookie, saves the preference of a signed-in user, ignores unknown locales", async () => {

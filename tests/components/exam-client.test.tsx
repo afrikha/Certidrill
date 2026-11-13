@@ -6,8 +6,8 @@ import { ExamClient } from "@/components/exam/exam-client";
 import { renderIntl } from "./render";
 import { item, polyfillDialog, res, section, seriesBody, view } from "./fixtures";
 
-const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn(), refresh: vi.fn() }), usePathname: () => "/exam/att1" }));
+const { replace, push } = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push, refresh: vi.fn() }), usePathname: () => "/exam/att1" }));
 
 polyfillDialog();
 
@@ -117,11 +117,11 @@ describe("ExamClient — start", () => {
     expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
   });
 
-  it("explains a refusal of access when starting", async () => {
-    mockApi({ [`POST ${A}/start`]: () => res(402, { error: "quota_exhausted" }), [`GET ${A}`]: () => res(200, mainView({ status: "not_started" })) });
+  it("sends to the offer screen when access is refused at the start", async () => {
+    mockApi({ [`POST ${A}/start`]: () => res(402, { error: "quota_exhausted" }) });
     renderIntl(<ExamClient initial={mainView({ status: "not_started" })} resumed={false} />);
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("You have used your free mock exam for this certification.");
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/offer?reason=quota_exhausted&certification=${mainView().certification.code}`));
     expect(calls()).toEqual([`POST ${A}/start`]);
   });
 
