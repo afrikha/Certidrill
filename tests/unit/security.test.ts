@@ -21,6 +21,17 @@ describe("rate limiter", () => {
     expect(rl.blocked("k", 3000)).toBe(false);
     expect(rl.blocked("unknown", 0)).toBe(false);
   });
+
+  it("gives back a hit within its window only", () => {
+    const rl = createRateLimiter({ limit: 1, windowMs: 1000 });
+    rl.release("none", 0);
+    expect(rl.hit("k", 0)).toBe(true);
+    rl.release("k", 10);
+    expect(rl.hit("k", 20)).toBe(true);
+    expect(rl.hit("k", 30)).toBe(false);
+    rl.release("k", 2000); // window over: nothing to give back
+    expect(rl.blocked("k", 2000)).toBe(false);
+  });
 });
 
 describe("passwords", () => {

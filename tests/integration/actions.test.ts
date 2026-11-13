@@ -119,6 +119,20 @@ describe("password sign-in (authorizeCredentials)", () => {
     // Same IP, other account: blocked too.
     await expect(authorizeCredentials(prisma, limiter, { email: "someone@example.com", password: PASSWORD }, request("9.9.9.9, 10.0.0.1"))).rejects.toBeInstanceOf(RateLimitedError);
   });
+
+  it("counts tries sent at once, but not successful sign-ins", async () => {
+    const limiter = createRateLimiter({ limit: 5, windowMs: 60_000 });
+    const tries = await Promise.allSettled(
+      Array.from({ length: 20 }, () => authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: "bad password..." }, request("8.8.8.8"))),
+    );
+    expect(tries.filter((r) => r.status === "fulfilled")).toHaveLength(5);
+    expect(tries.filter((r) => r.status === "rejected" && r.reason instanceof RateLimitedError)).toHaveLength(15);
+    // Many people signing in from one address (an office) are not blocked by their successes.
+    const office = createRateLimiter({ limit: 2, windowMs: 60_000 });
+    for (let i = 0; i < 5; i++) {
+      expect(await authorizeCredentials(prisma, office, { email: "carol@example.com", password: PASSWORD }, request("7.7.7.7"))).toMatchObject({ id: userId });
+    }
+  });
 });
 
 describe("magic links (allowSignIn) and session contents", () => {

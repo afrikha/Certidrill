@@ -10,10 +10,15 @@ const body = z.object({ reason: z.enum(REPORT_REASONS), comment: z.string().max(
 /** POST /api/questions/:id/report — reports an erroneous question seen in a finished attempt. */
 export const POST = apiRoute<{ id: string }>(async ({ request, user, params }) => {
   const input = body.parse(await jsonBody(request));
-  // Only accepted reports count towards the limit (unknown or unseen ids don't use the quota).
+  // Counted first (reports sent at once all count), given back if refused:
+  // unknown or unseen ids don't use the quota.
   const key = `report:${user.id}`;
-  if (reportLimiter.blocked(key)) throw new SessionError("rate_limited");
-  const report = await reportQuestion(prisma, { questionId: params.id, userId: user.id, ...input });
-  reportLimiter.hit(key);
-  return { id: report.id };
+  if (!reportLimiter.hit(key)) throw new SessionError("rate_limited");
+  try {
+    const report = await reportQuestion(prisma, { questionId: params.id, userId: user.id, ...input });
+    return { id: report.id };
+  } catch (err) {
+    reportLimiter.release(key);
+    throw err;
+  }
 });
