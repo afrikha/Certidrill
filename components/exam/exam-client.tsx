@@ -132,6 +132,7 @@ export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView
       if (err instanceof ApiError && (err.code === "expired" || err.code === "finished")) return goToResults();
       // Access refused when the clock starts (quota used meanwhile, Pass ended): the offer screen says why.
       if (err instanceof ApiError && err.status === 402 && isRefusalCode(err.code)) return router.push(`/offer?${new URLSearchParams({ reason: err.code, certification: view.certification.code })}`);
+      if (err instanceof ApiError && err.code === "email_unverified") return setError(t("emailUnverified"));
       if (err instanceof UnsavedError) return setError(t("unsavedRetry"));
       setError(t("error"));
       await refresh();
