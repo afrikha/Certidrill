@@ -1,6 +1,6 @@
 import { useFormatter, useTranslations } from "next-intl";
 import type { ProgressionConfig } from "@/lib/content/schema";
-import { BADGES, type Badge, type BadgeCode, type MasteryTier, type XpGain } from "@/lib/progress/progression";
+import { BADGES, type Badge, type BadgeCode, type MasteryTier } from "@/lib/progress/progression";
 import { cn } from "@/lib/utils";
 
 const TIER: Record<MasteryTier, string> = {
@@ -10,7 +10,7 @@ const TIER: Record<MasteryTier, string> = {
   none: "border-border bg-muted text-muted-foreground",
 };
 const MEDAL: Record<MasteryTier, string> = { gold: "🥇", silver: "🥈", bronze: "🥉", none: "·" };
-const ICON: Record<BadgeCode, string> = {
+export const ICON: Record<BadgeCode, string> = {
   first_exam: "🚀",
   first_pass: "✅",
   personal_best: "📈",
@@ -20,7 +20,7 @@ const ICON: Record<BadgeCode, string> = {
   comeback: "💪",
 };
 
-type T = ReturnType<typeof useTranslations<"progression">>;
+export type T = ReturnType<typeof useTranslations<"progression">>;
 
 /** Parameters of each badge's description, from the blueprint. */
 function badgeValues(code: BadgeCode, rules: Pick<ProgressionConfig, "badges" | "mastery">): Record<string, number> {
@@ -39,7 +39,7 @@ function badgeValues(code: BadgeCode, rules: Pick<ProgressionConfig, "badges" | 
 }
 
 /** Level number in a disc. Decorative: the level is always written next to it. */
-function LevelDisc({ n, className }: Readonly<{ n: number; className?: string }>) {
+export function LevelDisc({ n, className }: Readonly<{ n: number; className?: string }>) {
   return (
     <span aria-hidden className={cn("flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-2xl font-bold text-primary-foreground tabular-nums", className)}>
       {n}
@@ -48,7 +48,7 @@ function LevelDisc({ n, className }: Readonly<{ n: number; className?: string }>
 }
 
 /** XP bar toward the next level. */
-function XpBar({ xp, from, next, t }: Readonly<{ xp: number; from: number; next: number | null; t: T }>) {
+export function XpBar({ xp, from, next, t }: Readonly<{ xp: number; from: number; next: number | null; t: T }>) {
   const share = next === null ? 1 : (xp - from) / (next - from);
   return (
     <div>
@@ -117,64 +117,6 @@ export function ProgressionCard({ progression: p, rules, domainTitles }: Readonl
         })}
       </ul>
       <p className="mt-4 text-xs text-muted-foreground">{t("private")}</p>
-    </section>
-  );
-}
-
-/** Results page: XP earned by this exam, level-up and new badges. */
-export function XpGainCard({ gain, xp, level, levels, previousTitle, badges }: Readonly<{
-  gain: XpGain;
-  xp: number;
-  level: { n: number; title: string; from: number; next: number | null };
-  levels: number;
-  previousTitle: string | null;
-  badges: readonly Badge[];
-}>) {
-  const t = useTranslations("progression");
-  const levelUp = gain.levelAfter > gain.levelBefore;
-  return (
-    <section aria-labelledby="xp-gain-title" className="rounded-lg border border-border bg-background p-6 shadow-sm" data-testid="xp-gain">
-      <h2 id="xp-gain-title" className="text-sm text-muted-foreground">{t("gainTitle")}</h2>
-      <div className="mt-2 flex flex-wrap items-start gap-6">
-        <div>
-          <p className="text-4xl font-bold text-primary tabular-nums motion-safe:animate-[xp-pop_0.6s_ease-out]" data-testid="xp-total">+{gain.total} XP</p>
-          <ul className="mt-2 text-sm text-muted-foreground">
-            {gain.parts.map((part) => (
-              <li key={part.code} className="flex justify-between gap-6">
-                <span>{t(`part_${part.code}`)}</span>
-                <span className="tabular-nums">+{part.xp}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="min-w-56 flex-1 space-y-2">
-          {levelUp ? (
-            <p className="flex items-center gap-3 text-lg font-bold motion-safe:animate-[xp-pop_0.6s_ease-out]" data-testid="level-up">
-              <LevelDisc n={level.n} className="h-12 w-12 text-xl" />
-              <span>
-                {t("levelUp", { from: gain.levelBefore, to: gain.levelAfter, count: gain.levelAfter - gain.levelBefore })}
-                <span className="block text-sm font-normal text-muted-foreground">{t("newTitle", { previous: previousTitle ?? "", title: level.title })}</span>
-              </span>
-            </p>
-          ) : (
-            <p className="font-semibold" data-testid="level">{t("level", { n: level.n, max: levels })} — {level.title}</p>
-          )}
-          <XpBar xp={xp} from={level.from} next={level.next} t={t} />
-          {badges.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold">{t("newBadges", { n: badges.length })}</h3>
-              <ul className="mt-1 flex flex-wrap gap-2">
-                {badges.map((b) => (
-                  <li key={b.code} className="rounded-full border border-primary px-3 py-1 text-sm" data-badge={b.code}>
-                    <span aria-hidden className="mr-1">{ICON[b.code]}</span>
-                    {t(`badge_${b.code}`)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
     </section>
   );
 }

@@ -8,8 +8,10 @@ import { SessionError } from "@/lib/exam/session";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DomainBars } from "@/components/charts/domain-bars";
-import { ReadinessChange } from "@/components/progress/readiness";
-import { XpGainCard } from "@/components/progress/progression";
+import { Celebration } from "@/components/progress/celebration";
+import { ReadinessChange } from "@/components/progress/readiness-change";
+import { XpGainCard } from "@/components/progress/xp-gain";
+import { xpStart } from "@/lib/progress/celebration";
 
 export const metadata = { title: "Results" };
 export const dynamic = "force-dynamic";
@@ -52,8 +54,12 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
         </ul>
       </Card>
 
-      {change && <ReadinessChange before={change.before} after={change.after} />}
-      {progression && <XpGainCard {...progression} />}
+      {(change || progression) && (
+        <Celebration id={r.id}>
+          {change && <ReadinessChange {...change} domainTitles={Object.fromEntries(r.domains.map((d) => [d.key, d.title]))} />}
+          {progression && <XpGainCard {...progression} delay={xpStart(change)} />}
+        </Celebration>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
