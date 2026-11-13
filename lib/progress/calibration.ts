@@ -11,9 +11,14 @@ export interface OutcomeSample {
   readinessVerdict: string | null;
 }
 
-export type CalibrationBand = Verdict | "none";
-/** "none": no mock exam before the real one, so no index. */
-export const CALIBRATION_BANDS: readonly CalibrationBand[] = ["none", "not_ready", "progressing", "almost", "ready"];
+export type CalibrationBand = Verdict | "none" | "unknown";
+/**
+ * "none": no mock exam before the real one, so no index. "unknown": a verdict
+ * this code no longer knows (renamed since), kept apart so it cannot pass for
+ * either of the others.
+ */
+export const CALIBRATION_BANDS: readonly CalibrationBand[] = ["none", "not_ready", "progressing", "almost", "ready", "unknown"];
+const VERDICTS: ReadonlySet<string> = new Set(["not_ready", "progressing", "almost", "ready"]);
 
 /** Below this many reports in a band, its pass rate says little. */
 export const MIN_REPORTS = 20;
@@ -26,7 +31,10 @@ export interface Calibration {
   meanIndex: { passed: number | null; failed: number | null };
 }
 
-const isBand = (v: string | null): v is Verdict => v !== null && (CALIBRATION_BANDS as readonly string[]).includes(v) && v !== "none";
+function bandOf(verdict: string | null): CalibrationBand {
+  if (verdict === null) return "none";
+  return VERDICTS.has(verdict) ? (verdict as Verdict) : "unknown";
+}
 
 function mean(xs: readonly number[]): number | null {
   return xs.length ? Math.round(xs.reduce((s, x) => s + x, 0) / xs.length) : null;
@@ -34,7 +42,7 @@ function mean(xs: readonly number[]): number | null {
 
 export function calibrate(samples: readonly OutcomeSample[]): Calibration {
   const bands = CALIBRATION_BANDS.map((band) => {
-    const mine = samples.filter((s) => (isBand(s.readinessVerdict) ? s.readinessVerdict : "none") === band);
+    const mine = samples.filter((s) => bandOf(s.readinessVerdict) === band);
     const passed = mine.filter((s) => s.passed).length;
     return { band, reports: mine.length, passed, passRate: mine.length ? passed / mine.length : null, enough: mine.length >= MIN_REPORTS };
   });
