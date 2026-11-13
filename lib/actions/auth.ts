@@ -6,8 +6,8 @@ import { signIn, VERIFY_REQUEST_URL } from "@/auth";
 import { headers } from "next/headers";
 import { formString } from "@/lib/form-data";
 import { prisma } from "@/lib/db";
-import { signUp } from "@/lib/auth/signup";
-import { clientIp, signupLimiter } from "@/lib/security/rate-limit";
+import { confirmSignup, signUp } from "@/lib/auth/signup";
+import { clientIp, confirmLimiter, signupLimiter } from "@/lib/security/rate-limit";
 import { logError } from "@/lib/log";
 
 export type LoginState = { error?: "invalid" | "rateLimited" | "error"; email?: string } | undefined;
@@ -56,4 +56,25 @@ export async function signupAction(_prev: SignupState, formData: FormData): Prom
     logError("signup.error", err);
     return { email, error: "error" };
   }
+}
+
+export type ConfirmState = { error?: "wrong_password" | "rate_limited" } | undefined;
+
+/**
+ * The form of the sign-up link: creates the account with the password given
+ * again, then signs in. A link that no longer works sends back to /signup.
+ */
+export async function confirmSignupAction(_prev: ConfirmState, formData: FormData): Promise<ConfirmState> {
+  const password = formString(formData, "password");
+  const result = await confirmSignup(prisma, confirmLimiter, { token: formString(formData, "token"), password });
+  if (result.status === "wrong_password" || result.status === "rate_limited") return { error: result.status };
+  if (result.status !== "verified") redirect(result.status === "exists" ? "/login?verified=exists" : `/signup?verify=${result.status}`);
+  try {
+    await signIn("credentials", { email: result.email, password, redirectTo: "/dashboard" });
+  } catch (err) {
+    // The account exists: if signing in fails here, the login page says so.
+    if (err instanceof AuthError) redirect("/login?verified=1");
+    throw err; // NEXT_REDIRECT to the dashboard
+  }
+  redirect("/login?verified=1");
 }

@@ -44,6 +44,9 @@ export const reportLimiter = createRateLimiter({ limit: 20, windowMs: 60 * 60_00
 /** Sign-ups: 5 per hour per IP and per address (each one sends an e-mail). */
 export const signupLimiter = createRateLimiter({ limit: 5, windowMs: 60 * 60_000 });
 
+/** Wrong passwords on a sign-up confirmation link: 5 per 15 minutes per link. */
+export const confirmLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60_000 });
+
 /**
  * The client address. In production Caddy sets X-Real-IP (deploy/Caddyfile:
  * the visitor behind Cloudflare, never a value sent by the client); without

@@ -80,13 +80,13 @@ describe("sign-up e-mails", () => {
     const fr = verificationMessage({ url, locale: "fr" });
     expect(fr.subject).toBe("Confirmez votre adresse pour créer votre compte Certidrill");
     expect(fr.text.split("\n")).toEqual([
-      "Merci de votre inscription à Certidrill. Cliquez sur le bouton ci-dessous pour confirmer votre adresse : votre compte sera créé.",
+      "Merci de votre inscription à Certidrill. Cliquez sur le bouton ci-dessous, puis saisissez le mot de passe choisi à l'inscription : votre compte sera créé.",
       "",
       url,
       "",
       `Ce lien expire dans ${EMAIL_VERIFY_HOURS} heures et ne sert qu'une fois.`,
       "",
-      "Si vous ne vous êtes pas inscrit, ignorez ce message : aucun compte ne sera créé.",
+      "Si vous ne vous êtes pas inscrit, ignorez ce message : sans le mot de passe choisi à l'inscription, aucun compte ne peut être créé.",
     ]);
     expect(fr.html).toContain('<html lang="fr">');
     expect(fr.html).toContain('href="https://certidrill.com/verify-email?token=abc&amp;x=1"');

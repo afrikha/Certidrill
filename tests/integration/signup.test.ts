@@ -1,7 +1,8 @@
 /**
  * Public sign-up and e-mail verification (offers lot A3) on a real
- * PostgreSQL: the account only exists once the link is followed, with the
- * password chosen at sign-up; an unverified address cannot start an exam.
+ * PostgreSQL: the account only exists once the link is followed and the
+ * password chosen at sign-up given again; an unverified address cannot start
+ * an exam.
  */
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -10,8 +11,9 @@ import { prisma as db } from "@/lib/db";
 import { loadCertification } from "@/lib/content/loader";
 import { loadBank } from "@/lib/content/bank";
 import { seedBank, seedReferential } from "@/lib/content/seed";
-import { confirmSignup, signUp, type Mailer } from "@/lib/auth/signup";
+import { confirmSignup, peekSignup, signUp, type Mailer } from "@/lib/auth/signup";
 import { authorizeCredentials } from "@/lib/auth/callbacks";
+import * as passwords from "@/lib/auth/password";
 import { verifyPassword } from "@/lib/auth/password";
 import { createRateLimiter } from "@/lib/security/rate-limit";
 import { createUser } from "@/lib/users";
@@ -26,7 +28,6 @@ const session = vi.hoisted(() => ({ current: null as null | { user: { id: string
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => session.current) }));
 
 import * as attempts from "@/app/api/attempts/route";
-import { GET as verifyRoute } from "@/app/verify-email/route";
 
 const BASE = "https://certidrill.test";
 const PASSWORD = "a long enough password";
@@ -120,42 +121,65 @@ describe("sign-up", () => {
 });
 
 describe("following the link", () => {
-  it("creates the account with the chosen password and language, its address verified; the link works once", async () => {
+  const confirm = (token: string, password = PASSWORD, now = hours(1), lim = limiter()) => confirmSignup(db, lim, { token, password }, now);
+
+  it("opening the link changes nothing; the account is created with the password given again, its address verified", async () => {
     await signup("alice@example.com", { password: "alice's own password", locale: "en" });
     const token = tokenOf();
-    expect(await confirmSignup(db, token, hours(1))).toEqual({ status: "verified", email: "alice@example.com" });
+    expect(await peekSignup(db, token, hours(1))).toEqual({ status: "valid", email: "alice@example.com" });
+    expect(await peekSignup(db, token, hours(1))).toEqual({ status: "valid", email: "alice@example.com" });
+    expect(await db.user.findUnique({ where: { email: "alice@example.com" } })).toBeNull();
+
+    expect(await confirm(token, "alice's own password")).toEqual({ status: "verified", email: "alice@example.com" });
     const user = await db.user.findUniqueOrThrow({ where: { email: "alice@example.com" } });
     expect(user).toMatchObject({ role: "user", locale: "en", emailVerified: hours(1) });
     const request = new Request("http://localhost/api/auth/callback/credentials");
     expect(await authorizeCredentials(db, limiter(), { email: "alice@example.com", password: "alice's own password" }, request)).toMatchObject({ id: user.id });
-    expect(await confirmSignup(db, token, hours(1))).toEqual({ status: "invalid" });
+    // Used: the link no longer works.
+    expect(await confirm(token, "alice's own password")).toEqual({ status: "invalid" });
+    expect(await peekSignup(db, token)).toEqual({ status: "invalid" });
     expect(await db.signupRequest.count({ where: { email: "alice@example.com" } })).toBe(0);
+  });
+
+  it("a wrong password keeps the link, and is limited to 5 tries", async () => {
+    await signup("typo@example.com");
+    const lim = createRateLimiter({ limit: 5, windowMs: 60_000 });
+    for (let i = 0; i < 5; i++) expect(await confirm(tokenOf(), "not the password", hours(1), lim)).toEqual({ status: "wrong_password" });
+    // Blocked, even with the right password, until the window ends.
+    expect(await confirm(tokenOf(), PASSWORD, hours(1), lim)).toEqual({ status: "rate_limited" });
+    expect(await db.user.findUnique({ where: { email: "typo@example.com" } })).toBeNull();
+    expect(await confirm(tokenOf(), PASSWORD)).toMatchObject({ status: "verified" });
   });
 
   it("refuses an expired link, an unknown one and an empty one, without creating an account", async () => {
     await signup("late@example.com");
-    expect(await confirmSignup(db, tokenOf(), hours(EMAIL_VERIFY_HOURS))).toEqual({ status: "expired" });
+    expect(await peekSignup(db, tokenOf(), hours(EMAIL_VERIFY_HOURS))).toEqual({ status: "expired" });
+    expect(await confirm(tokenOf(), PASSWORD, hours(EMAIL_VERIFY_HOURS))).toEqual({ status: "expired" });
     expect(await db.user.findUnique({ where: { email: "late@example.com" } })).toBeNull();
-    expect(await confirmSignup(db, "not-a-token")).toEqual({ status: "invalid" });
-    expect(await confirmSignup(db, "")).toEqual({ status: "invalid" });
+    expect(await db.signupRequest.count({ where: { email: "late@example.com" } })).toBe(0);
+    for (const token of ["not-a-token", ""]) {
+      expect(await confirm(token)).toEqual({ status: "invalid" });
+      expect(await peekSignup(db, token)).toEqual({ status: "invalid" });
+    }
   });
 
-  it("someone signing up with another person's address cannot choose the password of the account", async () => {
-    // The attacker signs up first, then the owner of the address.
+  it("someone signing up with another person's address cannot get the account, even if that person clicks the link", async () => {
     await signup("victim@example.com", { password: "attacker password" });
+    // The owner of the mailbox opens the unsolicited link: without the attacker's password, no account.
+    expect(await confirm(tokenOf(0), "a password the owner might try")).toEqual({ status: "wrong_password" });
+    expect(await db.user.findUnique({ where: { email: "victim@example.com" } })).toBeNull();
+    // The owner signs up themselves: the account has their password.
     await signup("victim@example.com", { password: "the owner's password" });
-    // The owner follows the link of their own sign-up: the account has their password.
-    expect(await confirmSignup(db, tokenOf(1), hours(1))).toMatchObject({ status: "verified" });
+    expect(await confirm(tokenOf(1), "the owner's password")).toMatchObject({ status: "verified" });
     const user = await db.user.findUniqueOrThrow({ where: { email: "victim@example.com" } });
     expect(await verifyPassword(user.passwordHash!, "the owner's password")).toBe(true);
-    expect(await verifyPassword(user.passwordHash!, "attacker password")).toBe(false);
-    // The other pending sign-up of the address is void.
-    expect(await confirmSignup(db, tokenOf(0), hours(1))).toEqual({ status: "invalid" });
+    // The attacker's pending sign-up is void.
+    expect(await confirm(tokenOf(0), "attacker password")).toEqual({ status: "invalid" });
   });
 
-  it("two clicks at once on the same link create the account once", async () => {
+  it("two submissions at once create the account once", async () => {
     await signup("double@example.com");
-    const results = await Promise.all([confirmSignup(db, tokenOf(), hours(1)), confirmSignup(db, tokenOf(), hours(1))]);
+    const results = await Promise.all([confirm(tokenOf()), confirm(tokenOf())]);
     expect(results.map((r) => r.status).sort()).toEqual(["invalid", "verified"]);
     expect(await db.user.count({ where: { email: "double@example.com" } })).toBe(1);
   });
@@ -163,29 +187,18 @@ describe("following the link", () => {
   it("says the account exists when it was created meanwhile (by an administrator)", async () => {
     await signup("meanwhile@example.com");
     await createUser(db, { email: "meanwhile@example.com" });
-    expect(await confirmSignup(db, tokenOf(), hours(1))).toEqual({ status: "exists", email: "meanwhile@example.com" });
+    expect(await confirm(tokenOf())).toEqual({ status: "exists", email: "meanwhile@example.com" });
   });
 
-  it("GET /verify-email redirects to the login page or back to the sign-up, on the public address", async () => {
-    vi.stubEnv("AUTH_URL", BASE);
+  it("hashes the password whether or not the address has an account, so the response time does not tell", async () => {
+    await createUser(db, { email: "timing@example.com" });
+    const spy = vi.spyOn(passwords, "hashPassword");
     try {
-      await signup("route@example.com");
-      const go = async (token: string) => {
-        const res = await verifyRoute(new Request(`http://internal:3000/verify-email?token=${encodeURIComponent(token)}`));
-        expect(res.status).toBe(303);
-        expect(res.headers.get("referrer-policy")).toBe("no-referrer");
-        expect(res.headers.get("cache-control")).toBe("no-store");
-        return res.headers.get("location");
-      };
-      expect(await go(tokenOf())).toBe(`${BASE}/login?verified=1`);
-      expect(await go(tokenOf())).toBe(`${BASE}/signup?verify=invalid`);
-      await signup("route-expired@example.com", { now: hours(-EMAIL_VERIFY_HOURS - 1) });
-      expect(await go(tokenOf(1))).toBe(`${BASE}/signup?verify=expired`);
-      await signup("route-exists@example.com");
-      await createUser(db, { email: "route-exists@example.com" });
-      expect(await go(tokenOf(2))).toBe(`${BASE}/login?verified=exists`);
+      await signup("timing@example.com");
+      await signup("timing-new@example.com");
+      expect(spy).toHaveBeenCalledTimes(2);
     } finally {
-      vi.unstubAllEnvs();
+      spy.mockRestore();
     }
   });
 });

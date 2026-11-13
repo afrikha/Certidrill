@@ -62,19 +62,23 @@ test("the administrator opens sign-ups; a visitor signs up, follows the link and
   await db.signupRequest.create({
     data: { email: EMAIL, passwordHash: await hashPassword(PASSWORD), locale: "en", tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3_600_000) },
   });
+  // Opening the link creates nothing: the password chosen at sign-up is asked again.
   await visitor.goto(`/verify-email?token=${token}`);
-  await visitor.waitForURL("**/login?verified=1");
-  await expect(visitor.getByTestId("login-verified")).toBeVisible();
-  // The same link a second time: back to the sign-up page, which says so.
-  await visitor.goto(`/verify-email?token=${token}`);
-  await expect(visitor.getByTestId("verify-error")).toBeVisible();
-
-  await visitor.goto("/login");
-  await visitor.locator("#email").fill(EMAIL);
-  await visitor.locator("#password").fill(PASSWORD);
-  await visitor.locator("main form button[type=submit]").first().click();
+  await expect(visitor.getByRole("heading", { name: "Confirm your sign-up" })).toBeVisible();
+  expect(await db.user.findUnique({ where: { email: EMAIL } })).toBeNull();
+  await visitor.locator("#confirm-password").fill("not the password at all");
+  await visitor.getByRole("button", { name: "Create my account" }).click();
+  await expect(visitor.getByTestId("confirm-error")).toBeVisible();
+  await visitor.locator("#confirm-password").fill(PASSWORD);
+  await visitor.getByRole("button", { name: "Create my account" }).click();
+  // Created and signed in.
   await visitor.waitForURL("**/dashboard");
   await expect(visitor.getByTestId("access").first()).toContainText("Free access");
+  // The same link a second time: back to the sign-up page, which says so.
+  const other = await browser.newPage();
+  await other.goto(`/verify-email?token=${token}`);
+  await expect(other.getByTestId("verify-error")).toBeVisible();
+  await other.close();
 
   // The administrator grants a Pass by hand: the dashboard shows it.
   await page.goto(`/admin/billing?q=${encodeURIComponent("e2e-signup")}`);

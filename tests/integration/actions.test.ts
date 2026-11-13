@@ -55,7 +55,9 @@ vi.mock("next/headers", () => ({
 
 import { changePassword } from "@/lib/actions/account";
 import { createUserAction } from "@/lib/actions/admin";
-import { loginWithMagicLink, loginWithPassword, signupAction } from "@/lib/actions/auth";
+import { confirmSignupAction, loginWithMagicLink, loginWithPassword, signupAction } from "@/lib/actions/auth";
+import { createHash } from "node:crypto";
+import { hashPassword } from "@/lib/auth/password";
 import { grantPassAction, revokeEntitlementAction, setSwitchAction } from "@/lib/actions/billing";
 import { SWITCHES } from "@/lib/settings";
 import { startNewExam } from "@/lib/actions/exam";
@@ -302,6 +304,34 @@ describe("sign-up action", () => {
       await setOpen(false);
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("sign-up confirmation action", () => {
+  const request = async (email: string, token: string) =>
+    prisma.signupRequest.create({
+      data: { email, passwordHash: await hashPassword(PASSWORD), locale: "en", tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+  const confirm = (token: string, password = PASSWORD) => confirmSignupAction(undefined, form({ token, password }));
+
+  it("asks again on a wrong password, then creates the account and signs in", async () => {
+    await request("confirm-action@example.com", "token-ok");
+    expect(await confirm("token-ok", "wrong password!")).toEqual({ error: "wrong_password" });
+    expect(await prisma.user.findUnique({ where: { email: "confirm-action@example.com" } })).toBeNull();
+    // signIn redirects to the dashboard; here it is a stub, so the fallback is the login page.
+    expect(await redirectOf(confirm("token-ok"))).toBe("/login?verified=1");
+    expect(h.signIn).toHaveBeenCalledWith("credentials", { email: "confirm-action@example.com", password: PASSWORD, redirectTo: "/dashboard" });
+    expect(await prisma.user.findUniqueOrThrow({ where: { email: "confirm-action@example.com" } })).toMatchObject({ emailVerified: expect.any(Date) });
+  });
+
+  it("sends to the login page when signing in fails, and back to the sign-up for a dead link", async () => {
+    await request("confirm-fail@example.com", "token-fail");
+    h.signIn.mockRejectedValueOnce(new h.AuthError("CredentialsSignin"));
+    expect(await redirectOf(confirm("token-fail"))).toBe("/login?verified=1");
+    expect(await redirectOf(confirm("token-fail"))).toBe("/signup?verify=invalid");
+    await request("confirm-exists@example.com", "token-exists");
+    await createUser(prisma, { email: "confirm-exists@example.com" });
+    expect(await redirectOf(confirm("token-exists"))).toBe("/login?verified=exists");
   });
 });
 

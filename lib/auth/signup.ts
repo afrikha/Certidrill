@@ -3,9 +3,12 @@
  * then a verification link. Open only while the switch signup.open is on.
  *
  * The account is created when the link is followed, not before: the request
- * (address, password hash, language) waits in signup_request. So nobody can
- * create an account, nor choose its password, on an address they do not
- * control. Each sign-up has its own link, bound to its own password.
+ * (address, password hash, language) waits in signup_request. Following the
+ * link asks for the password chosen at sign-up again: the account needs both
+ * the mailbox (the link) and the password. So someone who signs up with
+ * another person's address cannot get the account even if that person clicks
+ * the unsolicited link, and opening the link alone (a mail scanner) changes
+ * nothing.
  *
  * The answer is the same whether the address is new or already registered
  * ("check your inbox"), so the form does not reveal who has an account: the
@@ -14,7 +17,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/auth/password";
 import { EMAIL_VERIFY_HOURS, sendAccountExistsEmail, sendVerificationEmail } from "@/lib/auth/email";
 import { locales } from "@/lib/i18n/config";
 import { readSwitches } from "@/lib/settings";
@@ -58,6 +61,9 @@ export async function signUp(
   // Per IP (scripted sign-ups) and per address (mail bombing of one inbox).
   if (!limiter.hit(`signup-ip:${ip}`) || !limiter.hit(`signup:${email}`)) return "rate_limited";
 
+  // Hashed whether or not the address has an account: the hash takes tens
+  // of milliseconds, and the response time must not tell the two apart.
+  const passwordHash = await hashPassword(password);
   // Expired requests are of no use: removed as they are met, no job needed.
   await db.signupRequest.deleteMany({ where: { expiresAt: { lte: now } } });
   const existing = await db.user.findUnique({ where: { email }, select: { locale: true } });
@@ -67,26 +73,52 @@ export async function signUp(
   }
   const token = randomBytes(32).toString("base64url");
   await db.signupRequest.create({
-    data: { email, passwordHash: await hashPassword(password), locale, tokenHash: hashToken(token), expiresAt: new Date(now.getTime() + EMAIL_VERIFY_HOURS * 3_600_000) },
+    data: { email, passwordHash, locale, tokenHash: hashToken(token), expiresAt: new Date(now.getTime() + EMAIL_VERIFY_HOURS * 3_600_000) },
   });
   await mailer.verification({ to: email, url: siteUrl("/verify-email", base, { token }), locale });
   return "sent";
 }
 
-export type ConfirmResult = { status: "verified"; email: string } | { status: "exists"; email: string } | { status: "invalid" | "expired" };
+/** What a verification link leads to, without using it (the page that asks for the password). */
+export async function peekSignup(db: PrismaClient, token: string, now = new Date()): Promise<{ status: "valid"; email: string } | { status: "invalid" | "expired" }> {
+  if (!token) return { status: "invalid" };
+  const request = await db.signupRequest.findUnique({ where: { tokenHash: hashToken(token) }, select: { email: true, expiresAt: true } });
+  if (!request) return { status: "invalid" };
+  if (request.expiresAt <= now) return { status: "expired" };
+  return { status: "valid", email: request.email };
+}
+
+export type ConfirmResult =
+  | { status: "verified" | "exists"; email: string }
+  | { status: "invalid" | "expired" | "wrong_password" | "rate_limited" };
 
 /**
- * Follows a verification link: creates the account, its address verified.
- * The request is deleted first, so two clicks on the same link create the
- * account once, and a used link reads as invalid.
+ * Creates the account of a verification link, its address verified, once
+ * the password chosen at sign-up is given again. A wrong password keeps the
+ * link (5 tries per 15 minutes). The request is deleted before the account
+ * is created, so two submissions at once create it once.
  */
-export async function confirmSignup(db: PrismaClient, token: string, now = new Date()): Promise<ConfirmResult> {
+export async function confirmSignup(
+  db: PrismaClient,
+  limiter: RateLimiter,
+  { token, password }: { token: string; password: string },
+  now = new Date(),
+): Promise<ConfirmResult> {
   if (!token) return { status: "invalid" };
-  const request = await db.signupRequest.findUnique({ where: { tokenHash: hashToken(token) } });
+  const tokenHash = hashToken(token);
+  const request = await db.signupRequest.findUnique({ where: { tokenHash } });
   if (!request) return { status: "invalid" };
+  if (request.expiresAt <= now) {
+    await db.signupRequest.deleteMany({ where: { id: request.id } });
+    return { status: "expired" };
+  }
+  if (limiter.blocked(`confirm:${tokenHash}`)) return { status: "rate_limited" };
+  if (!(await verifyPassword(request.passwordHash, password))) {
+    limiter.hit(`confirm:${tokenHash}`);
+    return { status: "wrong_password" };
+  }
   const { count } = await db.signupRequest.deleteMany({ where: { id: request.id } });
-  if (count === 0) return { status: "invalid" }; // used meanwhile by a concurrent click
-  if (request.expiresAt <= now) return { status: "expired" };
+  if (count === 0) return { status: "invalid" }; // used meanwhile by a concurrent submission
   const { email } = request;
   try {
     await db.$transaction([
