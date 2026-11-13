@@ -188,6 +188,8 @@ describe("following the link", () => {
     await signup("meanwhile@example.com");
     await createUser(db, { email: "meanwhile@example.com" });
     expect(await confirm(tokenOf())).toEqual({ status: "exists", email: "meanwhile@example.com" });
+    // The failed creation is rolled back with the deletion of the request: the link still answers.
+    expect(await peekSignup(db, tokenOf())).toEqual({ status: "valid", email: "meanwhile@example.com" });
   });
 
   it("hashes the password whether or not the address has an account, so the response time does not tell", async () => {

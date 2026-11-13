@@ -96,8 +96,9 @@ export type ConfirmResult =
 /**
  * Creates the account of a verification link, its address verified, once
  * the password chosen at sign-up is given again. A wrong password keeps the
- * link (5 tries per 15 minutes). The request is deleted before the account
- * is created, so two submissions at once create it once.
+ * link (5 tries per 15 minutes). The request is deleted in the transaction
+ * that creates the account: two submissions at once create it once, and a
+ * failure keeps the link.
  */
 export async function confirmSignup(
   db: PrismaClient,
@@ -118,15 +119,19 @@ export async function confirmSignup(
     limiter.hit(`confirm:${tokenHash}`);
     return { status: "wrong_password" };
   }
-  const { count } = await db.signupRequest.deleteMany({ where: { id: request.id } });
-  if (count === 0) return { status: "invalid" }; // used meanwhile by a concurrent submission
   const { email } = request;
   try {
-    await db.$transaction([
-      db.user.create({ data: { email, passwordHash: request.passwordHash, locale: request.locale, emailVerified: now } }),
+    // One transaction: if the account cannot be created, the link is kept.
+    const created = await db.$transaction(async (tx) => {
+      // Deleted first: a concurrent submission waits on this row, then finds it gone.
+      const { count } = await tx.signupRequest.deleteMany({ where: { id: request.id } });
+      if (count === 0) return false;
+      await tx.user.create({ data: { email, passwordHash: request.passwordHash, locale: request.locale, emailVerified: now } });
       // The other pending sign-ups of this address are void once it has an account.
-      db.signupRequest.deleteMany({ where: { email } }),
-    ]);
+      await tx.signupRequest.deleteMany({ where: { email } });
+      return true;
+    });
+    if (!created) return { status: "invalid" }; // used meanwhile by a concurrent submission
   } catch (err) {
     // Another link of the same address, or an administrator, was first.
     if ((err as { code?: string }).code === "P2002") return { status: "exists", email };
