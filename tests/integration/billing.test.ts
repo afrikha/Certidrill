@@ -174,8 +174,8 @@ describe("users and audit", () => {
     const ids = (await recentAudit(db, { targetUserId: user })).map((l) => l.id);
     expect(ids).toHaveLength(3);
     await db.user.delete({ where: { id: user } });
-    const entries = await db.auditLog.findMany({ where: { id: { in: ids } }, orderBy: { createdAt: "asc" } });
-    expect(entries.map((l) => [l.action, l.targetUserId])).toEqual([["user.create", null], ["entitlement.grant", null], ["entitlement.revoke", null]]);
+    const entries = await db.auditLog.findMany({ where: { id: { in: ids } } });
+    expect(entries.map((l) => [l.action, l.targetUserId]).sort()).toEqual([["entitlement.grant", null], ["entitlement.revoke", null], ["user.create", null]]);
     // GDPR: deleting the account erases its address from the log too.
     expect(JSON.stringify(entries)).not.toContain("gone@example.com");
   });

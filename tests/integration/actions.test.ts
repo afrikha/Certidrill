@@ -127,6 +127,12 @@ describe("password sign-in (authorizeCredentials)", () => {
     );
     expect(tries.filter((r) => r.status === "fulfilled")).toHaveLength(5);
     expect(tries.filter((r) => r.status === "rejected" && r.reason instanceof RateLimitedError)).toHaveLength(15);
+    // From another address, tries refused because the e-mail is locked do not use that address's quota.
+    await createUser(prisma, { email: "erin@example.com", password: PASSWORD });
+    for (let i = 0; i < 10; i++) {
+      await expect(authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: PASSWORD }, request("6.6.6.6"))).rejects.toBeInstanceOf(RateLimitedError);
+    }
+    expect(await authorizeCredentials(prisma, limiter, { email: "erin@example.com", password: PASSWORD }, request("6.6.6.6"))).toMatchObject({ email: "erin@example.com" });
     // Many people signing in from one address (an office) are not blocked by their successes.
     const office = createRateLimiter({ limit: 2, windowMs: 60_000 });
     for (let i = 0; i < 5; i++) {

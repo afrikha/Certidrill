@@ -34,7 +34,13 @@ export async function authorizeCredentials(db: PrismaClient, limiter: RateLimite
   // only failures count in the end.
   const emailOk = limiter.hit(`email:${email}`);
   const ipOk = limiter.hit(`ip:${ip}`);
-  if (!emailOk || !ipOk) throw new RateLimitedError();
+  if (!emailOk || !ipOk) {
+    // A refused try uses neither quota: locking someone's e-mail must not
+    // also use up the quota of their address, and the other way round.
+    if (emailOk) limiter.release(`email:${email}`);
+    if (ipOk) limiter.release(`ip:${ip}`);
+    throw new RateLimitedError();
+  }
 
   const user = await db.user.findUnique({ where: { email } });
   if (!user?.passwordHash || !(await verifyPassword(user.passwordHash, password))) return null;

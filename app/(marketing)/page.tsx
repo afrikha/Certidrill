@@ -43,8 +43,8 @@ export default async function HomePage() {
     freeExamQuota(prisma),
   ]);
   const blueprint = certifications.find((c) => c.blueprints[0])?.blueprints[0];
-  const maxScore = blueprint?.maxScore ?? 1000;
-  const passScore = blueprint?.passScore ?? 700;
+  // Without a current blueprint, no figure is shown rather than an invented one.
+  const faq = FAQ.filter((q) => blueprint || q !== "score");
   const codes = certifications.map((c) => c.code.toUpperCase()).join(" · ");
   const pass = offers.find((o) => o.kind === "pass");
   const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
@@ -70,7 +70,7 @@ export default async function HomePage() {
               </p>
             )}
             <h1 className="mt-5 text-4xl font-bold tracking-tight text-balance sm:text-5xl">{t("title")}</h1>
-            <p className="mt-5 max-w-xl text-lg text-muted-foreground text-pretty">{t("subtitle", { maxScore })}</p>
+            <p className="mt-5 max-w-xl text-lg text-muted-foreground text-pretty">{blueprint ? t("subtitle", { maxScore: blueprint.maxScore }) : t("subtitleNoScore")}</p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               {session && <Link href="/dashboard" className={buttonClasses("primary", "px-5 py-3 text-base")}>{t("ctaDashboard")}</Link>}
               {!session && signupOpen && (
@@ -83,7 +83,7 @@ export default async function HomePage() {
             </div>
             {!session && <p className="mt-4 text-sm text-muted-foreground">{signupOpen ? t("reassurance") : t("closed")}</p>}
           </div>
-          <ExamPreview maxScore={maxScore} passScore={passScore} />
+          {blueprint && <ExamPreview maxScore={blueprint.maxScore} passScore={blueprint.passScore} />}
         </div>
       </section>
 
@@ -184,13 +184,13 @@ export default async function HomePage() {
         <div className="mx-auto max-w-3xl px-4 py-20">
           <h2 className="text-center text-3xl font-bold tracking-tight">{t("faqTitle")}</h2>
           <div className="mt-10 divide-y divide-border rounded-xl border border-border bg-background">
-            {FAQ.map((q) => (
+            {faq.map((q) => (
               <details key={q} className="group px-6 py-5 [&_summary::-webkit-details-marker]:hidden">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium">
                   {t(`faq.${q}Q`)}
                   <span aria-hidden className="text-xl leading-none text-muted-foreground transition-transform group-open:rotate-45">+</span>
                 </summary>
-                <p className="mt-3 text-muted-foreground">{t(`faq.${q}A`, { maxScore, passScore, exams: freeExams ?? "" })}</p>
+                <p className="mt-3 text-muted-foreground">{t(`faq.${q}A`, { maxScore: blueprint?.maxScore ?? 0, passScore: blueprint?.passScore ?? 0, exams: freeExams ?? "" })}</p>
               </details>
             ))}
           </div>
