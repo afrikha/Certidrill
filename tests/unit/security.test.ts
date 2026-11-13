@@ -80,4 +80,9 @@ describe("client address", () => {
     expect(clientIp(new Headers({ "x-forwarded-for": "" }))).toBe("unknown");
     expect(clientIp(new Headers())).toBe("unknown");
   });
+
+  it("never trusts X-Forwarded-For in production, where Caddy always sets X-Real-IP", () => {
+    expect(clientIp(new Headers({ "x-forwarded-for": "203.0.113.7" }), true)).toBe("unknown");
+    expect(clientIp(new Headers({ "x-real-ip": "198.51.100.4", "x-forwarded-for": "203.0.113.7" }), true)).toBe("198.51.100.4");
+  });
 });

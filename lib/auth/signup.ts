@@ -62,7 +62,8 @@ export async function signUp(
   if (!limiter.hit(`signup-ip:${ip}`) || !limiter.hit(`signup:${email}`)) return "rate_limited";
 
   // Hashed whether or not the address has an account: the hash takes tens
-  // of milliseconds, and the response time must not tell the two apart.
+  // of milliseconds and would otherwise tell the two apart. Both answers
+  // also send an e-mail; what remains (one insert) is small next to SMTP.
   const passwordHash = await hashPassword(password);
   // Expired requests are of no use: removed as they are met, no job needed.
   await db.signupRequest.deleteMany({ where: { expiresAt: { lte: now } } });
