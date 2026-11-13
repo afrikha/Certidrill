@@ -1,6 +1,7 @@
 /**
  * Checks the SMTP settings (EMAIL_SERVER, EMAIL_FROM): connects, authenticates
- * and sends a test e-mail. The SMTP credentials are never printed.
+ * and sends a test e-mail. The SMTP password is never printed (nor the user
+ * name, from 3 characters).
  *   npm run email:test -- --to me@example.com [--locale fr]
  * In production (Docker): docker compose run --rm migrate npm run email:test -- --to me@example.com
  */

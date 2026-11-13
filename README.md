@@ -157,7 +157,7 @@ Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). 
    docker compose run --rm migrate npm run email:test -- --to vous@example.com   # --locale fr en option
    docker compose up -d --force-recreate app
    ```
-   `email:test` se connecte, s'authentifie et envoie un message de test. Le mot de passe n'apparaît jamais dans la sortie. En cas d'échec, le code d'erreur indique l'étape fautive : `EAUTH` (identifiants), `ECONNECTION` ou `ETIMEDOUT` (serveur ou port), `ESOCKET` (TLS). Dans le message reçu, les en-têtes doivent montrer `spf=pass`, `dkim=pass` et `dmarc=pass`.
+   `email:test` se connecte, s'authentifie et envoie un message de test. Le mot de passe n'apparaît jamais dans la sortie, ni l'identifiant s'il fait au moins 3 caractères, que ce soit en clair, décodé ou en base64. En cas d'échec, le code d'erreur indique l'étape fautive : `EAUTH` (identifiants), `ECONNECTION` ou `ETIMEDOUT` (serveur ou port), `ESOCKET` (TLS). Dans le message reçu, les en-têtes doivent montrer `spf=pass`, `dkim=pass` et `dmarc=pass`.
 
 Cloudflare Email Routing (gratuit) peut rediriger `dmarc@` ou `contact@<domaine>` vers une boîte personnelle, pour recevoir les rapports DMARC et les réponses.
 
