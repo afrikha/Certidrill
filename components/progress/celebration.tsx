@@ -155,5 +155,9 @@ export function Confetti({ fire }: Readonly<{ fire: boolean }>) {
       ctx.clearRect(0, 0, width, height);
     };
   }, [fire]);
-  return <canvas ref={ref} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />;
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <canvas ref={ref} className="h-full w-full" />
+    </div>
+  );
 }
