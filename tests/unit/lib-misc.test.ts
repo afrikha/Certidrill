@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const sendMail = vi.hoisted(() => vi.fn());
-vi.mock("nodemailer", () => ({ createTransport: vi.fn(() => ({ sendMail })) }));
+const { sendMail, verify } = vi.hoisted(() => ({ sendMail: vi.fn(), verify: vi.fn() }));
+vi.mock("nodemailer", () => ({ createTransport: vi.fn(() => ({ sendMail, verify })) }));
 
 import { isSameOrigin } from "@/lib/security/csrf";
 import { isAnswered, isComplete, type PublicBody } from "@/lib/questions/public";
 import { logError, logEvent } from "@/lib/log";
 import { createTransport } from "nodemailer";
-import { sendMagicLink, smtpOptions } from "@/lib/auth/email";
+import { MAGIC_LINK_MINUTES, magicLinkMessage, redactSmtp, sendMagicLink, sendTestEmail, smtpOptions } from "@/lib/auth/email";
 import { cn } from "@/lib/utils";
 
 afterEach(() => {
@@ -83,15 +83,79 @@ describe("magic link e-mail", () => {
     await sendMagicLink({ to: "a@example.com", url: "https://certidrill.com/x" });
     expect(info).toHaveBeenCalledWith(expect.stringContaining("https://certidrill.com/x"));
   });
-  it("sends a bilingual message through SMTP", async () => {
+  it("sends the message through SMTP, in the user's language", async () => {
     vi.stubEnv("EMAIL_SERVER", "smtp://user:pass@smtp.example.com:587");
     vi.stubEnv("EMAIL_FROM", "Certidrill <noreply@example.com>");
-    await sendMagicLink({ to: "a@example.com", url: "https://certidrill.com/api/auth/callback/email?token=t" });
-    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: "a@example.com", from: "Certidrill <noreply@example.com>", subject: expect.stringContaining("certidrill.com") }));
-    expect(sendMail.mock.calls[0]![0].text).toContain("Utilisez ce lien");
+    sendMail.mockClear();
+    await sendMagicLink({ to: "a@example.com", url: "https://certidrill.com/api/auth/callback/email?token=t", locale: "fr" });
+    const mail = sendMail.mock.calls[0]![0];
+    expect(mail).toMatchObject({ to: "a@example.com", from: "Certidrill <noreply@example.com>", subject: "Votre lien de connexion Certidrill (certidrill.com)" });
+    expect(mail.text).toContain("Cliquez sur le bouton");
+    expect(mail.html).toContain('<html lang="fr">');
     // The transport gets the encrypted options, not the raw URL.
-    expect(createTransport).toHaveBeenLastCalledWith(expect.objectContaining({ host: "smtp.example.com", port: 587, requireTLS: true }));
+    expect(createTransport).toHaveBeenLastCalledWith(expect.objectContaining({ host: "smtp.example.com", port: 587, requireTLS: true, socketTimeout: 30_000 }));
+    // Without a locale: English.
+    await sendMagicLink({ to: "a@example.com", url: "https://certidrill.com/x" });
+    expect(sendMail.mock.calls[1]![0].subject).toBe("Your Certidrill sign-in link (certidrill.com)");
   });
+
+  it("builds a text and an HTML version, with the link escaped", () => {
+    const url = "https://certidrill.com/api/auth/callback/email?token=t&email=a%40example.com";
+    const en = magicLinkMessage({ url, locale: "en" });
+    expect(en.text.split("\n")).toEqual([
+      "Click the button below to sign in to Certidrill.",
+      "",
+      url,
+      "",
+      `This link expires in ${MAGIC_LINK_MINUTES} minutes and can only be used once.`,
+      "",
+      "If you did not request this e-mail, you can ignore it: nobody can sign in without this link.",
+    ]);
+    expect(en.html).toContain('href="https://certidrill.com/api/auth/callback/email?token=t&amp;email=a%40example.com"');
+    expect(en.html).not.toContain("token=t&email");
+    expect(en.html).toContain(">Sign in</a>");
+    // An unknown locale falls back to English.
+    expect(magicLinkMessage({ url, locale: "de" })).toEqual(en);
+    expect(magicLinkMessage({ url: 'https://x.test/"><script>', locale: "fr" }).html).not.toContain("<script>");
+  });
+
+  it("checks the SMTP settings with a test e-mail", async () => {
+    vi.stubEnv("EMAIL_SERVER", "");
+    await expect(sendTestEmail({ to: "a@example.com" })).rejects.toThrow("EMAIL_SERVER is not configured");
+    vi.stubEnv("EMAIL_SERVER", "smtps://apikey:s3cr%40t-key@smtp.example.com");
+    // An empty EMAIL_FROM falls back to the default sender.
+    vi.stubEnv("EMAIL_FROM", " ");
+    sendMail.mockClear();
+    sendMail.mockResolvedValueOnce({ messageId: "<m1@example.com>" });
+    expect(await sendTestEmail({ to: "a@example.com", locale: "fr" })).toEqual({
+      host: "smtp.example.com",
+      port: 465,
+      encryption: "tls",
+      from: "Certidrill <no-reply@certidrill.com>",
+      messageId: "<m1@example.com>",
+    });
+    expect(verify).toHaveBeenCalled();
+    expect(sendMail.mock.calls[0]![0]).toMatchObject({ subject: "Certidrill — test SMTP", text: expect.stringContaining("smtp.example.com:465") });
+
+    // A failure never shows the credentials, even when the server echoes them.
+    verify.mockRejectedValueOnce(Object.assign(new Error("Invalid login: 535 user apikey with password s3cr@t-key refused"), { code: "EAUTH" }));
+    await expect(sendTestEmail({ to: "a@example.com" })).rejects.toThrow("EAUTH: Invalid login: 535 user *** with password *** refused");
+    verify.mockRejectedValueOnce("socket closed");
+    await expect(sendTestEmail({ to: "a@example.com" })).rejects.toThrow("socket closed");
+    vi.stubEnv("EMAIL_SERVER", "smtp://smtp.example.com");
+    sendMail.mockResolvedValueOnce({});
+    expect(await sendTestEmail({ to: "a@example.com" })).toMatchObject({ port: 587, encryption: "starttls", messageId: "" });
+  });
+
+  it("removes SMTP credentials from messages", () => {
+    expect(redactSmtp("bad p%40ss and p@ss for login", "smtp://login:p%40ss@h")).toBe("bad *** and *** for ***");
+    // Too short to be masked safely; an invalid server leaves the message unchanged.
+    expect(redactSmtp("a b", "smtp://a:b@h")).toBe("a b");
+    expect(redactSmtp("unchanged", "not a url")).toBe("unchanged");
+    // A password that is not URL-decodable is masked as written.
+    expect(redactSmtp("got bad%zzpw", "smtp://login:bad%zzpw@h")).toBe("got ***");
+  });
+
   it("always encrypts the SMTP connection", () => {
     expect(smtpOptions("smtp://user%40x:p%3Ass@smtp.example.com:2525")).toEqual({
       host: "smtp.example.com",

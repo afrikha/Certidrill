@@ -12,7 +12,7 @@ import { seedBank, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { verifyPassword } from "@/lib/auth/password";
 import { createRateLimiter } from "@/lib/security/rate-limit";
-import { allowSignIn, authorizeCredentials, RateLimitedError, refreshToken, sessionUser, VERIFY_REQUEST_URL } from "@/lib/auth/callbacks";
+import { allowSignIn, authorizeCredentials, RateLimitedError, refreshToken, sessionUser, userLocale, VERIFY_REQUEST_URL } from "@/lib/auth/callbacks";
 import { publishSampleBank } from "./sample-bank";
 
 const h = vi.hoisted(() => {
@@ -127,6 +127,16 @@ describe("magic links (allowSignIn) and session contents", () => {
     // Rate limited per address.
     expect(await allowSignIn(prisma, limiter, "email", "carol@example.com")).toBe(true);
     expect(await allowSignIn(prisma, limiter, "email", "carol@example.com")).toBe(false);
+  });
+
+  it("sends magic links in the account's language", async () => {
+    await createUser(prisma, { email: "dora@example.com", password: PASSWORD, locale: "fr" });
+    expect(await userLocale(prisma, "Dora@Example.com")).toBe("fr");
+    expect(await userLocale(prisma, "carol@example.com")).toBe("en");
+    // Unknown address or a locale no longer supported: the default locale.
+    expect(await userLocale(prisma, "nobody@example.com")).toBe("en");
+    await prisma.user.update({ where: { email: "dora@example.com" }, data: { locale: "de" } });
+    expect(await userLocale(prisma, "dora@example.com")).toBe("en");
   });
 
   it("refreshes role and locale from the database, and signs out deleted users", async () => {
