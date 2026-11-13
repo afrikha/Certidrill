@@ -136,6 +136,31 @@ Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiemen
 
 Caddy redirige `www.<SITE_DOMAIN>` vers `<SITE_DOMAIN>` (301, chemin et paramètres conservés). Il faut pour cela un enregistrement DNS `www` (CNAME vers le domaine, proxifié comme l'apex) : sans lui, Caddy ne peut pas obtenir le certificat de `www` (le site principal n'est pas affecté).
 
+## E-mails (liens magiques)
+
+Les liens de connexion partent par SMTP (`EMAIL_SERVER`), dans la langue du compte, en texte et en HTML. Ils expirent au bout de 15 minutes. La connexion SMTP est toujours chiffrée : `smtps://` (port 465), ou `smtp://` avec STARTTLS obligatoire (port 587).
+
+Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). Un envoi direct depuis le VPS finit en spam, et le port 25 y est souvent bloqué.
+
+1. **Déclarer le domaine** chez le fournisseur, puis ajouter dans Cloudflare les enregistrements qu'il donne, en *DNS only* (nuage gris) :
+   - **SPF** : `TXT @`, `v=spf1 include:<valeur du fournisseur> ~all`. Un seul enregistrement SPF par domaine : fusionner les `include:` s'il en existe déjà un.
+   - **DKIM** : les `CNAME` ou `TXT` fournis.
+   - **DMARC** : `TXT _dmarc`, `v=DMARC1; p=none; rua=mailto:dmarc@<domaine>`. Passer à `p=quarantine` quand les rapports sont propres.
+2. **Renseigner `.env`** sur le serveur, jamais dans un dépôt ni une conversation. Encoder les caractères spéciaux de la clé : `%40` pour `@`, `%23` pour `#`, `%25` pour `%`, et `%24` pour `$`. Docker Compose interprète `$` dans `.env` : `p$w` deviendrait `p`.
+   ```bash
+   EMAIL_SERVER="smtp://<login>:<clé SMTP>@<serveur SMTP>:587"
+   EMAIL_FROM="Certidrill <no-reply@certidrill.com>"
+   AUTH_LOG_MAGIC_LINKS="false"
+   ```
+3. **Vérifier**, puis recharger l'application :
+   ```bash
+   docker compose run --rm migrate npm run email:test -- --to vous@example.com   # --locale fr en option
+   docker compose up -d --force-recreate app
+   ```
+   `email:test` se connecte, s'authentifie et envoie un message de test. Le mot de passe n'apparaît jamais dans la sortie. En cas d'échec, le code d'erreur indique l'étape fautive : `EAUTH` (identifiants), `ECONNECTION` ou `ETIMEDOUT` (serveur ou port), `ESOCKET` (TLS). Dans le message reçu, les en-têtes doivent montrer `spf=pass`, `dkim=pass` et `dmarc=pass`.
+
+Cloudflare Email Routing (gratuit) peut rediriger `dmarc@` ou `contact@<domaine>` vers une boîte personnelle, pour recevoir les rapports DMARC et les réponses.
+
 ## Avancement (plan du §12 des specs)
 
 - [x] **Lot 1 — Socle** : Next.js, Prisma (schéma complet), Auth.js, i18n FR/EN, CI, Docker, `blueprint.yaml` et 81 objectifs AZ-104

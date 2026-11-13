@@ -2,8 +2,8 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
-import { allowSignIn, authorizeCredentials, RateLimitedError, refreshToken, sessionUser } from "@/lib/auth/callbacks";
-import { sendMagicLink } from "@/lib/auth/email";
+import { allowSignIn, authorizeCredentials, RateLimitedError, refreshToken, sessionUser, userLocale } from "@/lib/auth/callbacks";
+import { MAGIC_LINK_MINUTES, sendMagicLink } from "@/lib/auth/email";
 import { authLimiter } from "@/lib/security/rate-limit";
 import type { Role } from "@prisma/client";
 
@@ -41,10 +41,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       type: "email",
       name: "Email",
       from: process.env.EMAIL_FROM ?? "Certidrill <no-reply@certidrill.com>",
-      maxAge: 15 * 60,
+      maxAge: MAGIC_LINK_MINUTES * 60,
       options: {},
       async sendVerificationRequest({ identifier, url }) {
-        await sendMagicLink({ to: identifier, url });
+        await sendMagicLink({ to: identifier, url, locale: await userLocale(prisma, identifier) });
       },
     },
   ],

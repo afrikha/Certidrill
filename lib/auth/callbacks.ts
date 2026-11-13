@@ -2,6 +2,7 @@ import type { PrismaClient, Role } from "@prisma/client";
 import { z } from "zod";
 import { verifyPassword } from "@/lib/auth/password";
 import type { RateLimiter } from "@/lib/security/rate-limit";
+import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 
 /**
  * Auth.js logic kept out of auth.ts so that it can be tested against a real
@@ -55,6 +56,12 @@ export async function allowSignIn(db: PrismaClient, limiter: RateLimiter, provid
   // pages.verifyRequest), so the response does not reveal which addresses
   // have an account.
   return existing ? true : VERIFY_REQUEST_URL;
+}
+
+/** Language of the account with this e-mail (the default locale if unknown): magic links are sent in it. */
+export async function userLocale(db: PrismaClient, email: string): Promise<Locale> {
+  const user = await db.user.findUnique({ where: { email: email.toLowerCase() }, select: { locale: true } });
+  return isLocale(user?.locale) ? user.locale : defaultLocale;
 }
 
 export type AppToken = { sub?: string; role?: Role; locale?: string; email?: string | null; name?: string | null; [k: string]: unknown };
