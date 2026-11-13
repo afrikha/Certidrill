@@ -401,14 +401,26 @@ describe("webhook", () => {
     }
   });
 
-  it("records the amount Stripe charged, and a payment whose account was deleted", async () => {
+  it("records the amount Stripe charged, more than the price included", async () => {
+    await openSales();
+    const user = await verifiedUser("overpaid@example.com");
+    const payment = await checkout(user);
+    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { amount_total: 2500, total_details: null, currency: null })), T0)).toBe("processed");
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", amountCents: 1900, chargedCents: 2500, chargedCurrency: "eur", taxCents: 0, currency: "eur" });
+    expect(await db.entitlement.count({ where: { paymentId: payment.id } })).toBe(1);
+  });
+
+  it("holds a payment whose account was deleted before it was confirmed, for the administrator", async () => {
     await openSales();
     const user = await verifiedUser("gone@example.com");
     const payment = await checkout(user);
     await db.user.delete({ where: { id: user } });
-    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { amount_total: 2500, total_details: null, currency: null })), T0)).toBe("processed");
-    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", amountCents: 1900, chargedCents: 2500, chargedCurrency: "eur", taxCents: 0, currency: "eur" });
+    const e = paid(payment);
+    expect(await handleStripeEvent(db, e, T0)).toBe("held");
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "held", chargedCents: 1900 });
+    expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: e.id } })).toMatchObject({ error: HELD_NOTE });
     expect(await db.entitlement.count({ where: { paymentId: payment.id } })).toBe(0);
+    expect((await heldPayments(db)).find((p) => p.id === payment.id)).toMatchObject({ customer: { user: null } });
   });
 
   it("rolls a failed event back whole, keeps its error, and processes it when Stripe retries", async () => {

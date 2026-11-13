@@ -16,11 +16,11 @@ import { addPass } from "@/lib/access/passes";
 import { enqueuePassEmails } from "@/lib/email/outbox";
 import { logEvent } from "@/lib/log";
 
-/** held: paid, but less than the plan price (or in another currency): payment status held, no Pass until an administrator looks. */
+/** held: paid, but no Pass can be granted (charged too little, another currency, account deleted): payment status held, for an administrator. */
 export type WebhookOutcome = "processed" | "duplicate" | "ignored" | "held";
 
 /** Kept in stripe_event.error for a held payment, so that it stands out. */
-export const HELD_NOTE = "held for review: Stripe charged less than the plan price, or another currency; no Pass granted";
+export const HELD_NOTE = "held for review: charged below the plan price or in another currency, or the account was deleted; no Pass granted";
 
 type Tx = Prisma.TransactionClient;
 
@@ -109,7 +109,8 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
   await tx.payment.update({
     where: { id: payment.id },
     data: {
-      status: short ? "held" : "paid",
+      // Held: no Pass can follow; an administrator refunds or grants by hand (/admin/billing).
+      status: short || !payment.customer.userId ? "held" : "paid",
       paidAt: now,
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId: intentId(session),
@@ -123,7 +124,7 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
   if (!userId) {
     // The account was deleted before the payment was confirmed: refund by hand.
     logEvent("billing.paid_without_user", { paymentId: payment.id });
-    return "processed";
+    return "held";
   }
   if (!payment.plan.durationDays) throw new Error(`plan of payment ${payment.id} has no duration`);
   const pass = await addPass(tx, { userId, certificationId: payment.certificationId, days: payment.plan.durationDays, source: "purchase", paymentId: payment.id, now });

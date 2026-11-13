@@ -199,6 +199,8 @@ Chaque événement est enregistré dans `stripe_event`, dans la même transactio
 
 **Paiement retenu** : si Stripe a encaissé moins que le tarif, ou dans une autre devise (un prix Stripe modifié à la main, par exemple), le paiement passe au statut `held`. Aucun Pass n'est accordé, et l'acheteur voit « En vérification ». La liste « Paiements à vérifier » d'*Administration → Droits* les montre avec le tarif, le montant encaissé et la référence du paiement Stripe. Il faut alors rembourser dans le tableau de bord Stripe, ou accorder le Pass à la main depuis la fiche de l'utilisateur. Le remboursement depuis l'application vient avec le lot C.
 
+**Remboursements et litiges** : l'application n'écoute pas encore `charge.refunded` ni les litiges, qui viennent avec le lot C. Un remboursement fait dans Stripe laisse donc le paiement `paid` et le Pass actif. Il faut alors révoquer le Pass à la main depuis la fiche de l'utilisateur dans *Administration → Droits*, avec le motif « refund ». Le statut `refunded` sera posé par le webhook du lot C.
+
 **E-mails de facturation** : confirmation d'achat, rappel 7 jours avant la fin d'un Pass, puis avis d'expiration. Ils passent par la file `email_outbox`, envoyée chaque minute par l'application, avec de nouveaux essais espacés en cas d'échec SMTP (8 essais au plus). Au moment de l'envoi, un rappel est vérifié contre l'accès du jour : un Pass prolongé, révoqué ou remplacé entre-temps ne déclenche pas d'e-mail.
 
 ## Avancement (plan du §12 des specs)
