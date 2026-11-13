@@ -141,17 +141,25 @@ export function redactSmtp(message: string, server: string): string {
   } catch {
     return message;
   }
-  const secrets = new Set<string>();
-  for (const [raw, min] of [[url.password, 1], [url.username, 3]] as const) {
-    // The password is always masked; a very short user name would mask ordinary words.
-    if (raw.length < min) continue;
-    secrets.add(raw);
+  const decode = (raw: string) => {
     try {
-      secrets.add(decodeURIComponent(raw));
+      return decodeURIComponent(raw);
     } catch {
-      // Not decodable: the raw form is enough.
+      return raw; // Not decodable: the raw form is what would be sent.
     }
+  };
+  const user = decode(url.username);
+  const pass = decode(url.password);
+  const base64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
+  const secrets = new Set<string>();
+  // The password is always masked; a user name under 3 characters would mask ordinary words.
+  for (const [raw, value, min] of [[url.password, pass, 1], [url.username, user, 3]] as const) {
+    if (value.length < min) continue;
+    // As written in EMAIL_SERVER, decoded, and base64 (AUTH LOGIN sends each one so).
+    secrets.add(raw).add(value).add(base64(value));
   }
+  // AUTH PLAIN sends "\0user\0password" in base64.
+  if (pass) secrets.add(base64(`\0${user}\0${pass}`));
   let out = message;
   // Longest first, so that a secret containing another one is removed whole.
   for (const s of [...secrets].sort((a, b) => b.length - a.length)) out = out.split(s).join("***");
@@ -169,7 +177,8 @@ export interface SmtpCheck {
 
 /**
  * Checks the SMTP settings: connects, authenticates, then sends a test e-mail
- * to `to`. Errors never contain the SMTP credentials.
+ * to `to`. Errors never contain the SMTP password, nor a user name of 3
+ * characters or more (as written, decoded or base64).
  */
 export async function sendTestEmail({ to, locale = defaultLocale }: { to: string; locale?: string }): Promise<SmtpCheck> {
   const server = process.env.EMAIL_SERVER;

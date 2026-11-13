@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, within } from "@testing-library/react";
-import { ProgressionCard, XpGainCard } from "@/components/progress/progression";
+import { ProgressionCard } from "@/components/progress/progression";
+import { XpGainCard } from "@/components/progress/xp-gain";
 import type { XpGain } from "@/lib/progress/progression";
 import { PROGRESSION } from "../unit/fixtures/bank";
 import { renderIntl } from "./render";

@@ -153,6 +153,9 @@ describe("magic link e-mail", () => {
     expect(redactSmtp("a b", "smtp://a:b@h")).toBe("a ***");
     // An invalid server leaves the message unchanged.
     expect(redactSmtp("unchanged", "not a url")).toBe("unchanged");
+    // Base64 forms, as AUTH LOGIN and AUTH PLAIN send them.
+    const b64 = (x: string) => Buffer.from(x).toString("base64");
+    expect(redactSmtp(`334 ${b64("login")} ${b64("p@ss")} ${b64("\0login\0p@ss")}`, "smtp://login:p%40ss@h")).toBe("334 *** *** ***");
     // A password that is not URL-decodable is masked as written.
     expect(redactSmtp("got bad%zzpw", "smtp://login:bad%zzpw@h")).toBe("got ***");
   });

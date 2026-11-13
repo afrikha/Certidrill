@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { Readiness, ReadinessCheck, Verdict } from "@/lib/progress/readiness";
 import { cn } from "@/lib/utils";
 
 /** Colour of each verdict, as text and as SVG stroke. */
-const TONE: Record<Verdict, { text: string; stroke: string; border: string }> = {
+export const TONE: Record<Verdict, { text: string; stroke: string; border: string }> = {
   not_ready: { text: "text-danger", stroke: "stroke-danger", border: "border-danger" },
   progressing: { text: "text-warning", stroke: "stroke-warning", border: "border-warning" },
   almost: { text: "text-primary", stroke: "stroke-primary", border: "border-primary" },
@@ -21,8 +20,9 @@ function arcPoint(value: number, radius = 80): { x: number; y: number } {
  * Half-circle gauge of the index. Decorative: the index and the verdict are
  * always written next to it.
  */
-export function ReadinessGauge({ index, verdict, marks }: Readonly<{ index: number; verdict: Verdict; marks: readonly number[] }>) {
+export function ReadinessGauge({ index, verdict, marks, previous = null }: Readonly<{ index: number; verdict: Verdict; marks: readonly number[]; previous?: number | null }>) {
   const arc = "M 20 100 A 80 80 0 0 1 180 100";
+  const ghost = previous === null ? null : { inner: arcPoint(previous, 64), outer: arcPoint(previous, 96) };
   return (
     <svg viewBox="0 0 200 110" className="w-full max-w-56" aria-hidden data-testid="readiness-gauge">
       <path d={arc} fill="none" className="stroke-muted" strokeWidth={16} strokeLinecap="round" />
@@ -32,13 +32,15 @@ export function ReadinessGauge({ index, verdict, marks }: Readonly<{ index: numb
         const outer = arcPoint(m, 92);
         return <line key={m} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} className="stroke-foreground/50" strokeWidth={2} />;
       })}
+      {/* The previous index, for comparison. */}
+      {ghost && <line x1={ghost.inner.x} y1={ghost.inner.y} x2={ghost.outer.x} y2={ghost.outer.y} className="stroke-foreground" strokeOpacity={0.7} strokeWidth={2} strokeDasharray="3 3" data-testid="readiness-previous" />}
     </svg>
   );
 }
 
-type T = ReturnType<typeof useTranslations<"readiness">>;
+export type T = ReturnType<typeof useTranslations<"readiness">>;
 
-function checkText(t: T, c: ReadinessCheck, domainTitle: (code: string) => string): string {
+export function checkText(t: T, c: ReadinessCheck, domainTitle: (code: string) => string): string {
   const state = c.ok ? "ok" : "ko";
   switch (c.code) {
     case "streak":
@@ -135,7 +137,7 @@ export function ReadinessCard({ readiness: r, bands, weights, domainTitles }: Re
   );
 }
 
-function deltaText(t: T, before: Readiness | null, after: Readiness): string {
+export function deltaText(t: T, before: Readiness | null, after: Readiness): string {
   if (!before) return t("first");
   const delta = after.index - before.index;
   if (delta > 0) return t("up", { n: delta });
@@ -143,27 +145,4 @@ function deltaText(t: T, before: Readiness | null, after: Readiness): string {
   return t("same");
 }
 
-const RANK: Record<Verdict, number> = { not_ready: 0, progressing: 1, almost: 2, ready: 3 };
-
-/** On the results page: how this exam moved the index. */
-export function ReadinessChange({ before, after }: Readonly<{ before: Readiness | null; after: Readiness }>) {
-  const t = useTranslations("readiness");
-  const tone = TONE[after.verdict];
-  const promoted = before !== null && RANK[after.verdict] > RANK[before.verdict];
-  return (
-    <section aria-labelledby="readiness-change-title" className={cn("flex flex-wrap items-center gap-6 rounded-lg border-2 bg-background p-6 shadow-sm", tone.border)} data-testid="readiness-change">
-      <div>
-        <h2 id="readiness-change-title" className="text-sm text-muted-foreground">{t("title")}</h2>
-        <p className="text-4xl font-bold tabular-nums">
-          {after.index}<span className="text-lg text-muted-foreground"> / 100</span>
-        </p>
-        <p className={cn("font-bold", tone.text)}>{t(`verdict_${after.verdict}`)}</p>
-      </div>
-      <div className="space-y-1 text-sm">
-        <p className="font-semibold" data-testid="readiness-delta">{deltaText(t, before, after)}</p>
-        {promoted && <p className={cn("font-semibold", tone.text)}>{t("promoted", { verdict: t(`verdict_${after.verdict}`) })}</p>}
-        <Link href="/dashboard" className="text-primary underline">{t("seeDetails")}</Link>
-      </div>
-    </section>
-  );
-}
+export const RANK: Record<Verdict, number> = { not_ready: 0, progressing: 1, almost: 2, ready: 3 };

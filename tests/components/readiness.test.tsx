@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { screen, within } from "@testing-library/react";
-import { ReadinessCard, ReadinessChange, ReadinessGauge } from "@/components/progress/readiness";
+import { ReadinessCard, ReadinessGauge } from "@/components/progress/readiness";
+import { ReadinessChange } from "@/components/progress/readiness-change";
 import type { Readiness } from "@/lib/progress/readiness";
 import { renderIntl } from "./render";
 
 const WEIGHTS = { level: 0.5, consistency: 0.2, domains: 0.2, freshness: 0.1 };
 const BANDS = [50, 70, 85];
+const BAND_SET = { progressing: 50, almost: 70, ready: 85 };
 
 function readiness(over: Partial<Readiness> = {}): Readiness {
   return {
@@ -92,23 +94,47 @@ describe("ReadinessGauge", () => {
 
 describe("ReadinessChange", () => {
   it("shows a first measure", () => {
-    renderIntl(<ReadinessChange before={null} after={readiness({ index: 40, verdict: "not_ready" })} />);
+    renderIntl(<ReadinessChange before={null} after={readiness({ index: 40, verdict: "not_ready" })} bands={BAND_SET} />);
     expect(screen.getByTestId("readiness-delta")).toHaveTextContent("First measure");
     expect(screen.getByRole("link", { name: /See what is missing/ })).toHaveAttribute("href", "/dashboard");
   });
 
   it("shows a rise and a new stage", () => {
-    renderIntl(<ReadinessChange before={readiness({ index: 64, verdict: "progressing" })} after={readiness({ index: 72, verdict: "almost" })} />);
+    renderIntl(<ReadinessChange before={readiness({ index: 64, verdict: "progressing" })} after={readiness({ index: 72, verdict: "almost" })} bands={BAND_SET} />);
     expect(screen.getByTestId("readiness-delta")).toHaveTextContent("+8 since your previous exam");
     expect(screen.getByText("New stage reached: Almost ready!")).toBeInTheDocument();
   });
 
+  it("marks the previous index on the gauge and lists the rules this exam met", () => {
+    const before = readiness({ index: 64, verdict: "progressing" });
+    const after = readiness({
+      index: 72,
+      verdict: "almost",
+      checks: before.checks.map((c) => (c.code === "streak" ? { ...c, ok: true, value: 3 } : c.code === "average" ? { ...c, ok: false } : c)),
+    });
+    renderIntl(<ReadinessChange before={before} after={after} bands={BAND_SET} domainTitles={{ networking: "Virtual networking" }} />);
+    expect(screen.getByTestId("readiness-change-index")).toHaveTextContent("72 / 100");
+    expect(screen.getByTestId("readiness-change")).toHaveAttribute("data-verdict", "almost");
+    expect(screen.getByTestId("readiness-previous")).toBeInTheDocument();
+    // Only blocking rules that went from unmet to met; "average" is not a rule.
+    const unlocked = screen.getByTestId("readiness-unlocked");
+    expect(within(unlocked).getAllByRole("listitem")).toHaveLength(1);
+    expect(unlocked.querySelector('[data-check="streak"]')).toHaveAttribute("data-ok", "true");
+    expect(screen.getByRole("heading", { name: "Met with this exam" })).toBeInTheDocument();
+  });
+
+  it("has no previous mark nor rule list for a first exam", () => {
+    renderIntl(<ReadinessChange before={null} after={readiness()} bands={BAND_SET} />);
+    expect(screen.queryByTestId("readiness-previous")).toBeNull();
+    expect(screen.queryByTestId("readiness-unlocked")).toBeNull();
+  });
+
   it("shows a fall or no change, without a new stage (FR)", () => {
-    const { unmount } = renderIntl(<ReadinessChange before={readiness({ index: 80 })} after={readiness({ index: 75 })} />, "fr");
+    const { unmount } = renderIntl(<ReadinessChange before={readiness({ index: 80 })} after={readiness({ index: 75 })} bands={BAND_SET} />, "fr");
     expect(screen.getByTestId("readiness-delta")).toHaveTextContent("−5 depuis votre examen précédent");
     expect(screen.queryByText(/Nouveau palier/)).toBeNull();
     unmount();
-    renderIntl(<ReadinessChange before={readiness()} after={readiness()} />, "fr");
+    renderIntl(<ReadinessChange before={readiness()} after={readiness()} bands={BAND_SET} />, "fr");
     expect(screen.getByTestId("readiness-delta")).toHaveTextContent("Inchangé");
   });
 });

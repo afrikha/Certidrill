@@ -347,6 +347,8 @@ export interface ReadinessChange {
   before: Readiness | null;
   /** Readiness right after this attempt. */
   after: Readiness;
+  /** Verdict bands of the certification, to follow the gauge across them. */
+  bands: ReadinessConfig["bands"];
 }
 
 export interface ProgressionGain {
@@ -359,6 +361,8 @@ export interface ProgressionGain {
   levels: number;
   /** Title of the level before this attempt, when it changed. */
   previousTitle: string | null;
+  /** XP and title of every level, to follow the XP bar across levels. */
+  ladder: { xp: number; title: string }[];
 }
 
 export interface AttemptProgress {
@@ -398,11 +402,12 @@ export async function getAttemptProgress(db: PrismaClient, { attemptId, userId, 
       level: { n: p.level.n, title: title(p.level.n), from: p.level.from, next: p.level.next },
       levels: p.levels,
       previousTitle: gain.levelBefore === gain.levelAfter ? null : title(gain.levelBefore),
+      ladder: rules.levels.map((l) => ({ xp: l.xp, title: pick(l.title, locale) })),
     };
   }
   return {
     readiness: config
-      ? { before: previous ? computeReadiness(mine.slice(0, i), config, previous.submittedAt) : null, after: computeReadiness(upTo, config, attempt.submittedAt)! }
+      ? { before: previous ? computeReadiness(mine.slice(0, i), config, previous.submittedAt) : null, after: computeReadiness(upTo, config, attempt.submittedAt)!, bands: config.bands }
       : null,
     progression,
   };

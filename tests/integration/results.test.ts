@@ -152,6 +152,8 @@ describe("progress", () => {
     expect(step).toMatchObject({ xp: prog.xp, levels: 10, level: { n: prog.level.n, title: fr.title } });
     expect(step.badges.map((b) => b.code)).toContain("hat_trick");
     expect(step.previousTitle === null).toBe(step.gain.levelBefore === step.gain.levelAfter);
+    // Every level with its title in the user's language, for the animated XP bar.
+    expect(step.ladder).toEqual(prog.config.levels.map((l) => ({ xp: l.xp, title: l.title.fr })));
 
     // The test bank has 28 published questions: every exam repeats most of them,
     // so perfect scores are not enough to be ready.
@@ -177,6 +179,8 @@ describe("progress", () => {
       expect(change.after.index).toBe(ready.index);
       expect(change.before!.index).toBeLessThan(change.after.index);
       expect(change.before!.verdict).not.toBe("ready");
+      // The verdict bands of the blueprint, for the animated gauge.
+      expect(change.bands).toEqual(ready.config.bands);
       const first = p.attempts.find((a) => a.certification === "az-104")!;
       expect((await getReadinessChange(db, { attemptId: first.id, userId }))!.before).toBeNull();
       expect((await getReadinessChange(db, { attemptId: second, userId }))!.after.streak).toBe(2);
