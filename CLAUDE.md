@@ -8,9 +8,9 @@ Le propriétaire du dépôt autorise la fusion **automatique** de toute PR ouver
 
 1. **CI verte** : tous les jobs du dernier commit poussé ont réussi (aucun en échec, aucun en cours).
 2. **SonarCloud bon** : quality gate « Passed » sur ce même commit.
-3. **Tous les commentaires traités** : chaque commentaire de revue (humain ou automatique) a reçu un correctif poussé ou une réponse argumentée, et les fils sont résolus. Une remarque mineure à laquelle on a répondu en la reportant au prochain push compte comme traitée.
+3. **Tous les commentaires traités** : chaque commentaire de revue (humain ou automatique) a reçu un correctif poussé ou une réponse argumentée, et les fils sont résolus. Une remarque mineure reportée ne compte comme traitée que si elle est notée dans un commentaire de la PR comme point à reprendre dans la prochaine, puis reprise dans celle-ci.
 
-Exceptions : ne **pas** fusionner tant qu'il reste une remarque de **sécurité** (ou RGPD) sans décision du propriétaire, ou un point que le propriétaire a demandé de lui soumettre. Dans ce cas, lui demander.
+Exceptions : ne **pas** fusionner tant qu'il reste, sans décision du propriétaire, une remarque qu'un relecteur (humain, revue automatique ou SonarCloud) présente comme relevant de la **sécurité**, du **RGPD** ou de la confidentialité. Ce n'est pas à Claude de juger qu'elle n'en relève pas. Même chose pour un point que le propriétaire a demandé de lui soumettre. Dans ces cas, lui demander.
 
 Après la fusion : se désabonner de l'activité de la PR, puis remettre la branche de travail sur `origin/main` (`git push --force-with-lease`).
 
