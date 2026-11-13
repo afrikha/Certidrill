@@ -38,10 +38,12 @@ test.describe("question types", () => {
 
 test.describe("public pages", () => {
   for (const lang of ["en", "fr"] as const) {
-    test(`home and login (${lang})`, async ({ page, context }) => {
+    test(`home, pricing and login (${lang})`, async ({ page, context }) => {
       await context.addCookies([{ name: "NEXT_LOCALE", value: lang, url: test.info().project.use.baseURL! }]);
       await page.goto("/");
       await expect(page.locator("main")).toMatchAriaSnapshot({ name: `home-${lang}.aria.yml` });
+      await page.goto("/pricing");
+      await expect(page.locator("main")).toMatchAriaSnapshot({ name: `pricing-${lang}.aria.yml` });
       await page.goto("/login");
       await expect(page.locator("main")).toMatchAriaSnapshot({ name: `login-${lang}.aria.yml` });
     });

@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { readSwitches } from "@/lib/settings";
 import { freeExamQuota } from "@/lib/access";
 import { getOffers, type Offer } from "@/lib/access/offers";
+import { canBuyOnline } from "@/lib/billing/checkout";
+import { stripeApi } from "@/lib/billing/stripe";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ExamPreview, Icon } from "./landing-visuals";
@@ -30,6 +32,7 @@ const FAQ = ["dumps", "score", "resume", "free"] as const;
 export default async function HomePage() {
   const t = await getTranslations("home");
   const tOffer = await getTranslations("offer");
+  const tBilling = await getTranslations("billing");
   const format = await getFormatter();
   const session = await auth();
   const [certifications, { signupOpen }, offers, quota] = await Promise.all([
@@ -47,6 +50,7 @@ export default async function HomePage() {
   const faq = FAQ.filter((q) => blueprint || q !== "score");
   const codes = certifications.map((c) => c.code.toUpperCase()).join(" · ");
   const pass = offers.find((o) => o.kind === "pass");
+  const buyable = pass ? await canBuyOnline(prisma, pass.code, stripeApi()) : false;
   const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
   const freeExams = quota === null ? null : t("freeExams", { count: quota });
 
@@ -151,7 +155,7 @@ export default async function HomePage() {
         <ul className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
           <li className="flex flex-col rounded-2xl border border-border p-8">
             <h3 className="text-lg font-semibold">{t("free")}</h3>
-            <p className="mt-4 text-4xl font-bold tracking-tight">{t("freePrice")}</p>
+            <p className="mt-4 text-4xl font-bold tracking-tight">{format.number(0, { style: "currency", currency: (offers[0]?.currency ?? "eur").toUpperCase(), maximumFractionDigits: 0 })}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t("freeTerms")}</p>
             <ul className="mt-6 space-y-3 text-sm">
               {[freeExams, t("freeCorrection"), t("freeProgress")].filter(Boolean).map((b) => (
@@ -173,7 +177,11 @@ export default async function HomePage() {
                   <li key={k} className="flex gap-3"><Icon name="check" className="size-5 shrink-0 text-primary" />{tOffer(k)}</li>
                 ))}
               </ul>
-              <p className="mt-auto pt-8 text-center text-sm text-muted-foreground">{t("soonHint")}</p>
+              {buyable ? (
+                <Link href="/pricing" className={buttonClasses("primary", "mt-auto py-2.5")}>{tBilling("buy")}</Link>
+              ) : (
+                <p className="mt-auto pt-8 text-center text-sm text-muted-foreground">{t("soonHint")}</p>
+              )}
             </li>
           )}
         </ul>

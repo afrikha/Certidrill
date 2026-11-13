@@ -80,6 +80,27 @@ enum EntitlementSource {
   admin
 }
 
+enum PaymentStatus {
+  /// Checkout session created, payment not confirmed by a webhook yet.
+  pending
+  paid
+  failed
+  /// The checkout session expired without payment.
+  expired
+  refunded
+  /// Paid, but below the plan price or in another currency: no Pass until an administrator refunds it or grants the Pass by hand.
+  held
+}
+
+enum EmailStatus {
+  pending
+  sent
+  /// No longer relevant when its time came (Pass extended, revoked…).
+  skipped
+  /// Gave up after the last retry.
+  failed
+}
+
 enum ReportStatus {
   open
   accepted
@@ -105,8 +126,10 @@ model User {
   reports      QuestionReport[]
   outcomes     ExamOutcome[]
   entitlements Entitlement[]
-  auditActions AuditLog[]    @relation("audit_actor")
-  auditEntries AuditLog[]    @relation("audit_target")
+  billing      BillingCustomer?
+  emails       EmailOutbox[]
+  auditActions AuditLog[]       @relation("audit_actor")
+  auditEntries AuditLog[]       @relation("audit_target")
 
   @@map("user")
 }
@@ -172,6 +195,7 @@ model Certification {
   attempts       Attempt[]
   outcomes       ExamOutcome[]
   entitlements   Entitlement[]
+  payments       Payment[]
 
   @@map("certification")
 }
@@ -443,9 +467,12 @@ model Plan {
   minSeats      Int?
   /// Full mock exams per certification at this level (the free plan); null: unlimited.
   examQuota     Int?
+  /// Set by `npm run stripe:sync-prices` (Stripe price with lookup key = code).
   stripePriceId String?         @unique
   active        Boolean         @default(true)
   createdAt     DateTime        @default(now())
+
+  payments Payment[]
 
   @@map("plan")
 }
@@ -458,17 +485,109 @@ model Entitlement {
   source          EntitlementSource
   startsAt        DateTime
   expiresAt       DateTime
-  /// The payment that created it (payment table: offers lot B).
-  paymentId       String?
+  /// The payment that created it: one right per payment, however often Stripe reports it.
+  paymentId       String?           @unique
   /// Set when the right is withdrawn (refund): it no longer gives access.
   revokedAt       DateTime?
   createdAt       DateTime          @default(now())
 
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   certification Certification @relation(fields: [certificationId], references: [id])
+  payment       Payment?      @relation(fields: [paymentId], references: [id])
 
   @@index([userId, certificationId])
   @@map("entitlement")
+}
+
+/// The Stripe customer of a user (offers lot B). Kept when the account is
+/// deleted (userId set to null): payments are accounting records.
+model BillingCustomer {
+  id               String   @id @default(cuid())
+  userId           String?  @unique
+  stripeCustomerId String   @unique
+  country          String?
+  vatNumber        String?
+  createdAt        DateTime @default(now())
+
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  payments Payment[]
+
+  @@map("billing_customer")
+}
+
+/// One purchase through Stripe Checkout. Created pending when the checkout
+/// starts; only a verified webhook marks it paid and grants the right.
+/// Amounts are the server's (plan table), then Stripe's: never the browser's.
+model Payment {
+  id                      String        @id @default(cuid())
+  billingCustomerId       String
+  planId                  String
+  /// The certification a Pass is bought for.
+  certificationId         String
+  stripeCheckoutSessionId String?       @unique
+  stripePaymentIntentId   String?
+  /// Invoices come with offers lot C.
+  stripeInvoiceId         String?
+  /// The price asked (the plan's).
+  amountCents             Int
+  /// What Stripe charged, tax included, once paid, and in which currency (that of the session).
+  chargedCents            Int?
+  chargedCurrency         String?
+  taxCents                Int           @default(0)
+  currency                String
+  status                  PaymentStatus @default(pending)
+  invoiceUrl              String?
+  paidAt                  DateTime?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  customer      BillingCustomer @relation(fields: [billingCustomerId], references: [id])
+  plan          Plan            @relation(fields: [planId], references: [id])
+  certification Certification   @relation(fields: [certificationId], references: [id])
+  entitlement   Entitlement?
+
+  @@index([billingCustomerId, createdAt])
+  @@map("payment")
+}
+
+/// Stripe events already handled (webhook idempotence): an event received
+/// twice is processed once. A failed event keeps its error and is processed
+/// again when Stripe retries it.
+model StripeEvent {
+  /// Stripe's event id (evt_…).
+  id          String    @id
+  type        String
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  error       String?
+
+  @@map("stripe_event")
+}
+
+/// Transactional e-mails waiting to be sent, with retry (lib/email/outbox.ts).
+/// The address and language are read from the user when sending: no copy here,
+/// and deleting the account deletes its pending e-mails.
+model EmailOutbox {
+  id          String      @id @default(cuid())
+  userId      String
+  /// purchase, pass_reminder, pass_expired
+  kind        String
+  payload     Json
+  /// Same key, same e-mail: enqueuing it again does nothing.
+  dedupeKey   String      @unique
+  status      EmailStatus @default(pending)
+  sendAfter   DateTime
+  attempts    Int         @default(0)
+  /// A worker holds the row until then (several instances never send twice).
+  lockedUntil DateTime?
+  lastError   String?
+  sentAt      DateTime?
+  createdAt   DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, sendAfter])
+  @@map("email_outbox")
 }
 
 /// Switches and settings changed without deployment (offer.*.enabled, signup.open).

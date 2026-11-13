@@ -4,9 +4,10 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { findUsers, userEntitlements } from "@/lib/access/admin";
 import { getAccessSummary } from "@/lib/access";
-import { recentAudit } from "@/lib/audit";
+import { recentAudit, type AuditAction } from "@/lib/audit";
 import { readSwitches, SWITCHES, type Switch } from "@/lib/settings";
 import { setSwitchAction } from "@/lib/actions/billing";
+import { heldPayments } from "@/lib/billing/checkout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -17,6 +18,9 @@ export const metadata = { title: "Billing" };
 export const dynamic = "force-dynamic";
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
+
+/** Actions done on a user: without its target, the account was deleted since. */
+const ON_USER: ReadonlySet<string> = new Set<AuditAction>(["user.create", "entitlement.grant", "entitlement.revoke"]);
 
 /**
  * Rights back-office (specs des offres §7): find a user, see and change their
@@ -32,13 +36,15 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
   const date = (d: Date) => format.dateTime(d, { dateStyle: "medium" });
   const now = new Date();
 
-  const [switches, results, selected, certifications, passPlan] = await Promise.all([
+  const [switches, results, selected, certifications, passPlan, held] = await Promise.all([
     readSwitches(prisma),
     findUsers(prisma, q),
     userId ? prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, role: true, emailVerified: true, createdAt: true } }) : null,
     prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { code: true, title: true } }),
     prisma.plan.findUnique({ where: { code: "pass_90" }, select: { durationDays: true } }),
+    heldPayments(prisma),
   ]);
+  const money = (cents: number | null, currency: string) => (cents === null ? "—" : format.number(cents / 100, { style: "currency", currency: currency.toUpperCase() }));
   const [access, entitlements, log] = await Promise.all([
     selected ? getAccessSummary(prisma, selected.id, now) : [],
     selected ? userEntitlements(prisma, selected.id) : [],
@@ -69,6 +75,45 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
           ))}
         </ul>
       </Card>
+
+      {held.length > 0 && (
+        <Card className="overflow-x-auto p-0">
+          <table className="w-full text-left text-sm" data-testid="held-payments">
+            <caption className="px-4 pt-3 text-left">
+              <span className="block font-semibold">{t("held")}</span>
+              <span className="block text-muted-foreground">{t("heldHelp")}</span>
+            </caption>
+            <thead className="bg-muted">
+              <tr>
+                <th scope="col" className="px-4 py-2">{t("when")}</th>
+                <th scope="col" className="px-4 py-2">{t("user")}</th>
+                <th scope="col" className="px-4 py-2">{t("certification")}</th>
+                <th scope="col" className="px-4 py-2">{t("heldAsked")}</th>
+                <th scope="col" className="px-4 py-2">{t("heldCharged")}</th>
+                <th scope="col" className="px-4 py-2">{t("heldStripe")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {held.map((p) => (
+                <tr key={p.id} className="border-t border-border" data-payment={p.id}>
+                  <td className="whitespace-nowrap px-4 py-2">{p.paidAt ? date(p.paidAt) : "—"}</td>
+                  <td className="px-4 py-2">
+                    {p.customer.user ? (
+                      <Link href={`/admin/billing?${new URLSearchParams({ user: p.customer.user.id })}`} className="text-primary underline">{p.customer.user.email}</Link>
+                    ) : (
+                      <span className="italic text-muted-foreground">{t("deletedUser")}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 font-mono uppercase">{p.certification.code}</td>
+                  <td className="px-4 py-2 tabular-nums">{money(p.amountCents, p.currency)}</td>
+                  <td className="px-4 py-2 tabular-nums">{money(p.chargedCents, p.chargedCurrency ?? p.currency)}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{p.stripePaymentIntentId ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
 
       <Card>
         <form className="flex flex-wrap items-end gap-3" role="search">
@@ -182,7 +227,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
                 <td className="px-4 py-2">{entry.actor?.email ?? t("cli")}</td>
                 <td className="px-4 py-2">
                   <span className="font-medium">{t(`action_${entry.action.replaceAll(".", "_")}`)}</span>
-                  {entry.target ? <> — {entry.target.email}</> : entry.action !== "setting.update" && <> — <span className="italic text-muted-foreground">{t("deletedUser")}</span></>}
+                  {entry.target ? <> — {entry.target.email}</> : ON_USER.has(entry.action) && <> — <span className="italic text-muted-foreground">{t("deletedUser")}</span></>}
                   <code className="mt-1 block break-all text-xs text-muted-foreground">{describe(entry.details)}</code>
                 </td>
               </tr>

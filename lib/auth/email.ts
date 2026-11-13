@@ -64,7 +64,7 @@ function decodeCredential(value: string): string {
   }
 }
 
-function translator(locale: string) {
+export function translator(locale: string) {
   const l: Locale = isLocale(locale) ? locale : defaultLocale;
   return createTranslator({ locale: l, messages: MESSAGES[l], namespace: "email" });
 }
@@ -78,7 +78,7 @@ export interface EmailMessage {
   html: string;
 }
 
-interface Layout {
+export interface Layout {
   locale: string;
   subject: string;
   preheader: string;
@@ -90,7 +90,7 @@ interface Layout {
 }
 
 /** Plain text and simple HTML (inline styles, as mail clients need) around one call to action. */
-function render({ locale, subject, preheader, intro, button, notes, fallback }: Layout): EmailMessage {
+export function render({ locale, subject, preheader, intro, button, notes, fallback }: Layout): EmailMessage {
   const lang = isLocale(locale) ? locale : defaultLocale;
   const link = escapeHtml(button.url);
   const muted = "margin:16px 0 0;font-size:13px;line-height:1.5;color:#555";
@@ -171,7 +171,7 @@ export function accountExistsMessage({ url, locale }: { url: string; locale: str
  * written to the server log when AUTH_LOG_MAGIC_LINKS=true (development, or a
  * personal instance whose administrator reads the logs).
  */
-async function send({ to, message, link, kind }: { to: string; message: EmailMessage; link: string; kind: string }): Promise<void> {
+export async function send({ to, message, link, kind }: { to: string; message: EmailMessage; link: string; kind: string }): Promise<void> {
   const server = process.env.EMAIL_SERVER;
   if (!server) {
     if (process.env.AUTH_LOG_MAGIC_LINKS !== "true") throw new Error("EMAIL_SERVER is not configured");

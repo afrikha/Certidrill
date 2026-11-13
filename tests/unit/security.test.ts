@@ -24,13 +24,34 @@ describe("rate limiter", () => {
 
   it("gives back a hit within its window only", () => {
     const rl = createRateLimiter({ limit: 1, windowMs: 1000 });
-    rl.release("none", 0);
-    expect(rl.hit("k", 0)).toBe(true);
-    rl.release("k", 10);
+    const first = rl.take("k", 0);
+    expect(first.ok).toBe(true);
+    first.release(10);
     expect(rl.hit("k", 20)).toBe(true);
-    expect(rl.hit("k", 30)).toBe(false);
-    rl.release("k", 2000); // window over: nothing to give back
-    expect(rl.blocked("k", 2000)).toBe(false);
+    const refused = rl.take("k", 30);
+    expect(refused.ok).toBe(false);
+    // Giving back a refused hit lowers the count to the limit: still blocked.
+    refused.release(40);
+    expect(rl.blocked("k", 40)).toBe(true);
+    expect(rl.hit("k", 50)).toBe(false);
+  });
+
+  it("never gives back a hit to a later window, nor after a reset", () => {
+    const rl = createRateLimiter({ limit: 1, windowMs: 1000 });
+    const old = rl.take("k", 0);
+    // Window over: a new one starts, and the old hit is not taken from it.
+    expect(rl.hit("k", 1500)).toBe(true);
+    old.release(1600);
+    expect(rl.hit("k", 1700)).toBe(false);
+    const late = rl.take("k", 1800);
+    rl.reset("k");
+    expect(rl.hit("k", 1900)).toBe(true);
+    late.release(1950);
+    expect(rl.blocked("k", 1960)).toBe(true);
+    // Released after its own window ended (same bucket, too late): nothing.
+    const again = rl.take("j", 0);
+    again.release(5000);
+    expect(rl.blocked("j", 10)).toBe(true);
   });
 });
 

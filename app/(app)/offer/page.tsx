@@ -3,6 +3,9 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { getOffers, type Offer } from "@/lib/access/offers";
+import { canBuyOnline } from "@/lib/billing/checkout";
+import { stripeApi } from "@/lib/billing/stripe";
+import { BuyPass } from "@/components/billing/buy-pass";
 import { Card } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,7 +21,7 @@ const isReason = (r: unknown): r is Reason => typeof r === "string" && (REASONS 
 /**
  * The offer screen (specs des offres §7): the reason of the block, what full
  * access gives, and the offers on sale with their prices from the plan table.
- * Online payment comes with offers lot B.
+ * The Pass is bought here directly once online payment is open (offers lot B).
  */
 export default async function OfferPage({ searchParams }: Readonly<{ searchParams: Promise<{ reason?: string | string[]; certification?: string | string[] }> }>) {
   await requireUser();
@@ -27,11 +30,15 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
   const code = typeof sp.certification === "string" ? sp.certification : null;
   const reason: Reason = isReason(sp.reason) ? sp.reason : "correction";
   const t = await getTranslations("offer");
+  const tBilling = await getTranslations("billing");
   const format = await getFormatter();
-  const [offers, certification] = await Promise.all([
+  const [offers, certification, certifications] = await Promise.all([
     getOffers(prisma),
     code ? prisma.certification.findFirst({ where: { code, active: true }, select: { code: true, title: true } }) : null,
+    prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { code: true, title: true } }),
   ]);
+  const pass = offers.find((o) => o.kind === "pass");
+  const buyable = pass ? await canBuyOnline(prisma, pass.code, stripeApi()) : false;
   const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
   const terms = (o: Offer) => {
     const tax = t(o.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded");
@@ -69,12 +76,16 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
                 <p className="text-3xl font-bold tabular-nums">{price(o)}</p>
                 <p className="text-sm text-muted-foreground">{terms(o)}</p>
                 <p className="text-sm">{t(`scope_${o.kind}`)}</p>
-                <button type="button" disabled className={cn(buttonClasses("primary", "mt-auto"), "disabled:opacity-60")}>{t("soon")}</button>
+                {o.kind === "pass" && buyable ? (
+                  <BuyPass planCode={o.code} certifications={certifications} defaultCertification={certification?.code} className="mt-auto" />
+                ) : (
+                  <button type="button" disabled className={cn(buttonClasses("primary", "mt-auto"), "disabled:opacity-60")}>{t("soon")}</button>
+                )}
               </Card>
             </li>
           ))}
         </ul>
-        <p className="text-sm text-muted-foreground">{t("soonHint")}</p>
+        <p className="text-sm text-muted-foreground">{buyable ? tBilling("secure") : t("soonHint")}</p>
       </section>
 
       <p className="text-sm"><Link href="/dashboard" className="text-primary underline">← {t("back")}</Link></p>

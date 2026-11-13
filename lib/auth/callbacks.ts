@@ -32,21 +32,24 @@ export async function authorizeCredentials(db: PrismaClient, limiter: RateLimite
   // Counted before the check, so that tries sent at once cannot all pass
   // before the first failure is recorded; a success gives its hit back, so
   // only failures count in the end.
-  const emailOk = limiter.hit(`email:${email}`);
-  const ipOk = limiter.hit(`ip:${ip}`);
-  if (!emailOk || !ipOk) {
+  const byEmail = limiter.take(`email:${email}`);
+  const byIp = limiter.take(`ip:${ip}`);
+  if (!byEmail.ok || !byIp.ok) {
     // The hit taken on the key that did not refuse is given back: locking
     // someone's e-mail must not also use up the quota of their address, and
     // the other way round. The refusing key stays blocked until its window ends.
-    if (emailOk) limiter.release(`email:${email}`);
-    if (ipOk) limiter.release(`ip:${ip}`);
+    if (byEmail.ok) byEmail.release();
+    if (byIp.ok) byIp.release();
     throw new RateLimitedError();
   }
 
   const user = await db.user.findUnique({ where: { email } });
   if (!user?.passwordHash || !(await verifyPassword(user.passwordHash, password))) return null;
+  // The right password clears the e-mail's count, failures sent at the same
+  // time included: whoever holds the password is not the one guessing it.
+  // The address only gets this try back: others may share it (an office).
   limiter.reset(`email:${email}`);
-  limiter.release(`ip:${ip}`);
+  byIp.release();
   return { id: user.id, email: user.email, name: user.name };
 }
 

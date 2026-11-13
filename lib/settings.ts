@@ -9,6 +9,8 @@ export const SWITCHES = {
   team: "offer.team.enabled",
   pack: "offer.pack.enabled",
   signupOpen: "signup.open",
+  /** Online payment (Stripe Checkout): closed until the legal pages and VAT are ready (offers lot C). */
+  checkoutOpen: "billing.checkout.enabled",
 } as const;
 
 export type Switch = keyof typeof SWITCHES;
