@@ -41,8 +41,8 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
       (filter === "all" || (filter === "missed" ? i.earned < i.max : i.flagged)) &&
       (!sp.domain || i.domain.code === sp.domain),
   );
-  // Questions answered correctly are locked at the free level: shown in place, without content, when every question is listed.
-  const locked = filter === "all" ? r.correction.locked.filter((l) => !sp.domain || l.domain.code === sp.domain) : [];
+  // Questions answered correctly are locked at the free level: shown in place, without content (never under "missed").
+  const locked = r.correction.locked.filter((l) => filter !== "missed" && (filter === "all" || l.flagged) && (!sp.domain || l.domain.code === sp.domain));
   const cards = [
     ...items.map((item) => ({ kind: "item" as const, order: item.order, item })),
     ...locked.map((item) => ({ kind: "locked" as const, order: item.order, item })),
@@ -96,6 +96,7 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
                 <span className="text-base font-semibold">Q{l.order}</span>
                 <span className="font-semibold text-success">✓ {t("lockedCorrect")}</span>
                 <span className="text-muted-foreground">{l.domain.title}</span>
+                {l.flagged && <span className="text-danger">⚑ {t("filterFlagged")}</span>}
               </header>
               {/* Decorative: no question content is sent at the free level. */}
               <div aria-hidden className="mt-4 space-y-2 blur-sm select-none">

@@ -64,7 +64,7 @@ export interface AttemptResults {
    * options; the others are listed in `locked`, with no content.
    */
   items: CorrectionItem[];
-  correction: { level: AccessLevel; locked: { id: string; order: number; domain: { code: string; title: string } }[] };
+  correction: { level: AccessLevel; locked: { id: string; order: number; flagged: boolean; domain: { code: string; title: string } }[] };
 }
 
 async function choiceLabel(list: Choice[], id: string, locale: Locale): Promise<string> {
@@ -174,7 +174,7 @@ export async function getAttemptResults(
         .filter((it) => !missed(it))
         .map((it) => {
           const code = it.question.objective.domain.code;
-          return { id: it.id, order: it.order, domain: { code, title: domainTitle.get(code) ?? code } };
+          return { id: it.id, order: it.order, flagged: it.flagged, domain: { code, title: domainTitle.get(code) ?? code } };
         });
 
   const items: CorrectionItem[] = await Promise.all(

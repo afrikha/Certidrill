@@ -20,15 +20,17 @@ const isReason = (r: unknown): r is Reason => typeof r === "string" && (REASONS 
  * access gives, and the offers on sale with their prices from the plan table.
  * Online payment comes with offers lot B.
  */
-export default async function OfferPage({ searchParams }: Readonly<{ searchParams: Promise<{ reason?: string; certification?: string }> }>) {
+export default async function OfferPage({ searchParams }: Readonly<{ searchParams: Promise<{ reason?: string | string[]; certification?: string | string[] }> }>) {
   await requireUser();
   const sp = await searchParams;
+  // A repeated parameter comes as an array: ignored rather than passed on.
+  const code = typeof sp.certification === "string" ? sp.certification : null;
   const reason: Reason = isReason(sp.reason) ? sp.reason : "correction";
   const t = await getTranslations("offer");
   const format = await getFormatter();
   const [offers, certification] = await Promise.all([
     getOffers(prisma),
-    sp.certification ? prisma.certification.findFirst({ where: { code: sp.certification, active: true }, select: { code: true, title: true } }) : null,
+    code ? prisma.certification.findFirst({ where: { code, active: true }, select: { code: true, title: true } }) : null,
   ]);
   const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
   const terms = (o: Offer) => {

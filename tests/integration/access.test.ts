@@ -231,7 +231,7 @@ describe("correction by access level", () => {
     expect(free.items.every((i) => i.optionExplanations.length === 0)).toBe(true);
     expect(free.items.every((i) => i.explanationHtml.length > 0 && i.correctAnswer.length > 0)).toBe(true);
     expect(free.correction.locked.map((l) => l.id).sort()).toEqual(right.map((i) => i.id).sort());
-    expect(Object.keys(free.correction.locked[0]!).sort()).toEqual(["domain", "id", "order"]);
+    expect(Object.keys(free.correction.locked[0]!).sort()).toEqual(["domain", "flagged", "id", "order"]);
 
     // Over the network: nothing of the questions answered correctly.
     session.current = { user: { id: user, role: "user", locale: "en" } };
