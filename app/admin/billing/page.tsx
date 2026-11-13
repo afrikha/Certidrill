@@ -145,7 +145,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
                   <tr><td colSpan={5} className="px-4 py-3 text-muted-foreground">{t("noPass")}</td></tr>
                 )}
                 {entitlements.map((e) => {
-                  const state = e.revokedAt ? "revoked" : e.expiresAt <= now ? "expired" : e.startsAt > now ? "upcoming" : "active";
+                  const state = passState(e, now);
                   return (
                     <tr key={e.id} className="border-t border-border" data-state={state}>
                       <td className="px-4 py-2 font-mono uppercase">{e.certification.code}</td>
@@ -192,6 +192,13 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
       </Card>
     </div>
   );
+}
+
+function passState(e: { revokedAt: Date | null; startsAt: Date; expiresAt: Date }, now: Date) {
+  if (e.revokedAt) return "revoked";
+  if (e.expiresAt <= now) return "expired";
+  if (e.startsAt > now) return "upcoming";
+  return "active";
 }
 
 /** The details of an audit entry on one line, without the ids already shown. */

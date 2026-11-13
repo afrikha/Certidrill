@@ -133,7 +133,7 @@ export function magicLinkMessage({ url, locale }: { url: string; locale: string 
   });
 }
 
-/** Sent after a sign-up: the link that verifies the address (lib/auth/verification.ts). */
+/** Sent after a sign-up: the link that verifies the address (lib/auth/signup.ts). */
 export function verificationMessage({ url, locale }: { url: string; locale: string }): EmailMessage {
   const t = translator(locale);
   const hours = EMAIL_VERIFY_HOURS;

@@ -240,7 +240,7 @@ describe("correction by access level", () => {
     // The explanations of the correct questions, as the full level renders them, were not in the free answer.
     const rightIds = new Set(right.map((i) => i.id));
     const hidden = full.items.filter((i) => rightIds.has(i.id)).map((i) => JSON.stringify(i.explanationHtml).slice(1, -1));
-    expect(hidden.length).toBe(right.length);
+    expect(hidden).toHaveLength(right.length);
     for (const html of hidden) expect(body).not.toContain(html);
     for (const i of full.items.filter((i) => !rightIds.has(i.id))) expect(body).toContain(JSON.stringify(i.explanationHtml).slice(1, -1));
     expect({ score: full.scaledScore, domains: full.domains, types: full.types, earned: full.earned, possible: full.possible }).toEqual({
