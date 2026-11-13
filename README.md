@@ -172,8 +172,8 @@ Cloudflare Email Routing (gratuit) peut rediriger `dmarc@` ou `contact@<domaine>
 
 | Route | Rôle |
 | --- | --- |
-| `POST /api/attempts` | Assemble un examen et crée la tentative (ou renvoie celle en cours) |
-| `POST /api/attempts/:id/start` | Démarre le chrono (clic sur « Démarrer ») |
+| `POST /api/attempts` | Assemble un examen et crée la tentative (ou renvoie celle en cours). 402 si l'accès le refuse : `quota_exhausted`, `pass_expired`, `subscription_inactive` |
+| `POST /api/attempts/:id/start` | Démarre le chrono (clic sur « Démarrer »). Même contrôle d'accès, même 402 |
 | `GET /api/attempts/:id` | Sections, questions **sans** réponses, réponses saisies, temps restant |
 | `PUT /api/attempts/:id/items/:itemId` | Enregistre une réponse et/ou le marquage |
 | `POST /api/attempts/:id/sections/:sectionId/lock` | Quitte et verrouille la section courante |

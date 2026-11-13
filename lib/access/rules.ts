@@ -59,7 +59,10 @@ export function subscriptionAccess(s: SubscriptionRight, now: Date): { active: b
     case "trialing":
       return { active: true, until: null };
     case "past_due": {
-      const until = new Date((s.pastDueSince ?? now).getTime() + PAST_DUE_GRACE_DAYS * DAY_MS);
+      // Without the date it became unpaid, no grace: counting from "now" would never end.
+      // The webhook writes that date with the status (offers lot D).
+      if (s.pastDueSince === null) return { active: false, until: null };
+      const until = new Date(s.pastDueSince.getTime() + PAST_DUE_GRACE_DAYS * DAY_MS);
       return { active: now < until, until };
     }
     case "canceled":

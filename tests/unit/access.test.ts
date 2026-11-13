@@ -64,8 +64,8 @@ describe("subscriptions", () => {
   it(`past_due keeps access ${PAST_DUE_GRACE_DAYS} days, then cuts it`, () => {
     expect(subscriptionAccess(sub("past_due", 20, -6), NOW)).toEqual({ active: true, until: days(1) });
     expect(subscriptionAccess(sub("past_due", 20, -7), NOW)).toEqual({ active: false, until: days(0) });
-    // Just entered past_due (date not recorded yet): the grace starts now.
-    expect(subscriptionAccess(sub("past_due"), NOW)).toEqual({ active: true, until: days(7) });
+    // Without the date it became unpaid, no grace (it would otherwise slide forever).
+    expect(subscriptionAccess(sub("past_due"), NOW)).toEqual({ active: false, until: null });
     expect(resolveAccess(facts({ subscriptions: [sub("past_due", 20, -2)] }), NOW)).toEqual({ level: "full", source: "subscription", expiresAt: days(5) });
   });
 
