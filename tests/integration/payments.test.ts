@@ -151,8 +151,16 @@ describe("checkout", () => {
     await expect(tryBuy("pass_90")).rejects.toMatchObject({ code: "unavailable" });
     expect(await canBuyOnline(db, "pass_90", stripe)).toBe(false);
     await db.plan.update({ where: { code: "pass_90" }, data: { stripePriceId: "price_pass_90" } });
-    expect(await canBuyOnline(db, "pass_90", stripe)).toBe(true);
-    expect(await canBuyOnline(db, "pass_90", null)).toBe(false);
+    // Same answer whatever the machine's .env holds: CI has no AUTH_URL.
+    try {
+      vi.stubEnv("AUTH_URL", "");
+      expect(await canBuyOnline(db, "pass_90", stripe)).toBe(false);
+      vi.stubEnv("AUTH_URL", BASE);
+      expect(await canBuyOnline(db, "pass_90", stripe)).toBe(true);
+      expect(await canBuyOnline(db, "pass_90", null)).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
     expect(await db.payment.count({ where: { customer: { userId: user } } })).toBe(0);
   });
 
