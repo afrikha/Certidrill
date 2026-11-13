@@ -15,8 +15,8 @@ import { createUser } from "@/lib/users";
 import { getAccess } from "@/lib/access";
 import { revokeEntitlement } from "@/lib/access/admin";
 import { BillingError, canBuyOnline, CHECKOUT_MINUTES, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
-import { stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
-import { handleStripeEvent } from "@/lib/billing/webhook";
+import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
+import { handleStripeEvent, HELD_NOTE } from "@/lib/billing/webhook";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
 import { kickEmailWorker, startEmailWorker, stopEmailWorker } from "@/lib/email/worker";
 import { SWITCHES } from "@/lib/settings";
@@ -315,6 +315,23 @@ describe("webhook", () => {
     expect(await db.stripeEvent.count({ where: { id: { in: ignored.map((e) => e.id) }, processedAt: { not: null } } })).toBe(ignored.length);
   });
 
+  it("holds a payment below the plan price: recorded, no Pass, flagged for review", async () => {
+    await openSales();
+    const user = await verifiedUser("underpaid@example.com");
+    for (const extra of [{ amount_total: 900 }, { currency: "usd" }, { amount_total: null }]) {
+      const payment = await checkout(user);
+      const e = event("checkout.session.completed", sessionObject(payment, extra));
+      expect(await handleStripeEvent(db, e, T0)).toBe("held");
+      expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid" });
+      expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: e.id } })).toMatchObject({ processedAt: T0, error: HELD_NOTE });
+      // Received again: still nothing granted.
+      expect(await handleStripeEvent(db, e, T0)).toBe("duplicate");
+    }
+    expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user } }, orderBy: { createdAt: "asc" } })).toMatchObject({ amountCents: 900 });
+    expect(await db.entitlement.count({ where: { userId: user } })).toBe(0);
+    expect(await db.emailOutbox.count({ where: { userId: user } })).toBe(0);
+  });
+
   it("records the amount Stripe charged, and a payment whose account was deleted", async () => {
     await openSales();
     const user = await verifiedUser("gone@example.com");
@@ -427,6 +444,15 @@ describe("stripe client", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("sends the key to a local fake API only, and never a live key", () => {
+    expect(apiBase(undefined, "sk_test_1")).toEqual({});
+    expect(apiBase("http://127.0.0.1:12111", "sk_test_1")).toEqual({ host: "127.0.0.1", port: "12111", protocol: "http" });
+    expect(apiBase("https://[::1]", "sk_test_1")).toEqual({ host: "::1", port: undefined, protocol: "https" });
+    expect(() => apiBase("https://evil.example.com", "sk_test_1")).toThrow("localhost");
+    expect(() => apiBase("http://localhost:12111", "sk_live_1")).toThrow("live key");
+    expect(() => apiBase("http://localhost:12111", "rk_live_1")).toThrow("live key");
   });
 });
 

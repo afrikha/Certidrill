@@ -13,6 +13,8 @@ const SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_e2e";
 const AMOUNT = 1900;
 const sessions = new Map();
 let counter = 0;
+// Ids unique across runs: a local database keeps the customers of earlier runs.
+const RUN = Date.now().toString(36);
 
 const json = (res, status, body) => {
   res.writeHead(status, { "content-type": "application/json", "request-id": `req_${++counter}` });
@@ -60,11 +62,11 @@ createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   if (req.method === "POST" && url.pathname === "/v1/customers") {
     await readForm(req);
-    return json(res, 200, { id: `cus_fake_${++counter}`, object: "customer" });
+    return json(res, 200, { id: `cus_fake_${RUN}_${++counter}`, object: "customer" });
   }
   if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
     const form = await readForm(req);
-    const id = `cs_fake_${++counter}`;
+    const id = `cs_fake_${RUN}_${++counter}`;
     const metadata = {};
     for (const [k, v] of form) {
       const m = /^metadata\[(.+)\]$/.exec(k);

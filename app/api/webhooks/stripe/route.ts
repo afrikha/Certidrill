@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   }
   try {
     const outcome = await handleStripeEvent(prisma, event);
-    logEvent("billing.webhook", { id: event.id, type: event.type, outcome });
+    if (outcome === "held") logError("billing.held", new Error("payment held for review"), { id: event.id, type: event.type });
+    else logEvent("billing.webhook", { id: event.id, type: event.type, outcome });
     // The confirmation e-mail leaves now rather than at the next minute.
     if (outcome === "processed") after(() => kickEmailWorker(prisma));
     return NextResponse.json({ received: true, outcome });

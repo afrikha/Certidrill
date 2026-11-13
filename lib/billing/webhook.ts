@@ -16,7 +16,11 @@ import { addPass } from "@/lib/access/passes";
 import { enqueuePassEmails } from "@/lib/email/outbox";
 import { logEvent } from "@/lib/log";
 
-export type WebhookOutcome = "processed" | "duplicate" | "ignored";
+/** held: paid, but less than the plan price (or in another currency): no Pass until an administrator looks. */
+export type WebhookOutcome = "processed" | "duplicate" | "ignored" | "held";
+
+/** Kept in stripe_event.error for a held payment, so that it stands out. */
+export const HELD_NOTE = "held for review: Stripe charged less than the plan price, or another currency; no Pass granted";
 
 type Tx = Prisma.TransactionClient;
 
@@ -31,7 +35,7 @@ export async function handleStripeEvent(db: PrismaClient, event: Stripe.Event, n
         RETURNING "id"`;
       if (claimed.length === 0) return "duplicate";
       const outcome = await apply(tx, event, now);
-      await tx.stripeEvent.update({ where: { id: event.id }, data: { processedAt: now, error: null } });
+      await tx.stripeEvent.update({ where: { id: event.id }, data: { processedAt: now, error: outcome === "held" ? HELD_NOTE : null } });
       return outcome;
     });
   } catch (err) {
@@ -91,10 +95,14 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
   if (!payment) return "ignored";
   // Already fulfilled (another event of the same payment), or refunded since.
   if (payment.status === "paid" || payment.status === "refunded") return "processed";
-  if (session.amount_total !== null && session.amount_total !== payment.amountCents) {
-    // Stripe's amount is what was charged: it is recorded. A difference means
-    // the Stripe price no longer matches the plan (npm run stripe:sync-prices).
-    logEvent("billing.amount_mismatch", { paymentId: payment.id, expected: payment.amountCents, charged: session.amount_total });
+  const currency = session.currency ?? payment.currency;
+  // Stripe's amount is what was charged: it is recorded either way. Less than
+  // the plan price (a Stripe price edited by hand or out of date, see npm run
+  // stripe:sync-prices) grants nothing: an administrator refunds the payment
+  // or grants the Pass by hand. More (tax added on top) is fine.
+  const short = session.amount_total === null || session.amount_total < payment.amountCents || currency !== payment.currency;
+  if (session.amount_total !== payment.amountCents || currency !== payment.currency) {
+    logEvent("billing.amount_mismatch", { paymentId: payment.id, expected: payment.amountCents, charged: session.amount_total, currency, held: short });
   }
   await tx.payment.update({
     where: { id: payment.id },
@@ -105,9 +113,10 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
       stripePaymentIntentId: intentId(session),
       amountCents: session.amount_total ?? payment.amountCents,
       taxCents: session.total_details?.amount_tax ?? 0,
-      currency: session.currency ?? payment.currency,
+      currency,
     },
   });
+  if (short) return "held";
   const userId = payment.customer.userId;
   if (!userId) {
     // The account was deleted before the payment was confirmed: refund by hand.

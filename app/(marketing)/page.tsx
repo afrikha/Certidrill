@@ -155,7 +155,7 @@ export default async function HomePage() {
         <ul className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
           <li className="flex flex-col rounded-2xl border border-border p-8">
             <h3 className="text-lg font-semibold">{t("free")}</h3>
-            <p className="mt-4 text-4xl font-bold tracking-tight">{t("freePrice")}</p>
+            <p className="mt-4 text-4xl font-bold tracking-tight">{format.number(0, { style: "currency", currency: (offers[0]?.currency ?? "eur").toUpperCase(), maximumFractionDigits: 0 })}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t("freeTerms")}</p>
             <ul className="mt-6 space-y-3 text-sm">
               {[freeExams, t("freeCorrection"), t("freeProgress")].filter(Boolean).map((b) => (

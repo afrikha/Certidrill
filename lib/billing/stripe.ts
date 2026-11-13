@@ -11,22 +11,27 @@ export type StripeApi = Pick<Stripe, "customers" | "checkout" | "prices" | "prod
 
 let client: Stripe | null = null;
 
+/** Hosts STRIPE_API_BASE may point to: the fake Stripe of the tests runs on this machine. */
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
 /**
  * STRIPE_API_BASE points the client to another server (http://127.0.0.1:12111):
- * the fake Stripe of the end-to-end tests. Never set in production.
+ * the fake Stripe of the end-to-end tests. The secret key goes with every
+ * call, so only this machine is accepted, and never with a live key.
  */
-function apiBase(): Pick<Stripe.StripeConfig, "host" | "port" | "protocol"> {
-  const base = process.env.STRIPE_API_BASE?.trim();
+export function apiBase(base = process.env.STRIPE_API_BASE?.trim(), key = process.env.STRIPE_SECRET_KEY ?? ""): Pick<Stripe.StripeConfig, "host" | "port" | "protocol"> {
   if (!base) return {};
   const url = new URL(base);
-  return { host: url.hostname, port: url.port || undefined, protocol: url.protocol === "http:" ? "http" : "https" };
+  if (!LOOPBACK.has(url.hostname)) throw new Error("STRIPE_API_BASE must point to localhost (tests only)");
+  if (key.startsWith("sk_live_") || key.startsWith("rk_live_")) throw new Error("STRIPE_API_BASE cannot be used with a live key");
+  return { host: url.hostname.replace(/^\[(.*)\]$/, "$1"), port: url.port || undefined, protocol: url.protocol === "http:" ? "http" : "https" };
 }
 
 /** The API client, or null while STRIPE_SECRET_KEY is not set. */
 export function stripeApi(): StripeApi | null {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) return null;
-  client ??= new Stripe(key, { maxNetworkRetries: 2, timeout: 20_000, telemetry: false, ...apiBase() });
+  client ??= new Stripe(key, { maxNetworkRetries: 2, timeout: 20_000, telemetry: false, ...apiBase(process.env.STRIPE_API_BASE?.trim(), key) });
   return client;
 }
 
