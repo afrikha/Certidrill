@@ -59,5 +59,5 @@ export function publicPages(): { path: PublicPath; locale: Locale; url: string }
 
 /** A JSON-LD script body: `<` escaped so that no value can close the script element. */
 export function jsonLd(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, "\\u003c");
+  return JSON.stringify(data).replaceAll("<", String.raw`\u003c`);
 }

@@ -15,7 +15,7 @@ export default function OpengraphImage() {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 80, background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)", color: "#fff" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          <svg width="96" height="96" viewBox="0 0 64 64">
+          <svg width="96" height="96" viewBox="0 0 64 64" aria-hidden="true">
             <rect width="64" height="64" rx="14" fill="#1d4ed8" />
             <path d="M41 21.5a14 14 0 1 0 0 21" fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" />
             <path d="M30 32.5l5 5 10-11" fill="none" stroke="#93c5fd" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />

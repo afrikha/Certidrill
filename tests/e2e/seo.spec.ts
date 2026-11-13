@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { loginAsAdmin } from "./helpers";
 
 /**
  * Search engines on the production build: one address per language for the
@@ -80,6 +81,11 @@ test("robots.txt, the sitemap, the icons and the share card", async ({ request, 
 
 test("the pages behind sign-in are not indexed", async ({ page }) => {
   for (const path of ["/signup", "/verify-email"]) {
+    await page.goto(path);
+    expect(await head(page, 'meta[name="robots"]', "content"), path).toContain("noindex");
+  }
+  await loginAsAdmin(page);
+  for (const path of ["/dashboard", "/admin/users"]) {
     await page.goto(path);
     expect(await head(page, 'meta[name="robots"]', "content"), path).toContain("noindex");
   }
