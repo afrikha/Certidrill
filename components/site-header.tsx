@@ -1,19 +1,23 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { auth, signOut } from "@/auth";
+import { defaultLocale, isLocale } from "@/lib/i18n/config";
+import { localizedPath } from "@/lib/i18n/routing";
 import { LocaleSwitcher } from "./locale-switcher";
 
 export async function SiteHeader() {
   const session = await auth();
   const t = await getTranslations("common");
+  const current = await getLocale();
+  const locale = isLocale(current) ? current : defaultLocale;
   return (
     <header className="border-b border-border">
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3" aria-label="Main">
-        <Link href="/" className="text-lg font-bold tracking-tight">
+        <Link href={localizedPath(locale, "/")} className="text-lg font-bold tracking-tight">
           Certi<span className="text-primary">drill</span>
         </Link>
         <div className="flex items-center gap-4 text-sm">
-          <Link href="/pricing" className="hover:underline">{t("pricing")}</Link>
+          <Link href={localizedPath(locale, "/pricing")} className="hover:underline">{t("pricing")}</Link>
           {session?.user ? (
             <>
               <Link href="/dashboard" className="hover:underline">{t("dashboard")}</Link>

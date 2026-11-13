@@ -263,6 +263,16 @@ describe("server actions", () => {
     await setLocale(form({ locale: "en" }));
     expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("en");
   });
+
+  it("locale: on a public page, opens the same page in the chosen language; any other path is ignored", async () => {
+    expect(await redirectOf(setLocale(form({ locale: "fr", path: "/pricing" })))).toBe("/fr/pricing");
+    expect(await redirectOf(setLocale(form({ locale: "en", path: "/" })))).toBe("/en");
+    expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("en");
+    // Not a public page: no redirect (an open redirect would need any path).
+    await expect(setLocale(form({ locale: "fr", path: "https://evil.example" }))).resolves.toBeUndefined();
+    await expect(setLocale(form({ locale: "fr", path: "/dashboard" }))).resolves.toBeUndefined();
+    expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("fr");
+  });
 });
 
 describe("real exam outcome actions", () => {

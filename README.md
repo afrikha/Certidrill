@@ -133,16 +133,31 @@ docker compose up -d --build
 docker compose run --rm migrate npm run user:create -- --email vous@example.com --admin
 ```
 
-Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiement), `app` (Next.js standalone), `caddy` (HTTPS), `backup` (pg_dump quotidien dans `./backups`, 14 jours). Cloudflare en frontal pour le DNS et le cache.
+Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiement), `app` (Next.js standalone), `caddy` (HTTPS), `backup` (pg_dump quotidien dans `./backups`, 14 jours). Le DNS est chez Ionos et pointe directement sur le serveur.
 
-Caddy fait confiance aux plages d'adresses de Cloudflare (liste dans `deploy/Caddyfile`, à mettre à jour si Cloudflare la change) : pour ces requêtes, l'adresse du visiteur est lue dans `CF-Connecting-IP` et transmise à l'application dans `X-Real-IP`. Sans cela, les limites par IP (connexion, inscription) compteraient ensemble tous les visiteurs d'un même nœud Cloudflare. L'application lit `X-Real-IP` sans vérifier qui l'envoie : c'est sûr parce que seul Caddy publie des ports (80 et 443) et que Caddy remplace toujours cet en-tête. Ne jamais publier le port 3000 de `app` (pas de `ports:` sur ce service), sinon n'importe qui pourrait choisir son adresse et contourner ces limites. Après une modification du Caddyfile, le valider avant de recharger :
+Si Cloudflare est un jour placé en frontal, Caddy fait déjà confiance à ses plages d'adresses (liste dans `deploy/Caddyfile`, à mettre à jour si Cloudflare la change) : pour ces requêtes seulement, l'adresse du visiteur est lue dans `CF-Connecting-IP` et transmise à l'application dans `X-Real-IP`. Sans cela, les limites par IP (connexion, inscription) compteraient ensemble tous les visiteurs d'un même nœud Cloudflare. L'application lit `X-Real-IP` sans vérifier qui l'envoie : c'est sûr parce que seul Caddy publie des ports (80 et 443) et que Caddy remplace toujours cet en-tête. Ne jamais publier le port 3000 de `app` (pas de `ports:` sur ce service), sinon n'importe qui pourrait choisir son adresse et contourner ces limites. Après une modification du Caddyfile, le valider avant de recharger :
 
 ```bash
 docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 
-Caddy redirige `www.<SITE_DOMAIN>` vers `<SITE_DOMAIN>` (301, chemin et paramètres conservés). Il faut pour cela un enregistrement DNS `www` (CNAME vers le domaine, proxifié comme l'apex) : sans lui, Caddy ne peut pas obtenir le certificat de `www` (le site principal n'est pas affecté).
+### Domaines
+
+Caddy redirige `www.<SITE_DOMAIN>` et les domaines de `SITE_ALIASES` vers `https://<SITE_DOMAIN>` (301, chemin et paramètres conservés) : les moteurs de recherche n'indexent qu'une adresse. Chaque nom doit avoir un enregistrement DNS vers le serveur, sinon Caddy ne peut pas obtenir son certificat (le site principal n'est pas affecté). Dans la zone DNS Ionos :
+
+| Domaine | Enregistrement |
+|---|---|
+| `certidrill.com` | `A @` → adresse du serveur ; `CNAME www` → `certidrill.com` |
+| `certidrill.fr` | `A @` → adresse du serveur (à la place de la page de parking Ionos) ; `CNAME www` → `certidrill.fr` |
+
+Puis, dans `.env` : `SITE_ALIASES="certidrill.fr www.certidrill.fr"`, et `docker compose up -d caddy`. Un domaine qui n'envoie pas d'e-mail se protège contre l'usurpation avec `TXT @` `v=spf1 -all` et `TXT _dmarc` `v=DMARC1; p=reject` (à la place de l'enregistrement SPF Ionos par défaut, s'il n'y a pas de boîte sur ce domaine).
+
+### Référencement
+
+Les pages publiques ont une adresse par langue : `/en`, `/fr`, `/en/pricing`, `/fr/pricing` (`lib/i18n/routing.ts`). `proxy.ts` sert `/fr/pricing` avec la page `/pricing` en français, et redirige `/` et `/pricing` (307) vers la langue du visiteur (cookie `NEXT_LOCALE`, sinon `Accept-Language`, sinon anglais). Chaque page publique déclare son adresse canonique, ses traductions (hreflang, `x-default` = anglais) et ses cartes Open Graph et X ; l'accueil décrit aussi le site en JSON-LD (`Organization`, `WebSite`). Le reste du site (connexion, application, admin) garde une seule adresse, sa langue vient du cookie, et porte `noindex`.
+
+`/robots.txt` et `/sitemap.xml` sont construits à partir de `AUTH_URL`, qui doit donc être l'adresse publique (`https://certidrill.com`). Après un déploiement, déclarer `certidrill.com` dans Google Search Console (validation par un enregistrement `TXT` dans la zone Ionos) et y soumettre `https://certidrill.com/sitemap.xml`.
 
 ## E-mails (liens magiques)
 
@@ -150,7 +165,7 @@ Les liens de connexion partent par SMTP (`EMAIL_SERVER`), dans la langue du comp
 
 Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). Un envoi direct depuis le VPS finit en spam, et le port 25 y est souvent bloqué.
 
-1. **Déclarer le domaine** chez le fournisseur, puis ajouter dans Cloudflare les enregistrements qu'il donne, en *DNS only* (nuage gris) :
+1. **Déclarer le domaine** chez le fournisseur, puis ajouter dans la zone DNS (Ionos) les enregistrements qu'il donne :
    - **SPF** : `TXT @`, `v=spf1 include:<valeur du fournisseur> ~all`. Un seul enregistrement SPF par domaine : fusionner les `include:` s'il en existe déjà un.
    - **DKIM** : les `CNAME` ou `TXT` fournis.
    - **DMARC** : `TXT _dmarc`, `v=DMARC1; p=none; rua=mailto:dmarc@<domaine>`. Passer à `p=quarantine` quand les rapports sont propres.
@@ -167,7 +182,7 @@ Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). 
    ```
    `email:test` se connecte, s'authentifie et envoie un message de test. Le mot de passe n'apparaît jamais dans la sortie, ni l'identifiant s'il fait au moins 3 caractères, que ce soit en clair, décodé ou en base64. En cas d'échec, le code d'erreur indique l'étape fautive : `EAUTH` (identifiants), `ECONNECTION` ou `ETIMEDOUT` (serveur ou port), `ESOCKET` (TLS). Dans le message reçu, les en-têtes doivent montrer `spf=pass`, `dkim=pass` et `dmarc=pass`.
 
-Cloudflare Email Routing (gratuit) peut rediriger `dmarc@` ou `contact@<domaine>` vers une boîte personnelle, pour recevoir les rapports DMARC et les réponses.
+Une boîte ou une redirection Ionos sur `dmarc@` ou `contact@<domaine>` permet de recevoir les rapports DMARC et les réponses.
 
 ## Paiement (Stripe)
 

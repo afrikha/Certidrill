@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
@@ -6,9 +7,10 @@ import { peekSignup } from "@/lib/auth/signup";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { Card } from "@/components/ui/card";
 import { ConfirmForm } from "./confirm-form";
+import { NO_INDEX } from "@/lib/seo";
 
 // The token is in the address of this page: never sent to other sites.
-export const metadata = { title: "Confirm your sign-up", referrer: "no-referrer" };
+export const metadata: Metadata = { title: "Confirm your sign-up", referrer: "no-referrer", ...NO_INDEX };
 export const dynamic = "force-dynamic";
 
 /**

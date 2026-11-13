@@ -26,9 +26,9 @@ describe("SiteHeader", () => {
     render(await SiteHeader());
     const nav = screen.getByRole("navigation", { name: "Main" });
     expect(nav).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /^Certi\s?drill$/ })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /^Certi\s?drill$/ })).toHaveAttribute("href", "/en");
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
-    expect(screen.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "/pricing");
+    expect(screen.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "/en/pricing");
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByTestId("locale-switcher")).toBeInTheDocument();
   });
@@ -39,6 +39,9 @@ describe("SiteHeader", () => {
     render(await SiteHeader());
     expect(screen.getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: "Compte" })).toHaveAttribute("href", "/account");
+    // The public pages are linked in the language being read.
+    expect(screen.getByRole("link", { name: "Tarifs" })).toHaveAttribute("href", "/fr/pricing");
+    expect(screen.getByRole("link", { name: /^Certi\s?drill$/ })).toHaveAttribute("href", "/fr");
     expect(screen.queryByRole("link", { name: "Administration" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Se connecter" })).not.toBeInTheDocument();

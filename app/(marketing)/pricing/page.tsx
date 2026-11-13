@@ -1,5 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { readSwitches } from "@/lib/settings";
@@ -10,8 +11,13 @@ import { stripeApi } from "@/lib/billing/stripe";
 import { BuyPass } from "@/components/billing/buy-pass";
 import { buttonClasses } from "@/components/ui/button";
 import { Icon } from "../landing-visuals";
+import { defaultLocale, isLocale } from "@/lib/i18n/config";
+import { activeCodes, publicPageMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Pricing" };
+export async function generateMetadata(): Promise<Metadata> {
+  const [locale, t, codes] = await Promise.all([getLocale(), getTranslations("seo"), activeCodes()]);
+  return publicPageMetadata({ locale: isLocale(locale) ? locale : defaultLocale, path: "/pricing", title: t("pricingTitle", { codes }), description: t("pricingDescription") });
+}
 export const dynamic = "force-dynamic";
 
 const FAQ = ["secure", "extend", "end"] as const;

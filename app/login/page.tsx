@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -10,8 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Alert, Card } from "@/components/ui/card";
 import { PasswordForm } from "./password-form";
+import { NO_INDEX } from "@/lib/seo";
 
-export const metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: "Sign in", ...NO_INDEX };
 
 export default async function LoginPage({ searchParams }: Readonly<{ searchParams: Promise<{ type?: string; error?: string; verified?: string }> }>) {
   if ((await auth())?.user) redirect("/dashboard");

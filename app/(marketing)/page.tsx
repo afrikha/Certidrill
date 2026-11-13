@@ -1,5 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { QuestionType } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
@@ -10,9 +11,36 @@ import { canBuyOnline } from "@/lib/billing/checkout";
 import { stripeApi } from "@/lib/billing/stripe";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
+import { localizedPath } from "@/lib/i18n/routing";
+import { SITE_NAME, activeCodes, jsonLd, publicPageMetadata, siteUrl } from "@/lib/seo";
 import { ExamPreview, Icon } from "./landing-visuals";
 
 export const dynamic = "force-dynamic";
+
+async function pageLocale(): Promise<Locale> {
+  const locale = await getLocale();
+  return isLocale(locale) ? locale : defaultLocale;
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const [locale, t, codes] = await Promise.all([pageLocale(), getTranslations("seo"), activeCodes()]);
+  return publicPageMetadata({ locale, path: "/", title: t("homeTitle", { codes }), description: t("homeDescription", { codes }) });
+}
+
+/** schema.org: who publishes the site, and the site itself in the language of the page. */
+function structuredData(locale: Locale, description: string) {
+  const base = siteUrl();
+  const home = base ? new URL(localizedPath(locale, "/"), base).href : undefined;
+  const organization = `${base?.origin ?? ""}/#organization`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "Organization", "@id": organization, name: SITE_NAME, ...(base && { url: base.origin }) },
+      { "@type": "WebSite", name: SITE_NAME, description, inLanguage: locale, publisher: { "@id": organization }, ...(home && { url: home }) },
+    ],
+  };
+}
 
 const FORMATS = [...Object.values(QuestionType), "case_study"] as const;
 const FEATURES = [
@@ -31,6 +59,8 @@ const FAQ = ["dumps", "score", "resume", "free"] as const;
  */
 export default async function HomePage() {
   const t = await getTranslations("home");
+  const tSeo = await getTranslations("seo");
+  const locale = await pageLocale();
   const tOffer = await getTranslations("offer");
   const tBilling = await getTranslations("billing");
   const format = await getFormatter();
@@ -61,6 +91,7 @@ export default async function HomePage() {
 
   return (
     <div className="overflow-x-clip">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData(locale, tSeo("siteDescription"))) }} />
       {/* Hero */}
       <section className="relative isolate">
         <div aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,var(--color-blue-100),transparent_60%)]" />
@@ -178,7 +209,7 @@ export default async function HomePage() {
                 ))}
               </ul>
               {buyable ? (
-                <Link href="/pricing" className={buttonClasses("primary", "mt-auto py-2.5")}>{tBilling("buy")}</Link>
+                <Link href={localizedPath(locale, "/pricing")} className={buttonClasses("primary", "mt-auto py-2.5")}>{tBilling("buy")}</Link>
               ) : (
                 <p className="mt-auto pt-8 text-center text-sm text-muted-foreground">{t("soonHint")}</p>
               )}
