@@ -16,7 +16,7 @@ import { addPass } from "@/lib/access/passes";
 import { enqueuePassEmails } from "@/lib/email/outbox";
 import { logEvent } from "@/lib/log";
 
-/** held: paid, but less than the plan price (or in another currency): no Pass until an administrator looks. */
+/** held: paid, but less than the plan price (or in another currency): payment status held, no Pass until an administrator looks. */
 export type WebhookOutcome = "processed" | "duplicate" | "ignored" | "held";
 
 /** Kept in stripe_event.error for a held payment, so that it stands out. */
@@ -93,13 +93,13 @@ const intentId = (session: Stripe.Checkout.Session) =>
 async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Promise<WebhookOutcome> {
   const payment = await lockPayment(tx, session);
   if (!payment) return "ignored";
-  // Already fulfilled (another event of the same payment), or refunded since.
-  if (payment.status === "paid" || payment.status === "refunded") return "processed";
+  // Already fulfilled (another event of the same payment), held, or refunded since.
+  if (payment.status !== "pending" && payment.status !== "failed" && payment.status !== "expired") return "processed";
   const currency = session.currency ?? payment.currency;
-  // Stripe's amount is what was charged: it is recorded either way. Less than
-  // the plan price (a Stripe price edited by hand or out of date, see npm run
-  // stripe:sync-prices) grants nothing: an administrator refunds the payment
-  // or grants the Pass by hand. More (tax added on top) is fine.
+  // What Stripe charged is recorded either way, next to the price asked. Less
+  // than the plan price (a Stripe price edited by hand or out of date, see npm
+  // run stripe:sync-prices) grants nothing: the payment is held for an
+  // administrator to refund or grant by hand. More (tax added on top) is fine.
   const short = session.amount_total === null || session.amount_total < payment.amountCents || currency !== payment.currency;
   if (session.amount_total !== payment.amountCents || currency !== payment.currency) {
     logEvent("billing.amount_mismatch", { paymentId: payment.id, expected: payment.amountCents, charged: session.amount_total, currency, held: short });
@@ -107,13 +107,12 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
   await tx.payment.update({
     where: { id: payment.id },
     data: {
-      status: "paid",
+      status: short ? "held" : "paid",
       paidAt: now,
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId: intentId(session),
-      amountCents: session.amount_total ?? payment.amountCents,
+      chargedCents: session.amount_total,
       taxCents: session.total_details?.amount_tax ?? 0,
-      currency,
     },
   });
   if (short) return "held";

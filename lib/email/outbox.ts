@@ -84,6 +84,11 @@ export async function drainOutbox(
   return result;
 }
 
+/**
+ * At least once: an e-mail sent whose row could not be marked sent (database
+ * down, process stopped) goes again once its lock expires. A rare duplicate
+ * is harmless for these e-mails; a lost one would not be.
+ */
 async function deliver(db: PrismaClient, id: string, { now, sender, base }: { now: Date; sender: Sender; base?: string }): Promise<keyof DrainResult> {
   const row = await db.emailOutbox.findUniqueOrThrow({ where: { id }, include: { user: { select: { email: true, locale: true } } } });
   let mail: Mail | null;

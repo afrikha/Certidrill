@@ -7,7 +7,7 @@ import { api } from "@/components/exam/api";
 import { buttonClasses } from "@/components/ui/button";
 
 export interface Purchase {
-  status: "pending" | "paid" | "failed" | "expired" | "refunded";
+  status: "pending" | "paid" | "held" | "failed" | "expired" | "refunded";
   certification: string;
   startsAt: string | null;
   expiresAt: string | null;
@@ -53,8 +53,11 @@ export function PurchaseStatus({ sessionId, initial }: Readonly<{ sessionId: str
     message = purchase.chained
       ? t("successPaidLater", { certification, start: date(purchase.startsAt), date: date(purchase.expiresAt) })
       : t("successPaid", { certification, date: date(purchase.expiresAt) });
-  } else if (purchase.status === "pending" || purchase.status === "paid") {
+  } else if (purchase.status === "pending") {
     message = slow ? t("successSlow") : t("successPending");
+  } else if (purchase.status === "paid" || purchase.status === "held") {
+    // Paid but no Pass (yet): held for a check, nothing more to wait for here.
+    message = t("successHeld");
   } else {
     const key = { failed: "successFailed", expired: "successExpired", refunded: "successRefunded" } as const;
     message = t(key[purchase.status]);

@@ -135,13 +135,14 @@ export async function purchaseStatus(db: PrismaClient, userId: string, sessionId
 /** The user's payments, newest first (/account/billing): abandoned or unfinished checkouts left out. */
 export function paymentHistory(db: PrismaClient, userId: string) {
   return db.payment.findMany({
-    where: { customer: { userId }, status: { in: ["paid", "refunded", "failed"] } },
+    where: { customer: { userId }, status: { in: ["paid", "held", "refunded", "failed"] } },
     orderBy: { createdAt: "desc" },
     take: 100,
     select: {
       id: true,
       status: true,
       amountCents: true,
+      chargedCents: true,
       currency: true,
       createdAt: true,
       paidAt: true,

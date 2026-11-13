@@ -90,6 +90,12 @@ describe("PurchaseStatus", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Your AZ-104 Pass is active until");
   });
 
+  it("says a payment without a Pass is being checked, and stops polling", () => {
+    renderIntl(<PurchaseStatus sessionId="cs_held" initial={purchase({ status: "paid", startsAt: null, expiresAt: null })} />, "fr");
+    expect(screen.getByRole("status")).toHaveTextContent("Paiement reçu. Nous le vérifions avant d'activer votre Pass");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("stops waiting after a while and says the e-mail will follow", async () => {
     vi.useFakeTimers();
     fetchMock.mockImplementation(() => reply(200, purchase({ status: "pending", startsAt: null, expiresAt: null })));
@@ -106,10 +112,11 @@ describe("PurchaseStatus", () => {
       ["failed", "The payment did not go through"],
       ["expired", "The payment session expired without payment."],
       ["refunded", "This payment was refunded."],
+      ["held", "We are checking it before activating your Pass"],
     ] as const) {
       const { unmount } = renderIntl(<PurchaseStatus sessionId="cs" initial={purchase({ status })} />);
       expect(screen.getByRole("status")).toHaveTextContent(text);
-      if (status !== "refunded") expect(screen.getByRole("link", { name: "Back to pricing" })).toHaveAttribute("href", "/pricing");
+      if (status === "failed" || status === "expired") expect(screen.getByRole("link", { name: "Back to pricing" })).toHaveAttribute("href", "/pricing");
       unmount();
     }
   });

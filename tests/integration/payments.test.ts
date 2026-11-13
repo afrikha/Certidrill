@@ -14,7 +14,7 @@ import { seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { getAccess } from "@/lib/access";
 import { revokeEntitlement } from "@/lib/access/admin";
-import { BillingError, canBuyOnline, CHECKOUT_MINUTES, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
+import { BillingError, canBuyOnline, CHECKOUT_MINUTES, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
 import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
 import { handleStripeEvent, HELD_NOTE } from "@/lib/billing/webhook";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
@@ -243,7 +243,7 @@ describe("webhook", () => {
     const rows = await db.entitlement.findMany({ where: { userId: user } });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ source: "purchase", paymentId: payment.id, startsAt: T0, expiresAt: at(90), revokedAt: null });
-    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", paidAt: T0, amountCents: 1900, taxCents: 317, stripePaymentIntentId: "pi_123" });
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", paidAt: T0, amountCents: 1900, chargedCents: 1900, taxCents: 317, stripePaymentIntentId: "pi_123" });
     expect(await getAccess(db, user, certificationId, at(1))).toMatchObject({ level: "full", source: "pass", expiresAt: at(90) });
     expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "paid", certification: "az-104", startsAt: T0.toISOString(), expiresAt: at(90).toISOString(), chained: false });
     expect((await db.emailOutbox.findMany({ where: { userId: user }, orderBy: { sendAfter: "asc" } })).map((e) => [e.kind, e.sendAfter])).toEqual([
@@ -330,12 +330,14 @@ describe("webhook", () => {
       const payment = await checkout(user);
       const e = event("checkout.session.completed", sessionObject(payment, extra));
       expect(await handleStripeEvent(db, e, T0)).toBe("held");
-      expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid" });
+      expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "held", amountCents: 1900, currency: "eur" });
+      expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toMatchObject({ status: "held", startsAt: null });
       expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: e.id } })).toMatchObject({ processedAt: T0, error: HELD_NOTE });
       // Received again: still nothing granted.
       expect(await handleStripeEvent(db, e, T0)).toBe("duplicate");
     }
-    expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user } }, orderBy: { createdAt: "asc" } })).toMatchObject({ amountCents: 900 });
+    expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user } }, orderBy: { createdAt: "asc" } })).toMatchObject({ amountCents: 1900, chargedCents: 900 });
+    expect((await paymentHistory(db, user)).map((p) => p.status)).toEqual(["held", "held", "held"]);
     expect(await db.entitlement.count({ where: { userId: user } })).toBe(0);
     expect(await db.emailOutbox.count({ where: { userId: user } })).toBe(0);
   });
@@ -346,7 +348,7 @@ describe("webhook", () => {
     const payment = await checkout(user);
     await db.user.delete({ where: { id: user } });
     expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { amount_total: 2500, total_details: null, currency: null })), T0)).toBe("processed");
-    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", amountCents: 2500, taxCents: 0, currency: "eur" });
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", amountCents: 1900, chargedCents: 2500, taxCents: 0, currency: "eur" });
     expect(await db.entitlement.count({ where: { paymentId: payment.id } })).toBe(0);
   });
 
