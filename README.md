@@ -151,7 +151,7 @@ Caddy redirige `www.<SITE_DOMAIN>` et les domaines de `SITE_ALIASES` vers `https
 | `certidrill.com` | `A @` → adresse du serveur ; `CNAME www` → `certidrill.com` |
 | `certidrill.fr` | `A @` → adresse du serveur (à la place de la page de parking Ionos) ; `CNAME www` → `certidrill.fr` |
 
-Puis, dans `.env` : `SITE_ALIASES="certidrill.fr www.certidrill.fr"`, et `docker compose up -d caddy`. Un domaine qui n'envoie pas d'e-mail se protège contre l'usurpation avec `TXT @` `v=spf1 -all` et `TXT _dmarc` `v=DMARC1; p=reject` (à la place de l'enregistrement SPF Ionos par défaut, s'il n'y a pas de boîte sur ce domaine).
+Puis, dans `.env` : `SITE_ALIASES="certidrill.fr www.certidrill.fr"` (jamais `SITE_DOMAIN` ni `www.<SITE_DOMAIN>`, sinon Caddy refuse de démarrer), et `docker compose up -d caddy`. Sur ces alias, HSTS est envoyé sans `includeSubDomains` : leurs sous-domaines restent libres. Un domaine qui n'envoie pas d'e-mail se protège contre l'usurpation avec `TXT @` `v=spf1 -all` et `TXT _dmarc` `v=DMARC1; p=reject` (à la place de l'enregistrement SPF Ionos par défaut, s'il n'y a pas de boîte sur ce domaine).
 
 ### Référencement
 
