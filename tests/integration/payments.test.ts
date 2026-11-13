@@ -14,7 +14,7 @@ import { seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { getAccess } from "@/lib/access";
 import { revokeEntitlement } from "@/lib/access/admin";
-import { BillingError, canBuyOnline, CHECKOUT_MINUTES, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
+import { BillingError, canBuyOnline, CHECKOUT_MINUTES, heldPayments, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
 import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
 import { handleStripeEvent, HELD_NOTE } from "@/lib/billing/webhook";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
@@ -40,8 +40,8 @@ let certificationId: string;
 let n = 0;
 
 /** A Stripe stand-in: records what Certidrill asks, answers like the API. */
-function fakeStripe({ failCheckout = false } = {}) {
-  const calls = { customers: [] as unknown[][], sessions: [] as unknown[][] };
+function fakeStripe({ failCheckout = false, noUrl = false } = {}) {
+  const calls = { customers: [] as unknown[][], sessions: [] as unknown[][], expired: [] as string[] };
   const api = {
     customers: {
       create: vi.fn(async (...args: unknown[]) => {
@@ -55,7 +55,11 @@ function fakeStripe({ failCheckout = false } = {}) {
           calls.sessions.push(args);
           if (failCheckout) throw new Error("Stripe is down");
           const id = `cs_test_${++n}`;
-          return { id, url: `https://checkout.stripe.test/${id}` };
+          return { id, url: noUrl ? null : `https://checkout.stripe.test/${id}` };
+        }),
+        expire: vi.fn(async (id: string) => {
+          calls.expired.push(id);
+          return { id, status: "expired" };
         }),
       },
     },
@@ -173,7 +177,7 @@ describe("checkout", () => {
     const [params, options] = calls.sessions[0] as [Stripe.Checkout.SessionCreateParams, { idempotencyKey: string }];
     expect(params).toMatchObject({
       mode: "payment",
-      customer: `cus_customer-${user}`,
+      customer: expect.stringMatching(new RegExp(`^cus_customer-${user}-[0-9a-f]{16}$`)),
       client_reference_id: payment.id,
       line_items: [{ price: "price_pass_90", quantity: 1 }],
       metadata: { paymentId: payment.id, planCode: "pass_90", certificationCode: "az-104" },
@@ -184,7 +188,10 @@ describe("checkout", () => {
     });
     expect(JSON.stringify(params)).not.toContain("1900");
     expect(options.idempotencyKey).toBe(`checkout-${payment.id}`);
-    expect(calls.customers[0]).toEqual([{ email: "buyer@example.com", preferred_locales: ["fr"], metadata: { userId: user } }, { idempotencyKey: `customer-${user}` }]);
+    expect(calls.customers[0]).toEqual([
+      { email: "buyer@example.com", preferred_locales: ["fr"], metadata: { userId: user } },
+      { idempotencyKey: expect.stringMatching(new RegExp(`^customer-${user}-[0-9a-f]{16}$`)) },
+    ]);
 
     // A second purchase reuses the Stripe customer.
     await checkout(user, api);
@@ -204,6 +211,27 @@ describe("checkout", () => {
     expect(await db.payment.count({ where: { customer: { userId: user } } })).toBe(2);
   });
 
+  it("sends a new idempotency key once the address changed, so Stripe does not refuse it", async () => {
+    await openSales();
+    const user = await verifiedUser("moved@example.com");
+    const { api, calls } = fakeStripe({ failCheckout: true });
+    await expect(checkout(user, api)).rejects.toThrow("Stripe is down");
+    await db.billingCustomer.deleteMany({ where: { userId: user } });
+    await db.user.update({ where: { id: user }, data: { email: "moved-again@example.com" } });
+    await expect(checkout(user, api)).rejects.toThrow("Stripe is down");
+    const [first, second] = calls.customers.map((c) => (c[1] as { idempotencyKey: string }).idempotencyKey);
+    expect(first).not.toBe(second);
+  });
+
+  it("closes a session Stripe answered without a payment page", async () => {
+    await openSales();
+    const user = await verifiedUser("no-url@example.com");
+    const { api, calls } = fakeStripe({ noUrl: true });
+    await expect(checkout(user, api)).rejects.toMatchObject({ code: "unavailable" });
+    expect(calls.expired).toHaveLength(1);
+    expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user } } })).toMatchObject({ status: "expired", stripeCheckoutSessionId: calls.expired[0] });
+  });
+
   it("keeps no payment when Stripe refuses the session", async () => {
     await openSales();
     const user = await verifiedUser("stripe-down@example.com");
@@ -218,6 +246,8 @@ describe("checkout", () => {
       checkoutRoute.POST(new Request(`${BASE}/api/billing/checkout`, { method: "POST", headers: { origin: BASE, "content-type": "application/json" }, body: JSON.stringify(body) }), { params: Promise.resolve({}) });
     expect((await post({ planCode: "pass_90", certificationCode: "az-104" })).status).toBe(401);
     session.current = { user: { id: user, role: "user", locale: "en" } };
+    // Refused before Stripe is asked anything: not counted.
+    for (let i = 0; i < 12; i++) expect((await post({ planCode: "nope", certificationCode: "az-104" })).status).toBe(404);
     // No STRIPE_SECRET_KEY in the tests: payment is unavailable.
     const res = await post({ planCode: "pass_90", certificationCode: "az-104" });
     expect(res.status).toBe(503);
@@ -338,6 +368,9 @@ describe("webhook", () => {
     }
     expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user } }, orderBy: { createdAt: "asc" } })).toMatchObject({ amountCents: 1900, chargedCents: 900 });
     expect((await paymentHistory(db, user)).map((p) => p.status)).toEqual(["held", "held", "held"]);
+    const held = (await heldPayments(db)).filter((p) => p.customer.user?.id === user);
+    expect(held).toHaveLength(3);
+    expect(held[0]).toMatchObject({ amountCents: 1900, chargedCents: 900, certification: { code: "az-104" }, customer: { user: { email: "underpaid@example.com" } } });
     expect(await db.entitlement.count({ where: { userId: user } })).toBe(0);
     expect(await db.emailOutbox.count({ where: { userId: user } })).toBe(0);
   });
@@ -564,6 +597,26 @@ describe("e-mail queue", () => {
     await db.emailOutbox.update({ where: { id: row.id }, data: { kind: "mystery", sendAfter: at(1) } });
     expect(await drainOutbox(db, { now: at(2), sender: recorder().sender, base: BASE })).toMatchObject({ retried: 1 });
     expect((await db.emailOutbox.findUniqueOrThrow({ where: { id: row.id } })).lastError).toContain("unknown e-mail kind");
+  });
+
+  it("leaves the rest of a batch to the next run when the mail server is slow", async () => {
+    const { user } = await buyer("slow-smtp@example.com");
+    // All due, the purchase e-mail first.
+    for (const [kind, ms] of [["purchase", 3000], ["pass_reminder", 2000], ["pass_expired", 1000]] as const) {
+      await db.emailOutbox.updateMany({ where: { userId: user, kind }, data: { sendAfter: new Date(T0.getTime() - ms) } });
+    }
+    let clock = Date.now();
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    try {
+      // The mail server takes 5 minutes: past the lock, the rest waits.
+      const slow = async () => {
+        clock += 5 * 60_000;
+      };
+      expect(await drainOutbox(db, { now: T0, sender: slow, base: BASE })).toEqual({ sent: 1, skipped: 0, retried: 0, failed: 0 });
+    } finally {
+      spy.mockRestore();
+    }
+    expect((await outbox()).filter((e) => e.status === "pending").map((e) => e.kind).sort()).toEqual(["pass_expired", "pass_reminder"]);
   });
 
   it("never sends an e-mail twice when two workers run at once", async () => {

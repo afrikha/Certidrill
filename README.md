@@ -197,6 +197,8 @@ En local, `stripe listen --forward-to localhost:3000/api/webhooks/stripe` (outil
 
 Chaque événement est enregistré dans `stripe_event`, dans la même transaction que ses effets. Un événement reçu deux fois, ou deux fois en même temps, ne crée donc qu'un droit et qu'un paiement. Un traitement en échec est annulé en entier : le webhook répond 500, l'erreur est gardée dans `stripe_event.error`, et Stripe renvoie l'événement plus tard.
 
+**Paiement retenu** : si Stripe a encaissé moins que le tarif, ou dans une autre devise (un prix Stripe modifié à la main, par exemple), le paiement passe au statut `held`. Aucun Pass n'est accordé, et l'acheteur voit « En vérification ». La liste « Paiements à vérifier » d'*Administration → Droits* les montre avec le tarif, le montant encaissé et la référence du paiement Stripe. Il faut alors rembourser dans le tableau de bord Stripe, ou accorder le Pass à la main depuis la fiche de l'utilisateur. Le remboursement depuis l'application vient avec le lot C.
+
 **E-mails de facturation** : confirmation d'achat, rappel 7 jours avant la fin d'un Pass, puis avis d'expiration. Ils passent par la file `email_outbox`, envoyée chaque minute par l'application, avec de nouveaux essais espacés en cas d'échec SMTP (8 essais au plus). Au moment de l'envoi, un rappel est vérifié contre l'accès du jour : un Pass prolongé, révoqué ou remplacé entre-temps ne déclenche pas d'e-mail.
 
 ## Avancement (plan du §12 des specs)

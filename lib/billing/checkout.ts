@@ -4,6 +4,7 @@
  * certification; the price is the plan's, read here. Nothing is granted here:
  * the right comes with the verified webhook (./webhook.ts).
  */
+import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { AccessError } from "@/lib/access";
@@ -44,11 +45,11 @@ async function ensureCustomer(db: PrismaClient, stripe: StripeApi, user: { id: s
   const existing = await db.billingCustomer.findUnique({ where: { userId: user.id } });
   if (existing) return existing;
   // Two checkouts started at once send the same idempotency key: Stripe
-  // creates one customer and answers both with it.
-  const customer = await stripe.customers.create(
-    { email: user.email, preferred_locales: [user.locale], metadata: { userId: user.id } },
-    { idempotencyKey: `customer-${user.id}` },
-  );
+  // creates one customer and answers both with it. Stripe refuses a key sent
+  // again with other parameters for 24 hours: the key changes with them.
+  const params = { email: user.email, preferred_locales: [user.locale], metadata: { userId: user.id } };
+  const digest = createHash("sha256").update(JSON.stringify(params)).digest("hex").slice(0, 16);
+  const customer = await stripe.customers.create(params, { idempotencyKey: `customer-${user.id}-${digest}` });
   try {
     return await db.billingCustomer.create({ data: { userId: user.id, stripeCustomerId: customer.id } });
   } catch (err) {
@@ -109,8 +110,14 @@ export async function startCheckout(
     await db.payment.delete({ where: { id: payment.id } });
     throw err;
   }
+  if (!session.url) {
+    // Nothing to send the buyer to: the session is closed so it cannot be paid.
+    await stripe.checkout.sessions.expire(session.id).catch(() => undefined);
+    await db.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id, status: "expired" } });
+    throw new BillingError("unavailable");
+  }
+  // If this fails, the webhook still finds the payment by metadata.paymentId.
   await db.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id } });
-  if (!session.url) throw new BillingError("unavailable");
   return { url: session.url };
 }
 
@@ -150,6 +157,29 @@ export function paymentHistory(db: PrismaClient, userId: string) {
       plan: { select: { kind: true, durationDays: true } },
       certification: { select: { code: true } },
       entitlement: { select: { startsAt: true, expiresAt: true } },
+    },
+  });
+}
+
+/**
+ * Payments held for an administrator (charged below the plan price, or in
+ * another currency), oldest first: refund them in Stripe or grant the Pass
+ * by hand (/admin/billing).
+ */
+export function heldPayments(db: PrismaClient) {
+  return db.payment.findMany({
+    where: { status: "held" },
+    orderBy: { paidAt: "asc" },
+    take: 100,
+    select: {
+      id: true,
+      paidAt: true,
+      amountCents: true,
+      chargedCents: true,
+      currency: true,
+      stripePaymentIntentId: true,
+      certification: { select: { code: true } },
+      customer: { select: { user: { select: { id: true, email: true } } } },
     },
   });
 }

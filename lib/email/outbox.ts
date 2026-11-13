@@ -71,16 +71,25 @@ export async function drainOutbox(
   { now = new Date(), sender = smtpSender, base = process.env.AUTH_URL, limit = 20 }: { now?: Date; sender?: Sender; base?: string; limit?: number } = {},
 ): Promise<DrainResult> {
   const lockedUntil = new Date(now.getTime() + LOCK_MINUTES * 60_000);
-  const taken = await db.$queryRaw<{ id: string }[]>`
+  const taken = await db.$queryRaw<{ id: string; sendAfter: Date }[]>`
     UPDATE "email_outbox" SET "lockedUntil" = ${lockedUntil}
     WHERE "id" IN (
       SELECT "id" FROM "email_outbox"
       WHERE "status" = 'pending' AND "sendAfter" <= ${now} AND ("lockedUntil" IS NULL OR "lockedUntil" <= ${now})
       ORDER BY "sendAfter" LIMIT ${limit}
       FOR UPDATE SKIP LOCKED)
-    RETURNING "id"`;
+    RETURNING "id", "sendAfter"`;
+  // RETURNING keeps no order: the oldest first.
+  taken.sort((a, b) => a.sendAfter.getTime() - b.sendAfter.getTime());
   const result: DrainResult = { sent: 0, skipped: 0, retried: 0, failed: 0 };
-  for (const { id } of taken) result[await deliver(db, id, { now, sender, base })] += 1;
+  // A slow mail server must not outlast the lock: the rows not reached by
+  // then are left to the next run, rather than taken by another worker
+  // while this one sends them.
+  const stopAt = Date.now() + (LOCK_MINUTES - 1) * 60_000;
+  for (const { id } of taken) {
+    if (Date.now() > stopAt) break;
+    result[await deliver(db, id, { now, sender, base })] += 1;
+  }
   return result;
 }
 
