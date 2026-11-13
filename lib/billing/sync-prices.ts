@@ -29,7 +29,7 @@ export function productName(plan: Pick<Plan, "kind" | "durationDays">): string {
 function differences(plan: Plan, price: Stripe.Price): string[] {
   const out: string[] = [];
   if (price.unit_amount !== plan.amountCents) out.push(`amount ${price.unit_amount} ≠ ${plan.amountCents}`);
-  if (price.currency !== plan.currency) out.push(`currency ${price.currency} ≠ ${plan.currency}`);
+  if (price.currency !== plan.currency.toLowerCase()) out.push(`currency ${price.currency} ≠ ${plan.currency}`);
   if (price.tax_behavior !== plan.taxBehavior) out.push(`tax ${price.tax_behavior} ≠ ${plan.taxBehavior}`);
   const interval = price.recurring?.interval ?? "none";
   if (interval !== plan.interval) out.push(`interval ${interval} ≠ ${plan.interval}`);
@@ -62,7 +62,7 @@ export async function syncPrices(db: PrismaClient, stripe: StripeApi, { dryRun =
       {
         product: product.id,
         unit_amount: plan.amountCents,
-        currency: plan.currency,
+        currency: plan.currency.toLowerCase(),
         tax_behavior: plan.taxBehavior,
         lookup_key: plan.code,
         ...(plan.interval === "none" ? {} : { recurring: { interval: plan.interval } }),

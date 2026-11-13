@@ -342,6 +342,20 @@ describe("webhook", () => {
     expect(await db.emailOutbox.count({ where: { userId: user } })).toBe(0);
   });
 
+  it("compares currencies whatever their case: a plan priced in EUR is not held", async () => {
+    await openSales();
+    const user = await verifiedUser("upper-currency@example.com");
+    await db.plan.update({ where: { code: "pass_90" }, data: { currency: "EUR" } });
+    try {
+      const payment = await checkout(user);
+      expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { currency: "eur" })), T0)).toBe("processed");
+      expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid" });
+      expect(await db.entitlement.count({ where: { userId: user, paymentId: payment.id } })).toBe(1);
+    } finally {
+      await db.plan.update({ where: { code: "pass_90" }, data: { currency: "eur" } });
+    }
+  });
+
   it("records the amount Stripe charged, and a payment whose account was deleted", async () => {
     await openSales();
     const user = await verifiedUser("gone@example.com");
@@ -626,13 +640,16 @@ describe("price sync", () => {
       expect(store.prices.find((p) => p.lookup_key === "all_yearly")).toMatchObject({ unit_amount: 7900, recurring: { interval: "year" } });
       expect(await db.plan.findUniqueOrThrow({ where: { code: "pass_90" } })).toMatchObject({ stripePriceId: "price_old_pass" });
 
-      // Again: nothing to do.
+      // Again: nothing to do, whatever the case of the plan's currency.
       expect((await syncPrices(db, store.api)).every((l) => l.action === "unchanged")).toBe(true);
+      await db.plan.update({ where: { code: "pass_90" }, data: { currency: "EUR" } });
+      expect((await syncPrices(db, store.api)).find((l) => l.code === "pass_90")).toMatchObject({ action: "unchanged" });
+      await db.plan.update({ where: { code: "pass_90" }, data: { currency: "eur" } });
       // The plan's price changed without a new code: reported, not touched.
       await db.plan.update({ where: { code: "pass_90" }, data: { amountCents: 2400 } });
       expect((await syncPrices(db, store.api)).find((l) => l.code === "pass_90")).toMatchObject({ action: "mismatch", detail: "amount 1900 ≠ 2400" });
     } finally {
-      await db.plan.update({ where: { code: "pass_90" }, data: { amountCents: 1900 } });
+      await db.plan.update({ where: { code: "pass_90" }, data: { amountCents: 1900, currency: "eur" } });
       await db.plan.updateMany({ data: { stripePriceId: null } });
       await db.plan.update({ where: { code: "pass_90" }, data: { stripePriceId: "price_pass_90" } });
     }

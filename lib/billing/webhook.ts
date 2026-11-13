@@ -95,13 +95,15 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
   if (!payment) return "ignored";
   // Already fulfilled (another event of the same payment), held, or refunded since.
   if (payment.status !== "pending" && payment.status !== "failed" && payment.status !== "expired") return "processed";
-  const currency = session.currency ?? payment.currency;
+  // Stripe writes currencies in lower case; a plan may not.
+  const currency = (session.currency ?? payment.currency).toLowerCase();
+  const sameCurrency = currency === payment.currency.toLowerCase();
   // What Stripe charged is recorded either way, next to the price asked. Less
   // than the plan price (a Stripe price edited by hand or out of date, see npm
   // run stripe:sync-prices) grants nothing: the payment is held for an
   // administrator to refund or grant by hand. More (tax added on top) is fine.
-  const short = session.amount_total === null || session.amount_total < payment.amountCents || currency !== payment.currency;
-  if (session.amount_total !== payment.amountCents || currency !== payment.currency) {
+  const short = session.amount_total === null || session.amount_total < payment.amountCents || !sameCurrency;
+  if (session.amount_total !== payment.amountCents || !sameCurrency) {
     logEvent("billing.amount_mismatch", { paymentId: payment.id, expected: payment.amountCents, charged: session.amount_total, currency, held: short });
   }
   await tx.payment.update({
