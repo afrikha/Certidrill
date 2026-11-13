@@ -7,6 +7,8 @@ export interface RateLimiter {
   hit(key: string, now?: number): boolean;
   /** True when the key has reached the limit in the current window (does not record a hit). */
   blocked(key: string, now?: number): boolean;
+  /** Gives back one hit (an attempt that turned out not to count). */
+  release(key: string, now?: number): void;
   reset(key: string): void;
 }
 
@@ -28,6 +30,10 @@ export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs
     blocked(key, now = Date.now()) {
       const bucket = buckets.get(key);
       return !!bucket && bucket.resetAt > now && bucket.count >= limit;
+    },
+    release(key, now = Date.now()) {
+      const bucket = buckets.get(key);
+      if (bucket && bucket.resetAt > now && bucket.count > 0) bucket.count -= 1;
     },
     reset(key) {
       buckets.delete(key);

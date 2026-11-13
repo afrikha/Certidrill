@@ -164,14 +164,19 @@ describe("users and audit", () => {
   it("logs account creation, from the back-office or the command line", async () => {
     const cli = await createUser(db, { email: "cli@example.com" });
     const [entry] = await recentAudit(db, { targetUserId: cli.id });
-    expect(entry).toMatchObject({ action: "user.create", actor: null, details: { email: "cli@example.com", role: "user" } });
+    expect(entry).toMatchObject({ action: "user.create", actor: null, target: { email: "cli@example.com" }, details: { role: "user" } });
   });
 
-  it("keeps the entries when a user is deleted", async () => {
+  it("keeps the entries when a user is deleted, without the address", async () => {
     const user = await newUser("gone@example.com");
-    await give(user, 10);
+    const e = await give(user, 10);
+    await revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "refund" });
+    const ids = (await recentAudit(db, { targetUserId: user })).map((l) => l.id);
+    expect(ids).toHaveLength(3);
     await db.user.delete({ where: { id: user } });
-    const entries = await db.auditLog.findMany({ where: { details: { path: ["email"], equals: "gone@example.com" } } });
-    expect(entries.map((e) => [e.action, e.targetUserId])).toEqual(expect.arrayContaining([["user.create", null], ["entitlement.grant", null]]));
+    const entries = await db.auditLog.findMany({ where: { id: { in: ids } } });
+    expect(entries.map((l) => [l.action, l.targetUserId]).sort()).toEqual([["entitlement.grant", null], ["entitlement.revoke", null], ["user.create", null]]);
+    // GDPR: deleting the account erases its address from the log too.
+    expect(JSON.stringify(entries)).not.toContain("gone@example.com");
   });
 });

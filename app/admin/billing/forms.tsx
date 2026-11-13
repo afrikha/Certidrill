@@ -45,7 +45,8 @@ export function GrantForm({ userId, certifications, defaultDays }: Readonly<{ us
       </div>
       <div className="sm:col-span-2">
         <Label htmlFor="grant-reason">{t("reason")}</Label>
-        <Input id="grant-reason" name="reason" required minLength={3} maxLength={500} placeholder={t("reasonHint")} />
+        <Input id="grant-reason" name="reason" required minLength={3} maxLength={500} placeholder={t("reasonHint")} aria-describedby="grant-reason-help" />
+        <p id="grant-reason-help" className="mt-1 text-xs text-muted-foreground">{t("reasonPrivacy")}</p>
       </div>
       <div className="sm:col-span-2 flex justify-end">
         <Button type="submit" disabled={pending}>{t("grant")}</Button>
@@ -60,7 +61,7 @@ export function RevokeForm({ entitlementId }: Readonly<{ entitlementId: string }
   return (
     <form action={action} className="flex flex-wrap items-center gap-2" data-testid="revoke-form">
       <input type="hidden" name="entitlementId" value={entitlementId} />
-      <Input name="reason" aria-label={t("reason")} required minLength={3} maxLength={500} placeholder={t("reason")} className="w-48" />
+      <Input name="reason" aria-label={t("reason")} required minLength={3} maxLength={500} placeholder={t("reason")} title={t("reasonPrivacy")} className="w-48" />
       <Button type="submit" variant="secondary" disabled={pending}>{t("revoke")}</Button>
       {state?.error && <Alert tone="error">{t(`error_${state.error}`)}</Alert>}
     </form>
