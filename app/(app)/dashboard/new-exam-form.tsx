@@ -10,11 +10,7 @@ import { Alert } from "@/components/ui/card";
 export function NewExamForm({ code, defaultLocale }: Readonly<{ code: string; defaultLocale: string }>) {
   const t = useTranslations("dashboard");
   const [state, action, pending] = useActionState(startNewExam, undefined);
-  const errorText = (error: NonNullable<NonNullable<NewExamState>["error"]>) => {
-    if (error === "error") return "Error";
-    if (error === "emptyBank") return t("emptyBank");
-    return t(`refusal_${error}`);
-  };
+  const errorText = (error: NonNullable<NonNullable<NewExamState>["error"]>) => (error === "emptyBank" ? t("emptyBank") : "Error");
   return (
     <form action={action} className="flex flex-wrap items-end gap-4">
       <input type="hidden" name="certification" value={code} />

@@ -13,6 +13,8 @@ import { latestOutcomeDay, listOutcomes } from "@/lib/progress/outcomes";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
+import { AccessBadge } from "./access-badge";
+import { getAccessSummary } from "@/lib/access";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -38,6 +40,7 @@ export default async function DashboardPage() {
   const progress = await getProgress(prisma, user.id, user.locale === "fr" ? "fr" : "en");
   const outcomes = await listOutcomes(prisma, user.id);
   const latestDay = latestOutcomeDay();
+  const access = new Map((await getAccessSummary(prisma, user.id)).map((a) => [a.certification, a]));
 
   return (
     <div className="space-y-6">
@@ -64,7 +67,8 @@ export default async function DashboardPage() {
                 {c.title} — {bp.durationMin} min, {bp.minQuestions}–{bp.maxQuestions} questions, {bp.passScore}/{bp.maxScore}
               </p>
             )}
-            {!busy && <NewExamForm code={c.code} defaultLocale={user.locale} />}
+            {access.get(c.code) && <AccessBadge access={access.get(c.code)!} certification={c.code} />}
+            {!busy && access.get(c.code)?.examsLeft !== 0 && <NewExamForm code={c.code} defaultLocale={user.locale} />}
           </Card>
         );
       })}

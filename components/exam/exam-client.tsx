@@ -20,14 +20,11 @@ import { ReviewScreen } from "./review-screen";
 type Item = AttemptView["items"][number];
 type Dialog = null | "leaveCase" | "leaveMain" | "seriesNext" | "finish";
 
-const REFUSALS: ReadonlySet<string> = new Set(["quota_exhausted", "pass_expired", "subscription_inactive"]);
-
 /** A pending answer could not be saved: the action is refused until it is. */
 class UnsavedError extends Error {}
 
 export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView; resumed: boolean }>) {
   const t = useTranslations("exam");
-  const tAccess = useTranslations("dashboard");
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [responses, setResponses] = useState<Record<string, unknown>>(() => Object.fromEntries(initial.items.map((i) => [i.id, i.response])));
@@ -132,8 +129,8 @@ export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView
       await fn();
     } catch (err) {
       if (err instanceof ApiError && (err.code === "expired" || err.code === "finished")) return goToResults();
-      // Access refused when the clock starts (quota used meanwhile, Pass ended): say why.
-      if (err instanceof ApiError && err.status === 402 && REFUSALS.has(err.code)) return setError(tAccess(`refusal_${err.code}` as Parameters<typeof tAccess>[0]));
+      // Access refused when the clock starts (quota used meanwhile, Pass ended): the offer screen says why.
+      if (err instanceof ApiError && err.status === 402) return router.push(`/offer?${new URLSearchParams({ reason: err.code, certification: view.certification.code })}`);
       if (err instanceof UnsavedError) return setError(t("unsavedRetry"));
       setError(t("error"));
       await refresh();

@@ -11,7 +11,9 @@ import { loadBank } from "@/lib/content/bank";
 import { seedBank, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { AccessError, assertCanTakeExam, getAccess, getAccessSummary } from "@/lib/access";
-import { createAttempt, getAttemptView, saveItem, startAttempt, submitAttempt } from "@/lib/exam/session";
+import { createAttempt, getAttemptView, lockSection, saveItem, startAttempt, submitAttempt } from "@/lib/exam/session";
+import { getAttemptResults } from "@/lib/exam/results";
+import { getOffers } from "@/lib/access/offers";
 import { anyResponse, publishSampleBank } from "./sample-bank";
 
 const session = vi.hoisted(() => ({ current: null as null | { user: { id: string; role: string; locale: string } } }));
@@ -19,6 +21,7 @@ vi.mock("@/auth", () => ({ auth: vi.fn(async () => session.current) }));
 
 import * as attempts from "@/app/api/attempts/route";
 import * as me from "@/app/api/me/access/route";
+import * as results from "@/app/api/attempts/[id]/results/route";
 
 const T0 = new Date("2026-11-13T09:00:00Z");
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
@@ -193,3 +196,87 @@ describe("API", () => {
     expect((await getAccessSummary(db, user))[0]).toMatchObject({ started: 1, examsLeft: 0 });
   });
 });
+
+/** Plays an exam: storage questions answered correctly, the rest left blank (or wrong in a series). */
+async function playHalf(userId: string, start: Date) {
+  const { attemptId } = await createAttempt(db, { userId, certificationCode: "az-104", locale: "en", now: start });
+  await startAttempt(db, { attemptId, userId, now: start });
+  const view = await getAttemptView(db, { attemptId, userId, now: start });
+  const keys = new Map((await db.question.findMany()).map((q) => [q.id, q.answer as { value?: boolean }]));
+  for (const section of view.sections) {
+    for (const item of view.items.filter((i) => i.sectionId === section.id)) {
+      const key = keys.get(item.question.id)!;
+      if (item.question.id.startsWith("stor-")) await saveItem(db, { attemptId, itemId: item.id, userId, response: key, now: start });
+      else if (section.kind === "series") await saveItem(db, { attemptId, itemId: item.id, userId, response: { value: !key.value }, now: start });
+    }
+    if (section.id !== view.sections.at(-1)!.id) await lockSection(db, { attemptId, sectionId: section.id, userId, now: start });
+  }
+  await submitAttempt(db, { attemptId, userId, now: new Date(start.getTime() + 60_000) });
+  return attemptId;
+}
+
+describe("correction by access level", () => {
+  it("sends only the missed questions at the free level, without the explanations of the wrong options", async () => {
+    const user = await newUser("free-correction@example.com");
+    const attemptId = await playHalf(user, at(0));
+    const items = await db.attemptItem.findMany({ where: { attemptId }, include: { question: true } });
+    const right = items.filter((i) => (i.pointsEarned ?? 0) >= (i.pointsMax ?? 0));
+    const wrong = items.filter((i) => (i.pointsEarned ?? 0) < (i.pointsMax ?? 0));
+    expect(right.length).toBeGreaterThan(0);
+    expect(wrong.length).toBeGreaterThan(0);
+
+    const free = await getAttemptResults(db, { attemptId, userId: user });
+    expect(free.correction.level).toBe("free");
+    expect(free.items.map((i) => i.id).sort()).toEqual(wrong.map((i) => i.id).sort());
+    expect(free.items.every((i) => i.optionExplanations.length === 0)).toBe(true);
+    expect(free.items.every((i) => i.explanationHtml.length > 0 && i.correctAnswer.length > 0)).toBe(true);
+    expect(free.correction.locked.map((l) => l.id).sort()).toEqual(right.map((i) => i.id).sort());
+    expect(Object.keys(free.correction.locked[0]!).sort()).toEqual(["domain", "id", "order"]);
+
+    // Over the network: nothing of the questions answered correctly.
+    session.current = { user: { id: user, role: "user", locale: "en" } };
+    const res = await results.GET(new Request(`http://localhost:3000/api/attempts/${attemptId}/results`), { params: Promise.resolve({ id: attemptId }) });
+    const body = await res.text();
+    expect(res.status).toBe(200);
+    for (const i of right) expect(body).not.toContain(`"${i.question.id}"`);
+    for (const i of wrong) expect(body).toContain(`"${i.question.id}"`);
+
+    // With a Pass: the full correction, same score report.
+    const right_ = await grant(user, 0, 90 * DAY);
+    const full = await getAttemptResults(db, { attemptId, userId: user });
+    expect(full.correction).toEqual({ level: "full", locked: [] });
+    expect(full.items).toHaveLength(items.length);
+    expect(full.items.some((i) => i.optionExplanations.length > 0)).toBe(true);
+    expect({ score: full.scaledScore, domains: full.domains, types: full.types, earned: full.earned, possible: full.possible }).toEqual({
+      score: free.scaledScore,
+      domains: free.domains,
+      types: free.types,
+      earned: free.earned,
+      possible: free.possible,
+    });
+
+    // The Pass ends: the correction goes back to the free level.
+    await db.entitlement.update({ where: { id: right_.id }, data: { revokedAt: new Date() } });
+    expect((await getAttemptResults(db, { attemptId, userId: user })).correction.level).toBe("free");
+  });
+});
+
+describe("offers on sale", () => {
+  it("shows the Pass, and the other offers only when their switch is on", async () => {
+    expect((await getOffers(db)).map((o) => o.code)).toEqual(["pass_90"]);
+    await db.appSetting.update({ where: { key: "offer.all_access.enabled" }, data: { value: true } });
+    await db.appSetting.update({ where: { key: "offer.team.enabled" }, data: { value: true } });
+    try {
+      expect((await getOffers(db)).map((o) => o.code)).toEqual(["pass_90", "all_monthly", "all_yearly", "team_monthly"]);
+      // An inactive plan is not on sale, whatever the switch.
+      await db.plan.update({ where: { code: "all_yearly" }, data: { active: false } });
+      expect((await getOffers(db)).map((o) => o.code)).toEqual(["pass_90", "all_monthly", "team_monthly"]);
+      expect((await getOffers(db))[0]).toEqual({ code: "pass_90", kind: "pass", amountCents: 1900, currency: "eur", taxBehavior: "inclusive", interval: "none", durationDays: 90, minSeats: null });
+    } finally {
+      await db.plan.update({ where: { code: "all_yearly" }, data: { active: true } });
+      await db.appSetting.update({ where: { key: "offer.all_access.enabled" }, data: { value: false } });
+      await db.appSetting.update({ where: { key: "offer.team.enabled" }, data: { value: false } });
+    }
+  });
+});
+
