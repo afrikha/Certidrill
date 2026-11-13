@@ -97,6 +97,7 @@ Les comptes se créent avec `npm run user:create` ou depuis **Administration →
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |
 | `npm run user:create` | Crée un compte (`--email`, `--password`, `--name`, `--admin`, `--locale`) |
+| `npm run stripe:sync-prices` | Crée ou retrouve dans Stripe le prix de chaque tarif actif et l'enregistre dans `plan` (`-- --dry-run` pour voir sans rien changer) |
 
 ## Tests et qualité
 
@@ -104,8 +105,8 @@ Les comptes se créent avec `npm run user:create` ou depuis **Administration →
 | --- | --- | --- | --- |
 | Unitaires | Vitest | `tests/unit` | Notation, assembleur, schémas, rendu de toute la banque, sécurité (CSRF, limitation de débit, mots de passe), journaux |
 | Composants | Vitest + Testing Library (jsdom) | `tests/components` | Saisie des 8 types de questions, écran d'examen (chrono, sauvegarde hors ligne, sections, série, révision, soumission) en FR/EN |
-| Intégration | Vitest + PostgreSQL réel | `tests/integration` | Routes `app/api/**` (authentification, CSRF, propriété, aucune réponse avant soumission), server actions, Auth.js (mots de passe, limitation), inscription et confirmation d'adresse, droits (quota, Pass, correction filtrée, attribution manuelle, journal d'audit), session d'examen, résultats |
-| End-to-end | Playwright (build de production) | `tests/e2e` | Parcours complets dans Chromium : examen, reprise, expiration, résultats, saisie au clavier ; inscription, attribution d'un Pass, écran d'offre |
+| Intégration | Vitest + PostgreSQL réel | `tests/integration` | Routes `app/api/**` (authentification, CSRF, propriété, aucune réponse avant soumission), server actions, Auth.js (mots de passe, limitation), inscription et confirmation d'adresse, droits (quota, Pass, correction filtrée, attribution manuelle, journal d'audit), paiement (session Checkout, webhooks signés localement : rejoués, simultanés, dans le désordre, en échec), file d'e-mails, session d'examen, résultats |
+| End-to-end | Playwright (build de production) | `tests/e2e` | Parcours complets dans Chromium : examen, reprise, expiration, résultats, saisie au clavier ; inscription, attribution d'un Pass, écran d'offre ; achat d'un Pass de bout en bout contre un faux Stripe local (`tests/e2e/fake-stripe.mjs`) |
 | Non-régression | Playwright | `tests/e2e/regression` | Instantanés de l'arbre d'accessibilité (ARIA) de chaque type de question et des pages publiques en FR/EN, contrôle d'accès des pages, contrat HTTP de l'API, en-têtes de sécurité |
 
 **Couverture** : la CI échoue sous **80 %** (lignes, instructions, fonctions ; 70 % des branches) sur `lib/`, `components/` et `app/api/`, et sous 90 % sur `lib/exam`. Les pages Next.js (`app/**/page.tsx`, layouts) sont couvertes par Playwright, pas par la mesure lcov.
@@ -168,6 +169,36 @@ Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). 
 
 Cloudflare Email Routing (gratuit) peut rediriger `dmarc@` ou `contact@<domaine>` vers une boîte personnelle, pour recevoir les rapports DMARC et les réponses.
 
+## Paiement (Stripe)
+
+Le Pass s'achète par Stripe Checkout, en paiement unique. Aucune donnée de carte ne passe par le serveur, qui ne garde que les références Stripe. Le navigateur n'envoie que le code du tarif et la certification : le prix est celui de la table `plan`. Le droit n'est accordé que par le webhook signé de Stripe, jamais par la page de retour.
+
+Le paiement en ligne reste **fermé** tant que l'interrupteur « Paiement en ligne ouvert » (`billing.checkout.enabled`, dans *Administration → Droits*) est désactivé. Il ne doit pas être ouvert en mode live avant le lot C : CGV, consentement au droit de rétractation et TVA.
+
+Mise en place, d'abord en **mode test** :
+
+1. Créer le compte Stripe. Dans *Développeurs → Clés API*, copier la clé secrète (`sk_test_…`), puis la mettre **dans `.env` sur le serveur**, jamais dans un dépôt ni une conversation :
+   ```bash
+   STRIPE_SECRET_KEY="sk_test_…"
+   ```
+2. Créer les prix depuis la table `plan`. Chaque prix porte le code du tarif comme *lookup key*, donc relancer la commande ne crée rien de plus :
+   ```bash
+   docker compose run --rm migrate npm run stripe:sync-prices -- --dry-run
+   docker compose run --rm migrate npm run stripe:sync-prices
+   ```
+   Un prix ne se modifie pas dans Stripe : un nouveau tarif est une nouvelle ligne `plan`, avec un nouveau code. Si le prix trouvé dans Stripe ne correspond plus au tarif, la commande le signale (`mismatch`) et ne touche à rien.
+3. Dans *Développeurs → Webhooks*, ajouter un point de terminaison `https://<domaine>/api/webhooks/stripe` qui écoute `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` et `checkout.session.expired`. Copier son secret de signature dans `.env` :
+   ```bash
+   STRIPE_WEBHOOK_SECRET="whsec_…"
+   ```
+4. Recharger l'application (`docker compose up -d --force-recreate app`), puis activer l'interrupteur. Faire un achat avec la carte de test `4242 4242 4242 4242`.
+
+En local, `stripe listen --forward-to localhost:3000/api/webhooks/stripe` (outil en ligne de commande de Stripe) relaie les événements et affiche le secret `whsec_…` à utiliser.
+
+Chaque événement est enregistré dans `stripe_event`, dans la même transaction que ses effets. Un événement reçu deux fois, ou deux fois en même temps, ne crée donc qu'un droit et qu'un paiement. Un traitement en échec est annulé en entier : le webhook répond 500, l'erreur est gardée dans `stripe_event.error`, et Stripe renvoie l'événement plus tard.
+
+**E-mails de facturation** : confirmation d'achat, rappel 7 jours avant la fin d'un Pass, puis avis d'expiration. Ils passent par la file `email_outbox`, envoyée chaque minute par l'application, avec de nouveaux essais espacés en cas d'échec SMTP (8 essais au plus). Au moment de l'envoi, un rappel est vérifié contre l'accès du jour : un Pass prolongé, révoqué ou remplacé entre-temps ne déclenche pas d'e-mail.
+
 ## Avancement (plan du §12 des specs)
 
 - [x] **Lot 1 — Socle** : Next.js, Prisma (schéma complet), Auth.js, i18n FR/EN, CI, Docker, `blueprint.yaml` et 81 objectifs AZ-104
@@ -204,4 +235,10 @@ Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi c
   - **Adresse vérifiée** obligatoire pour démarrer un examen blanc (403 `email_unverified`). Les comptes créés par un administrateur, et ceux qui existaient avant ce lot, sont considérés comme vérifiés.
   - **Administration → Droits** (`/admin/billing`) : recherche d'un utilisateur par e-mail ; son accès par certification et ses Pass ; attribution manuelle ou prolongation d'un Pass (durée, origine « attribution manuelle » ou « prolongation après échec », motif obligatoire), qui prend la suite du Pass en cours comme un achat ; révocation immédiate ; interrupteurs des offres et des inscriptions.
   - **Journal d'audit** (`audit_log`), écrit dans la même transaction que l'action : attribution et révocation d'un droit, changement d'interrupteur, création de compte (depuis l'administration ou la ligne de commande). Les entrées restent quand l'utilisateur est supprimé, sans donnée personnelle : l'utilisateur n'y figure que par son identifiant, et son adresse disparaît avec son compte (elle reste dans les sauvegardes jusqu'à leur rotation, 14 jours). Le motif saisi par l'administrateur ne doit pas en contenir. Les demandes de prolongation déposées par les candidats arrivent avec le lot C.
+- [x] **Offres, lot B — Pass** (voir « Paiement (Stripe) ») :
+  - **Achat** : Stripe Checkout en paiement unique depuis `/pricing` ou l'écran d'offre (`POST /api/billing/checkout`, au plus 10 sessions par heure et par utilisateur). L'adresse doit être vérifiée.
+  - **Retour de paiement** : `/billing/success` attend le webhook et affiche l'état enregistré (`GET /api/billing/status`). `/billing/cancel` confirme qu'aucun montant n'a été débité.
+  - **Pass enchaînés** : un Pass acheté pendant qu'un autre court commence à la fin de celui-ci.
+  - **Compte** : `/account/billing` montre l'accès par certification et l'historique des paiements.
+  - **Tables** : `billing_customer`, `payment`, `stripe_event` et `email_outbox`. Les paiements restent quand le compte est supprimé, comme pièces comptables, sans lien vers l'utilisateur.
 - [ ] Lot 7 — Mise en production

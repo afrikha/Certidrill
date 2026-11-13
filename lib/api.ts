@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { isSameOrigin } from "@/lib/security/csrf";
 import { SessionError } from "@/lib/exam/session";
 import { AccessError } from "@/lib/access";
+import { BillingError } from "@/lib/billing/checkout";
 import { logError } from "@/lib/log";
 
 export type ApiUser = { id: string; role: "user" | "admin"; locale: string };
@@ -27,6 +28,7 @@ export function apiRoute<P>(handler: (ctx: { request: Request; user: ApiUser; pa
       if (err instanceof SessionError) return NextResponse.json({ error: err.code }, { status: err.status });
       // 402 with the reason (quota_exhausted, pass_expired, subscription_inactive): the offer screen.
       if (err instanceof AccessError) return NextResponse.json({ error: err.code }, { status: err.status });
+      if (err instanceof BillingError) return NextResponse.json({ error: err.code }, { status: err.status });
       if (err instanceof ZodError) return NextResponse.json({ error: "invalid_request", issues: err.issues.map((i) => i.message) }, { status: 400 });
       if (err instanceof SyntaxError) return NextResponse.json({ error: "invalid_json" }, { status: 400 });
       if (err instanceof PayloadTooLargeError) return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
@@ -42,18 +44,18 @@ export const MAX_BODY_BYTES = 64 * 1024;
 export class PayloadTooLargeError extends Error {}
 
 export async function jsonBody(request: Request): Promise<unknown> {
-  const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > MAX_BODY_BYTES) throw new PayloadTooLargeError();
-  const text = await readText(request, MAX_BODY_BYTES);
+  const text = await readBody(request, MAX_BODY_BYTES);
   return text ? JSON.parse(text) : {};
 }
 
 /**
  * Reads the body as text, giving up as soon as it exceeds `limit` bytes. The
- * Content-Length check above only covers honest clients: a chunked body has
+ * Content-Length check only covers honest clients: a chunked body has
  * none, and would otherwise be read in full before being measured.
  */
-async function readText(request: Request, limit: number): Promise<string> {
+export async function readBody(request: Request, limit: number): Promise<string> {
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > limit) throw new PayloadTooLargeError();
   if (!request.body) return "";
   const reader = request.body.getReader();
   const decoder = new TextDecoder();

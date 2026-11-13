@@ -28,6 +28,7 @@ describe("SiteHeader", () => {
     expect(nav).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Certi\s?drill$/ })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+    expect(screen.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "/pricing");
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByTestId("locale-switcher")).toBeInTheDocument();
   });

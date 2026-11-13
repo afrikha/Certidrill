@@ -7,7 +7,7 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { SWITCHES, type Switch } from "@/lib/settings";
-import { passWindow } from "./rules";
+import { addPass } from "./passes";
 
 export class BillingAdminError extends Error {
   constructor(readonly code: "not_found" | "inactive_certification") {
@@ -57,21 +57,12 @@ export async function grantPass(db: PrismaClient, actorId: string, input: GrantI
   if (!certification) throw new BillingAdminError("not_found");
   if (!certification.active) throw new BillingAdminError("inactive_certification");
   return db.$transaction(async (tx) => {
-    // Locks the user row: two grants at once chain one after the other
-    // instead of computing the same window.
-    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "user" WHERE id = ${data.userId} FOR UPDATE`;
-    const user = locked[0];
-    if (!user) throw new BillingAdminError("not_found");
-    const passes = await tx.entitlement.findMany({ where: { userId: user.id, certificationId: certification.id }, select: { startsAt: true, expiresAt: true, revokedAt: true } });
-    const window = passWindow(passes, now, data.days);
-    const entitlement = await tx.entitlement.create({
-      data: { userId: user.id, certificationId: certification.id, source: data.source, ...window },
-      select: { id: true, startsAt: true, expiresAt: true },
-    });
+    const entitlement = await addPass(tx, { userId: data.userId, certificationId: certification.id, days: data.days, source: data.source, now });
+    if (!entitlement) throw new BillingAdminError("not_found");
     await audit(tx, {
       actorId,
       action: "entitlement.grant",
-      targetUserId: user.id,
+      targetUserId: data.userId,
       details: {
         entitlementId: entitlement.id,
         certification: certification.code,

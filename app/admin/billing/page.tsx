@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { findUsers, userEntitlements } from "@/lib/access/admin";
 import { getAccessSummary } from "@/lib/access";
-import { recentAudit } from "@/lib/audit";
+import { recentAudit, type AuditAction } from "@/lib/audit";
 import { readSwitches, SWITCHES, type Switch } from "@/lib/settings";
 import { setSwitchAction } from "@/lib/actions/billing";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,9 @@ export const metadata = { title: "Billing" };
 export const dynamic = "force-dynamic";
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
+
+/** Actions done on a user: without its target, the account was deleted since. */
+const ON_USER: ReadonlySet<string> = new Set<AuditAction>(["user.create", "entitlement.grant", "entitlement.revoke"]);
 
 /**
  * Rights back-office (specs des offres §7): find a user, see and change their
@@ -182,7 +185,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
                 <td className="px-4 py-2">{entry.actor?.email ?? t("cli")}</td>
                 <td className="px-4 py-2">
                   <span className="font-medium">{t(`action_${entry.action.replaceAll(".", "_")}`)}</span>
-                  {entry.target ? <> — {entry.target.email}</> : entry.action !== "setting.update" && <> — <span className="italic text-muted-foreground">{t("deletedUser")}</span></>}
+                  {entry.target ? <> — {entry.target.email}</> : ON_USER.has(entry.action) && <> — <span className="italic text-muted-foreground">{t("deletedUser")}</span></>}
                   <code className="mt-1 block break-all text-xs text-muted-foreground">{describe(entry.details)}</code>
                 </td>
               </tr>

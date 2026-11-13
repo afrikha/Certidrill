@@ -13,6 +13,7 @@ export async function SiteHeader() {
           Certi<span className="text-primary">drill</span>
         </Link>
         <div className="flex items-center gap-4 text-sm">
+          <Link href="/pricing" className="hover:underline">{t("pricing")}</Link>
           {session?.user ? (
             <>
               <Link href="/dashboard" className="hover:underline">{t("dashboard")}</Link>
