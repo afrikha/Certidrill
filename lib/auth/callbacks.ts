@@ -35,8 +35,9 @@ export async function authorizeCredentials(db: PrismaClient, limiter: RateLimite
   const emailOk = limiter.hit(`email:${email}`);
   const ipOk = limiter.hit(`ip:${ip}`);
   if (!emailOk || !ipOk) {
-    // A refused try uses neither quota: locking someone's e-mail must not
-    // also use up the quota of their address, and the other way round.
+    // The hit taken on the key that did not refuse is given back: locking
+    // someone's e-mail must not also use up the quota of their address, and
+    // the other way round. The refusing key stays blocked until its window ends.
     if (emailOk) limiter.release(`email:${email}`);
     if (ipOk) limiter.release(`ip:${ip}`);
     throw new RateLimitedError();

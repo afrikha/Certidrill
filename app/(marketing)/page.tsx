@@ -36,7 +36,7 @@ export default async function HomePage() {
     prisma.certification.findMany({
       where: { active: true },
       orderBy: { code: "asc" },
-      select: { id: true, code: true, title: true, blueprints: { where: { current: true }, take: 1, select: { durationMin: true, minQuestions: true, maxQuestions: true, passScore: true, maxScore: true } } },
+      select: { id: true, code: true, title: true, blueprints: { where: { current: true }, take: 1, select: { durationMin: true, minQuestions: true, maxQuestions: true, passScore: true, maxScore: true, _count: { select: { domains: true } } } } },
     }),
     readSwitches(prisma),
     getOffers(prisma),
@@ -83,7 +83,7 @@ export default async function HomePage() {
             </div>
             {!session && <p className="mt-4 text-sm text-muted-foreground">{signupOpen ? t("reassurance") : t("closed")}</p>}
           </div>
-          {blueprint && <ExamPreview maxScore={blueprint.maxScore} passScore={blueprint.passScore} />}
+          {blueprint && <ExamPreview blueprint={{ ...blueprint, domains: blueprint._count.domains }} />}
         </div>
       </section>
 

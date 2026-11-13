@@ -21,22 +21,41 @@ export function Icon({ name, className }: Readonly<{ name: keyof typeof ICONS; c
   );
 }
 
-/** A mock exam in progress: section, timer, a question with its options, and the score it leads to. */
-export function ExamPreview({ maxScore, passScore }: Readonly<{ maxScore: number; passScore: number }>) {
-  const score = Math.round(passScore + (maxScore - passScore) * 0.37);
-  const domains = [86, 74, 91, 68];
+interface PreviewBlueprint {
+  durationMin: number;
+  minQuestions: number;
+  maxQuestions: number;
+  passScore: number;
+  maxScore: number;
+  domains: number;
+}
+
+/**
+ * A mock exam in progress, and the score it leads to. The figures come from
+ * the current blueprint: an exam of typical length, a little past halfway,
+ * a passing score with one bar per domain.
+ */
+export function ExamPreview({ blueprint: b }: Readonly<{ blueprint: PreviewBlueprint }>) {
+  const total = Math.round((b.minQuestions + b.maxQuestions) / 2);
+  const current = Math.round(total * 0.52);
+  const left = Math.round(b.durationMin * 0.72);
+  const clock = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}:45`;
+  const progress = Math.round((current / total) * 100);
+  const passPercent = (b.passScore / b.maxScore) * 100;
+  const score = Math.round(b.passScore + (b.maxScore - b.passScore) * 0.37);
+  // Illustrative domain results around the pass mark: mostly passed, one to work on.
+  const domains = Array.from({ length: b.domains }, (_, i) => [86, 74, 91, 64, 80, 77][i % 6]!);
   return (
     <div aria-hidden className="relative isolate mx-auto w-full max-w-md select-none lg:mx-0">
       <div className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-blue-200/70 via-sky-100/60 to-transparent blur-2xl" />
       <div className="overflow-hidden rounded-xl border border-border bg-background shadow-xl shadow-blue-900/10">
         <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-2.5 text-xs">
-          <span className="font-medium text-muted-foreground">Section 2 / 3</span>
-          <span className="rounded-md bg-foreground px-2 py-1 font-mono font-semibold tabular-nums text-background">01:12:45</span>
+          <span className="font-medium text-muted-foreground">Question {current} / {total}</span>
+          <span className="rounded-md bg-foreground px-2 py-1 font-mono font-semibold tabular-nums text-background">{clock}</span>
         </div>
-        <div className="h-1 bg-muted"><div className="h-full w-[58%] bg-primary" /></div>
+        <div className="h-1 bg-muted"><div className="h-full bg-primary" style={{ width: `${progress}%` }} /></div>
         <div className="space-y-3 p-5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Question 27 / 52</span>
+          <div className="flex items-center justify-end text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-800">⚑</span>
           </div>
           <div className="space-y-2">
@@ -64,13 +83,13 @@ export function ExamPreview({ maxScore, passScore }: Readonly<{ maxScore: number
       <div className="absolute -bottom-8 -left-2 w-52 rounded-xl border border-border bg-background p-4 shadow-lg shadow-blue-900/10 sm:-left-10">
         <div className="flex items-baseline gap-1">
           <span className="text-3xl font-bold tabular-nums">{score}</span>
-          <span className="text-sm text-muted-foreground">/ {maxScore}</span>
+          <span className="text-sm text-muted-foreground">/ {b.maxScore}</span>
           <span className="ml-auto rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-success">✓</span>
         </div>
         <div className="mt-3 space-y-1.5">
-          {domains.map((d) => (
-            <div key={d} className="h-1.5 rounded-full bg-muted">
-              <div className={cn("h-full rounded-full", d >= 70 ? "bg-success" : "bg-warning")} style={{ width: `${d}%` }} />
+          {domains.map((d, i) => (
+            <div key={i} className="h-1.5 rounded-full bg-muted">
+              <div className={cn("h-full rounded-full", d >= passPercent ? "bg-success" : "bg-warning")} style={{ width: `${d}%` }} />
             </div>
           ))}
         </div>
