@@ -149,8 +149,9 @@ describe("magic link e-mail", () => {
 
   it("removes SMTP credentials from messages", () => {
     expect(redactSmtp("bad p%40ss and p@ss for login", "smtp://login:p%40ss@h")).toBe("bad *** and *** for ***");
-    // Too short to be masked safely; an invalid server leaves the message unchanged.
-    expect(redactSmtp("a b", "smtp://a:b@h")).toBe("a b");
+    // The password is masked whatever its length; a user name under 3 characters is not.
+    expect(redactSmtp("a b", "smtp://a:b@h")).toBe("a ***");
+    // An invalid server leaves the message unchanged.
     expect(redactSmtp("unchanged", "not a url")).toBe("unchanged");
     // A password that is not URL-decodable is masked as written.
     expect(redactSmtp("got bad%zzpw", "smtp://login:bad%zzpw@h")).toBe("got ***");

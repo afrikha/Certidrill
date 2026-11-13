@@ -142,9 +142,9 @@ export function redactSmtp(message: string, server: string): string {
     return message;
   }
   const secrets = new Set<string>();
-  for (const raw of [url.password, url.username]) {
-    // Very short values would mask ordinary words; real credentials are longer.
-    if (raw.length < 3) continue;
+  for (const [raw, min] of [[url.password, 1], [url.username, 3]] as const) {
+    // The password is always masked; a very short user name would mask ordinary words.
+    if (raw.length < min) continue;
     secrets.add(raw);
     try {
       secrets.add(decodeURIComponent(raw));

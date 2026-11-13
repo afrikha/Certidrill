@@ -146,7 +146,7 @@ Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). 
    - **SPF** : `TXT @`, `v=spf1 include:<valeur du fournisseur> ~all`. Un seul enregistrement SPF par domaine : fusionner les `include:` s'il en existe déjà un.
    - **DKIM** : les `CNAME` ou `TXT` fournis.
    - **DMARC** : `TXT _dmarc`, `v=DMARC1; p=none; rua=mailto:dmarc@<domaine>`. Passer à `p=quarantine` quand les rapports sont propres.
-2. **Renseigner `.env`** sur le serveur, jamais dans un dépôt ni une conversation. Encoder les caractères spéciaux de la clé : `%40` pour `@`, `%23` pour `#`, `%25` pour `%`.
+2. **Renseigner `.env`** sur le serveur, jamais dans un dépôt ni une conversation. Encoder les caractères spéciaux de la clé : `%40` pour `@`, `%23` pour `#`, `%25` pour `%`, et `%24` pour `$`. Docker Compose interprète `$` dans `.env` : `p$w` deviendrait `p`.
    ```bash
    EMAIL_SERVER="smtp://<login>:<clé SMTP>@<serveur SMTP>:587"
    EMAIL_FROM="Certidrill <no-reply@certidrill.com>"
