@@ -9,6 +9,7 @@ import { createAttempt, getAttemptView, lockSection, saveItem, startAttempt, sub
 import { deleteOutcome, getCalibration, latestOutcomeDay, listOutcomes, OutcomeError, recordOutcome } from "@/lib/progress/outcomes";
 import { MAX_OUTCOMES } from "@/lib/progress/outcome-limits";
 import { publishSampleBank } from "./sample-bank";
+import { grantFullAccess } from "./access";
 
 const db = new PrismaClient();
 let userId: string;
@@ -24,6 +25,7 @@ beforeAll(async () => {
   await seedBank(db, content, await loadBank(content));
   await publishSampleBank(db);
   userId = (await createUser(db, { email: "outcome@example.com" })).id;
+  await grantFullAccess(db, userId);
   // Two perfect mock exams before the real one (November 2 and 3), one after it (November 10).
   for (const [seed, day] of [["o-1", 0], ["o-2", 1], ["o-3", 8]] as const) await play(seed, new Date(T0.getTime() + day * 86_400_000)); // NOSONAR: attempts are created one after the other (one in progress at a time)
 });

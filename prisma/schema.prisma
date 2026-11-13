@@ -53,6 +53,33 @@ enum SectionKind {
   main
 }
 
+/// Offers (docs: specs des offres §2 and §4).
+enum PlanKind {
+  free
+  pass
+  subscription
+  team
+  pack
+}
+
+enum TaxBehavior {
+  inclusive
+  exclusive
+}
+
+enum BillingInterval {
+  none
+  month
+  year
+}
+
+enum EntitlementSource {
+  purchase
+  pack_code
+  extension
+  admin
+}
+
 enum ReportStatus {
   open
   accepted
@@ -72,11 +99,12 @@ model User {
   role          Role      @default(user)
   createdAt     DateTime  @default(now())
 
-  accounts Account[]
-  sessions Session[]
-  attempts Attempt[]
-  reports  QuestionReport[]
-  outcomes ExamOutcome[]
+  accounts     Account[]
+  sessions     Session[]
+  attempts     Attempt[]
+  reports      QuestionReport[]
+  outcomes     ExamOutcome[]
+  entitlements Entitlement[]
 
   @@map("user")
 }
@@ -127,11 +155,13 @@ model VerificationToken {
 // ---------------------------------------------------------------- referential
 
 model Certification {
-  id     String  @id @default(cuid())
-  code   String  @unique // e.g. "az-104"
-  title  String
-  vendor String
-  active Boolean @default(true)
+  id         String  @id @default(cuid())
+  code       String  @unique // e.g. "az-104"
+  title      String
+  vendor     String
+  active     Boolean @default(true)
+  /// Full access for every signed-in user (e.g. a free entry-level certification).
+  freeAccess Boolean @default(false)
 
   blueprints     Blueprint[]
   caseStudies    CaseStudy[]
@@ -139,6 +169,7 @@ model Certification {
   questions      Question[]
   attempts       Attempt[]
   outcomes       ExamOutcome[]
+  entitlements   Entitlement[]
 
   @@map("certification")
 }
@@ -391,4 +422,58 @@ model ExamOutcome {
   @@unique([userId, certificationId, takenOn])
   @@index([certificationId])
   @@map("exam_outcome")
+}
+
+// ------------------------------------------------------------------ offers and access
+
+/// Catalogue of offers and prices. Prices, durations and limits are data:
+/// changing them needs no deployment (lib/access).
+model Plan {
+  id            String          @id @default(cuid())
+  code          String          @unique
+  kind          PlanKind
+  amountCents   Int
+  currency      String          @default("eur")
+  taxBehavior   TaxBehavior     @default(inclusive)
+  interval      BillingInterval @default(none)
+  /// Length of the access a Pass gives, in days.
+  durationDays  Int?
+  minSeats      Int?
+  /// Full mock exams per certification at this level (the free plan); null: unlimited.
+  examQuota     Int?
+  stripePriceId String?         @unique
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+
+  @@map("plan")
+}
+
+/// A Pass-type right: full access to one certification between two dates.
+model Entitlement {
+  id              String            @id @default(cuid())
+  userId          String
+  certificationId String
+  source          EntitlementSource
+  startsAt        DateTime
+  expiresAt       DateTime
+  /// The payment that created it (payment table: offers lot B).
+  paymentId       String?
+  /// Set when the right is withdrawn (refund): it no longer gives access.
+  revokedAt       DateTime?
+  createdAt       DateTime          @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certification Certification @relation(fields: [certificationId], references: [id])
+
+  @@index([userId, certificationId])
+  @@map("entitlement")
+}
+
+/// Switches and settings changed without deployment (offer.*.enabled, signup.open).
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("app_setting")
 }

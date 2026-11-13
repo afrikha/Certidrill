@@ -40,6 +40,8 @@ export default defineConfig({
         branches: 70,
         "lib/exam/**": { lines: 90, functions: 90, branches: 85, statements: 90 },
         "lib/progress/**": { lines: 90, functions: 90, branches: 85, statements: 90 },
+        // Who may take a mock exam and see the correction (offers).
+        "lib/access/**": { lines: 95, functions: 95, branches: 90, statements: 95 },
       },
     },
   },

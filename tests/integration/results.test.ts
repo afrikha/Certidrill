@@ -8,6 +8,7 @@ import { publishSampleBank } from "./sample-bank";
 import { createUser } from "@/lib/users";
 import { createAttempt, getAttemptView, lockSection, saveItem, SessionError, startAttempt, submitAttempt } from "@/lib/exam/session";
 import { getAttemptProgress, getAttemptResults, getProgress, getReadinessChange, reportQuestion, REPORTS_BEFORE_REVIEW } from "@/lib/exam/results";
+import { grantFullAccess } from "./access";
 
 const db = new PrismaClient();
 let userId: string;
@@ -23,6 +24,7 @@ beforeAll(async () => {
   await seedBank(db, content, await loadBank(content));
   expect(await publishSampleBank(db)).toBe(28);
   userId = (await createUser(db, { email: "results@example.com" })).id;
+  await grantFullAccess(db, userId);
 });
 afterAll(() => db.$disconnect());
 

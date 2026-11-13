@@ -7,6 +7,7 @@ import { seedBank, seedReferential } from "@/lib/content/seed";
 import { anyResponse, publishSampleBank } from "./sample-bank";
 import { createUser } from "@/lib/users";
 import { loadHistory } from "@/lib/exam/bank-query";
+import { grantFullAccess } from "./access";
 import {
   createAttempt,
   DEADLINE_GRACE_MS,
@@ -39,6 +40,8 @@ beforeAll(async () => {
   expect(await publishSampleBank(db)).toBe(28);
   userId = (await createUser(db, { email: "candidate@example.com" })).id;
   otherId = (await createUser(db, { email: "other@example.com" })).id;
+  await grantFullAccess(db, userId);
+  await grantFullAccess(db, otherId);
 });
 afterAll(() => db.$disconnect());
 

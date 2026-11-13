@@ -21,7 +21,11 @@ export function NewExamForm({ code, defaultLocale }: Readonly<{ code: string; de
         </Select>
       </div>
       <Button type="submit" disabled={pending}>{t("newExam")}</Button>
-      {state?.error && <Alert tone="error" className="w-full">{state.error === "emptyBank" ? t("emptyBank") : "Error"}</Alert>}
+      {state?.error && (
+        <Alert tone="error" className="w-full" data-testid="new-exam-error">
+          {state.error === "error" ? "Error" : t(state.error === "emptyBank" ? "emptyBank" : `refusal_${state.error}`)}
+        </Alert>
+      )}
     </form>
   );
 }
