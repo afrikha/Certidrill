@@ -20,15 +20,22 @@ export function startedExams(db: PrismaClient, userId: string, certificationId: 
   return db.attempt.count({ where: { userId, certificationId, mode: "exam", startedAt: { not: null } } });
 }
 
-async function loadFacts(db: PrismaClient, userId: string, certificationId: string): Promise<AccessFacts> {
-  const [user, certification, passes] = await Promise.all([
-    db.user.findUnique({ where: { id: userId }, select: { role: true } }),
-    db.certification.findUnique({ where: { id: certificationId }, select: { freeAccess: true } }),
-    db.entitlement.findMany({ where: { userId, certificationId }, select: { startsAt: true, expiresAt: true, revokedAt: true } }),
-  ]);
+/** What is the same for every certification of a user. */
+interface UserFacts {
+  isAdmin: boolean;
+  quota: number | null;
+}
+
+async function loadUserFacts(db: PrismaClient, userId: string): Promise<UserFacts> {
+  const [user, quota] = await Promise.all([db.user.findUnique({ where: { id: userId }, select: { role: true } }), freeExamQuota(db)]);
+  return { isAdmin: user?.role === "admin", quota };
+}
+
+async function loadFacts(db: PrismaClient, userId: string, certification: { id: string; freeAccess: boolean }, base: UserFacts): Promise<AccessFacts> {
+  const passes = await db.entitlement.findMany({ where: { userId, certificationId: certification.id }, select: { startsAt: true, expiresAt: true, revokedAt: true } });
   return {
-    isAdmin: user?.role === "admin",
-    freeCertification: certification?.freeAccess ?? false,
+    isAdmin: base.isAdmin,
+    freeCertification: certification.freeAccess,
     // Subscriptions and team seats arrive with offers lots D and E.
     teamSubscriptions: [],
     subscriptions: [],
@@ -43,15 +50,21 @@ export interface CertificationAccess extends Access {
   examsLeft: number | null;
 }
 
-async function evaluate(db: PrismaClient, userId: string, certificationId: string, now: Date) {
-  const [facts, started, quota] = await Promise.all([loadFacts(db, userId, certificationId), startedExams(db, userId, certificationId), freeExamQuota(db)]);
+async function evaluate(db: PrismaClient, userId: string, certification: { id: string; freeAccess: boolean }, now: Date, base?: UserFacts) {
+  const user = base ?? (await loadUserFacts(db, userId));
+  const [facts, started] = await Promise.all([loadFacts(db, userId, certification, user), startedExams(db, userId, certification.id)]);
   const access = resolveAccess(facts, now);
-  return { facts, access, started, left: examsLeft(access, started, quota) };
+  return { facts, access, started, left: examsLeft(access, started, user.quota) };
+}
+
+async function certificationById(db: PrismaClient, certificationId: string) {
+  const c = await db.certification.findUnique({ where: { id: certificationId }, select: { freeAccess: true } });
+  return { id: certificationId, freeAccess: c?.freeAccess ?? false };
 }
 
 /** The access of a user to a certification at `now`. */
 export async function getAccess(db: PrismaClient, userId: string, certificationId: string, now = new Date()): Promise<CertificationAccess> {
-  const { access, started, left } = await evaluate(db, userId, certificationId, now);
+  const { access, started, left } = await evaluate(db, userId, await certificationById(db, certificationId), now);
   return { ...access, started, examsLeft: left };
 }
 
@@ -64,17 +77,20 @@ export async function getAccess(db: PrismaClient, userId: string, certificationI
  * be created once the previous one is over, and that one already counts.
  */
 export async function assertCanTakeExam(db: PrismaClient, { userId, certificationId, now = new Date() }: { userId: string; certificationId: string; now?: Date }): Promise<void> {
-  const { facts, left } = await evaluate(db, userId, certificationId, now);
+  const { facts, left } = await evaluate(db, userId, await certificationById(db, certificationId), now);
   if (left !== null && left <= 0) throw new AccessError(refusalReason(facts, now));
 }
 
 /** Access of a user to every active certification (GET /api/me/access, dashboard). */
 export async function getAccessSummary(db: PrismaClient, userId: string, now = new Date()) {
-  const certifications = await db.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, title: true } });
+  const [certifications, base] = await Promise.all([
+    db.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, title: true, freeAccess: true } }),
+    loadUserFacts(db, userId),
+  ]);
   return Promise.all(
     certifications.map(async (c) => {
-      const a = await getAccess(db, userId, c.id, now);
-      return { certification: c.code, title: c.title, level: a.level, source: a.source, expiresAt: a.expiresAt?.toISOString() ?? null, started: a.started, examsLeft: a.examsLeft };
+      const { access, started, left } = await evaluate(db, userId, c, now, base);
+      return { certification: c.code, title: c.title, level: access.level, source: access.source, expiresAt: access.expiresAt?.toISOString() ?? null, started, examsLeft: left };
     }),
   );
 }
