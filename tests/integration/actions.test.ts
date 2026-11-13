@@ -256,7 +256,7 @@ describe("server actions", () => {
     await setLocale(form({ locale: "de" }));
     expect(h.cookies.size).toBe(0);
     await setLocale(form({ locale: "fr" }));
-    expect(h.cookies.get("NEXT_LOCALE")).toMatchObject({ value: "fr", options: { httpOnly: true, sameSite: "lax" } });
+    expect(h.cookies.get("NEXT_LOCALE")).toMatchObject({ value: "fr", options: { httpOnly: true, sameSite: "lax", maxAge: 365 * 24 * 60 * 60 } });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).locale).toBe("fr");
     expect(h.revalidatePath).toHaveBeenCalledWith("/", "layout");
     as(null);

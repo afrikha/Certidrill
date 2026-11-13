@@ -62,6 +62,9 @@ describe("proxy", () => {
     expect(res.headers.get("x-middleware-request-x-certidrill-path")).toBe("/pricing");
     const cookie = res.cookies.get("NEXT_LOCALE");
     expect(cookie).toMatchObject({ value: "fr", httpOnly: true, sameSite: "lax", path: "/" });
+    // A session cookie: opening an address is not a choice.
+    expect(cookie?.maxAge).toBeUndefined();
+    expect(cookie?.expires).toBeUndefined();
 
     const same = proxy(req("/fr", { cookie: "NEXT_LOCALE=fr" }));
     expect(same.headers.get("x-middleware-rewrite")).toBe("https://certidrill.com/");

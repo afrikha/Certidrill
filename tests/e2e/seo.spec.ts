@@ -38,6 +38,10 @@ test("the French address is served in French; the switcher moves between the two
 
   await page.getByRole("form", { name: "Langue" }).getByRole("button", { name: "en" }).click();
   await page.waitForURL("**/en/pricing");
+  // A choice made with the switcher is kept (one year).
+  const chosen = (await page.context().cookies()).find((c) => c.name === "NEXT_LOCALE");
+  expect(chosen?.value).toBe("en");
+  expect(chosen!.expires * 1000).toBeGreaterThan(Date.now() + 300 * 86_400_000);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("form", { name: "Language" }).getByRole("button", { name: "en" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "/en/pricing");
@@ -50,6 +54,9 @@ test("the French address is served in French; the switcher moves between the two
 test("the pages reached from a public page stay in its language", async ({ page }) => {
   // An English browser landing on the French page (from a search result).
   await page.goto("/fr");
+  // Opening an address is not a choice: a session cookie (expires -1).
+  const cookie = (await page.context().cookies()).find((c) => c.name === "NEXT_LOCALE");
+  expect([cookie?.value, cookie?.expires]).toEqual(["fr", -1]);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Se connecter" }).click();
   await page.waitForURL("**/login");
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");

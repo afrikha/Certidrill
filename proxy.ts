@@ -9,7 +9,8 @@ import { LOCALE_HEADER, PATH_HEADER, isPublicPath, localizedPath, parseLocalized
  * - /fr/pricing is served by the /pricing page, told its language and path
  *   through request headers (read by i18n/request.ts and the locale switcher).
  *   The NEXT_LOCALE cookie follows that language, so the pages reached from
- *   there (sign-in, the application) stay in the language being read.
+ *   there (sign-in, the application) stay in the language being read. It is
+ *   then a session cookie: the visitor made no choice (lib/i18n/cookie.ts).
  * - /pricing is redirected (307: it depends on the visitor) to the visitor's
  *   language, the query kept.
  */
@@ -35,7 +36,7 @@ export function proxy(request: NextRequest) {
   url.pathname = localized.path;
   const response = NextResponse.rewrite(url, { request: { headers } });
   if (request.cookies.get(LOCALE_COOKIE)?.value !== localized.locale) {
-    response.cookies.set(LOCALE_COOKIE, localized.locale, localeCookieOptions());
+    response.cookies.set(LOCALE_COOKIE, localized.locale, localeCookieOptions({ chosen: false }));
   }
   return response;
 }
