@@ -12,8 +12,8 @@ const MESSAGES = { en, fr } as const;
 
 /** Sender (EMAIL_FROM); an empty value falls back to the default. */
 function sender(): string {
-  const from = process.env.EMAIL_FROM?.trim();
-  return from ? from : DEFAULT_FROM;
+  const from = process.env.EMAIL_FROM?.trim() ?? "";
+  return from === "" ? DEFAULT_FROM : from;
 }
 
 /**

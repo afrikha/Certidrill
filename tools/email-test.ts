@@ -12,7 +12,8 @@ async function main() {
   if (!values.to) throw new Error("--to is required");
   const check = await sendTestEmail({ to: values.to, locale: values.locale });
   const encryption = check.encryption === "tls" ? "TLS" : "STARTTLS";
-  console.log(`✔ SMTP ${check.host}:${check.port} (${encryption}) — test e-mail sent from ${check.from} to ${values.to}${check.messageId ? ` (${check.messageId})` : ""}`);
+  const id = check.messageId ? ` (${check.messageId})` : "";
+  console.log(`✔ SMTP ${check.host}:${check.port} (${encryption}) — test e-mail sent from ${check.from} to ${values.to}${id}`);
   console.log("  Check the inbox (and the spam folder), and that SPF, DKIM and DMARC pass in the message headers.");
 }
 
