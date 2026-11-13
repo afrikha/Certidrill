@@ -11,6 +11,7 @@ import { seedBank, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import type { AttemptView } from "@/lib/exam/session";
 import { anyResponse, publishSampleBank } from "./sample-bank";
+import { grantFullAccess } from "./access";
 
 const session = vi.hoisted(() => ({ current: null as null | { user: { id: string; role: string; locale: string } } }));
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => session.current) }));
@@ -57,6 +58,9 @@ beforeAll(async () => {
   await publishSampleBank(prisma);
   alice = (await createUser(prisma, { email: "alice-api@example.com" })).id;
   bob = (await createUser(prisma, { email: "bob-api@example.com" })).id;
+  // Engine tests: full correction whatever the answers (the free level is tested in access.test.ts).
+  await grantFullAccess(prisma, alice);
+  await grantFullAccess(prisma, bob);
 });
 afterAll(() => prisma.$disconnect());
 beforeEach(() => as(alice));
