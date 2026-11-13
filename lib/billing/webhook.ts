@@ -114,6 +114,7 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId: intentId(session),
       chargedCents: session.amount_total,
+      chargedCurrency: currency,
       taxCents: session.total_details?.amount_tax ?? 0,
     },
   });

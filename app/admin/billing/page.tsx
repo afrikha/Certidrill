@@ -106,7 +106,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
                   </td>
                   <td className="px-4 py-2 font-mono uppercase">{p.certification.code}</td>
                   <td className="px-4 py-2 tabular-nums">{money(p.amountCents, p.currency)}</td>
-                  <td className="px-4 py-2 tabular-nums">{money(p.chargedCents, p.currency)}</td>
+                  <td className="px-4 py-2 tabular-nums">{money(p.chargedCents, p.chargedCurrency ?? p.currency)}</td>
                   <td className="px-4 py-2 font-mono text-xs">{p.stripePaymentIntentId ?? "—"}</td>
                 </tr>
               ))}

@@ -380,7 +380,9 @@ describe("webhook", () => {
     expect((await paymentHistory(db, user)).map((p) => p.status)).toEqual(["held", "held", "held"]);
     const held = (await heldPayments(db)).filter((p) => p.customer.user?.id === user);
     expect(held).toHaveLength(3);
-    expect(held[0]).toMatchObject({ amountCents: 1900, chargedCents: 900, certification: { code: "az-104" }, customer: { user: { email: "underpaid@example.com" } } });
+    expect(held.find((p) => p.chargedCents === 900)).toMatchObject({ amountCents: 1900, chargedCurrency: "eur", certification: { code: "az-104" }, customer: { user: { email: "underpaid@example.com" } } });
+    // Charged in another currency: recorded as such, the price asked kept.
+    expect(held.find((p) => p.chargedCurrency === "usd")).toMatchObject({ amountCents: 1900, currency: "eur", chargedCents: 1900 });
     expect(await db.entitlement.count({ where: { userId: user } })).toBe(0);
     expect(await db.emailOutbox.count({ where: { userId: user } })).toBe(0);
   });
@@ -405,7 +407,7 @@ describe("webhook", () => {
     const payment = await checkout(user);
     await db.user.delete({ where: { id: user } });
     expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { amount_total: 2500, total_details: null, currency: null })), T0)).toBe("processed");
-    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", amountCents: 1900, chargedCents: 2500, taxCents: 0, currency: "eur" });
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", amountCents: 1900, chargedCents: 2500, chargedCurrency: "eur", taxCents: 0, currency: "eur" });
     expect(await db.entitlement.count({ where: { paymentId: payment.id } })).toBe(0);
   });
 

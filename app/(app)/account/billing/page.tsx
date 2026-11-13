@@ -67,7 +67,7 @@ export default async function AccountBillingPage() {
                   {tOffer(`name_${p.plan.kind}`)} <span className="font-mono uppercase">{p.certification.code}</span>
                   {p.entitlement && <span className="block text-xs text-muted-foreground">{date(p.entitlement.startsAt)} → {date(p.entitlement.expiresAt)}</span>}
                 </td>
-                <td className="px-4 py-2 tabular-nums">{money(p.chargedCents ?? p.amountCents, p.currency)}</td>
+                <td className="px-4 py-2 tabular-nums">{p.chargedCents === null ? money(p.amountCents, p.currency) : money(p.chargedCents, p.chargedCurrency ?? p.currency)}</td>
                 <td className="px-4 py-2">
                   {t(`status_${p.status}`)}
                   {p.invoiceUrl?.startsWith("https://") && <> · <a href={p.invoiceUrl} className="text-primary underline" rel="noopener noreferrer" target="_blank">{t("invoice")}</a></>}
