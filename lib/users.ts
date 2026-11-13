@@ -40,7 +40,7 @@ export async function createUser(db: PrismaClient, input: CreateUserInput, { act
       data: { email: data.email, name: data.name ?? null, role: data.role as Role, locale: data.locale, passwordHash, emailVerified: new Date() },
       select: { id: true, email: true, name: true, role: true, locale: true, createdAt: true },
     });
-    await audit(tx, { actorId, action: "user.create", targetUserId: user.id, details: { email: user.email, role: user.role } });
+    await audit(tx, { actorId, action: "user.create", targetUserId: user.id, details: { role: user.role } });
     return user;
   });
 }

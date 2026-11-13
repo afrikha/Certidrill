@@ -182,7 +182,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
                 <td className="px-4 py-2">{entry.actor?.email ?? t("cli")}</td>
                 <td className="px-4 py-2">
                   <span className="font-medium">{t(`action_${entry.action.replaceAll(".", "_")}`)}</span>
-                  {entry.target && <> — {entry.target.email}</>}
+                  {entry.target ? <> — {entry.target.email}</> : entry.action !== "setting.update" && <> — <span className="italic text-muted-foreground">{t("deletedUser")}</span></>}
                   <code className="mt-1 block break-all text-xs text-muted-foreground">{describe(entry.details)}</code>
                 </td>
               </tr>
@@ -205,7 +205,7 @@ function passState(e: { revokedAt: Date | null; startsAt: Date; expiresAt: Date 
 function describe(details: unknown): string {
   if (!details || typeof details !== "object") return "";
   return Object.entries(details as Record<string, unknown>)
-    .filter(([k]) => k !== "entitlementId" && k !== "email")
+    .filter(([k]) => k !== "entitlementId")
     .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join(" · ");
 }

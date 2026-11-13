@@ -59,7 +59,7 @@ export async function grantPass(db: PrismaClient, actorId: string, input: GrantI
   return db.$transaction(async (tx) => {
     // Locks the user row: two grants at once chain one after the other
     // instead of computing the same window.
-    const locked = await tx.$queryRaw<{ id: string; email: string }[]>`SELECT id, email FROM "user" WHERE id = ${data.userId} FOR UPDATE`;
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "user" WHERE id = ${data.userId} FOR UPDATE`;
     const user = locked[0];
     if (!user) throw new BillingAdminError("not_found");
     const passes = await tx.entitlement.findMany({ where: { userId: user.id, certificationId: certification.id }, select: { startsAt: true, expiresAt: true, revokedAt: true } });
@@ -73,7 +73,6 @@ export async function grantPass(db: PrismaClient, actorId: string, input: GrantI
       action: "entitlement.grant",
       targetUserId: user.id,
       details: {
-        email: user.email,
         entitlementId: entitlement.id,
         certification: certification.code,
         source: data.source,
@@ -95,12 +94,12 @@ export async function revokeEntitlement(db: PrismaClient, actorId: string, input
   return db.$transaction(async (tx) => {
     const { count } = await tx.entitlement.updateMany({ where: { id: entitlementId, revokedAt: null }, data: { revokedAt: now } });
     if (count === 0) return false;
-    const e = await tx.entitlement.findUniqueOrThrow({ where: { id: entitlementId }, select: { userId: true, source: true, expiresAt: true, user: { select: { email: true } }, certification: { select: { code: true } } } });
+    const e = await tx.entitlement.findUniqueOrThrow({ where: { id: entitlementId }, select: { userId: true, source: true, expiresAt: true, certification: { select: { code: true } } } });
     await audit(tx, {
       actorId,
       action: "entitlement.revoke",
       targetUserId: e.userId,
-      details: { email: e.user.email, entitlementId, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason },
+      details: { entitlementId, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason },
     });
     return true;
   });
