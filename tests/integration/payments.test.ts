@@ -366,7 +366,7 @@ describe("webhook", () => {
   it("holds a payment below the plan price: recorded, no Pass, flagged for review", async () => {
     await openSales();
     const user = await verifiedUser("underpaid@example.com");
-    for (const extra of [{ amount_total: 900 }, { currency: "usd" }, { amount_total: null }]) {
+    for (const extra of [{ amount_total: 900 }, { currency: "usd" }, { amount_total: null }, { payment_status: "no_payment_required", amount_total: 0 }]) {
       const payment = await checkout(user);
       const e = event("checkout.session.completed", sessionObject(payment, extra));
       expect(await handleStripeEvent(db, e, T0)).toBe("held");
@@ -377,9 +377,9 @@ describe("webhook", () => {
       expect(await handleStripeEvent(db, e, T0)).toBe("duplicate");
     }
     expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user } }, orderBy: { createdAt: "asc" } })).toMatchObject({ amountCents: 1900, chargedCents: 900 });
-    expect((await paymentHistory(db, user)).map((p) => p.status)).toEqual(["held", "held", "held"]);
+    expect((await paymentHistory(db, user)).map((p) => p.status)).toEqual(["held", "held", "held", "held"]);
     const held = (await heldPayments(db)).filter((p) => p.customer.user?.id === user);
-    expect(held).toHaveLength(3);
+    expect(held).toHaveLength(4);
     expect(held.find((p) => p.chargedCents === 900)).toMatchObject({ amountCents: 1900, chargedCurrency: "eur", certification: { code: "az-104" }, customer: { user: { email: "underpaid@example.com" } } });
     // Charged in another currency: recorded as such, the price asked kept.
     expect(held.find((p) => p.chargedCurrency === "usd")).toMatchObject({ amountCents: 1900, currency: "eur", chargedCents: 1900 });
@@ -421,6 +421,23 @@ describe("webhook", () => {
     expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: e.id } })).toMatchObject({ error: HELD_NOTE });
     expect(await db.entitlement.count({ where: { paymentId: payment.id } })).toBe(0);
     expect((await heldPayments(db)).find((p) => p.id === payment.id)).toMatchObject({ customer: { user: null } });
+  });
+
+  it("holds the payment when the account is deleted while the event is processed", async () => {
+    await openSales();
+    const user = await verifiedUser("racing@example.com");
+    const payment = await checkout(user);
+    let processing!: Promise<string>;
+    await db.$transaction(async (tx) => {
+      // Another request holds the account, the webhook reads the payment and waits for it.
+      await tx.$queryRaw`SELECT id FROM "user" WHERE id = ${user} FOR UPDATE`;
+      processing = handleStripeEvent(db, paid(payment), T0);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await tx.user.delete({ where: { id: user } });
+    });
+    expect(await processing).toBe("held");
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "held" });
+    expect(await db.entitlement.count({ where: { paymentId: payment.id } })).toBe(0);
   });
 
   it("rolls a failed event back whole, keeps its error, and processes it when Stripe retries", async () => {

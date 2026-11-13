@@ -52,7 +52,8 @@ function apply(tx: Tx, event: Stripe.Event, now: Date): Promise<WebhookOutcome> 
   switch (event.type) {
     case "checkout.session.completed":
       // Paid now (card), or later for delayed methods (async_payment_succeeded).
-      return event.data.object.payment_status === "paid" ? fulfil(tx, event.data.object, now) : track(tx, event.data.object);
+      // Nothing to pay (a 100 % discount, should one exist): fulfilled, and held below the price.
+      return event.data.object.payment_status === "unpaid" ? track(tx, event.data.object) : fulfil(tx, event.data.object, now);
     case "checkout.session.async_payment_succeeded":
       return fulfil(tx, event.data.object, now);
     case "checkout.session.async_payment_failed":
@@ -128,7 +129,12 @@ async function fulfil(tx: Tx, session: Stripe.Checkout.Session, now: Date): Prom
   }
   if (!payment.plan.durationDays) throw new Error(`plan of payment ${payment.id} has no duration`);
   const pass = await addPass(tx, { userId, certificationId: payment.certificationId, days: payment.plan.durationDays, source: "purchase", paymentId: payment.id, now });
-  if (!pass) return "processed";
+  if (!pass) {
+    // The account was deleted meanwhile (its row is locked only now): held too.
+    await tx.payment.update({ where: { id: payment.id }, data: { status: "held" } });
+    logEvent("billing.paid_without_user", { paymentId: payment.id });
+    return "held";
+  }
   await enqueuePassEmails(tx, { userId, paymentId: payment.id, certificationId: payment.certificationId, expiresAt: pass.expiresAt, now });
   logEvent("billing.pass_granted", { paymentId: payment.id, entitlementId: pass.id });
   return "processed";
