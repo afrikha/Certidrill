@@ -26,11 +26,12 @@ export const activeCodes = cache(async (): Promise<string> => {
 /**
  * Metadata of a public page: its canonical address, the hreflang links to the
  * same page in every language, and the Open Graph and X (Twitter) cards. The
- * image is named here: an openGraph object set by a page replaces the one
- * that app/opengraph-image.tsx adds at the root.
+ * image is named here, its text in the page's language: an openGraph object
+ * set by a page replaces the one that app/opengraph-image.tsx adds at the root.
  */
-export function publicPageMetadata({ locale, path, title, description }: { locale: Locale; path: PublicPath; title: string; description: string }): Metadata {
+export function publicPageMetadata({ locale, path, title, description, imageAlt }: { locale: Locale; path: PublicPath; title: string; description: string; imageAlt: string }): Metadata {
   const url = localizedPath(locale, path);
+  const image = { ...SHARE_IMAGE, alt: imageAlt };
   return {
     title,
     description,
@@ -43,10 +44,23 @@ export function publicPageMetadata({ locale, path, title, description }: { local
       description,
       locale: OG_LOCALE[locale],
       alternateLocale: locales.filter((l) => l !== locale).map((l) => OG_LOCALE[l]),
-      images: [SHARE_IMAGE],
+      images: [image],
     },
-    twitter: { card: "summary_large_image", title, description, images: [SHARE_IMAGE] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
+}
+
+/**
+ * When the public pages last changed: their text comes with a new version of
+ * the site (CERTIDRILL_BUILT_AT, set by next.config.ts), their prices with a
+ * new plan (a price is never edited: a new tariff is a new plan). The latest of
+ * the two, or undefined when neither is known.
+ */
+export async function publicPagesModifiedAt(builtAt = process.env.CERTIDRILL_BUILT_AT): Promise<Date | undefined> {
+  const { _max } = await prisma.plan.aggregate({ _max: { createdAt: true } });
+  const built = builtAt ? new Date(builtAt) : null;
+  const dates = [built, _max.createdAt].filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()));
+  return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : undefined;
 }
 
 /** Pages kept out of search results (sign-in, the application, the admin): not indexed, links not followed. */

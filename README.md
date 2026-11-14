@@ -127,15 +127,67 @@ Le workflow `.github/workflows/claude-review.yml` fait relire chaque pull reques
 
 ## Production (VPS)
 
+Services du `docker-compose.yml` : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiement), `app` (Next.js standalone), `caddy` (HTTPS), `backup` (pg_dump quotidien dans `./backups`, 14 jours). Le DNS est chez Ionos et pointe directement sur le serveur.
+
+### Serveur actuel : partagé avec ClaiRH
+
+Depuis le 14/11/2026, Certidrill (`/opt/certidrill`) partage son VPS avec ClaiRH (`/opt/clairh`), un autre projet qui a des clients. Les ports 80 et 443 n'ont qu'un propriétaire : c'est le **Caddy de ClaiRH** (`clairh-caddy-1`) qui sert les deux sites. Procédure complète du serveur : runbook ClaiRH `docs/runbooks/vps-deployment.md`, § 4 bis.
+
+- **Le service `caddy` de Certidrill est désactivé** par `/opt/certidrill/compose.override.yml`, qui le range dans un profil jamais activé (`profiles: ["disabled"]`). `app`, `db`, `migrate` et `backup` tournent comme avant. `deploy/Caddyfile` et `SITE_ALIASES` ne servent donc pas sur ce serveur.
+- **La configuration HTTPS de Certidrill** est dans `/opt/clairh/deploy/vps/sites/certidrill.caddy`, qui n'est versionné dans aucun dépôt. Elle reprend `deploy/Caddyfile` : bloc `certidrill.com` (compression, HSTS, `-Server`, limites de corps de 64 KiB sur `/api/*` et de 256 KiB sur le webhook Stripe, `reverse_proxy certidrill-app-1:3000` avec `header_up X-Real-IP {client_ip}`), puis `www.certidrill.com`, `certidrill.fr` et `www.certidrill.fr` redirigés en 301 vers `https://certidrill.com{uri}`. Toute modification de `deploy/Caddyfile` (en-têtes, limites, routes, domaines) doit y être reportée à la main, puis appliquée :
+  ```bash
+  cd /opt/clairh/deploy/vps
+  docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile
+  docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+  ```
+- **Réseau** : `clairh-caddy-1` est branché sur le réseau `certidrill_default` (déclaré `external` dans `/opt/clairh/deploy/vps/compose.override.yml`) et joint l'application par son nom de conteneur, `certidrill-app-1`, port 3000. Ces deux noms sont écrits en dur côté ClaiRH.
+- **Certificats** : obtenus et renouvelés par le Caddy de ClaiRH (volume `clairh_caddy-data`).
+- **Adresse des visiteurs** : le bloc global `trusted_proxies` de Cloudflare n'a pas été repris, car le bloc global du Caddy de ClaiRH vaut pour tout le serveur. Tant que les noms pointent directement sur le serveur, `{client_ip}` est bien l'adresse du visiteur. Si Cloudflare passe en mode proxy, ce serait l'adresse de Cloudflare et les limites par IP compteraient ensemble les visiteurs d'un même nœud : à régler avec ClaiRH.
+
+Déployer une nouvelle version, après une sauvegarde :
+
 ```bash
-cp .env.example .env    # AUTH_SECRET, POSTGRES_PASSWORD, SITE_DOMAIN, EMAIL_SERVER…
+cd /opt/certidrill
+docker compose exec backup pg_dump -h db -U certidrill -d certidrill -Fc -f /backups/avant-maj-$(date +%F-%H%M).dump
+git pull --ff-only origin main
+docker compose up -d --build        # migrate applique les migrations, puis app redémarre
+docker compose ps -a                # migrate : Exited (0) ; app (certidrill-app-1), db, backup : Up
+curl -sI https://certidrill.com | head -3   # 200, ou 307 (redirection de langue)
+```
+
+À ne **jamais** faire dans `/opt/certidrill` sans coordination avec ClaiRH :
+
+- `docker compose down` : Docker essaierait de supprimer le réseau `certidrill_default`, où le Caddy de ClaiRH est branché. Mettre à jour avec `docker compose up -d` (ou `docker compose build && docker compose up -d`) ;
+- renommer le projet compose, le service `app` ou le réseau, ou passer `app` à plusieurs répliques. Si c'est indispensable, mettre à jour dans la foulée `certidrill.caddy` et `/opt/clairh/deploy/vps/compose.override.yml` ;
+- retirer l'override, réactiver le Caddy de Certidrill ou publier quoi que ce soit sur les ports 80 et 443 : cela couperait les deux sites ;
+- `docker system prune -a --volumes`, `docker volume prune` ou `docker network prune` : les volumes de ClaiRH (`clairh_*`) sont sur la même machine. Pour faire de la place, se limiter à `docker image prune` sur les images de Certidrill ;
+- redémarrer Docker ou le VPS sans prévenir.
+
+La mémoire est partagée : ClaiRH en utilise une bonne partie, davantage quand son instance de démonstration tourne. Les sauvegardes de ClaiRH sont à part ; le service `backup` de Certidrill n'est pas concerné.
+
+**Si Certidrill ne répond plus** : un 502 sur `certidrill.com` signifie presque toujours que `certidrill-app-1` est arrêté, renommé, ou plus sur le réseau `certidrill_default`.
+
+```bash
+curl -sI https://certidrill.com | head -3
+cd /opt/clairh/deploy/vps && docker compose ps caddy                 # le Caddy commun doit être Up
+docker compose logs --tail 100 caddy | grep -i certidrill            # erreurs de proxy ou de certificat
+docker inspect clairh-caddy-1 --format '{{json .NetworkSettings.Networks}}' | grep -o certidrill_default
+cd /opt/certidrill && docker compose ps                              # app doit être Up et s'appeler certidrill-app-1
+```
+
+Revenir à un Caddy propre à Certidrill coupe ClaiRH le temps de la bascule : à faire avec ClaiRH. Arrêter son Caddy (`cd /opt/clairh/deploy/vps && docker compose stop caddy`), retirer le profil `disabled` de `/opt/certidrill/compose.override.yml`, puis `cd /opt/certidrill && docker compose up -d caddy`.
+
+### Serveur dédié (installation autonome)
+
+Sur un serveur où Certidrill est seul, son propre Caddy sert le site avec `deploy/Caddyfile` :
+
+```bash
+cp .env.example .env    # AUTH_SECRET, POSTGRES_PASSWORD, SITE_DOMAIN, SITE_ALIASES, EMAIL_SERVER…
 docker compose up -d --build
 docker compose run --rm migrate npm run user:create -- --email vous@example.com --admin
 ```
 
-Services : `db` (PostgreSQL), `migrate` (migrations + seed à chaque déploiement), `app` (Next.js standalone), `caddy` (HTTPS), `backup` (pg_dump quotidien dans `./backups`, 14 jours). Le DNS est chez Ionos et pointe directement sur le serveur.
-
-Si Cloudflare est un jour placé en frontal, Caddy fait déjà confiance à ses plages d'adresses (liste dans `deploy/Caddyfile`, à mettre à jour si Cloudflare la change) : pour ces requêtes seulement, l'adresse du visiteur est lue dans `CF-Connecting-IP` et transmise à l'application dans `X-Real-IP`. Sans cela, les limites par IP (connexion, inscription) compteraient ensemble tous les visiteurs d'un même nœud Cloudflare. L'application lit `X-Real-IP` sans vérifier qui l'envoie : c'est sûr parce que seul Caddy publie des ports (80 et 443) et que Caddy remplace toujours cet en-tête. Ne jamais publier le port 3000 de `app` (pas de `ports:` sur ce service), sinon n'importe qui pourrait choisir son adresse et contourner ces limites. Après une modification du Caddyfile, le valider avant de recharger :
+L'application lit `X-Real-IP` sans vérifier qui l'envoie : c'est sûr parce que seul Caddy publie des ports (80 et 443) et qu'il remplace toujours cet en-tête. Ne jamais publier le port 3000 de `app` (pas de `ports:` sur ce service), sinon n'importe qui pourrait choisir son adresse et contourner les limites par IP (connexion, inscription). Cela vaut aussi sur le serveur partagé. Si Cloudflare est placé en frontal, `deploy/Caddyfile` fait déjà confiance à ses plages d'adresses (liste à mettre à jour si Cloudflare la change) : pour ces requêtes seulement, l'adresse du visiteur est lue dans `CF-Connecting-IP`. Après une modification du Caddyfile, le valider avant de recharger :
 
 ```bash
 docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
@@ -144,18 +196,20 @@ docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter c
 
 ### Domaines
 
-Caddy redirige `www.<SITE_DOMAIN>` et les domaines de `SITE_ALIASES` vers `https://<SITE_DOMAIN>` (301, chemin et paramètres conservés) : les moteurs de recherche n'indexent qu'une adresse. Chaque nom doit avoir un enregistrement DNS vers le serveur, sinon Caddy ne peut pas obtenir son certificat (le site principal n'est pas affecté). Dans la zone DNS Ionos :
+`www.certidrill.com`, `certidrill.fr` et `www.certidrill.fr` redirigent en 301 vers `https://certidrill.com`, chemin et paramètres conservés : les moteurs de recherche n'indexent qu'une adresse. Sur le serveur partagé, ces redirections sont dans `certidrill.caddy` ; sur un serveur dédié, `deploy/Caddyfile` redirige `www.<SITE_DOMAIN>` et les domaines de `SITE_ALIASES` (`.env` : `SITE_ALIASES="certidrill.fr www.certidrill.fr"`, jamais `SITE_DOMAIN` ni `www.<SITE_DOMAIN>`, sinon Caddy refuse de démarrer ; puis `docker compose up -d caddy`). Sur les alias, HSTS est envoyé sans `includeSubDomains` dans `deploy/Caddyfile` : leurs sous-domaines restent libres.
+
+Chaque nom doit avoir un enregistrement DNS vers le serveur, sinon Caddy ne peut pas obtenir son certificat (le site principal n'est pas affecté). Zone DNS Ionos :
 
 | Domaine | Enregistrement |
 |---|---|
 | `certidrill.com` | `A @` → adresse du serveur ; `CNAME www` → `certidrill.com` |
 | `certidrill.fr` | `A @` → adresse du serveur (à la place de la page de parking Ionos) ; `CNAME www` → `certidrill.fr` |
 
-Puis, dans `.env` : `SITE_ALIASES="certidrill.fr www.certidrill.fr"` (jamais `SITE_DOMAIN` ni `www.<SITE_DOMAIN>`, sinon Caddy refuse de démarrer), et `docker compose up -d caddy`. Sur ces alias, HSTS est envoyé sans `includeSubDomains` : leurs sous-domaines restent libres. Un domaine qui n'envoie pas d'e-mail se protège contre l'usurpation avec `TXT @` `v=spf1 -all` et `TXT _dmarc` `v=DMARC1; p=reject` (à la place de l'enregistrement SPF Ionos par défaut, s'il n'y a pas de boîte sur ce domaine).
+Supprimer tout enregistrement `AAAA @` laissé par Ionos : le serveur n'a pas d'adresse IPv6 déclarée, et un `AAAA` vers la page de parking enverrait les visiteurs en IPv6 chez Ionos et ferait échouer le certificat (Let's Encrypt essaie l'IPv6 d'abord). Un domaine qui n'envoie pas d'e-mail se protège contre l'usurpation avec `TXT @` `v=spf1 -all` et `TXT _dmarc` `v=DMARC1; p=reject`, à la place des enregistrements de messagerie Ionos par défaut, s'il n'y a pas de boîte sur ce domaine.
 
 ### Référencement
 
-Les pages publiques ont une adresse par langue : `/en`, `/fr`, `/en/pricing`, `/fr/pricing` (`lib/i18n/routing.ts`). `proxy.ts` sert `/fr/pricing` avec la page `/pricing` en français, et redirige `/` et `/pricing` (307) vers la langue du visiteur (cookies, sinon `Accept-Language`, sinon anglais). Deux cookies (`lib/i18n/cookie.ts`) : `NEXT_LOCALE`, le choix fait avec le sélecteur de langue, gardé un an et seul à changer la langue du compte (celle des e-mails) ; `NEXT_LOCALE_PAGE`, cookie de session posé en ouvrant `/fr` ou `/en`, pour que la connexion et l'application suivent la langue lue, sans jamais remplacer le choix. Chaque page publique déclare son adresse canonique, ses traductions (hreflang, `x-default` = anglais) et ses cartes Open Graph et X ; l'accueil décrit aussi le site en JSON-LD (`Organization`, `WebSite`). Le reste du site (connexion, application, admin) garde une seule adresse, sa langue vient de ces cookies, et porte `noindex`.
+Les pages publiques ont une adresse par langue : `/en`, `/fr`, `/en/pricing`, `/fr/pricing` (`lib/i18n/routing.ts`). `proxy.ts` sert `/fr/pricing` avec la page `/pricing` en français, et redirige `/` et `/pricing` (307), paramètres conservés, vers la langue du visiteur : celle de la dernière page publique ouverte pendant la session, sinon celle choisie avec le sélecteur, sinon `Accept-Language`, sinon l'anglais. Ouvrir `/fr` puis taper `certidrill.com` ramène donc sur `/fr`, même si le choix enregistré est l'anglais : le choix revient à la fermeture du navigateur. Deux cookies (`lib/i18n/cookie.ts`) : `NEXT_LOCALE`, le choix fait avec le sélecteur de langue, gardé un an et seul à changer la langue du compte (celle des e-mails) ; `NEXT_LOCALE_PAGE`, cookie de session posé en ouvrant `/fr` ou `/en`, pour que la connexion et l'application suivent la langue lue, sans jamais remplacer le choix. Chaque page publique déclare son adresse canonique, ses traductions (hreflang, `x-default` = anglais) et ses cartes Open Graph et X ; l'accueil décrit aussi le site en JSON-LD (`Organization`, `WebSite`). Le reste du site (connexion, application, admin) garde une seule adresse, sa langue vient de ces cookies, et porte `noindex`.
 
 `/robots.txt` et `/sitemap.xml` sont construits à partir de `AUTH_URL`, qui doit donc être l'adresse publique (`https://certidrill.com`). Après un déploiement, déclarer `certidrill.com` dans Google Search Console (validation par un enregistrement `TXT` dans la zone Ionos) et y soumettre `https://certidrill.com/sitemap.xml`.
 

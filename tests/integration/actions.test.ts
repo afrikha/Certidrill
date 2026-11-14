@@ -272,6 +272,9 @@ describe("server actions", () => {
   it("locale: on a public page, opens the same page in the chosen language; any other path is ignored", async () => {
     expect(await redirectOf(setLocale(form({ locale: "fr", path: "/pricing" })))).toBe("/fr/pricing");
     expect(await redirectOf(setLocale(form({ locale: "en", path: "/" })))).toBe("/en");
+    // The certification chosen on the page is kept; anything else, or an odd value, is not.
+    expect(await redirectOf(setLocale(form({ locale: "en", path: "/pricing", certification: "az-104", next: "https://evil.example" })))).toBe("/en/pricing?certification=az-104");
+    expect(await redirectOf(setLocale(form({ locale: "en", path: "/pricing", certification: "//evil.example" })))).toBe("/en/pricing");
     expect(h.cookies.get("NEXT_LOCALE")?.value).toBe("en");
     // Not a public page: no redirect (an open redirect would need any path).
     await expect(setLocale(form({ locale: "fr", path: "https://evil.example" }))).resolves.toBeUndefined();

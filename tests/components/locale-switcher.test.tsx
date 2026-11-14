@@ -5,7 +5,7 @@ import { serverLocale } from "./server-intl";
 
 const { setLocale } = vi.hoisted(() => ({ setLocale: vi.fn<(fd: FormData) => Promise<void>>(async () => undefined) }));
 vi.mock("@/lib/actions/locale", () => ({ setLocale }));
-const page = vi.hoisted(() => ({ current: null as { locale: "en" | "fr"; path: "/" | "/pricing" } | null }));
+const page = vi.hoisted(() => ({ current: null as { locale: "en" | "fr"; path: "/" | "/pricing"; query: string } | null }));
 vi.mock("@/lib/i18n/public-page", () => ({ currentPublicPage: async () => page.current }));
 vi.mock("next-intl/server", async () => {
   const m = await import("./server-intl");
@@ -50,11 +50,21 @@ describe("LocaleSwitcher", () => {
   });
 
   it("on a public page, also sends the page so the action opens it in the chosen language", async () => {
-    page.current = { locale: "en", path: "/pricing" };
+    page.current = { locale: "en", path: "/pricing", query: "" };
     render(await LocaleSwitcher());
     await userEvent.click(screen.getByRole("button", { name: "fr" }));
     await vi.waitFor(() => expect(setLocale).toHaveBeenCalledOnce());
     const data = setLocale.mock.calls[0]![0] as FormData;
     expect([data.get("locale"), data.get("path")]).toEqual(["fr", "/pricing"]);
+    expect(data.has("certification")).toBe(false);
+  });
+
+  it("also sends the parameters the page keeps, such as the certification chosen", async () => {
+    page.current = { locale: "fr", path: "/pricing", query: "?certification=az-104" };
+    render(await LocaleSwitcher());
+    await userEvent.click(screen.getByRole("button", { name: "en" }));
+    await vi.waitFor(() => expect(setLocale).toHaveBeenCalledOnce());
+    const data = setLocale.mock.calls[0]![0] as FormData;
+    expect([data.get("locale"), data.get("path"), data.get("certification")]).toEqual(["en", "/pricing", "az-104"]);
   });
 });

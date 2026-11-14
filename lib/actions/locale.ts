@@ -7,12 +7,13 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { isLocale } from "@/lib/i18n/config";
 import { LOCALE_COOKIE, PAGE_LOCALE_COOKIE, localeCookieOptions } from "@/lib/i18n/cookie";
-import { isPublicPath, localizedPath } from "@/lib/i18n/routing";
+import { isPublicPath, keptQuery, localizedPath } from "@/lib/i18n/routing";
 
 /**
  * Saves the chosen language (cookie, and the account when signed in). On a
  * public page, whose address carries its language, it then opens the same page
- * in the chosen language; `path` is checked against the public pages.
+ * in the chosen language, with the parameters it keeps (keptQuery); `path` and
+ * the parameters are checked.
  */
 export async function setLocale(formData: FormData) {
   const locale = formData.get("locale");
@@ -25,5 +26,5 @@ export async function setLocale(formData: FormData) {
   if (session?.user?.id) await prisma.user.update({ where: { id: session.user.id }, data: { locale } });
   revalidatePath("/", "layout");
   const path = formData.get("path");
-  if (isPublicPath(path)) redirect(localizedPath(locale, path));
+  if (isPublicPath(path)) redirect(localizedPath(locale, path) + keptQuery((n) => formData.get(n)));
 }

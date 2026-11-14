@@ -593,6 +593,19 @@ describe("e-mail queue", () => {
     expect(user).toBeTruthy();
   });
 
+  it("states in the confirmation what Stripe charged, in its currency", async () => {
+    await db.emailOutbox.deleteMany();
+    await openSales();
+    const user = await verifiedUser("charged@example.com", "fr");
+    const payment = await checkout(user);
+    // The plan's price is 19,00 € tax included; Stripe added 6,00 €.
+    await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { amount_total: 2500, total_details: null, currency: "EUR" })), T0);
+    const { sent, sender } = recorder();
+    expect(await drainOutbox(db, { now: T0, sender, base: BASE })).toMatchObject({ sent: 1 });
+    expect(sent[0]!.message.text).toMatch(/25,00\s€/);
+    expect(sent[0]!.message.text).not.toMatch(/19,00\s€/);
+  });
+
   it("skips reminders that no longer apply: Pass extended, revoked, or refunded", async () => {
     const { user, payment } = await buyer("extended@example.com");
     const { sent, sender } = recorder();

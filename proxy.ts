@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PAGE_LOCALE_COOKIE, cookieLocale, localeCookieOptions } from "@/lib/i18n/cookie";
-import { LOCALE_HEADER, PATH_HEADER, isPublicPath, localizedPath, parseLocalizedPath, preferredLocale } from "@/lib/i18n/routing";
+import { LOCALE_HEADER, PATH_HEADER, QUERY_HEADER, isPublicPath, keptQuery, localizedPath, parseLocalizedPath, preferredLocale } from "@/lib/i18n/routing";
 
 /**
  * Public pages have one address per language (lib/i18n/routing.ts), so search
  * engines index each language and the hreflang links can point at them.
  *
- * - /fr/pricing is served by the /pricing page, told its language and path
- *   through request headers (read by i18n/request.ts and the locale switcher).
+ * - /fr/pricing is served by the /pricing page, told its language, path and
+ *   the query a language change keeps through request headers (read by
+ *   i18n/request.ts and the locale switcher).
  *   A session cookie (PAGE_LOCALE_COOKIE) records that language, so the pages
  *   reached from there (sign-in, the application) stay in the language being
  *   read; the language the visitor chose is left as it is (lib/i18n/cookie.ts).
@@ -32,6 +33,7 @@ export function proxy(request: NextRequest) {
   const headers = new Headers(request.headers);
   headers.set(LOCALE_HEADER, localized.locale);
   headers.set(PATH_HEADER, localized.path);
+  headers.set(QUERY_HEADER, keptQuery((n) => request.nextUrl.searchParams.get(n)));
   const url = request.nextUrl.clone();
   url.pathname = localized.path;
   const response = NextResponse.rewrite(url, { request: { headers } });

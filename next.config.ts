@@ -6,6 +6,8 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // When this version was built: the date of the public pages' text in the sitemap (app/sitemap.ts).
+  env: { CERTIDRILL_BUILT_AT: new Date().toISOString() },
   serverExternalPackages: ["@node-rs/argon2"],
   async headers() {
     return [

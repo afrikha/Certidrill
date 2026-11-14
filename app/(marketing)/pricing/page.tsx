@@ -16,7 +16,7 @@ import { activeCodes, publicPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [locale, t, codes] = await Promise.all([getLocale(), getTranslations("seo"), activeCodes()]);
-  return publicPageMetadata({ locale: isLocale(locale) ? locale : defaultLocale, path: "/pricing", title: t("pricingTitle", { codes }), description: t("pricingDescription") });
+  return publicPageMetadata({ locale: isLocale(locale) ? locale : defaultLocale, path: "/pricing", title: t("pricingTitle", { codes }), description: t("pricingDescription"), imageAlt: t("shareImageAlt") });
 }
 export const dynamic = "force-dynamic";
 

@@ -22,6 +22,7 @@ test("a bare public address opens in the visitor's language, with its canonical 
   expect(await head(page, 'meta[property="og:url"]', "content")).toBe(`${baseURL}/en`);
   expect(await head(page, 'meta[property="og:locale"]', "content")).toBe("en_US");
   expect(await head(page, 'meta[property="og:image"]', "content")).toContain("/opengraph-image");
+  expect(await head(page, 'meta[property="og:image:alt"]', "content")).toBe("Certidrill — IT certification practice exams");
   expect(await head(page, 'meta[name="twitter:card"]', "content")).toBe("summary_large_image");
   await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
   const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? "null");
@@ -29,15 +30,17 @@ test("a bare public address opens in the visitor's language, with its canonical 
 });
 
 test("the French address is served in French; the switcher moves between the two addresses", async ({ page, baseURL }) => {
-  await page.goto("/fr/pricing");
+  await page.goto("/fr/pricing?certification=az-104");
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
   await expect(page).toHaveTitle(/Examens blancs AZ-104 : tarifs · Certidrill/);
   expect(await head(page, 'link[rel="canonical"]')).toBe(`${baseURL}/fr/pricing`);
   expect(await head(page, 'link[rel="alternate"][hreflang="en"]')).toBe(`${baseURL}/en/pricing`);
+  expect(await head(page, 'meta[property="og:image:alt"]', "content")).toBe("Certidrill — examens blancs pour les certifications IT");
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Tarifs" })).toHaveAttribute("href", "/fr/pricing");
 
   await page.getByRole("form", { name: "Langue" }).getByRole("button", { name: "en" }).click();
-  await page.waitForURL("**/en/pricing");
+  // Same page, same certification, other language.
+  await page.waitForURL("**/en/pricing?certification=az-104");
   // A choice made with the switcher is kept (one year).
   const jar = await page.context().cookies();
   const chosen = jar.find((c) => c.name === "NEXT_LOCALE");
@@ -49,7 +52,7 @@ test("the French address is served in French; the switcher moves between the two
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "/en/pricing");
 
   await page.getByRole("form", { name: "Language" }).getByRole("button", { name: "fr" }).click();
-  await page.waitForURL("**/fr/pricing");
+  await page.waitForURL("**/fr/pricing?certification=az-104");
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
 
   // Following a link to the English page keeps the choice (French, one year)…
@@ -93,6 +96,7 @@ test("robots.txt, the sitemap, the icons and the share card", async ({ request, 
   const xml = await sitemap.text();
   for (const path of ["/en", "/fr", "/en/pricing", "/fr/pricing"]) expect(xml).toContain(`<loc>${baseURL}${path}</loc>`);
   expect(xml).toContain(`hreflang="fr"`);
+  expect(xml).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}T/);
 
   for (const [path, type] of [["/favicon.ico", "image/x-icon"], ["/icon.svg", "image/svg+xml"], ["/apple-icon", "image/png"], ["/opengraph-image", "image/png"]] as const) {
     const res = await request.get(path);
