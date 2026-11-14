@@ -1,13 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const h = vi.hoisted(() => ({ codes: [] as string[], headers: new Headers() }));
-vi.mock("@/lib/db", () => ({ prisma: { certification: { findMany: async () => h.codes.map((code) => ({ code })) } } }));
+const h = vi.hoisted(() => ({ codes: [] as string[], headers: new Headers(), planAt: null as Date | null }));
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    certification: { findMany: async () => h.codes.map((code) => ({ code })) },
+    plan: { aggregate: async () => ({ _max: { createdAt: h.planAt } }) },
+  },
+}));
 vi.mock("next/headers", () => ({ headers: async () => h.headers }));
 
-import { languageAlternates, localizedPath, parseLocalizedPath, preferredLocale } from "@/lib/i18n/routing";
+import { keptQuery, languageAlternates, localizedPath, parseLocalizedPath, preferredLocale } from "@/lib/i18n/routing";
 import { currentPublicPage } from "@/lib/i18n/public-page";
-import { activeCodes, jsonLd, publicPageMetadata, publicPages, siteUrl } from "@/lib/seo";
+import { activeCodes, jsonLd, publicPageMetadata, publicPages, publicPagesModifiedAt, siteUrl } from "@/lib/seo";
 import { config, proxy } from "@/proxy";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
@@ -32,6 +37,16 @@ describe("localized public addresses", () => {
     expect(preferredLocale(undefined, "FR-ca")).toBe("fr");
     expect(preferredLocale(undefined, null)).toBe("en");
     expect(preferredLocale(undefined, "ja,zh")).toBe("en");
+  });
+
+  it("keeps, through a language change, only the known parameters with a code for value", () => {
+    const from = (query: string) => {
+      const params = new URLSearchParams(query);
+      return keptQuery((n) => params.get(n));
+    };
+    expect(from("certification=az-104&utm_source=x")).toBe("?certification=az-104");
+    for (const bad of ["", "certification=", "certification=a%20b", "certification=%3Cscript%3E", `certification=${"a".repeat(33)}`, "other=az-104"]) expect(from(bad), bad).toBe("");
+    expect(keptQuery(() => 42)).toBe("");
   });
 
   it("lists every language of a page, x-default being English", () => {
@@ -63,6 +78,8 @@ describe("proxy", () => {
     // Request headers passed upstream, the client's own value replaced.
     expect(res.headers.get("x-middleware-request-x-certidrill-locale")).toBe("fr");
     expect(res.headers.get("x-middleware-request-x-certidrill-path")).toBe("/pricing");
+    // The parameters a language change keeps, checked.
+    expect(res.headers.get("x-middleware-request-x-certidrill-query")).toBe("?certification=az-104");
     const cookie = res.cookies.get("NEXT_LOCALE_PAGE");
     expect(cookie).toMatchObject({ value: "fr", httpOnly: true, sameSite: "lax", path: "/" });
     // A session cookie: opening an address is not a choice.
@@ -94,7 +111,10 @@ describe("proxy", () => {
 describe("metadata", () => {
   it("knows the public page being rendered only from both proxy headers, checked", async () => {
     h.headers = new Headers({ "x-certidrill-locale": "fr", "x-certidrill-path": "/pricing" });
-    expect(await currentPublicPage()).toEqual({ locale: "fr", path: "/pricing" });
+    expect(await currentPublicPage()).toEqual({ locale: "fr", path: "/pricing", query: "" });
+    // The query is checked again: outside the proxy, the client may send it.
+    h.headers = new Headers({ "x-certidrill-locale": "fr", "x-certidrill-path": "/pricing", "x-certidrill-query": "?certification=az-104&x=%3C" });
+    expect(await currentPublicPage()).toEqual({ locale: "fr", path: "/pricing", query: "?certification=az-104" });
     h.headers = new Headers({ "x-certidrill-locale": "fr", "x-certidrill-path": "/dashboard" });
     expect(await currentPublicPage()).toBeNull();
     h.headers = new Headers({ "x-certidrill-path": "/" });
@@ -109,11 +129,13 @@ describe("metadata", () => {
   });
 
   it("gives a public page its canonical address, its translations and its cards", () => {
-    const m = publicPageMetadata({ locale: "fr", path: "/pricing", title: "Tarifs", description: "D" });
+    const m = publicPageMetadata({ locale: "fr", path: "/pricing", title: "Tarifs", description: "D", imageAlt: "Certidrill — examens blancs" });
     expect(m.alternates).toEqual({ canonical: "/fr/pricing", languages: { en: "/en/pricing", fr: "/fr/pricing", "x-default": "/en/pricing" } });
     expect(m.openGraph).toMatchObject({ url: "/fr/pricing", locale: "fr_FR", alternateLocale: ["en_US"], siteName: "Certidrill", title: "Tarifs" });
     expect(m.twitter).toMatchObject({ card: "summary_large_image", title: "Tarifs" });
-    expect(m.openGraph?.images).toEqual([{ url: "/opengraph-image", width: 1200, height: 630, alt: expect.any(String) }]);
+    // The image described in the page's language.
+    expect(m.openGraph?.images).toEqual([{ url: "/opengraph-image", width: 1200, height: 630, alt: "Certidrill — examens blancs" }]);
+    expect(m.twitter?.images).toEqual(m.openGraph?.images);
   });
 
   it("reads the site address from AUTH_URL, ignoring a missing or invalid one", () => {
@@ -140,12 +162,27 @@ describe("robots.txt and sitemap.xml", () => {
     expect(robots().sitemap).toBeUndefined();
   });
 
-  it("lists every public page in every language with absolute hreflang links", () => {
+  it("lists every public page in every language with absolute hreflang links", async () => {
     vi.stubEnv("AUTH_URL", "https://certidrill.com");
-    const entries = sitemap();
+    vi.stubEnv("CERTIDRILL_BUILT_AT", "2026-11-14T10:00:00.000Z");
+    h.planAt = null;
+    const entries = await sitemap();
     expect(entries.map((e) => e.url)).toEqual(["https://certidrill.com/en", "https://certidrill.com/fr", "https://certidrill.com/en/pricing", "https://certidrill.com/fr/pricing"]);
     expect(entries[1]!.alternates?.languages).toEqual({ en: "https://certidrill.com/en", fr: "https://certidrill.com/fr", "x-default": "https://certidrill.com/en" });
+    expect(entries.every((e) => (e.lastModified as Date).toISOString() === "2026-11-14T10:00:00.000Z")).toBe(true);
     vi.stubEnv("AUTH_URL", "");
-    expect(sitemap()).toEqual([]);
+    expect(await sitemap()).toEqual([]);
+  });
+
+  it("dates the public pages from the last version built or the last price added", async () => {
+    h.planAt = new Date("2026-12-01T00:00:00Z");
+    expect(await publicPagesModifiedAt("2026-11-14T10:00:00Z")).toEqual(new Date("2026-12-01T00:00:00Z"));
+    expect(await publicPagesModifiedAt("2027-01-01T00:00:00Z")).toEqual(new Date("2027-01-01T00:00:00Z"));
+    expect(await publicPagesModifiedAt("not a date")).toEqual(new Date("2026-12-01T00:00:00Z"));
+    h.planAt = null;
+    expect(await publicPagesModifiedAt(undefined)).toBeUndefined();
+    vi.stubEnv("AUTH_URL", "https://certidrill.com");
+    vi.stubEnv("CERTIDRILL_BUILT_AT", "");
+    expect((await sitemap())[0]).not.toHaveProperty("lastModified");
   });
 });

@@ -137,12 +137,14 @@ async function compose(db: PrismaClient, row: EmailOutbox & { user: { email: str
   if (row.kind === "purchase") {
     const payment = await db.payment.findUnique({
       where: { id: String(payload.paymentId) },
-      select: { status: true, amountCents: true, currency: true, certification: { select: { code: true } }, entitlement: { select: { expiresAt: true, revokedAt: true } } },
+      select: { status: true, amountCents: true, currency: true, chargedCents: true, chargedCurrency: true, certification: { select: { code: true } }, entitlement: { select: { expiresAt: true, revokedAt: true } } },
     });
     // Refunded or revoked before the e-mail left: no confirmation.
     if (payment?.status !== "paid" || !payment.entitlement || payment.entitlement.revokedAt) return null;
     const url = link("/account/billing");
-    const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, amountCents: payment.amountCents, currency: payment.currency, url });
+    // What Stripe charged, in its currency, as on /account/billing; the plan's price before that is known.
+    const charged = payment.chargedCents === null ? { amountCents: payment.amountCents, currency: payment.currency } : { amountCents: payment.chargedCents, currency: payment.chargedCurrency ?? payment.currency };
+    const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, ...charged, url });
     return { to, kind: row.kind, message, link: url };
   }
   if (row.kind !== "pass_reminder" && row.kind !== "pass_expired") throw new Error(`unknown e-mail kind: ${row.kind}`);

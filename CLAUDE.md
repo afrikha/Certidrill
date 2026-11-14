@@ -14,6 +14,16 @@ Exceptions : ne **pas** fusionner tant qu'il reste, sans décision du propriéta
 
 Après la fusion : se désabonner de l'activité de la PR, puis remettre la branche de travail sur `origin/main` (`git push --force-with-lease`).
 
+## Production : VPS partagé avec ClaiRH (depuis le 14/11/2026)
+
+Le serveur de production est partagé avec ClaiRH, un autre projet du propriétaire qui a des clients, et c'est le Caddy de ClaiRH qui sert Certidrill. Toute commande donnée au propriétaire pour ce serveur suit le README, section « Serveur actuel : partagé avec ClaiRH » :
+
+- la configuration HTTPS de Certidrill est dans `/opt/clairh/deploy/vps/sites/certidrill.caddy`, pas dans `deploy/Caddyfile` : une modification de l'un se reporte dans l'autre ;
+- on déploie avec `docker compose up -d --build`, jamais `docker compose down` ;
+- on ne renomme ni le projet compose, ni `app`, ni le réseau (`certidrill-app-1` et `certidrill_default` sont écrits en dur côté ClaiRH) ;
+- on ne publie rien sur les ports 80 et 443, et on ne réactive pas le Caddy de Certidrill ;
+- aucun `prune` de volumes ou de réseaux, et pas de redémarrage de Docker ou du VPS sans coordination.
+
 ## Rappels
 
 - Ne créer une PR que sur demande ; pousser uniquement sur la branche de travail désignée.

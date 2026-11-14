@@ -25,7 +25,7 @@ async function pageLocale(): Promise<Locale> {
 
 export async function generateMetadata(): Promise<Metadata> {
   const [locale, t, codes] = await Promise.all([pageLocale(), getTranslations("seo"), activeCodes()]);
-  return publicPageMetadata({ locale, path: "/", title: t("homeTitle", { codes }), description: t("homeDescription", { codes }) });
+  return publicPageMetadata({ locale, path: "/", title: t("homeTitle", { codes }), description: t("homeDescription", { codes }), imageAlt: t("shareImageAlt") });
 }
 
 /** schema.org: who publishes the site, and the site itself in the language of the page. */

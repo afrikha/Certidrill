@@ -14,6 +14,27 @@ export type PublicPath = (typeof PUBLIC_PATHS)[number];
 /** Set by the proxy on a prefixed public page: its language, then its path without prefix. */
 export const LOCALE_HEADER = "x-certidrill-locale";
 export const PATH_HEADER = "x-certidrill-path";
+/** Set by the proxy with the page's query parameters that a language change keeps (keptQuery). */
+export const QUERY_HEADER = "x-certidrill-query";
+
+/**
+ * The query parameters of a public page kept when the visitor changes its
+ * language (/fr/pricing?certification=az-104 → /en/pricing?certification=az-104),
+ * each checked: a short code, nothing else. `get` reads a parameter from a
+ * URL, a header or a form. Returns "" or "?name=value…".
+ */
+const KEPT_PARAMS = ["certification"] as const;
+const KEPT_VALUE = /^[a-z0-9-]{1,32}$/i;
+
+export function keptQuery(get: (name: string) => unknown): string {
+  const params = new URLSearchParams();
+  for (const name of KEPT_PARAMS) {
+    const value = get(name);
+    if (typeof value === "string" && KEPT_VALUE.test(value)) params.set(name, value);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
 
 export function isPublicPath(value: unknown): value is PublicPath {
   return typeof value === "string" && (PUBLIC_PATHS as readonly string[]).includes(value);

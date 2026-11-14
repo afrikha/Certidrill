@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BuyPass } from "@/components/billing/buy-pass";
+import { BuyPass, isPaymentUrl } from "@/components/billing/buy-pass";
 import { PurchaseStatus, type Purchase } from "@/components/billing/purchase-status";
 import { renderIntl } from "./render";
 
@@ -60,6 +60,18 @@ describe("BuyPass", () => {
     await userEvent.click(screen.getByRole("button", { name: "Buy the Pass" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("The payment could not start.");
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("goes only to an HTTPS payment page, or a local one in tests", async () => {
+    for (const url of ["javascript:alert(1)", "http://evil.example/pay", "/relative", "not a url", 42]) {
+      fetchMock.mockReturnValueOnce(reply(200, { url }));
+      const { unmount } = renderIntl(<BuyPass planCode="pass_90" certifications={AZ} />);
+      await userEvent.click(screen.getByRole("button", { name: "Buy the Pass" }));
+      expect(await screen.findByRole("alert"), String(url)).toHaveTextContent("The payment could not start.");
+      unmount();
+    }
+    expect(assign).not.toHaveBeenCalled();
+    for (const url of ["https://checkout.stripe.com/c/pay/cs_1", "http://localhost:12111/pay/cs_1", "http://127.0.0.1:12111/pay/cs_1"]) expect(isPaymentUrl(url), url).toBe(true);
   });
 });
 

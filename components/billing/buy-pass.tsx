@@ -8,6 +8,17 @@ import { cn } from "@/lib/utils";
 
 const KNOWN_ERRORS = new Set(["sales_closed", "unavailable", "email_unverified", "rate_limited"]);
 
+/** Stripe's payment page is on HTTPS; plain HTTP only on this machine (the fake Stripe of the e2e tests). */
+export function isPaymentUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The purchase button of a Pass: asks the server for a Stripe Checkout
  * session (only the plan and the certification are sent, never a price),
@@ -30,7 +41,8 @@ export function BuyPass({
     setBusy(true);
     setError(null);
     try {
-      const { url } = await api<{ url: string }>("/api/billing/checkout", { method: "POST", body: { planCode, certificationCode: certification } });
+      const { url } = await api<{ url: unknown }>("/api/billing/checkout", { method: "POST", body: { planCode, certificationCode: certification } });
+      if (!isPaymentUrl(url)) throw new Error("unexpected payment page address");
       window.location.assign(url);
     } catch (err) {
       const code = err instanceof ApiError && KNOWN_ERRORS.has(err.code) ? err.code : "generic";

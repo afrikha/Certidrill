@@ -6,11 +6,12 @@ import { currentPublicPage } from "@/lib/i18n/public-page";
 export async function LocaleSwitcher() {
   const current = await getLocale();
   const t = await getTranslations("common");
-  // On a public page, the action then opens the same page in the chosen language.
+  // On a public page, the action then opens the same page (same parameters) in the chosen language.
   const page = await currentPublicPage();
   return (
     <form action={setLocale} className="flex items-center gap-1" aria-label={t("language")}>
       {page && <input type="hidden" name="path" value={page.path} />}
+      {page && [...new URLSearchParams(page.query)].map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       {locales.map((l) => (
         <button
           key={l}
