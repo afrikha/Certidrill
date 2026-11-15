@@ -23,10 +23,13 @@ export interface EraseResult {
   failed: number;
 }
 
-/** Already gone at Stripe (deleted from the dashboard, for example): nothing left to delete. */
+/**
+ * Already gone at Stripe (deleted from the dashboard, for example): nothing
+ * left to delete. Only Stripe's own code says so: any other 404 (a wrong API
+ * address, a proxy) is a failure, retried, never taken for an erasure.
+ */
 function isMissing(err: unknown): boolean {
-  const e = err as { code?: unknown; statusCode?: unknown } | null;
-  return e?.code === "resource_missing" || e?.statusCode === 404;
+  return (err as { code?: unknown } | null)?.code === "resource_missing";
 }
 
 /** Wait before the next try: 2, 4, 8… minutes, at most a day. */

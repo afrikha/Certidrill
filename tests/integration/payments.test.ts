@@ -743,11 +743,12 @@ describe("e-mail queue", () => {
 
 describe("erasure at Stripe", () => {
   /** A Stripe whose customer deletions answer `outcome` (in turn, then "ok"). */
-  function deleter(...outcomes: ("ok" | "missing" | "down")[]) {
+  function deleter(...outcomes: ("ok" | "missing" | "notFound" | "down")[]) {
     const del = vi.fn(async (id: string) => {
       const outcome = outcomes.shift() ?? "ok";
       if (outcome === "missing") throw Object.assign(new Error(`No such customer: '${id}'`), { type: "StripeInvalidRequestError", code: "resource_missing", statusCode: 404 });
       if (outcome === "down") throw Object.assign(new Error("Request timed out"), { type: "StripeConnectionError" });
+      if (outcome === "notFound") throw Object.assign(new Error("Not Found"), { type: "StripeInvalidRequestError", statusCode: 404 });
       return { id, deleted: true };
     });
     return { api: { customers: { del } } as unknown as Pick<StripeApi, "customers">, del };
@@ -787,7 +788,8 @@ describe("erasure at Stripe", () => {
 
   it("retries a failed deletion later, waiting longer each time", async () => {
     const { customer } = await deletedBuyer("erase-retry@example.com");
-    const { api, del } = deleter("down", "down");
+    // A 404 that is not Stripe's "no such customer" (a proxy, a wrong address) is a failure too.
+    const { api, del } = deleter("notFound", "down");
     expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 0, failed: 1 });
     expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ stripeDeletedAt: null, eraseAttempts: 1, eraseAfter: new Date(T0.getTime() + 2 * 60_000) });
     // Not due yet.
