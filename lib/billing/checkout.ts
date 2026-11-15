@@ -9,6 +9,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { AccessError } from "@/lib/access";
 import { getOffers } from "@/lib/access/offers";
+import { logError } from "@/lib/log";
 import { readSwitches } from "@/lib/settings";
 import type { StripeApi } from "./stripe";
 
@@ -53,9 +54,27 @@ async function ensureCustomer(db: PrismaClient, stripe: StripeApi, user: { id: s
   try {
     return await db.billingCustomer.create({ data: { userId: user.id, stripeCustomerId: customer.id } });
   } catch (err) {
-    if ((err as Prisma.PrismaClientKnownRequestError).code !== "P2002") throw err;
+    if ((err as Prisma.PrismaClientKnownRequestError).code !== "P2002") {
+      await forgetCustomer(db, stripe, customer.id);
+      throw err;
+    }
     // The other checkout stored it first.
     return db.billingCustomer.findUniqueOrThrow({ where: { userId: user.id } });
+  }
+}
+
+/**
+ * A Stripe customer created but not stored (the database failed) would keep
+ * the e-mail address with nothing here to erase it later (lib/billing/erase.ts):
+ * deleted at once, unless another checkout stored it meanwhile. Best effort:
+ * a failure here is logged, the checkout's own error is what the caller sees.
+ */
+async function forgetCustomer(db: PrismaClient, stripe: StripeApi, stripeCustomerId: string) {
+  try {
+    if (await db.billingCustomer.findUnique({ where: { stripeCustomerId }, select: { id: true } })) return;
+    await stripe.customers.del(stripeCustomerId);
+  } catch (cleanup) {
+    logError("billing.customer_cleanup", cleanup);
   }
 }
 

@@ -42,13 +42,18 @@ let n = 0;
 
 /** A Stripe stand-in: records what Certidrill asks, answers like the API. */
 /** failCheckout: "refused" answers like a 4xx from Stripe, "timeout" like a call whose outcome is unknown. */
-function fakeStripe({ failCheckout = null as "refused" | "timeout" | null, noUrl = false } = {}) {
-  const calls = { customers: [] as unknown[][], sessions: [] as unknown[][], expired: [] as string[] };
+function fakeStripe({ failCheckout = null as "refused" | "timeout" | null, noUrl = false, failDelete = false } = {}) {
+  const calls = { customers: [] as unknown[][], sessions: [] as unknown[][], expired: [] as string[], deleted: [] as string[] };
   const api = {
     customers: {
       create: vi.fn(async (...args: unknown[]) => {
         calls.customers.push(args);
         return { id: `cus_${(args[1] as { idempotencyKey: string }).idempotencyKey}` };
+      }),
+      del: vi.fn(async (id: string) => {
+        calls.deleted.push(id);
+        if (failDelete) throw Object.assign(new Error("Request timed out"), { type: "StripeConnectionError" });
+        return { id, deleted: true };
       }),
     },
     checkout: {
@@ -212,6 +217,36 @@ describe("checkout", () => {
     await Promise.all([checkout(user, api), checkout(user, api)]);
     expect(await db.billingCustomer.count({ where: { userId: user } })).toBe(1);
     expect(await db.payment.count({ where: { customer: { userId: user } } })).toBe(2);
+  });
+
+  it("deletes at once a Stripe customer the database failed to store, so no address stays at Stripe", async () => {
+    await openSales();
+    const user = await verifiedUser("store-failed@example.com");
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const store = vi.spyOn(db.billingCustomer, "create");
+    try {
+      for (const failDelete of [false, true]) {
+        store.mockRejectedValueOnce(new Error("Connection lost"));
+        const { api, calls } = fakeStripe({ failDelete });
+        // The caller sees the database error, never the cleanup's.
+        await expect(checkout(user, api)).rejects.toThrow("Connection lost");
+        expect(calls.deleted).toEqual([`cus_${(calls.customers[0]![1] as { idempotencyKey: string }).idempotencyKey}`]);
+        expect(calls.sessions).toHaveLength(0);
+      }
+      expect(quiet).toHaveBeenCalledOnce();
+      expect(await db.billingCustomer.count({ where: { userId: user } })).toBe(0);
+      // Stored meanwhile by another checkout: kept at Stripe.
+      store.mockImplementationOnce((async ({ data }: { data: { stripeCustomerId: string } }) => {
+        await db.billingCustomer.create({ data: { stripeCustomerId: data.stripeCustomerId, stripeDeletedAt: T0 } });
+        throw new Error("Connection lost");
+      }) as never);
+      const { api, calls } = fakeStripe();
+      await expect(checkout(user, api)).rejects.toThrow("Connection lost");
+      expect(calls.deleted).toEqual([]);
+    } finally {
+      store.mockRestore();
+      quiet.mockRestore();
+    }
   });
 
   it("sends a new idempotency key once the address changed, so Stripe does not refuse it", async () => {
@@ -724,7 +759,8 @@ describe("erasure at Stripe", () => {
     const user = await verifiedUser(email);
     const payment = await checkout(user);
     await handleStripeEvent(db, paid(payment), T0);
-    const customer = await db.billingCustomer.findUniqueOrThrow({ where: { userId: user } });
+    // A sole trader's country and VAT number: personal data too.
+    const customer = await db.billingCustomer.update({ where: { userId: user }, data: { country: "FR", vatNumber: "FR12345678901" } });
     await db.user.delete({ where: { id: user } });
     return { customer, payment };
   }
@@ -740,7 +776,7 @@ describe("erasure at Stripe", () => {
     const { api, del } = deleter();
     expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 1, failed: 0 });
     expect(del).toHaveBeenCalledExactlyOnceWith(customer.stripeCustomerId);
-    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ userId: null, stripeDeletedAt: T0, eraseAfter: null });
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ userId: null, stripeDeletedAt: T0, eraseAfter: null, country: null, vatNumber: null });
     // The payment stays, as an accounting record, without the person.
     expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", billingCustomerId: customer.id });
     // Done: the next pass has nothing to do; a living account is never touched.

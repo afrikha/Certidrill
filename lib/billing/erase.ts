@@ -3,7 +3,8 @@
  * e-mail address; once the account is deleted, whatever deleted it, its
  * billing_customer row loses its user (onDelete: SetNull) and this deletes the
  * Stripe customer too. The payments stay, here and at Stripe, as accounting
- * records without the person; the row stays for them, with only Stripe's id.
+ * records without the person; the row stays for them, with only Stripe's id
+ * and the date (its country and VAT number are cleared).
  *
  * Run by the worker of lib/email/worker.ts. A failure is retried later, with
  * a growing wait (at most a day), until it succeeds.
@@ -55,7 +56,8 @@ export async function eraseDeletedCustomers(db: PrismaClient, stripe: Pick<Strip
         continue;
       }
     }
-    await db.billingCustomer.update({ where: { id: customer.id }, data: { stripeDeletedAt: now, eraseAfter: null } });
+    // Nothing about the person stays: a sole trader's VAT number is personal data.
+    await db.billingCustomer.update({ where: { id: customer.id }, data: { stripeDeletedAt: now, eraseAfter: null, country: null, vatNumber: null } });
     result.erased++;
   }
   return result;
