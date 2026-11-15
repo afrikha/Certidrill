@@ -3,6 +3,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { requireAdmin } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { findUsers, userEntitlements } from "@/lib/access/admin";
+import { GRANT_REASONS, REVOKE_REASONS } from "@/lib/access/reasons";
 import { getAccessSummary } from "@/lib/access";
 import { recentAudit, type AuditAction } from "@/lib/audit";
 import { readSwitches, SWITCHES, type Switch } from "@/lib/settings";
@@ -228,7 +229,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
                 <td className="px-4 py-2">
                   <span className="font-medium">{t(`action_${entry.action.replaceAll(".", "_")}`)}</span>
                   {entry.target ? <> — {entry.target.email}</> : ON_USER.has(entry.action) && <> — <span className="italic text-muted-foreground">{t("deletedUser")}</span></>}
-                  <code className="mt-1 block break-all text-xs text-muted-foreground">{describe(entry.details)}</code>
+                  <code className="mt-1 block break-all text-xs text-muted-foreground">{describe(entry.details, (code) => (REASONS.has(code) ? t(`reason_${code as Reason}`) : code))}</code>
                 </td>
               </tr>
             ))}
@@ -246,11 +247,21 @@ function passState(e: { revokedAt: Date | null; startsAt: Date; expiresAt: Date 
   return "active";
 }
 
-/** The details of an audit entry on one line, without the ids already shown. */
-function describe(details: unknown): string {
+type Reason = (typeof GRANT_REASONS)[number] | (typeof REVOKE_REASONS)[number];
+const REASONS = new Set<string>([...GRANT_REASONS, ...REVOKE_REASONS]);
+
+/**
+ * The details of an audit entry on one line, without the ids already shown;
+ * a reason code in words (older entries kept their free text, shown as is).
+ */
+function describe(details: unknown, reason: (code: string) => string): string {
   if (!details || typeof details !== "object") return "";
+  const text = (key: string, value: unknown) => {
+    if (typeof value !== "string") return JSON.stringify(value);
+    return key === "reason" ? reason(value) : value;
+  };
   return Object.entries(details as Record<string, unknown>)
     .filter(([k]) => k !== "entitlementId")
-    .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .map(([k, v]) => `${k}: ${text(k, v)}`)
     .join(" · ");
 }

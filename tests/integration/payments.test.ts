@@ -16,6 +16,7 @@ import { getAccess } from "@/lib/access";
 import { revokeEntitlement } from "@/lib/access/admin";
 import { BillingError, canBuyOnline, CHECKOUT_MINUTES, heldPayments, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
 import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
+import { eraseDeletedCustomers, eraseRetryDelay } from "@/lib/billing/erase";
 import { handleStripeEvent, HELD_NOTE } from "@/lib/billing/webhook";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
 import { kickEmailWorker, startEmailWorker, stopEmailWorker } from "@/lib/email/worker";
@@ -702,6 +703,72 @@ describe("e-mail queue", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("erasure at Stripe", () => {
+  /** A Stripe whose customer deletions answer `outcome` (in turn, then "ok"). */
+  function deleter(...outcomes: ("ok" | "missing" | "down")[]) {
+    const del = vi.fn(async (id: string) => {
+      const outcome = outcomes.shift() ?? "ok";
+      if (outcome === "missing") throw Object.assign(new Error(`No such customer: '${id}'`), { type: "StripeInvalidRequestError", code: "resource_missing", statusCode: 404 });
+      if (outcome === "down") throw Object.assign(new Error("Request timed out"), { type: "StripeConnectionError" });
+      return { id, deleted: true };
+    });
+    return { api: { customers: { del } } as unknown as Pick<StripeApi, "customers">, del };
+  }
+
+  /** A buyer with a paid Pass, then the account deleted: its Stripe customer is due for deletion. */
+  async function deletedBuyer(email: string) {
+    await openSales();
+    const user = await verifiedUser(email);
+    const payment = await checkout(user);
+    await handleStripeEvent(db, paid(payment), T0);
+    const customer = await db.billingCustomer.findUniqueOrThrow({ where: { userId: user } });
+    await db.user.delete({ where: { id: user } });
+    return { customer, payment };
+  }
+
+  beforeEach(async () => {
+    await db.billingCustomer.updateMany({ where: { userId: null }, data: { stripeDeletedAt: T0 } });
+  });
+
+  it("deletes the Stripe customer of a deleted account, once, and keeps the payments", async () => {
+    const living = await verifiedUser("erase-living@example.com");
+    await checkout(living);
+    const { customer, payment } = await deletedBuyer("erase-done@example.com");
+    const { api, del } = deleter();
+    expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 1, failed: 0 });
+    expect(del).toHaveBeenCalledExactlyOnceWith(customer.stripeCustomerId);
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ userId: null, stripeDeletedAt: T0, eraseAfter: null });
+    // The payment stays, as an accounting record, without the person.
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", billingCustomerId: customer.id });
+    // Done: the next pass has nothing to do; a living account is never touched.
+    expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 0, failed: 0 });
+    expect(del).toHaveBeenCalledOnce();
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { userId: living } })).toMatchObject({ stripeDeletedAt: null });
+  });
+
+  it("retries a failed deletion later, waiting longer each time", async () => {
+    const { customer } = await deletedBuyer("erase-retry@example.com");
+    const { api, del } = deleter("down", "down");
+    expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 0, failed: 1 });
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ stripeDeletedAt: null, eraseAttempts: 1, eraseAfter: new Date(T0.getTime() + 2 * 60_000) });
+    // Not due yet.
+    expect(await eraseDeletedCustomers(db, api, new Date(T0.getTime() + 60_000))).toEqual({ erased: 0, failed: 0 });
+    expect(await eraseDeletedCustomers(db, api, new Date(T0.getTime() + 2 * 60_000))).toEqual({ erased: 0, failed: 1 });
+    const later = new Date(T0.getTime() + 10 * 60_000);
+    expect(await eraseDeletedCustomers(db, api, later)).toEqual({ erased: 1, failed: 0 });
+    expect(del).toHaveBeenCalledTimes(3);
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ stripeDeletedAt: later, eraseAttempts: 2 });
+    expect([1, 2, 3, 10, 11, 50].map(eraseRetryDelay)).toEqual([2, 4, 8, 1024, 1440, 1440].map((m) => m * 60_000));
+  });
+
+  it("counts a customer already gone at Stripe as deleted, and does nothing without Stripe", async () => {
+    const { customer } = await deletedBuyer("erase-gone@example.com");
+    expect(await eraseDeletedCustomers(db, null, T0)).toEqual({ erased: 0, failed: 0 });
+    expect(await eraseDeletedCustomers(db, deleter("missing").api, T0)).toEqual({ erased: 1, failed: 0 });
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ stripeDeletedAt: T0 });
   });
 });
 

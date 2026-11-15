@@ -84,7 +84,8 @@ describe("manual grant", () => {
   it("refuses bad input, an unknown user or certification, and an inactive certification", async () => {
     const user = await newUser("bad-grant@example.com");
     const bad = (over: object) => grantPass(db, adminId, { userId: user, certificationCode: "az-104", days: 90, source: "admin", reason: "goodwill", ...over }, T0);
-    for (const over of [{ days: 0 }, { days: 3651 }, { days: 1.5 }, { reason: "  " }, { reason: "x".repeat(501) }, { source: "purchase" }]) {
+    // A reason from the list only, and a ticket number in digits: no free text in the audit log.
+    for (const over of [{ days: 0 }, { days: 3651 }, { days: 1.5 }, { reason: "  " }, { reason: "remboursement de jean.dupont@example.com" }, { reason: "refund" }, { ticket: "42 Dupont" }, { ticket: "12345678901" }, { source: "purchase" }]) {
       await expect(bad(over), JSON.stringify(over)).rejects.toBeInstanceOf(ZodError);
     }
     await expect(bad({ certificationCode: "nope" })).rejects.toEqual(new BillingAdminError("not_found"));
@@ -108,6 +109,17 @@ describe("manual grant", () => {
       target: { email: "audited@example.com" },
       details: { entitlementId: e.id, certification: "az-104", source: "admin", days: 45, startsAt: T0.toISOString(), expiresAt: days(45).toISOString(), reason: "goodwill" },
     });
+    // No ticket given: no ticket key.
+    expect(entry!.details).not.toHaveProperty("ticket");
+  });
+
+  it("keeps the support ticket number with the reason code", async () => {
+    const user = await newUser("ticket@example.com");
+    const e = await grantPass(db, adminId, { userId: user, certificationCode: "az-104", days: 30, source: "admin", reason: "held_payment", ticket: " 42 " }, T0);
+    await revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "refund", ticket: "43" }, T0);
+    const [revoke, grant] = await recentAudit(db, { targetUserId: user, take: 2 });
+    expect(grant!.details).toMatchObject({ reason: "held_payment", ticket: "42" });
+    expect(revoke!.details).toMatchObject({ reason: "refund", ticket: "43" });
   });
 });
 
@@ -117,12 +129,13 @@ describe("revocation", () => {
     const e = await give(user, 90);
     expect(await revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "refund" }, days(5))).toBe(true);
     expect((await getAccess(db, user, certificationId, days(6))).level).toBe("free");
-    expect(await revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "refund again" }, days(6))).toBe(false);
+    expect(await revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "mistake" }, days(6))).toBe(false);
     expect(await revokeEntitlement(db, adminId, { entitlementId: "missing", reason: "refund" })).toBe(false);
     const log = await recentAudit(db, { targetUserId: user });
     expect(log.map((l) => l.action)).toEqual(["entitlement.revoke", "entitlement.grant", "user.create"]);
     expect(log[0]!.details).toMatchObject({ entitlementId: e.id, reason: "refund", certification: "az-104" });
-    await expect(revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "" })).rejects.toBeInstanceOf(ZodError);
+    await expect(revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "" as "refund" })).rejects.toBeInstanceOf(ZodError);
+    await expect(revokeEntitlement(db, adminId, { entitlementId: e.id, reason: "goodwill" as "refund" })).rejects.toBeInstanceOf(ZodError);
   });
 
   it("a revoked Pass does not delay the next grant", async () => {

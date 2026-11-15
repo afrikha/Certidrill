@@ -8,6 +8,7 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { SWITCHES, type Switch } from "@/lib/settings";
 import { addPass } from "./passes";
+import { GRANT_REASONS, REVOKE_REASONS } from "./reasons";
 
 export class BillingAdminError extends Error {
   constructor(readonly code: "not_found" | "inactive_certification") {
@@ -37,13 +38,17 @@ export function userEntitlements(db: PrismaClient, userId: string) {
   });
 }
 
+/** A support ticket number, digits only (lib/access/reasons.ts); empty: none. */
+const ticket = z.preprocess((v) => (typeof v === "string" ? v.trim() || undefined : v), z.string().regex(/^\d{1,10}$/).optional());
+
 export const grantSchema = z.object({
   userId: z.string().min(1),
   certificationCode: z.string().min(1),
   days: z.coerce.number().int().min(1).max(3650),
   /** admin: a right given by hand; extension: added after a failed real exam (§8). */
   source: z.enum(["admin", "extension"]),
-  reason: z.string().trim().min(3).max(500),
+  reason: z.enum(GRANT_REASONS),
+  ticket,
 });
 export type GrantInput = z.input<typeof grantSchema>;
 
@@ -71,17 +76,20 @@ export async function grantPass(db: PrismaClient, actorId: string, input: GrantI
         startsAt: entitlement.startsAt.toISOString(),
         expiresAt: entitlement.expiresAt.toISOString(),
         reason: data.reason,
+        ...(data.ticket && { ticket: data.ticket }),
       },
     });
     return entitlement;
   });
 }
 
-export const revokeSchema = z.object({ entitlementId: z.string().min(1), reason: z.string().trim().min(3).max(500) });
+export const revokeSchema = z.object({ entitlementId: z.string().min(1), reason: z.enum(REVOKE_REASONS), ticket });
+
+export type RevokeInput = z.input<typeof revokeSchema>;
 
 /** Withdraws a Pass (refund, mistake): it stops giving access at once. Revoking twice changes nothing. */
-export async function revokeEntitlement(db: PrismaClient, actorId: string, input: z.input<typeof revokeSchema>, now = new Date()) {
-  const { entitlementId, reason } = revokeSchema.parse(input);
+export async function revokeEntitlement(db: PrismaClient, actorId: string, input: RevokeInput, now = new Date()) {
+  const { entitlementId, reason, ticket: ticketNumber } = revokeSchema.parse(input);
   return db.$transaction(async (tx) => {
     const { count } = await tx.entitlement.updateMany({ where: { id: entitlementId, revokedAt: null }, data: { revokedAt: now } });
     if (count === 0) return false;
@@ -90,7 +98,7 @@ export async function revokeEntitlement(db: PrismaClient, actorId: string, input
       actorId,
       action: "entitlement.revoke",
       targetUserId: e.userId,
-      details: { entitlementId, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason },
+      details: { entitlementId, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason, ...(ticketNumber && { ticket: ticketNumber }) },
     });
     return true;
   });

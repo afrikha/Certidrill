@@ -1,9 +1,13 @@
 /**
  * Sends the queued e-mails (./outbox.ts) from the app process: every minute,
- * and right after an event queued some (kickEmailWorker). Started by
- * instrumentation.ts; set EMAIL_WORKER=off to run it elsewhere or not at all.
+ * and right after an event queued some (kickEmailWorker). Each pass also
+ * deletes at Stripe the customers of deleted accounts (lib/billing/erase.ts).
+ * Started by instrumentation.ts; set EMAIL_WORKER=off to run it elsewhere or
+ * not at all.
  */
 import type { PrismaClient } from "@prisma/client";
+import { eraseDeletedCustomers } from "@/lib/billing/erase";
+import { stripeApi } from "@/lib/billing/stripe";
 import { logError, logEvent } from "@/lib/log";
 import { drainOutbox } from "./outbox";
 
@@ -11,13 +15,21 @@ const INTERVAL_MS = 60_000;
 let timer: ReturnType<typeof setInterval> | null = null;
 let running: Promise<void> | null = null;
 
-/** One pass over the due e-mails; a pass already running is joined, not doubled. */
+/** One pass over the due e-mails and erasures; a pass already running is joined, not doubled. */
 export function kickEmailWorker(db: PrismaClient): Promise<void> {
-  running ??= drainOutbox(db)
-    .then((r) => {
-      if (r.sent + r.skipped + r.retried + r.failed > 0) logEvent("email.outbox", { ...r });
-    })
-    .catch((err: unknown) => logError("email.worker", err))
+  running ??= Promise.all([
+    drainOutbox(db)
+      .then((r) => {
+        if (r.sent + r.skipped + r.retried + r.failed > 0) logEvent("email.outbox", { ...r });
+      })
+      .catch((err: unknown) => logError("email.worker", err)),
+    eraseDeletedCustomers(db, stripeApi())
+      .then((r) => {
+        if (r.erased + r.failed > 0) logEvent("billing.erase", { ...r });
+      })
+      .catch((err: unknown) => logError("billing.erase", err)),
+  ])
+    .then(() => undefined)
     .finally(() => {
       running = null;
     });

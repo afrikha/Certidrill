@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
+import { logError } from "@/lib/log";
 import { locales, type Locale } from "@/lib/i18n/config";
 import { SHARE_IMAGE } from "@/lib/share-image";
 import { OG_LOCALE, PUBLIC_PATHS, languageAlternates, localizedPath, type PublicPath } from "@/lib/i18n/routing";
@@ -54,12 +55,18 @@ export function publicPageMetadata({ locale, path, title, description, imageAlt 
  * When the public pages last changed: their text comes with a new version of
  * the site (CERTIDRILL_BUILT_AT, set by next.config.ts), their prices with a
  * new plan (a price is never edited: a new tariff is a new plan). The latest of
- * the two, or undefined when neither is known.
+ * the two, or undefined when neither is known. Without the database, the build
+ * date alone: the sitemap still answers.
  */
 export async function publicPagesModifiedAt(builtAt = process.env.CERTIDRILL_BUILT_AT): Promise<Date | undefined> {
-  const { _max } = await prisma.plan.aggregate({ _max: { createdAt: true } });
   const built = builtAt ? new Date(builtAt) : null;
-  const dates = [built, _max.createdAt].filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()));
+  let newestPlan: Date | null = null;
+  try {
+    newestPlan = (await prisma.plan.aggregate({ _max: { createdAt: true } }))._max.createdAt;
+  } catch (err) {
+    logError("seo.sitemap", err);
+  }
+  const dates = [built, newestPlan].filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()));
   return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : undefined;
 }
 
