@@ -4,7 +4,7 @@
  * certification; the price is the plan's, read here. Nothing is granted here:
  * the right comes with the verified webhook (./webhook.ts).
  */
-import { createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { AccessError } from "@/lib/access";
@@ -45,12 +45,13 @@ export async function canBuyOnline(db: PrismaClient, planCode: string, stripe: S
 async function ensureCustomer(db: PrismaClient, stripe: StripeApi, user: { id: string; email: string; locale: string }) {
   const existing = await db.billingCustomer.findUnique({ where: { userId: user.id } });
   if (existing) return existing;
-  // Two checkouts started at once send the same idempotency key: Stripe
-  // creates one customer and answers both with it. Stripe refuses a key sent
-  // again with other parameters for 24 hours: the key changes with them.
-  const params = { email: user.email, preferred_locales: [user.locale], metadata: { userId: user.id } };
-  const digest = createHash("sha256").update(JSON.stringify(params)).digest("hex").slice(0, 16);
-  const customer = await stripe.customers.create(params, { idempotencyKey: `customer-${user.id}-${digest}` });
+  // A new idempotency key for each purchase: the client's own network retries
+  // reuse it, but a later purchase never gets Stripe's cached answer, which
+  // would name a customer deleted meanwhile (forgetCustomer).
+  const customer = await stripe.customers.create(
+    { email: user.email, preferred_locales: [user.locale], metadata: { userId: user.id } },
+    { idempotencyKey: `customer-${user.id}-${randomUUID()}` },
+  );
   try {
     return await db.billingCustomer.create({ data: { userId: user.id, stripeCustomerId: customer.id } });
   } catch (err) {
@@ -58,15 +59,19 @@ async function ensureCustomer(db: PrismaClient, stripe: StripeApi, user: { id: s
       await forgetCustomer(db, stripe, customer.id);
       throw err;
     }
-    // The other checkout stored it first.
-    return db.billingCustomer.findUniqueOrThrow({ where: { userId: user.id } });
+    // Another checkout started at once stored its own customer first: this
+    // one is not kept, at Stripe either.
+    const stored = await db.billingCustomer.findUniqueOrThrow({ where: { userId: user.id } });
+    if (stored.stripeCustomerId !== customer.id) await forgetCustomer(db, stripe, customer.id);
+    return stored;
   }
 }
 
 /**
- * A Stripe customer created but not stored (the database failed) would keep
- * the e-mail address with nothing here to erase it later (lib/billing/erase.ts):
- * deleted at once, unless another checkout stored it meanwhile. Best effort:
+ * A Stripe customer created but not stored (the database failed, or another
+ * checkout stored its own first) would keep the e-mail address with nothing
+ * here to erase it later (lib/billing/erase.ts): deleted at once, unless it
+ * was stored meanwhile. Best effort:
  * a failure here is logged, the checkout's own error is what the caller sees.
  */
 async function forgetCustomer(db: PrismaClient, stripe: StripeApi, stripeCustomerId: string) {

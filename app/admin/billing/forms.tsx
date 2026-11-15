@@ -55,7 +55,7 @@ export function GrantForm({ userId, certifications, defaultDays }: Readonly<{ us
       </div>
       <div>
         <Label htmlFor="grant-ticket">{t("ticket")}</Label>
-        <Input id="grant-ticket" name="ticket" inputMode="numeric" pattern="\d{1,10}" maxLength={10} className="w-36" aria-describedby="grant-reason-help" />
+        <Input id="grant-ticket" name="ticket" inputMode="numeric" pattern="\d{1,8}" maxLength={8} className="w-36" aria-describedby="grant-reason-help" />
       </div>
       <p id="grant-reason-help" className="sm:col-span-2 -mt-2 text-xs text-muted-foreground">{t("reasonPrivacy")}</p>
       <div className="sm:col-span-2 flex justify-end">
@@ -77,7 +77,7 @@ export function RevokeForm({ entitlementId }: Readonly<{ entitlementId: string }
           <option key={r} value={r}>{t(`reason_${r}`)}</option>
         ))}
       </Select>
-      <Input name="ticket" aria-label={t("ticket")} placeholder={t("ticketShort")} inputMode="numeric" pattern="\d{1,10}" maxLength={10} className="w-28" />
+      <Input name="ticket" aria-label={t("ticket")} placeholder={t("ticketShort")} inputMode="numeric" pattern="\d{1,8}" maxLength={8} className="w-28" />
       <Button type="submit" variant="secondary" disabled={pending}>{t("revoke")}</Button>
       {state?.error && <Alert tone="error">{t(`error_${state.error}`)}</Alert>}
     </form>

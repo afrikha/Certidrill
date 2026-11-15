@@ -85,7 +85,7 @@ describe("manual grant", () => {
     const user = await newUser("bad-grant@example.com");
     const bad = (over: object) => grantPass(db, adminId, { userId: user, certificationCode: "az-104", days: 90, source: "admin", reason: "goodwill", ...over }, T0);
     // A reason from the list only, and a ticket number in digits: no free text in the audit log.
-    for (const over of [{ days: 0 }, { days: 3651 }, { days: 1.5 }, { reason: "  " }, { reason: "remboursement de jean.dupont@example.com" }, { reason: "refund" }, { ticket: "42 Dupont" }, { ticket: "12345678901" }, { source: "purchase" }]) {
+    for (const over of [{ days: 0 }, { days: 3651 }, { days: 1.5 }, { reason: "  " }, { reason: "remboursement de jean.dupont@example.com" }, { reason: "refund" }, { ticket: "42 Dupont" }, { ticket: "123456789" }, { ticket: "0612345678" }, { source: "purchase" }]) {
       await expect(bad(over), JSON.stringify(over)).rejects.toBeInstanceOf(ZodError);
     }
     await expect(bad({ certificationCode: "nope" })).rejects.toEqual(new BillingAdminError("not_found"));

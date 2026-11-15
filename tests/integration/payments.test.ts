@@ -43,12 +43,18 @@ let n = 0;
 /** A Stripe stand-in: records what Certidrill asks, answers like the API. */
 /** failCheckout: "refused" answers like a 4xx from Stripe, "timeout" like a call whose outcome is unknown. */
 function fakeStripe({ failCheckout = null as "refused" | "timeout" | null, noUrl = false, failDelete = false } = {}) {
-  const calls = { customers: [] as unknown[][], sessions: [] as unknown[][], expired: [] as string[], deleted: [] as string[] };
+  const calls = { customers: [] as unknown[][], customerIds: [] as string[], sessions: [] as unknown[][], expired: [] as string[], deleted: [] as string[] };
+  // Like Stripe, a key sent again gets the first answer, even for a customer deleted since.
+  const answered = new Map<string, { id: string }>();
   const api = {
     customers: {
       create: vi.fn(async (...args: unknown[]) => {
         calls.customers.push(args);
-        return { id: `cus_${(args[1] as { idempotencyKey: string }).idempotencyKey}` };
+        const key = (args[1] as { idempotencyKey: string }).idempotencyKey;
+        if (!answered.has(key)) answered.set(key, { id: `cus_test_${++n}` });
+        const customer = answered.get(key)!;
+        calls.customerIds.push(customer.id);
+        return customer;
       }),
       del: vi.fn(async (id: string) => {
         calls.deleted.push(id);
@@ -185,7 +191,7 @@ describe("checkout", () => {
     const [params, options] = calls.sessions[0] as [Stripe.Checkout.SessionCreateParams, { idempotencyKey: string }];
     expect(params).toMatchObject({
       mode: "payment",
-      customer: expect.stringMatching(new RegExp(`^cus_customer-${user}-[0-9a-f]{16}$`)),
+      customer: calls.customerIds[0],
       client_reference_id: payment.id,
       line_items: [{ price: "price_pass_90", quantity: 1 }],
       metadata: { paymentId: payment.id, planCode: "pass_90", certificationCode: "az-104" },
@@ -198,7 +204,7 @@ describe("checkout", () => {
     expect(options.idempotencyKey).toBe(`checkout-${payment.id}`);
     expect(calls.customers[0]).toEqual([
       { email: "buyer@example.com", preferred_locales: ["fr"], metadata: { userId: user } },
-      { idempotencyKey: expect.stringMatching(new RegExp(`^customer-${user}-[0-9a-f]{16}$`)) },
+      { idempotencyKey: expect.stringMatching(new RegExp(`^customer-${user}-[0-9a-f-]{36}$`)) },
     ]);
 
     // A second purchase reuses the Stripe customer.
@@ -210,13 +216,25 @@ describe("checkout", () => {
     expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "pending", certification: "az-104", startsAt: null, expiresAt: null, chained: false });
   });
 
-  it("stores one Stripe customer when two checkouts start at once", async () => {
+  it("stores one Stripe customer when two checkouts start at once, and deletes the other at Stripe", async () => {
     await openSales();
     const user = await verifiedUser("twice@example.com");
-    const { api } = fakeStripe();
+    const { api, calls } = fakeStripe();
+    // Both reach Stripe before either stores its customer.
+    const create = vi.mocked(api.customers.create);
+    const answer = create.getMockImplementation()!;
+    let release!: () => void;
+    const both = new Promise<void>((resolve) => (release = resolve));
+    create.mockImplementation(async (...args) => {
+      if (create.mock.calls.length === 2) release();
+      await both;
+      return answer(...args);
+    });
     await Promise.all([checkout(user, api), checkout(user, api)]);
-    expect(await db.billingCustomer.count({ where: { userId: user } })).toBe(1);
+    const stored = await db.billingCustomer.findUniqueOrThrow({ where: { userId: user } });
     expect(await db.payment.count({ where: { customer: { userId: user } } })).toBe(2);
+    expect(calls.customerIds).toHaveLength(2);
+    expect(calls.deleted).toEqual(calls.customerIds.filter((id) => id !== stored.stripeCustomerId));
   });
 
   it("deletes at once a Stripe customer the database failed to store, so no address stays at Stripe", async () => {
@@ -230,7 +248,7 @@ describe("checkout", () => {
         const { api, calls } = fakeStripe({ failDelete });
         // The caller sees the database error, never the cleanup's.
         await expect(checkout(user, api)).rejects.toThrow("Connection lost");
-        expect(calls.deleted).toEqual([`cus_${(calls.customers[0]![1] as { idempotencyKey: string }).idempotencyKey}`]);
+        expect(calls.deleted).toEqual(calls.customerIds);
         expect(calls.sessions).toHaveLength(0);
       }
       expect(quiet).toHaveBeenCalledOnce();
@@ -249,16 +267,23 @@ describe("checkout", () => {
     }
   });
 
-  it("sends a new idempotency key once the address changed, so Stripe does not refuse it", async () => {
+  it("never stores the Stripe customer deleted after a failed store when the buyer tries again", async () => {
     await openSales();
-    const user = await verifiedUser("moved@example.com");
-    const { api, calls } = fakeStripe({ failCheckout: "refused" });
-    await expect(checkout(user, api)).rejects.toThrow("No such price");
-    await db.billingCustomer.deleteMany({ where: { userId: user } });
-    await db.user.update({ where: { id: user }, data: { email: "moved-again@example.com" } });
-    await expect(checkout(user, api)).rejects.toThrow("No such price");
+    const user = await verifiedUser("retry-after-loss@example.com");
+    const { api, calls } = fakeStripe();
+    const store = vi.spyOn(db.billingCustomer, "create").mockRejectedValueOnce(new Error("Connection lost"));
+    try {
+      await expect(checkout(user, api)).rejects.toThrow("Connection lost");
+    } finally {
+      store.mockRestore();
+    }
+    await checkout(user, api);
     const [first, second] = calls.customers.map((c) => (c[1] as { idempotencyKey: string }).idempotencyKey);
     expect(first).not.toBe(second);
+    const stored = await db.billingCustomer.findUniqueOrThrow({ where: { userId: user } });
+    expect(calls.deleted).toEqual([calls.customerIds[0]]);
+    expect(stored.stripeCustomerId).toBe(calls.customerIds[1]);
+    expect(calls.sessions[0]![0]).toMatchObject({ customer: stored.stripeCustomerId });
   });
 
   it("closes a session Stripe answered without a payment page", async () => {

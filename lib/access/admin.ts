@@ -38,8 +38,8 @@ export function userEntitlements(db: PrismaClient, userId: string) {
   });
 }
 
-/** A support ticket number, digits only (lib/access/reasons.ts); empty: none. */
-const ticket = z.preprocess((v) => (typeof v === "string" ? v.trim() || undefined : v), z.string().regex(/^\d{1,10}$/).optional());
+/** A support ticket number, 1 to 8 digits: a phone number does not fit (lib/access/reasons.ts). Empty: none. */
+const ticket = z.preprocess((v) => (typeof v === "string" ? v.trim() || undefined : v), z.string().regex(/^\d{1,8}$/).optional());
 
 export const grantSchema = z.object({
   userId: z.string().min(1),
