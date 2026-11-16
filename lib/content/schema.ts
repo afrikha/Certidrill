@@ -192,3 +192,49 @@ export const objectivesFileSchema = z.record(
   z.array(z.object({ group: localizedSchema, objectives: z.array(objectiveFileSchema).min(1) })).min(1),
 );
 export type ObjectivesFile = z.infer<typeof objectivesFileSchema>;
+
+// ---------------------------------------------------------------- course
+
+/** Same cycle as the questions (spec of the course §3.1). */
+export const contentStatuses = ["draft", "needs_review", "reviewed", "published", "retired"] as const;
+
+const courseCode = z.string().regex(/^[a-z0-9-]+$/, "lowercase letters, digits and hyphens only");
+
+export const courseReferenceSchema = z.strictObject({ title: z.string().min(1), url: z.url() });
+
+/**
+ * content/<certification>/course/course.yaml: the modules, the chapters in
+ * display order, their titles, reading time, references and status. Sections
+ * are read from chapters/<id>.<locale>.md, never listed here.
+ */
+export const courseFileSchema = z
+  .strictObject({
+    version: z.literal(1),
+    certification: courseCode,
+    blueprintVersion: z.string().min(1),
+    modules: z.array(z.strictObject({ code: courseCode, title: localizedSchema })).min(1),
+    chapters: z
+      .array(
+        z.strictObject({
+          id: courseCode,
+          module: courseCode,
+          status: z.enum(contentStatuses).default("draft"),
+          free: z.boolean().default(false),
+          title: localizedSchema,
+          minutes: z.number().int().positive(),
+          references: z.array(courseReferenceSchema).default([]),
+        }),
+      )
+      .min(1),
+  })
+  .superRefine((file, ctx) => {
+    const modules = new Set(file.modules.map((m) => m.code));
+    if (modules.size !== file.modules.length) ctx.addIssue({ code: "custom", message: "module codes must be unique", path: ["modules"] });
+    const ids = new Set<string>();
+    file.chapters.forEach((c, i) => {
+      if (ids.has(c.id)) ctx.addIssue({ code: "custom", message: `duplicate chapter id "${c.id}"`, path: ["chapters", i, "id"] });
+      ids.add(c.id);
+      if (!modules.has(c.module)) ctx.addIssue({ code: "custom", message: `unknown module "${c.module}"`, path: ["chapters", i, "module"] });
+    });
+  });
+export type CourseFile = z.infer<typeof courseFileSchema>;
