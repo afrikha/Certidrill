@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { requireAdmin } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
-import { BillingAdminError, grantPass, revokeEntitlement, setSwitch } from "@/lib/access/admin";
+import { BillingAdminError, grantPass, revokeEntitlement, setSwitch, type GrantInput, type RevokeInput } from "@/lib/access/admin";
 import { SWITCHES, type Switch } from "@/lib/settings";
 import { formString } from "@/lib/form-data";
 
@@ -31,14 +31,19 @@ export async function grantPassAction(_prev: BillingState, formData: FormData): 
       certificationCode: formString(formData, "certification"),
       days: formString(formData, "days"),
       source: formString(formData, "source") as "admin" | "extension",
-      reason: formString(formData, "reason"),
+      reason: formString(formData, "reason") as GrantInput["reason"],
     }),
   );
 }
 
 export async function revokeEntitlementAction(_prev: BillingState, formData: FormData): Promise<BillingState> {
   const admin = await requireAdmin();
-  return run(() => revokeEntitlement(prisma, admin.id, { entitlementId: formString(formData, "entitlementId"), reason: formString(formData, "reason") }));
+  return run(() =>
+    revokeEntitlement(prisma, admin.id, {
+      entitlementId: formString(formData, "entitlementId"),
+      reason: formString(formData, "reason") as RevokeInput["reason"],
+    }),
+  );
 }
 
 const isSwitch = (name: string): name is Switch => Object.hasOwn(SWITCHES, name);

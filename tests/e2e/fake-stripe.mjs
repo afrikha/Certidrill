@@ -64,6 +64,8 @@ createServer(async (req, res) => {
     await readForm(req);
     return json(res, 200, { id: `cus_fake_${RUN}_${++counter}`, object: "customer" });
   }
+  const customer = /^\/v1\/customers\/([\w-]+)$/.exec(url.pathname);
+  if (req.method === "DELETE" && customer) return json(res, 200, { id: customer[1], object: "customer", deleted: true });
   if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
     const form = await readForm(req);
     const id = `cs_fake_${RUN}_${++counter}`;

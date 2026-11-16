@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const h = vi.hoisted(() => ({ codes: [] as string[], headers: new Headers(), planAt: null as Date | null }));
+const h = vi.hoisted(() => ({ codes: [] as string[], headers: new Headers(), planAt: null as Date | null, dbDown: false }));
 vi.mock("@/lib/db", () => ({
   prisma: {
     certification: { findMany: async () => h.codes.map((code) => ({ code })) },
-    plan: { aggregate: async () => ({ _max: { createdAt: h.planAt } }) },
+    plan: {
+      aggregate: async () => {
+        if (h.dbDown) throw new Error("Can't reach database server");
+        return { _max: { createdAt: h.planAt } };
+      },
+    },
   },
 }));
 vi.mock("next/headers", () => ({ headers: async () => h.headers }));
@@ -179,6 +184,16 @@ describe("robots.txt and sitemap.xml", () => {
     expect(await publicPagesModifiedAt("2026-11-14T10:00:00Z")).toEqual(new Date("2026-12-01T00:00:00Z"));
     expect(await publicPagesModifiedAt("2027-01-01T00:00:00Z")).toEqual(new Date("2027-01-01T00:00:00Z"));
     expect(await publicPagesModifiedAt("not a date")).toEqual(new Date("2026-12-01T00:00:00Z"));
+    // Without the database, the build date: the sitemap still answers.
+    h.dbDown = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      expect(await publicPagesModifiedAt("2026-11-14T10:00:00Z")).toEqual(new Date("2026-11-14T10:00:00Z"));
+      expect(quiet).toHaveBeenCalledOnce();
+    } finally {
+      h.dbDown = false;
+      quiet.mockRestore();
+    }
     h.planAt = null;
     expect(await publicPagesModifiedAt(undefined)).toBeUndefined();
     vi.stubEnv("AUTH_URL", "https://certidrill.com");

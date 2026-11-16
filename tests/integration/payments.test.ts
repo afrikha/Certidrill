@@ -16,6 +16,7 @@ import { getAccess } from "@/lib/access";
 import { revokeEntitlement } from "@/lib/access/admin";
 import { BillingError, canBuyOnline, CHECKOUT_MINUTES, heldPayments, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
 import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
+import { eraseDeletedCustomers, eraseRetryDelay } from "@/lib/billing/erase";
 import { handleStripeEvent, HELD_NOTE } from "@/lib/billing/webhook";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
 import { kickEmailWorker, startEmailWorker, stopEmailWorker } from "@/lib/email/worker";
@@ -41,13 +42,24 @@ let n = 0;
 
 /** A Stripe stand-in: records what Certidrill asks, answers like the API. */
 /** failCheckout: "refused" answers like a 4xx from Stripe, "timeout" like a call whose outcome is unknown. */
-function fakeStripe({ failCheckout = null as "refused" | "timeout" | null, noUrl = false } = {}) {
-  const calls = { customers: [] as unknown[][], sessions: [] as unknown[][], expired: [] as string[] };
+function fakeStripe({ failCheckout = null as "refused" | "timeout" | null, noUrl = false, failDelete = false } = {}) {
+  const calls = { customers: [] as unknown[][], customerIds: [] as string[], sessions: [] as unknown[][], expired: [] as string[], deleted: [] as string[] };
+  // Like Stripe, a key sent again gets the first answer, even for a customer deleted since.
+  const answered = new Map<string, { id: string }>();
   const api = {
     customers: {
       create: vi.fn(async (...args: unknown[]) => {
         calls.customers.push(args);
-        return { id: `cus_${(args[1] as { idempotencyKey: string }).idempotencyKey}` };
+        const key = (args[1] as { idempotencyKey: string }).idempotencyKey;
+        if (!answered.has(key)) answered.set(key, { id: `cus_test_${++n}` });
+        const customer = answered.get(key)!;
+        calls.customerIds.push(customer.id);
+        return customer;
+      }),
+      del: vi.fn(async (id: string) => {
+        calls.deleted.push(id);
+        if (failDelete) throw Object.assign(new Error("Request timed out"), { type: "StripeConnectionError" });
+        return { id, deleted: true };
       }),
     },
     checkout: {
@@ -179,7 +191,7 @@ describe("checkout", () => {
     const [params, options] = calls.sessions[0] as [Stripe.Checkout.SessionCreateParams, { idempotencyKey: string }];
     expect(params).toMatchObject({
       mode: "payment",
-      customer: expect.stringMatching(new RegExp(`^cus_customer-${user}-[0-9a-f]{16}$`)),
+      customer: calls.customerIds[0],
       client_reference_id: payment.id,
       line_items: [{ price: "price_pass_90", quantity: 1 }],
       metadata: { paymentId: payment.id, planCode: "pass_90", certificationCode: "az-104" },
@@ -192,7 +204,7 @@ describe("checkout", () => {
     expect(options.idempotencyKey).toBe(`checkout-${payment.id}`);
     expect(calls.customers[0]).toEqual([
       { email: "buyer@example.com", preferred_locales: ["fr"], metadata: { userId: user } },
-      { idempotencyKey: expect.stringMatching(new RegExp(`^customer-${user}-[0-9a-f]{16}$`)) },
+      { idempotencyKey: expect.stringMatching(new RegExp(`^customer-${user}-[0-9a-f-]{36}$`)) },
     ]);
 
     // A second purchase reuses the Stripe customer.
@@ -204,25 +216,74 @@ describe("checkout", () => {
     expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "pending", certification: "az-104", startsAt: null, expiresAt: null, chained: false });
   });
 
-  it("stores one Stripe customer when two checkouts start at once", async () => {
+  it("stores one Stripe customer when two checkouts start at once, and deletes the other at Stripe", async () => {
     await openSales();
     const user = await verifiedUser("twice@example.com");
-    const { api } = fakeStripe();
+    const { api, calls } = fakeStripe();
+    // Both reach Stripe before either stores its customer.
+    const create = vi.mocked(api.customers.create);
+    const answer = create.getMockImplementation()!;
+    let release!: () => void;
+    const both = new Promise<void>((resolve) => (release = resolve));
+    create.mockImplementation(async (...args) => {
+      if (create.mock.calls.length === 2) release();
+      await both;
+      return answer(...args);
+    });
     await Promise.all([checkout(user, api), checkout(user, api)]);
-    expect(await db.billingCustomer.count({ where: { userId: user } })).toBe(1);
+    const stored = await db.billingCustomer.findUniqueOrThrow({ where: { userId: user } });
     expect(await db.payment.count({ where: { customer: { userId: user } } })).toBe(2);
+    expect(calls.customerIds).toHaveLength(2);
+    expect(calls.deleted).toEqual(calls.customerIds.filter((id) => id !== stored.stripeCustomerId));
   });
 
-  it("sends a new idempotency key once the address changed, so Stripe does not refuse it", async () => {
+  it("deletes at once a Stripe customer the database failed to store, so no address stays at Stripe", async () => {
     await openSales();
-    const user = await verifiedUser("moved@example.com");
-    const { api, calls } = fakeStripe({ failCheckout: "refused" });
-    await expect(checkout(user, api)).rejects.toThrow("No such price");
-    await db.billingCustomer.deleteMany({ where: { userId: user } });
-    await db.user.update({ where: { id: user }, data: { email: "moved-again@example.com" } });
-    await expect(checkout(user, api)).rejects.toThrow("No such price");
+    const user = await verifiedUser("store-failed@example.com");
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const store = vi.spyOn(db.billingCustomer, "create");
+    try {
+      for (const failDelete of [false, true]) {
+        store.mockRejectedValueOnce(new Error("Connection lost"));
+        const { api, calls } = fakeStripe({ failDelete });
+        // The caller sees the database error, never the cleanup's.
+        await expect(checkout(user, api)).rejects.toThrow("Connection lost");
+        expect(calls.deleted).toEqual(calls.customerIds);
+        expect(calls.sessions).toHaveLength(0);
+      }
+      expect(quiet).toHaveBeenCalledOnce();
+      expect(await db.billingCustomer.count({ where: { userId: user } })).toBe(0);
+      // Stored meanwhile by another checkout: kept at Stripe.
+      store.mockImplementationOnce((async ({ data }: { data: { stripeCustomerId: string } }) => {
+        await db.billingCustomer.create({ data: { stripeCustomerId: data.stripeCustomerId, stripeDeletedAt: T0 } });
+        throw new Error("Connection lost");
+      }) as never);
+      const { api, calls } = fakeStripe();
+      await expect(checkout(user, api)).rejects.toThrow("Connection lost");
+      expect(calls.deleted).toEqual([]);
+    } finally {
+      store.mockRestore();
+      quiet.mockRestore();
+    }
+  });
+
+  it("never stores the Stripe customer deleted after a failed store when the buyer tries again", async () => {
+    await openSales();
+    const user = await verifiedUser("retry-after-loss@example.com");
+    const { api, calls } = fakeStripe();
+    const store = vi.spyOn(db.billingCustomer, "create").mockRejectedValueOnce(new Error("Connection lost"));
+    try {
+      await expect(checkout(user, api)).rejects.toThrow("Connection lost");
+    } finally {
+      store.mockRestore();
+    }
+    await checkout(user, api);
     const [first, second] = calls.customers.map((c) => (c[1] as { idempotencyKey: string }).idempotencyKey);
     expect(first).not.toBe(second);
+    const stored = await db.billingCustomer.findUniqueOrThrow({ where: { userId: user } });
+    expect(calls.deleted).toEqual([calls.customerIds[0]]);
+    expect(stored.stripeCustomerId).toBe(calls.customerIds[1]);
+    expect(calls.sessions[0]![0]).toMatchObject({ customer: stored.stripeCustomerId });
   });
 
   it("closes a session Stripe answered without a payment page", async () => {
@@ -702,6 +763,75 @@ describe("e-mail queue", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("erasure at Stripe", () => {
+  /** A Stripe whose customer deletions answer `outcome` (in turn, then "ok"). */
+  function deleter(...outcomes: ("ok" | "missing" | "notFound" | "down")[]) {
+    const del = vi.fn(async (id: string) => {
+      const outcome = outcomes.shift() ?? "ok";
+      if (outcome === "missing") throw Object.assign(new Error(`No such customer: '${id}'`), { type: "StripeInvalidRequestError", code: "resource_missing", statusCode: 404 });
+      if (outcome === "down") throw Object.assign(new Error("Request timed out"), { type: "StripeConnectionError" });
+      if (outcome === "notFound") throw Object.assign(new Error("Not Found"), { type: "StripeInvalidRequestError", statusCode: 404 });
+      return { id, deleted: true };
+    });
+    return { api: { customers: { del } } as unknown as Pick<StripeApi, "customers">, del };
+  }
+
+  /** A buyer with a paid Pass, then the account deleted: its Stripe customer is due for deletion. */
+  async function deletedBuyer(email: string) {
+    await openSales();
+    const user = await verifiedUser(email);
+    const payment = await checkout(user);
+    await handleStripeEvent(db, paid(payment), T0);
+    // A sole trader's country and VAT number: personal data too.
+    const customer = await db.billingCustomer.update({ where: { userId: user }, data: { country: "FR", vatNumber: "FR12345678901" } });
+    await db.user.delete({ where: { id: user } });
+    return { customer, payment };
+  }
+
+  beforeEach(async () => {
+    await db.billingCustomer.updateMany({ where: { userId: null }, data: { stripeDeletedAt: T0 } });
+  });
+
+  it("deletes the Stripe customer of a deleted account, once, and keeps the payments", async () => {
+    const living = await verifiedUser("erase-living@example.com");
+    await checkout(living);
+    const { customer, payment } = await deletedBuyer("erase-done@example.com");
+    const { api, del } = deleter();
+    expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 1, failed: 0 });
+    expect(del).toHaveBeenCalledExactlyOnceWith(customer.stripeCustomerId);
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ userId: null, stripeDeletedAt: T0, eraseAfter: null, country: null, vatNumber: null });
+    // The payment stays, as an accounting record, without the person.
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", billingCustomerId: customer.id });
+    // Done: the next pass has nothing to do; a living account is never touched.
+    expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 0, failed: 0 });
+    expect(del).toHaveBeenCalledOnce();
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { userId: living } })).toMatchObject({ stripeDeletedAt: null });
+  });
+
+  it("retries a failed deletion later, waiting longer each time", async () => {
+    const { customer } = await deletedBuyer("erase-retry@example.com");
+    // A 404 that is not Stripe's "no such customer" (a proxy, a wrong address) is a failure too.
+    const { api, del } = deleter("notFound", "down");
+    expect(await eraseDeletedCustomers(db, api, T0)).toEqual({ erased: 0, failed: 1 });
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ stripeDeletedAt: null, eraseAttempts: 1, eraseAfter: new Date(T0.getTime() + 2 * 60_000) });
+    // Not due yet.
+    expect(await eraseDeletedCustomers(db, api, new Date(T0.getTime() + 60_000))).toEqual({ erased: 0, failed: 0 });
+    expect(await eraseDeletedCustomers(db, api, new Date(T0.getTime() + 2 * 60_000))).toEqual({ erased: 0, failed: 1 });
+    const later = new Date(T0.getTime() + 10 * 60_000);
+    expect(await eraseDeletedCustomers(db, api, later)).toEqual({ erased: 1, failed: 0 });
+    expect(del).toHaveBeenCalledTimes(3);
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ stripeDeletedAt: later, eraseAttempts: 2 });
+    expect([1, 2, 3, 10, 11, 50].map(eraseRetryDelay)).toEqual([2, 4, 8, 1024, 1440, 1440].map((m) => m * 60_000));
+  });
+
+  it("counts a customer already gone at Stripe as deleted, and does nothing without Stripe", async () => {
+    const { customer } = await deletedBuyer("erase-gone@example.com");
+    expect(await eraseDeletedCustomers(db, null, T0)).toEqual({ erased: 0, failed: 0 });
+    expect(await eraseDeletedCustomers(db, deleter("missing").api, T0)).toEqual({ erased: 1, failed: 0 });
+    expect(await db.billingCustomer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({ stripeDeletedAt: T0 });
   });
 });
 
