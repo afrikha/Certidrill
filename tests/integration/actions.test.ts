@@ -383,7 +383,7 @@ describe("rights back-office actions", () => {
 
   it("grant and revoke a Pass, with the errors of the form", async () => {
     as(adminId, "admin");
-    const grant = (fields: Record<string, string>) => grantPassAction(undefined, form({ userId, certification: "az-104", days: "30", source: "admin", reason: "goodwill", ticket: "", ...fields }));
+    const grant = (fields: Record<string, string>) => grantPassAction(undefined, form({ userId, certification: "az-104", days: "30", source: "admin", reason: "goodwill", ...fields }));
     expect(await grant({ days: "zero" })).toEqual({ error: "invalid" });
     expect(await grant({ certification: "zz-999" })).toEqual({ error: "not_found" });
     expect(h.revalidatePath).not.toHaveBeenCalled();
@@ -392,7 +392,7 @@ describe("rights back-office actions", () => {
     const pass = await prisma.entitlement.findFirstOrThrow({ where: { userId, revokedAt: null } });
     expect(pass.source).toBe("admin");
     expect(await revokeEntitlementAction(undefined, form({ entitlementId: pass.id, reason: "" }))).toEqual({ error: "invalid" });
-    expect(await revokeEntitlementAction(undefined, form({ entitlementId: pass.id, reason: "refund", ticket: "no. 42" }))).toEqual({ error: "invalid" });
+    expect(await revokeEntitlementAction(undefined, form({ entitlementId: pass.id, reason: "remboursement de Jean Dupont" }))).toEqual({ error: "invalid" });
     expect(await revokeEntitlementAction(undefined, form({ entitlementId: pass.id, reason: "refund" }))).toEqual({ ok: true });
     expect((await prisma.entitlement.findUniqueOrThrow({ where: { id: pass.id } })).revokedAt).not.toBeNull();
   });

@@ -32,7 +32,6 @@ export async function grantPassAction(_prev: BillingState, formData: FormData): 
       days: formString(formData, "days"),
       source: formString(formData, "source") as "admin" | "extension",
       reason: formString(formData, "reason") as GrantInput["reason"],
-      ticket: formString(formData, "ticket"),
     }),
   );
 }
@@ -43,7 +42,6 @@ export async function revokeEntitlementAction(_prev: BillingState, formData: For
     revokeEntitlement(prisma, admin.id, {
       entitlementId: formString(formData, "entitlementId"),
       reason: formString(formData, "reason") as RevokeInput["reason"],
-      ticket: formString(formData, "ticket"),
     }),
   );
 }

@@ -87,15 +87,13 @@ test("the administrator opens sign-ups; a visitor signs up, follows the link and
   const grant = page.getByTestId("grant-form");
   await grant.locator("#grant-days").fill("30");
   await grant.locator("#grant-reason").selectOption("goodwill");
-  await grant.locator("#grant-ticket").fill("42");
   await grant.getByRole("button", { name: "Grant" }).click();
   await expect(grant.getByText(/Pass granted/)).toBeVisible();
   await expect(page.locator('[data-certification="az-104"]')).toHaveAttribute("data-level", "full");
   await expect(page.getByTestId("entitlements").locator('[data-state="active"]')).toHaveCount(1);
   const granted = page.getByTestId("audit-log").locator('[data-action="entitlement.grant"]');
-  // The reason code in words, and the ticket number (jsonb keeps its own key order).
+  // The reason code in words.
   await expect(granted).toContainText("reason: Goodwill gesture");
-  await expect(granted).toContainText("ticket: 42");
 
   await visitor.reload();
   await expect(visitor.getByTestId("access").first()).toContainText(/Pass: (29|30) days left/);

@@ -38,9 +38,6 @@ export function userEntitlements(db: PrismaClient, userId: string) {
   });
 }
 
-/** A support ticket number, 1 to 8 digits: a phone number does not fit (lib/access/reasons.ts). Empty: none. */
-const ticket = z.preprocess((v) => (typeof v === "string" ? v.trim() || undefined : v), z.string().regex(/^\d{1,8}$/).optional());
-
 export const grantSchema = z.object({
   userId: z.string().min(1),
   certificationCode: z.string().min(1),
@@ -48,7 +45,6 @@ export const grantSchema = z.object({
   /** admin: a right given by hand; extension: added after a failed real exam (§8). */
   source: z.enum(["admin", "extension"]),
   reason: z.enum(GRANT_REASONS),
-  ticket,
 });
 export type GrantInput = z.input<typeof grantSchema>;
 
@@ -76,20 +72,19 @@ export async function grantPass(db: PrismaClient, actorId: string, input: GrantI
         startsAt: entitlement.startsAt.toISOString(),
         expiresAt: entitlement.expiresAt.toISOString(),
         reason: data.reason,
-        ...(data.ticket && { ticket: data.ticket }),
       },
     });
     return entitlement;
   });
 }
 
-export const revokeSchema = z.object({ entitlementId: z.string().min(1), reason: z.enum(REVOKE_REASONS), ticket });
+export const revokeSchema = z.object({ entitlementId: z.string().min(1), reason: z.enum(REVOKE_REASONS) });
 
 export type RevokeInput = z.input<typeof revokeSchema>;
 
 /** Withdraws a Pass (refund, mistake): it stops giving access at once. Revoking twice changes nothing. */
 export async function revokeEntitlement(db: PrismaClient, actorId: string, input: RevokeInput, now = new Date()) {
-  const { entitlementId, reason, ticket: ticketNumber } = revokeSchema.parse(input);
+  const { entitlementId, reason } = revokeSchema.parse(input);
   return db.$transaction(async (tx) => {
     const { count } = await tx.entitlement.updateMany({ where: { id: entitlementId, revokedAt: null }, data: { revokedAt: now } });
     if (count === 0) return false;
@@ -98,7 +93,7 @@ export async function revokeEntitlement(db: PrismaClient, actorId: string, input
       actorId,
       action: "entitlement.revoke",
       targetUserId: e.userId,
-      details: { entitlementId, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason, ...(ticketNumber && { ticket: ticketNumber }) },
+      details: { entitlementId, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason },
     });
     return true;
   });
