@@ -123,10 +123,14 @@ function textOf(node: Nodes): string {
 
 /** A fenced block is closed by a fence at least as long as the opening one. */
 function isClosed(node: Code, text: string): boolean {
-  const lines = text.slice(node.position!.start.offset, node.position!.end.offset).split("\n");
-  const open = /^(`{3,}|~{3,})/.exec(lines[0]!.trim())?.[1];
+  // Without the indentation and the `>` of the quotations (callouts) the block sits in.
+  const lines = text
+    .slice(node.position!.start.offset, node.position!.end.offset)
+    .split("\n")
+    .map((l) => l.replace(/^[ \t]*(?:>[ \t]?)*/, "").trim());
+  const open = /^(`{3,}|~{3,})/.exec(lines[0]!)?.[1];
   if (!open) return true;
-  const last = lines.at(-1)!.trim();
+  const last = lines.at(-1)!;
   return lines.length > 1 && last.startsWith(open[0]!) && /^(`{3,}|~{3,})$/.test(last) && last.length >= open.length;
 }
 

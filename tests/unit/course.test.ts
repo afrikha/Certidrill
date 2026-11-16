@@ -317,6 +317,13 @@ describe("parseChapter", () => {
     expect(chapter.sections[1]!.body).toBe("- Last.");
   });
 
+  it("sees the closing fence of a code block in a callout or a list", () => {
+    const section = (body: string) => `Intro.\n\n<!-- section: a -->\n## A\n\n${body}\n`;
+    const closed = ["> **Exam tip.** Run:\n>\n> ```bash\n> az group list\n> ```", "- Item:\n\n  ```bash\n  az vm list\n  ```"];
+    for (const body of closed) expect(parseChapter("x.en.md", section(body), "en").problems).toEqual([]);
+    expect(parseChapter("x.en.md", section("> **Exam tip.** Run:\n>\n> ```bash\n> az group list"), "en").problems.map((p) => p.message)).toEqual(["code block not closed"]);
+  });
+
   it("reports a bad section id, a duplicate id, a missing introduction and a file without section", () => {
     const dup = parseChapter("x.en.md", "<!-- section: A_1 -->\n## A\n\nx\n\n<!-- section: b -->\n## B\n\n<!-- section: b -->\n## B2\n", "en");
     expect(dup.problems.map((p) => p.message)).toEqual([
