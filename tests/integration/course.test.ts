@@ -81,6 +81,12 @@ describe("course seed", () => {
     expect(after.map((s) => s.id)).toEqual(before.map((s) => s.id));
     expect((await db.courseChapter.findFirstOrThrow({ where: { code: "12-rbac" } })).status).toBe("reviewed");
     await seedCourse(db, content, course);
+
+    // Objectives are part of the content version too.
+    const objectives = withChapter("12-rbac", (c) => ({ ...c, sections: c.sections.map((s, i) => (i === 0 ? { ...s, objectives: [...s.objectives, "1.2.2"] } : s)) }));
+    expect((await seedCourse(db, content, objectives)).changed).toEqual({ chapters: 0, sections: 1 });
+    expect((await sections()).find((s) => s.code === "rbac-model")!.objectives.map((o) => o.code).sort()).toEqual(["1.2.1", "1.2.2"]);
+    await seedCourse(db, content, course);
   });
 
   it("deletes a section and a chapter removed from the files, with the progress on them", async () => {

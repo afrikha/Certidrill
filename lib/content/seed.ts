@@ -214,7 +214,7 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
         (await tx.courseSection.findMany({ where: { chapterId: chapter.id }, select: { code: true, contentHash: true } })).map((s) => [s.code, s.contentHash]), // NOSONAR: per chapter, in the same transaction
       );
       for (const [j, s] of c.sections.entries()) {
-        const sectionHash = hashOf({ title: s.title, body: s.body });
+        const sectionHash = hashOf({ title: s.title, body: s.body, objectives: s.objectives });
         const sectionEdited = sections.get(s.id) !== sectionHash;
         if (sectionEdited) changed.sections += 1;
         const objectives = s.objectives.map((o) => ({ id: objectiveIds.get(o)! }));

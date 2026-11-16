@@ -19,6 +19,7 @@ export interface StatusChange {
 const CHAPTER = /^- id: ["']?([a-z0-9-]+)["']?\s*$/;
 const STATUS = /^( {2}status: *)(\w+)(.*)$/;
 const TOP_LEVEL = /^\S/;
+const COMMENT_OR_BLANK = /^\s*(#.*)?$/;
 
 /** Returns the new text of course.yaml and the ids of the chapters changed. */
 export function setChapterStatuses(text: string, change: StatusChange): { text: string; changed: string[] } {
@@ -41,6 +42,11 @@ export function setChapterStatuses(text: string, change: StatusChange): { text: 
   };
 
   for (const line of lines) {
+    // Comments and blank lines end nothing, wherever they are.
+    if (COMMENT_OR_BLANK.test(line)) {
+      out.push(line);
+      continue;
+    }
     if (TOP_LEVEL.test(line) && !line.startsWith("- ")) {
       closeChapter();
       inChapters = /^chapters:\s*$/.test(line);

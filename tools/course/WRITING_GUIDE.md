@@ -73,6 +73,8 @@ GFM Markdown...
 - ✔ GFM only: paragraphs, lists, tables, code blocks, quotes. No image, no HTML:
   a `<` outside code is refused, so put generics, placeholders and comparisons
   in a code span (`` `<resource-group>` ``).
+- ✔ Links go to `https://` pages (Microsoft Learn first) or to an anchor
+  (`#section-id`); no other protocol.
 - ✔ Every code block names its language, one of `bash`, `powershell`, `json`,
   `bicep`, `kusto`, `yaml`, `text`, and is closed.
 - ✔ Callouts are quotes that start with a bold label, and only these two:

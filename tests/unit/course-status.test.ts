@@ -55,6 +55,14 @@ describe("chapter statuses in course.yaml", () => {
     expect(setChapterStatuses(manifest, { status: "published", prefix: "all", from: "published" })).toEqual({ text: manifest, changed: [] });
   });
 
+  it("reads past comments and blank lines between chapters", () => {
+    const commented = manifest.replace("- id: 11-entra-users-groups", "# Identities.\n\n- id: 11-entra-users-groups").replace("- id: 12-rbac", "  # RBAC next.\n- id: 12-rbac");
+    const { text, changed } = setChapterStatuses(commented, { status: "published", prefix: "all" });
+    expect(changed).toEqual(["00-getting-started", "11-entra-users-groups", "12-rbac"]);
+    expect(text).toContain("# Identities.\n\n- id: 11-entra-users-groups");
+    expect(statuses(text)).toEqual({ "00-getting-started": "published", "11-entra-users-groups": "published", "12-rbac": "published" });
+  });
+
   it("changes nothing when the chapters already have the status", () => {
     expect(setChapterStatuses(manifest, { status: "draft", prefix: "0" })).toEqual({ text: manifest, changed: [] });
     expect(setChapterStatuses(manifest, { status: "draft", prefix: "12-rbac" })).toEqual({ text: manifest, changed: [] });

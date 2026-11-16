@@ -178,6 +178,19 @@ describe("course checks — Markdown", () => {
     expect(await check((dir) => both(dir, "12-rbac", (t) => t.replace("**role assignment**", "**role assignment** (`a < b`) **attribution de rôle**")))).toEqual([]);
   });
 
+  it("allows only https links and anchors", async () => {
+    const link = (target: string) => (t: string) => t.replace("A **role assignment**", `See [this](${target}). A **role assignment**`);
+    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", link("javascript:alert(1)")))).toEqual([
+      expect.stringMatching(/12-rbac\.en\.md:\d+: link to "javascript:alert\(1\)" \(only https:\/\/ links and #anchors\)/),
+    ]);
+    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => `${t}\n[ref]: data:text/html,x\n`))).toEqual([
+      expect.stringMatching(/12-rbac\.en\.md:\d+: link to "data:text\/html,x"/),
+    ]);
+    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", link("http://example.com")))).toEqual([expect.stringMatching(/link to "http:\/\/example\.com"/)]);
+    expect(await check((dir) => both(dir, "12-rbac", link("https://learn.microsoft.com/en-us/azure/")))).toEqual([]);
+    expect(await check((dir) => both(dir, "12-rbac", link("#scopes")))).toEqual([]);
+  });
+
   it("allows only the course's code languages, always named", async () => {
     expect(await check((dir) => both(dir, "12-rbac", (t) => t.replace("```json", "```js")))).toEqual([
       expect.stringMatching(/12-rbac\.en\.md:\d+: code block language "js" \(allowed: bash, powershell, json, bicep, kusto, yaml, text\)/),

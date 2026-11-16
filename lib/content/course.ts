@@ -153,7 +153,7 @@ function fingerprintOf(nodes: readonly RootContent[], locale: Locale): Fingerpri
   return print;
 }
 
-/** Problems of the Markdown itself: headings, images, `<` outside code, code blocks, callout labels. */
+/** Problems of the Markdown itself: headings, images, links, `<` outside code, code blocks, callout labels. */
 function markdownProblems(file: string, text: string, tree: Root, markers: ReadonlySet<Nodes>, locale: Locale): CourseProblem[] {
   const problems: CourseProblem[] = [];
   const at = (node: Nodes, message: string) => problems.push({ file, line: lineOf(node), message });
@@ -163,6 +163,10 @@ function markdownProblems(file: string, text: string, tree: Root, markers: Reado
     if (node.type === "heading" && node.depth === 1) at(node, "level-1 heading (the chapter title comes from course.yaml)");
     if (node.type === "heading" && node.depth > 2) at(node, `level-${node.depth} heading (sections use level 2 only)`);
     if (node.type === "image" || node.type === "imageReference") at(node, "image (not allowed in the course)");
+    // Rendered in the browser: links go to https pages or to an anchor, nothing else (javascript:, data:…).
+    if ((node.type === "link" || node.type === "definition") && !/^(https:\/\/|#)/i.test(node.url)) {
+      at(node, `link to "${node.url}" (only https:// links and #anchors)`);
+    }
     if (node.type === "code") {
       if (!node.lang) at(node, `code block without a language (one of ${COURSE_CODE_LANGUAGES.join(", ")})`);
       else if (!(COURSE_CODE_LANGUAGES as readonly string[]).includes(node.lang)) at(node, `code block language "${node.lang}" (allowed: ${COURSE_CODE_LANGUAGES.join(", ")})`);
