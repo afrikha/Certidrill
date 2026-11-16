@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
-import { getCourseOutline } from "@/lib/course/read";
+import { getCourseOutline, offerUrl } from "@/lib/course/read";
 import { defaultLocale, isLocale } from "@/lib/i18n/config";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,6 +25,7 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
   const code = outline.certification.code;
   const chapters = outline.modules.flatMap((m) => m.chapters);
   const weak = chapters.filter((c) => c.weak);
+  const locked = chapters.filter((c) => c.locked).length;
   const first = chapters[0];
 
   return (
@@ -42,7 +43,13 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
               {outline.read > 0 && <span className="text-sm text-muted-foreground">{t("resumeSection", { section: outline.resume.sectionTitle })}</span>}
             </div>
           )}
-          {!outline.resume && first && <p className="font-semibold text-success">{t("done")}</p>}
+          {!outline.resume && first && !locked && <p className="font-semibold text-success">{t("done")}</p>}
+          {locked > 0 && (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-testid="course-locked-count">
+              <span>{t("lockedChapters", { n: locked })}</span>
+              <Link href={offerUrl(code)} className="font-semibold text-primary underline">{t("unlock")}</Link>
+            </p>
+          )}
         </Card>
       </header>
 
@@ -72,6 +79,7 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
                       <span className="flex flex-wrap gap-2 text-xs">
                         {c.status !== "published" && <span className="rounded bg-muted px-2 py-0.5 font-semibold">{t(`status_${c.status}`)}</span>}
                         {c.weak && <span className="rounded bg-amber-100 px-2 py-0.5 font-semibold text-amber-900">{t("weak")}</span>}
+                        {c.locked && <span className="rounded bg-muted px-2 py-0.5 font-semibold"><span aria-hidden>🔒 </span>{t("locked")}</span>}
                         {done && <span className="rounded bg-green-100 px-2 py-0.5 font-semibold text-green-900">✓ {t("completed")}</span>}
                       </span>
                     </div>

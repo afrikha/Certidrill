@@ -72,6 +72,10 @@ Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime :
 
 **Lecture** (`/course`, groupe `(app)`, dans la langue de l'utilisateur) : sommaire avec progression, bouton « Reprendre » et chapitres à revoir après le dernier examen blanc (domaines sous le seuil), puis une page par chapitre (`/course/az-104/12-rbac#scopes` : l'ancre est l'identifiant de la section, stable d'un seed à l'autre). Chaque section a ses objectifs et un bouton « Marquer comme lu » (action serveur réversible, 60 par minute et par utilisateur). Le HTML d'une section est mis en cache en mémoire par (section, langue, version du contenu) ; les liens Learn s'ouvrent dans la langue du lecteur. Les lecteurs ne voient que les chapitres `published` ; un administrateur voit aussi ceux en relecture, avec un bandeau d'aperçu. L'entrée « Cours » du menu n'apparaît qu'une fois un chapitre ouvert à l'utilisateur.
 
+**Accès** (§8) : au niveau gratuit, seuls les chapitres `free: true` de `course.yaml` sont lisibles ; les autres montrent leurs titres de sections et leurs objectifs, un cadenas et un lien vers l'écran d'offre (`/offer?reason=course`). Le corps d'une section verrouillée n'est jamais lu en base pour ce lecteur, donc jamais envoyé au navigateur, et une telle section ne peut pas être marquée comme lue. Le Pass, l'abonnement ou le rôle administrateur ouvrent tout le cours ; l'écran d'offre mentionne le cours dès qu'un chapitre est publié.
+
+**Liens avec l'examen** : sous l'explication de chaque question de la correction, « Revoir le cours : … » mène aux sections qui couvrent son objectif (deux au plus, dans l'ordre du cours, avec un cadenas si le chapitre est payant) ; le rapport de score liste les chapitres des domaines sous le seuil ; le tableau de bord suggère les trois sections non lues qui couvrent le plus de questions manquées au dernier examen blanc. Rien de tout cela n'apparaît pendant l'examen.
+
 ## Démarrage en local
 
 Prérequis : Node 22 et Docker Desktop (ou un PostgreSQL 16 déjà installé).

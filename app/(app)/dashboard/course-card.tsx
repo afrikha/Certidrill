@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import type { CourseOutline } from "@/lib/course/read";
+import type { CourseOutline, SectionLink } from "@/lib/course/read";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/course/progress-bar";
 
-/** The course on the dashboard: progress and the next chapter to read. */
-export async function CourseCard({ outline }: Readonly<{ outline: CourseOutline }>) {
+/** The course on the dashboard: progress, the next chapter to read and, after a mock exam, the sections to read next. */
+export async function CourseCard({ outline, suggestions }: Readonly<{ outline: CourseOutline; suggestions: SectionLink[] }>) {
   const t = await getTranslations("course");
   const code = outline.certification.code;
   return (
@@ -23,7 +23,22 @@ export async function CourseCard({ outline }: Readonly<{ outline: CourseOutline 
           {outline.read === 0 && <span className="text-sm text-muted-foreground">{t("dashboardNext", { chapter: outline.resume.chapterTitle })}</span>}
         </div>
       ) : (
-        <p className="font-semibold text-success">{t("done")}</p>
+        outline.read === outline.sections && <p className="font-semibold text-success">{t("done")}</p>
+      )}
+      {suggestions.length > 0 && (
+        <section aria-labelledby={`suggest-${code}`} className="border-t border-border pt-4" data-testid="course-suggestions">
+          <h3 id={`suggest-${code}`} className="font-semibold">{t("suggestTitle")}</h3>
+          <p className="text-sm text-muted-foreground">{t("suggestText")}</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+            {suggestions.map((s) => (
+              <li key={`${s.chapter}#${s.section}`}>
+                <Link href={s.href} className="text-primary underline">{s.title}</Link>
+                <span className="text-muted-foreground"> — {s.chapterTitle}</span>
+                {s.locked && <span className="ml-2 text-xs text-muted-foreground">🔒 {t("locked")}</span>}
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
     </Card>
   );

@@ -12,6 +12,7 @@ import { Celebration } from "@/components/progress/celebration";
 import { ReadinessChange } from "@/components/progress/readiness-change";
 import { XpGainCard } from "@/components/progress/xp-gain";
 import { xpStart } from "@/lib/progress/celebration";
+import { chaptersForDomains } from "@/lib/course/read";
 
 export const metadata = { title: "Results" };
 export const dynamic = "force-dynamic";
@@ -29,6 +30,17 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
   }
   const { readiness: change, progression } = await getAttemptProgress(prisma, { attemptId: r.id, userId: user.id, locale: r.locale });
   const t = await getTranslations("results");
+  const tCourse = await getTranslations("course");
+  // For each domain below the pass mark: the chapters of the course to review.
+  const weak = r.domains.filter((d) => d.scaledScore < r.passScore);
+  const certification = await prisma.certification.findUniqueOrThrow({ where: { code: r.certification.code }, select: { id: true } });
+  const toReview = await chaptersForDomains(prisma, {
+    certificationId: certification.id,
+    domains: weak.map((d) => d.key),
+    viewer: { userId: user.id, isAdmin: user.role === "admin" },
+    locale: r.locale,
+  });
+  const review = weak.filter((d) => (toReview.get(d.key) ?? []).length > 0);
   const minutes = Math.round(r.timeUsedMs / 60_000);
 
   return (
@@ -93,6 +105,29 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
           </table>
         </Card>
       </div>
+
+      {review.length > 0 && (
+        <Card data-testid="course-review">
+          <h2 className="mb-3 font-semibold">{tCourse("chaptersToReview")}</h2>
+          <dl className="space-y-3 text-sm">
+            {review.map((d) => (
+              <div key={d.key}>
+                <dt className="font-medium">{d.title} <span className="text-muted-foreground">({d.scaledScore})</span></dt>
+                <dd>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {toReview.get(d.key)!.map((c) => (
+                      <li key={c.code}>
+                        <Link href={c.href} className="text-primary underline">{c.title}</Link>
+                        {c.locked && <span className="ml-2 text-xs text-muted-foreground">🔒 {tCourse("locked")}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+      )}
 
       <p className="text-sm text-muted-foreground">{t("approx")}</p>
       <Link href={`/results/${r.id}/review`} className={buttonClasses("primary")}>{t("seeCorrection")} →</Link>

@@ -4,11 +4,13 @@ import { hashPassword } from "../../lib/auth/password";
 import { login, loginAsAdmin } from "./helpers";
 
 /**
- * Course lot B on the production build (docs/SPECS-COURS.md §6): a reader opens
- * the course from the menu, reads a chapter, marks sections read and unread,
- * and finds the progress on the outline and the dashboard; on a computer and
- * on a phone. The seed loads every chapter as a draft: three are published
- * here, the others stay invisible to readers and open to administrators only.
+ * The course on the production build (docs/SPECS-COURS.md §6–8): a reader
+ * with the free access opens the course from the menu, reads a free chapter,
+ * marks sections read and unread, and finds the progress on the outline and
+ * the dashboard, on a computer and on a phone; a paid chapter shows its titles
+ * only; after a mock exam, the score report, the correction and the dashboard
+ * lead to the course. The seed loads every chapter as a draft: three are
+ * published here (two of them free), the others stay invisible to readers.
  */
 const db = new PrismaClient();
 const READER = { email: "e2e-reader@certidrill.test", password: "e2e reader password" };
@@ -22,6 +24,8 @@ test.beforeAll(async () => {
     update: { passwordHash, emailVerified: new Date(), locale: "en" },
   });
   await db.courseProgress.deleteMany({ where: { user: { email: READER.email } } });
+  await db.attempt.deleteMany({ where: { user: { email: READER.email } } });
+  await db.entitlement.deleteMany({ where: { user: { email: READER.email } } });
   await db.courseChapter.updateMany({ where: { code: { in: PUBLISHED } }, data: { status: "published" } });
 });
 test.afterAll(async () => {
@@ -65,8 +69,10 @@ test.describe.serial("reading the course", () => {
     await expect(page.locator("button[data-copy]").first()).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: "Further reading" })).toBeVisible();
 
+    const saved = page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/course/az-104/"));
     await first.getByRole("button", { name: /Mark as read/ }).click();
     await expect(first.getByText("✓ Read")).toBeVisible();
+    await saved;
     await expect(first.getByRole("button", { name: /Mark as unread/ })).toBeVisible();
     await page.reload();
     await expect(sections(page).first().getByText("✓ Read")).toBeVisible();
@@ -121,7 +127,7 @@ test.describe("on a phone", () => {
 
   test("the chapter reads without sideways scrolling, with a folding table of contents", async ({ page }) => {
     await login(page, READER);
-    await page.goto("/course/az-104/12-rbac");
+    await page.goto("/course/az-104/11-entra-users-groups");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await noSidewaysScroll(page);
     await expect(page.getByRole("navigation", { name: "In this chapter" })).toBeHidden();
@@ -136,10 +142,64 @@ test.describe("on a phone", () => {
     await noSidewaysScroll(page);
 
     const last = sections(page).last();
+    // The mark shows at once; wait for the server action before leaving the page.
+    const saved = page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/course/az-104/"));
     await last.getByRole("button", { name: /Mark as read/ }).click();
     await expect(last.getByText("✓ Read")).toBeVisible();
+    await saved;
     await page.goto("/course/az-104");
     await noSidewaysScroll(page);
     await expect(page.getByText("2 of 17 sections read")).toBeVisible();
+  });
+});
+
+test.describe.serial("access and exams", () => {
+  test("a paid chapter shows its titles only to a free reader, never its text", async ({ page }) => {
+    await login(page, READER);
+    await page.goto("/course/az-104");
+    await expect(page.getByTestId("course-locked-count")).toContainText("1 chapter needs full access.");
+    const response = await page.goto("/course/az-104/12-rbac");
+    const html = (await response!.text()) + (await page.content());
+    await expect(page.getByTestId("course-locked")).toBeVisible();
+    await expect(sections(page)).toHaveCount(5);
+    await expect(page.getByRole("button", { name: /Mark as read/ })).toHaveCount(0);
+    const body = (await db.courseSection.findFirstOrThrow({ where: { code: "rbac-model" } })).body as { en: string; fr: string };
+    for (const sentence of [body.en, body.fr].map((t) => t.split("\n").find((l) => l.length > 60)!.slice(0, 50))) expect(html).not.toContain(sentence);
+    await page.getByTestId("course-locked").getByRole("link", { name: "See the offers" }).click();
+    await page.waitForURL("**/offer?reason=course&certification=az-104");
+    await expect(page.getByRole("heading", { level: 1, name: "Read the whole course" })).toBeVisible();
+  });
+
+  test("after a mock exam, the score report, the correction and the dashboard lead to the course", async ({ page }) => {
+    await login(page, READER);
+    await page.getByLabel("Exam language").selectOption("en");
+    await page.getByRole("button", { name: "New mock exam" }).click();
+    await page.waitForURL(/\/exam\//);
+    await page.getByRole("button", { name: "Start" }).click();
+    await expect(page.getByTestId("timer")).toBeVisible();
+    const attemptId = page.url().split("/exam/")[1]!;
+    // Nothing answered: every question is missed. No link to the course during the exam.
+    await expect(page.getByRole("link", { name: /course/i })).toHaveCount(0);
+    await page.request.post(`/api/attempts/${attemptId}/submit`, { headers: { Origin: new URL(page.url()).origin } });
+
+    await page.goto(`/results/${attemptId}`);
+    const review = page.getByTestId("course-review");
+    await expect(review.getByRole("link", { name: "Manage Microsoft Entra users and groups" })).toHaveAttribute("href", "/course/az-104/11-entra-users-groups");
+    await expect(review.getByRole("link", { name: "Manage access to Azure resources" })).toHaveAttribute("href", "/offer?reason=course&certification=az-104");
+
+    await page.goto(`/results/${attemptId}/review?domain=identities`);
+    const links = page.getByTestId("course-links").getByRole("link", { name: /^Review the course: / });
+    await expect(links.first()).toBeVisible();
+    const hrefs = await links.evaluateAll((all) => all.map((a) => a.getAttribute("href")!));
+    expect(hrefs.every((h) => /^\/course\/az-104\/1[12]-[a-z-]+#[a-z0-9-]+$/.test(h) || h === "/offer?reason=course&certification=az-104")).toBe(true);
+    const open = hrefs.find((h) => h.startsWith("/course/az-104/11-"))!;
+    expect(open).toBeDefined();
+    await page.locator(`a[href="${open}"]`).first().click();
+    await page.waitForURL(`**${open}`);
+    await expect(page.locator(`section#${open.split("#")[1]}`)).toBeVisible();
+
+    await page.goto("/dashboard");
+    const suggestions = page.getByTestId("course-suggestions");
+    await expect(suggestions.getByRole("listitem")).toHaveCount(3);
   });
 });

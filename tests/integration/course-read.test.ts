@@ -11,7 +11,7 @@ import { loadCertification } from "@/lib/content/loader";
 import { loadBank } from "@/lib/content/bank";
 import { loadCourse } from "@/lib/content/course";
 import { seedBank, seedCourse, seedReferential } from "@/lib/content/seed";
-import { coursesFor, CourseError, getChapter, getCourseOutline, hasVisibleCourse, setSectionRead, weakDomains } from "@/lib/course/read";
+import { chaptersForDomains, coursesFor, CourseError, getChapter, getCourseOutline, hasVisibleCourse, sectionsForObjectives, setSectionRead, suggestedSections, weakDomains } from "@/lib/course/read";
 import { createUser } from "@/lib/users";
 import { publishSampleBank } from "./sample-bank";
 import { grantFullAccess, playHalf } from "./access";
@@ -125,13 +125,92 @@ describe("reading progress", () => {
     expect(await db.courseProgress.count({ where: { userId: admin.userId } })).toBe(1);
   });
 
-  it("says when everything is read", async () => {
+  it("has nothing to resume once every chapter the reader may read is read", async () => {
     const outline = (await getCourseOutline(db, { certification: "az-104", viewer: reader, locale: "en" }))!;
-    const ids = outline.modules.flatMap((m) => m.chapters.flatMap((c) => c.sections.map((s) => s.id)));
+    const ids = outline.modules.flatMap((m) => m.chapters.filter((c) => !c.locked).flatMap((c) => c.sections.map((s) => s.id)));
     for (const id of ids) await setSectionRead(db, { viewer: reader, sectionId: id, read: true });
     const done = (await getCourseOutline(db, { certification: "az-104", viewer: reader, locale: "en" }))!;
-    expect([done.read, done.sections, done.resume]).toEqual([ids.length, ids.length, null]);
+    expect([done.read, done.resume]).toEqual([ids.length, null]);
+    // 12-rbac stays to read, with full access.
+    expect(done.sections).toBeGreaterThan(ids.length);
     await db.courseProgress.deleteMany({ where: { userId: reader.userId } });
+  });
+});
+
+describe("access (§8)", () => {
+  let full: { userId: string; isAdmin: boolean };
+  beforeAll(async () => {
+    full = { userId: (await createUser(db, { email: "course-full@example.com" })).id, isAdmin: false };
+    await grantFullAccess(db, full.userId);
+  });
+
+  it("never reads the text of a paid chapter for a free reader: titles only", async () => {
+    const chapter = (await getChapter(db, { certification: "az-104", chapter: "12-rbac", viewer: reader, locale: "en" }))!;
+    expect(chapter.locked).toBe(true);
+    expect(chapter.title).toBe("Manage access to Azure resources");
+    expect(chapter.sections.map((s) => s.title)).toHaveLength(5);
+    expect([chapter.summary, chapter.references]).toEqual(["", []]);
+    expect(chapter.sections.every((s) => s.body === "")).toBe(true);
+    // Not a byte of the text anywhere in what the page gets.
+    const text = (await db.courseSection.findFirstOrThrow({ where: { code: "rbac-model" } })).body as { en: string };
+    expect(JSON.stringify(chapter)).not.toContain(text.en.slice(0, 60));
+  });
+
+  it("opens a free chapter to a free reader, and every chapter to full access and administrators", async () => {
+    const free = (await getChapter(db, { certification: "az-104", chapter: "11-entra-users-groups", viewer: reader, locale: "en" }))!;
+    expect(free.locked).toBe(false);
+    expect(free.sections.every((s) => s.body.length > 0)).toBe(true);
+    for (const viewer of [full, admin]) {
+      const paid = (await getChapter(db, { certification: "az-104", chapter: "12-rbac", viewer, locale: "en" }))!;
+      expect(paid.locked).toBe(false);
+      expect(paid.summary.length).toBeGreaterThan(0);
+      expect(paid.references.length).toBeGreaterThan(0);
+      expect(paid.sections.every((s) => s.body.length > 0)).toBe(true);
+    }
+  });
+
+  it("keeps a chapter in draft hidden from full access too", async () => {
+    expect(await getChapter(db, { certification: "az-104", chapter: "21-storage-access", viewer: full, locale: "en" })).toBeNull();
+  });
+
+  it("marks the locked chapters on the outline and resumes in a chapter the reader may read", async () => {
+    const outline = (await getCourseOutline(db, { certification: "az-104", viewer: reader, locale: "en" }))!;
+    expect(outline.level).toBe("free");
+    expect(outline.modules.flatMap((m) => m.chapters.map((c) => [c.code, c.locked]))).toEqual([["00-getting-started", false], ["11-entra-users-groups", false], ["12-rbac", true]]);
+    const fullOutline = (await getCourseOutline(db, { certification: "az-104", viewer: full, locale: "en" }))!;
+    expect(fullOutline.modules.flatMap((m) => m.chapters).some((c) => c.locked)).toBe(false);
+  });
+
+  it("refuses to mark a section of a locked chapter read", async () => {
+    const section = await db.courseSection.findFirstOrThrow({ where: { chapter: { code: "12-rbac" } } });
+    await expect(setSectionRead(db, { viewer: reader, sectionId: section.id, read: true })).rejects.toMatchObject({ code: "locked" });
+    await setSectionRead(db, { viewer: full, sectionId: section.id, read: true });
+    expect(await db.courseProgress.count({ where: { userId: full.userId, sectionId: section.id } })).toBe(1);
+  });
+
+  it("links an objective to its sections in course order, two at most, to the offer when locked", async () => {
+    const certification = await db.certification.findUniqueOrThrow({ where: { code: "az-104" } });
+    const forReader = await sectionsForObjectives(db, { certificationId: certification.id, objectives: ["1.2.1", "1.1.1", "2.1.1", "9.9.9"], viewer: reader, locale: "en" });
+    expect(forReader.get("1.2.1")!.map((l) => [l.chapter, l.section, l.locked, l.href])).toEqual([
+      ["12-rbac", "rbac-model", true, "/offer?reason=course&certification=az-104"],
+      ["12-rbac", "built-in-roles", true, "/offer?reason=course&certification=az-104"],
+    ]);
+    expect(forReader.get("1.1.1")!.map((l) => [l.chapter, l.section, l.href])).toEqual([
+      ["11-entra-users-groups", "tenant-and-roles", "/course/az-104/11-entra-users-groups#tenant-and-roles"],
+      ["11-entra-users-groups", "users", "/course/az-104/11-entra-users-groups#users"],
+    ]);
+    // Storage chapters are drafts: nothing to link yet. Unknown objective: nothing.
+    expect(forReader.get("2.1.1")).toEqual([]);
+    expect(forReader.get("9.9.9")).toEqual([]);
+    const forFull = await sectionsForObjectives(db, { certificationId: certification.id, objectives: ["1.2.1"], viewer: full, locale: "fr" });
+    expect(forFull.get("1.2.1")![0]).toMatchObject({ locked: false, href: "/course/az-104/12-rbac#rbac-model", title: "Le modèle : qui, quoi, où" });
+  });
+
+  it("lists the chapters of a domain for the score report", async () => {
+    const certification = await db.certification.findUniqueOrThrow({ where: { code: "az-104" } });
+    const chapters = await chaptersForDomains(db, { certificationId: certification.id, domains: ["identities", "storage"], viewer: reader, locale: "en" });
+    expect(chapters.get("identities")!.map((c) => [c.code, c.locked])).toEqual([["11-entra-users-groups", false], ["12-rbac", true]]);
+    expect(chapters.get("storage")).toEqual([]);
   });
 });
 
@@ -149,5 +228,29 @@ describe("chapters to review", () => {
     expect(outline.weakDomains).toEqual(weak);
     const chapters = outline.modules.flatMap((m) => m.chapters.map((c) => [c.code, c.weak]));
     expect(chapters).toEqual([["00-getting-started", false], ["11-entra-users-groups", true], ["12-rbac", true]]);
+  });
+
+  it("suggests the 3 unread sections that cover the most missed questions", async () => {
+    const certification = await db.certification.findUniqueOrThrow({ where: { code: "az-104" } });
+    const missed = await db.attemptItem.findMany({
+      where: { attempt: { userId: reader.userId }, question: { objective: { domain: { code: "identities" } } } },
+      select: { pointsEarned: true, pointsMax: true, question: { select: { objective: { select: { code: true } } } } },
+    });
+    const counts = new Map<string, number>();
+    for (const i of missed.filter((m) => (m.pointsEarned ?? 0) < (m.pointsMax ?? 0))) counts.set(i.question.objective.code, (counts.get(i.question.objective.code) ?? 0) + 1);
+    const suggestions = await suggestedSections(db, { certificationId: certification.id, viewer: reader, locale: "en" });
+    expect(suggestions.length).toBeLessThanOrEqual(3);
+    expect(suggestions.length).toBeGreaterThan(0);
+    // Every suggestion covers a missed objective and is in a published chapter.
+    for (const s of suggestions) {
+      const section = await db.courseSection.findFirstOrThrow({ where: { code: s.section, chapter: { code: s.chapter } }, include: { objectives: true, chapter: true } });
+      expect(section.chapter.status).toBe("published");
+      expect(section.objectives.some((o) => counts.has(o.code))).toBe(true);
+    }
+    // A section read leaves the suggestions.
+    const first = suggestions[0]!;
+    const id = (await db.courseSection.findFirstOrThrow({ where: { code: first.section, chapter: { code: first.chapter } } })).id;
+    await setSectionRead(db, { viewer: reader, sectionId: id, read: true });
+    expect((await suggestedSections(db, { certificationId: certification.id, viewer: reader, locale: "en" })).map((s) => s.section)).not.toContain(first.section);
   });
 });

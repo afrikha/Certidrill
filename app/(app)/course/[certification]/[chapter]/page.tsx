@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
-import { getChapter, type ChapterPage } from "@/lib/course/read";
+import { getChapter, offerUrl, type ChapterPage } from "@/lib/course/read";
 import { courseHtml, type CourseLabels } from "@/lib/course/render";
 import { defaultLocale, isLocale } from "@/lib/i18n/config";
 import { localizeLearnUrl } from "@/lib/markdown";
-import { Alert } from "@/components/ui/card";
+import { Alert, Card } from "@/components/ui/card";
+import { buttonClasses } from "@/components/ui/button";
 import { CodeCopy } from "@/components/course/code-copy";
 import { MarkRead } from "@/components/course/mark-read";
 import { ProgressBar } from "@/components/course/progress-bar";
@@ -44,10 +45,13 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
   if (!chapter) notFound();
   const t = await getTranslations("course");
   const labels: CourseLabels = { table: t("table"), copy: t("copy") };
-  const [summary, ...bodies] = await Promise.all([
-    courseHtml({ key: `chapter:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary }, locale, labels),
-    ...chapter.sections.map((s) => courseHtml({ key: s.id, contentHash: s.contentHash, markdown: s.body }, locale, labels)),
-  ]);
+  // A locked chapter has no text to render: its titles only.
+  const [summary, ...bodies] = chapter.locked
+    ? []
+    : await Promise.all([
+        courseHtml({ key: `chapter:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary }, locale, labels),
+        ...chapter.sections.map((s) => courseHtml({ key: s.id, contentHash: s.contentHash, markdown: s.body }, locale, labels)),
+      ]);
   const base = `/course/${chapter.certification.code}`;
   const read = chapter.sections.filter((s) => s.read).length;
 
@@ -69,8 +73,18 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
           <h1 className="text-2xl font-bold sm:text-3xl">{chapter.title}</h1>
           <p className="text-sm text-muted-foreground">{t("minutes", { n: chapter.minutes })}</p>
           {chapter.status !== "published" && <Alert>{t("preview", { status: t(`status_${chapter.status}`) })}</Alert>}
-          <ProgressBar read={read} total={chapter.sections.length} label={t("progressLabel")} text={t("sectionsRead", { read, total: chapter.sections.length })} />
-          <div className="prose-q prose-course" dangerouslySetInnerHTML={{ __html: summary! }} />
+          {chapter.locked ? (
+            <Card className="space-y-3 border-primary bg-primary/5" data-testid="course-locked">
+              <h2 className="font-semibold">{t("lockedTitle")}</h2>
+              <p className="text-sm">{t("lockedText")}</p>
+              <Link href={offerUrl(chapter.certification.code)} className={buttonClasses("primary")}>{t("unlock")}</Link>
+            </Card>
+          ) : (
+            <>
+              <ProgressBar read={read} total={chapter.sections.length} label={t("progressLabel")} text={t("sectionsRead", { read, total: chapter.sections.length })} />
+              <div className="prose-q prose-course" dangerouslySetInnerHTML={{ __html: summary! }} />
+            </>
+          )}
         </header>
 
         <nav aria-label={t("tocMobile")} className="lg:hidden">
@@ -92,8 +106,12 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
                 ))}
               </ul>
             )}
-            <div className="prose-q prose-course" dangerouslySetInnerHTML={{ __html: bodies[i]! }} />
-            <MarkRead sectionId={s.id} read={s.read} title={s.title} />
+            {!chapter.locked && (
+              <>
+                <div className="prose-q prose-course" dangerouslySetInnerHTML={{ __html: bodies[i]! }} />
+                <MarkRead sectionId={s.id} read={s.read} title={s.title} />
+              </>
+            )}
           </section>
         ))}
 

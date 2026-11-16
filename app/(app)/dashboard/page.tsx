@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
 import { AccessBadge } from "./access-badge";
 import { getAccessSummary } from "@/lib/access";
-import { getCourseOutline } from "@/lib/course/read";
+import { getCourseOutline, suggestedSections } from "@/lib/course/read";
 import { CourseCard } from "./course-card";
 
 export const metadata = { title: "Dashboard" };
@@ -44,8 +44,14 @@ export default async function DashboardPage() {
   const latestDay = latestOutcomeDay();
   const access = new Map((await getAccessSummary(prisma, user.id)).map((a) => [a.certification, a]));
   const viewer = { userId: user.id, isAdmin: user.role === "admin" };
+  const courseLocale = user.locale === "fr" ? "fr" : "en";
   const courses = (
-    await Promise.all(certifications.map((c) => getCourseOutline(prisma, { certification: c.code, viewer, locale: user.locale === "fr" ? "fr" : "en" })))
+    await Promise.all(
+      certifications.map(async (c) => {
+        const outline = await getCourseOutline(prisma, { certification: c.code, viewer, locale: courseLocale });
+        return outline && { outline, suggestions: await suggestedSections(prisma, { certificationId: c.id, viewer, locale: courseLocale }) };
+      }),
+    )
   ).filter((o) => o !== null);
 
   return (
@@ -79,7 +85,7 @@ export default async function DashboardPage() {
         );
       })}
 
-      {courses.map((outline) => <CourseCard key={outline.certification.code} outline={outline} />)}
+      {courses.map(({ outline, suggestions }) => <CourseCard key={outline.certification.code} outline={outline} suggestions={suggestions} />)}
 
       {certifications.map((c) => {
         const history = progress.attempts.filter((a) => a.certification === c.code);

@@ -13,6 +13,7 @@ import { Html } from "@/components/questions/html";
 import { AnsweredQuestion } from "./answered-question";
 import { ReportForm } from "./report-form";
 import { withKeys } from "@/components/with-keys";
+import { sectionsForObjectives } from "@/lib/course/read";
 
 export const metadata = { title: "Correction" };
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
     throw err;
   }
   const t = await getTranslations("results");
+  const tCourse = await getTranslations("course");
   const filter = sp.filter === "missed" || sp.filter === "flagged" ? sp.filter : "all";
   const items = r.items.filter(
     (i) =>
@@ -53,6 +55,14 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
     for (const [k, v] of Object.entries(merged)) if (v && !(k === "filter" && v === "all")) q.set(k, v);
     return `/results/${r.id}/review?${q}`;
   };
+  // Under each question, the sections of the course that cover its objective (2 at most, in course order).
+  const certification = await prisma.certification.findUniqueOrThrow({ where: { code: r.certification.code }, select: { id: true } });
+  const courseLinks = await sectionsForObjectives(prisma, {
+    certificationId: certification.id,
+    objectives: items.map((i) => i.objective.code),
+    viewer: { userId: user.id, isAdmin: user.role === "admin" },
+    locale: r.locale,
+  });
   const pill = (active: boolean) => cn("rounded-full border px-3 py-1 text-sm", active ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted");
 
   return (
@@ -141,6 +151,18 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
                     ))}
                   </ul>
                 </>
+              )}
+              {(courseLinks.get(i.objective.code) ?? []).length > 0 && (
+                <ul className="mt-3 space-y-1" data-testid="course-links">
+                  {courseLinks.get(i.objective.code)!.map((l) => (
+                    <li key={`${l.chapter}#${l.section}`}>
+                      <Link href={l.href} className="font-medium text-primary underline">
+                        {tCourse("reviewCourse", { section: l.title })}
+                      </Link>
+                      {l.locked && <span className="ml-2 text-xs text-muted-foreground">🔒 {tCourse("locked")}</span>}
+                    </li>
+                  ))}
+                </ul>
               )}
               <ul className="mt-3 space-y-1">
                 {i.references.map((ref) => (

@@ -7,11 +7,11 @@ import { CourseError, setSectionRead } from "@/lib/course/read";
 import { formString } from "@/lib/form-data";
 import { courseReadLimiter } from "@/lib/security/rate-limit";
 
-export type SectionReadState = { read: boolean; error?: "rate_limited" | "not_found" };
+export type SectionReadState = { read: boolean; error?: "rate_limited" | "not_found" | "locked" };
 
 /**
  * "Mark as read" (or unread) on a section of the course: reversible, limited
- * per user, and only on a section of a chapter the user may open.
+ * per user, and only on a section of a chapter the user may open and read.
  */
 export async function setSectionReadAction(prev: SectionReadState, formData: FormData): Promise<SectionReadState> {
   const user = await requireUser();
@@ -22,7 +22,7 @@ export async function setSectionReadAction(prev: SectionReadState, formData: For
     revalidatePath(`/course/${at.certification}`, "layout");
     revalidatePath("/dashboard");
   } catch (err) {
-    if (err instanceof CourseError) return { read: prev.read, error: "not_found" };
+    if (err instanceof CourseError) return { read: prev.read, error: err.code };
     throw err;
   }
   return { read };
