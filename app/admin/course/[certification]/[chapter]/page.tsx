@@ -26,7 +26,7 @@ async function renderIn(chapter: ReviewChapter, locale: Locale) {
   const t = await getTranslations({ locale, namespace: "course" });
   const labels = { table: t("table"), copy: t("copy") };
   const [summary, ...sections] = await Promise.all([
-    courseHtml({ key: `chapter:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary[locale] }, locale, labels),
+    courseHtml({ key: `chapter:${chapter.certification}:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary[locale] }, locale, labels),
     ...chapter.sections.map((s) => courseHtml({ key: s.id, contentHash: s.contentHash, markdown: s.body[locale] }, locale, labels)),
   ]);
   return { summary: summary!, sections, objectivesLabel: t("objectives"), referencesLabel: t("references") };

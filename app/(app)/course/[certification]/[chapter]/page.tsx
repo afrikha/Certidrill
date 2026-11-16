@@ -49,7 +49,7 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
   const [summary, ...bodies] = chapter.locked
     ? []
     : await Promise.all([
-        courseHtml({ key: `chapter:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary }, locale, labels),
+        courseHtml({ key: `chapter:${chapter.certification.code}:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary }, locale, labels),
         ...chapter.sections.map((s) => courseHtml({ key: s.id, contentHash: s.contentHash, markdown: s.body }, locale, labels)),
       ]);
   const base = `/course/${chapter.certification.code}`;

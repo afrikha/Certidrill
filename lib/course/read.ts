@@ -370,8 +370,7 @@ export async function chaptersForDomains(
   db: PrismaClient,
   { certificationId, domains, viewer, locale }: { certificationId: string; domains: readonly string[]; viewer: Viewer; locale: Locale },
 ): Promise<Map<string, { code: string; title: string; locked: boolean; href: string }[]>> {
-  const result = new Map<string, { code: string; title: string; locked: boolean; href: string }[]>(domains.map((d) => [d, []]));
-  if (domains.length === 0) return result;
+  if (domains.length === 0) return new Map();
   const [chapters, level, certification] = await Promise.all([
     db.courseChapter.findMany({
       where: { certificationId, status: { in: visibleStatuses(viewer) }, module: { code: { in: [...domains] } } },
@@ -381,11 +380,11 @@ export async function chaptersForDomains(
     courseLevel(db, viewer, certificationId),
     db.certification.findUniqueOrThrow({ where: { id: certificationId }, select: { code: true } }),
   ]);
-  for (const c of chapters) {
+  const link = (c: (typeof chapters)[number]) => {
     const locked = isLocked(c, level);
-    result.get(c.module.code)?.push({ code: c.code, title: localized(c.title, locale), locked, href: locked ? offerUrl(certification.code) : `/course/${certification.code}/${c.code}` });
-  }
-  return result;
+    return { code: c.code, title: localized(c.title, locale), locked, href: locked ? offerUrl(certification.code) : `/course/${certification.code}/${c.code}` };
+  };
+  return new Map(domains.map((d) => [d, chapters.filter((c) => c.module.code === d).map(link)]));
 }
 
 /**
