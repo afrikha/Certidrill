@@ -26,6 +26,7 @@ test.beforeAll(async () => {
   await db.courseProgress.deleteMany({ where: { user: { email: READER.email } } });
   await db.attempt.deleteMany({ where: { user: { email: READER.email } } });
   await db.entitlement.deleteMany({ where: { user: { email: READER.email } } });
+  await db.courseChapter.updateMany({ where: { code: { notIn: PUBLISHED } }, data: { status: "draft" } });
   await db.courseChapter.updateMany({ where: { code: { in: PUBLISHED } }, data: { status: "published" } });
 });
 test.afterAll(async () => {

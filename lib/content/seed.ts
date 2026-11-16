@@ -158,6 +158,8 @@ export interface CourseSeedReport {
   changed: { chapters: number; sections: number };
   /** Removed from the files, hence deleted, with the reading progress on them (`progress`: sections read, all readers). */
   removed: { modules: number; chapters: number; sections: number; progress: number };
+  /** Chapters whose status, set in the back-office, differs from course.yaml (kept). */
+  statusKept: number;
 }
 
 /** No course: a certification whose course/ folder is gone. */
@@ -170,7 +172,9 @@ const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(va
  * repository is the source of truth. A chapter or a section keeps its id while
  * its code stays the same, so the reading progress on it is kept; one removed
  * from the files is deleted, with that progress. `contentUpdatedAt` only moves
- * when the content hash changes. Run after seedReferential (it needs the
+ * when the content hash changes. A chapter's status comes from course.yaml
+ * when the file changes it, else stays as set in the back-office (lot D).
+ * Run after seedReferential (it needs the
  * blueprint's objectives). With `null` (no course/ folder), the certification's
  * course is deleted.
  */
@@ -188,6 +192,7 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
     const objectiveIds = new Map(blueprint.domains.flatMap((d) => d.objectives.map((o) => [o.code, o.id] as const)));
     const certificationId = certification.id;
     const changed = { chapters: 0, sections: 0 };
+    let statusKept = 0;
 
     const moduleIds = new Map<string, string>();
     for (const [i, m] of course.modules.entries()) {
@@ -201,7 +206,7 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
     }
 
     const chapters = new Map(
-      (await tx.courseChapter.findMany({ where: { certificationId }, select: { id: true, code: true, contentHash: true } })).map((c) => [c.code, c]),
+      (await tx.courseChapter.findMany({ where: { certificationId }, select: { id: true, code: true, contentHash: true, status: true, fileStatus: true } })).map((c) => [c.code, c]),
     );
     for (const [i, c] of course.chapters.entries()) {
       // What the reader reads: not its status, its module nor whether it is free.
@@ -210,7 +215,10 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
       const before = chapters.get(c.id);
       const edited = before?.contentHash !== contentHash;
       if (edited) changed.chapters += 1;
-      const data = { moduleId: moduleIds.get(c.module)!, order: i + 1, status: c.status, free: c.free, contentHash, ...own, ...(edited && { contentUpdatedAt: new Date() }) };
+      // The file's status applies when the file changes it; otherwise the status set in the back-office stays.
+      const status = before && before.fileStatus === c.status ? before.status : c.status;
+      if (status !== c.status) statusKept += 1;
+      const data = { moduleId: moduleIds.get(c.module)!, order: i + 1, status, fileStatus: c.status, free: c.free, contentHash, ...own, ...(edited && { contentUpdatedAt: new Date() }) };
       const chapter = await tx.courseChapter.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
         where: { certificationId_code: { certificationId, code: c.id } },
         create: { certificationId, code: c.id, ...data },
@@ -255,6 +263,7 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
       sections: course.chapters.reduce((n, c) => n + c.sections.length, 0),
       changed,
       removed: { modules: goneModules.count, chapters: goneChapters.count, sections: goneSections.count, progress: goneProgress },
+      statusKept,
     };
   }, { timeout: 120_000 });
 }

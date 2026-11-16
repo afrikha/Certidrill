@@ -13,9 +13,10 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     <>
       <SiteHeader />
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <nav aria-label={t("title")} className="mb-6 flex gap-4 border-b border-border pb-3 text-sm">
+        <nav aria-label={t("title")} className="mb-6 flex flex-wrap gap-x-4 gap-y-2 border-b border-border pb-3 text-sm">
           <span className="font-semibold">{t("title")}</span>
           <Link href="/admin/questions" className="hover:underline">{t("questions")}</Link>
+          <Link href="/admin/course" className="hover:underline">{t("course")}</Link>
           <Link href="/admin/users" className="hover:underline">{t("users")}</Link>
           <Link href="/admin/billing" className="hover:underline">{t("billing")}</Link>
           <Link href="/admin/calibration" className="hover:underline">{t("calibration")}</Link>

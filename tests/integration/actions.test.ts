@@ -67,7 +67,7 @@ import { startNewExam } from "@/lib/actions/exam";
 import { setLocale } from "@/lib/actions/locale";
 import { deleteOutcomeAction, reportOutcomeAction } from "@/lib/actions/outcome";
 import { requireAdmin, requireUser } from "@/lib/auth/guards";
-import { setSectionReadAction } from "@/lib/actions/course";
+import { setChapterStatusAction, setSectionReadAction } from "@/lib/actions/course";
 import { loadCourse } from "@/lib/content/course";
 import { seedCourse } from "@/lib/content/seed";
 import { courseReadLimiter } from "@/lib/security/rate-limit";
@@ -449,5 +449,22 @@ describe("course actions", () => {
     } finally {
       courseReadLimiter.reset(userId);
     }
+  });
+
+  it("lets an administrator change a chapter's status, with its trace in the audit log; nobody else", async () => {
+    const chapter = await prisma.courseChapter.findFirstOrThrow({ where: { code: "12-rbac" } });
+    expect(await redirectOf(setChapterStatusAction(form({ chapter: chapter.id, status: "published" })))).toBe("/dashboard");
+    expect((await prisma.courseChapter.findUniqueOrThrow({ where: { id: chapter.id } })).status).toBe("draft");
+
+    as(adminId, "admin");
+    await setChapterStatusAction(form({ chapter: chapter.id, status: "nonsense" }));
+    await setChapterStatusAction(form({ chapter: "missing", status: "published" }));
+    expect(h.revalidatePath).not.toHaveBeenCalled();
+    await setChapterStatusAction(form({ chapter: chapter.id, status: "published" }));
+    expect((await prisma.courseChapter.findUniqueOrThrow({ where: { id: chapter.id } })).status).toBe("published");
+    expect(h.revalidatePath).toHaveBeenCalledWith("/course", "layout");
+    const trace = await prisma.auditLog.findFirstOrThrow({ where: { action: "course.status" }, orderBy: { createdAt: "desc" } });
+    expect([trace.actorId, trace.targetUserId, trace.details]).toEqual([adminId, null, { certification: "az-104", chapter: "12-rbac", from: "draft", to: "published" }]);
+    await setChapterStatusAction(form({ chapter: chapter.id, status: "draft" }));
   });
 });

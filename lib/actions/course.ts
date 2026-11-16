@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth/guards";
+import { requireAdmin, requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { CourseError, setSectionRead } from "@/lib/course/read";
+import { isChapterStatus, setChapterStatus } from "@/lib/course/admin";
 import { formString } from "@/lib/form-data";
 import { courseReadLimiter } from "@/lib/security/rate-limit";
 
@@ -26,4 +27,16 @@ export async function setSectionReadAction(prev: SectionReadState, formData: For
     throw err;
   }
   return { read };
+}
+
+/** Back-office: changes the status of a chapter (recorded in the audit log). Readers see a published chapter at once. */
+export async function setChapterStatusAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const status = formString(formData, "status");
+  if (!isChapterStatus(status)) return;
+  const changed = await setChapterStatus(prisma, admin.id, formString(formData, "chapter"), status);
+  if (!changed) return;
+  revalidatePath("/admin/course", "layout");
+  revalidatePath("/course", "layout");
+  revalidatePath("/dashboard");
 }

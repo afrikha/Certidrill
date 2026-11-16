@@ -38,7 +38,7 @@ const withChapter = (id: string, change: (c: Course["chapters"][number]) => Cour
 describe("course seed", () => {
   it("loads the 6 modules, 16 chapters and 107 sections, as drafts, with their objectives", async () => {
     const report = await seedCourse(db, content, course);
-    expect(report).toEqual({ modules: 6, chapters: 16, sections: 107, changed: { chapters: 16, sections: 107 }, removed: { modules: 0, chapters: 0, sections: 0, progress: 0 } });
+    expect(report).toEqual({ modules: 6, chapters: 16, sections: 107, changed: { chapters: 16, sections: 107 }, removed: { modules: 0, chapters: 0, sections: 0, progress: 0 }, statusKept: 0 });
     expect(await db.courseModule.count()).toBe(6);
     const all = await chapters();
     expect(all.map((c) => c.code)).toEqual(course.chapters.map((c) => c.id));
@@ -87,6 +87,20 @@ describe("course seed", () => {
     expect((await seedCourse(db, content, objectives)).changed).toEqual({ chapters: 0, sections: 1 });
     expect((await sections()).find((s) => s.code === "rbac-model")!.objectives.map((o) => o.code).sort()).toEqual(["1.2.1", "1.2.2"]);
     await seedCourse(db, content, course);
+  });
+
+  it("keeps a status set in the back-office until course.yaml changes the chapter's status", async () => {
+    const rbac = () => db.courseChapter.findFirstOrThrow({ where: { code: "12-rbac" } });
+    await db.courseChapter.update({ where: { id: (await rbac()).id }, data: { status: "published" } });
+    // Same file: the back-office wins, at every deployment.
+    expect((await seedCourse(db, content, course)).statusKept).toBe(1);
+    expect((await seedCourse(db, content, course)).statusKept).toBe(1);
+    expect([(await rbac()).status, (await rbac()).fileStatus]).toEqual(["published", "draft"]);
+    // The file changes the status: the latest decision wins.
+    expect((await seedCourse(db, content, withChapter("12-rbac", (c) => ({ ...c, status: "needs_review" })))).statusKept).toBe(0);
+    expect([(await rbac()).status, (await rbac()).fileStatus]).toEqual(["needs_review", "needs_review"]);
+    await seedCourse(db, content, course);
+    expect((await rbac()).status).toBe("draft");
   });
 
   it("deletes a section and a chapter removed from the files, with the progress on them", async () => {

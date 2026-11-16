@@ -126,3 +126,8 @@ npm run seed                                            # loads the course
 The seed is idempotent: the repository is the source of truth. A chapter or a
 section removed from the files is deleted from the database, with the readers'
 progress on it.
+
+A status can also be changed in the back-office (Administration → Course),
+where the chapter can be reviewed in both languages side by side. The seed
+keeps that status until `course.yaml` changes the chapter's status: the latest
+decision wins. Bring the file in line afterwards with `content:status`.
