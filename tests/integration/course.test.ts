@@ -38,7 +38,7 @@ const withChapter = (id: string, change: (c: Course["chapters"][number]) => Cour
 describe("course seed", () => {
   it("loads the 6 modules, 16 chapters and 107 sections, as drafts, with their objectives", async () => {
     const report = await seedCourse(db, content, course);
-    expect(report).toEqual({ modules: 6, chapters: 16, sections: 107, changed: { chapters: 16, sections: 107 }, removed: { modules: 0, chapters: 0, sections: 0 } });
+    expect(report).toEqual({ modules: 6, chapters: 16, sections: 107, changed: { chapters: 16, sections: 107 }, removed: { modules: 0, chapters: 0, sections: 0, progress: 0 } });
     expect(await db.courseModule.count()).toBe(6);
     const all = await chapters();
     expect(all.map((c) => c.code)).toEqual(course.chapters.map((c) => c.id));
@@ -60,7 +60,7 @@ describe("course seed", () => {
 
     const report = await seedCourse(db, content, course);
     expect(report.changed).toEqual({ chapters: 0, sections: 0 });
-    expect(report.removed).toEqual({ modules: 0, chapters: 0, sections: 0 });
+    expect(report.removed).toEqual({ modules: 0, chapters: 0, sections: 0, progress: 0 });
     expect(await sections()).toEqual(before);
     expect(await chapters()).toEqual(chaptersBefore);
     expect(await db.courseProgress.count({ where: { userId: user } })).toBe(1);
@@ -101,7 +101,7 @@ describe("course seed", () => {
       ...removed,
       chapters: removed.chapters.map((c) => (c.id === "12-rbac" ? { ...c, sections: c.sections.filter((s) => s.id !== gone!.code) } : c)),
     });
-    expect(report.removed).toEqual({ modules: 0, chapters: 1, sections: governance.sections.length + 1 });
+    expect(report.removed).toEqual({ modules: 0, chapters: 1, sections: governance.sections.length + 1, progress: 2 });
     expect(await db.courseChapter.count({ where: { id: governance.id } })).toBe(0);
     expect(await db.courseSection.count({ where: { id: gone!.id } })).toBe(0);
     expect((await db.courseProgress.findMany({ where: { userId: user } })).map((p) => p.sectionId)).toEqual([kept!.id]);
@@ -115,8 +115,29 @@ describe("course seed", () => {
   it("deletes a module removed from the files", async () => {
     const report = await seedCourse(db, content, { ...course, modules: [...course.modules, { code: "extra", title: { en: "Extra", fr: "Extra" } }] });
     expect(report.modules).toBe(7);
-    expect((await seedCourse(db, content, course)).removed).toEqual({ modules: 1, chapters: 0, sections: 0 });
+    expect((await seedCourse(db, content, course)).removed).toEqual({ modules: 1, chapters: 0, sections: 0, progress: 0 });
     expect(await db.courseModule.count()).toBe(6);
+  });
+
+  it("keeps the content version of a chapter that only becomes free, or moves to another module", async () => {
+    const before = await db.courseChapter.findFirstOrThrow({ where: { code: "12-rbac" } });
+    const report = await seedCourse(db, content, withChapter("12-rbac", (c) => ({ ...c, free: true, module: "storage" })));
+    expect(report.changed).toEqual({ chapters: 0, sections: 0 });
+    const after = await db.courseChapter.findFirstOrThrow({ where: { code: "12-rbac" }, include: { module: true } });
+    expect([after.free, after.module.code, after.contentHash, after.contentUpdatedAt]).toEqual([true, "storage", before.contentHash, before.contentUpdatedAt]);
+    await seedCourse(db, content, course);
+  });
+
+  it("deletes the whole course when its folder is gone, and loads it again", async () => {
+    const user = (await createUser(db, { email: "nocourse@example.com" })).id;
+    const [first] = await sections();
+    await db.courseProgress.create({ data: { userId: user, sectionId: first!.id } });
+    const progress = await db.courseProgress.count();
+    const report = await seedCourse(db, content, null);
+    expect(report).toMatchObject({ modules: 0, chapters: 0, sections: 0, removed: { modules: 6, chapters: 16, sections: 107, progress } });
+    expect(await db.courseProgress.count()).toBe(0);
+    expect(await db.courseModule.count()).toBe(0);
+    expect((await seedCourse(db, content, course)).sections).toBe(107);
   });
 
   it("deletes a user's reading progress with the account", async () => {

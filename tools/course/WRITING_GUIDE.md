@@ -67,7 +67,7 @@ GFM Markdown...
   separated by commas.
 - ✔ No level-1 heading (the chapter title comes from `course.yaml`), no heading
   below level 2.
-- Section titles are plain text: no Markdown, no code span.
+- ✔ Section titles are plain text: no Markdown, no code span.
 
 ### Markdown
 
@@ -75,7 +75,8 @@ GFM Markdown...
   a `<` outside code is refused, so put generics, placeholders and comparisons
   in a code span (`` `<resource-group>` ``).
 - ✔ Links go to `https://` pages (Microsoft Learn first) or to an anchor
-  (`#section-id`); no other protocol.
+  (`#section-id`) of a section of the same chapter; no other protocol. A Learn
+  link is shown in the reader's language (`/en-us/` becomes `/fr-fr/`).
 - ✔ Both languages link to the same targets, section by section (a Learn URL
   may use `/en-us/` or `/fr-fr/`).
 - ✔ Every code block names its language, one of `bash`, `powershell`, `json`,
@@ -107,7 +108,7 @@ GFM Markdown...
 ## Validate
 
 ```bash
-npm run content:validate          # every check, every problem with its file and line
+npm run content:validate          # every course check, every problem with its file and line
 npm run content:check             # loads everything as the seed does (counts by status)
 ```
 

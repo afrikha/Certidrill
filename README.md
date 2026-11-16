@@ -68,6 +68,14 @@ npm run content:status -- reviewed 12-rbac --course      # un chapitre (préfixe
 npm run content:status -- published all --from reviewed --course
 ```
 
+Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime : un identifiant de section renommé par erreur s'y voit tout de suite. Un dossier `course/` retiré supprime le cours de la certification.
+
+**Lecture** (`/course`, groupe `(app)`, dans la langue de l'utilisateur) : sommaire avec progression, bouton « Reprendre » et chapitres à revoir après le dernier examen blanc (domaines sous le seuil), puis une page par chapitre (`/course/az-104/12-rbac#scopes` : l'ancre est l'identifiant de la section, stable d'un seed à l'autre). Chaque section a ses objectifs et un bouton « Marquer comme lu » (action serveur réversible, 60 par minute et par utilisateur). Le HTML d'une section est mis en cache en mémoire par (section, langue, version du contenu) ; les liens Learn s'ouvrent dans la langue du lecteur. Les lecteurs ne voient que les chapitres `published` ; un administrateur voit aussi ceux en relecture, avec un bandeau d'aperçu. L'entrée « Cours » du menu n'apparaît qu'une fois un chapitre ouvert à l'utilisateur.
+
+**Accès** (§8) : au niveau gratuit, seuls les chapitres `free: true` de `course.yaml` sont lisibles ; les autres montrent leurs titres de sections et leurs objectifs, un cadenas et un lien vers l'écran d'offre (`/offer?reason=course`). Le corps d'une section verrouillée n'est jamais lu en base pour ce lecteur, donc jamais envoyé au navigateur, et une telle section ne peut pas être marquée comme lue. Le Pass, l'abonnement ou le rôle administrateur ouvrent tout le cours ; l'écran d'offre mentionne le cours dès qu'un chapitre est publié.
+
+**Liens avec l'examen** : sous l'explication de chaque question de la correction, « Revoir le cours : … » mène aux sections qui couvrent son objectif (deux au plus, dans l'ordre du cours, avec un cadenas si le chapitre est payant) ; le rapport de score liste les chapitres des domaines sous le seuil ; le tableau de bord suggère les trois sections non lues qui couvrent le plus de questions manquées au dernier examen blanc. Rien de tout cela n'apparaît pendant l'examen.
+
 ## Démarrage en local
 
 Prérequis : Node 22 et Docker Desktop (ou un PostgreSQL 16 déjà installé).
@@ -105,7 +113,7 @@ Les comptes se créent avec `npm run user:create` ou depuis **Administration →
 | `npm run test:e2e` | Tous les tests Playwright (parcours + non-régression) sur un build de production — même contrainte de base jetable |
 | `npm run test:regression` | Seulement la suite de non-régression Playwright (`tests/e2e/regression`) |
 | `npm run content:check` | Valide `content/` (schémas et références croisées, cours compris) |
-| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et le cours, et liste tous les problèmes |
+| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et liste tous les problèmes ; sans argument (ou avec `--course`), valide le cours |
 | `npm run content:status -- <statut> <préfixe\|all> [--from <statut>] [--course]` | Change le statut de questions en masse, ou de chapitres avec `--course` |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |

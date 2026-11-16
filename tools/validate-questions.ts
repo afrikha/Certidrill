@@ -4,10 +4,12 @@
  *   npm run content:validate -- content/az-104/questions/storage/s1-*.yaml
  *   npm run content:validate -- --prefix s1-        (all files whose id starts with s1-)
  *   npm run content:validate                        (the courses only)
+ *   npm run content:validate -- --course            (the courses, with files or --prefix too)
  * Checks: YAML syntax, Zod schema, answer/body consistency, file name = id,
  * known objective in the right domain folder, existing case study / series.
- * Every run also checks the course of each certification (lib/content/course.ts:
- * files, EN/FR parity, objectives, Markdown, references).
+ * Without file nor --prefix, or with --course, it checks the course of each
+ * certification (lib/content/course.ts: files, EN/FR parity, objectives,
+ * Markdown, references); a run on given questions checks those questions only.
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -66,7 +68,9 @@ function validateFile(file: string, text: string, ctx: Context): { problems: str
 }
 
 async function main() {
-  const args = process.argv.slice(2);
+  const given = process.argv.slice(2);
+  const args = given.filter((a) => a !== "--course");
+  const checkCourses = args.length === 0 || args.length < given.length;
   const prefixIdx = args.indexOf("--prefix");
   const [questions, caseStudies, series] = await Promise.all(["questions", "case-studies", "series"].map((d) => listYaml(path.join(root, d))));
   const all = [...questions!, ...caseStudies!, ...series!];
@@ -101,7 +105,7 @@ async function main() {
   });
   const types = [...byType].map(([k, v]) => k + "=" + v).join(" ");
   if (files.length > 0) console.log(`${files.length} files, ${errors} problem(s). Types: ${types}`);
-  const courseErrors = await validateCourses();
+  const courseErrors = checkCourses ? await validateCourses() : 0;
   process.exit(errors + courseErrors ? 1 : 0);
 }
 

@@ -9,12 +9,13 @@ import { BuyPass } from "@/components/billing/buy-pass";
 import { Card } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { hasVisibleCourse } from "@/lib/course/read";
 
 export const metadata = { title: "Full access" };
 export const dynamic = "force-dynamic";
 
-/** Why the user lands here: a refusal (402) or the locked correction. */
-const REASONS = ["quota_exhausted", "pass_expired", "subscription_inactive", "correction"] as const;
+/** Why the user lands here: a refusal (402), the locked correction or a locked chapter of the course. */
+const REASONS = ["quota_exhausted", "pass_expired", "subscription_inactive", "correction", "course"] as const;
 type Reason = (typeof REASONS)[number];
 const isReason = (r: unknown): r is Reason => typeof r === "string" && (REASONS as readonly string[]).includes(r);
 
@@ -24,7 +25,7 @@ const isReason = (r: unknown): r is Reason => typeof r === "string" && (REASONS 
  * The Pass is bought here directly once online payment is open (offers lot B).
  */
 export default async function OfferPage({ searchParams }: Readonly<{ searchParams: Promise<{ reason?: string | string[]; certification?: string | string[] }> }>) {
-  await requireUser();
+  const user = await requireUser();
   const sp = await searchParams;
   // A repeated parameter comes as an array: ignored rather than passed on.
   const code = typeof sp.certification === "string" ? sp.certification : null;
@@ -32,11 +33,14 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
   const t = await getTranslations("offer");
   const tBilling = await getTranslations("billing");
   const format = await getFormatter();
-  const [offers, certification, certifications] = await Promise.all([
+  const [offers, certification, certifications, course] = await Promise.all([
     getOffers(prisma),
     code ? prisma.certification.findFirst({ where: { code, active: true }, select: { code: true, title: true } }) : null,
     prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { code: true, title: true } }),
+    // The course is a benefit once readers have a chapter to open.
+    hasVisibleCourse(prisma, { userId: user.id, isAdmin: false }),
   ]);
+  const benefits = ["benefitExams", "benefitCorrection", ...(course ? ["benefitCourse" as const] : []), "benefitProgress", "benefitTime"] as const;
   const pass = offers.find((o) => o.kind === "pass");
   const buyable = pass ? await canBuyOnline(prisma, pass.code, stripeApi()) : false;
   const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
@@ -60,7 +64,7 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
       <Card>
         <h2 className="mb-3 font-semibold">{t("fullTitle")}</h2>
         <ul className="grid gap-2 text-sm sm:grid-cols-2">
-          {(["benefitExams", "benefitCorrection", "benefitProgress", "benefitTime"] as const).map((k) => (
+          {benefits.map((k) => (
             <li key={k} className="flex gap-2"><span aria-hidden className="font-bold text-success">✓</span>{t(k)}</li>
           ))}
         </ul>

@@ -3,8 +3,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { serverLocale } from "./server-intl";
 
-const { auth, signOut } = vi.hoisted(() => ({ auth: vi.fn(), signOut: vi.fn(async () => undefined) }));
+const { auth, signOut, hasVisibleCourse } = vi.hoisted(() => ({ auth: vi.fn(), signOut: vi.fn(async () => undefined), hasVisibleCourse: vi.fn(async () => false) }));
 vi.mock("@/auth", () => ({ auth, signOut }));
+vi.mock("@/lib/db", () => ({ prisma: {} }));
+vi.mock("@/lib/course/read", () => ({ hasVisibleCourse }));
 vi.mock("next-intl/server", async () => {
   const m = await import("./server-intl");
   return { getTranslations: m.getTranslationsMock, getLocale: async () => m.serverLocale.current };
@@ -17,6 +19,8 @@ import { SiteFooter, SiteHeader } from "@/components/site-header";
 beforeEach(() => {
   auth.mockReset();
   signOut.mockClear();
+  hasVisibleCourse.mockReset();
+  hasVisibleCourse.mockResolvedValue(false);
   serverLocale.current = "en";
 });
 
@@ -45,6 +49,16 @@ describe("SiteHeader", () => {
     expect(screen.queryByRole("link", { name: "Administration" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Se connecter" })).not.toBeInTheDocument();
+    // No chapter open to this user yet: no course entry.
+    expect(screen.queryByRole("link", { name: "Cours" })).not.toBeInTheDocument();
+  });
+
+  it("shows the course entry once a chapter is open to the user", async () => {
+    auth.mockResolvedValue({ user: { id: "u", email: "a@b.c", role: "user", locale: "en" } });
+    hasVisibleCourse.mockResolvedValue(true);
+    render(await SiteHeader());
+    expect(screen.getByRole("link", { name: "Course" })).toHaveAttribute("href", "/course");
+    expect(hasVisibleCourse).toHaveBeenCalledWith({}, { userId: "u", isAdmin: false });
   });
 
   it("shows the admin link to admins and signs out through the form action", async () => {

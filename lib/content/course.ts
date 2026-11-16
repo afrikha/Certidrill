@@ -241,6 +241,7 @@ function openSection(file: string, node: RootContent, marker: { id: string; code
   for (const code of objectives.filter((c) => !OBJECTIVE_CODE.test(c))) problems.push({ file, line, message: `objective code "${code}"` });
   const hasHeading = heading?.type === "heading" && heading.depth === 2;
   if (!hasHeading) problems.push({ file, line, message: `section "${id}": the marker must be followed by a level-2 heading` });
+  else if (heading.children.some((c) => c.type !== "text")) problems.push({ file, line: lineOf(heading), message: `section "${id}": the title is plain text (no Markdown, no code span)` });
   return {
     id,
     objectives,
@@ -252,6 +253,22 @@ function openSection(file: string, node: RootContent, marker: { id: string; code
     bodyStart: (hasHeading ? heading : node).position!.end.offset!,
     nodes: [],
   };
+}
+
+/** Section ids used twice, and `#anchor` links to no section of the chapter. */
+function sectionIdProblems(file: string, tree: Root, sections: readonly OpenSection[]): CourseProblem[] {
+  const problems: CourseProblem[] = [];
+  const seen = new Set<string>();
+  for (const s of sections) {
+    if (seen.has(s.id)) problems.push({ file, line: s.line, message: `section id "${s.id}" used twice` });
+    seen.add(s.id);
+  }
+  visit(tree, (node: Nodes) => {
+    if ((node.type === "link" || node.type === "definition") && node.url.startsWith("#") && !seen.has(node.url.slice(1))) {
+      problems.push({ file, line: lineOf(node), message: `link to "${node.url}": no section of this chapter has that id` });
+    }
+  });
+  return problems;
 }
 
 /** Cuts a chapter file on its section markers, and checks its Markdown. */
@@ -275,13 +292,7 @@ export function parseChapter(file: string, text: string, locale: Locale): Parsed
     if (node.type === "heading" && node.depth === 2) problems.push({ file, line: lineOf(node), message: "level-2 heading without a section marker before it" });
     (sections.at(-1)?.nodes ?? summaryNodes).push(node);
   }
-  problems.push(...markdownProblems(file, text, tree, markers, locale));
-
-  const seen = new Set<string>();
-  for (const s of sections) {
-    if (seen.has(s.id)) problems.push({ file, line: s.line, message: `section id "${s.id}" used twice` });
-    seen.add(s.id);
-  }
+  problems.push(...markdownProblems(file, text, tree, markers, locale), ...sectionIdProblems(file, tree, sections));
   const summary = text.slice(0, sections[0]?.start ?? text.length).trim();
   if (!summary) problems.push({ file, line: 1, message: "no introduction paragraph before the first section" });
   if (sections.length === 0) problems.push({ file, line: 1, message: "no section marker" });
@@ -317,18 +328,24 @@ function parityProblems(en: ParsedChapter, fr: ParsedChapter): CourseProblem[] {
     }),
   ];
   for (const p of parts) {
-    const at = (message: string) => problems.push({ file: fr.file, line: p.line, message: `${p.name}: ${message}` });
-    if (p.enObjectives.join() !== p.frObjectives.join()) at(`objectives differ from English (en ${p.enObjectives.join(", ") || "none"}, fr ${p.frObjectives.join(", ") || "none"})`);
-    if (p.en.code.length !== p.fr.code.length) at(`${p.fr.code.length} code block(s), ${p.en.code.length} in English`);
-    else {
-      const k = p.en.code.findIndex((c, i) => c.lang !== p.fr.code[i]!.lang || c.value !== p.fr.code[i]!.value);
-      if (k >= 0) at(`code block ${k + 1} differs from English (code blocks are identical in every language, comments included)`);
-    }
-    if (p.en.tables.join() !== p.fr.tables.join()) at(`tables (rows×columns) differ from English: en [${p.en.tables.join(", ")}], fr [${p.fr.tables.join(", ")}]`);
-    if (p.en.callouts.join() !== p.fr.callouts.join()) at(`callouts differ from English: en [${p.en.callouts.join(", ")}], fr [${p.fr.callouts.join(", ")}]`);
-    if (p.en.links.join(" ") !== p.fr.links.join(" ")) at(`links differ from English: en [${p.en.links.join(", ")}], fr [${p.fr.links.join(", ")}]`);
+    const messages = fingerprintDifferences(p.en, p.fr);
+    if (p.enObjectives.join() !== p.frObjectives.join()) messages.unshift(`objectives differ from English (en ${p.enObjectives.join(", ") || "none"}, fr ${p.frObjectives.join(", ") || "none"})`);
+    for (const message of messages) problems.push({ file: fr.file, line: p.line, message: `${p.name}: ${message}` });
   }
   return problems;
+}
+
+/** How the French part of a chapter differs from the English one: code blocks, tables, callouts, links. */
+function fingerprintDifferences(en: Fingerprint, fr: Fingerprint): string[] {
+  const messages: string[] = [];
+  if (en.code.length === fr.code.length) {
+    const k = en.code.findIndex((c, i) => c.lang !== fr.code[i]!.lang || c.value !== fr.code[i]!.value);
+    if (k >= 0) messages.push(`code block ${k + 1} differs from English (code blocks are identical in every language, comments included)`);
+  } else messages.push(`${fr.code.length} code block(s), ${en.code.length} in English`);
+  if (en.tables.join() !== fr.tables.join()) messages.push(`tables (rows×columns) differ from English: en [${en.tables.join(", ")}], fr [${fr.tables.join(", ")}]`);
+  if (en.callouts.join() !== fr.callouts.join()) messages.push(`callouts differ from English: en [${en.callouts.join(", ")}], fr [${fr.callouts.join(", ")}]`);
+  if (en.links.join(" ") !== fr.links.join(" ")) messages.push(`links differ from English: en [${en.links.join(", ")}], fr [${fr.links.join(", ")}]`);
+  return messages;
 }
 
 /** Every file of a folder, recursively. */
@@ -371,6 +388,15 @@ function domainsOfObjectives(content: CertificationContent): Map<string, string>
   return domainOf;
 }
 
+/** Objectives of a section that do not exist, or belong to another domain than the chapter's module. */
+function sectionObjectiveProblems(codes: readonly string[], module: string, domainOf: ReadonlyMap<string, string>): string[] {
+  return codes.flatMap((code) => {
+    const domain = domainOf.get(code);
+    if (!domain) return [`unknown objective ${code}`];
+    return domain === module ? [] : [`objective ${code} belongs to domain "${domain}", the chapter to module "${module}"`];
+  });
+}
+
 /** Problems of the objectives: known codes, in the chapter's domain, and every objective covered. */
 function objectiveProblems(manifest: CourseFile, parsed: Map<string, ParsedChapter>, content: CertificationContent, manifestFile: string): CourseProblem[] {
   const problems: CourseProblem[] = [];
@@ -378,15 +404,10 @@ function objectiveProblems(manifest: CourseFile, parsed: Map<string, ParsedChapt
   const covered = new Set<string>();
   for (const chapter of manifest.chapters) {
     const en = parsed.get(chapter.id);
-    if (!en) continue;
-    for (const s of en.sections) {
-      const at = (message: string) => problems.push({ file: en.file, line: s.line, message: `section "${s.id}": ${message}` });
-      for (const code of s.objectives) {
-        const domain = domainOf.get(code);
-        if (!domain) at(`unknown objective ${code}`);
-        else if (domain !== chapter.module) at(`objective ${code} belongs to domain "${domain}", the chapter to module "${chapter.module}"`);
-        covered.add(code);
-      }
+    for (const s of en?.sections ?? []) {
+      for (const code of s.objectives) covered.add(code);
+      const messages = sectionObjectiveProblems(s.objectives, chapter.module, domainOf);
+      for (const message of messages) problems.push({ file: en!.file, line: s.line, message: `section "${s.id}": ${message}` });
     }
   }
   for (const [code, domain] of domainOf) {
