@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { ContentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type { CertificationContent } from "./loader";
 import type { QuestionBank } from "./bank";
 import type { Course } from "./course";
@@ -165,6 +165,10 @@ export interface CourseSeedReport {
 /** No course: a certification whose course/ folder is gone. */
 const NO_COURSE: Course = { dir: "", modules: [], chapters: [] };
 
+/** The file's status when the file changed it since the last seed; otherwise the status set in the back-office stays. */
+const statusAfterSeed = (before: { status: ContentStatus; fileStatus: ContentStatus } | undefined, file: ContentStatus) =>
+  before?.fileStatus === file ? before.status : file;
+
 const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
 /**
@@ -215,8 +219,7 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
       const before = chapters.get(c.id);
       const edited = before?.contentHash !== contentHash;
       if (edited) changed.chapters += 1;
-      // The file's status applies when the file changes it; otherwise the status set in the back-office stays.
-      const status = before && before.fileStatus === c.status ? before.status : c.status;
+      const status = statusAfterSeed(before, c.status);
       if (status !== c.status) statusKept += 1;
       const data = { moduleId: moduleIds.get(c.module)!, order: i + 1, status, fileStatus: c.status, free: c.free, contentHash, ...own, ...(edited && { contentUpdatedAt: new Date() }) };
       const chapter = await tx.courseChapter.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
