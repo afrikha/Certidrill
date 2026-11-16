@@ -105,7 +105,7 @@ Les comptes se créent avec `npm run user:create` ou depuis **Administration →
 | `npm run test:e2e` | Tous les tests Playwright (parcours + non-régression) sur un build de production — même contrainte de base jetable |
 | `npm run test:regression` | Seulement la suite de non-régression Playwright (`tests/e2e/regression`) |
 | `npm run content:check` | Valide `content/` (schémas et références croisées, cours compris) |
-| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et le cours, et liste tous les problèmes |
+| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et liste tous les problèmes ; sans argument (ou avec `--course`), valide le cours |
 | `npm run content:status -- <statut> <préfixe\|all> [--from <statut>] [--course]` | Change le statut de questions en masse, ou de chapitres avec `--course` |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |

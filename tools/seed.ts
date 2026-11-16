@@ -26,11 +26,12 @@ async function main() {
       const b = await seedBank(db, content, bank); // NOSONAR: database writes, in order
       const retired = b.retired ? ", " + b.retired + " retired" : "";
       console.log(`  ${b.questions} questions, ${b.caseStudies} case studies, ${b.series} series${retired}`);
-      if (course) {
-        const r = await seedCourse(db, content, course); // NOSONAR: database writes, in order
-        const removed = r.removed.chapters + r.removed.sections ? `, removed ${r.removed.chapters} chapters and ${r.removed.sections} sections` : "";
-        console.log(`  course: ${r.chapters} chapters, ${r.sections} sections (${r.changed.chapters} chapters and ${r.changed.sections} sections new or changed${removed})`);
-      }
+      const r = await seedCourse(db, content, course); // NOSONAR: database writes, in order
+      const { removed } = r;
+      const gone = removed.chapters + removed.sections
+        ? `, removed ${removed.chapters} chapters and ${removed.sections} sections with ${removed.progress} sections read by users`
+        : "";
+      if (course || gone) console.log(`  course: ${r.chapters} chapters, ${r.sections} sections (${r.changed.chapters} chapters and ${r.changed.sections} sections new or changed${gone})`);
     }
   } finally {
     await db.$disconnect();

@@ -352,4 +352,17 @@ describe("parseChapter", () => {
     ]);
     expect(parseChapter("x.en.md", "Only text.\n", "en").problems.map((p) => p.message)).toEqual(["no section marker"]);
   });
+
+  it("refuses Markdown in a section title", () => {
+    const chapter = parseChapter("x.en.md", "Intro.\n\n<!-- section: a -->\n## The `az` **CLI**\n\nx\n", "en");
+    expect(chapter.problems.map((p) => `${p.line}: ${p.message}`)).toEqual(['4: section "a": the title is plain text (no Markdown, no code span)']);
+  });
+
+  it("needs a section of the chapter behind every #anchor link", () => {
+    const text = "Intro, see [a](#a).\n\n<!-- section: a -->\n## A\n\nSee [b](#b) and [missing](#nowhere).\n\n[ref]: #gone\n\n<!-- section: b -->\n## B\n\nx\n";
+    expect(parseChapter("x.en.md", text, "en").problems.map((p) => `${p.line}: ${p.message}`)).toEqual([
+      '6: link to "#nowhere": no section of this chapter has that id',
+      '8: link to "#gone": no section of this chapter has that id',
+    ]);
+  });
 });

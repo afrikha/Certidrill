@@ -156,9 +156,12 @@ export interface CourseSeedReport {
   sections: number;
   /** Chapters and sections created or whose content changed. */
   changed: { chapters: number; sections: number };
-  /** Removed from the files, hence deleted (with the reading progress on them). */
-  removed: { modules: number; chapters: number; sections: number };
+  /** Removed from the files, hence deleted, with the reading progress on them (`progress`: sections read, all readers). */
+  removed: { modules: number; chapters: number; sections: number; progress: number };
 }
+
+/** No course: a certification whose course/ folder is gone. */
+const NO_COURSE: Course = { dir: "", modules: [], chapters: [] };
 
 const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -168,9 +171,12 @@ const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(va
  * its code stays the same, so the reading progress on it is kept; one removed
  * from the files is deleted, with that progress. `contentUpdatedAt` only moves
  * when the content hash changes. Run after seedReferential (it needs the
- * blueprint's objectives).
+ * blueprint's objectives). With `null` (no course/ folder), the certification's
+ * course is deleted.
  */
-export async function seedCourse(db: PrismaClient, content: CertificationContent, course: Course): Promise<CourseSeedReport> {
+export async function seedCourse(db: PrismaClient, content: CertificationContent, loaded: Course | null): Promise<CourseSeedReport> {
+  // Without course/ folder, whatever was loaded before is deleted: the repository is the source of truth.
+  const course = loaded ?? NO_COURSE;
   const code = content.blueprint.certification.code;
   const version = content.blueprint.blueprint.version;
   return db.$transaction(async (tx) => {
@@ -198,12 +204,13 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
       (await tx.courseChapter.findMany({ where: { certificationId }, select: { id: true, code: true, contentHash: true } })).map((c) => [c.code, c]),
     );
     for (const [i, c] of course.chapters.entries()) {
-      const own = { title: c.title, summary: c.summary, minutes: c.minutes, references: c.references, free: c.free };
+      // What the reader reads: not its status, its module nor whether it is free.
+      const own = { title: c.title, summary: c.summary, minutes: c.minutes, references: c.references };
       const contentHash = hashOf(own);
       const before = chapters.get(c.id);
       const edited = before?.contentHash !== contentHash;
       if (edited) changed.chapters += 1;
-      const data = { moduleId: moduleIds.get(c.module)!, order: i + 1, status: c.status, contentHash, ...own, ...(edited && { contentUpdatedAt: new Date() }) };
+      const data = { moduleId: moduleIds.get(c.module)!, order: i + 1, status: c.status, free: c.free, contentHash, ...own, ...(edited && { contentUpdatedAt: new Date() }) };
       const chapter = await tx.courseChapter.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
         where: { certificationId_code: { certificationId, code: c.id } },
         create: { certificationId, code: c.id, ...data },
@@ -229,15 +236,16 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
 
     // What the files no longer have is deleted; progress on it goes by cascade.
     const keptChapters = course.chapters.map((c) => c.id);
-    const goneSections = await tx.courseSection.deleteMany({
-      where: {
-        chapter: { certificationId },
-        OR: [
-          { chapter: { code: { notIn: keptChapters } } },
-          ...course.chapters.map((c) => ({ chapter: { code: c.id }, code: { notIn: c.sections.map((s) => s.id) } })),
-        ],
-      },
-    });
+    const gone: Prisma.CourseSectionWhereInput = {
+      chapter: { certificationId },
+      OR: [
+        { chapter: { code: { notIn: keptChapters } } },
+        ...course.chapters.map((c) => ({ chapter: { code: c.id }, code: { notIn: c.sections.map((s) => s.id) } })),
+      ],
+    };
+    // Counted first, so that the log says how much reading progress a removal (or a renamed id) costs.
+    const goneProgress = await tx.courseProgress.count({ where: { section: gone } });
+    const goneSections = await tx.courseSection.deleteMany({ where: gone });
     const goneChapters = await tx.courseChapter.deleteMany({ where: { certificationId, code: { notIn: keptChapters } } });
     const goneModules = await tx.courseModule.deleteMany({ where: { certificationId, code: { notIn: course.modules.map((m) => m.code) } } });
 
@@ -246,7 +254,7 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
       chapters: course.chapters.length,
       sections: course.chapters.reduce((n, c) => n + c.sections.length, 0),
       changed,
-      removed: { modules: goneModules.count, chapters: goneChapters.count, sections: goneSections.count },
+      removed: { modules: goneModules.count, chapters: goneChapters.count, sections: goneSections.count, progress: goneProgress },
     };
   }, { timeout: 120_000 });
 }
