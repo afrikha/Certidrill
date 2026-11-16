@@ -91,6 +91,8 @@ interface Fingerprint {
   code: { lang: string | null | undefined; value: string }[];
   tables: string[];
   callouts: string[];
+  /** Link targets, the language of Microsoft Learn URLs left out (/en-us/ and /fr-fr/ are the same page). */
+  links: string[];
 }
 
 interface ParsedSection {
@@ -145,10 +147,11 @@ function calloutOf(node: Nodes, locale: Locale): CalloutKind | "?" | null {
 }
 
 function fingerprintOf(nodes: readonly RootContent[], locale: Locale): Fingerprint {
-  const print: Fingerprint = { code: [], tables: [], callouts: [] };
+  const print: Fingerprint = { code: [], tables: [], callouts: [], links: [] };
   for (const top of nodes) {
     visit(top, (node: Nodes) => {
       if (node.type === "code") print.code.push({ lang: node.lang, value: node.value });
+      if (node.type === "link" || node.type === "definition") print.links.push(node.url.replace(/^https:\/\/learn\.microsoft\.com\/[a-z]{2}-[a-z]{2}\//i, "https://learn.microsoft.com/"));
       if (node.type === "table") print.tables.push(`${node.children.length}×${Math.max(...node.children.map((r) => r.children.length))}`);
       const callout = calloutOf(node, locale);
       if (callout) print.callouts.push(callout);
@@ -220,7 +223,7 @@ export function parseChapter(file: string, text: string, locale: Locale): Parsed
       } else {
         problems.push({ file, line: lineOf(node), message: `section "${id}": the marker must be followed by a level-2 heading` });
       }
-      sections.push({ id, objectives, title, body: "", line: lineOf(node), fingerprint: { code: [], tables: [], callouts: [] }, start: node.position!.start.offset!, bodyStart, nodes: [] });
+      sections.push({ id, objectives, title, body: "", line: lineOf(node), fingerprint: { code: [], tables: [], callouts: [], links: [] }, start: node.position!.start.offset!, bodyStart, nodes: [] });
       continue;
     }
     if (node.type === "heading" && node.depth === 2) problems.push({ file, line: lineOf(node), message: "level-2 heading without a section marker before it" });
@@ -277,6 +280,7 @@ function parityProblems(en: ParsedChapter, fr: ParsedChapter): CourseProblem[] {
     }
     if (p.en.tables.join() !== p.fr.tables.join()) at(`tables (rows×columns) differ from English: en [${p.en.tables.join(", ")}], fr [${p.fr.tables.join(", ")}]`);
     if (p.en.callouts.join() !== p.fr.callouts.join()) at(`callouts differ from English: en [${p.en.callouts.join(", ")}], fr [${p.fr.callouts.join(", ")}]`);
+    if (p.en.links.join(" ") !== p.fr.links.join(" ")) at(`links differ from English: en [${p.en.links.join(", ")}], fr [${p.fr.links.join(", ")}]`);
   }
   return problems;
 }

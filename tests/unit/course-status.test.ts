@@ -63,6 +63,13 @@ describe("chapter statuses in course.yaml", () => {
     expect(statuses(text)).toEqual({ "00-getting-started": "published", "11-entra-users-groups": "published", "12-rbac": "published" });
   });
 
+  it("reads a quoted status and keeps its quotes", () => {
+    const quoted = manifest.replace("  status: reviewed", '  status: "reviewed"');
+    const { text, changed } = setChapterStatuses(quoted, { status: "published", prefix: "11-" });
+    expect(changed).toEqual(["11-entra-users-groups"]);
+    expect(text).toBe(manifest.replace("  status: reviewed", '  status: "published"'));
+  });
+
   it("changes nothing when the chapters already have the status", () => {
     expect(setChapterStatuses(manifest, { status: "draft", prefix: "0" })).toEqual({ text: manifest, changed: [] });
     expect(setChapterStatuses(manifest, { status: "draft", prefix: "12-rbac" })).toEqual({ text: manifest, changed: [] });

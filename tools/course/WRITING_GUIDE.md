@@ -61,7 +61,8 @@ GFM Markdown...
   heading has its marker.
 - ✔ Section ids: lowercase letters, digits and hyphens, unique in the chapter.
   They are the anchors of the section URLs: once published, do not rename one
-  (the readers' progress on it would be lost).
+  nor move it to another chapter, and do not rename a chapter (the readers'
+  progress on it would be lost).
 - `objectives` is optional (introduction chapter, "Key points"). Codes are
   separated by commas.
 - ✔ No level-1 heading (the chapter title comes from `course.yaml`), no heading
@@ -75,6 +76,8 @@ GFM Markdown...
   in a code span (`` `<resource-group>` ``).
 - ✔ Links go to `https://` pages (Microsoft Learn first) or to an anchor
   (`#section-id`); no other protocol.
+- ✔ Both languages link to the same targets, section by section (a Learn URL
+  may use `/en-us/` or `/fr-fr/`).
 - ✔ Every code block names its language, one of `bash`, `powershell`, `json`,
   `bicep`, `kusto`, `yaml`, `text`, and is closed.
 - ✔ Callouts are quotes that start with a bold label, and only these two:

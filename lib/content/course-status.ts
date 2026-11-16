@@ -17,7 +17,7 @@ export interface StatusChange {
 }
 
 const CHAPTER = /^- id: ["']?([a-z0-9-]+)["']?\s*$/;
-const STATUS = /^( {2}status: *)(\w+)(.*)$/;
+const STATUS = /^( {2}status: *["']?)(\w+)(["']?.*)$/;
 const TOP_LEVEL = /^\S/;
 const COMMENT_OR_BLANK = /^\s*(#.*)?$/;
 

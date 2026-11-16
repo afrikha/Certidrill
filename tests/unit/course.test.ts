@@ -120,6 +120,23 @@ describe("course checks — EN/FR parity", () => {
   });
 });
 
+describe("course checks — EN/FR links", () => {
+  const link = (target: string) => (t: string) => t.replace(/(\*\*role assignment\*\*|\*\*attribution de rôle\*\*)/, `[$1](${target})`);
+  it("needs the same link targets in both languages", async () => {
+    const problems = await check((dir) => edit(dir, "chapters/12-rbac.en.md", link("https://learn.microsoft.com/en-us/azure/role-based-access-control/overview")));
+    expect(problems).toEqual(['chapters/12-rbac.fr.md:3: section "rbac-model": links differ from English: en [https://learn.microsoft.com/azure/role-based-access-control/overview], fr []']);
+  });
+
+  it("treats /en-us/ and /fr-fr/ Learn URLs as the same page", async () => {
+    expect(
+      await check(async (dir) => {
+        await edit(dir, "chapters/12-rbac.en.md", link("https://learn.microsoft.com/en-us/azure/role-based-access-control/overview"));
+        await edit(dir, "chapters/12-rbac.fr.md", link("https://learn.microsoft.com/fr-fr/azure/role-based-access-control/overview"));
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe("course checks — objectives", () => {
   it("knows every objective code", async () => {
     const problems = await check((dir) => both(dir, "12-rbac", (t) => t.replace("objectives: 1.2.1 -->", "objectives: 1.2.1, 9.9.9 -->")));
@@ -185,17 +202,19 @@ describe("course checks — Markdown", () => {
     expect(await check((dir) => both(dir, "12-rbac", (t) => t.replace("**role assignment**", "**role assignment** (`a < b`) **attribution de rôle**")))).toEqual([]);
   });
 
-  const link = (target: string) => (t: string) => t.replace("A **role assignment**", `See [this](${target}). A **role assignment**`);
+  // In both languages, at the end of the last section: only the link itself is checked.
+  const link = (target: string) => (t: string) => `${t}\nSee [this](${target}).\n`;
   it.each([
     ["javascript:alert(1)", /12-rbac\.en\.md:\d+: link to "javascript:alert\(1\)" \(only https:\/\/ links and #anchors\)/],
     ["http://example.com", /12-rbac\.en\.md:\d+: link to "http:\/\/example\.com"/],
   ])("refuses a link to %s", async (target, message) => {
-    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", link(target)))).toEqual([expect.stringMatching(message)]);
+    expect(await check((dir) => both(dir, "12-rbac", link(target)))).toEqual([expect.stringMatching(message), expect.stringMatching(/12-rbac\.fr\.md:\d+: link to/)]);
   });
 
   it("refuses a link definition to data:", async () => {
-    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => `${t}\n[ref]: data:text/html,x\n`))).toEqual([
+    expect(await check((dir) => both(dir, "12-rbac", (t) => `${t}\n[ref]: data:text/html,x\n`))).toEqual([
       expect.stringMatching(/12-rbac\.en\.md:\d+: link to "data:text\/html,x"/),
+      expect.stringMatching(/12-rbac\.fr\.md:\d+: link to "data:text\/html,x"/),
     ]);
   });
 
