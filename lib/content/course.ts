@@ -79,10 +79,25 @@ export interface CourseReport {
 }
 
 export function formatProblem(p: CourseProblem): string {
-  return `${path.relative(process.cwd(), p.file)}${p.line ? `:${p.line}` : ""}: ${p.message}`;
+  const file = path.relative(process.cwd(), p.file);
+  const where = p.line ? `${file}:${p.line}` : file;
+  return `${where}: ${p.message}`;
 }
 
-const MARKER = /^<!--\s*section:\s*([^\s|]*)\s*(?:\|\s*objectives:\s*(.*?)\s*)?-->$/;
+/**
+ * Reads a section marker, `<!-- section: <id> | objectives: <codes> -->`
+ * (the objectives part is optional), or returns null for any other HTML.
+ */
+function readMarker(html: string): { id: string; codes: string } | null {
+  const value = html.trim();
+  if (!value.startsWith("<!--") || !value.endsWith("-->")) return null;
+  const inner = value.slice(4, -3).trim();
+  if (!inner.startsWith("section:")) return null;
+  const [id = "", ...rest] = inner.slice("section:".length).split("|");
+  if (rest.length === 0) return { id: id.trim(), codes: "" };
+  const tail = rest.join("|").trim();
+  return tail.startsWith("objectives:") ? { id: id.trim(), codes: tail.slice("objectives:".length).trim() } : null;
+}
 const SECTION_ID = /^[a-z0-9-]+$/;
 const OBJECTIVE_CODE = /^\d+(\.\d+)*$/;
 
@@ -160,30 +175,49 @@ function fingerprintOf(nodes: readonly RootContent[], locale: Locale): Fingerpri
   return print;
 }
 
+const LANGUAGES = COURSE_CODE_LANGUAGES.join(", ");
+
+/** Problems of a code block: its language, and its closing fence. */
+function codeProblems(node: Code, text: string): string[] {
+  const problems: string[] = [];
+  if (!node.lang) problems.push(`code block without a language (one of ${LANGUAGES})`);
+  else if (!(COURSE_CODE_LANGUAGES as readonly string[]).includes(node.lang)) problems.push(`code block language "${node.lang}" (allowed: ${LANGUAGES})`);
+  if (!isClosed(node, text)) problems.push("code block not closed");
+  return problems;
+}
+
+/** Problems of one Markdown node: headings, images, links, code blocks, callout labels. */
+function nodeProblems(node: Nodes, text: string, locale: Locale): string[] {
+  switch (node.type) {
+    case "heading":
+      if (node.depth === 1) return ["level-1 heading (the chapter title comes from course.yaml)"];
+      return node.depth > 2 ? [`level-${node.depth} heading (sections use level 2 only)`] : [];
+    case "image":
+    case "imageReference":
+      return ["image (not allowed in the course)"];
+    case "link":
+    case "definition":
+      // Rendered in the browser: links go to https pages or to an anchor, nothing else (javascript:, data:…).
+      return /^(https:\/\/|#)/i.test(node.url) ? [] : [`link to "${node.url}" (only https:// links and #anchors)`];
+    case "code":
+      return codeProblems(node, text);
+    default: {
+      if (calloutOf(node, locale) !== "?") return [];
+      const labels = Object.values(CALLOUTS).map((c) => `**${c[locale]}**`);
+      return [`unknown callout label (allowed: ${labels.join(", ")})`];
+    }
+  }
+}
+
 /** Problems of the Markdown itself: headings, images, links, `<` outside code, code blocks, callout labels. */
 function markdownProblems(file: string, text: string, tree: Root, markers: ReadonlySet<Nodes>, locale: Locale): CourseProblem[] {
   const problems: CourseProblem[] = [];
-  const at = (node: Nodes, message: string) => problems.push({ file, line: lineOf(node), message });
   // Ranges of the source where `<` is allowed: code, inline code and the section markers.
   const allowed: [number, number][] = [];
   visit(tree, (node: Nodes) => {
-    if (node.type === "heading" && node.depth === 1) at(node, "level-1 heading (the chapter title comes from course.yaml)");
-    if (node.type === "heading" && node.depth > 2) at(node, `level-${node.depth} heading (sections use level 2 only)`);
-    if (node.type === "image" || node.type === "imageReference") at(node, "image (not allowed in the course)");
-    // Rendered in the browser: links go to https pages or to an anchor, nothing else (javascript:, data:…).
-    if ((node.type === "link" || node.type === "definition") && !/^(https:\/\/|#)/i.test(node.url)) {
-      at(node, `link to "${node.url}" (only https:// links and #anchors)`);
-    }
-    if (node.type === "code") {
-      if (!node.lang) at(node, `code block without a language (one of ${COURSE_CODE_LANGUAGES.join(", ")})`);
-      else if (!(COURSE_CODE_LANGUAGES as readonly string[]).includes(node.lang)) at(node, `code block language "${node.lang}" (allowed: ${COURSE_CODE_LANGUAGES.join(", ")})`);
-      if (!isClosed(node, text)) at(node, "code block not closed");
-    }
+    for (const message of nodeProblems(node, text, locale)) problems.push({ file, line: lineOf(node), message });
     if ((node.type === "code" || node.type === "inlineCode" || markers.has(node)) && node.position) {
       allowed.push([node.position.start.offset!, node.position.end.offset!]);
-    }
-    if (calloutOf(node, locale) === "?") {
-      at(node, `unknown callout label (allowed: ${Object.values(CALLOUTS).map((c) => `**${c[locale]}**`).join(", ")})`);
     }
   });
   const lines = new Set<number>();
@@ -196,34 +230,46 @@ function markdownProblems(file: string, text: string, tree: Root, markers: Reado
   return problems;
 }
 
+type OpenSection = ParsedSection & { start: number; bodyStart: number; nodes: RootContent[] };
+
+/** A section opened by a marker, with its heading when it follows; problems go to `problems`. */
+function openSection(file: string, node: RootContent, marker: { id: string; codes: string }, heading: RootContent | undefined, problems: CourseProblem[]): OpenSection {
+  const { id } = marker;
+  const line = lineOf(node);
+  if (!SECTION_ID.test(id)) problems.push({ file, line, message: `section id "${id}" (lowercase letters, digits and hyphens only)` });
+  const objectives = marker.codes.split(",").map((c) => c.trim()).filter(Boolean);
+  for (const code of objectives.filter((c) => !OBJECTIVE_CODE.test(c))) problems.push({ file, line, message: `objective code "${code}"` });
+  const hasHeading = heading?.type === "heading" && heading.depth === 2;
+  if (!hasHeading) problems.push({ file, line, message: `section "${id}": the marker must be followed by a level-2 heading` });
+  return {
+    id,
+    objectives,
+    title: hasHeading ? textOf(heading).trim() : "",
+    body: "",
+    line,
+    fingerprint: { code: [], tables: [], callouts: [], links: [] },
+    start: node.position!.start.offset!,
+    bodyStart: (hasHeading ? heading : node).position!.end.offset!,
+    nodes: [],
+  };
+}
+
 /** Cuts a chapter file on its section markers, and checks its Markdown. */
 export function parseChapter(file: string, text: string, locale: Locale): ParsedChapter {
   const tree = parser.parse(text);
   const problems: CourseProblem[] = [];
   const markers = new Set<Nodes>();
-  const sections: (ParsedSection & { start: number; bodyStart: number; nodes: RootContent[] })[] = [];
+  const sections: OpenSection[] = [];
   const summaryNodes: RootContent[] = [];
   const children = tree.children;
   for (let i = 0; i < children.length; i++) {
     const node = children[i]!;
-    const marker = node.type === "html" ? MARKER.exec(node.value.trim()) : null;
+    const marker = node.type === "html" ? readMarker(node.value) : null;
     if (marker) {
       markers.add(node);
-      const [, id = "", codes] = marker;
-      if (!SECTION_ID.test(id)) problems.push({ file, line: lineOf(node), message: `section id "${id}" (lowercase letters, digits and hyphens only)` });
-      const objectives = (codes ?? "").split(",").map((c) => c.trim()).filter(Boolean);
-      for (const code of objectives.filter((c) => !OBJECTIVE_CODE.test(c))) problems.push({ file, line: lineOf(node), message: `objective code "${code}"` });
-      const heading = children[i + 1];
-      let title = "";
-      let bodyStart = node.position!.end.offset!;
-      if (heading?.type === "heading" && heading.depth === 2) {
-        title = textOf(heading).trim();
-        bodyStart = heading.position!.end.offset!;
-        i++;
-      } else {
-        problems.push({ file, line: lineOf(node), message: `section "${id}": the marker must be followed by a level-2 heading` });
-      }
-      sections.push({ id, objectives, title, body: "", line: lineOf(node), fingerprint: { code: [], tables: [], callouts: [], links: [] }, start: node.position!.start.offset!, bodyStart, nodes: [] });
+      const section = openSection(file, node, marker, children[i + 1], problems);
+      if (section.title) i++;
+      sections.push(section);
       continue;
     }
     if (node.type === "heading" && node.depth === 2) problems.push({ file, line: lineOf(node), message: "level-2 heading without a section marker before it" });
@@ -316,19 +362,29 @@ function manifestProblems(file: string, manifest: CourseFile, content: Certifica
   return problems;
 }
 
+/** The domain of each objective code of the referential. */
+function domainsOfObjectives(content: CertificationContent): Map<string, string> {
+  const domainOf = new Map<string, string>();
+  for (const [domain, groups] of Object.entries(content.objectives)) {
+    for (const o of groups.flatMap((g) => g.objectives)) domainOf.set(o.code, domain);
+  }
+  return domainOf;
+}
+
 /** Problems of the objectives: known codes, in the chapter's domain, and every objective covered. */
 function objectiveProblems(manifest: CourseFile, parsed: Map<string, ParsedChapter>, content: CertificationContent, manifestFile: string): CourseProblem[] {
   const problems: CourseProblem[] = [];
-  const domainOf = new Map<string, string>();
-  for (const [domain, groups] of Object.entries(content.objectives)) for (const g of groups) for (const o of g.objectives) domainOf.set(o.code, domain);
+  const domainOf = domainsOfObjectives(content);
   const covered = new Set<string>();
   for (const chapter of manifest.chapters) {
     const en = parsed.get(chapter.id);
-    for (const s of en?.sections ?? []) {
+    if (!en) continue;
+    for (const s of en.sections) {
+      const at = (message: string) => problems.push({ file: en.file, line: s.line, message: `section "${s.id}": ${message}` });
       for (const code of s.objectives) {
         const domain = domainOf.get(code);
-        if (!domain) problems.push({ file: en!.file, line: s.line, message: `section "${s.id}": unknown objective ${code}` });
-        else if (domain !== chapter.module) problems.push({ file: en!.file, line: s.line, message: `section "${s.id}": objective ${code} belongs to domain "${domain}", the chapter to module "${chapter.module}"` });
+        if (!domain) at(`unknown objective ${code}`);
+        else if (domain !== chapter.module) at(`objective ${code} belongs to domain "${domain}", the chapter to module "${chapter.module}"`);
         covered.add(code);
       }
     }
@@ -361,19 +417,30 @@ export async function validateCourse(content: CertificationContent): Promise<Cou
   }
 
   const problems = manifestProblems(manifestFile, manifest, content);
-  const expected = new Set([manifestFile]);
-  const parsed = new Map<string, ParsedChapter>();
-  const chapters: { id: string; byLocale: Partial<Record<Locale, ParsedChapter>> }[] = [];
+  const read = await readChapters(dir, manifest);
+  problems.push(...read.problems);
+  const english = new Map(read.chapters.flatMap((c) => (c.byLocale.en ? [[c.id, c.byLocale.en] as const] : [])));
+  problems.push(...objectiveProblems(manifest, english, content, manifestFile));
+  const expected = new Set([manifestFile, ...read.files]);
+  for (const file of present.filter((f) => !expected.has(f))) problems.push({ file, message: "orphan file (not a chapter file of course.yaml)" });
+  if (problems.length > 0) return { course: null, problems };
+  return { problems, course: assembleCourse(dir, manifest, read.chapters) };
+}
+
+type ChapterFiles = { id: string; byLocale: Partial<Record<Locale, ParsedChapter>> };
+
+/** Reads and parses the chapter files of the manifest, in both languages, and compares the languages. */
+async function readChapters(dir: string, manifest: CourseFile): Promise<{ files: string[]; chapters: ChapterFiles[]; problems: CourseProblem[] }> {
+  const problems: CourseProblem[] = [];
   const reads = await Promise.all(
     manifest.chapters.flatMap((c) => locales.map(async (locale) => {
       const file = path.join(dir, "chapters", `${c.id}.${locale}.md`);
       return { id: c.id, locale, file, text: await readText(file) };
     })),
   );
-  for (const c of manifest.chapters) {
-    const byLocale: Partial<Record<Locale, ParsedChapter>> = {};
+  const chapters = manifest.chapters.map((c): ChapterFiles => {
+    const byLocale: ChapterFiles["byLocale"] = {};
     for (const r of reads.filter((x) => x.id === c.id)) {
-      expected.add(r.file);
       if (r.text === null) {
         problems.push({ file: r.file, message: `missing: chapter "${c.id}" has no ${r.locale} file` });
         continue;
@@ -383,32 +450,29 @@ export async function validateCourse(content: CertificationContent): Promise<Cou
       byLocale[r.locale] = chapter;
     }
     if (byLocale.en && byLocale.fr) problems.push(...parityProblems(byLocale.en, byLocale.fr));
-    if (byLocale.en) parsed.set(c.id, byLocale.en);
-    chapters.push({ id: c.id, byLocale });
-  }
-  problems.push(...objectiveProblems(manifest, parsed, content, manifestFile));
-  for (const file of present.filter((f) => !expected.has(f))) problems.push({ file, message: "orphan file (not a chapter file of course.yaml)" });
-  if (problems.length > 0) return { course: null, problems };
+    return { id: c.id, byLocale };
+  });
+  return { files: reads.map((r) => r.file), chapters, problems };
+}
 
+/** The course, once every check passed (both languages of every chapter are there). */
+function assembleCourse(dir: string, manifest: CourseFile, chapters: ChapterFiles[]): Course {
   return {
-    problems,
-    course: {
-      dir,
-      modules: manifest.modules,
-      chapters: manifest.chapters.map((c, i) => {
-        const { en, fr } = chapters[i]!.byLocale as Record<Locale, ParsedChapter>;
-        return {
-          ...c,
-          summary: { en: en.summary, fr: fr.summary },
-          sections: en.sections.map((s, k) => ({
-            id: s.id,
-            objectives: s.objectives,
-            title: { en: s.title, fr: fr.sections[k]!.title },
-            body: { en: s.body, fr: fr.sections[k]!.body },
-          })),
-        };
-      }),
-    },
+    dir,
+    modules: manifest.modules,
+    chapters: manifest.chapters.map((c, i) => {
+      const { en, fr } = chapters[i]!.byLocale as Record<Locale, ParsedChapter>;
+      return {
+        ...c,
+        summary: { en: en.summary, fr: fr.summary },
+        sections: en.sections.map((s, k) => ({
+          id: s.id,
+          objectives: s.objectives,
+          title: { en: s.title, fr: fr.sections[k]!.title },
+          body: { en: s.body, fr: fr.sections[k]!.body },
+        })),
+      };
+    }),
   };
 }
 

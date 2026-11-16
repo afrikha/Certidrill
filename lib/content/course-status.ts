@@ -17,9 +17,19 @@ export interface StatusChange {
 }
 
 const CHAPTER = /^- id: ["']?([a-z0-9-]+)["']?\s*$/;
-const STATUS = /^( {2}status: *["']?)(\w+)(["']?.*)$/;
+const STATUS_KEY = "  status:";
 const TOP_LEVEL = /^\S/;
 const COMMENT_OR_BLANK = /^\s*(#.*)?$/;
+
+/** Splits `  status: "draft" # comment` into what comes before the value, the value, and the rest. */
+function statusLine(line: string): { head: string; current: string; tail: string } | null {
+  if (!line.startsWith(STATUS_KEY)) return null;
+  const value = line.slice(STATUS_KEY.length).trimStart();
+  const quote = value.startsWith('"') || value.startsWith("'") ? value[0]! : "";
+  const current = /^\w+/.exec(value.slice(quote.length))?.[0];
+  if (!current) return null;
+  return { head: line.slice(0, line.length - value.length) + quote, current, tail: value.slice(quote.length + current.length) };
+}
 
 /** Returns the new text of course.yaml and the ids of the chapters changed. */
 export function setChapterStatuses(text: string, change: StatusChange): { text: string; changed: string[] } {
@@ -53,8 +63,8 @@ export function setChapterStatuses(text: string, change: StatusChange): { text: 
     } else if (inChapters && CHAPTER.test(line)) {
       closeChapter();
       chapter = CHAPTER.exec(line)![1]!;
-    } else if (chapter && STATUS.test(line)) {
-      const [, head, current, tail] = STATUS.exec(line)!;
+    } else if (chapter && statusLine(line)) {
+      const { head, current, tail } = statusLine(line)!;
       if (selected(chapter) && current !== change.status && (!change.from || current === change.from)) {
         out.push(`${head}${change.status}${tail}`);
         changed.push(chapter);
