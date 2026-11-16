@@ -147,21 +147,25 @@ describe("course checks — objectives", () => {
 });
 
 describe("course checks — Markdown", () => {
-  it("needs a level-2 heading after each marker, and a marker before each level-2 heading", async () => {
+  // One check per test: each one copies and validates the whole course.
+  it("needs a level-2 heading after each marker", async () => {
     expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => t.replace("## The model: who, what, where", "The model: who, what, where")))).toEqual([
       'chapters/12-rbac.en.md:3: section "rbac-model": the marker must be followed by a level-2 heading',
     ]);
+  });
+
+  it("needs a marker before each level-2 heading", async () => {
     expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => t.replace("<!-- section: rbac-model | objectives: 1.2.1 -->\n", "")))).toEqual(
       expect.arrayContaining(["chapters/12-rbac.en.md:3: level-2 heading without a section marker before it"]),
     );
   });
 
-  it("refuses level-1 headings and headings below level 2", async () => {
-    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => t.replace("A **role assignment**", "# Title\n\nA **role assignment**")))).toEqual([
-      expect.stringMatching(/12-rbac\.en\.md:\d+: level-1 heading/),
-    ]);
-    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => t.replace("A **role assignment**", "### Detail\n\nA **role assignment**")))).toEqual([
-      expect.stringMatching(/12-rbac\.en\.md:\d+: level-3 heading \(sections use level 2 only\)/),
+  it.each([
+    ["# Title", /12-rbac\.en\.md:\d+: level-1 heading/],
+    ["### Detail", /12-rbac\.en\.md:\d+: level-3 heading \(sections use level 2 only\)/],
+  ])("refuses the heading %s", async (heading, message) => {
+    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => t.replace("A **role assignment**", `${heading}\n\nA **role assignment**`)))).toEqual([
+      expect.stringMatching(message),
     ]);
   });
 
@@ -171,31 +175,42 @@ describe("course checks — Markdown", () => {
     ]);
   });
 
-  it("refuses `<` outside code, HTML included, and allows it in code", async () => {
+  it("refuses `<` outside code, HTML included", async () => {
     expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => t.replace("A **role assignment**", "A <b>role</b> **role assignment**")))).toEqual([
       expect.stringMatching(/12-rbac\.en\.md:\d+: `<` outside code/),
     ]);
+  });
+
+  it("allows `<` in code", async () => {
     expect(await check((dir) => both(dir, "12-rbac", (t) => t.replace("**role assignment**", "**role assignment** (`a < b`) **attribution de rôle**")))).toEqual([]);
   });
 
-  it("allows only https links and anchors", async () => {
-    const link = (target: string) => (t: string) => t.replace("A **role assignment**", `See [this](${target}). A **role assignment**`);
-    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", link("javascript:alert(1)")))).toEqual([
-      expect.stringMatching(/12-rbac\.en\.md:\d+: link to "javascript:alert\(1\)" \(only https:\/\/ links and #anchors\)/),
-    ]);
+  const link = (target: string) => (t: string) => t.replace("A **role assignment**", `See [this](${target}). A **role assignment**`);
+  it.each([
+    ["javascript:alert(1)", /12-rbac\.en\.md:\d+: link to "javascript:alert\(1\)" \(only https:\/\/ links and #anchors\)/],
+    ["http://example.com", /12-rbac\.en\.md:\d+: link to "http:\/\/example\.com"/],
+  ])("refuses a link to %s", async (target, message) => {
+    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", link(target)))).toEqual([expect.stringMatching(message)]);
+  });
+
+  it("refuses a link definition to data:", async () => {
     expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", (t) => `${t}\n[ref]: data:text/html,x\n`))).toEqual([
       expect.stringMatching(/12-rbac\.en\.md:\d+: link to "data:text\/html,x"/),
     ]);
-    expect(await check((dir) => edit(dir, "chapters/12-rbac.en.md", link("http://example.com")))).toEqual([expect.stringMatching(/link to "http:\/\/example\.com"/)]);
-    expect(await check((dir) => both(dir, "12-rbac", link("https://learn.microsoft.com/en-us/azure/")))).toEqual([]);
-    expect(await check((dir) => both(dir, "12-rbac", link("#scopes")))).toEqual([]);
   });
 
-  it("allows only the course's code languages, always named", async () => {
+  it.each(["https://learn.microsoft.com/en-us/azure/", "#scopes"])("allows a link to %s", async (target) => {
+    expect(await check((dir) => both(dir, "12-rbac", link(target)))).toEqual([]);
+  });
+
+  it("allows only the course's code languages", async () => {
     expect(await check((dir) => both(dir, "12-rbac", (t) => t.replace("```json", "```js")))).toEqual([
       expect.stringMatching(/12-rbac\.en\.md:\d+: code block language "js" \(allowed: bash, powershell, json, bicep, kusto, yaml, text\)/),
       expect.stringMatching(/12-rbac\.fr\.md:\d+: code block language "js"/),
     ]);
+  });
+
+  it("needs the language of every code block", async () => {
     expect(await check((dir) => both(dir, "12-rbac", (t) => t.replace("```json", "```")))).toEqual([
       expect.stringMatching(/12-rbac\.en\.md:\d+: code block without a language/),
       expect.stringMatching(/12-rbac\.fr\.md:\d+: code block without a language/),
@@ -224,11 +239,17 @@ describe("course checks — manifest and references", () => {
     expect(problems).toEqual(['course.yaml: chapter "11-entra-users-groups": reference https://example.com/groups is not on https://learn.microsoft.com/']);
   });
 
-  it("matches the certification, its blueprint version and its domains", async () => {
+  it("matches the blueprint version", async () => {
     expect(await check((dir) => edit(dir, "course.yaml", (t) => t.replace("blueprintVersion: '2023-10-26'", "blueprintVersion: '2020-01-01'")))).toEqual([
       `course.yaml: blueprintVersion "2020-01-01" must be the blueprint's "2023-10-26"`,
     ]);
+  });
+
+  it("matches the certification", async () => {
     expect(await check((dir) => edit(dir, "course.yaml", (t) => t.replace("certification: az-104", "certification: az-900")))).toEqual(['course.yaml: certification "az-900" must be "az-104"']);
+  });
+
+  it("takes its modules from the blueprint's domains", async () => {
     expect(await check((dir) => edit(dir, "course.yaml", (t) => t.replace("- code: intro", "- code: welcome").replaceAll("module: intro", "module: welcome")))).toEqual([
       'course.yaml: module "welcome" is neither a domain of blueprint.yaml nor "intro"',
     ]);
