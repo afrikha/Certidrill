@@ -31,7 +31,8 @@ async function main() {
       const gone = removed.chapters + removed.sections
         ? `, removed ${removed.chapters} chapters and ${removed.sections} sections with ${removed.progress} sections read by users`
         : "";
-      if (course || gone) console.log(`  course: ${r.chapters} chapters, ${r.sections} sections (${r.changed.chapters} chapters and ${r.changed.sections} sections new or changed${gone})`);
+      const kept = r.statusKept ? `; ${r.statusKept} chapters keep the status set in the back-office` : "";
+      if (course || gone) console.log(`  course: ${r.chapters} chapters, ${r.sections} sections (${r.changed.chapters} chapters and ${r.changed.sections} sections new or changed${gone})${kept}`);
     }
   } finally {
     await db.$disconnect();
