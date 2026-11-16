@@ -120,16 +120,17 @@ model User {
   role          Role      @default(user)
   createdAt     DateTime  @default(now())
 
-  accounts     Account[]
-  sessions     Session[]
-  attempts     Attempt[]
-  reports      QuestionReport[]
-  outcomes     ExamOutcome[]
-  entitlements Entitlement[]
-  billing      BillingCustomer?
-  emails       EmailOutbox[]
-  auditActions AuditLog[]       @relation("audit_actor")
-  auditEntries AuditLog[]       @relation("audit_target")
+  accounts       Account[]
+  sessions       Session[]
+  attempts       Attempt[]
+  reports        QuestionReport[]
+  outcomes       ExamOutcome[]
+  entitlements   Entitlement[]
+  courseProgress CourseProgress[]
+  billing        BillingCustomer?
+  emails         EmailOutbox[]
+  auditActions   AuditLog[]       @relation("audit_actor")
+  auditEntries   AuditLog[]       @relation("audit_target")
 
   @@map("user")
 }
@@ -196,6 +197,8 @@ model Certification {
   outcomes       ExamOutcome[]
   entitlements   Entitlement[]
   payments       Payment[]
+  courseModules  CourseModule[]
+  courseChapters CourseChapter[]
 
   @@map("certification")
 }
@@ -254,8 +257,9 @@ model Objective {
   title    Json
   learnUrl String?
 
-  domain    Domain     @relation(fields: [domainId], references: [id], onDelete: Cascade)
-  questions Question[]
+  domain         Domain          @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  questions      Question[]
+  courseSections CourseSection[] @relation("course_section_objective")
 
   @@unique([domainId, code])
   @@map("objective")
@@ -333,6 +337,91 @@ model Question {
   @@index([certificationId, status])
   @@index([objectiveId])
   @@map("question")
+}
+
+// ---------------------------------------------------------------- course
+// Loaded from content/<certification>/course/ by `npm run seed` (docs/SPECS-COURS.md
+// §5). The repository is the source of truth: a chapter or section removed from
+// the files is deleted, and the reading progress on it goes with it.
+
+model CourseModule {
+  id              String @id @default(cuid())
+  certificationId String
+  code            String // a domain code of the blueprint, or "intro"
+  order           Int
+  /// { en, fr }
+  title           Json
+
+  certification Certification   @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+  chapters      CourseChapter[]
+
+  @@unique([certificationId, code])
+  @@map("course_module")
+}
+
+model CourseChapter {
+  id               String        @id @default(cuid())
+  certificationId  String
+  moduleId         String
+  code             String // chapter id of course.yaml, e.g. "12-rbac"
+  order            Int
+  /// { en, fr }
+  title            Json
+  /// { en, fr } — Markdown, the paragraph before the first section
+  summary          Json
+  minutes          Int
+  /// [{ title, url }]
+  references       Json          @default("[]")
+  /// Readable without an entitlement.
+  free             Boolean       @default(false)
+  status           ContentStatus @default(draft)
+  /// SHA-256 of the chapter's own content (title, summary, minutes, references, free).
+  contentHash      String
+  /// Last time contentHash changed (not touched by a seed that changes nothing).
+  contentUpdatedAt DateTime      @default(now())
+
+  certification Certification   @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+  module        CourseModule    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  sections      CourseSection[]
+
+  @@unique([certificationId, code])
+  @@index([moduleId])
+  @@map("course_chapter")
+}
+
+model CourseSection {
+  id               String   @id @default(cuid())
+  chapterId        String
+  code             String // id of the section marker, the anchor of its URL
+  order            Int
+  /// { en, fr } — plain text
+  title            Json
+  /// { en, fr } — Markdown
+  body             Json
+  /// SHA-256 of title and body: the content version (HTML cache key).
+  contentHash      String
+  contentUpdatedAt DateTime @default(now())
+
+  chapter    CourseChapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  objectives Objective[]      @relation("course_section_objective")
+  progress   CourseProgress[]
+
+  @@unique([chapterId, code])
+  @@map("course_section")
+}
+
+/// A section read by a user. Personal data: deleted with the account.
+model CourseProgress {
+  userId    String
+  sectionId String
+  readAt    DateTime @default(now())
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, sectionId])
+  @@index([sectionId])
+  @@map("course_progress")
 }
 
 // ---------------------------------------------------------------- attempts
