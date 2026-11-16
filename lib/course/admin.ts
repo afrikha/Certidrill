@@ -83,15 +83,18 @@ export async function coursesForAdmin(db: PrismaClient, locale: Locale): Promise
 
 /**
  * Changes a chapter's status, with its trace in the audit log (same
- * transaction). Setting the current status again is not recorded. False when
- * nothing changed, null when the chapter does not exist.
+ * transaction). Setting the current status again is not recorded, nor a
+ * change that another one overtook. False when nothing changed, null when the
+ * chapter does not exist.
  */
 export async function setChapterStatus(db: PrismaClient, actorId: string, chapterId: string, status: ContentStatus): Promise<boolean | null> {
   return db.$transaction(async (tx) => {
     const chapter = await tx.courseChapter.findUnique({ where: { id: chapterId }, select: { code: true, status: true, certification: { select: { code: true } } } });
     if (!chapter) return null;
     if (chapter.status === status) return false;
-    await tx.courseChapter.update({ where: { id: chapterId }, data: { status } });
+    // Compare and set: of two submissions at the same time, one changes the status (and is recorded), the other nothing.
+    const { count } = await tx.courseChapter.updateMany({ where: { id: chapterId, status: chapter.status }, data: { status } });
+    if (count === 0) return false;
     await audit(tx, {
       actorId,
       action: "course.status",

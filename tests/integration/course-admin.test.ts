@@ -67,6 +67,15 @@ describe("course back-office", () => {
     expect(log.map((l) => [l.actorId, l.details])).toEqual([[adminId, { certification: "az-104", chapter: "21-storage-access", from: "draft", to: "published" }]]);
   });
 
+  it("records one change only when two administrators submit the same status at the same time", async () => {
+    const id = await chapterId("22-storage-accounts");
+    const results = await Promise.all([setChapterStatus(db, adminId, id, "reviewed"), setChapterStatus(db, adminId, id, "reviewed")]);
+    expect([...results].sort()).toEqual([false, true]);
+    const log = await db.auditLog.findMany({ where: { action: "course.status", details: { path: ["chapter"], equals: "22-storage-accounts" } } });
+    expect(log.map((l) => l.details)).toEqual([{ certification: "az-104", chapter: "22-storage-accounts", from: "draft", to: "reviewed" }]);
+    await setChapterStatus(db, adminId, id, "draft");
+  });
+
   it("keeps the back-office status at the next seed, and a reader sees the chapter published from there", async () => {
     const reader = { userId: (await createUser(db, { email: "full-reader@example.com" })).id, isAdmin: false };
     // A free chapter: readable at the free level.
