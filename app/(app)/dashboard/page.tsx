@@ -15,6 +15,8 @@ import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
 import { AccessBadge } from "./access-badge";
 import { getAccessSummary } from "@/lib/access";
+import { getCourseOutline } from "@/lib/course/read";
+import { CourseCard } from "./course-card";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -41,6 +43,10 @@ export default async function DashboardPage() {
   const outcomes = await listOutcomes(prisma, user.id);
   const latestDay = latestOutcomeDay();
   const access = new Map((await getAccessSummary(prisma, user.id)).map((a) => [a.certification, a]));
+  const viewer = { userId: user.id, isAdmin: user.role === "admin" };
+  const courses = (
+    await Promise.all(certifications.map((c) => getCourseOutline(prisma, { certification: c.code, viewer, locale: user.locale === "fr" ? "fr" : "en" })))
+  ).filter((o) => o !== null);
 
   return (
     <div className="space-y-6">
@@ -72,6 +78,8 @@ export default async function DashboardPage() {
           </Card>
         );
       })}
+
+      {courses.map((outline) => <CourseCard key={outline.certification.code} outline={outline} />)}
 
       {certifications.map((c) => {
         const history = progress.attempts.filter((a) => a.certification === c.code);

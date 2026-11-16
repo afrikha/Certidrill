@@ -68,6 +68,10 @@ npm run content:status -- reviewed 12-rbac --course      # un chapitre (préfixe
 npm run content:status -- published all --from reviewed --course
 ```
 
+Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime : un identifiant de section renommé par erreur s'y voit tout de suite. Un dossier `course/` retiré supprime le cours de la certification.
+
+**Lecture** (`/course`, groupe `(app)`, dans la langue de l'utilisateur) : sommaire avec progression, bouton « Reprendre » et chapitres à revoir après le dernier examen blanc (domaines sous le seuil), puis une page par chapitre (`/course/az-104/12-rbac#scopes` : l'ancre est l'identifiant de la section, stable d'un seed à l'autre). Chaque section a ses objectifs et un bouton « Marquer comme lu » (action serveur réversible, 60 par minute et par utilisateur). Le HTML d'une section est mis en cache en mémoire par (section, langue, version du contenu) ; les liens Learn s'ouvrent dans la langue du lecteur. Les lecteurs ne voient que les chapitres `published` ; un administrateur voit aussi ceux en relecture, avec un bandeau d'aperçu. L'entrée « Cours » du menu n'apparaît qu'une fois un chapitre ouvert à l'utilisateur.
+
 ## Démarrage en local
 
 Prérequis : Node 22 et Docker Desktop (ou un PostgreSQL 16 déjà installé).

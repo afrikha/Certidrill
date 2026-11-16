@@ -67,6 +67,10 @@ import { startNewExam } from "@/lib/actions/exam";
 import { setLocale } from "@/lib/actions/locale";
 import { deleteOutcomeAction, reportOutcomeAction } from "@/lib/actions/outcome";
 import { requireAdmin, requireUser } from "@/lib/auth/guards";
+import { setSectionReadAction } from "@/lib/actions/course";
+import { loadCourse } from "@/lib/content/course";
+import { seedCourse } from "@/lib/content/seed";
+import { courseReadLimiter } from "@/lib/security/rate-limit";
 
 const PASSWORD = "correct horse battery";
 let userId: string;
@@ -407,5 +411,43 @@ describe("rights back-office actions", () => {
     await setSwitchAction(form({ name: "toString", enabled: "true" }));
     await setSwitchAction(form({ name: "unknown", enabled: "true" }));
     expect(await prisma.appSetting.count({ where: { key: { notIn: Object.values(SWITCHES) } } })).toBe(0);
+  });
+});
+
+describe("course actions", () => {
+  beforeAll(async () => {
+    const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
+    await seedCourse(prisma, content, await loadCourse(content));
+    await prisma.courseChapter.update({ where: { certificationId_code: { certificationId: (await prisma.certification.findUniqueOrThrow({ where: { code: "az-104" } })).id, code: "00-getting-started" } }, data: { status: "published" } });
+  });
+
+  it("marks a section of a published chapter read and unread, and refreshes the course pages", async () => {
+    const section = await prisma.courseSection.findFirstOrThrow({ where: { chapter: { code: "00-getting-started" } } });
+    expect(await setSectionReadAction({ read: false }, form({ section: section.id, read: "true" }))).toEqual({ read: true });
+    expect(await prisma.courseProgress.count({ where: { userId, sectionId: section.id } })).toBe(1);
+    expect(h.revalidatePath).toHaveBeenCalledWith("/course/az-104", "layout");
+    expect(h.revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(await setSectionReadAction({ read: true }, form({ section: section.id, read: "false" }))).toEqual({ read: false });
+    expect(await prisma.courseProgress.count({ where: { userId } })).toBe(0);
+  });
+
+  it("refuses a section of a chapter in draft, and a section that does not exist", async () => {
+    const draft = await prisma.courseSection.findFirstOrThrow({ where: { chapter: { status: "draft" } } });
+    expect(await setSectionReadAction({ read: false }, form({ section: draft.id, read: "true" }))).toEqual({ read: false, error: "not_found" });
+    expect(await setSectionReadAction({ read: false }, form({ read: "true" }))).toEqual({ read: false, error: "not_found" });
+    expect(await prisma.courseProgress.count({ where: { userId } })).toBe(0);
+    as(adminId, "admin");
+    expect(await setSectionReadAction({ read: false }, form({ section: draft.id, read: "true" }))).toEqual({ read: true });
+  });
+
+  it("limits the rate per user", async () => {
+    const section = await prisma.courseSection.findFirstOrThrow({ where: { chapter: { code: "00-getting-started" } } });
+    try {
+      for (let i = 0; i < 60; i++) courseReadLimiter.hit(userId);
+      expect(await setSectionReadAction({ read: false }, form({ section: section.id, read: "true" }))).toEqual({ read: false, error: "rate_limited" });
+      expect(await prisma.courseProgress.count({ where: { userId } })).toBe(0);
+    } finally {
+      courseReadLimiter.reset(userId);
+    }
   });
 });
