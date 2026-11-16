@@ -345,7 +345,7 @@ export async function validateCourse(content: CertificationContent): Promise<Cou
   try {
     manifest = parseWith(courseFileSchema, await readYaml(manifestFile), manifestFile);
   } catch (err) {
-    return { course: null, problems: [{ file: manifestFile, message: err instanceof ContentError ? err.message.replace(/^[^:]*: /, "") : String(err) }] };
+    return { course: null, problems: [{ file: manifestFile, message: err instanceof ContentError ? err.detail : String(err) }] };
   }
 
   const problems = manifestProblems(manifestFile, manifest, content);

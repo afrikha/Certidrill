@@ -7,9 +7,12 @@ import { compareCodeUnits } from "../sort";
 export const CONTENT_ROOT = path.resolve(process.cwd(), "content");
 
 export class ContentError extends Error {
+  /** The problem, without the file. */
+  readonly detail: string;
   constructor(file: string, detail: string) {
     super(`${path.relative(process.cwd(), file)}: ${detail}`);
     this.name = "ContentError";
+    this.detail = detail;
   }
 }
 

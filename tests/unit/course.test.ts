@@ -19,7 +19,9 @@ async function check(change: (dir: string) => Promise<unknown> = async () => und
   await Promise.all(["blueprint.yaml", "objectives.yaml", "course"].map((f) => cp(path.join(AZ104, f), path.join(dir, f), { recursive: true })));
   await change(dir);
   const report = await validateCourse(await loadCertification(dir));
-  return report!.problems.map((p) => formatProblem(p).replace(/^.*?course\//, ""));
+  // Paths relative to course/, with "/" on every system.
+  const course = path.join(dir, "course");
+  return report!.problems.map((p) => `${path.relative(course, p.file).split(path.sep).join("/")}${p.line ? `:${p.line}` : ""}: ${p.message}`);
 }
 
 /** Rewrites a file of the course (path relative to course/). */
@@ -239,6 +241,14 @@ describe("course checks — manifest and references", () => {
     const err = await loadCourse(await loadCertification(dir)).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ContentError);
     expect((err as Error).message).toMatch(/12-rbac\.fr\.md: missing: chapter "12-rbac" has no fr file \(and 1 more: npm run content:validate\)$/);
+  });
+});
+
+describe("formatProblem", () => {
+  it("gives the file relative to the working directory, then the line", () => {
+    const file = path.join(process.cwd(), "content", "x.en.md");
+    expect(formatProblem({ file, line: 3, message: "bad" })).toBe(`${path.join("content", "x.en.md")}:3: bad`);
+    expect(formatProblem({ file, message: "bad" })).toBe(`${path.join("content", "x.en.md")}: bad`);
   });
 });
 
