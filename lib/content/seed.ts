@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { CertificationContent } from "./loader";
 import type { QuestionBank } from "./bank";
+import type { Course } from "./course";
 
 export interface SeedReport {
   certification: string;
@@ -145,5 +147,106 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
       data: { status: "retired" },
     });
     return { questions: bank.questions.length, caseStudies: bank.caseStudies.length, series: bank.series.length, retired: retired.count };
+  }, { timeout: 120_000 });
+}
+
+export interface CourseSeedReport {
+  modules: number;
+  chapters: number;
+  sections: number;
+  /** Chapters and sections created or whose content changed. */
+  changed: { chapters: number; sections: number };
+  /** Removed from the files, hence deleted (with the reading progress on them). */
+  removed: { modules: number; chapters: number; sections: number };
+}
+
+const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+/**
+ * Loads a certification's course (modules, chapters, sections). Idempotent: the
+ * repository is the source of truth. A chapter or a section keeps its id while
+ * its code stays the same, so the reading progress on it is kept; one removed
+ * from the files is deleted, with that progress. `contentUpdatedAt` only moves
+ * when the content hash changes. Run after seedReferential (it needs the
+ * blueprint's objectives).
+ */
+export async function seedCourse(db: PrismaClient, content: CertificationContent, course: Course): Promise<CourseSeedReport> {
+  const code = content.blueprint.certification.code;
+  const version = content.blueprint.blueprint.version;
+  return db.$transaction(async (tx) => {
+    const certification = await tx.certification.findUniqueOrThrow({ where: { code } });
+    const blueprint = await tx.blueprint.findUniqueOrThrow({
+      where: { certificationId_version: { certificationId: certification.id, version } },
+      include: { domains: { include: { objectives: true } } },
+    });
+    const objectiveIds = new Map(blueprint.domains.flatMap((d) => d.objectives.map((o) => [o.code, o.id] as const)));
+    const certificationId = certification.id;
+    const changed = { chapters: 0, sections: 0 };
+
+    const moduleIds = new Map<string, string>();
+    for (const [i, m] of course.modules.entries()) {
+      const data = { order: i + 1, title: m.title };
+      const row = await tx.courseModule.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
+        where: { certificationId_code: { certificationId, code: m.code } },
+        create: { certificationId, code: m.code, ...data },
+        update: data,
+      });
+      moduleIds.set(m.code, row.id);
+    }
+
+    const chapters = new Map(
+      (await tx.courseChapter.findMany({ where: { certificationId }, select: { id: true, code: true, contentHash: true } })).map((c) => [c.code, c]),
+    );
+    for (const [i, c] of course.chapters.entries()) {
+      const own = { title: c.title, summary: c.summary, minutes: c.minutes, references: c.references, free: c.free };
+      const contentHash = hashOf(own);
+      const before = chapters.get(c.id);
+      const edited = before?.contentHash !== contentHash;
+      if (edited) changed.chapters += 1;
+      const data = { moduleId: moduleIds.get(c.module)!, order: i + 1, status: c.status, contentHash, ...own, ...(edited && { contentUpdatedAt: new Date() }) };
+      const chapter = await tx.courseChapter.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
+        where: { certificationId_code: { certificationId, code: c.id } },
+        create: { certificationId, code: c.id, ...data },
+        update: data,
+      });
+
+      const sections = new Map(
+        (await tx.courseSection.findMany({ where: { chapterId: chapter.id }, select: { code: true, contentHash: true } })).map((s) => [s.code, s.contentHash]), // NOSONAR: per chapter, in the same transaction
+      );
+      for (const [j, s] of c.sections.entries()) {
+        const sectionHash = hashOf({ title: s.title, body: s.body, objectives: s.objectives });
+        const sectionEdited = sections.get(s.id) !== sectionHash;
+        if (sectionEdited) changed.sections += 1;
+        const objectives = s.objectives.map((o) => ({ id: objectiveIds.get(o)! }));
+        const values = { order: j + 1, title: s.title, body: s.body, contentHash: sectionHash, ...(sectionEdited && { contentUpdatedAt: new Date() }) };
+        await tx.courseSection.upsert({ // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
+          where: { chapterId_code: { chapterId: chapter.id, code: s.id } },
+          create: { chapterId: chapter.id, code: s.id, ...values, objectives: { connect: objectives } },
+          update: { ...values, objectives: { set: objectives } },
+        });
+      }
+    }
+
+    // What the files no longer have is deleted; progress on it goes by cascade.
+    const keptChapters = course.chapters.map((c) => c.id);
+    const goneSections = await tx.courseSection.deleteMany({
+      where: {
+        chapter: { certificationId },
+        OR: [
+          { chapter: { code: { notIn: keptChapters } } },
+          ...course.chapters.map((c) => ({ chapter: { code: c.id }, code: { notIn: c.sections.map((s) => s.id) } })),
+        ],
+      },
+    });
+    const goneChapters = await tx.courseChapter.deleteMany({ where: { certificationId, code: { notIn: keptChapters } } });
+    const goneModules = await tx.courseModule.deleteMany({ where: { certificationId, code: { notIn: course.modules.map((m) => m.code) } } });
+
+    return {
+      modules: course.modules.length,
+      chapters: course.chapters.length,
+      sections: course.chapters.reduce((n, c) => n + c.sections.length, 0),
+      changed,
+      removed: { modules: goneModules.count, chapters: goneChapters.count, sections: goneSections.count },
+    };
   }, { timeout: 120_000 });
 }

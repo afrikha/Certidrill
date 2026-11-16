@@ -3,13 +3,17 @@
  * reports EVERY problem, without needing the rest of the bank to be valid.
  *   npm run content:validate -- content/az-104/questions/storage/s1-*.yaml
  *   npm run content:validate -- --prefix s1-        (all files whose id starts with s1-)
+ *   npm run content:validate                        (the courses only)
  * Checks: YAML syntax, Zod schema, answer/body consistency, file name = id,
  * known objective in the right domain folder, existing case study / series.
+ * Every run also checks the course of each certification (lib/content/course.ts:
+ * files, EN/FR parity, objectives, Markdown, references).
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
-import { loadCertification } from "../lib/content/loader";
+import { listCertificationDirs, loadCertification } from "../lib/content/loader";
+import { formatProblem, validateCourse } from "../lib/content/course";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
 import { compareCodeUnits } from "../lib/sort";
 
@@ -73,7 +77,7 @@ async function main() {
   } else {
     files = args.map((f) => path.resolve(f));
   }
-  if (files.length === 0) throw new Error("no file to validate");
+  if (files.length === 0 && args.length > 0) throw new Error("no file to validate");
 
   const content = await loadCertification(root);
   const objectiveDomain = new Map<string, string>();
@@ -96,8 +100,32 @@ async function main() {
     if (type) byType.set(type, (byType.get(type) ?? 0) + 1);
   });
   const types = [...byType].map(([k, v]) => k + "=" + v).join(" ");
-  console.log(`${files.length} files, ${errors} problem(s). Types: ${types}`);
-  process.exit(errors ? 1 : 0);
+  if (files.length > 0) console.log(`${files.length} files, ${errors} problem(s). Types: ${types}`);
+  const courseErrors = await validateCourses();
+  process.exit(errors + courseErrors ? 1 : 0);
+}
+
+/** Checks the course of every certification that has one; returns the number of problems. */
+async function validateCourses(): Promise<number> {
+  // Certifications are independent: check them all at once, report in order.
+  const reports = await Promise.all(
+    (await listCertificationDirs()).map(async (dir) => {
+      const content = await loadCertification(dir);
+      return { code: content.blueprint.certification.code, objectives: Object.values(content.objectives).flat().flatMap((g) => g.objectives).length, report: await validateCourse(content) };
+    }),
+  );
+  let problems = 0;
+  for (const { code, objectives, report } of reports) {
+    if (!report) continue;
+    for (const p of report.problems) console.log(`✘ ${formatProblem(p)}`);
+    problems += report.problems.length;
+    const chapters = report.course?.chapters ?? [];
+    const sections = chapters.flatMap((c) => c.sections);
+    const covered = new Set(sections.flatMap((s) => s.objectives)).size;
+    const summary = report.course ? `${chapters.length} chapters, ${sections.length} sections, ${covered}/${objectives} objectives covered, ` : "";
+    console.log(`Course ${code}: ${summary}${report.problems.length} problem(s).`);
+  }
+  return problems;
 }
 
 try {

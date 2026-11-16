@@ -4,6 +4,7 @@
  */
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
 import { loadBank } from "../lib/content/bank";
+import { loadCourse } from "../lib/content/course";
 
 /** "a=1 b=2" from the counts of `key` over the items. */
 function countBy<T>(items: readonly T[], key: (item: T) => string): string {
@@ -18,15 +19,19 @@ async function main() {
   const loaded = await Promise.allSettled(
     (await listCertificationDirs()).map(async (dir) => {
       const content = await loadCertification(dir);
-      return { content, bank: await loadBank(content) };
+      return { content, bank: await loadBank(content), course: await loadCourse(content) };
     }),
   );
   for (const result of loaded) {
     if (result.status === "rejected") throw result.reason;
-    const { content, bank } = result.value;
+    const { content, bank, course } = result.value;
     console.log(`✔ ${content.blueprint.certification.code}: ${bank.questions.length} questions, ${bank.caseStudies.length} case studies, ${bank.series.length} series`);
     console.log(`  by type:   ${countBy(bank.questions, (q) => q.type)}`);
     console.log(`  by status: ${countBy(bank.questions, (q) => q.status)}`);
+    if (course) {
+      const sections = course.chapters.reduce((n, c) => n + c.sections.length, 0);
+      console.log(`  course:    ${course.chapters.length} chapters, ${sections} sections; by status: ${countBy(course.chapters, (c) => c.status)}`);
+    }
   }
 }
 

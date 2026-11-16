@@ -20,6 +20,8 @@ content/az-104/
   questions/<domaine>/<id>.yaml   une question par fichier, EN + FR
   case-studies/<id>.yaml          scénarios d'études de cas (onglets)
   series/<id>.yaml                énoncés communs des séries Oui/Non
+  course/course.yaml              cours : modules, ordre et titres des chapitres, statuts
+  course/chapters/<id>.<en|fr>.md un chapitre par langue, découpé en sections
 ```
 
 Ajouter une certification = ajouter un dossier `content/<code>/` puis `npm run seed`. Les fichiers sont validés par les schémas Zod de `lib/content/schema.ts` (pondérations sommables à 100 %, mix de difficulté = 1, codes uniques…) et `lib/questions/schema.ts` (un schéma par type de question : affichage, réponse attendue, réponse du candidat ; cohérence réponse/énoncé). `npm run content:check` valide tout le contenu sans base de données.
@@ -55,6 +57,17 @@ npm run seed
 
 Une question signalée par 3 utilisateurs différents passe en `needs_review` en base et sort des examens. `npm run seed` ne la republie pas tant que son fichier n'a pas changé : après correction, incrémenter son `version` dans le YAML. Les questions, études de cas et séries supprimées du dépôt passent en `retired`.
 
+### Cours AZ-104
+
+Le cours (`docs/SPECS-COURS.md`) est rédigé en anglais et en français dans `content/az-104/course/` : 16 chapitres, 107 sections, les 81 objectifs du guide d'étude couverts. Chaque section commence par un marqueur `<!-- section: <id> | objectives: <codes> -->` suivi d'un titre de niveau 2 ; les règles de rédaction sont dans `tools/course/WRITING_GUIDE.md`. `npm run content:validate` vérifie le cours (fichiers des deux langues, parité EN/FR, objectifs, Markdown autorisé, références Learn) et donne chaque problème avec son fichier et sa ligne.
+
+`npm run seed` charge le cours (tables `course_module`, `course_chapter`, `course_section`) : le dépôt fait foi, et un chapitre ou une section retiré des fichiers est supprimé en base avec la progression de lecture associée (`course_progress`, supprimée aussi avec le compte). Les chapitres restent en `draft` jusqu'à relecture humaine :
+
+```bash
+npm run content:status -- reviewed 12-rbac --course      # un chapitre (préfixe d'id)
+npm run content:status -- published all --from reviewed --course
+```
+
 ## Démarrage en local
 
 Prérequis : Node 22 et Docker Desktop (ou un PostgreSQL 16 déjà installé).
@@ -67,7 +80,7 @@ cp .env.example .env            # Windows (PowerShell) : copy .env.example .env
 npm install
 npm run db:up                   # PostgreSQL 16 dans Docker (docker-compose.dev.yml)
 npx prisma migrate deploy       # crée le schéma
-npm run seed                    # charge content/ : référentiel et 598 questions
+npm run seed                    # charge content/ : référentiel, 598 questions et le cours
 npm run user:create -- --email vous@example.com --password "au-moins-12-caracteres" --admin --locale fr
 npm run dev                     # http://localhost:3000
 ```
@@ -91,9 +104,9 @@ Les comptes se créent avec `npm run user:create` ou depuis **Administration →
 | `npm run test:coverage` | Unitaires + intégration + composants avec couverture (≥ 80 % global, ≥ 90 % sur `lib/exam`, rapport `coverage/`) — base jetable requise |
 | `npm run test:e2e` | Tous les tests Playwright (parcours + non-régression) sur un build de production — même contrainte de base jetable |
 | `npm run test:regression` | Seulement la suite de non-régression Playwright (`tests/e2e/regression`) |
-| `npm run content:check` | Valide `content/` (schémas et références croisées) |
-| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et liste tous les problèmes |
-| `npm run content:status -- <statut> <préfixe\|all> [--from <statut>]` | Change le statut de questions en masse |
+| `npm run content:check` | Valide `content/` (schémas et références croisées, cours compris) |
+| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et le cours, et liste tous les problèmes |
+| `npm run content:status -- <statut> <préfixe\|all> [--from <statut>] [--course]` | Change le statut de questions en masse, ou de chapitres avec `--course` |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |
 | `npm run user:create` | Crée un compte (`--email`, `--password`, `--name`, `--admin`, `--locale`) |

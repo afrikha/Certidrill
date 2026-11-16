@@ -4,8 +4,9 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
-import { seedBank, seedReferential } from "../lib/content/seed";
+import { seedBank, seedCourse, seedReferential } from "../lib/content/seed";
 import { loadBank } from "../lib/content/bank";
+import { loadCourse } from "../lib/content/course";
 
 async function main() {
   const db = new PrismaClient();
@@ -17,6 +18,7 @@ async function main() {
     for (const dir of dirs) {
       const content = await loadCertification(dir); // NOSONAR: sequential on purpose (see above)
       const bank = await loadBank(content); // NOSONAR: validate everything before writing
+      const course = await loadCourse(content); // NOSONAR: validate everything before writing
       const report = await seedReferential(db, content); // NOSONAR: database writes, in order
       console.log(
         `✔ ${report.certification} — blueprint ${report.blueprintVersion}: ${report.domains} domains, ${report.objectives} objectives`,
@@ -24,6 +26,11 @@ async function main() {
       const b = await seedBank(db, content, bank); // NOSONAR: database writes, in order
       const retired = b.retired ? ", " + b.retired + " retired" : "";
       console.log(`  ${b.questions} questions, ${b.caseStudies} case studies, ${b.series} series${retired}`);
+      if (course) {
+        const r = await seedCourse(db, content, course); // NOSONAR: database writes, in order
+        const removed = r.removed.chapters + r.removed.sections ? `, removed ${r.removed.chapters} chapters and ${r.removed.sections} sections` : "";
+        console.log(`  course: ${r.chapters} chapters, ${r.sections} sections (${r.changed.chapters} chapters and ${r.changed.sections} sections new or changed${removed})`);
+      }
     }
   } finally {
     await db.$disconnect();
