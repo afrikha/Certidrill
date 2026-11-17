@@ -134,7 +134,7 @@ describe("questions by batch", () => {
     expect((await db.questionSeries.findUniqueOrThrow({ where: { id: "sr-test" } })).status).toBe("published");
   });
 
-  it("changes a case study or a series only when all its questions end at the batch's status", async () => {
+  it("publishes a case study or a series only when all its questions are, and takes it out of exams with any question that leaves published", async () => {
     // Two questions of different types: a batch on one type takes only one of them.
     const a = bank.questions[0]!;
     const b = bank.questions.find((q) => q.type !== a.type)!;
@@ -144,12 +144,11 @@ describe("questions by batch", () => {
     await db.question.update({ where: { id: c.id }, data: { caseStudyId: "cs-mixed", status: "retired" } });
     const caseStudy = () => db.caseStudy.findUniqueOrThrow({ where: { id: "cs-mixed" } }).then((x) => x.status);
 
-    // One of its questions back to draft: the other stays published, so does the case study.
+    // One of its questions back to draft: the case study leaves the exams with it, rather than being drawn truncated.
     expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a.type, status: "published", to: "draft" })).toBe(1);
-    expect(await caseStudy()).toBe("published");
+    expect(await caseStudy()).toBe("draft");
 
-    // Partly back to draft, by hand: a batch publishing one of them leaves the case study as it is…
-    await db.caseStudy.update({ where: { id: "cs-mixed" }, data: { status: "draft" } });
+    // Questions at different statuses: a batch publishing one of them leaves the case study as it is…
     await db.question.update({ where: { id: b.id }, data: { status: "reviewed" } });
     await setQuestionStatuses(db, adminId, { certification: "az-900", status: "draft", to: "published" });
     expect(await caseStudy()).toBe("draft");

@@ -137,19 +137,21 @@ export function batchWhere(certificationId: string, b: Omit<QuestionBatch, "cert
 }
 
 /**
- * The case studies and series of the changed questions whose every question
- * (retired ones aside) now has status `to`. A group partly changed keeps its
- * status: otherwise its other questions would leave the exams, or an exam
- * would draw it incomplete.
+ * The case studies and series whose status follows a batch. An exam draws a
+ * group whole or not at all, never truncated:
+ * - published: only a group whose every question (retired ones aside) is now
+ *   published; a group partly published keeps its status;
+ * - any other status: every group with a question changed, since a question
+ *   leaving `published` takes its group out of the exams with it.
  */
-async function groupsAllAt(
+async function groupsToChange(
   tx: Prisma.TransactionClient,
   changed: readonly { caseStudyId: string | null; seriesId: string | null }[],
   to: ContentStatus,
 ): Promise<{ caseStudies: string[]; series: string[] }> {
   const caseStudies = [...new Set(changed.flatMap((q) => (q.caseStudyId ? [q.caseStudyId] : [])))];
   const series = [...new Set(changed.flatMap((q) => (q.seriesId ? [q.seriesId] : [])))];
-  if (caseStudies.length === 0 && series.length === 0) return { caseStudies, series };
+  if (to !== "published" || (caseStudies.length === 0 && series.length === 0)) return { caseStudies, series };
   const others = await tx.question.findMany({
     where: { OR: [{ caseStudyId: { in: caseStudies } }, { seriesId: { in: series } }], status: { notIn: [to, "retired"] } },
     select: { caseStudyId: true, seriesId: true },
@@ -160,9 +162,8 @@ async function groupsAllAt(
 
 /**
  * Sets the status of every question the filters select, and of the case
- * studies and series they belong to when all their questions now have that
- * status (an exam only draws a case study or a series whose own status
- * allows it). One entry in the audit log for the
+ * studies and series they belong to as `groupsToChange` says (an exam only
+ * draws a case study or a series whose own status allows it). One entry in the audit log for the
  * batch, with the ids changed. Returns the number of questions changed.
  */
 export async function setQuestionStatuses(db: PrismaClient, actorId: string, batch: QuestionBatch): Promise<number> {
@@ -176,7 +177,7 @@ export async function setQuestionStatuses(db: PrismaClient, actorId: string, bat
       const ids = rows.map((q) => q.id);
       // Only rows still as read: a batch at the same time does not count them twice.
       const { count } = await tx.question.updateMany({ where: { id: { in: ids }, status: { not: batch.to }, NOT: { status: { in: [...OUT_OF_BATCH] } } }, data: { status: batch.to } });
-      const { caseStudies, series } = await groupsAllAt(tx, rows, batch.to);
+      const { caseStudies, series } = await groupsToChange(tx, rows, batch.to);
       const groups = { status: { notIn: [batch.to, "retired"] as ContentStatus[] } };
       if (caseStudies.length > 0) await tx.caseStudy.updateMany({ where: { id: { in: caseStudies }, ...groups }, data: { status: batch.to } });
       if (series.length > 0) await tx.questionSeries.updateMany({ where: { id: { in: series }, ...groups }, data: { status: batch.to } });
