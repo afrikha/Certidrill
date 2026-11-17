@@ -10,7 +10,7 @@ import { isChapterStatus } from "@/lib/course/admin";
 import { isBatchStatus } from "@/lib/content/batch-status";
 import { PublishError, setCertificationActive, setCourseStatuses, setQuestionStatuses } from "@/lib/content/publish";
 
-export type PublishState = { ok?: true; count?: number; active?: boolean; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "unconfirmed" } | undefined;
+export type PublishState = { ok?: true; count?: number; active?: boolean; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "breaks_active" | "unconfirmed" } | undefined;
 
 /** Everything a certification's visibility touches. */
 function revalidateCertification() {

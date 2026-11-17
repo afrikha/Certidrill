@@ -167,6 +167,23 @@ describe("questions by batch", () => {
     expect(await statuses()).toEqual({ published: bank.questions.length - 1, draft: 1 });
   });
 
+  it("refuses a batch that would leave an active certification without complete exams, and changes nothing", async () => {
+    await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" });
+    await setCertificationActive(db, adminId, "az-900", true);
+    const before = await db.auditLog.count({ where: { action: "question.status" } });
+    expect(await refusal(setQuestionStatuses(db, adminId, { certification: "az-900", to: "draft" }))).toBe("breaks_active");
+    expect(await statuses()).toEqual({ published: bank.questions.length });
+    expect(await db.auditLog.count({ where: { action: "question.status" } })).toBe(before);
+
+    // A few questions less still build complete exams: allowed, and the audit lists the ids changed.
+    const [one] = bank.questions;
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: one!.type, domain: content.blueprint.domains[0]!.code, to: "reviewed" })).toBeGreaterThan(0);
+    const last = await db.auditLog.findFirstOrThrow({ where: { action: "question.status" }, orderBy: { createdAt: "desc" } });
+    const details = last.details as { ids: string[]; count: number };
+    expect(details.ids).toHaveLength(details.count);
+    expect(await db.question.count({ where: { id: { in: details.ids }, status: "reviewed" } })).toBe(details.count);
+  });
+
   it("lists every certification with its counts and exam check", async () => {
     await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" });
     const [row] = await certificationRows(db);

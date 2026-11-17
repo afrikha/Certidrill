@@ -1,4 +1,4 @@
-import type { ContentStatus, PrismaClient } from "@prisma/client";
+import type { ContentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type { BlueprintStructure, QuestionTypeCode } from "@/lib/content/schema";
 import type { AssemblyBank, AssemblyBlueprint, AssemblyHistory, CandidateQuestion } from "./assembler";
 
@@ -20,7 +20,10 @@ function candidate(q: Row): CandidateQuestion {
 }
 
 /** Loads the current blueprint of a certification in the shape the assembler expects. */
-export async function loadAssemblyBlueprint(db: PrismaClient, certificationId: string) {
+/** Reads also run inside a transaction (the back-office checks a bank before committing a change). */
+type ReadDb = PrismaClient | Prisma.TransactionClient;
+
+export async function loadAssemblyBlueprint(db: ReadDb, certificationId: string) {
   const bp = await db.blueprint.findFirstOrThrow({
     where: { certificationId, current: true },
     include: { domains: { orderBy: { order: "asc" } } },
@@ -36,7 +39,7 @@ export async function loadAssemblyBlueprint(db: PrismaClient, certificationId: s
   return { row: bp, blueprint };
 }
 
-export async function loadAssemblyBank(db: PrismaClient, certificationId: string): Promise<AssemblyBank> {
+export async function loadAssemblyBank(db: ReadDb, certificationId: string): Promise<AssemblyBank> {
   const status = { in: examStatuses() };
   const select = { id: true, type: true, difficulty: true, caseStudyId: true, seriesId: true, seriesOrder: true, objective: { select: { code: true, domain: { select: { code: true } } } } } as const;
   const rows = await db.question.findMany({ where: { certificationId, status }, select, orderBy: { id: "asc" } });

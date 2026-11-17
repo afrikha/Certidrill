@@ -11,6 +11,7 @@ import { audit } from "@/lib/audit";
 import { assembleExam } from "@/lib/exam/assembler";
 import { loadAssemblyBank, loadAssemblyBlueprint } from "@/lib/exam/bank-query";
 import type { BatchStatus } from "./batch-status";
+import { compareCodeUnits } from "@/lib/sort";
 
 
 /** Seeds of the trial exams: a few draws, as candidates would get them. */
@@ -30,7 +31,7 @@ export interface ExamCheck {
  * enough to build complete exams: a few trial exams are assembled, as for a
  * candidate who has seen nothing yet.
  */
-export async function checkExamBank(db: PrismaClient, certificationId: string): Promise<ExamCheck> {
+export async function checkExamBank(db: PrismaClient | Prisma.TransactionClient, certificationId: string): Promise<ExamCheck> {
   const current = await db.blueprint.findFirst({ where: { certificationId, current: true }, select: { id: true } });
   if (!current) return { ok: false, available: 0, shortfall: 0 };
   const [{ blueprint }, bank] = await Promise.all([loadAssemblyBlueprint(db, certificationId), loadAssemblyBank(db, certificationId)]);
@@ -85,7 +86,8 @@ export async function certificationRows(db: PrismaClient): Promise<Certification
 }
 
 export class PublishError extends Error {
-  constructor(readonly code: "not_found" | "incomplete_bank") {
+  /** incomplete_bank: activation refused; breaks_active: a batch would leave an active certification without complete exams. */
+  constructor(readonly code: "not_found" | "incomplete_bank" | "breaks_active") {
     super(code);
   }
 }
@@ -100,8 +102,9 @@ export async function setCertificationActive(db: PrismaClient, actorId: string, 
   const certification = await db.certification.findUnique({ where: { code }, select: { id: true, active: true } });
   if (!certification) throw new PublishError("not_found");
   if (certification.active === active) return false;
-  if (active && !(await checkExamBank(db, certification.id)).ok) throw new PublishError("incomplete_bank");
   return db.$transaction(async (tx) => {
+    // Checked in the transaction: a batch committed meanwhile is seen.
+    if (active && !(await checkExamBank(tx, certification.id)).ok) throw new PublishError("incomplete_bank");
     // Compare and set: of two submissions at the same time, one changes the value (and is recorded), the other nothing.
     const { count } = await tx.certification.updateMany({ where: { id: certification.id, active: !active }, data: { active } });
     if (count === 0) return false;
@@ -163,24 +166,33 @@ async function groupsToChange(
 /**
  * Sets the status of every question the filters select, and of the case
  * studies and series they belong to as `groupsToChange` says (an exam only
- * draws a case study or a series whose own status allows it). One entry in the audit log for the
+ * draws a case study or a series whose own status allows it). Refused
+ * (nothing changed) when it would leave an active certification unable to
+ * build complete exams: deactivate it first. One entry in the audit log for the
  * batch, with the ids changed. Returns the number of questions changed.
  */
 export async function setQuestionStatuses(db: PrismaClient, actorId: string, batch: QuestionBatch): Promise<number> {
-  const certification = await db.certification.findUnique({ where: { code: batch.certification }, select: { id: true } });
+  const certification = await db.certification.findUnique({ where: { code: batch.certification }, select: { id: true, active: true } });
   if (!certification) throw new PublishError("not_found");
   return db.$transaction(
     async (tx) => {
       const where = { AND: [batchWhere(certification.id, batch), { status: { not: batch.to } }] };
-      const rows = await tx.question.findMany({ where, select: { id: true, caseStudyId: true, seriesId: true }, orderBy: { id: "asc" } });
-      if (rows.length === 0) return 0;
-      const ids = rows.map((q) => q.id);
-      // Only rows still as read: a batch at the same time does not count them twice.
-      const { count } = await tx.question.updateMany({ where: { id: { in: ids }, status: { not: batch.to }, NOT: { status: { in: [...OUT_OF_BATCH] } } }, data: { status: batch.to } });
-      const { caseStudies, series } = await groupsToChange(tx, rows, batch.to);
+      const read = await tx.question.findMany({ where, select: { id: true }, orderBy: { id: "asc" } });
+      if (read.length === 0) return 0;
+      // Only rows still as read: of two batches at the same time, each changes (and records) its own rows.
+      const changed = await tx.question.updateManyAndReturn({
+        where: { id: { in: read.map((q) => q.id) }, status: { notIn: [batch.to, ...OUT_OF_BATCH] } },
+        data: { status: batch.to },
+        select: { id: true, caseStudyId: true, seriesId: true },
+      });
+      if (changed.length === 0) return 0;
+      const { caseStudies, series } = await groupsToChange(tx, changed, batch.to);
       const groups = { status: { notIn: [batch.to, "retired"] as ContentStatus[] } };
       if (caseStudies.length > 0) await tx.caseStudy.updateMany({ where: { id: { in: caseStudies }, ...groups }, data: { status: batch.to } });
       if (series.length > 0) await tx.questionSeries.updateMany({ where: { id: { in: series }, ...groups }, data: { status: batch.to } });
+      // An active certification stays able to build complete exams, or nothing is changed.
+      if (certification.active && batch.to !== "published" && !(await checkExamBank(tx, certification.id)).ok) throw new PublishError("breaks_active");
+      const ids = changed.map((q) => q.id).sort(compareCodeUnits);
       await audit(tx, {
         actorId,
         action: "question.status",
@@ -188,11 +200,11 @@ export async function setQuestionStatuses(db: PrismaClient, actorId: string, bat
           certification: batch.certification,
           filters: { type: batch.type ?? null, status: batch.status ?? null, domain: batch.domain ?? null },
           to: batch.to,
-          count,
+          count: ids.length,
           ids,
         },
       });
-      return count;
+      return ids.length;
     },
     { timeout: 30_000 },
   );
