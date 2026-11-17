@@ -13,6 +13,7 @@ import { loadBank } from "@/lib/content/bank";
 import type { QuestionBank } from "@/lib/content/bank";
 import { bankStatusAfterSeed, seedBank, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
+import { loadAssemblyBank } from "@/lib/exam/bank-query";
 import { batchWhere, certificationRows, checkExamBank, PublishError, setCertificationActive, setQuestionStatuses } from "@/lib/content/publish";
 
 let content: CertificationContent;
@@ -155,6 +156,29 @@ describe("questions by batch", () => {
     // …and the batch completing it publishes it (the retired question does not count).
     await setQuestionStatuses(db, adminId, { certification: "az-900", status: "reviewed", to: "published" });
     expect(await caseStudy()).toBe("published");
+  });
+
+  it("never draws a published case study or series while one of its questions may not enter an exam", async () => {
+    await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" });
+    const [a, b, c, d] = bank.questions;
+    await db.caseStudy.create({ data: { id: "cs-whole", certificationId, title: {}, tabs: [], status: "published" } });
+    await db.questionSeries.create({ data: { id: "sr-whole", certificationId, stem: {}, status: "published" } });
+    await db.question.updateMany({ where: { id: { in: [a!.id, b!.id] } }, data: { caseStudyId: "cs-whole" } });
+    await db.question.updateMany({ where: { id: { in: [c!.id, d!.id] } }, data: { seriesId: "sr-whole" } });
+    const drawn = async () => {
+      const loaded = await loadAssemblyBank(db, certificationId);
+      return { caseStudies: loaded.caseStudies.map((g) => g.id), series: loaded.series.map((g) => g.id) };
+    };
+    expect(await drawn()).toEqual({ caseStudies: ["cs-whole"], series: ["sr-whole"] });
+
+    // A question reported by a user, or back to draft with a new version of its file (see the re-seed test below;
+    // the group keeps its own status): the group leaves the exams rather than being drawn truncated.
+    await db.question.update({ where: { id: a!.id }, data: { status: "needs_review" } });
+    await db.question.update({ where: { id: c!.id }, data: { status: "draft" } });
+    expect(await drawn()).toEqual({ caseStudies: [], series: [] });
+    // A retired question does not count.
+    await db.question.update({ where: { id: a!.id }, data: { status: "retired" } });
+    expect(await drawn()).toEqual({ caseStudies: ["cs-whole"], series: [] });
   });
 
   it("keeps the published status at re-seed while the files stay in draft, and follows a new version", async () => {
