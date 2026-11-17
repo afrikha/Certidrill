@@ -52,8 +52,11 @@ test("an administrator publishes a certification's questions and course by batch
   await course.getByRole("checkbox").check();
   await course.getByRole("button", { name: "Apply" }).click();
   await expect(course.locator("output")).toContainText(/chapters? changed\./);
-  await row.getByRole("button", { name: "Activate" }).click();
-  await expect(row.locator("output")).toHaveText("Activated: visible to everyone.");
+  const activation = row.getByTestId(`active-form-${CODE}`);
+  await activation.getByRole("button", { name: "Activate" }).click();
+  await expect(activation.locator("output")).toHaveText("Activated: visible to everyone.");
+  // The page now offers the opposite action.
+  await expect(activation.getByRole("button", { name: "Deactivate" })).toBeVisible();
 
   await page.reload();
   await expect(row.getByTestId("visibility")).toHaveText("active");
@@ -62,8 +65,8 @@ test("an administrator publishes a certification's questions and course by batch
   const log = await db.auditLog.findMany({ where: { action: { in: ["question.status", "certification.active"] }, createdAt: { gte: since } }, orderBy: { createdAt: "asc" } });
   expect(log.map((l) => l.action)).toEqual(["question.status", "certification.active"]);
 
-  // Offered to visitors.
+  // Offered to visitors: the home page lists the active certifications.
   await page.context().clearCookies();
-  await page.goto("/pricing");
+  await page.goto("/");
   await expect(page.getByText(/AZ-900/).first()).toBeVisible();
 });

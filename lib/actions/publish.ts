@@ -10,7 +10,7 @@ import { isChapterStatus } from "@/lib/course/admin";
 import { isBatchStatus } from "@/lib/content/batch-status";
 import { PublishError, setCertificationActive, setCourseStatuses, setQuestionStatuses } from "@/lib/content/publish";
 
-export type PublishState = { ok?: true; count?: number; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "unconfirmed" } | undefined;
+export type PublishState = { ok?: true; count?: number; active?: boolean; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "unconfirmed" } | undefined;
 
 /** Everything a certification's visibility touches. */
 function revalidateCertification() {
@@ -35,7 +35,9 @@ export async function setCertificationActiveAction(_prev: PublishState, formData
   const admin = await requireAdmin();
   const active = formString(formData, "active");
   if (active !== "true" && active !== "false") return { error: "invalid" };
-  return run(() => setCertificationActive(prisma, admin.id, formString(formData, "certification"), active === "true"));
+  const state = await run(() => setCertificationActive(prisma, admin.id, formString(formData, "certification"), active === "true"));
+  // The page shows the new value at once: the message says what was asked, not the current value.
+  return state?.ok ? { ...state, active: active === "true" } : state;
 }
 
 /** Sets the status of the questions the filters of the questions page select; the box must be ticked. */

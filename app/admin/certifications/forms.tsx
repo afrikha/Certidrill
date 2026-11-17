@@ -26,7 +26,7 @@ export function ActiveForm({ code, active }: Readonly<{ code: string; active: bo
       <Button type="submit" variant={active ? "secondary" : "primary"} disabled={pending}>
         {active ? t("deactivate") : t("activate")}
       </Button>
-      <Result state={state} done={() => (active ? t("deactivated") : t("activated"))} />
+      <Result state={state} done={() => (state?.active ? t("activated") : t("deactivated"))} />
     </form>
   );
 }
