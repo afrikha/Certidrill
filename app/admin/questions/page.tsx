@@ -13,18 +13,21 @@ export const metadata = { title: "Questions" };
 
 const statuses: ContentStatus[] = ["draft", "needs_review", "reviewed", "published", "retired"];
 
-export default async function AdminQuestionsPage({ searchParams }: Readonly<{ searchParams: Promise<{ type?: string; status?: string; domain?: string }> }>) {
+export default async function AdminQuestionsPage({ searchParams }: Readonly<{ searchParams: Promise<{ type?: string; status?: string; domain?: string; certification?: string }> }>) {
   // Checked here too: layouts are not re-run on every navigation (Next.js guidance).
   await requireAdmin();
   const sp = await searchParams;
   const t = await getTranslations("admin");
   const locale = (await getLocale()) as Locale;
-  const domains = await prisma.domain.findMany({ where: { blueprint: { current: true } }, orderBy: { order: "asc" } });
+  // One certification at a time (the first active one by default): domain codes repeat across certifications.
+  const certifications = await prisma.certification.findMany({ orderBy: { code: "asc" }, select: { id: true, code: true, title: true, active: true } });
+  const certification = certifications.find((c) => c.code === sp.certification) ?? certifications.find((c) => c.active) ?? certifications[0];
+  const domains = await prisma.domain.findMany({ where: { blueprint: { current: true, certificationId: certification?.id ?? "" } }, orderBy: { order: "asc" } });
 
-  const where: Prisma.QuestionWhereInput = {};
+  const where: Prisma.QuestionWhereInput = { certificationId: certification?.id ?? "" };
   if (sp.type && (questionTypes as readonly string[]).includes(sp.type)) where.type = sp.type as QuestionType;
   if (sp.status && (statuses as string[]).includes(sp.status)) where.status = sp.status as ContentStatus;
-  if (sp.domain) where.objective = { domain: { code: sp.domain } };
+  if (sp.domain) where.objective = { domain: { code: sp.domain, blueprint: { current: true } } };
 
   const questions = await prisma.question.findMany({
     where,
@@ -36,6 +39,11 @@ export default async function AdminQuestionsPage({ searchParams }: Readonly<{ se
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("questions")}</h1>
       <form className="flex flex-wrap items-end gap-3" aria-label={t("filters")}>
+        <label className="text-sm">{t("certification")}
+          <Select name="certification" defaultValue={certification?.code ?? ""} className="mt-1">
+            {certifications.map((c) => <option key={c.code} value={c.code}>{c.code.toUpperCase()}{c.active ? "" : ` (${t("inactive")})`}</option>)}
+          </Select>
+        </label>
         <label className="text-sm">{t("type")}
           <Select name="type" defaultValue={sp.type ?? ""} className="mt-1">
             <option value="">{t("all")}</option>

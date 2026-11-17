@@ -90,7 +90,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
               {allCertifications.map((c) => {
                 const price = resolvePrice(passPlan, ownPrices.get(c.id));
                 return (
-                  <tr key={c.code} className="border-t border-border align-middle" data-certification={c.code} data-custom={price.custom}>
+                  <tr key={c.code} className="border-t border-border align-middle" data-price-certification={c.code} data-custom={price.custom}>
                     <th scope="row" className="py-2 pr-3 font-normal">
                       <span className="font-mono uppercase">{c.code}</span> <span className="text-muted-foreground">{c.title}</span>
                       {!c.active && <span className="ml-2 rounded bg-muted px-1.5 text-xs">{t("priceInactive")}</span>}

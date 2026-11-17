@@ -31,7 +31,8 @@ export interface AdminChapter {
 }
 
 export interface AdminCourse {
-  certification: { code: string; title: string };
+  /** `active`: an inactive certification is shown here only, to prepare its course. */
+  certification: { code: string; title: string; active: boolean };
   chapters: AdminChapter[];
 }
 
@@ -48,7 +49,7 @@ export async function coursesForAdmin(db: PrismaClient, locale: Locale): Promise
         status: true,
         fileStatus: true,
         contentUpdatedAt: true,
-        certification: { select: { code: true, title: true } },
+        certification: { select: { code: true, title: true, active: true } },
         module: { select: { title: true } },
         sections: { select: { contentUpdatedAt: true } },
       },
