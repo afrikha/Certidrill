@@ -1,0 +1,83 @@
+id: dp800-2a-model-invoke-complete
+objective: "2.1.7"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL Database. The system-assigned managed identity of the logical server has the Cognitive Services OpenAI User role on the Azure OpenAI resource **aoai-tailspin**.
+
+    You are writing a script that must meet the following requirements:
+
+    - The call to the embeddings deployment authenticates with the managed identity of the server.
+    - The script returns the HTTP status code of the response.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL Database. L'identité managée affectée par le système du serveur logique dispose du rôle Cognitive Services OpenAI User sur la ressource Azure OpenAI **aoai-tailspin**.
+
+    Vous écrivez un script qui doit satisfaire les exigences suivantes :
+
+    - L'appel au déploiement d'embeddings s'authentifie avec l'identité managée du serveur.
+    - Le script renvoie le code d'état HTTP de la réponse.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE DATABASE SCOPED CREDENTIAL [https://aoai-tailspin.openai.azure.com]
+    WITH IDENTITY = 'Managed Identity',
+         SECRET = '{"resourceid":"[[res]]"}';
+    GO
+
+    DECLARE @response nvarchar(max);
+    DECLARE @payload nvarchar(max) = JSON_OBJECT('input': N'Waterproof hiking boots');
+
+    EXEC sp_invoke_external_rest_endpoint
+        @url = N'https://aoai-tailspin.openai.azure.com/openai/deployments/text-embedding-3-small/embeddings?api-version=2024-02-01',
+        @method = 'POST',
+        @credential = [[cred]],
+        @payload = @payload,
+        @response = @response OUTPUT;
+
+    SELECT JSON_VALUE(@response, '[[path]]') AS http_status;
+  slots:
+    - id: res
+      options:
+        - { id: cog, text: "https://cognitiveservices.azure.com" }
+        - { id: mgmt, text: "https://management.azure.com" }
+        - { id: vault, text: "https://vault.azure.net" }
+        - { id: sqldb, text: "https://database.windows.net" }
+    - id: cred
+      options:
+        - { id: name, text: "[https://aoai-tailspin.openai.azure.com]" }
+        - { id: mi, text: "N'Managed Identity'" }
+        - { id: resstr, text: "N'https://cognitiveservices.azure.com'" }
+        - { id: full, text: "[https://aoai-tailspin.openai.azure.com/openai/deployments/text-embedding-3-small/embeddings?api-version=2024-02-01]" }
+    - id: path
+      options:
+        - { id: code, text: "$.response.status.http.code" }
+        - { id: status, text: "$.status.http.code" }
+        - { id: result, text: "$.result.status" }
+        - { id: headers, text: "$.response.headers.status" }
+answer:
+  values: { res: cog, cred: name, path: code }
+explanation:
+  correct:
+    en: |
+      For Azure OpenAI, a managed identity credential sets resourceid to https://cognitiveservices.azure.com, the audience of the token. The @credential parameter takes the name of the database scoped credential, which is the endpoint URL without a query string. The response JSON returns the HTTP status in response.status.http.code, and the payload of the service in result.
+    fr: |
+      Pour Azure OpenAI, des informations d'identification d'identité managée définissent resourceid sur https://cognitiveservices.azure.com, l'audience du jeton. Le paramètre @credential prend le nom des informations d'identification délimitées à la base de données, c'est-à-dire l'URL du point de terminaison sans chaîne de requête. Le JSON de réponse renvoie le code d'état HTTP dans response.status.http.code, et la charge utile du service dans result.
+  options:
+    mgmt: { en: "This is the audience of Azure Resource Manager, not of Azure OpenAI.", fr: "Il s'agit de l'audience d'Azure Resource Manager, pas d'Azure OpenAI." }
+    mi: { en: "@credential expects the name of a database scoped credential, not an IDENTITY value.", fr: "@credential attend le nom d'informations d'identification délimitées à la base de données, pas une valeur d'IDENTITY." }
+    full: { en: "A credential name can't contain a query string, and no credential with this name exists.", fr: "Le nom d'informations d'identification ne peut pas contenir de chaîne de requête, et aucune n'existe sous ce nom." }
+    result: { en: "result holds the body returned by the service, here the embeddings, not the HTTP status.", fr: "result contient le corps renvoyé par le service, ici les embeddings, pas le code d'état HTTP." }
+references:
+  - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql

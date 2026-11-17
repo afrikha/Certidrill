@@ -1,0 +1,68 @@
+id: az400-1b-ops-kql-failure-rate
+objective: "1.2.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso, Ltd. monitors a microservice named **checkout-api** with a workspace-based Application Insights resource. The telemetry is stored in a Log Analytics workspace named **law-shop**.
+
+    The operations team wants a chart in an Azure Monitor workbook that shows the percentage of failed incoming requests of checkout-api in 5-minute intervals over the last 24 hours.
+
+    How should you complete the query that runs against law-shop? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso, Ltd. supervise un microservice nommé **checkout-api** avec une ressource Application Insights basée sur un espace de travail. Les données de télémétrie sont stockées dans un espace de travail Log Analytics nommé **law-shop**.
+
+    L'équipe d'exploitation souhaite, dans un classeur Azure Monitor, un graphique qui affiche le pourcentage de requêtes entrantes en échec de checkout-api par intervalles de 5 minutes sur les dernières 24 heures.
+
+    Comment devez-vous compléter la requête exécutée sur law-shop ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated > ago(24h) and AppRoleName == "checkout-api"
+    | summarize FailedPct = 100.0 * [[failed]] / count() by [[interval]]
+    | render timechart
+  slots:
+    - id: table
+      options:
+        - { id: deps, text: AppDependencies }
+        - { id: req, text: AppRequests }
+        - { id: exc, text: AppExceptions }
+        - { id: avail, text: AppAvailabilityResults }
+    - id: failed
+      options:
+        - { id: countif, text: countif(Success == false) }
+        - { id: dcount, text: dcount(Success) }
+        - { id: code, text: "countif(ResultCode == \"200\")" }
+        - { id: sum, text: sum(DurationMs) }
+    - id: interval
+      options:
+        - { id: day, text: "bin(TimeGenerated, 24h)" }
+        - { id: dur, text: "bin(DurationMs, 5)" }
+        - { id: five, text: "bin(TimeGenerated, 5m)" }
+        - { id: raw, text: TimeGenerated }
+answer:
+  values: { table: req, failed: countif, interval: five }
+explanation:
+  correct:
+    en: "In the workspace, incoming requests are stored in the `AppRequests` table, whose `Success` column says whether the application handled the request successfully. `countif(Success == false)` divided by `count()` gives the failure ratio, and `bin(TimeGenerated, 5m)` groups the rows into 5-minute intervals for the time chart."
+    fr: "Dans l'espace de travail, les requêtes entrantes sont stockées dans la table `AppRequests`, dont la colonne `Success` indique si l'application a traité la requête avec succès. `countif(Success == false)` divisé par `count()` donne le taux d'échec, et `bin(TimeGenerated, 5m)` regroupe les lignes par intervalles de 5 minutes pour le graphique temporel."
+  options:
+    deps: { en: "AppDependencies holds the outgoing calls of the application, not the requests it receives.", fr: "AppDependencies contient les appels sortants de l'application, pas les requêtes qu'elle reçoit." }
+    exc: { en: "AppExceptions holds exceptions; it can't give the share of failed requests.", fr: "AppExceptions contient les exceptions ; elle ne peut pas donner la part de requêtes en échec." }
+    avail: { en: "AppAvailabilityResults holds the results of availability tests, not real user requests.", fr: "AppAvailabilityResults contient les résultats des tests de disponibilité, pas les requêtes réelles des utilisateurs." }
+    dcount: { en: "dcount(Success) counts distinct values (at most two), not failed requests.", fr: "dcount(Success) compte les valeurs distinctes (deux au plus), pas les requêtes en échec." }
+    code: { en: "Counting the 200 responses measures successes, and other success codes would be counted as failures.", fr: "Compter les réponses 200 mesure les réussites, et les autres codes de réussite seraient comptés comme des échecs." }
+    sum: { en: "The sum of durations measures time, not the number of failures.", fr: "La somme des durées mesure du temps, pas un nombre d'échecs." }
+    day: { en: "A 24-hour bin returns a single point for the whole period.", fr: "Un intervalle de 24 heures ne renvoie qu'un point pour toute la période." }
+    dur: { en: "Binning on DurationMs groups requests by duration, not by time.", fr: "Regrouper sur DurationMs classe les requêtes par durée, pas dans le temps." }
+    raw: { en: "Grouping by the raw timestamp creates one group per distinct time value instead of 5-minute intervals.", fr: "Regrouper sur l'horodatage brut crée un groupe par valeur de temps distincte au lieu d'intervalles de 5 minutes." }
+references:
+  - title: AppRequests
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/apprequests

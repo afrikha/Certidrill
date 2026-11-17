@@ -1,0 +1,75 @@
+id: dp800-cs4b-tripleg-window
+objective: "1.1.6"
+type: dropdown
+caseStudy: dp800-cs4b-relecloud
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the script that the trip history job will run on November 20, 2026. No boundary has been added or removed since the state described in the case.
+
+    You need to complete the script. The solution must meet the trip history requirements.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le script que le travail d'historique des trajets exécutera le 20 novembre 2026. Aucune limite n'a été ajoutée ni supprimée depuis l'état décrit dans l'étude de cas.
+
+    Vous devez compléter le script. La solution doit satisfaire les exigences d'historique des trajets.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE dbo.TripLegs
+        [[move]] dbo.TripLegsStage;
+
+    ALTER PARTITION FUNCTION PF_TripMonth()
+        MERGE RANGE ([[mergeb]]);
+
+    ALTER PARTITION SCHEME PS_TripMonth
+        NEXT USED [PRIMARY];
+
+    ALTER PARTITION FUNCTION PF_TripMonth()
+        SPLIT RANGE ([[splitb]]);
+  slots:
+    - id: move
+      options:
+        - { id: p1, text: "SWITCH PARTITION 1 TO" }
+        - { id: p2, text: "SWITCH PARTITION 2 TO" }
+        - { id: p3, text: "SWITCH PARTITION 3 TO" }
+    - id: mergeb
+      options:
+        - { id: m1, text: "'2024-11-01'" }
+        - { id: m2, text: "'2024-12-01'" }
+        - { id: m3, text: "'2026-12-01'" }
+    - id: splitb
+      options:
+        - { id: s1, text: "'2026-12-01'" }
+        - { id: s2, text: "'2027-01-01'" }
+        - { id: s3, text: "'2027-02-01'" }
+shuffle: false
+answer:
+  values: { move: p2, mergeb: m1, splitb: s2 }
+explanation:
+  correct:
+    en: |
+      Partition 2 holds November 2024, the month that falls outside the 24 months kept (December 2024 to November 2026); SWITCH moves it to the empty staging table as a metadata operation because the indexes are aligned and the target is on the same filegroup. With RANGE RIGHT, removing the boundary 2024-11-01 merges partition 1 and the switched-out partition, which are both empty, so no row moves. The last boundary is 2026-12-01, so the next month boundary is 2027-01-01, split while the last partition is still empty and after a NEXT USED filegroup is set.
+    fr: |
+      La partition 2 contient novembre 2024, le mois qui sort des 24 mois conservés (décembre 2024 à novembre 2026) ; SWITCH la déplace vers la table intermédiaire vide par une opération sur les métadonnées, car les index sont alignés et la cible se trouve sur le même groupe de fichiers. Avec RANGE RIGHT, la suppression de la limite 2024-11-01 fusionne la partition 1 et la partition vidée, toutes deux vides : aucune ligne n'est déplacée. La dernière limite est 2026-12-01 : la limite du mois suivant est donc 2027-01-01, ajoutée pendant que la dernière partition est encore vide et après la définition d'un groupe de fichiers NEXT USED.
+  options:
+    p1: { en: "Partition 1 holds the dates before 2024-11-01 and is empty; switching it removes no trips.", fr: "La partition 1 contient les dates antérieures au 2024-11-01 et est vide ; la basculer ne retire aucun trajet." }
+    p3: { en: "Partition 3 holds December 2024, which is one of the 24 months to keep.", fr: "La partition 3 contient décembre 2024, l'un des 24 mois à conserver." }
+    m2: { en: "Removing 2024-12-01 merges the empty November partition with the populated December 2024 partition: merging a populated partition can move rows, with heavy logging and locking.", fr: "La suppression de 2024-12-01 fusionne la partition vide de novembre avec la partition remplie de décembre 2024 : la fusion d'une partition remplie peut déplacer des lignes, avec une journalisation et des verrous importants." }
+    m3: { en: "Removing 2026-12-01 keeps the boundary of the removed month and puts November and December 2026 in one partition, so the split would then divide a populated partition.", fr: "La suppression de 2026-12-01 conserve la limite du mois retiré et place novembre et décembre 2026 dans une même partition : la division porterait alors sur une partition remplie." }
+    s1: { en: "2026-12-01 is already a boundary; SPLIT RANGE requires a value that isn't an existing boundary.", fr: "2026-12-01 est déjà une limite ; SPLIT RANGE exige une valeur qui n'est pas une limite existante." }
+    s3: { en: "A boundary on 2027-02-01 would put December 2026 and January 2027 in the same partition, which breaks the monthly partitioning.", fr: "Une limite au 2027-02-01 placerait décembre 2026 et janvier 2027 dans la même partition, ce qui rompt le partitionnement mensuel." }
+references:
+  - title: ALTER PARTITION FUNCTION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-partition-function-transact-sql
+  - title: Partitioned tables and indexes
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/partitions/partitioned-tables-and-indexes

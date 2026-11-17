@@ -1,0 +1,72 @@
+id: dp420-cs4a-hybrid-query
+objective: "3.1.5"
+type: dropdown
+caseStudy: dp420-cs4a-lamna-healthcare
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the query that Lamna Assist runs to retrieve the five best chunks for a clinician's question. The parameter `@queryVector` contains the embedding of the question, and `@term1` and `@term2` contain its keywords.
+
+    You need to complete the query to meet the retrieval requirements.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la requête que Lamna Assist exécute pour récupérer les cinq meilleurs segments pour la question d'un clinicien. Le paramètre `@queryVector` contient l'embedding de la question, et `@term1` et `@term2` contiennent ses mots clés.
+
+    Vous devez compléter la requête pour satisfaire les exigences de recherche.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 5 c.protocolId, c.chunkText
+    FROM c
+    WHERE c.hospitalId = @hospitalId
+    [[order]] RRF(
+        VectorDistance(c.embedding, @queryVector),
+        [[score]](c.chunkText, @term1, @term2),
+        [[weights]])
+  slots:
+    - id: order
+      options:
+        - { id: rank, text: "ORDER BY RANK" }
+        - { id: orderby, text: "ORDER BY" }
+        - { id: groupby, text: "GROUP BY" }
+    - id: score
+      options:
+        - { id: contains, text: FullTextContains }
+        - { id: any, text: FullTextContainsAny }
+        - { id: fts, text: FullTextScore }
+        - { id: vd, text: VectorDistance }
+    - id: weights
+      options:
+        - { id: w12, text: "[1, 2]" }
+        - { id: w2, text: "[2]" }
+        - { id: w21, text: "[2, 1]" }
+        - { id: w11, text: "[1, 1]" }
+answer:
+  values: { order: rank, score: fts, weights: w21 }
+explanation:
+  correct:
+    en: "Hybrid search fuses a vector score and a BM25 score with `RRF`, which can only be used in an `ORDER BY RANK` clause. `FullTextScore` returns the BM25 relevance of the keywords and requires the full-text index. The optional weights array is the last argument of `RRF` and lists one weight per scoring function in the same order, so `[2, 1]` makes `VectorDistance` weigh twice as much as `FullTextScore`."
+    fr: "La recherche hybride fusionne un score vectoriel et un score BM25 avec `RRF`, qui ne peut être utilisé que dans une clause `ORDER BY RANK`. `FullTextScore` renvoie la pertinence BM25 des mots clés et nécessite l'index de texte intégral. Le tableau de poids facultatif est le dernier argument de `RRF` et contient un poids par fonction de score, dans le même ordre : `[2, 1]` donne donc à `VectorDistance` deux fois plus de poids qu'à `FullTextScore`."
+  options:
+    orderby: { en: "RRF cannot be combined with a plain ORDER BY; it requires ORDER BY RANK.", fr: "RRF ne peut pas être utilisé avec un simple ORDER BY ; il exige ORDER BY RANK." }
+    groupby: { en: "GROUP BY aggregates results; it does not rank them.", fr: "GROUP BY agrège les résultats ; il ne les classe pas." }
+    contains: { en: "FullTextContains returns a Boolean for WHERE filters, not a relevance score that RRF can fuse.", fr: "FullTextContains renvoie un booléen pour les filtres WHERE, pas un score de pertinence que RRF peut fusionner." }
+    any: { en: "FullTextContainsAny is a WHERE filter function, not a scoring function.", fr: "FullTextContainsAny est une fonction de filtre WHERE, pas une fonction de score." }
+    vd: { en: "A second VectorDistance would fuse two vector scores and ignore keyword relevance.", fr: "Un second VectorDistance fusionnerait deux scores vectoriels et ignorerait la pertinence par mots clés." }
+    w12: { en: "[1, 2] gives keyword relevance (the second function) twice the weight of semantic similarity.", fr: "[1, 2] donne à la pertinence par mots clés (la seconde fonction) deux fois plus de poids qu'à la similarité sémantique." }
+    w2: { en: "The weights array needs one weight for each scoring function.", fr: "Le tableau de poids doit contenir un poids pour chaque fonction de score." }
+    w11: { en: "[1, 1] weighs both scores equally.", fr: "[1, 1] donne le même poids aux deux scores." }
+references:
+  - title: Use Hybrid Search - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/hybrid-search
+  - title: RRF - Query language in Cosmos DB (in Azure and Fabric)
+    url: https://learn.microsoft.com/en-us/cosmos-db/query/rrf

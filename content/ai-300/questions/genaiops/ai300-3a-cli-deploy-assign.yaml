@@ -1,0 +1,88 @@
+id: ai300-3a-cli-deploy-assign
+objective: "3.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has a Foundry resource named **foundry-cto** in the resource group **rg-ai**, with a project named **proj-web**. You write an Azure CLI script that must:
+
+    - create a model deployment named **chat** on foundry-cto;
+    - grant the Foundry User role on proj-web to a Microsoft Entra security group whose object ID is stored in `GROUP_ID`.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'une ressource Foundry nommée **foundry-cto** dans le groupe de ressources **rg-ai**, avec un projet nommé **proj-web**. Vous écrivez un script Azure CLI qui doit :
+
+    - créer un déploiement de modèle nommé **chat** sur foundry-cto ;
+    - accorder le rôle Foundry User sur proj-web à un groupe de sécurité Microsoft Entra dont l'ID d'objet est stocké dans `GROUP_ID`.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az cognitiveservices account [[grp]] create \
+      --name foundry-cto --resource-group rg-ai \
+      --deployment-name chat --model-name "$MODEL" --model-version "$VERSION" \
+      --model-format OpenAI --sku-name GlobalStandard --sku-capacity 50
+
+    PROJECT_ID=$(az cognitiveservices account project show \
+      --name foundry-cto --resource-group rg-ai --project-name proj-web \
+      --query [[q]] -o tsv)
+
+    az role assignment create \
+      --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
+      --assignee-object-id "$GROUP_ID" \
+      --assignee-principal-type [[pt]] \
+      --scope "$PROJECT_ID"
+  slots:
+    - id: grp
+      options:
+        - { id: dep, text: deployment }
+        - { id: proj, text: project }
+        - { id: conn, text: connection }
+    - id: q
+      options:
+        - { id: id, text: id }
+        - { id: name, text: name }
+        - { id: pid, text: identity.principalId }
+    - id: pt
+      options:
+        - { id: group, text: Group }
+        - { id: user, text: User }
+        - { id: sp, text: ServicePrincipal }
+        - { id: foreign, text: ForeignGroup }
+answer:
+  values: { grp: dep, q: id, pt: group }
+explanation:
+  correct:
+    en: |
+      Model deployments are created on the account with `az cognitiveservices account deployment create`. The scope of a role assignment is a resource ID, so you query the project's `id`. The assignee is a security group identified by its object ID, so the principal type is `Group`. Microsoft recommends the role definition GUID during the rollout of the renamed Foundry roles.
+    fr: |
+      Les déploiements de modèles sont créés sur le compte avec `az cognitiveservices account deployment create`. L'étendue d'une attribution de rôle est un ID de ressource : vous interrogez l'`id` du projet. Le bénéficiaire est un groupe de sécurité identifié par son ID d'objet : le type de principal est `Group`. Microsoft recommande le GUID de la définition de rôle pendant le déploiement des nouveaux noms des rôles Foundry.
+  options:
+    grp:
+      en: |
+        `project create` and `connection create` create a project or a connection; they don't accept model parameters.
+      fr: |
+        `project create` et `connection create` créent un projet ou une connexion ; ils n'acceptent pas de paramètres de modèle.
+    q:
+      en: |
+        The project name and the principal ID of its identity aren't valid values for `--scope`.
+      fr: |
+        Le nom du projet et l'ID de principal de son identité ne sont pas des valeurs valides pour `--scope`.
+    pt:
+      en: |
+        The assignee is a group of the same tenant, not a user, a service principal or a group from another tenant.
+      fr: |
+        Le bénéficiaire est un groupe du même locataire, pas un utilisateur, un principal de service ni un groupe d'un autre locataire.
+references:
+  - title: az cognitiveservices account deployment
+    url: https://learn.microsoft.com/en-us/cli/azure/cognitiveservices/account/deployment
+  - title: Create a project for Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/foundry/how-to/create-projects

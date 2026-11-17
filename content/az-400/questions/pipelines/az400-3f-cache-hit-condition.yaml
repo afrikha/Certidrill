@@ -1,0 +1,80 @@
+id: az400-3f-cache-hit-condition
+objective: "3.6.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a YAML pipeline that runs a script named **install-tools.sh**. The script downloads build tools into the folder set by the TOOLS_DIR variable and takes eight minutes. The tool versions are listed in a file named **tools.lock** at the root of the repository.
+
+    You need to modify the pipeline to meet the following requirements:
+
+    - Reuse the tools folder from a previous run until tools.lock changes.
+    - Run install-tools.sh only when no cache entry matches the exact key.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un pipeline YAML qui exécute un script nommé **install-tools.sh**. Le script télécharge des outils de build dans le dossier défini par la variable TOOLS_DIR et prend huit minutes. Les versions des outils sont listées dans un fichier nommé **tools.lock** à la racine du dépôt.
+
+    Vous devez modifier le pipeline pour satisfaire les exigences suivantes :
+
+    - Réutiliser le dossier des outils d'une exécution précédente tant que tools.lock ne change pas.
+    - Exécuter install-tools.sh seulement si aucune entrée du cache ne correspond exactement à la clé.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    variables:
+      TOOLS_DIR: $(Pipeline.Workspace)/tools
+
+    steps:
+    - task: Cache@2
+      inputs:
+        key: 'tools | "$(Agent.OS)" | [[key]]'
+        restoreKeys: |
+          tools | "$(Agent.OS)"
+        path: [[path]]
+        cacheHitVar: TOOLS_RESTORED
+    - script: ./install-tools.sh
+      condition: [[cond]]
+    - script: ./build.sh
+  slots:
+    - id: key
+      options:
+        - { id: lock, text: tools.lock }
+        - { id: defid, text: $(System.DefinitionId) }
+        - { id: commit, text: $(Build.SourceVersion) }
+    - id: path
+      options:
+        - { id: staging, text: $(Build.ArtifactStagingDirectory) }
+        - { id: tools, text: $(TOOLS_DIR) }
+        - { id: temp, text: $(Agent.TempDirectory) }
+    - id: cond
+      options:
+        - { id: eqtrue, text: "eq(variables.TOOLS_RESTORED, 'true')" }
+        - { id: inexact, text: "eq(variables.TOOLS_RESTORED, 'inexact')" }
+        - { id: netrue, text: "ne(variables.TOOLS_RESTORED, 'true')" }
+answer:
+  values: { key: lock, path: tools, cond: netrue }
+explanation:
+  correct:
+    en: |
+      A file path in the key is replaced by the hash of the file, so the key changes only when tools.lock changes. The cached path must be the folder that the script fills. The cacheHitVar variable is true on an exact hit, inexact when only a restore key matched and false when nothing was found, so ne(..., 'true') runs the script in the last two cases.
+    fr: |
+      Un chemin de fichier dans la clé est remplacé par le hachage du fichier : la clé ne change donc que lorsque tools.lock change. Le chemin mis en cache doit être le dossier rempli par le script. La variable cacheHitVar vaut true en cas de correspondance exacte, inexact quand seule une clé de restauration correspond et false quand rien n'est trouvé : ne(..., 'true') exécute donc le script dans les deux derniers cas.
+  options:
+    defid: { en: "The cache is already scoped to the pipeline; a constant segment never changes when the tools change.", fr: "Le cache est déjà limité au pipeline ; un segment constant ne change jamais quand les outils changent." }
+    commit: { en: "The commit ID changes at every commit, so the exact key would almost never match.", fr: "L'ID de commit change à chaque commit : la clé exacte ne correspondrait presque jamais." }
+    staging: { en: "The artifact staging directory holds files to publish, not the tools folder.", fr: "Le répertoire intermédiaire des artefacts contient les fichiers à publier, pas le dossier des outils." }
+    temp: { en: "Agent.TempDirectory is a scratch folder, not the folder that the script fills.", fr: "Agent.TempDirectory est un dossier temporaire, pas le dossier rempli par le script." }
+    eqtrue: { en: "This condition runs the script only when the cache was restored, the opposite of the requirement.", fr: "Cette condition n'exécute le script que lorsque le cache a été restauré, l'inverse de l'exigence." }
+    inexact: { en: "This condition skips the script when no cache at all was found.", fr: "Cette condition ignore le script quand aucun cache n'a été trouvé." }
+references:
+  - title: Pipeline caching
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/release/caching

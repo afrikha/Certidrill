@@ -1,0 +1,97 @@
+id: ai200-cs4a-api-manifest
+objective: "1.2.3"
+type: dropdown
+caseStudy: ai200-cs4a-woodgrove
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the Kubernetes manifest of the complaint-api deployment. The container listens on port 8000.
+
+    You need to meet the availability requirement. How should you complete the manifest? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le manifeste Kubernetes du déploiement complaint-api. Le conteneur écoute sur le port 8000.
+
+    Vous devez satisfaire l'exigence relative à la disponibilité. Comment devez-vous compléter le manifeste ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: complaint-api
+      namespace: complaints
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: complaint-api
+      strategy:
+        type: [[strategy]]
+        rollingUpdate:
+          maxSurge: 1
+          maxUnavailable: [[unavailable]]
+      template:
+        metadata:
+          labels:
+            app: complaint-api
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: sa-complaint-api
+          containers:
+            - name: complaint-api
+              image: crwoodgrove.azurecr.io/complaint-api:2.4.0
+              ports:
+                - containerPort: 8000
+              [[readyprobe]]:
+                httpGet:
+                  path: /health/ready
+                  port: 8000
+                periodSeconds: 5
+              [[liveprobe]]:
+                httpGet:
+                  path: /health/live
+                  port: 8000
+                periodSeconds: 10
+  slots:
+    - id: strategy
+      options:
+        - { id: rolling, text: "RollingUpdate" }
+        - { id: recreate, text: "Recreate" }
+    - id: unavailable
+      options:
+        - { id: u0, text: "0" }
+        - { id: u1, text: "1" }
+        - { id: u3, text: "3" }
+    - id: readyprobe
+      options:
+        - { id: r-readiness, text: "readinessProbe" }
+        - { id: r-liveness, text: "livenessProbe" }
+        - { id: r-startup, text: "startupProbe" }
+    - id: liveprobe
+      options:
+        - { id: l-readiness, text: "readinessProbe" }
+        - { id: l-liveness, text: "livenessProbe" }
+        - { id: l-startup, text: "startupProbe" }
+answer:
+  values: { strategy: rolling, unavailable: u0, readyprobe: r-readiness, liveprobe: l-liveness }
+explanation:
+  correct:
+    en: "A rolling update with `maxUnavailable: 0` and `maxSurge: 1` creates one new pod at a time and removes an old pod only when the new one is ready, so three pods stay ready during the update. A failing readiness probe removes the pod from the Service endpoints without restarting it, which matches `/health/ready`. A failing liveness probe makes the kubelet restart the container, which matches `/health/live`."
+    fr: "Une mise à jour propagée avec `maxUnavailable: 0` et `maxSurge: 1` crée un nouveau pod à la fois et ne supprime un ancien pod que lorsque le nouveau est prêt : trois pods restent prêts pendant la mise à jour. Une sonde de disponibilité qui échoue retire le pod des points de terminaison du Service sans le redémarrer, ce qui correspond à `/health/ready`. Une sonde d'activité qui échoue fait redémarrer le conteneur par le kubelet, ce qui correspond à `/health/live`."
+  options:
+    recreate: { en: "Recreate stops all the old pods before it starts the new ones, so complaint-api has no ready pod during the update.", fr: "Recreate arrête tous les anciens pods avant de démarrer les nouveaux : complaint-api n'a aucun pod prêt pendant la mise à jour." }
+    u1: { en: "With `maxUnavailable: 1`, Kubernetes can stop an old pod before its replacement is ready, leaving two ready pods.", fr: "Avec `maxUnavailable: 1`, Kubernetes peut arrêter un ancien pod avant que son remplaçant soit prêt, ce qui laisse deux pods prêts." }
+    u3: { en: "With `maxUnavailable: 3`, all three pods can be unavailable at the same time.", fr: "Avec `maxUnavailable: 3`, les trois pods peuvent être indisponibles en même temps." }
+    r-liveness: { en: "A liveness probe restarts the container when it fails; it doesn't keep traffic away from a pod that isn't ready.", fr: "Une sonde d'activité redémarre le conteneur quand elle échoue ; elle ne tient pas le trafic à l'écart d'un pod qui n'est pas prêt." }
+    r-startup: { en: "A startup probe only delays the other probes until the application has started; it isn't checked afterward.", fr: "Une sonde de démarrage retarde seulement les autres sondes jusqu'au démarrage de l'application ; elle n'est plus vérifiée ensuite." }
+    l-readiness: { en: "A readiness probe never restarts the container; it only removes the pod from the Service endpoints.", fr: "Une sonde de disponibilité ne redémarre jamais le conteneur ; elle retire seulement le pod des points de terminaison du Service." }
+    l-startup: { en: "A startup probe stops being checked once it succeeds, so a later failure of `/health/live` wouldn't restart the container.", fr: "Une sonde de démarrage n'est plus vérifiée après sa réussite : un échec ultérieur de `/health/live` ne redémarrerait pas le conteneur." }
+references:
+  - title: Deployment and Cluster Reliability Best Practices for Azure Kubernetes Service (AKS)
+    url: https://learn.microsoft.com/en-us/azure/aks/best-practices-app-cluster-reliability

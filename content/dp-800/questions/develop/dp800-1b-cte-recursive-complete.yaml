@@ -1,0 +1,72 @@
+id: dp800-1b-cte-recursive-complete
+objective: "1.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Fabrikam. The Production.BillOfMaterials table has the columns ComponentID, ParentID and Quantity. Each row states that the component ComponentID is used directly in the assembly ParentID. Top-level products have a NULL ParentID.
+
+    You need a query that returns all the components used directly or indirectly in the assembly 800, with their level below the assembly.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Fabrikam. La table Production.BillOfMaterials comporte les colonnes ComponentID, ParentID et Quantity. Chaque ligne indique que le composant ComponentID est utilisé directement dans l'assemblage ParentID. Les produits de premier niveau ont un ParentID NULL.
+
+    Vous avez besoin d'une requête qui renvoie tous les composants utilisés directement ou indirectement dans l'assemblage 800, avec leur niveau sous l'assemblage.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    WITH Parts AS
+    (
+        SELECT ComponentID, ParentID, 1 AS Lvl
+        FROM Production.BillOfMaterials
+        WHERE [[anchor]]
+        [[setop]]
+        SELECT b.ComponentID, b.ParentID, p.Lvl + 1
+        FROM Production.BillOfMaterials AS b
+        JOIN Parts AS p ON [[join]]
+    )
+    SELECT ComponentID, Lvl
+    FROM Parts;
+  slots:
+    - id: anchor
+      options:
+        - { id: parent800, text: ParentID = 800 }
+        - { id: comp800, text: ComponentID = 800 }
+        - { id: parentnull, text: ParentID IS NULL }
+    - id: setop
+      options:
+        - { id: unionall, text: UNION ALL }
+        - { id: union, text: UNION }
+        - { id: intersect, text: INTERSECT }
+    - id: join
+      options:
+        - { id: down, text: b.ParentID = p.ComponentID }
+        - { id: up, text: b.ComponentID = p.ParentID }
+        - { id: same, text: b.ParentID = p.ParentID }
+answer:
+  values: { anchor: parent800, setop: unionall, join: down }
+explanation:
+  correct:
+    en: |
+      The anchor member returns the direct components of assembly 800, the rows whose ParentID is 800. UNION ALL is the only set operator allowed between the last anchor member and the first recursive member. The recursive member then finds the rows whose parent is a component already returned, b.ParentID = p.ComponentID, which walks down the hierarchy level by level until no new row is found.
+    fr: |
+      Le membre d'ancrage renvoie les composants directs de l'assemblage 800, c'est-à-dire les lignes dont ParentID vaut 800. UNION ALL est le seul opérateur ensembliste autorisé entre le dernier membre d'ancrage et le premier membre récursif. Le membre récursif trouve ensuite les lignes dont le parent est un composant déjà renvoyé, b.ParentID = p.ComponentID, ce qui descend la hiérarchie niveau par niveau jusqu'à ce qu'aucune nouvelle ligne ne soit trouvée.
+  options:
+    comp800: { en: "ComponentID = 800 returns the rows where assembly 800 is itself used as a component, not its components.", fr: "ComponentID = 800 renvoie les lignes où l'assemblage 800 est lui-même utilisé comme composant, pas ses composants." }
+    parentnull: { en: "ParentID IS NULL starts from every top-level product, not from assembly 800.", fr: "ParentID IS NULL part de tous les produits de premier niveau, pas de l'assemblage 800." }
+    union: { en: "UNION can combine anchor members, but only UNION ALL is allowed between the anchor and the recursive member.", fr: "UNION peut combiner des membres d'ancrage, mais seul UNION ALL est autorisé entre l'ancrage et le membre récursif." }
+    intersect: { en: "INTERSECT is not allowed between the anchor and the recursive member.", fr: "INTERSECT n'est pas autorisé entre l'ancrage et le membre récursif." }
+    up: { en: "b.ComponentID = p.ParentID walks up the hierarchy toward the parents of each assembly.", fr: "b.ComponentID = p.ParentID remonte la hiérarchie vers les parents de chaque assemblage." }
+    same: { en: "b.ParentID = p.ParentID returns the siblings of the rows already found and never goes down a level.", fr: "b.ParentID = p.ParentID renvoie les éléments frères des lignes déjà trouvées et ne descend jamais d'un niveau." }
+references:
+  - title: WITH common_table_expression (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/with-common-table-expression-transact-sql

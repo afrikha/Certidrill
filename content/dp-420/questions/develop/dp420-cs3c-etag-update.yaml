@@ -1,0 +1,88 @@
+id: dp420-cs3c-etag-update
+objective: "1.2.6"
+type: dropdown
+caseStudy: dp420-cs3c-humongous-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the method of the ClaimsHub API that saves the changes an adjuster made to a claim.
+
+    You need to complete the code to meet the claims processing requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la méthode de l'API ClaimsHub qui enregistre les modifications apportées par un gestionnaire à un sinistre.
+
+    Vous devez compléter le code pour satisfaire les exigences relatives au traitement des sinistres.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    ItemResponse<Claim> loaded = await claims.ReadItemAsync<Claim>(claimId, new PartitionKey(policyId));
+    Claim claim = loaded.Resource;
+    ApplyAdjusterChanges(claim, changes);
+
+    try
+    {
+        await claims.ReplaceItemAsync(claim, claim.Id, new PartitionKey(policyId),
+            new ItemRequestOptions { [[option]] = loaded.[[value]] });
+    }
+    catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.[[status]])
+    {
+        // Reload the claim and show the latest version to the adjuster.
+    }
+  slots:
+    - id: option
+      options:
+        - { id: nonematch, text: IfNoneMatchEtag }
+        - { id: match, text: IfMatchEtag }
+        - { id: session, text: SessionToken }
+    - id: value
+      options:
+        - { id: activity, text: ActivityId }
+        - { id: charge, text: RequestCharge }
+        - { id: etag, text: ETag }
+    - id: status
+      options:
+        - { id: conflict, text: Conflict }
+        - { id: precondition, text: PreconditionFailed }
+        - { id: throttled, text: TooManyRequests }
+        - { id: notmodified, text: NotModified }
+answer:
+  values: { option: match, value: etag, status: precondition }
+explanation:
+  correct:
+    en: "Optimistic concurrency uses the `_etag` of the item, which the service changes on every write. Passing the ETag returned by the read in `IfMatchEtag` sends an if-match header, so the replace succeeds only if nobody saved the claim since it was loaded. Otherwise the service rejects the request with HTTP 412, which the .NET SDK surfaces as `HttpStatusCode.PreconditionFailed`."
+    fr: "Le contrôle d'accès concurrentiel optimiste utilise l'`_etag` de l'élément, que le service modifie à chaque écriture. Passer l'ETag renvoyé par la lecture dans `IfMatchEtag` envoie un en-tête if-match : le remplacement ne réussit que si personne n'a enregistré le sinistre depuis son chargement. Sinon, le service rejette la requête avec un code HTTP 412, que le SDK .NET expose sous la forme `HttpStatusCode.PreconditionFailed`."
+  options:
+    nonematch:
+      en: "If-none-match is used to check whether a cached copy must be fetched again; it does not protect a write against a concurrent change."
+      fr: "If-none-match sert à vérifier si une copie en cache doit être récupérée à nouveau ; il ne protège pas une écriture contre une modification concurrente."
+    session:
+      en: "A session token controls read consistency within a session; it does not make the write conditional."
+      fr: "Un jeton de session contrôle la cohérence des lectures dans une session ; il ne rend pas l'écriture conditionnelle."
+    activity:
+      en: "`ActivityId` identifies the request for diagnostics; it is not a version of the item."
+      fr: "`ActivityId` identifie la requête à des fins de diagnostic ; ce n'est pas une version de l'élément."
+    charge:
+      en: "`RequestCharge` is the RU cost of the read, not a value the service can compare with the item."
+      fr: "`RequestCharge` est le coût en RU de la lecture, pas une valeur que le service peut comparer à l'élément."
+    conflict:
+      en: "HTTP 409 (Conflict) is returned when an item with the same `id` and partition key already exists during a create, not when an ETag does not match."
+      fr: "Le code HTTP 409 (Conflict) est renvoyé quand un élément de même `id` et de même clé de partition existe déjà lors d'une création, pas quand un ETag ne correspond pas."
+    throttled:
+      en: "HTTP 429 indicates rate limiting, which the SDK retries; it does not indicate a concurrent update."
+      fr: "Le code HTTP 429 signale une limitation de débit, que le SDK réessaie ; il ne signale pas une mise à jour concurrente."
+    notmodified:
+      en: "HTTP 304 answers an if-none-match read when the item has not changed; it is not returned for a failed conditional replace."
+      fr: "Le code HTTP 304 répond à une lecture if-none-match quand l'élément n'a pas changé ; il n'est pas renvoyé pour un remplacement conditionnel refusé."
+references:
+  - title: Database Transactions and Optimistic Concurrency Control - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/database-transactions-optimistic-concurrency

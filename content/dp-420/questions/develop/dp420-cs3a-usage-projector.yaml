@@ -1,0 +1,88 @@
+id: dp420-cs3a-usage-projector
+objective: "1.4.1"
+type: dropdown
+caseStudy: dp420-cs3a-alpine-ski-house
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the startup code of usage-projector. `HandleScansAsync` is a delegate that updates passdays from a batch of changed `GateScan` items.
+
+    You need to complete the code to meet the usage projection requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le code de démarrage de usage-projector. `HandleScansAsync` est un délégué qui met à jour passdays à partir d'un lot d'éléments `GateScan` modifiés.
+
+    Vous devez compléter le code pour satisfaire les exigences relatives à la projection de l'utilisation.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    Container scans = client.GetContainer("passpulse", "scans");
+    Container leases = client.GetContainer("passpulse", "leases");
+
+    ChangeFeedProcessor processor = scans
+        .[[builder]]<GateScan>(processorName: "usage-projector", onChangesDelegate: HandleScansAsync)
+        .WithInstanceName(Environment.MachineName)
+        .[[lease]]
+        .[[start]]
+        .Build();
+
+    await processor.StartAsync();
+  slots:
+    - id: builder
+      options:
+        - { id: cfp, text: GetChangeFeedProcessorBuilder }
+        - { id: est, text: GetChangeFeedEstimatorBuilder }
+        - { id: iter, text: GetChangeFeedIterator }
+    - id: lease
+      options:
+        - { id: inmem, text: WithInMemoryLeaseContainer() }
+        - { id: cont, text: WithLeaseContainer(leases) }
+        - { id: conf, text: "WithLeaseConfiguration(TimeSpan.FromSeconds(17))" }
+    - id: start
+      options:
+        - { id: now, text: WithStartTime(DateTime.UtcNow) }
+        - { id: poll, text: WithPollInterval(TimeSpan.Zero) }
+        - { id: begin, text: WithStartTime(DateTime.MinValue.ToUniversalTime()) }
+        - { id: max, text: WithMaxItems(int.MaxValue) }
+answer:
+  values: { builder: cfp, lease: cont, start: begin }
+explanation:
+  correct:
+    en: "`GetChangeFeedProcessorBuilder` creates a change feed processor that calls the delegate for each batch of changes. `WithLeaseContainer(leases)` stores the lease state in a shared container, so the pods that use the same processor name and different instance names share the leases. By default a new processor only sees changes made after its first initialization; `WithStartTime(DateTime.MinValue.ToUniversalTime())` makes it read the container from the beginning, which processes the scans already stored."
+    fr: "`GetChangeFeedProcessorBuilder` crée un processeur de flux de modification qui appelle le délégué pour chaque lot de modifications. `WithLeaseContainer(leases)` stocke l'état des baux dans un conteneur partagé : les pods qui utilisent le même nom de processeur et des noms d'instance différents se partagent les baux. Par défaut, un nouveau processeur ne voit que les modifications postérieures à sa première initialisation ; `WithStartTime(DateTime.MinValue.ToUniversalTime())` lui fait lire le conteneur depuis le début, ce qui traite les passages déjà stockés."
+  options:
+    est:
+      en: "The estimator builder measures the processor's lag; it does not deliver the changes to `HandleScansAsync`."
+      fr: "Le générateur de l'estimateur mesure le retard du processeur ; il ne transmet pas les modifications à `HandleScansAsync`."
+    iter:
+      en: "`GetChangeFeedIterator` is the pull model: it returns an iterator, not a processor builder with leases and a delegate."
+      fr: "`GetChangeFeedIterator` correspond au modèle d'extraction (pull) : il renvoie un itérateur, pas un générateur de processeur avec baux et délégué."
+    inmem:
+      en: "An in-memory lease container restricts processing to the single instance that runs the processor, so the pods cannot share the work, and the leases are not stored in leases."
+      fr: "Un conteneur de baux en mémoire limite le traitement à l'instance qui exécute le processeur : les pods ne peuvent pas se répartir le travail, et les baux ne sont pas stockés dans leases."
+    conf:
+      en: "`WithLeaseConfiguration` only tunes lease intervals; it does not say which container holds the leases."
+      fr: "`WithLeaseConfiguration` règle seulement les intervalles des baux ; il n'indique pas quel conteneur les héberge."
+    now:
+      en: "Starting at the current time skips the scans that are already in the container."
+      fr: "Démarrer à l'heure actuelle ignore les passages déjà présents dans le conteneur."
+    poll:
+      en: "The poll interval only sets the delay between polls once the current changes are drained; it does not change the starting point."
+      fr: "L'intervalle d'interrogation fixe seulement le délai entre deux interrogations une fois les modifications en cours traitées ; il ne change pas le point de départ."
+    max:
+      en: "`WithMaxItems` limits the size of each batch; it does not change the starting point."
+      fr: "`WithMaxItems` limite la taille de chaque lot ; il ne change pas le point de départ."
+references:
+  - title: Change Feed Processor - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/change-feed-processor
+  - title: ChangeFeedProcessorBuilder Class (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.changefeedprocessorbuilder?view=azure-dotnet

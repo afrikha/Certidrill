@@ -1,0 +1,76 @@
+id: dp800-1a-filtered-covering
+objective: "1.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso has a help desk database in Azure SQL Database. The **Support.Ticket** table is defined as follows.
+
+    ```sql
+    CREATE TABLE Support.Ticket
+    (
+        TicketID   int NOT NULL CONSTRAINT PK_Ticket PRIMARY KEY CLUSTERED,
+        AssignedTo int NOT NULL,
+        Status     varchar(10) NOT NULL,
+        Title      nvarchar(200) NOT NULL,
+        Body       nvarchar(max) NULL
+    );
+    ```
+
+    The table contains 20 million rows, of which about 50,000 have the status Open. The agent portal runs the following query.
+
+    ```sql
+    SELECT TicketID, Title
+    FROM Support.Ticket
+    WHERE Status = 'Open' AND AssignedTo = @AgentID;
+    ```
+
+    You need to create an index that lets the query seek without key lookups. The solution must minimize the size of the index and its maintenance cost.
+
+    Which statement should you run?
+  fr: |
+    Contoso dispose d'une base de données de support dans Azure SQL Database. La table **Support.Ticket** est définie comme suit.
+
+    ```sql
+    CREATE TABLE Support.Ticket
+    (
+        TicketID   int NOT NULL CONSTRAINT PK_Ticket PRIMARY KEY CLUSTERED,
+        AssignedTo int NOT NULL,
+        Status     varchar(10) NOT NULL,
+        Title      nvarchar(200) NOT NULL,
+        Body       nvarchar(max) NULL
+    );
+    ```
+
+    La table contient 20 millions de lignes, dont environ 50 000 ont le statut Open. Le portail des agents exécute la requête suivante.
+
+    ```sql
+    SELECT TicketID, Title
+    FROM Support.Ticket
+    WHERE Status = 'Open' AND AssignedTo = @AgentID;
+    ```
+
+    Vous devez créer un index qui permet à la requête d'effectuer une recherche sans recherche de clé. La solution doit réduire au minimum la taille de l'index et son coût de maintenance.
+
+    Quelle instruction devez-vous exécuter ?
+body:
+  options:
+    - { id: a, text: "CREATE NONCLUSTERED INDEX IX_Ticket_Open ON Support.Ticket (AssignedTo) INCLUDE (Title) WHERE Status = 'Open';" }
+    - { id: b, text: "CREATE NONCLUSTERED INDEX IX_Ticket_Open ON Support.Ticket (Status, AssignedTo) INCLUDE (Title);" }
+    - { id: c, text: "CREATE NONCLUSTERED INDEX IX_Ticket_Open ON Support.Ticket (AssignedTo) WHERE Status = 'Open';" }
+    - { id: d, text: "CREATE NONCLUSTERED COLUMNSTORE INDEX IX_Ticket_Open ON Support.Ticket (AssignedTo, Title) WHERE Status = 'Open';" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A filtered index contains only the 50,000 open tickets, so it is far smaller and is maintained only when those rows change. Status doesn't need to be in the index because the query predicate matches the filter and the column isn't returned. Title in INCLUDE covers the query, and TicketID, the clustered key, is automatically part of every nonclustered index.
+    fr: |
+      Un index filtré ne contient que les 50 000 tickets ouverts : il est beaucoup plus petit et n'est mis à jour que lorsque ces lignes changent. Status n'a pas besoin d'être dans l'index, car le prédicat de la requête correspond au filtre et la colonne n'est pas renvoyée. Title dans INCLUDE couvre la requête, et TicketID, la clé cluster, fait automatiquement partie de chaque index non cluster.
+  options:
+    b: { en: "This index covers the query but contains all 20 million rows, so it is much larger and is maintained on every change.", fr: "Cet index couvre la requête, mais il contient les 20 millions de lignes : il est beaucoup plus grand et mis à jour à chaque modification." }
+    c: { en: "Title isn't in the index, so each row found needs a key lookup in the clustered index.", fr: "Title n'est pas dans l'index : chaque ligne trouvée nécessite une recherche de clé dans l'index cluster." }
+    d: { en: "A columnstore index is designed for scans and aggregates; it doesn't provide the seek the query needs.", fr: "Un index columnstore est conçu pour les analyses et les agrégats ; il ne fournit pas la recherche dont la requête a besoin." }
+references:
+  - title: Create filtered indexes
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/indexes/create-filtered-indexes

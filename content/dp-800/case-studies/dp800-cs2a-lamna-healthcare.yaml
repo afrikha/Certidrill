@@ -1,0 +1,105 @@
+id: dp800-cs2a-lamna-healthcare
+status: draft
+title:
+  en: "Lamna Healthcare"
+  fr: "Lamna Healthcare"
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lamna Healthcare operates 25 outpatient clinics in Belgium and Luxembourg. A team of eight developers builds the clinical platform on Azure. Two database administrators (DBAs) manage the databases; they are members of the db_owner database role.
+
+        Lamna is adding three capabilities to the platform: a semantic search that helps clinicians find similar past consultations, the storage of readings sent by home monitoring devices, and a patient portal that shows upcoming appointments.
+      fr: |
+        Lamna Healthcare exploite 25 cliniques de consultation externe en Belgique et au Luxembourg. Une équipe de huit développeurs crée la plateforme clinique sur Azure. Deux administrateurs de bases de données (DBA) gèrent les bases de données ; ils sont membres du rôle de base de données db_owner.
+
+        Lamna ajoute trois fonctionnalités à la plateforme : une recherche sémantique qui aide les cliniciens à trouver des consultations passées similaires, le stockage des relevés envoyés par des appareils de télésurveillance à domicile et un portail patient qui affiche les prochains rendez-vous.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Database**
+
+        - An Azure SQL Database logical server named **sql-lamna-prod** hosts a database named **ClinicalDb** (compatibility level 170). The system-assigned managed identity of sql-lamna-prod is enabled.
+        - An Azure OpenAI resource named **aoai-lamna** (endpoint `https://aoai-lamna.openai.azure.com`) has a deployment named **embed-notes** of an embedding model that returns 1,536 dimensions.
+        - The DBAs created a database scoped credential with IDENTITY = 'Managed Identity' for aoai-lamna, and an external model named **NotesEmbedding** that uses it to call embed-notes. No role is assigned on aoai-lamna yet.
+
+        | Table | Main columns |
+        | --- | --- |
+        | dbo.Patients | PatientId (int, primary key), NationalId (char(11)), LastName, FirstName, BirthDate |
+        | dbo.ConsultationNotes | NoteId (bigint, primary key), PatientId, ClinicId, NoteDate, NoteText (nvarchar(max)) |
+        | dbo.NoteChunks | ChunkId (bigint, primary key), NoteId, ChunkOrder, ChunkText (nvarchar(max)), Embedding (vector(1536)) |
+
+        **Applications**
+
+        - The front-desk application finds patients by the first six digits of their national identification number (NationalId), which encode the birth date, with a query such as `WHERE NationalId LIKE @prefix`.
+        - The clinician application, written in .NET, saves consultation notes. A note is often edited several times on the day of the consultation.
+        - The patient portal uses Data API builder (DAB) 2.0 hosted in Azure Container Apps. Patients sign in with Microsoft Entra External ID. Their access tokens contain the role **patient** in the roles claim and a custom claim named **patient_id** that holds their PatientId value; the **sub** claim holds an identifier that is not stored in ClinicalDb. The portal sends the role name **patient** in the X-MS-API-ROLE header.
+        - The clinician application runs the semantic searches by connecting with its own managed identity, mapped to a database user named **lamna-search**. lamna-search must generate the embeddings of the clinicians' questions with NotesEmbedding.
+        - A view named **dbo.vw_PatientAppointments** returns AppointmentId, PatientId, ClinicName, StartTime and Practitioner.
+      fr: |
+        **Base de données**
+
+        - Un serveur logique Azure SQL Database nommé **sql-lamna-prod** héberge une base de données nommée **ClinicalDb** (niveau de compatibilité 170). L'identité managée affectée par le système de sql-lamna-prod est activée.
+        - Une ressource Azure OpenAI nommée **aoai-lamna** (point de terminaison `https://aoai-lamna.openai.azure.com`) possède un déploiement nommé **embed-notes** d'un modèle d'incorporation qui renvoie 1 536 dimensions.
+        - Les DBA ont créé des informations d'identification délimitées à la base de données avec IDENTITY = 'Managed Identity' pour aoai-lamna, ainsi qu'un modèle externe nommé **NotesEmbedding** qui les utilise pour appeler embed-notes. Aucun rôle n'est encore attribué sur aoai-lamna.
+
+        | Table | Colonnes principales |
+        | --- | --- |
+        | dbo.Patients | PatientId (int, clé primaire), NationalId (char(11)), LastName, FirstName, BirthDate |
+        | dbo.ConsultationNotes | NoteId (bigint, clé primaire), PatientId, ClinicId, NoteDate, NoteText (nvarchar(max)) |
+        | dbo.NoteChunks | ChunkId (bigint, clé primaire), NoteId, ChunkOrder, ChunkText (nvarchar(max)), Embedding (vector(1536)) |
+
+        **Applications**
+
+        - L'application d'accueil trouve les patients par les six premiers chiffres de leur numéro d'identification national (NationalId), qui codent la date de naissance, avec une requête comme `WHERE NationalId LIKE @prefix`.
+        - L'application des cliniciens, écrite en .NET, enregistre les notes de consultation. Une note est souvent modifiée plusieurs fois le jour de la consultation.
+        - Le portail patient utilise Data API builder (DAB) 2.0 hébergé dans Azure Container Apps. Les patients se connectent avec Microsoft Entra External ID. Leurs jetons d'accès contiennent le rôle **patient** dans la revendication roles et une revendication personnalisée nommée **patient_id** qui contient leur valeur PatientId ; la revendication **sub** contient un identifiant qui n'est pas stocké dans ClinicalDb. Le portail envoie le nom de rôle **patient** dans l'en-tête X-MS-API-ROLE.
+        - L'application des cliniciens exécute les recherches sémantiques en se connectant avec sa propre identité managée, associée à un utilisateur de base de données nommé **lamna-search**. lamna-search doit générer les incorporations des questions des cliniciens avec NotesEmbedding.
+        - Une vue nommée **dbo.vw_PatientAppointments** renvoie AppointmentId, PatientId, ClinicName, StartTime et Practitioner.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Security requirements**
+
+        1. Only the front-desk application can read NationalId values in plaintext. The DBAs must never be able to see NationalId values, and the front-desk application must keep finding patients by the first six digits of NationalId.
+        2. ClinicalDb must call aoai-lamna without storing an API key or any other secret in the database. All permissions must follow the principle of least privilege.
+
+        **Device readings requirements**
+
+        3. The readings are JSON documents of about 2 KB. They must be stored in a new table named **dbo.DeviceReadings** in a native JSON format that rejects documents that are not valid JSON.
+        4. Queries filter the readings by equality on the `$.deviceType` and `$.serial` paths. These queries must be able to use an index on the two paths, without adding computed columns.
+
+        **Semantic search requirements**
+
+        5. Each note is split into chunks of 1,000 characters by AI_GENERATE_CHUNKS. The embeddings must represent only the clinical content of the notes: searches are filtered by clinic and by date with WHERE clauses, and the embedded text must not contain any patient identifier.
+        6. When a note is inserted or updated, its chunks and embeddings must be regenerated in the same transaction, so that the semantic search never returns chunks of an earlier version of a saved note. Saving a note can take longer, and it must fail if aoai-lamna is unavailable.
+        7. No component other than ClinicalDb may be deployed for the semantic search, and the clinician application must not be modified.
+
+        **Patient portal requirements**
+
+        8. The portal exposes dbo.vw_PatientAppointments through REST only. Responses must be cached by DAB for 30 seconds.
+        9. A patient can only read his or her own appointments, and cannot change any data.
+      fr: |
+        **Exigences de sécurité**
+
+        1. Seule l'application d'accueil peut lire les valeurs NationalId en clair. Les DBA ne doivent jamais pouvoir voir les valeurs NationalId, et l'application d'accueil doit continuer à trouver les patients par les six premiers chiffres de NationalId.
+        2. ClinicalDb doit appeler aoai-lamna sans stocker de clé API ni aucun autre secret dans la base de données. Toutes les autorisations doivent respecter le principe du moindre privilège.
+
+        **Exigences relatives aux relevés des appareils**
+
+        3. Les relevés sont des documents JSON d'environ 2 Ko. Ils doivent être stockés dans une nouvelle table nommée **dbo.DeviceReadings**, dans un format JSON natif qui rejette les documents JSON non valides.
+        4. Les requêtes filtrent les relevés par égalité sur les chemins `$.deviceType` et `$.serial`. Ces requêtes doivent pouvoir utiliser un index sur ces deux chemins, sans ajout de colonnes calculées.
+
+        **Exigences de recherche sémantique**
+
+        5. Chaque note est découpée en blocs de 1 000 caractères par AI_GENERATE_CHUNKS. Les incorporations (embeddings) doivent représenter uniquement le contenu clinique des notes : les recherches sont filtrées par clinique et par date avec des clauses WHERE, et le texte incorporé ne doit contenir aucun identifiant de patient.
+        6. Quand une note est insérée ou mise à jour, ses blocs et ses incorporations doivent être régénérés dans la même transaction, afin que la recherche sémantique ne renvoie jamais les blocs d'une version antérieure d'une note enregistrée. L'enregistrement d'une note peut prendre plus de temps, et il doit échouer si aoai-lamna n'est pas disponible.
+        7. Aucun composant autre que ClinicalDb ne peut être déployé pour la recherche sémantique, et l'application des cliniciens ne doit pas être modifiée.
+
+        **Exigences du portail patient**
+
+        8. Le portail expose dbo.vw_PatientAppointments uniquement par REST. Les réponses doivent être mises en cache par DAB pendant 30 secondes.
+        9. Un patient peut uniquement lire ses propres rendez-vous et ne peut modifier aucune donnée.

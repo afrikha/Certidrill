@@ -1,0 +1,95 @@
+id: sc500-cs3c-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is a property and casualty insurer based in Toronto. It is rebuilding its claims platform as containerized microservices in Azure. Partner insurers submit claims to the platform through a web API.
+
+        A cloud security team of four engineers defines the security controls. A separate platform team operates the clusters.
+      fr: |
+        Humongous Insurance est un assureur de dommages basé à Toronto. Il reconstruit sa plateforme de sinistres sous forme de microservices conteneurisés dans Azure. Des assureurs partenaires soumettent des sinistres à la plateforme par une API web.
+
+        Une équipe de sécurité cloud de quatre ingénieurs définit les contrôles de sécurité. Une équipe plateforme distincte exploite les clusters.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        The Azure subscription **Sub-Claims** in the Canada Central region contains the following resources:
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | aks-claims | AKS cluster | Microsoft Entra integration enabled; Kubernetes RBAC for authorization; local accounts enabled; OIDC issuer enabled |
+        | acrclaims | Container registry | Standard SKU; public network access enabled for all networks |
+        | agw-claims | Application Gateway | WAF v2 SKU; WAF policy **wafp-claims** in Detection mode |
+        | sql-claims | Logical SQL server | System-assigned managed identity enabled; database sqldb-claims |
+        | kv-claims | Key vault | Azure RBAC permission model; soft delete enabled (90 days); purge protection disabled; firewall: selected networks, **Allow trusted Microsoft services to bypass this firewall** set to Yes |
+        | law-claims | Log Analytics workspace | Central workspace of the security team |
+
+        Microsoft Defender for Containers is enabled on Sub-Claims. The microservice **claims-api** runs in aks-claims and currently reads a secret from kv-claims by using a client secret stored in a Kubernetes secret.
+
+        wafp-claims contains the following custom rules:
+
+        | Name | Priority | Condition | Action |
+        | --- | --- | --- | --- |
+        | AllowPartners | 10 | RemoteAddr IPMatch 203.0.113.0/24 | Allow |
+        | BlockGeo | 20 | RemoteAddr GeoMatch not in CA, US | Block |
+
+        The policy also uses the default managed rule set.
+      fr: |
+        L'abonnement Azure **Sub-Claims** dans la région Canada Central contient les ressources suivantes :
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | aks-claims | Cluster AKS | Intégration Microsoft Entra activée ; RBAC Kubernetes pour l'autorisation ; comptes locaux activés ; émetteur OIDC activé |
+        | acrclaims | Registre de conteneurs | SKU Standard ; accès au réseau public activé pour tous les réseaux |
+        | agw-claims | Application Gateway | SKU WAF v2 ; stratégie WAF **wafp-claims** en mode Détection |
+        | sql-claims | Serveur SQL logique | Identité managée affectée par le système activée ; base de données sqldb-claims |
+        | kv-claims | Coffre de clés | Modèle d'autorisation Azure RBAC ; suppression réversible activée (90 jours) ; protection contre le vidage désactivée ; pare-feu : réseaux sélectionnés, **Autoriser les services Microsoft approuvés à contourner ce pare-feu** défini sur Oui |
+        | law-claims | Espace de travail Log Analytics | Espace de travail central de l'équipe de sécurité |
+
+        Microsoft Defender for Containers est activé sur Sub-Claims. Le microservice **claims-api** s'exécute dans aks-claims et lit actuellement un secret de kv-claims avec une clé secrète client stockée dans un secret Kubernetes.
+
+        wafp-claims contient les règles personnalisées suivantes :
+
+        | Nom | Priorité | Condition | Action |
+        | --- | --- | --- | --- |
+        | AllowPartners | 10 | RemoteAddr IPMatch 203.0.113.0/24 | Allow |
+        | BlockGeo | 20 | RemoteAddr GeoMatch hors de CA, US | Block |
+
+        La stratégie utilise aussi l'ensemble de règles managé par défaut.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Humongous Insurance identifies the following requirements:
+
+        1. acrclaims must not be reachable from the internet. aks-claims must pull images through a private IP address, and Defender for Cloud must still scan the images in the registry.
+        2. Access to the Kubernetes API of aks-claims must be authorized by Azure role assignments, and nobody must be able to obtain static cluster administrator credentials.
+        3. claims-api must access kv-claims by using Microsoft Entra tokens, without any stored secret.
+        4. sqldb-claims must be encrypted by transparent data encryption (TDE) with a customer-managed key stored in kv-claims.
+        5. wafp-claims will be switched to Prevention mode after the tests.
+        6. Azure Policy must enforce the following in Sub-Claims:
+           - Storage accounts that allow anonymous blob access cannot be created.
+           - The **costCenter** tag of each resource group is copied to the new and existing resources in the group.
+           - Every new key vault automatically gets a diagnostic setting that sends its logs to law-claims.
+           - SQL servers on which auditing is not configured are reported, without being changed.
+        7. The principle of least privilege must be followed.
+      fr: |
+        Humongous Insurance a défini les exigences suivantes :
+
+        1. acrclaims ne doit pas être accessible depuis Internet. aks-claims doit extraire les images par une adresse IP privée, et Defender for Cloud doit toujours analyser les images du registre.
+        2. L'accès à l'API Kubernetes de aks-claims doit être autorisé par des attributions de rôles Azure, et personne ne doit pouvoir obtenir d'informations d'identification statiques d'administrateur du cluster.
+        3. claims-api doit accéder à kv-claims avec des jetons Microsoft Entra, sans aucun secret stocké.
+        4. sqldb-claims doit être chiffrée par le chiffrement transparent des données (TDE) avec une clé gérée par le client stockée dans kv-claims.
+        5. wafp-claims passera en mode Prévention après les tests.
+        6. Azure Policy doit imposer ce qui suit dans Sub-Claims :
+           - Les comptes de stockage qui autorisent l'accès anonyme aux objets blob ne peuvent pas être créés.
+           - L'étiquette **costCenter** de chaque groupe de ressources est copiée sur les ressources nouvelles et existantes du groupe.
+           - Chaque nouveau coffre de clés reçoit automatiquement un paramètre de diagnostic qui envoie ses journaux vers law-claims.
+           - Les serveurs SQL sur lesquels l'audit n'est pas configuré sont signalés, sans être modifiés.
+        7. Le principe du moindre privilège doit être respecté.

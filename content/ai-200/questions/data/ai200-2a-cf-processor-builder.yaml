@@ -1,0 +1,61 @@
+id: ai200-2a-cf-processor-builder
+objective: "2.1.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso is building a .NET service that generates embeddings for the items of the **articles** container in Azure Cosmos DB for NoSQL. The service runs on several pods in Azure Kubernetes Service (AKS); each pod has a unique host name. The lease container is referenced by the variable `leaseContainer`, and the monitored container by `articles`.
+
+    The pods must share the work. The first time the service starts, it must process every item that already exists in the container.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso développe un service .NET qui génère des incorporations pour les éléments du conteneur **articles** d'Azure Cosmos DB for NoSQL. Le service s'exécute sur plusieurs pods dans Azure Kubernetes Service (AKS) ; chaque pod a un nom d'hôte unique. Le conteneur de baux est référencé par la variable `leaseContainer`, et le conteneur surveillé par `articles`.
+
+    Les pods doivent se partager le travail. Au premier démarrage, le service doit traiter tous les éléments qui existent déjà dans le conteneur.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    ChangeFeedProcessor processor = articles
+        .GetChangeFeedProcessorBuilder<Article>(
+            processorName: "article-embeddings",
+            onChangesDelegate: HandleChangesAsync)
+        .WithInstanceName([[instance]])
+        .WithLeaseContainer(leaseContainer)
+        .WithStartTime([[start]])
+        .Build();
+
+    await processor.StartAsync();
+  slots:
+    - id: instance
+      options:
+        - { id: machine, text: Environment.MachineName }
+        - { id: procname, text: '"article-embeddings"' }
+        - { id: fixed, text: '"worker"' }
+    - id: start
+      options:
+        - { id: min, text: DateTime.MinValue.ToUniversalTime() }
+        - { id: now, text: DateTime.UtcNow }
+        - { id: max, text: DateTime.MaxValue.ToUniversalTime() }
+answer:
+  values: { instance: machine, start: min }
+explanation:
+  correct:
+    en: "Every instance of a deployment unit shares the processor name and the lease container but needs a unique instance name, here the pod's host name. `WithStartTime(DateTime.MinValue.ToUniversalTime())` reads from the beginning of the container's lifetime, and it applies only when the lease container is initialized for the first time."
+    fr: "Toutes les instances d'une unité de déploiement partagent le nom du processeur et le conteneur de baux, mais chacune a besoin d'un nom d'instance unique, ici le nom d'hôte du pod. `WithStartTime(DateTime.MinValue.ToUniversalTime())` lit depuis le début de la vie du conteneur, et ne s'applique qu'à la première initialisation du conteneur de baux."
+  options:
+    procname: { en: "A constant gives every pod the same instance name; instance names must be unique.", fr: "Une constante donne le même nom d'instance à tous les pods ; les noms d'instance doivent être uniques." }
+    fixed: { en: "A constant gives every pod the same instance name; instance names must be unique.", fr: "Une constante donne le même nom d'instance à tous les pods ; les noms d'instance doivent être uniques." }
+    now: { en: "Starting now skips every existing item.", fr: "Démarrer maintenant ignore tous les éléments existants." }
+    max: { en: "A start time in the far future would skip every change.", fr: "Une heure de début dans un avenir lointain ignorerait toutes les modifications." }
+references:
+  - title: Change Feed Processor - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/change-feed-processor

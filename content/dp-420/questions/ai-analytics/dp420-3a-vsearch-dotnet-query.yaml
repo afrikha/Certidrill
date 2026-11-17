@@ -1,0 +1,71 @@
+id: dp420-3a-vsearch-dotnet-query
+objective: "3.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso's product container has a vector embedding policy and a diskANN index on `/descriptionVector`. The method `GetEmbeddingAsync` returns the embedding of the shopper's question as a `float[]`, generated with the same model as the stored vectors.
+
+    You need to complete the code so that it returns the five products whose descriptions are the most similar to the question, with their similarity score, as `ProductMatch` objects.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le conteneur de produits de Contoso possède une stratégie d'incorporation vectorielle et un index diskANN sur `/descriptionVector`. La méthode `GetEmbeddingAsync` renvoie l'incorporation de la question du client sous forme de `float[]`, générée avec le même modèle que les vecteurs stockés.
+
+    Vous devez compléter le code pour qu'il renvoie, sous forme d'objets `ProductMatch`, les cinq produits dont les descriptions sont les plus similaires à la question, avec leur score de similarité.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    float[] queryVector = await GetEmbeddingAsync(question);
+    var queryDef = new QueryDefinition(
+        "SELECT TOP 5 c.id, c.name, VectorDistance(c.descriptionVector, @v) AS score " +
+        "FROM c ORDER BY [[order]]")
+        .[[param]]("@v", queryVector);
+    using FeedIterator<ProductMatch> feed = container.[[iter]]<ProductMatch>(queryDef);
+    while (feed.HasMoreResults)
+    {
+        FeedResponse<ProductMatch> page = await feed.ReadNextAsync();
+        matches.AddRange(page);
+    }
+  slots:
+    - id: order
+      options:
+        - { id: name, text: c.name }
+        - { id: vector, text: c.descriptionVector }
+        - { id: vd, text: "VectorDistance(c.descriptionVector, @v)" }
+    - id: param
+      options:
+        - { id: with, text: WithParameter }
+        - { id: stream, text: WithParameterStream }
+        - { id: get, text: GetQueryParameters }
+    - id: iter
+      options:
+        - { id: changefeed, text: GetChangeFeedIterator }
+        - { id: query, text: GetItemQueryIterator }
+        - { id: streamiter, text: GetItemQueryStreamIterator }
+answer:
+  values: { order: vd, param: with, iter: query }
+explanation:
+  correct:
+    en: "The query sorts on VectorDistance between the stored vector and the parameter, so the most similar items come first, and TOP 5 keeps five of them. WithParameter(string, object) passes the float array as @v. GetItemQueryIterator<T> runs the query and deserializes each result into ProductMatch."
+    fr: "La requête trie selon VectorDistance entre le vecteur stocké et le paramètre : les éléments les plus similaires arrivent en premier, et TOP 5 en garde cinq. WithParameter(string, object) transmet le tableau de valeurs float comme @v. GetItemQueryIterator<T> exécute la requête et désérialise chaque résultat en ProductMatch."
+  options:
+    name: { en: "Sorting by name returns products in alphabetical order, not by similarity.", fr: "Trier par nom renvoie les produits par ordre alphabétique, pas par similarité." }
+    vector: { en: "Sorting on the vector property compares array values, not the similarity to the question.", fr: "Trier sur la propriété vectorielle compare des valeurs de tableau, pas la similarité avec la question." }
+    stream: { en: "WithParameterStream expects a Stream value, not a float array.", fr: "WithParameterStream attend une valeur Stream, pas un tableau de valeurs float." }
+    get: { en: "GetQueryParameters reads the parameters of the definition; it doesn't add one.", fr: "GetQueryParameters lit les paramètres de la définition ; il n'en ajoute pas." }
+    changefeed: { en: "GetChangeFeedIterator reads the change feed; it doesn't run a query definition.", fr: "GetChangeFeedIterator lit le flux de modification ; il n'exécute pas de définition de requête." }
+    streamiter: { en: "GetItemQueryStreamIterator returns raw response streams and has no generic type parameter.", fr: "GetItemQueryStreamIterator renvoie des flux de réponse bruts et n'a pas de paramètre de type générique." }
+references:
+  - title: Index and Query Vector Data in .NET - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-dotnet-vector-index-query
+  - title: VECTORDISTANCE - Query Language for Cosmos DB (in Azure and Fabric)
+    url: https://learn.microsoft.com/en-us/cosmos-db/query/vectordistance

@@ -1,0 +1,66 @@
+id: dp700-3a-ingestion-results-kql
+objective: "3.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind has a workspace named WS-Telemetry that contains an eventhouse named EH-Plant. Workspace monitoring was enabled for WS-Telemetry two months ago, and the retention of the monitoring database was set to 90 days.
+
+    You need a KQL query in the monitoring database that returns, for the last 30 days, the number of permanent ingestion failures for each destination table of EH-Plant.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind dispose d'un espace de travail nommé WS-Telemetry qui contient un eventhouse nommé EH-Plant. La supervision de l'espace de travail a été activée pour WS-Telemetry il y a deux mois, et la rétention de la base de données de supervision a été réglée sur 90 jours.
+
+    Vous avez besoin d'une requête KQL dans la base de données de supervision qui renvoie, pour les 30 derniers jours, le nombre d'échecs d'ingestion permanents pour chaque table de destination de EH-Plant.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[tbl]]
+    | where Timestamp > [[time]]
+    | where ItemName == "EH-Plant" and IngestionFailureStatus == "Permanent"
+    | summarize Failures = count() by [[col]]
+  slots:
+    - id: tbl
+      options:
+        - { id: cmd, text: EventhouseCommandLogs }
+        - { id: res, text: EventhouseIngestionResultsLogs }
+        - { id: job, text: ItemJobEventLogs }
+    - id: time
+      options:
+        - { id: now, text: now(30d) }
+        - { id: raw, text: 30d }
+        - { id: ago, text: ago(30d) }
+    - id: col
+      options:
+        - { id: db, text: DatabaseName }
+        - { id: src, text: IngestionSourcePath }
+        - { id: item, text: ItemName }
+        - { id: table, text: TableName }
+answer:
+  values: { tbl: res, time: ago, col: table }
+explanation:
+  correct:
+    en: |
+      Workspace monitoring writes the ingestion results of an eventhouse to the `EventhouseIngestionResultsLogs` table, which has the `IngestionFailureStatus` and `TableName` columns. `ago(30d)` returns the time 30 days before now, and grouping by `TableName` gives one count per destination table.
+    fr: |
+      La supervision de l'espace de travail écrit les résultats d'ingestion d'un eventhouse dans la table `EventhouseIngestionResultsLogs`, qui comporte les colonnes `IngestionFailureStatus` et `TableName`. `ago(30d)` renvoie l'heure qu'il était il y a 30 jours, et le regroupement par `TableName` donne un nombre par table de destination.
+  options:
+    cmd: { en: "EventhouseCommandLogs records management commands with their text and status; it has no IngestionFailureStatus column.", fr: "EventhouseCommandLogs enregistre les commandes de gestion avec leur texte et leur statut ; il n'a pas de colonne IngestionFailureStatus." }
+    job: { en: "ItemJobEventLogs records job runs of items such as pipelines and notebooks, not eventhouse ingestion results.", fr: "ItemJobEventLogs enregistre les exécutions de tâches d'éléments comme les pipelines et les notebooks, pas les résultats d'ingestion d'un eventhouse." }
+    now: { en: "now(30d) returns a time 30 days in the future, so no record matches.", fr: "now(30d) renvoie une heure située 30 jours dans le futur : aucun enregistrement ne correspond." }
+    raw: { en: "A timespan can't be compared with the datetime value of Timestamp.", fr: "Une durée ne peut pas être comparée à la valeur datetime de Timestamp." }
+    db: { en: "DatabaseName groups by KQL database, not by destination table.", fr: "DatabaseName regroupe par base de données KQL, pas par table de destination." }
+    src: { en: "IngestionSourcePath groups by source file or blob, not by destination table.", fr: "IngestionSourcePath regroupe par fichier ou objet blob source, pas par table de destination." }
+    item: { en: "ItemName is the eventhouse itself, so it returns a single group.", fr: "ItemName est l'eventhouse lui-même : la requête renverrait un seul groupe." }
+references:
+  - title: Ingestion results logs
+    url: https://learn.microsoft.com/en-us/fabric/real-time-intelligence/monitor-logs-ingestion-results

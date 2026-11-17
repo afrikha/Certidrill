@@ -1,0 +1,89 @@
+id: dp700-3c-blocking-dmv
+objective: "3.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW1. Users report that queries on dbo.Inventory appear to be stuck.
+
+    You need to write two queries. The first query must list the requests that are waiting on another session. The second query must list the locks that are currently held by the blocking session, which has the ID 64.
+
+    How should you complete the queries? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW1. Des utilisateurs signalent que les requêtes sur dbo.Inventory semblent bloquées.
+
+    Vous devez écrire deux requêtes. La première doit lister les requêtes qui attendent une autre session. La seconde doit lister les verrous actuellement détenus par la session bloquante, dont l'ID est 64.
+
+    Comment devez-vous compléter les requêtes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT session_id, status, wait_type, total_elapsed_time
+    FROM [[dmv1]]
+    WHERE [[col]] <> 0;
+
+    SELECT request_session_id, resource_type, request_mode
+    FROM [[dmv2]]
+    WHERE request_status = [[status]]
+      AND request_session_id = 64;
+  slots:
+    - id: dmv1
+      options:
+        - { id: d1_req, text: sys.dm_exec_requests }
+        - { id: d1_conn, text: sys.dm_exec_connections }
+        - { id: d1_hist, text: queryinsights.exec_requests_history }
+        - { id: d1_locks, text: sys.dm_tran_locks }
+    - id: col
+      options:
+        - { id: c_block, text: blocking_session_id }
+        - { id: c_tran, text: open_transaction_count }
+        - { id: c_cpu, text: cpu_time }
+    - id: dmv2
+      options:
+        - { id: d2_locks, text: sys.dm_tran_locks }
+        - { id: d2_sess, text: sys.dm_exec_sessions }
+        - { id: d2_req, text: sys.dm_exec_requests }
+        - { id: d2_ins, text: queryinsights.exec_sessions_history }
+    - id: status
+      options:
+        - { id: s_grant, text: "'GRANT'" }
+        - { id: s_wait, text: "'WAIT'" }
+        - { id: s_convert, text: "'CONVERT'" }
+answer:
+  values: { dmv1: d1_req, col: c_block, dmv2: d2_locks, status: s_grant }
+explanation:
+  correct:
+    en: |
+      sys.dm_exec_requests shows the running requests, and a nonzero blocking_session_id means that the request waits on a lock held by that session. sys.dm_tran_locks lists the lock requests; filtering on request_status = 'GRANT' for session 64 returns the locks that the blocker already holds, while 'WAIT' would return the requests still waiting.
+    fr: |
+      sys.dm_exec_requests affiche les requêtes en cours, et un blocking_session_id différent de zéro signifie que la requête attend un verrou détenu par cette session. sys.dm_tran_locks liste les demandes de verrou ; filtrer sur request_status = 'GRANT' pour la session 64 renvoie les verrous que la session bloquante détient déjà, alors que 'WAIT' renverrait les demandes encore en attente.
+  options:
+    d1_hist:
+      en: |
+        Query insights stores completed requests, and they can take minutes to appear; a stuck request is not there.
+      fr: |
+        Query insights stocke les requêtes terminées, qui peuvent mettre plusieurs minutes à apparaître ; une requête bloquée n'y figure pas.
+    c_tran:
+      en: |
+        open_transaction_count shows whether the request has open transactions, not whether another session blocks it.
+      fr: |
+        open_transaction_count indique si la requête a des transactions ouvertes, pas si une autre session la bloque.
+    d2_sess:
+      en: |
+        sys.dm_exec_sessions shows the state of the session, such as sleeping, but not the locks it holds.
+      fr: |
+        sys.dm_exec_sessions montre l'état de la session, par exemple sleeping, mais pas les verrous qu'elle détient.
+    s_wait:
+      en: |
+        WAIT returns lock requests that are not granted yet, which are those of the blocked sessions.
+      fr: |
+        WAIT renvoie les demandes de verrou non encore accordées, c'est-à-dire celles des sessions bloquées.
+references:
+  - title: Troubleshoot Query Blocking in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/troubleshoot-query-blocking

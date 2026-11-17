@@ -1,0 +1,86 @@
+id: dp420-3a-vsearch-dotnet-container
+objective: "3.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso is creating an Azure Cosmos DB for NoSQL container for 8 million products by using the .NET SDK 3.45.0. Vector search is enabled on the account. The container must meet the following requirements:
+
+    - Store the 1,536-dimension description embeddings with full 32-bit precision.
+    - Return the most similar products across all categories with the lowest query latency.
+    - Minimize the RU charge of inserting products.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso crée un conteneur Azure Cosmos DB for NoSQL pour 8 millions de produits avec le SDK .NET 3.45.0. La recherche vectorielle est activée sur le compte. Le conteneur doit satisfaire les exigences suivantes :
+
+    - Stocker les incorporations de description de 1 536 dimensions avec une précision complète de 32 bits.
+    - Renvoyer les produits les plus similaires de toutes les catégories avec la latence de requête la plus faible.
+    - Minimiser le coût en RU de l'insertion des produits.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    var embeddings = new Collection<Embedding>
+    {
+        new Embedding
+        {
+            Path = "/descriptionVector",
+            DataType = [[dt]],
+            DistanceFunction = DistanceFunction.Cosine,
+            Dimensions = 1536
+        }
+    };
+    var properties = new ContainerProperties(id: "products", partitionKeyPath: "/categoryId")
+    {
+        VectorEmbeddingPolicy = new(embeddings),
+        IndexingPolicy = new IndexingPolicy
+        {
+            VectorIndexes = new()
+            {
+                new VectorIndexPath { Path = "/descriptionVector", Type = [[idx]] }
+            }
+        }
+    };
+    properties.IndexingPolicy.IncludedPaths.Add(new IncludedPath { Path = "/*" });
+    properties.IndexingPolicy.ExcludedPaths.Add(new ExcludedPath { Path = [[excl]] });
+    Container container = await database.CreateContainerIfNotExistsAsync(properties);
+  slots:
+    - id: dt
+      options:
+        - { id: f16, text: VectorDataType.Float16 }
+        - { id: u8, text: VectorDataType.Uint8 }
+        - { id: f32, text: VectorDataType.Float32 }
+    - id: idx
+      options:
+        - { id: diskann, text: VectorIndexType.DiskANN }
+        - { id: flat, text: VectorIndexType.Flat }
+        - { id: qflat, text: VectorIndexType.QuantizedFlat }
+    - id: excl
+      options:
+        - { id: star, text: "\"/descriptionVector/*\"" }
+        - { id: scalar, text: "\"/descriptionVector/?\"" }
+        - { id: root, text: "\"/*\"" }
+answer:
+  values: { dt: f32, idx: diskann, excl: star }
+explanation:
+  correct:
+    en: "VectorDataType.Float32 keeps the 32-bit values. VectorIndexType.DiskANN supports 1,536 dimensions and is the most performant index when a search covers more than 50,000 vectors. Adding the vector path with /* to the excluded paths keeps each float out of the range index; otherwise inserts cost more RUs and have a higher latency."
+    fr: "VectorDataType.Float32 conserve les valeurs 32 bits. VectorIndexType.DiskANN prend en charge 1 536 dimensions et est l'index le plus performant lorsqu'une recherche couvre plus de 50 000 vecteurs. Ajouter le chemin vectoriel avec /* aux chemins exclus évite d'indexer chaque valeur dans l'index de plage ; sinon, les insertions coûtent plus de RU et ont une latence plus élevée."
+  options:
+    f16: { en: "Float16 halves storage but doesn't keep the full 32-bit precision.", fr: "Float16 divise le stockage par deux, mais ne conserve pas la précision complète de 32 bits." }
+    u8: { en: "Uint8 stores 8-bit integers, not 32-bit floating-point values.", fr: "Uint8 stocke des entiers 8 bits, pas des valeurs à virgule flottante 32 bits." }
+    flat: { en: "Flat supports at most 505 dimensions.", fr: "Flat prend en charge au plus 505 dimensions." }
+    qflat: { en: "QuantizedFlat is a brute-force search, slower than DiskANN across 8 million vectors.", fr: "QuantizedFlat est une recherche en force brute, plus lente que DiskANN sur 8 millions de vecteurs." }
+    scalar: { en: "The /? suffix matches a scalar value; the vector is an array, whose elements are matched with /*.", fr: "Le suffixe /? correspond à une valeur scalaire ; le vecteur est un tableau, dont les éléments sont couverts par /*." }
+    root: { en: "Excluding /* while including /* is contradictory and would remove range indexing from every property.", fr: "Exclure /* tout en incluant /* est contradictoire et retirerait l'indexation de plage de chaque propriété." }
+references:
+  - title: Index and Query Vector Data in .NET - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-dotnet-vector-index-query

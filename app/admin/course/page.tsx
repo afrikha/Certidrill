@@ -13,8 +13,12 @@ import { Button } from "@/components/ui/button";
 export const metadata = { title: "Course" };
 export const dynamic = "force-dynamic";
 
-/** Back-office of the course (docs/SPECS-COURS.md §9): chapters, statuses, reading statistics. */
-export default async function AdminCoursePage() {
+/**
+ * Back-office of the course (docs/SPECS-COURS.md §9): chapters, statuses,
+ * reading statistics, one certification at a time (?certification=, else the
+ * first active one).
+ */
+export default async function AdminCoursePage({ searchParams }: Readonly<{ searchParams: Promise<{ certification?: string | string[] }> }>) {
   // Checked here too: layouts are not re-run on every navigation (Next.js guidance).
   await requireAdmin();
   const current = await getLocale();
@@ -22,7 +26,10 @@ export default async function AdminCoursePage() {
   const t = await getTranslations("courseAdmin");
   const tCourse = await getTranslations("course");
   const format = await getFormatter();
+  const sp = await searchParams;
   const [courses, log] = await Promise.all([coursesForAdmin(prisma, locale), recentAudit(prisma, { action: "course.status", take: 20 })]);
+  const asked = typeof sp.certification === "string" ? sp.certification : null;
+  const selected = courses.find((c) => c.certification.code === asked) ?? courses.find((c) => c.certification.active) ?? courses[0];
 
   return (
     <div className="space-y-8">
@@ -32,7 +39,22 @@ export default async function AdminCoursePage() {
       </header>
 
       {courses.length === 0 && <p className="text-muted-foreground">{t("none")}</p>}
-      {courses.map((course) => {
+      {courses.length > 1 && (
+        <nav aria-label={t("certifications")} className="flex flex-wrap gap-2 text-sm" data-testid="admin-course-certifications">
+          {courses.map((c) => (
+            <Link
+              key={c.certification.code}
+              href={`/admin/course?${new URLSearchParams({ certification: c.certification.code })}`}
+              aria-current={c === selected ? "page" : undefined}
+              className={c === selected ? "rounded-md bg-primary px-2 py-1 font-mono uppercase text-primary-foreground" : "rounded-md border border-border px-2 py-1 font-mono uppercase"}
+            >
+              {c.certification.code}
+              {!c.certification.active && <span className="ml-1 font-sans normal-case opacity-75">({t("inactive")})</span>}
+            </Link>
+          ))}
+        </nav>
+      )}
+      {(selected ? [selected] : []).map((course) => {
         const published = course.chapters.filter((c) => c.status === "published").length;
         return (
           <section key={course.certification.code} className="space-y-3" aria-labelledby={`course-${course.certification.code}`}>

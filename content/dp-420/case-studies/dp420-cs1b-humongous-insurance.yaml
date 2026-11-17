@@ -1,0 +1,77 @@
+id: dp420-cs1b-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance develops **ClaimDesk**, a software as a service (SaaS) claims management application that it sells to 2,400 insurance brokerages. Each brokerage is a tenant.
+
+        ClaimDesk is made of Python 3.12 services that run in Azure Kubernetes Service (AKS) and use the azure-cosmos library. All the services and the users authenticate with Microsoft Entra ID; key-based authentication is disabled on every Azure Cosmos DB account.
+      fr: |
+        Humongous Insurance développe **ClaimDesk**, une application SaaS (software as a service) de gestion des sinistres qu'elle vend à 2 400 cabinets de courtage en assurance. Chaque cabinet est un locataire.
+
+        ClaimDesk se compose de services Python 3.12 qui s'exécutent dans Azure Kubernetes Service (AKS) et utilisent la bibliothèque azure-cosmos. Tous les services et les utilisateurs s'authentifient avec Microsoft Entra ID ; l'authentification par clé est désactivée sur tous les comptes Azure Cosmos DB.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        All the Azure Cosmos DB for NoSQL accounts of ClaimDesk are in the France Central region only, use a single write region, continuous backup (30-day tier) and provisioned throughput.
+
+        | Account | Tenants | Configuration |
+        | --- | --- | --- |
+        | cosmos-cd-shared | 2,360 small and medium tenants | Database **claimdesk**: container **claims** (partition key `/tenantId`) and container **claim-vectors** |
+        | cosmos-cd-t001 to cosmos-cd-t040 | One large tenant per account | Spread across four subscriptions; each account has 20,000 RU/s of manual throughput, sized for the peak of its tenant |
+
+        The large tenants have contracts that require a dedicated account. On average, each dedicated account uses 15 percent of its throughput, and the tenants reach their peaks at different times.
+
+        Three tenants of cosmos-cd-shared are close to the 20-GB limit of a logical partition. ClaimDesk queries the claims of a tenant for dashboards and the claims of one policy of a tenant for the claim pages.
+
+        The claim-vectors container stores 30 million embeddings of claim descriptions (1,536 dimensions, `float32`) in the `embedding` property. Its partition key is `/claimId`, and its indexing policy defines a DiskANN vector index on `/embedding` with `vectorIndexShardKey` set to `["/tenantId"]`.
+
+        A Python service named **svc-fraud** scores every new or updated claim. Its managed identity, **id-fraud**, has the Cosmos DB Built-in Data Reader role on cosmos-cd-shared.
+
+        Support agents use an internal tool named **ClaimView** that signs them in with their Microsoft Entra user accounts. They have the Cosmos DB Built-in Data Reader role on cosmos-cd-shared.
+      fr: |
+        Tous les comptes Azure Cosmos DB for NoSQL de ClaimDesk se trouvent uniquement dans la région France Central, utilisent une seule région d'écriture, la sauvegarde continue (niveau 30 jours) et un débit provisionné.
+
+        | Compte | Locataires | Configuration |
+        | --- | --- | --- |
+        | cosmos-cd-shared | 2 360 petits et moyens locataires | Base de données **claimdesk** : conteneur **claims** (clé de partition `/tenantId`) et conteneur **claim-vectors** |
+        | cosmos-cd-t001 à cosmos-cd-t040 | Un grand locataire par compte | Répartis sur quatre abonnements ; chaque compte dispose de 20 000 RU/s de débit manuel, dimensionné pour le pic de son locataire |
+
+        Les grands locataires ont des contrats qui exigent un compte dédié. En moyenne, chaque compte dédié utilise 15 % de son débit, et les locataires atteignent leurs pics à des moments différents.
+
+        Trois locataires de cosmos-cd-shared approchent la limite de 20 Go d'une partition logique. ClaimDesk interroge les sinistres d'un locataire pour les tableaux de bord et les sinistres d'une police d'un locataire pour les pages de sinistre.
+
+        Le conteneur claim-vectors stocke 30 millions d'incorporations de descriptions de sinistres (1 536 dimensions, `float32`) dans la propriété `embedding`. Sa clé de partition est `/claimId`, et sa stratégie d'indexation définit un index vectoriel DiskANN sur `/embedding` avec `vectorIndexShardKey` défini sur `["/tenantId"]`.
+
+        Un service Python nommé **svc-fraud** évalue chaque sinistre nouveau ou mis à jour. Son identité managée, **id-fraud**, dispose du rôle Cosmos DB Built-in Data Reader sur cosmos-cd-shared.
+
+        Les agents du support utilisent un outil interne nommé **ClaimView** qui les connecte avec leurs comptes d'utilisateur Microsoft Entra. Ils disposent du rôle Cosmos DB Built-in Data Reader sur cosmos-cd-shared.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Humongous Insurance identifies the following requirements:
+
+        1. A new container named **claims-v2** will replace claims. A tenant must be able to store more than 20 GB of claims. The dashboard queries and the claim page queries must not be sent to every physical partition.
+        2. Draft claims must be deleted automatically 30 days after their last modification. Submitted claims must be kept indefinitely.
+        3. Each large tenant must keep its dedicated account and a guaranteed throughput. A tenant must be able to temporarily use throughput that the other large tenants leave unused. Costs must be minimized.
+        4. When a claim is created, ClaimDesk must return the 10 claims of the same tenant whose descriptions are the most similar, at the lowest RU cost.
+        5. Dynamic data masking will be enabled on cosmos-cd-shared. ClaimView must show the claimant's email address and phone number masked to the support agents.
+        6. svc-fraud must process every new or updated claim and resume from the last processed change after a restart. It must keep running in AKS without any additional compute service.
+        7. The FinOps team must analyze the hourly usage and costs of all 41 accounts as Delta tables in its existing Microsoft Fabric workspace, with minimal administrative effort.
+      fr: |
+        Humongous Insurance a défini les exigences suivantes :
+
+        1. Un nouveau conteneur nommé **claims-v2** remplacera claims. Un locataire doit pouvoir stocker plus de 20 Go de sinistres. Les requêtes des tableaux de bord et celles des pages de sinistre ne doivent pas être envoyées à toutes les partitions physiques.
+        2. Les brouillons de sinistres doivent être supprimés automatiquement 30 jours après leur dernière modification. Les sinistres soumis doivent être conservés indéfiniment.
+        3. Chaque grand locataire doit conserver son compte dédié et un débit garanti. Un locataire doit pouvoir utiliser temporairement le débit que les autres grands locataires n'utilisent pas. Les coûts doivent être réduits au minimum.
+        4. Quand un sinistre est créé, ClaimDesk doit renvoyer les 10 sinistres du même locataire dont les descriptions sont les plus similaires, au coût en RU le plus faible.
+        5. Le masquage dynamique des données sera activé sur cosmos-cd-shared. ClaimView doit afficher aux agents du support l'adresse e-mail et le numéro de téléphone du déclarant sous forme masquée.
+        6. svc-fraud doit traiter chaque sinistre nouveau ou mis à jour et reprendre à partir de la dernière modification traitée après un redémarrage. Il doit continuer à s'exécuter dans AKS sans service de calcul supplémentaire.
+        7. L'équipe FinOps doit analyser l'utilisation et les coûts horaires des 41 comptes sous forme de tables Delta dans son espace de travail Microsoft Fabric existant, avec un effort d'administration minimal.

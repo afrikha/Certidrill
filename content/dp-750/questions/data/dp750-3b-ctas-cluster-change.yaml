@@ -1,0 +1,70 @@
+id: dp750-3b-ctas-cluster-change
+objective: "3.1.9"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin Toys creates the Delta table **tailspin.sales.orders_clustered** from the table **tailspin.sales.orders_raw** on compute that runs Databricks Runtime 17.3 LTS. Queries filter on `customer_id` and `order_date`.
+
+    Six months later, queries filter on `region` and `order_date` instead. You must change the data layout accordingly, and the existing data must be reorganized on the new keys.
+
+    How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys crée la table Delta **tailspin.sales.orders_clustered** à partir de la table **tailspin.sales.orders_raw** sur un calcul qui exécute Databricks Runtime 17.3 LTS. Les requêtes filtrent sur `customer_id` et `order_date`.
+
+    Six mois plus tard, les requêtes filtrent plutôt sur `region` et `order_date`. Vous devez modifier la disposition des données en conséquence, et les données existantes doivent être réorganisées selon les nouvelles clés.
+
+    Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE tailspin.sales.orders_clustered
+    [[create]]
+    AS SELECT * FROM tailspin.sales.orders_raw;
+
+    -- Six months later
+    ALTER TABLE tailspin.sales.orders_clustered [[alter]];
+
+    [[recluster]];
+  slots:
+    - id: create
+      options:
+        - { id: cluster, text: "CLUSTER BY (customer_id, order_date)" }
+        - { id: part, text: "PARTITIONED BY (customer_id, order_date)" }
+        - { id: zorder, text: "ZORDER BY (customer_id, order_date)" }
+    - id: alter
+      options:
+        - { id: cluster, text: "CLUSTER BY (region, order_date)" }
+        - { id: replace, text: "REPLACE PARTITIONED BY WITH CLUSTER BY (region, order_date)" }
+        - { id: none, text: CLUSTER BY NONE }
+        - { id: stats, text: "SET TBLPROPERTIES ('delta.dataSkippingStatsColumns' = 'region, order_date')" }
+    - id: recluster
+      options:
+        - { id: full, text: OPTIMIZE tailspin.sales.orders_clustered FULL }
+        - { id: vacuum, text: VACUUM tailspin.sales.orders_clustered }
+        - { id: purge, text: REORG TABLE tailspin.sales.orders_clustered APPLY (PURGE) }
+answer:
+  values: { create: cluster, alter: cluster, recluster: full }
+explanation:
+  correct:
+    en: |
+      In a CTAS statement, CLUSTER BY follows the table name and enables liquid clustering. ALTER TABLE ... CLUSTER BY redefines the keys without rewriting existing data; later writes and OPTIMIZE use the new keys. OPTIMIZE ... FULL (Databricks Runtime 16.0 and above) reclusters the existing data on the new keys.
+    fr: |
+      Dans une instruction CTAS, CLUSTER BY suit le nom de la table et active le clustering liquide. ALTER TABLE ... CLUSTER BY redéfinit les clés sans réécrire les données existantes ; les écritures et les OPTIMIZE suivants utilisent les nouvelles clés. OPTIMIZE ... FULL (Databricks Runtime 16.0 et ultérieur) reclusterise les données existantes sur les nouvelles clés.
+  options:
+    part: { en: "Partitioning on a high-cardinality column such as customer_id creates too many small partitions, and changing it later requires a rewrite.", fr: "Partitionner sur une colonne à cardinalité élevée comme customer_id crée trop de petites partitions, et la modifier ensuite exige une réécriture." }
+    zorder: { en: "ZORDER BY is an option of OPTIMIZE, not a clause of CREATE TABLE.", fr: "ZORDER BY est une option d'OPTIMIZE, pas une clause de CREATE TABLE." }
+    replace: { en: "REPLACE PARTITIONED BY WITH CLUSTER BY converts a partitioned table; this table is clustered.", fr: "REPLACE PARTITIONED BY WITH CLUSTER BY convertit une table partitionnée ; cette table est clusterisée." }
+    none: { en: "CLUSTER BY NONE removes the clustering keys.", fr: "CLUSTER BY NONE supprime les clés de clustering." }
+    stats: { en: "Choosing statistics columns doesn't reorganize the data.", fr: "Choisir les colonnes de statistiques ne réorganise pas les données." }
+    vacuum: { en: "VACUUM removes unreferenced files; it doesn't recluster data.", fr: "VACUUM supprime les fichiers non référencés ; il ne reclusterise pas les données." }
+    purge: { en: "REORG ... APPLY (PURGE) rewrites files that have deletion vectors; it doesn't recluster data.", fr: "REORG ... APPLY (PURGE) réécrit les fichiers qui ont des vecteurs de suppression ; il ne reclusterise pas les données." }
+references:
+  - title: Use liquid clustering for tables
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/clustering

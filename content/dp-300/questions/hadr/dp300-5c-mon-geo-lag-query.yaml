@@ -1,0 +1,73 @@
+id: dp300-5c-mon-geo-lag-query
+objective: "5.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a failover group named **fog-pay** in Azure SQL Database. The primary server is **sql-pay-weu** and the secondary server is **sql-pay-neu**. The group contains a database named **PayDb**.
+
+    You need a query that returns the replication lag of PayDb, in seconds, for the link to the geo-secondary.
+
+    How should you complete the query and choose where to run it? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un groupe de basculement nommé **fog-pay** dans Azure SQL Database. Le serveur primaire est **sql-pay-weu** et le serveur secondaire est **sql-pay-neu**. Le groupe contient une base de données nommée **PayDb**.
+
+    Vous avez besoin d'une requête qui renvoie le retard de réplication de PayDb, en secondes, pour le lien vers le géosecondaire.
+
+    Comment devez-vous compléter la requête et choisir l'emplacement où l'exécuter ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    -- Server: [[server]]
+    -- Database: [[db]]
+    SELECT partner_server, partner_database, replication_state_desc, [[col]]
+    FROM [[view]];
+  slots:
+    - id: server
+      options:
+        - { id: weu, text: sql-pay-weu }
+        - { id: neu, text: sql-pay-neu }
+        - { id: ro, text: fog-pay.secondary.database.windows.net }
+    - id: db
+      options:
+        - { id: master, text: master }
+        - { id: paydb, text: PayDb }
+        - { id: msdb, text: msdb }
+    - id: col
+      options:
+        - { id: lagsec, text: replication_lag_sec }
+        - { id: lastcommit, text: last_commit }
+        - { id: seclag, text: secondary_lag_seconds }
+        - { id: redoq, text: redo_queue_size }
+    - id: view
+      options:
+        - { id: dmgeo, text: sys.dm_geo_replication_link_status }
+        - { id: links, text: sys.geo_replication_links }
+        - { id: hadr, text: sys.dm_hadr_database_replica_states }
+        - { id: opstatus, text: sys.dm_operation_status }
+answer:
+  values: { server: weu, db: paydb, col: lagsec, view: dmgeo }
+explanation:
+  correct:
+    en: "`sys.dm_geo_replication_link_status` returns one row per geo-replication link, and its `replication_lag_sec` column gives the lag in seconds. The view must be queried in the database itself (it returns an empty set in master), and `replication_lag_sec` and `last_replication` are populated only on the primary, here PayDb on sql-pay-weu."
+    fr: "`sys.dm_geo_replication_link_status` renvoie une ligne par lien de géoréplication, et sa colonne `replication_lag_sec` donne le retard en secondes. La vue doit être interrogée dans la base elle-même (elle renvoie un jeu vide dans master), et `replication_lag_sec` et `last_replication` ne sont renseignées que sur le primaire, ici PayDb sur sql-pay-weu."
+  options:
+    neu: { en: "On the secondary, replication_lag_sec isn't populated.", fr: "Sur le secondaire, replication_lag_sec n'est pas renseignée." }
+    ro: { en: "The read-only listener connects to the secondary server, where the lag column isn't populated.", fr: "L'écouteur en lecture seule se connecte au serveur secondaire, où la colonne de retard n'est pas renseignée." }
+    master: { en: "The view exists in master but returns an empty set there.", fr: "La vue existe dans master mais y renvoie un jeu vide." }
+    msdb: { en: "Azure SQL Database exposes no msdb database to query.", fr: "Azure SQL Database n'expose pas de base msdb à interroger." }
+    lastcommit: { en: "last_commit is a time, not a lag in seconds.", fr: "last_commit est une heure, pas un retard en secondes." }
+    seclag: { en: "secondary_lag_seconds is a column of the availability group views, not of this view.", fr: "secondary_lag_seconds est une colonne des vues des groupes de disponibilité, pas de cette vue." }
+    redoq: { en: "redo_queue_size is an availability group column, measured in KB.", fr: "redo_queue_size est une colonne des groupes de disponibilité, mesurée en Ko." }
+    links: { en: "sys.geo_replication_links in master describes the links but doesn't report the lag.", fr: "sys.geo_replication_links dans master décrit les liens mais n'indique pas le retard." }
+    hadr: { en: "sys.dm_hadr_database_replica_states applies to SQL Server and SQL Managed Instance availability groups, not to SQL Database geo-replication.", fr: "sys.dm_hadr_database_replica_states s'applique aux groupes de disponibilité de SQL Server et de SQL Managed Instance, pas à la géoréplication de SQL Database." }
+    opstatus: { en: "sys.dm_operation_status lists management operations such as creating a database copy; it doesn't measure replication lag.", fr: "sys.dm_operation_status liste les opérations de gestion, comme la création d'une copie de base ; elle ne mesure pas le retard de réplication." }
+references:
+  - title: sys.dm_geo_replication_link_status
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-geo-replication-link-status-azure-sql-database

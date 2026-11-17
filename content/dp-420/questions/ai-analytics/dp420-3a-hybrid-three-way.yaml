@@ -1,0 +1,61 @@
+id: dp420-3a-hybrid-three-way
+objective: "3.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Wingtip hosts a multitenant knowledge base in Azure Cosmos DB for NoSQL. The container has a vector index on `/embedding` and a full-text policy and full-text indexes on `/title` and `/body`.
+
+    You need to complete the search query. The ranking must combine three signals: the vector similarity on `/embedding`, the BM25 relevance of `/title` and the BM25 relevance of `/body`. The title relevance must count twice as much as each of the other two signals.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip héberge une base de connaissances multilocataire dans Azure Cosmos DB for NoSQL. Le conteneur possède un index vectoriel sur `/embedding`, ainsi qu'une stratégie de texte intégral et des index de texte intégral sur `/title` et `/body`.
+
+    Vous devez compléter la requête de recherche. Le classement doit combiner trois signaux : la similarité vectorielle sur `/embedding`, la pertinence BM25 de `/title` et la pertinence BM25 de `/body`. La pertinence du titre doit compter deux fois plus que chacun des deux autres signaux.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 10 c.id, c.title
+    FROM c
+    WHERE c.tenantId = @tenantId
+    ORDER BY RANK RRF(
+        VectorDistance(c.embedding, @v),
+        [[f2]],
+        FullTextScore(c.body, @t1, @t2),
+        [[w]])
+  slots:
+    - id: f2
+      options:
+        - { id: any, text: "FullTextContainsAny(c.title, @t1, @t2)" }
+        - { id: score, text: "FullTextScore(c.title, @t1, @t2)" }
+        - { id: vd, text: "VectorDistance(c.title, @v)" }
+    - id: w
+      options:
+        - { id: w211, text: "[2, 1, 1]" }
+        - { id: w112, text: "[1, 1, 2]" }
+        - { id: w121, text: "[1, 2, 1]" }
+        - { id: w12, text: "[1, 2]" }
+answer:
+  values: { f2: score, w: w121 }
+explanation:
+  correct:
+    en: "RRF fuses two or more scoring functions, so it can combine one VectorDistance and two FullTextScore functions on different paths. The weights array is the last argument, with one weight per function in the same order: [1, 2, 1] doubles the weight of the second function, the BM25 score of the title."
+    fr: "RRF fusionne deux fonctions de score ou plus : il peut combiner un VectorDistance et deux FullTextScore sur des chemins différents. Le tableau de poids est le dernier argument, avec un poids par fonction dans le même ordre : [1, 2, 1] double le poids de la deuxième fonction, le score BM25 du titre."
+  options:
+    any: { en: "FullTextContainsAny returns a Boolean for WHERE, not a score that RRF can rank.", fr: "FullTextContainsAny renvoie un booléen pour WHERE, pas un score que RRF peut classer." }
+    vd: { en: "/title is text without a vector policy; the title relevance is a BM25 score.", fr: "/title est du texte sans stratégie vectorielle ; la pertinence du titre est un score BM25." }
+    w211: { en: "[2, 1, 1] doubles the weight of the vector similarity, the first function.", fr: "[2, 1, 1] double le poids de la similarité vectorielle, la première fonction." }
+    w112: { en: "[1, 1, 2] doubles the weight of the body relevance, the third function.", fr: "[1, 1, 2] double le poids de la pertinence du corps, la troisième fonction." }
+    w12: { en: "The array needs one weight for each of the three functions.", fr: "Le tableau exige un poids pour chacune des trois fonctions." }
+references:
+  - title: RRF - Query Language for Cosmos DB (in Azure and Fabric)
+    url: https://learn.microsoft.com/en-us/cosmos-db/query/rrf

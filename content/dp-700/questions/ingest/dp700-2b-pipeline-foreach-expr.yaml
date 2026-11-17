@@ -1,0 +1,79 @@
+id: dp700-2b-pipeline-foreach-expr
+objective: "2.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW-Control that contains a table named ctl.IngestList. Each row of the table describes one source table to ingest.
+
+    You are building a pipeline named PL-Ingest that copies every enabled table into a lakehouse named LH-Bronze. The pipeline contains a Lookup activity named GetTables, with First row only cleared, followed by a ForEach activity named EachTable that contains a Copy data activity named CopyTable.
+
+    At most four tables must be copied at the same time.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW-Control qui contient une table nommée ctl.IngestList. Chaque ligne de la table décrit une table source à ingérer.
+
+    Vous créez un pipeline nommé PL-Ingest qui copie chaque table activée dans un lakehouse nommé LH-Bronze. Le pipeline contient une activité Lookup nommée GetTables, avec First row only désactivé, suivie d'une activité ForEach nommée EachTable qui contient une activité Copy data nommée CopyTable.
+
+    Au maximum quatre tables doivent être copiées en même temps.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: text
+  template: |
+    GetTables (Lookup)
+      Query:        SELECT SchemaName, TableName FROM ctl.IngestList WHERE Enabled = 1
+
+    EachTable (ForEach)
+      Items:        @activity('GetTables').output.[[out]]
+      Settings:     [[batch]]
+
+      CopyTable (Copy data)
+        Source table: [[cur]]
+        Destination:  LH-Bronze, Tables
+  slots:
+    - id: out
+      options:
+        - { id: o_value, text: value }
+        - { id: o_first, text: firstRow }
+        - { id: o_child, text: childItems }
+        - { id: o_rows, text: rows }
+    - id: batch
+      options:
+        - { id: b_seq, text: "Sequential selected" }
+        - { id: b_par4, text: "Sequential cleared, Batch count = 4" }
+        - { id: b_seq4, text: "Sequential selected, Batch count = 4" }
+    - id: cur
+      options:
+        - { id: c_item, text: "@{item().SchemaName}.@{item().TableName}" }
+        - { id: c_first, text: "@{activity('GetTables').output.firstRow.TableName}" }
+        - { id: c_param, text: "@{pipeline().parameters.TableName}" }
+        - { id: c_noitp, text: "@item().SchemaName.item().TableName" }
+answer:
+  values: { out: o_value, batch: b_par4, cur: c_item }
+explanation:
+  correct:
+    en: |
+      With First row only cleared, the Lookup activity returns its rows as an array in output.value, which feeds the Items of the ForEach. Clearing Sequential runs the iterations in parallel, and Batch count limits how many items are processed at the same time. Inside the loop, item() is the current row, and the interpolated string @{item().SchemaName}.@{item().TableName} builds the name of the table to copy.
+    fr: |
+      Avec First row only désactivé, l'activité Lookup renvoie ses lignes sous forme de tableau dans output.value, qui alimente les Items du ForEach. Désactiver Sequential exécute les itérations en parallèle, et Batch count limite le nombre d'éléments traités en même temps. Dans la boucle, item() est la ligne actuelle : la chaîne interpolée @{item().SchemaName}.@{item().TableName} construit le nom de la table à copier.
+  options:
+    o_first: { en: "firstRow holds a single row, used when First row only is selected.", fr: "firstRow contient une seule ligne, utilisée quand First row only est activé." }
+    o_child: { en: "childItems belongs to the output of a Get Metadata activity on a folder, not to a Lookup.", fr: "childItems appartient à la sortie d'une activité Get Metadata sur un dossier, pas d'une activité Lookup." }
+    b_seq: { en: "Sequential processes one item at a time, which is slower than needed.", fr: "Sequential traite un élément à la fois, ce qui est plus lent que nécessaire." }
+    b_seq4: { en: "When Sequential is selected, items run one at a time and the batch count doesn't apply.", fr: "Quand Sequential est activé, les éléments s'exécutent un par un et le nombre de lots ne s'applique pas." }
+    c_first: { en: "firstRow would name the same table on every iteration, and it isn't returned when First row only is cleared.", fr: "firstRow désignerait la même table à chaque itération, et il n'est pas renvoyé quand First row only est désactivé." }
+    c_param: { en: "A pipeline parameter has one value for the whole run, not one per item.", fr: "Un paramètre de pipeline a une seule valeur pour toute l'exécution, pas une par élément." }
+    c_noitp: { en: "Without string interpolation @{...}, the two values aren't concatenated into a table name.", fr: "Sans interpolation de chaîne @{...}, les deux valeurs ne sont pas concaténées en un nom de table." }
+references:
+  - title: Lookup activity
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/lookup-activity
+  - title: Transform data with a ForEach activity
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/foreach-activity

@@ -1,0 +1,87 @@
+id: ai300-3a-bicep-role-assignment
+objective: "3.1.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum's Bicep file declares a Foundry resource (symbolic name `foundry`) and a project with a system-assigned managed identity (symbolic name `project`). You need to add a role assignment that grants the **Foundry User** role on the Foundry resource to the managed identity of the project.
+
+    How should you complete the Bicep code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le fichier Bicep d'Adatum déclare une ressource Foundry (nom symbolique `foundry`) et un projet doté d'une identité managée affectée par le système (nom symbolique `project`). Vous devez ajouter une attribution de rôle qui accorde le rôle **Foundry User** sur la ressource Foundry à l'identité managée du projet.
+
+    Comment devez-vous compléter le code Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource foundryUserRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+      scope: subscription()
+      name: '53ca6127-db72-4b80-b1b0-d745d6d5456d'
+    }
+
+    resource projectRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+      name: guid(foundry.id, project.id, foundryUserRole.id)
+      scope: [[scope]]
+      properties: {
+        roleDefinitionId: [[rd]]
+        principalId: [[pid]]
+        principalType: [[pt]]
+      }
+    }
+  slots:
+    - id: scope
+      options:
+        - { id: foundry, text: foundry }
+        - { id: project, text: project }
+        - { id: role, text: foundryUserRole }
+    - id: rd
+      options:
+        - { id: id, text: foundryUserRole.id }
+        - { id: name, text: foundryUserRole.name }
+        - { id: rolename, text: "'Foundry User'" }
+    - id: pid
+      options:
+        - { id: projmi, text: project.identity.principalId }
+        - { id: projid, text: project.id }
+        - { id: foundrymi, text: foundry.identity.principalId }
+    - id: pt
+      options:
+        - { id: sp, text: "'ServicePrincipal'" }
+        - { id: user, text: "'User'" }
+        - { id: group, text: "'Group'" }
+        - { id: device, text: "'Device'" }
+answer:
+  values: { scope: foundry, rd: id, pid: projmi, pt: sp }
+explanation:
+  correct:
+    en: |
+      The role must apply on the Foundry resource, so `scope` is `foundry`. Built-in role definitions are subscription-scoped resources; Microsoft recommends an `existing` resource and its `.id` property for the fully qualified role definition ID. The principal is the project's system-assigned identity, `project.identity.principalId`, and managed identities are service principals, so you set `principalType` to `'ServicePrincipal'` to avoid intermittent deployment errors.
+    fr: |
+      Le rôle doit s'appliquer sur la ressource Foundry : `scope` vaut `foundry`. Les définitions de rôles intégrés sont des ressources de l'étendue de l'abonnement ; Microsoft recommande une ressource `existing` et sa propriété `.id` pour obtenir l'ID complet de la définition de rôle. Le principal est l'identité affectée par le système du projet, `project.identity.principalId`, et les identités managées sont des principaux de service : vous définissez donc `principalType` sur `'ServicePrincipal'` pour éviter des erreurs de déploiement intermittentes.
+  options:
+    scope:
+      en: |
+        A project scope grants nothing on the Foundry resource, and a role definition isn't a valid assignment scope here.
+      fr: |
+        Une étendue de projet n'accorde rien sur la ressource Foundry, et une définition de rôle n'est pas une étendue d'attribution valide ici.
+    rd:
+      en: |
+        `.name` returns only the GUID, and the role name isn't a role definition ID.
+      fr: |
+        `.name` ne renvoie que le GUID, et le nom du rôle n'est pas un ID de définition de rôle.
+    pid:
+      en: |
+        `project.id` is a resource ID, not a principal ID, and `foundry.identity.principalId` is the identity of the Foundry resource, not of the project.
+      fr: |
+        `project.id` est un ID de ressource, pas un ID de principal, et `foundry.identity.principalId` est l'identité de la ressource Foundry, pas celle du projet.
+references:
+  - title: Use Bicep to create Azure role-based access control (Azure RBAC) resources
+    url: https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/scenarios-rbac
+  - title: Role-based access control for Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/foundry/concepts/rbac-foundry

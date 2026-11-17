@@ -1,0 +1,94 @@
+id: ai300-3b-bicep-spillover
+objective: "3.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has a Microsoft Foundry resource that runs a Global Provisioned deployment named **orders-ptu**. During peaks, orders-ptu is fully used and returns HTTP 429 responses.
+
+    You need to update the Bicep file so that the requests that orders-ptu can't serve are processed automatically by a real-time deployment billed per token. The overflow must run the same model and version, and the application code must not change.
+
+    How should you complete the Bicep file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank dispose d'une ressource Microsoft Foundry qui exécute un déploiement Global Provisioned nommé **orders-ptu**. Lors des pointes, orders-ptu est entièrement utilisé et renvoie des réponses HTTP 429.
+
+    Vous devez mettre à jour le fichier Bicep pour que les requêtes qu'orders-ptu ne peut pas servir soient traitées automatiquement par un déploiement en temps réel facturé au jeton. Le débordement doit exécuter le même modèle et la même version, et le code de l'application ne doit pas changer.
+
+    Comment devez-vous compléter le fichier Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource std 'Microsoft.CognitiveServices/accounts/deployments@2026-05-15-preview' = {
+      parent: account
+      name: 'orders-std'
+      sku: {
+        name: [[stdsku]]
+        capacity: 200
+      }
+      properties: {
+        model: {
+          format: 'OpenAI'
+          name: [[stdmodel]]
+          version: '2025-04-14'
+        }
+      }
+    }
+
+    resource ptu 'Microsoft.CognitiveServices/accounts/deployments@2026-05-15-preview' = {
+      parent: account
+      name: 'orders-ptu'
+      sku: {
+        name: 'GlobalProvisionedManaged'
+        capacity: 100
+      }
+      properties: {
+        model: {
+          format: 'OpenAI'
+          name: 'gpt-4.1'
+          version: '2025-04-14'
+        }
+        [[prop]]: std.name
+      }
+    }
+  slots:
+    - id: stdsku
+      options:
+        - { id: k1, text: "'GlobalBatch'" }
+        - { id: k2, text: "'GlobalStandard'" }
+        - { id: k3, text: "'DeveloperTier'" }
+        - { id: k4, text: "'GlobalProvisionedManaged'" }
+    - id: stdmodel
+      options:
+        - { id: m1, text: "'gpt-4.1'" }
+        - { id: m2, text: "'gpt-4.1-mini'" }
+        - { id: m3, text: "'gpt-4o'" }
+    - id: prop
+      options:
+        - { id: p1, text: parentDeploymentName }
+        - { id: p2, text: raiPolicyName }
+        - { id: p3, text: spilloverDeploymentName }
+answer:
+  values: { stdsku: k2, stdmodel: m1, prop: p3 }
+explanation:
+  correct:
+    en: "Spillover sends the requests that a fully used provisioned deployment would reject (such as 429 responses) to a standard deployment in the same Foundry resource, here a Global Standard deployment of the same model and version. Setting `spilloverDeploymentName` on the provisioned deployment applies to every request without code changes; the spilled-over requests are billed at the token rates of the standard deployment."
+    fr: "Le débordement (spillover) envoie les requêtes qu'un déploiement provisionné saturé rejetterait (comme les réponses 429) vers un déploiement standard de la même ressource Foundry, ici un déploiement Global Standard du même modèle et de la même version. Définir `spilloverDeploymentName` sur le déploiement provisionné s'applique à toutes les requêtes sans modification du code ; les requêtes en débordement sont facturées aux tarifs par jeton du déploiement standard."
+  options:
+    k1: { en: "Global Batch processes asynchronous jobs with a 24-hour target, not real-time requests.", fr: "Global Batch traite des travaux asynchrones avec un objectif de 24 heures, pas des requêtes en temps réel." }
+    k3: { en: "DeveloperTier is meant only for evaluating fine-tuned models and is deleted after 24 hours.", fr: "DeveloperTier sert uniquement à évaluer des modèles affinés et est supprimé au bout de 24 heures." }
+    k4: { en: "The overflow must be billed per token, which requires a standard deployment, not another provisioned one.", fr: "Le débordement doit être facturé au jeton, ce qui exige un déploiement standard et non un autre déploiement provisionné." }
+    m2: { en: "The spillover deployment must run the same model as the provisioned deployment.", fr: "Le déploiement de débordement doit exécuter le même modèle que le déploiement provisionné." }
+    m3: { en: "gpt-4o is a different model from the one served by orders-ptu.", fr: "gpt-4o est un autre modèle que celui servi par orders-ptu." }
+    p1: { en: "parentDeploymentName names a parent deployment; it doesn't configure overflow routing.", fr: "parentDeploymentName désigne un déploiement parent ; il ne configure pas l'acheminement du débordement." }
+    p2: { en: "raiPolicyName selects the content filtering policy.", fr: "raiPolicyName sélectionne la stratégie de filtrage de contenu." }
+references:
+  - title: Manage traffic with spillover for provisioned deployments
+    url: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/spillover-traffic-management
+  - title: Microsoft.CognitiveServices/accounts/deployments - Bicep, ARM template & Terraform AzAPI reference
+    url: https://learn.microsoft.com/en-us/azure/templates/microsoft.cognitiveservices/accounts/deployments

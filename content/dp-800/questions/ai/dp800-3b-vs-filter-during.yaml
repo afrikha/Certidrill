@@ -1,0 +1,68 @@
+id: dp800-3b-vs-filter-during
+objective: "3.2.7"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys has an Azure SQL database that contains a table named dbo.Products with 2 million rows. A latest-version vector index that uses the cosine metric exists on DescriptionVector. About 3 percent of the products belong to the Camping category.
+
+    A developer proposes the following query to return the 10 nearest in-stock camping products.
+
+    ```sql
+    SELECT TOP (10) v.ProductID, v.distance
+    FROM (
+        SELECT TOP (200) WITH APPROXIMATE p.ProductID, p.Category, p.InStock, r.distance
+        FROM VECTOR_SEARCH(TABLE = dbo.Products AS p, COLUMN = DescriptionVector,
+                           SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+        ORDER BY r.distance
+    ) AS v
+    WHERE v.Category = 'Camping' AND v.InStock = 1
+    ORDER BY v.distance;
+    ```
+
+    The query must return 10 rows whenever at least 10 products qualify, and it must minimize the work performed.
+
+    What should you recommend?
+  fr: |
+    Tailspin Toys dispose d'une base de données Azure SQL qui contient une table nommée dbo.Products de 2 millions de lignes. Un index vectoriel de dernière version qui utilise la métrique cosinus existe sur DescriptionVector. Environ 3 % des produits appartiennent à la catégorie Camping.
+
+    Un développeur propose la requête suivante pour renvoyer les 10 produits de camping en stock les plus proches.
+
+    ```sql
+    SELECT TOP (10) v.ProductID, v.distance
+    FROM (
+        SELECT TOP (200) WITH APPROXIMATE p.ProductID, p.Category, p.InStock, r.distance
+        FROM VECTOR_SEARCH(TABLE = dbo.Products AS p, COLUMN = DescriptionVector,
+                           SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+        ORDER BY r.distance
+    ) AS v
+    WHERE v.Category = 'Camping' AND v.InStock = 1
+    ORDER BY v.distance;
+    ```
+
+    La requête doit renvoyer 10 lignes chaque fois qu'au moins 10 produits remplissent les conditions, et elle doit réduire au minimum le travail effectué.
+
+    Que devez-vous recommander ?
+body:
+  options:
+    - { id: a, text: { en: "Keep the outer filter, and increase the inner query to TOP (2000) WITH APPROXIMATE.", fr: "Conserver le filtre externe, et porter la requête interne à TOP (2000) WITH APPROXIMATE." } }
+    - { id: b, text: { en: "Put the predicates in the WHERE clause of a single query that uses TOP (10) WITH APPROXIMATE.", fr: "Placer les prédicats dans la clause WHERE d'une requête unique qui utilise TOP (10) WITH APPROXIMATE." } }
+    - { id: c, text: { en: "Keep the outer filter, and replace the inner TOP clause with TOP_N = 200 in VECTOR_SEARCH.", fr: "Conserver le filtre externe, et remplacer la clause TOP interne par TOP_N = 200 dans VECTOR_SEARCH." } }
+    - { id: d, text: { en: "Create a filtered vector index that has a WHERE Category = 'Camping' clause.", fr: "Créer un index vectoriel filtré doté d'une clause WHERE Category = 'Camping'." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      With a latest-version index, the predicates of the WHERE clause are applied during the vector search (iterative filtering). The engine keeps searching until it finds 10 qualifying rows or exhausts the candidates, so there is no need to over-request rows and filter them afterward.
+    fr: |-
+      Avec un index de dernière version, les prédicats de la clause WHERE sont appliqués pendant la recherche vectorielle (filtrage itératif). Le moteur poursuit la recherche jusqu'à trouver 10 lignes qui remplissent les conditions ou épuiser les candidats : inutile de demander trop de lignes pour les filtrer ensuite.
+  options:
+    a: { en: "Filtering after the search can still leave fewer than 10 rows, and retrieving 2,000 candidates adds work.", fr: "Filtrer après la recherche peut toujours laisser moins de 10 lignes, et récupérer 2 000 candidats ajoute du travail." }
+    c: { en: "TOP_N fails with a latest-version index (Msg 42274), and post-filtering can still return too few rows.", fr: "TOP_N échoue avec un index de dernière version (Msg 42274), et le filtrage après recherche peut toujours renvoyer trop peu de lignes." }
+    d: { en: "CREATE VECTOR INDEX has no WHERE clause; filtered indexes are not available for vector indexes.", fr: "CREATE VECTOR INDEX n'a pas de clause WHERE ; les index filtrés ne sont pas disponibles pour les index vectoriels." }
+references:
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql
+  - title: CREATE VECTOR INDEX (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-index-transact-sql

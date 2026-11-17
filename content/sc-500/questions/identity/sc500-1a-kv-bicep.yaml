@@ -1,0 +1,101 @@
+id: sc500-1a-kv-bicep
+objective: "1.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam, Inc. deploys key vaults by using Bicep. You need to complete the following file to deploy a vault that meets these requirements:
+
+    - The vault authenticates requests against the Microsoft Entra tenant of the deployment.
+    - Software-protected keys are sufficient, and costs must be minimized.
+    - Data-plane access must be granted only through Azure role assignments; access policies must be ignored.
+
+    How should you complete the file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam, Inc. déploie des coffres de clés avec Bicep. Vous devez compléter le fichier suivant pour déployer un coffre qui respecte ces exigences :
+
+    - le coffre authentifie les demandes auprès du locataire Microsoft Entra du déploiement ;
+    - des clés protégées par logiciel suffisent, et les coûts doivent être réduits au minimum ;
+    - l'accès au plan de données doit être accordé uniquement par des attributions de rôles Azure ; les stratégies d'accès doivent être ignorées.
+
+    Comment devez-vous compléter le fichier ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
+      name: 'kv-fab-apps01'
+      location: resourceGroup().location
+      properties: {
+        tenantId: [[tenant]]
+        sku: {
+          family: 'A'
+          name: [[sku]]
+        }
+        enableRbacAuthorization: [[rbac]]
+        enableSoftDelete: true
+        softDeleteRetentionInDays: 90
+        enablePurgeProtection: true
+      }
+    }
+  slots:
+    - id: tenant
+      options:
+        - { id: tid, text: tenant().tenantId }
+        - { id: subid, text: subscription().subscriptionId }
+        - { id: deployer, text: deployer().objectId }
+        - { id: rgid, text: resourceGroup().id }
+    - id: sku
+      options:
+        - { id: standard, text: "'standard'" }
+        - { id: premium, text: "'premium'" }
+        - { id: hsm, text: "'Standard_B1'" }
+    - id: rbac
+      options:
+        - { id: "on", text: "true" }
+        - { id: "off", text: "false" }
+        - { id: str, text: "'AzureRBAC'" }
+answer:
+  values: { tenant: tid, sku: standard, rbac: "on" }
+explanation:
+  correct:
+    en: |
+      `tenantId` must be the GUID of the Microsoft Entra tenant, returned by `tenant().tenantId`. The standard SKU uses software-protected keys and costs less than premium, which adds HSM-protected keys. With `enableRbacAuthorization: true`, data actions are authorized by Azure RBAC and any access policies in the vault properties are ignored.
+    fr: |
+      `tenantId` doit être le GUID du locataire Microsoft Entra, renvoyé par `tenant().tenantId`. La référence SKU standard utilise des clés protégées par logiciel et coûte moins cher que premium, qui ajoute les clés protégées par HSM. Avec `enableRbacAuthorization: true`, les actions sur les données sont autorisées par Azure RBAC et les éventuelles stratégies d'accès des propriétés du coffre sont ignorées.
+  options:
+    subid:
+      en: |
+        A subscription ID is not a tenant ID.
+      fr: |
+        Un ID d'abonnement n'est pas un ID de locataire.
+    deployer:
+      en: |
+        deployer().objectId is the object ID of the identity running the deployment, not the tenant.
+      fr: |
+        deployer().objectId est l'ID d'objet de l'identité qui exécute le déploiement, pas le locataire.
+    premium:
+      en: |
+        Premium adds HSM-protected keys, which are not needed, at a higher cost.
+      fr: |
+        Premium ajoute les clés protégées par HSM, inutiles ici, pour un coût plus élevé.
+    hsm:
+      en: |
+        Standard_B1 is a Managed HSM SKU, not a key vault SKU.
+      fr: |
+        Standard_B1 est une référence SKU de Managed HSM, pas de coffre de clés.
+    "off":
+      en: |
+        false selects the access policy permission model.
+      fr: |
+        false sélectionne le modèle d'autorisation par stratégies d'accès.
+references:
+  - title: Microsoft.KeyVault vaults
+    url: https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/vaults
+  - title: About Azure Key Vault
+    url: https://learn.microsoft.com/en-us/azure/key-vault/general/overview

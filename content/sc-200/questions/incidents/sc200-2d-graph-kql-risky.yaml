@@ -1,0 +1,68 @@
+id: sc200-2d-graph-kql-risky
+objective: "2.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys has Microsoft Entra ID P2 licenses. A Microsoft Sentinel workspace receives the Microsoft Graph activity logs and the AADRiskyUsers table from Microsoft Entra ID Protection.
+
+    You need a query that shows, for the last 30 days, which Microsoft Graph resources were accessed by users flagged as risky. The results must contain only the requests made by risky users and include their risk state.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys dispose de licences Microsoft Entra ID P2. Un espace de travail Microsoft Sentinel reçoit les journaux d'activité Microsoft Graph et la table AADRiskyUsers de Microsoft Entra ID Protection.
+
+    Vous avez besoin d'une requête qui montre, pour les 30 derniers jours, les ressources Microsoft Graph consultées par les utilisateurs signalés comme à risque. Les résultats ne doivent contenir que les requêtes effectuées par des utilisateurs à risque et inclure leur état de risque.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    MicrosoftGraphActivityLogs
+    | where TimeGenerated > ago(30d)
+    | join kind=[[kind]] AADRiskyUsers on $left.[[key]] == $right.Id
+    | extend ResourcePath = tostring(parse_url(RequestUri).Path)
+    | summarize Requests = [[agg]](RequestId) by UserId, RiskState, ResourcePath, RequestMethod
+  slots:
+    - id: kind
+      options:
+        - { id: inner, text: inner }
+        - { id: leftouter, text: leftouter }
+        - { id: leftanti, text: leftanti }
+        - { id: fullouter, text: fullouter }
+    - id: key
+      options:
+        - { id: userid, text: UserId }
+        - { id: appid, text: AppId }
+        - { id: signin, text: SignInActivityId }
+        - { id: session, text: SessionId }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: makelist, text: make_list }
+        - { id: argmax, text: arg_max }
+answer:
+  values: { kind: inner, key: userid, agg: dcount }
+explanation:
+  correct:
+    en: |
+      An inner join keeps only the Graph requests whose UserId matches the Id of a user in AADRiskyUsers and adds columns such as RiskState. dcount(RequestId) counts the distinct requests for each user, risk state, resource path and method.
+    fr: |
+      Une jointure inner ne garde que les requêtes Graph dont le UserId correspond à l'Id d'un utilisateur d'AADRiskyUsers et ajoute des colonnes comme RiskState. dcount(RequestId) compte les requêtes distinctes pour chaque utilisateur, état de risque, chemin de ressource et méthode.
+  options:
+    leftouter: { en: "leftouter keeps every Graph request, including those of users who are not risky.", fr: "leftouter garde toutes les requêtes Graph, y compris celles des utilisateurs qui ne sont pas à risque." }
+    leftanti: { en: "leftanti returns only the requests of users who are not in AADRiskyUsers, the opposite of the requirement.", fr: "leftanti ne renvoie que les requêtes des utilisateurs absents d'AADRiskyUsers, l'inverse de l'exigence." }
+    fullouter: { en: "fullouter also keeps unmatched rows from both tables.", fr: "fullouter garde aussi les lignes sans correspondance des deux tables." }
+    signin: { en: "SignInActivityId matches the UniqueTokenIdentifier of the sign-in logs, not the user ID of AADRiskyUsers.", fr: "SignInActivityId correspond au UniqueTokenIdentifier des journaux de connexion, pas à l'ID d'utilisateur d'AADRiskyUsers." }
+    makelist: { en: "make_list returns an array of IDs instead of a number of requests.", fr: "make_list renvoie un tableau d'ID au lieu d'un nombre de requêtes." }
+references:
+  - title: Access Microsoft Graph activity logs for tenant monitoring
+    url: https://learn.microsoft.com/en-us/graph/microsoft-graph-activity-logs-overview
+  - title: join operator
+    url: https://learn.microsoft.com/en-us/kusto/query/join-operator

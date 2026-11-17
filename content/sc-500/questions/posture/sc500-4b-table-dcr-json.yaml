@@ -1,0 +1,101 @@
+id: sc500-4b-table-dcr-json
+objective: "4.2.7"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso, Ltd. created a custom table named AppAudit_CL in a Microsoft Sentinel workspace. The table has the columns TimeGenerated (datetime), UserName (string) and Action (string).
+
+    An application will send JSON records to the Logs Ingestion API. Each record has the fields Time (datetime), UserName and Action. Private Link isn't used, and no data collection endpoint (DCE) must be deployed.
+
+    You need to complete the request body of the data collection rule (DCR) that you will create by using the REST API.
+
+    How should you complete the DCR? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso, Ltd. a créé une table personnalisée nommée AppAudit_CL dans un espace de travail Microsoft Sentinel. La table contient les colonnes TimeGenerated (datetime), UserName (string) et Action (string).
+
+    Une application enverra des enregistrements JSON à l'API d'ingestion de journaux. Chaque enregistrement contient les champs Time (datetime), UserName et Action. Private Link n'est pas utilisé, et aucun point de terminaison de collecte de données (DCE) ne doit être déployé.
+
+    Vous devez compléter le corps de la requête de la règle de collecte de données (DCR) que vous créerez à l'aide de l'API REST.
+
+    Comment devez-vous compléter la DCR ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "location": "westeurope",
+      "kind": "[[kind]]",
+      "properties": {
+        "streamDeclarations": {
+          "Custom-AppAudit": {
+            "columns": [
+              { "name": "Time", "type": "datetime" },
+              { "name": "UserName", "type": "string" },
+              { "name": "Action", "type": "string" }
+            ]
+          }
+        },
+        "destinations": {
+          "logAnalytics": [
+            { "workspaceResourceId": "<workspace resource ID>", "name": "law" }
+          ]
+        },
+        "dataFlows": [
+          {
+            "streams": [ "Custom-AppAudit" ],
+            "destinations": [ "law" ],
+            "transformKql": "[[transform]]",
+            "outputStream": "[[output]]"
+          }
+        ]
+      }
+    }
+  slots:
+    - id: kind
+      options:
+        - { id: direct, text: Direct }
+        - { id: linux, text: Linux }
+        - { id: windows, text: Windows }
+    - id: transform
+      options:
+        - { id: passthru, text: source }
+        - { id: rename, text: "source | extend TimeGenerated = Time | project-away Time" }
+        - { id: filter, text: "source | where isnotempty(Time)" }
+    - id: output
+      options:
+        - { id: custom, text: Custom-AppAudit_CL }
+        - { id: microsoft, text: Microsoft-AppAudit_CL }
+        - { id: bare, text: AppAudit_CL }
+answer:
+  values: { kind: direct, transform: rename, output: custom }
+explanation:
+  correct:
+    en: |
+      A DCR created with "kind": "Direct" gets its own logs ingestion endpoint, so no DCE is needed without Private Link. The incoming stream doesn't have to match the table: the transformation maps Time to TimeGenerated and removes Time, which doesn't exist in the table. For a custom table, outputStream is the Custom- prefix followed by the table name, including _CL.
+    fr: |
+      Une DCR créée avec "kind": "Direct" dispose de son propre point de terminaison d'ingestion de journaux : aucun DCE n'est nécessaire sans Private Link. Le flux entrant n'a pas à correspondre à la table : la transformation associe Time à TimeGenerated et supprime Time, qui n'existe pas dans la table. Pour une table personnalisée, outputStream est le préfixe Custom- suivi du nom de la table, _CL compris.
+  options:
+    linux:
+      en: |
+        Linux and Windows DCRs describe data collected by the Azure Monitor Agent on machines, not API ingestion.
+      fr: |
+        Les DCR Linux et Windows décrivent des données collectées par l'agent Azure Monitor sur des machines, pas l'ingestion par API.
+    passthru:
+      en: |
+        source passes the data unchanged, so the records would have no TimeGenerated value and would keep a Time column that the table doesn't have.
+      fr: |
+        source transmet les données sans modification : les enregistrements n'auraient pas de valeur TimeGenerated et garderaient une colonne Time absente de la table.
+    microsoft:
+      en: |
+        The Microsoft- prefix is for built-in Azure tables, such as Microsoft-CommonSecurityLog.
+      fr: |
+        Le préfixe Microsoft- est réservé aux tables Azure intégrées, comme Microsoft-CommonSecurityLog.
+references:
+  - title: Logs Ingestion API in Azure Monitor
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/logs/logs-ingestion-api-overview

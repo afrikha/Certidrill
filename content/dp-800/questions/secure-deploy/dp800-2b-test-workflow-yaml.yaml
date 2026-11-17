@@ -1,0 +1,88 @@
+id: dp800-2b-test-workflow-yaml
+objective: "2.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware stores an SDK-style SQL database project named SalesDb and a test project named SalesDb.Tests in GitHub. You are writing a GitHub Actions workflow that must meet the following requirements:
+
+    - The workflow runs for every pull request that targets `main`, before the pull request is merged.
+    - The test database is updated to match the project.
+    - The database tests then run against the test database.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware stocke sur GitHub un projet de base de données SQL de style SDK nommé SalesDb et un projet de test nommé SalesDb.Tests. Vous écrivez un workflow GitHub Actions qui doit satisfaire les exigences suivantes :
+
+    - Le workflow s'exécute pour chaque pull request qui cible `main`, avant la fusion de la pull request.
+    - La base de test est mise à jour pour correspondre au projet.
+    - Les tests de base de données s'exécutent ensuite sur la base de test.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: salesdb-ci
+    on:
+      [[trg]]:
+        branches: [ main ]
+    jobs:
+      build-test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - uses: actions/setup-dotnet@v4
+            with:
+              dotnet-version: '8.0.x'
+          - name: Build the SQL project
+            run: dotnet build ./SalesDb/SalesDb.sqlproj
+          - name: Update the test database
+            run: |
+              dotnet tool install -g microsoft.sqlpackage
+              sqlpackage /Action:[[act]] /SourceFile:./SalesDb/bin/Debug/SalesDb.dacpac /TargetConnectionString:"${{ secrets.TEST_DB_CONNECTION }}"
+          - name: Run database tests
+            run: [[tst]]
+  slots:
+    - id: trg
+      options:
+        - { id: push, text: push }
+        - { id: pr, text: pull_request }
+        - { id: dispatch, text: workflow_dispatch }
+    - id: act
+      options:
+        - { id: extract, text: Extract }
+        - { id: script, text: Script }
+        - { id: publish, text: Publish }
+        - { id: drift, text: DriftReport }
+    - id: tst
+      options:
+        - { id: test, text: dotnet test ./SalesDb.Tests/SalesDb.Tests.csproj }
+        - { id: buildtests, text: dotnet build ./SalesDb.Tests/SalesDb.Tests.csproj }
+        - { id: export, text: "sqlpackage /Action:Export" }
+answer:
+  values: { trg: pr, act: publish, tst: test }
+explanation:
+  correct:
+    en: |
+      The pull_request event with a branches filter on main runs the workflow for pull requests that target main, before they are merged. The Publish action incrementally updates the target database schema to match the .dacpac. dotnet test then runs the database tests, and a failing test fails the check of the pull request.
+    fr: |
+      L'événement pull_request avec un filtre branches sur main exécute le workflow pour les pull requests qui ciblent main, avant leur fusion. L'action Publish met à jour de manière incrémentielle le schéma de la base cible pour qu'il corresponde au fichier .dacpac. dotnet test exécute ensuite les tests de base de données, et un test en échec fait échouer la vérification de la pull request.
+  options:
+    push: { en: "push on main runs after the pull request is merged.", fr: "push sur main s'exécute après la fusion de la pull request." }
+    dispatch: { en: "workflow_dispatch runs only when someone starts the workflow manually.", fr: "workflow_dispatch ne s'exécute que lorsqu'une personne démarre le workflow manuellement." }
+    extract: { en: "Extract creates a .dacpac from a database; it doesn't update the database.", fr: "Extract crée un fichier .dacpac à partir d'une base ; il ne met pas la base à jour." }
+    script: { en: "Script only generates the update script without running it.", fr: "Script génère seulement le script de mise à jour sans l'exécuter." }
+    drift: { en: "DriftReport reports changes made to a registered database; it changes nothing.", fr: "DriftReport signale les modifications apportées à une base inscrite ; il ne modifie rien." }
+    buildtests: { en: "Building the test project compiles the tests without running them.", fr: "Générer le projet de test compile les tests sans les exécuter." }
+    export: { en: "Export writes the database to a .bacpac file; it runs no test.", fr: "Export écrit la base dans un fichier .bacpac ; il n'exécute aucun test." }
+references:
+  - title: Design and implement a testing strategy
+    url: https://learn.microsoft.com/en-us/training/modules/implement-cicd-sql-database-projects/07-design-implement-testing-strategy
+  - title: SqlPackage
+    url: https://learn.microsoft.com/en-us/sql/tools/sqlpackage/sqlpackage

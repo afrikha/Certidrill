@@ -1,0 +1,80 @@
+id: ai103-cs1c-eval-workflow
+objective: "1.2.4"
+type: dropdown
+caseStudy: ai103-cs1c-margiestravel
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the GitHub Actions workflow that evaluates guide-agent. You need to meet the release pipeline requirement. How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le workflow GitHub Actions qui évalue guide-agent. Vous devez satisfaire l'exigence relative au pipeline de publication. Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    permissions:
+      [[perm]]
+      contents: read
+
+    jobs:
+      evaluate:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - uses: azure/login@v2
+            with:
+              [[login]]
+              tenant-id: ${{ vars.AZURE_TENANT_ID }}
+              subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          - uses: microsoft/ai-agent-evals@v3-beta
+            with:
+              azure-ai-project-endpoint: ${{ vars.GUIDES_PRJ_ENDPOINT }}
+              deployment-name: judge-gpt
+              agent-ids: [[agents]]
+              data-path: ${{ github.workspace }}/evals/guide-tests.json
+  slots:
+    - id: perm
+      options:
+        - { id: idtoken, text: "id-token: write" }
+        - { id: actions, text: "actions: read" }
+        - { id: pr, text: "pull-requests: write" }
+    - id: login
+      options:
+        - { id: creds, text: "creds: ${{ secrets.AZURE_CREDENTIALS }}" }
+        - { id: clientid, text: "client-id: ${{ vars.AZURE_CLIENT_ID }}" }
+        - { id: pssession, text: "enable-AzPSSession: true" }
+    - id: agents
+      options:
+        - { id: v43, text: "guide-agent:4,guide-agent:3" }
+        - { id: v34, text: "guide-agent:3,guide-agent:4" }
+        - { id: v4, text: "guide-agent:4" }
+answer:
+  values: { perm: idtoken, login: clientid, agents: v34 }
+explanation:
+  correct:
+    en: "With OpenID Connect, azure/login exchanges a GitHub token for a Microsoft Entra token through the federated identity credential of gh-evals, which needs the `id-token: write` permission and only the client ID, tenant ID and subscription ID, none of which is a secret. The `agent-ids` input takes `name:version` values separated by commas; when `baseline-agent-id` is omitted, the first agent is the baseline, so version 3 comes first."
+    fr: "Avec OpenID Connect, azure/login échange un jeton GitHub contre un jeton Microsoft Entra grâce aux informations d'identification fédérées de gh-evals, ce qui exige l'autorisation `id-token: write` et seulement l'ID client, l'ID de locataire et l'ID d'abonnement, dont aucun n'est un secret. L'entrée `agent-ids` prend des valeurs `nom:version` séparées par des virgules ; quand `baseline-agent-id` est omis, le premier agent sert de référence : la version 3 vient donc en premier."
+  options:
+    creds:
+      en: |
+        The creds input holds a service principal secret stored in GitHub, which the requirement forbids.
+      fr: |
+        L'entrée creds contient un secret de principal de service stocké dans GitHub, ce que l'exigence interdit.
+    v43:
+      en: |
+        Without baseline-agent-id, the first agent of the list is the baseline, so this order would compare version 3 against version 4.
+      fr: |
+        Sans baseline-agent-id, le premier agent de la liste sert de référence : cet ordre comparerait la version 3 à la version 4.
+    v4:
+      en: |
+        With a single agent, the workflow evaluates version 4 but does not compare it with version 3.
+      fr: |
+        Avec un seul agent, le workflow évalue la version 4, mais ne la compare pas à la version 3.
+references:
+  - title: How to run an evaluation in GitHub Action (preview)
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/evaluation-github-action

@@ -1,0 +1,81 @@
+id: dp700-2c-dedup-view
+objective: "2.2.9"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an eventhouse that contains a table named RawEvents. RawEvents has the following columns: EventId, DeviceId, Timestamp, and Payload. EventId uniquely identifies an event.
+
+    When a device doesn't receive an acknowledgment, it sends the same event again with the same EventId and identical content. Every resent copy is ingested within two hours after the first copy.
+
+    You need to create a materialized view that returns each event once and includes the data already in RawEvents. The solution must remove all the duplicates and minimize the work done by each materialization cycle.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse qui contient une table nommée RawEvents. RawEvents comporte les colonnes suivantes : EventId, DeviceId, Timestamp et Payload. EventId identifie un événement de manière unique.
+
+    Lorsqu'un appareil ne reçoit pas d'accusé de réception, il renvoie le même événement avec le même EventId et un contenu identique. Chaque copie renvoyée est ingérée dans les deux heures qui suivent la première copie.
+
+    Vous devez créer une vue matérialisée qui renvoie chaque événement une seule fois et inclut les données déjà présentes dans RawEvents. La solution doit supprimer tous les doublons et réduire au minimum le travail effectué par chaque cycle de matérialisation.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .create materialized-view with (backfill=true, [[lb]]) DedupedEvents on table RawEvents
+    {
+        RawEvents
+        | summarize [[agg]] by [[key]]
+    }
+  slots:
+    - id: lb
+      options:
+        - { id: lb2h, text: lookback=2h }
+        - { id: lb30m, text: lookback=30m }
+        - { id: extents, text: updateExtentsCreationTime=true }
+    - id: agg
+      options:
+        - { id: any, text: take_any(*) }
+        - { id: count, text: count() }
+        - { id: dcount, text: dcount(EventId) }
+    - id: key
+      options:
+        - { id: eventid, text: EventId }
+        - { id: device, text: DeviceId }
+        - { id: bin, text: "bin(Timestamp, 2h)" }
+answer:
+  values: { lb: lb2h, agg: any, key: eventid }
+explanation:
+  correct:
+    en: |
+      `summarize take_any(*) by EventId` is the deduplication pattern of a materialized view: it keeps one copy of all the columns of each event, and the copies are identical. The lookback property limits the period in which duplicates are expected, which improves materialization performance; without a lookback column, it is measured from ingestion time, and 2 hours covers every resent copy.
+    fr: |
+      `summarize take_any(*) by EventId` est le modèle de déduplication d'une vue matérialisée : il conserve une copie de toutes les colonnes de chaque événement, et les copies sont identiques. La propriété lookback limite la période pendant laquelle des doublons sont attendus, ce qui améliore les performances de matérialisation ; sans colonne de référence, elle se mesure à partir de l'heure d'ingestion, et 2 heures couvrent toutes les copies renvoyées.
+  options:
+    lb30m:
+      en: "A lookback shorter than the resend delay leaves duplicates for copies ingested more than 30 minutes after the first one."
+      fr: "Une période lookback plus courte que le délai de renvoi laisse des doublons pour les copies ingérées plus de 30 minutes après la première."
+    extents:
+      en: "updateExtentsCreationTime only assigns extent creation times during backfill, based on a datetime group-by key; it doesn't limit the deduplication scope."
+      fr: "updateExtentsCreationTime ne fait qu'attribuer l'heure de création des extents pendant le remplissage, d'après une clé de regroupement datetime ; il ne limite pas la portée de la déduplication."
+    count:
+      en: "count() returns only the number of copies per EventId, not the event columns."
+      fr: "count() ne renvoie que le nombre de copies par EventId, pas les colonnes de l'événement."
+    dcount:
+      en: "dcount(EventId) returns 1 for each group and no event column."
+      fr: "dcount(EventId) renvoie 1 pour chaque groupe et aucune colonne de l'événement."
+    device:
+      en: "Grouping by DeviceId keeps one event per device instead of one row per event."
+      fr: "Regrouper par DeviceId conserve un événement par appareil au lieu d'une ligne par événement."
+    bin:
+      en: "Grouping by a 2-hour bin keeps one event per time slot and loses the other events."
+      fr: "Regrouper par tranche de 2 heures conserve un événement par tranche et perd les autres événements."
+references:
+  - title: Create materialized view
+    url: https://learn.microsoft.com/en-us/kusto/management/materialized-views/materialized-view-create?view=microsoft-fabric

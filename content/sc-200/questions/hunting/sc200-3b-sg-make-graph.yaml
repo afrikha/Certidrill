@@ -1,0 +1,69 @@
+id: sc200-3b-sg-make-graph
+objective: "3.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin uses Microsoft Defender XDR and Microsoft Security Exposure Management.
+
+    You need an advanced hunting query that lists the distinct types of nodes that have a direct relationship to an Azure virtual machine.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin utilise Microsoft Defender XDR et Microsoft Security Exposure Management.
+
+    Vous avez besoin d'une requête de repérage avancé qui liste les types distincts de nœuds ayant une relation directe avec une machine virtuelle Azure.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    ExposureGraphEdges
+    | [[build]] SourceNodeId --> TargetNodeId with ExposureGraphNodes on [[key]]
+    | [[find]] (SourceNode)-[edges]->(TargetNode)
+        where TargetNode.NodeLabel == "microsoft.compute/virtualmachines"
+        project IncomingNodeLabels = SourceNode.NodeLabel
+    | summarize by IncomingNodeLabels
+  slots:
+    - id: build
+      options:
+        - { id: mg, text: make-graph }
+        - { id: ms, text: make-series }
+        - { id: mv, text: mv-expand }
+        - { id: jn, text: join kind=inner }
+    - id: key
+      options:
+        - { id: nid, text: NodeId }
+        - { id: nlabel, text: NodeLabel }
+        - { id: nname, text: NodeName }
+        - { id: elabel, text: EdgeLabel }
+    - id: find
+      options:
+        - { id: gm, text: graph-match }
+        - { id: match, text: MATCH }
+        - { id: where, text: where }
+        - { id: eval, text: evaluate }
+answer:
+  values: { build: mg, key: nid, find: gm }
+explanation:
+  correct:
+    en: |
+      make-graph builds a graph from the edges table, using SourceNodeId and TargetNodeId, and attaches the node properties from ExposureGraphNodes on their unique NodeId. graph-match then finds the pattern of an edge that ends at a node whose NodeLabel is microsoft.compute/virtualmachines, and the summarize returns each distinct source label.
+    fr: |
+      make-graph crée un graphe à partir de la table des arêtes, avec SourceNodeId et TargetNodeId, et rattache les propriétés des nœuds d'ExposureGraphNodes sur leur NodeId unique. graph-match recherche ensuite le modèle d'une arête qui aboutit à un nœud dont le NodeLabel est microsoft.compute/virtualmachines, et summarize renvoie chaque étiquette source distincte.
+  options:
+    ms: { en: "make-series builds time series for charts, not a graph.", fr: "make-series crée des séries chronologiques pour des graphiques, pas un graphe." }
+    jn: { en: "A join returns a table; graph-match needs a graph built with make-graph.", fr: "Une jointure renvoie une table ; graph-match a besoin d'un graphe créé avec make-graph." }
+    nlabel: { en: "NodeLabel is the type of a node, shared by many nodes; the edges reference the unique NodeId.", fr: "NodeLabel est le type d'un nœud, commun à de nombreux nœuds ; les arêtes référencent le NodeId unique." }
+    match: { en: "MATCH is the GQL keyword used by Microsoft Sentinel graph; in a KQL query the operator is graph-match.", fr: "MATCH est le mot clé GQL utilisé par Microsoft Sentinel graph ; dans une requête KQL, l'opérateur est graph-match." }
+references:
+  - title: Query the enterprise exposure graph
+    url: https://learn.microsoft.com/en-us/security-exposure-management/query-enterprise-exposure-graph
+  - title: graph-match operator
+    url: https://learn.microsoft.com/en-us/kusto/query/graph-match-operator

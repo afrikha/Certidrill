@@ -1,0 +1,21 @@
+# K-dp-750-cs1 — report
+
+## Files
+- `content/dp-750/case-studies/dp750-cs1a-lamna-healthcare.yaml` (hospital network: Azure SQL Database → Lakeflow Connect, Lakeflow pipeline with expectations, column mask + row filter, managed identity storage, isolated catalog, open sharing to a non-Databricks research center) — 6 questions:
+  `dp750-cs1a-ehr-ingestion` (3.2.1, dropdown text, 2), `dp750-cs1a-expectations` (3.4.4, dropdown sql, 1), `dp750-cs1a-mask-filter` (2.2.3, dropdown sql, 2), `dp750-cs1a-research-sharing` (2.2.7, single, 3), `dp750-cs1a-clinical-catalog` (1.2.2, multi, 2), `dp750-cs1a-managed-identity` (2.1.5, ordering, 2).
+- `content/dp-750/case-studies/dp750-cs1b-city-power-light.yaml` (electricity distributor: Event Hubs Kafka streaming, 24/7 low-latency stream, liquid clustering, Spark UI skew, file arrival trigger, Azure Monitor alerting) — 6 questions:
+  `dp750-cs1b-eventhubs-read` (3.2.6, dropdown python, 2), `dp750-cs1b-outage-compute` (1.1.1, single, 2), `dp750-cs1b-readings-layout` (3.1.9, single, 1), `dp750-cs1b-feeder-skew` (4.4.4, yes/no, 2), `dp750-cs1b-tariff-trigger` (4.2.2, dropdown text, 3), `dp750-cs1b-failure-alert` (4.4.7, multi, 1).
+- `content/dp-750/case-studies/dp750-cs1c-best-for-you-organics.yaml` (grocery chain: AUTO CDC SCD type 2, PostgreSQL federation, repair run, For each / If/else / Run if, bundle targets, UC privileges) — 6 questions:
+  `dp750-cs1c-product-history` (3.1.6, dropdown sql, 2), `dp750-cs1c-loyalty-federation` (1.2.6, single, 1), `dp750-cs1c-repair-run` (4.4.2, single, 2), `dp750-cs1c-store-close-logic` (4.1.3, dragdrop, 2), `dp750-cs1c-bundle-targets` (4.3.4, dropdown yaml, 3), `dp750-cs1c-analyst-grants` (2.1.1, yes/no, 1).
+- Difficulty: 5 easy, 10 medium, 3 hard. Each case covers 3 or 4 domains.
+
+## Deviations and doubts
+- Dropdowns are 7/18 (39 %), above the 15–25 % bank target: case questions here are code-heavy (SQL, Python, bundle YAML).
+- **Renames on Learn (Nov. 2026)**: Delta Sharing pages are now titled "What is OpenSharing?"; the pipelines product page is "Spark Declarative Pipelines on Lakeflow" ("Lakeflow pipelines" in the text); Databricks Asset Bundles pages are titled "Declarative Automation Bundles". The cases keep the study-guide names and add the Learn names in parentheses; the course owner may want to align.
+- `dp750-cs1b-outage-compute`: the claim "job compute is cheaper than all-purpose compute" could not be verified on a fetched Learn page, so the requirement is about dedicated compute (a job cluster can't be used by other jobs; Databricks doesn't recommend all-purpose for production jobs) and the serverless exclusion relies on "serverless notebooks and jobs support only AvailableNow and Once triggers" (triggers page).
+- `dp750-cs1b-eventhubs-read`: the service credential example on the Authentication page uses a `:9092` placeholder while the Event Hubs examples state port 9093; the code uses 9093. A `realTime` trigger option was dropped (semantics not verified). The `eventhubs` format / `eventhubs.connectionString` distractors refer to the separate Azure Event Hubs Spark connector (from knowledge, not a fetched page).
+- `dp750-cs1a-ehr-ingestion`: support of Azure SQL Database by the SQL Server connector is implied by the source setup page (Azure SQL Database firewall step), not stated in a list.
+- `dp750-cs1c-bundle-targets`: `git.commit` was not found in the bundle configuration reference and was replaced by a `branch: prod` distractor; `group_name` is offered as a wrong `run_as` key (the reference lists only `user_name` and `service_principal_name`).
+- `dp750-cs1b-failure-alert`: the DatabricksJobs table name comes from the sample event on the diagnostic log page; Learn recommends the `system.access.audit` system table over exporting audit logs, but the objective explicitly asks for Log Analytics.
+- Region West Europe was used for Lamna (Databricks availability in Belgium Central not checked).
+- French: "governed tags" written « étiquettes gouvernées (governed tags) »; "storage credential" « informations d'identification de stockage »; "liquid clustering" « clustering liquide (liquid clustering) » — not checked against fr-fr Databricks pages (WebFetch budget).

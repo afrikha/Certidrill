@@ -1,0 +1,79 @@
+id: dp420-cs1c-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a pharmaceutical research company with laboratories in Europe and the United States. Its 6,000 researchers have produced about 2 million internal study reports.
+
+        Trey Research is building **LabMind**, an AI assistant that answers the researchers' questions from the study reports by using retrieval-augmented generation (RAG) and that remembers each researcher's preferences and projects across conversations.
+      fr: |
+        Trey Research est une société de recherche pharmaceutique qui possède des laboratoires en Europe et aux États-Unis. Ses 6 000 chercheurs ont produit environ 2 millions de rapports d'étude internes.
+
+        Trey Research développe **LabMind**, un assistant IA qui répond aux questions des chercheurs à partir des rapports d'étude à l'aide de la génération augmentée par récupération (RAG) et qui mémorise les préférences et les projets de chaque chercheur d'une conversation à l'autre.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        LabMind uses an Azure Cosmos DB for NoSQL account named **cosmos-trey-labmind** with the following configuration:
+
+        - Write region West Europe and read region East US, with a single write region
+        - Vector search and full-text search enabled
+        - Key-based authentication disabled (`disableLocalAuth` set to `true`)
+        - Public network access enabled from all networks
+
+        The account contains a database named **labmind** with dedicated throughput on each container. The following containers will be created.
+
+        | Container | Partition key | Content |
+        | --- | --- | --- |
+        | chunks | /reportId | About 12 million chunks of the study reports; each item has `text` and an `embedding` of 3,072 dimensions |
+        | turns | /threadId | Conversation state of the LabMind threads |
+        | memories | /userId | Long-term memory of each researcher; no default time to live |
+
+        The LabMind API is written in Python. It runs in two AKS clusters, one in East US and one in West Europe, and uses Microsoft Entra Workload ID. The environment variables `LOCAL_REGION` and `REMOTE_REGION` of each cluster contain the Azure region where the cluster runs and the other region.
+
+        The laboratories connect to the Azure virtual networks of Trey Research by using ExpressRoute private peering. Notebooks that run on premises query the account.
+      fr: |
+        LabMind utilise un compte Azure Cosmos DB for NoSQL nommé **cosmos-trey-labmind** avec la configuration suivante :
+
+        - Région d'écriture West Europe et région de lecture East US, avec une seule région d'écriture
+        - Recherche vectorielle et recherche en texte intégral activées
+        - Authentification par clé désactivée (`disableLocalAuth` défini sur `true`)
+        - Accès au réseau public activé depuis tous les réseaux
+
+        Le compte contient une base de données nommée **labmind** avec un débit dédié sur chaque conteneur. Les conteneurs suivants seront créés.
+
+        | Conteneur | Clé de partition | Contenu |
+        | --- | --- | --- |
+        | chunks | /reportId | Environ 12 millions de segments des rapports d'étude ; chaque élément contient `text` et une incorporation `embedding` de 3 072 dimensions |
+        | turns | /threadId | État de conversation des fils de discussion de LabMind |
+        | memories | /userId | Mémoire à long terme de chaque chercheur ; aucune durée de vie par défaut |
+
+        L'API LabMind est écrite en Python. Elle s'exécute dans deux clusters AKS, l'un dans East US et l'autre dans West Europe, et utilise Microsoft Entra Workload ID. Les variables d'environnement `LOCAL_REGION` et `REMOTE_REGION` de chaque cluster contiennent la région Azure dans laquelle le cluster s'exécute et l'autre région.
+
+        Les laboratoires se connectent aux réseaux virtuels Azure de Trey Research à l'aide du peering privé ExpressRoute. Des notebooks exécutés en local interrogent le compte.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Trey Research identifies the following requirements:
+
+        1. **Chunks**: the storage used by the vectors must be half of what `float32` vectors use; a small loss of accuracy is acceptable. Searches must use a DiskANN index with the highest and most stable recall for these high-dimensional embeddings. The vectors must not be indexed by the range index.
+        2. **Keyword search**: researchers search compound codes, such as TR-4471, with `FullTextContainsAll` on `text`. The RU charge of these queries must be minimized.
+        3. **Conversation state**: each turn is a question and its answer. Before calling the model, the API looks for an earlier turn of the thread whose question and answer are semantically close to the new question, to reuse its answer. Threads can contain hundreds of turns. Each turn must expire 30 days after it was written.
+        4. **Long-term memory**: facts about a researcher, such as preferences and current projects, are extracted from the conversations. They must be kept indefinitely and retrieved by meaning from any thread of that researcher, but never from another researcher.
+        5. **Connections**: each API instance must read from the region in which it runs and use the other region if that region is unavailable.
+        6. **Network**: the account must not be reachable from the internet. The on-premises notebooks must reach the account over ExpressRoute private peering.
+      fr: |
+        Trey Research a défini les exigences suivantes :
+
+        1. **Segments** : le stockage utilisé par les vecteurs doit être la moitié de celui des vecteurs `float32` ; une légère perte de précision est acceptable. Les recherches doivent utiliser un index DiskANN avec le rappel le plus élevé et le plus stable pour ces incorporations de grande dimension. Les vecteurs ne doivent pas être indexés par l'index de plage.
+        2. **Recherche par mots clés** : les chercheurs recherchent des codes de composés, tels que TR-4471, avec `FullTextContainsAll` sur `text`. La consommation de RU de ces requêtes doit être réduite au minimum.
+        3. **État de conversation** : chaque tour est une question et sa réponse. Avant d'appeler le modèle, l'API recherche un tour antérieur du fil dont la question et la réponse sont sémantiquement proches de la nouvelle question, pour réutiliser sa réponse. Les fils peuvent contenir des centaines de tours. Chaque tour doit expirer 30 jours après son écriture.
+        4. **Mémoire à long terme** : des faits sur un chercheur, comme ses préférences et ses projets en cours, sont extraits des conversations. Ils doivent être conservés indéfiniment et récupérés par leur sens depuis n'importe quel fil de ce chercheur, mais jamais depuis celui d'un autre chercheur.
+        5. **Connexions** : chaque instance de l'API doit lire depuis la région dans laquelle elle s'exécute et utiliser l'autre région si celle-ci n'est pas disponible.
+        6. **Réseau** : le compte ne doit pas être accessible depuis Internet. Les notebooks locaux doivent atteindre le compte via le peering privé ExpressRoute.

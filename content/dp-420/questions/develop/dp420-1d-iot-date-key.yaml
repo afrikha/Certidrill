@@ -1,0 +1,54 @@
+id: dp420-1d-iot-date-key
+objective: "1.3.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso stores telemetry from 50,000 field devices in an Azure Cosmos DB for NoSQL container named **telemetry**. The container uses the partition key `/date` (format `yyyy-MM-dd`) and has 40,000 RU/s of manual throughput.
+
+    During a solution review, you observe the following:
+
+    - The workload is write-heavy: every device writes one reading every 10 seconds.
+    - Most queries return the readings of one device for a time range.
+    - Each day, one PartitionKeyRangeId stays at 100% normalized RU consumption while the others stay below 15%, and clients receive HTTP 429 responses.
+    - Each device produces less than 2 GB of data over its retention period.
+
+    You need to recommend a partition key for a new container that removes the bottleneck and keeps the per-device queries single-partition.
+
+    Which partition key should you recommend?
+  fr: |
+    Contoso stocke la télémétrie de 50 000 appareils de terrain dans un conteneur Azure Cosmos DB for NoSQL nommé **telemetry**. Le conteneur utilise la clé de partition `/date` (format `yyyy-MM-dd`) et dispose d'un débit manuel de 40 000 RU/s.
+
+    Lors d'une revue de solution, vous constatez les éléments suivants :
+
+    - La charge de travail est dominée par les écritures : chaque appareil écrit une mesure toutes les 10 secondes.
+    - La plupart des requêtes renvoient les mesures d'un appareil sur une plage de temps.
+    - Chaque jour, un PartitionKeyRangeId reste à 100 % de consommation de RU normalisée tandis que les autres restent sous 15 %, et les clients reçoivent des réponses HTTP 429.
+    - Chaque appareil produit moins de 2 Go de données sur sa période de rétention.
+
+    Vous devez recommander une clé de partition pour un nouveau conteneur qui supprime le goulot d'étranglement et conserve les requêtes par appareil sur une seule partition.
+
+    Quelle clé de partition devez-vous recommander ?
+body:
+  options:
+    - { id: a, text: "/date, with autoscale throughput set to a maximum of 40,000 RU/s" }
+    - { id: b, text: "/readingType" }
+    - { id: c, text: "/id" }
+    - { id: d, text: "/deviceId" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      All the writes of a given day share the same `/date` value, so they land in one logical partition and therefore one physical partition, which creates a new hot partition every day. `/deviceId` has 50,000 distinct values, spreads the writes evenly, and matches the main query predicate, so a per-device query targets a single logical partition. Each device stays well below the 20 GB logical partition limit.
+    fr: |
+      Toutes les écritures d'une même journée partagent la même valeur `/date` ; elles arrivent donc dans une seule partition logique, et donc une seule partition physique, ce qui crée chaque jour une nouvelle partition chaude. `/deviceId` compte 50 000 valeurs distinctes, répartit uniformément les écritures et correspond au prédicat principal des requêtes ; une requête par appareil cible ainsi une seule partition logique. Chaque appareil reste bien en dessous de la limite de 20 Go par partition logique.
+  options:
+    a: { en: "Autoscale does not change how requests are distributed: the daily partition stays hot and is still capped by the throughput of its physical partition.", fr: "La mise à l'échelle automatique ne change pas la répartition des requêtes : la partition du jour reste chaude et reste plafonnée par le débit de sa partition physique." }
+    c: { en: "/id spreads writes evenly, but every per-device query becomes a cross-partition query.", fr: "/id répartit bien les écritures, mais chaque requête par appareil devient une requête entre partitions." }
+    b: { en: "A low-cardinality property creates few logical partitions and recreates hot partitions.", fr: "Une propriété à faible cardinalité crée peu de partitions logiques et recrée des partitions chaudes." }
+references:
+  - title: Troubleshoot Request Rate Too Large Exceptions - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-request-rate-too-large
+  - title: Partitioning and horizontal scaling - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning

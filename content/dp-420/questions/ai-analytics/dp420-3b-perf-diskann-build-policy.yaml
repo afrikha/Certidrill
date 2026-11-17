@@ -1,0 +1,94 @@
+id: dp420-3b-perf-diskann-build-policy
+objective: "3.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam is creating an Azure Cosmos DB for NoSQL container that will receive a continuous stream of news items. Each item has a 3,072-dimension embedding in `/embedding`, and each physical partition will hold about 3 million vectors.
+
+    The indexing policy must meet the following requirements:
+
+    - Inserts must not index the embedding values in the range index.
+    - Vector search must use an approximate nearest-neighbor index.
+    - Index builds must be faster and ingestion latency lower than with the default build setting. A small loss of accuracy is acceptable.
+
+    How should you complete the indexing policy? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam crée un conteneur Azure Cosmos DB for NoSQL qui recevra un flux continu d'actualités. Chaque élément a une incorporation de 3 072 dimensions dans `/embedding`, et chaque partition physique contiendra environ 3 millions de vecteurs.
+
+    La stratégie d'indexation doit répondre aux exigences suivantes :
+
+    - Les insertions ne doivent pas indexer les valeurs de l'incorporation dans l'index de plage.
+    - La recherche vectorielle doit utiliser un index des plus proches voisins approximatif.
+    - La construction de l'index doit être plus rapide et la latence d'ingestion plus faible qu'avec le paramètre de construction par défaut. Une légère perte de précision est acceptable.
+
+    Comment devez-vous compléter la stratégie d'indexation ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "indexingMode": "consistent",
+      "automatic": true,
+      "includedPaths": [ { "path": "/*" } ],
+      "excludedPaths": [
+        { "path": "/\"_etag\"/?" },
+        { "path": "[[ex]]" }
+      ],
+      "vectorIndexes": [
+        { "path": "/embedding", "type": "[[type]]", "indexingSearchListSize": [[size]] }
+      ]
+    }
+  slots:
+    - id: ex
+      options:
+        - { id: star, text: /embedding/* }
+        - { id: scalar, text: /embedding/? }
+        - { id: root, text: /* }
+    - id: type
+      options:
+        - { id: flat, text: flat }
+        - { id: qflat, text: quantizedFlat }
+        - { id: disk, text: diskANN }
+    - id: size
+      options:
+        - { id: s50, text: "50" }
+        - { id: s100, text: "100" }
+        - { id: s300, text: "300" }
+        - { id: s500, text: "500" }
+answer:
+  values: { ex: star, type: disk, size: s50 }
+explanation:
+  correct:
+    en: "`/embedding/*` excludes the whole array from the range index, so inserts no longer index every number of the vector. `diskANN` is the approximate nearest-neighbor index type, supports up to 4,096 dimensions and suits millions of vectors per partition. `indexingSearchListSize` accepts 10 to 500 with a default of 100; a smaller value shortens index builds and lowers ingestion latency at the cost of some accuracy."
+    fr: "`/embedding/*` exclut tout le tableau de l'index de plage : les insertions n'indexent plus chaque nombre du vecteur. `diskANN` est le type d'index des plus proches voisins approximatif, il prend en charge jusqu'à 4 096 dimensions et convient à des millions de vecteurs par partition. `indexingSearchListSize` accepte de 10 à 500, avec 100 par défaut ; une valeur plus petite raccourcit la construction de l'index et réduit la latence d'ingestion au prix d'une partie de la précision."
+  options:
+    scalar:
+      en: "The /? suffix matches a scalar value at that path, not the elements of an array."
+      fr: "Le suffixe /? correspond à une valeur scalaire à ce chemin, pas aux éléments d'un tableau."
+    root:
+      en: "Excluding /* while /* is included is contradictory and would remove range indexing from every property."
+      fr: "Exclure /* alors que /* est inclus est contradictoire et supprimerait l'indexation de plage de toutes les propriétés."
+    flat:
+      en: "flat is an exact brute-force index limited to 505 dimensions."
+      fr: "flat est un index exact par force brute limité à 505 dimensions."
+    qflat:
+      en: "quantizedFlat is a brute-force search on compressed vectors, not an approximate nearest-neighbor index, and indexingSearchListSize applies only to diskANN."
+      fr: "quantizedFlat est une recherche par force brute sur des vecteurs compressés, pas un index des plus proches voisins approximatif, et indexingSearchListSize ne s'applique qu'à diskANN."
+    s100:
+      en: "100 is the default value, so it does not speed up index builds."
+      fr: "100 est la valeur par défaut : elle n'accélère pas la construction de l'index."
+    s300:
+      en: "Values above the default improve accuracy but lengthen index builds and raise ingestion latency."
+      fr: "Les valeurs supérieures à la valeur par défaut améliorent la précision mais allongent la construction de l'index et augmentent la latence d'ingestion."
+    s500:
+      en: "500 is the maximum value and gives the longest index builds."
+      fr: "500 est la valeur maximale et donne la construction d'index la plus longue."
+references:
+  - title: Indexing policies - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/index-policy

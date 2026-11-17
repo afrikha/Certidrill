@@ -1,0 +1,88 @@
+id: ai200-cs2a-failed-documents
+objective: "3.1.1"
+type: dropdown
+caseStudy: ai200-cs2a-wideworld
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the nightly repair job in Python by using the azure-servicebus library.
+
+    You need to meet the failed documents requirement. How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez en Python la tâche de réparation nocturne à l'aide de la bibliothèque azure-servicebus.
+
+    Vous devez satisfaire l'exigence relative aux documents en échec. Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.identity import DefaultAzureCredential
+    from azure.servicebus import ServiceBusClient, ServiceBusSubQueue
+
+    client = ServiceBusClient("sb-wwi.servicebus.windows.net", DefaultAzureCredential())
+
+    with client.get_queue_receiver(
+            queue_name="customs-docs",
+            sub_queue=[[subqueue]],
+            max_wait_time=30) as receiver:
+        for msg in receiver:
+            logger.warning("Failed document %s: %s", msg.message_id, [[reason]])
+            receiver.[[settle]](msg)
+  slots:
+    - id: subqueue
+      options:
+        - { id: dlq, text: ServiceBusSubQueue.DEAD_LETTER }
+        - { id: tdlq, text: ServiceBusSubQueue.TRANSFER_DEAD_LETTER }
+        - { id: none, text: None }
+    - id: reason
+      options:
+        - { id: dlreason, text: msg.dead_letter_reason }
+        - { id: dlsource, text: msg.dead_letter_source }
+        - { id: count, text: msg.delivery_count }
+    - id: settle
+      options:
+        - { id: complete, text: complete_message }
+        - { id: abandon, text: abandon_message }
+        - { id: deadletter, text: dead_letter_message }
+        - { id: defer, text: defer_message }
+answer:
+  values: { subqueue: dlq, reason: dlreason, settle: complete }
+explanation:
+  correct:
+    en: |
+      Messages that exceed the maximum delivery count (10 by default) are moved to the dead-letter subqueue of customs-docs, which the receiver opens with `sub_queue=ServiceBusSubQueue.DEAD_LETTER`. Service Bus records why it moved each message in `dead_letter_reason` (for example `MaxDeliveryCountExceeded`). Dead-lettered messages never expire, so the job must call `complete_message` to remove each one permanently.
+    fr: |
+      Les messages qui dépassent le nombre maximal de remises (10 par défaut) sont déplacés vers la sous-file d'attente de lettres mortes de customs-docs, que le récepteur ouvre avec `sub_queue=ServiceBusSubQueue.DEAD_LETTER`. Service Bus enregistre dans `dead_letter_reason` pourquoi il a déplacé chaque message (par exemple `MaxDeliveryCountExceeded`). Les messages de lettres mortes n'expirent jamais : la tâche doit appeler `complete_message` pour supprimer définitivement chacun d'eux.
+  options:
+    tdlq:
+      en: The transfer dead-letter subqueue holds messages that failed to be forwarded to another entity, not messages that exceeded their delivery count.
+      fr: La sous-file d'attente de lettres mortes de transfert contient les messages dont le transfert vers une autre entité a échoué, pas ceux qui ont dépassé leur nombre de remises.
+    none:
+      en: Without a subqueue, the receiver reads the main queue, which no longer contains the failed messages.
+      fr: Sans sous-file d'attente, le récepteur lit la file principale, qui ne contient plus les messages en échec.
+    dlsource:
+      en: "`dead_letter_source` is only set on dead-lettered messages that were auto-forwarded to another entity; it names an entity, not a reason."
+      fr: "`dead_letter_source` n'est défini que sur les messages de lettres mortes transférés automatiquement vers une autre entité ; il indique une entité, pas un motif."
+    count:
+      en: The delivery count is a number of attempts, not the reason recorded by Service Bus.
+      fr: Le nombre de remises est un nombre de tentatives, pas le motif enregistré par Service Bus.
+    abandon:
+      en: Abandoning releases the lock and leaves the message in the dead-letter queue, so it is read again the next night.
+      fr: |
+        L'abandon libère le verrou et laisse le message dans la file d'attente de lettres mortes : il sera relu la nuit suivante.
+    deadletter:
+      en: The message is already in the dead-letter queue; dead-lettering it again does not remove it.
+      fr: Le message se trouve déjà dans la file d'attente de lettres mortes ; le placer de nouveau en lettre morte ne le supprime pas.
+    defer:
+      en: Deferring keeps the message in the queue until it is received by its sequence number; it is not removed.
+      fr: Le report conserve le message dans la file d'attente jusqu'à ce qu'il soit reçu par son numéro de séquence ; il n'est pas supprimé.
+references:
+  - title: Service Bus Dead-Letter Queues
+    url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues
+  - title: azure.servicebus.ServiceBusClient class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.servicebusclient

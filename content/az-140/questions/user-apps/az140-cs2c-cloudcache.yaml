@@ -1,0 +1,65 @@
+id: az140-cs2c-cloudcache
+objective: "3.1.4"
+type: dropdown
+caseStudy: az140-cs2c-humongous
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to update the FSLogix configuration of the HP-Claims session hosts to meet the regional resilience requirement. The script will be included in the golden image.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez mettre à jour la configuration FSLogix des hôtes de session HP-Claims pour respecter l'exigence de résilience régionale. Le script sera inclus dans l'image de référence.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $path = "HKLM:\SOFTWARE\FSLogix\Profiles"
+    $value = '[[val]]'
+
+    New-ItemProperty -Path $path -Name [[name]] -PropertyType String -Value $value -Force
+    New-ItemProperty -Path $path -Name Enabled -PropertyType DWord -Value 1 -Force
+    Remove-ItemProperty -Path $path -Name [[rm]]
+  slots:
+    - id: val
+      options:
+        - id: smb
+          text: 'type=smb,name="EUS2",connectionString=\\sthiprofeus2.file.core.windows.net\profiles;type=smb,name="CUS",connectionString=\\sthiprofcus.file.core.windows.net\profiles'
+        - id: unc
+          text: '\\sthiprofeus2.file.core.windows.net\profiles;\\sthiprofcus.file.core.windows.net\profiles'
+        - id: azure
+          text: 'type=azure,name="EUS2",connectionString=\\sthiprofeus2.file.core.windows.net\profiles;type=azure,name="CUS",connectionString=\\sthiprofcus.file.core.windows.net\profiles'
+    - id: name
+      options:
+        - { id: vhd, text: VHDLocations }
+        - { id: ccd, text: CCDLocations }
+        - { id: redir, text: RedirXMLSourceFolder }
+    - id: rm
+      options:
+        - { id: clear, text: ClearCacheOnLogoff }
+        - { id: dlp, text: DeleteLocalProfileWhenVHDShouldApply }
+        - { id: vhd, text: VHDLocations }
+answer:
+  values: { val: smb, name: ccd, rm: vhd }
+explanation:
+  correct:
+    en: |
+      Cloud Cache writes each profile change to every provider listed in CCDLocations, so both regional shares stay current without a replication job. Each provider is described by type, name and connectionString, and type=smb is used for SMB shares such as Azure Files. Cloud Cache replaces VHDLocations, and the two settings must not be used together, so the existing VHDLocations value is removed.
+    fr: |
+      Cloud Cache écrit chaque modification de profil sur chaque fournisseur indiqué dans CCDLocations : les deux partages régionaux restent à jour sans tâche de réplication. Chaque fournisseur est décrit par type, name et connectionString, et type=smb s'utilise pour les partages SMB comme Azure Files. Cloud Cache remplace VHDLocations, et les deux paramètres ne doivent pas être utilisés ensemble : la valeur VHDLocations existante est donc supprimée.
+  options:
+    unc: { en: "A list of UNC paths is the VHDLocations format: FSLogix uses the first available location and does not write to both shares.", fr: "Une liste de chemins UNC est le format de VHDLocations : FSLogix utilise le premier emplacement disponible et n'écrit pas sur les deux partages." }
+    azure: { en: "type=azure designates an Azure page blob provider whose connection string is stored in Credential Manager, not an SMB share.", fr: "type=azure désigne un fournisseur d'objets blob de pages Azure dont la chaîne de connexion est stockée dans le Gestionnaire d'informations d'identification, pas un partage SMB." }
+    redir: { en: "RedirXMLSourceFolder points to the folder that contains a redirections.xml file; it does not define profile storage providers.", fr: "RedirXMLSourceFolder pointe vers le dossier qui contient un fichier redirections.xml ; il ne définit pas de fournisseurs de stockage de profils." }
+    clear: { en: "ClearCacheOnLogoff is a recommended Cloud Cache setting for pooled host pools; removing it does not resolve the conflict with VHDLocations.", fr: "ClearCacheOnLogoff est un paramètre Cloud Cache recommandé pour les pools d'hôtes Pooled ; le supprimer ne résout pas le conflit avec VHDLocations." }
+    dlp: { en: "DeleteLocalProfileWhenVHDShouldApply is a recommended setting with Cloud Cache; it does not conflict with CCDLocations.", fr: "DeleteLocalProfileWhenVHDShouldApply est un paramètre recommandé avec Cloud Cache ; il n'entre pas en conflit avec CCDLocations." }
+references:
+  - title: "Tutorial: Configure profile containers with Cloud Cache"
+    url: https://learn.microsoft.com/en-us/fslogix/tutorial-cloud-cache-containers

@@ -1,0 +1,71 @@
+id: dp750-3b-nb-autoloader-code
+objective: "3.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware receives JSON files in the volume path **/Volumes/proseware/landing/raw/clicks/**. A notebook runs as a task of an hourly Lakeflow Jobs job on job compute.
+
+    Each run must load into **proseware.bronze.clicks** only the files that arrived since the previous run, infer the schema of the files and track its changes over time, and then stop.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware reçoit des fichiers JSON dans le chemin de volume **/Volumes/proseware/landing/raw/clicks/**. Un notebook s'exécute en tant que tâche d'un job Lakeflow Jobs horaire sur un calcul de job.
+
+    Chaque exécution doit charger dans **proseware.bronze.clicks** uniquement les fichiers arrivés depuis l'exécution précédente, inférer le schéma des fichiers et suivre ses modifications au fil du temps, puis s'arrêter.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    (spark.readStream
+       .format([[fmt]])
+       .option("cloudFiles.format", "json")
+       .option([[schemaopt]], "/Volumes/proseware/landing/chk/clicks_schema")
+       .load("/Volumes/proseware/landing/raw/clicks/")
+       .writeStream
+       .option("checkpointLocation", "/Volumes/proseware/landing/chk/clicks")
+       .trigger([[trig]])
+       .toTable("proseware.bronze.clicks"))
+  slots:
+    - id: fmt
+      options:
+        - { id: cloud, text: '"cloudFiles"' }
+        - { id: json, text: '"json"' }
+        - { id: delta, text: '"delta"' }
+    - id: schemaopt
+      options:
+        - { id: loc, text: '"cloudFiles.schemaLocation"' }
+        - { id: hints, text: '"cloudFiles.schemaHints"' }
+        - { id: mode, text: '"cloudFiles.schemaEvolutionMode"' }
+    - id: trig
+      options:
+        - { id: now, text: availableNow=True }
+        - { id: proc, text: processingTime="1 hour" }
+        - { id: cont, text: continuous="1 hour" }
+answer:
+  values: { fmt: cloud, schemaopt: loc, trig: now }
+explanation:
+  correct:
+    en: |
+      The cloudFiles source is Auto Loader, which tracks the files already processed in the checkpoint. Outside a pipeline, cloudFiles.schemaLocation must point to a directory where Auto Loader stores the inferred schema and its evolution. trigger(availableNow=True) processes all the available files, then stops, which suits a scheduled job.
+    fr: |
+      La source cloudFiles est Auto Loader, qui suit dans le point de contrôle les fichiers déjà traités. Hors d'un pipeline, cloudFiles.schemaLocation doit pointer vers un répertoire où Auto Loader stocke le schéma inféré et son évolution. trigger(availableNow=True) traite tous les fichiers disponibles, puis s'arrête, ce qui convient à un job planifié.
+  options:
+    json: { en: "A plain JSON streaming source doesn't infer or track the schema, and cloudFiles options don't apply to it.", fr: "Une source de streaming JSON simple n'infère ni ne suit le schéma, et les options cloudFiles ne s'y appliquent pas." }
+    delta: { en: "The delta source reads a Delta table, not JSON files.", fr: "La source delta lit une table Delta, pas des fichiers JSON." }
+    hints: { en: "Schema hints force the types of some columns; they take an SQL schema string, not a path.", fr: "Les indications de schéma imposent le type de certaines colonnes ; elles prennent une chaîne de schéma SQL, pas un chemin." }
+    mode: { en: "The schema evolution mode takes a mode name such as addNewColumns, not a path.", fr: "Le mode d'évolution du schéma prend un nom de mode comme addNewColumns, pas un chemin." }
+    proc: { en: "A processing-time trigger keeps the stream running, so the run never stops.", fr: "Un déclencheur à intervalle fixe maintient le flux en cours d'exécution : l'exécution ne s'arrête jamais." }
+    cont: { en: "The continuous trigger isn't supported on Azure Databricks.", fr: "Le déclencheur continu n'est pas pris en charge sur Azure Databricks." }
+references:
+  - title: Configure schema inference and evolution in Auto Loader
+    url: https://learn.microsoft.com/en-us/azure/databricks/ingestion/cloud-object-storage/auto-loader/schema
+  - title: Configure Structured Streaming trigger intervals
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/triggers

@@ -1,0 +1,75 @@
+id: dp420-1a-mgmt-dotnet-create
+objective: "1.1.5"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Northwind Traders runs the following .NET code each time its order service starts. The code must:
+
+    - create the **retail** database only if it doesn't exist yet, without shared throughput;
+    - create an **orders** container partitioned on `/customerId` with 400 RU/s;
+    - enable time to live on the container without making items expire unless an item sets its own `ttl` property.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders exécute le code .NET suivant à chaque démarrage de son service de commandes. Le code doit :
+
+    - créer la base de données **retail** uniquement si elle n'existe pas encore, sans débit partagé ;
+    - créer un conteneur **orders** partitionné sur `/customerId` avec 400 RU/s ;
+    - activer la durée de vie sur le conteneur sans faire expirer les éléments, sauf si un élément définit sa propre propriété `ttl`.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    Database database = await client.[[db]]("retail");
+
+    ContainerProperties properties = new ContainerProperties
+    {
+        Id = "orders",
+        [[pk]] = "/customerId",
+        DefaultTimeToLive = [[ttl]]
+    };
+
+    Container container = await database.CreateContainerIfNotExistsAsync(
+        properties, ThroughputProperties.CreateManualThroughput(400));
+  slots:
+    - id: db
+      options:
+        - { id: createifnot, text: CreateDatabaseIfNotExistsAsync }
+        - { id: create, text: CreateDatabaseAsync }
+        - { id: get, text: GetDatabase }
+    - id: pk
+      options:
+        - { id: pkversion, text: PartitionKeyDefinitionVersion }
+        - { id: idprop, text: SelfLink }
+        - { id: pkpath, text: PartitionKeyPath }
+    - id: ttl
+      options:
+        - { id: zero, text: "0" }
+        - { id: minus1, text: "-1" }
+        - { id: nullttl, text: "null" }
+answer:
+  values: { db: createifnot, pk: pkpath, ttl: minus1 }
+explanation:
+  correct:
+    en: |
+      `CreateDatabaseIfNotExistsAsync` creates the database only when no database with that id exists, which suits code that runs at every startup. `PartitionKeyPath` sets the partition key. A default TTL of -1 enables TTL without a default expiration, so only items with their own `ttl` value expire.
+    fr: |
+      `CreateDatabaseIfNotExistsAsync` crée la base de données uniquement si aucune base de données de cet id n'existe, ce qui convient à du code exécuté à chaque démarrage. `PartitionKeyPath` définit la clé de partition. Une durée de vie par défaut de -1 active la durée de vie sans expiration par défaut : seuls les éléments dotés de leur propre valeur `ttl` expirent.
+  options:
+    create: { en: "CreateDatabaseAsync fails with a conflict when the database already exists, which happens from the second startup.", fr: "CreateDatabaseAsync échoue avec un conflit si la base de données existe déjà, ce qui se produit dès le deuxième démarrage." }
+    get: { en: "GetDatabase only returns a proxy reference without any network call; it never creates the database.", fr: "GetDatabase renvoie seulement une référence proxy, sans appel réseau ; il ne crée jamais la base de données." }
+    nullttl: { en: "A null default TTL leaves TTL disabled, so per-item ttl values are ignored.", fr: "Une durée de vie par défaut null laisse la durée de vie désactivée : les valeurs ttl des éléments sont ignorées." }
+    zero: { en: "0 isn't a valid TTL value; use -1 or a positive number of seconds.", fr: "0 n'est pas une valeur de durée de vie valide ; utilisez -1 ou un nombre positif de secondes." }
+references:
+  - title: Create a container in Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-create-container
+  - title: CosmosClient Class (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.cosmosclient

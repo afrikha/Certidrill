@@ -1,0 +1,92 @@
+id: ai300-3c-eval-trigger-yaml
+objective: "3.3.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware stores agent prompts in the prompts folder of a GitHub repository. You are writing a GitHub Actions workflow that evaluates prompt changes against a Microsoft Foundry project. The workflow must:
+
+    - run for each pull request that targets main and modifies at least one file in the prompts folder;
+    - not run for pull requests that change only other files;
+    - sign in to Azure with a federated identity credential, without a stored client secret.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware stocke les invites de ses agents dans le dossier prompts d'un dépôt GitHub. Vous écrivez un flux de travail GitHub Actions qui évalue les modifications d'invite sur un projet Microsoft Foundry. Le flux de travail doit :
+
+    - s'exécuter pour chaque demande de tirage qui cible main et modifie au moins un fichier du dossier prompts ;
+    - ne pas s'exécuter pour les demandes de tirage qui ne modifient que d'autres fichiers ;
+    - se connecter à Azure avec des informations d'identification fédérées, sans secret client stocké.
+
+    Comment devez-vous compléter le flux de travail ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: Evaluate Prompt Changes
+
+    on:
+      [[evt]]:
+        branches: [main]
+        [[flt]]:
+          - 'prompts/**'
+
+    permissions:
+      [[perm]]: write
+      contents: read
+      pull-requests: write
+
+    jobs:
+      run-evaluation:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - uses: azure/login@v2
+            with:
+              client-id: ${{ vars.AZURE_CLIENT_ID }}
+              tenant-id: ${{ vars.AZURE_TENANT_ID }}
+              subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          - run: python run_evaluation.py --test-data test-data/test_dataset.jsonl --output results.json
+  slots:
+    - id: evt
+      options:
+        - { id: pr, text: pull_request }
+        - { id: push, text: push }
+        - { id: dispatch, text: workflow_dispatch }
+        - { id: release, text: release }
+    - id: flt
+      options:
+        - { id: paths, text: paths }
+        - { id: ignore, text: paths-ignore }
+        - { id: tags, text: tags }
+        - { id: bignore, text: branches-ignore }
+    - id: perm
+      options:
+        - { id: idtoken, text: id-token }
+        - { id: actions, text: actions }
+        - { id: deployments, text: deployments }
+        - { id: checks, text: checks }
+answer:
+  values: { evt: pr, flt: paths, perm: idtoken }
+explanation:
+  correct:
+    en: The pull_request event with branches [main] runs for pull requests that target main, and the paths filter limits the runs to pull requests that change files matching prompts/**. The id-token write permission lets the job request a GitHub OIDC token, which azure/login exchanges for Azure access through the federated credential, so no client secret is stored.
+    fr: "L'événement pull_request avec branches [main] s'exécute pour les demandes de tirage qui ciblent main, et le filtre paths limite les exécutions aux demandes de tirage qui modifient des fichiers correspondant à prompts/**. L'autorisation id-token en écriture permet au travail de demander un jeton OIDC GitHub, qu'azure/login échange contre un accès Azure grâce aux informations d'identification fédérées : aucun secret client n'est stocké."
+  options:
+    push:
+      en: A push trigger on main runs after changes reach main, not when a pull request is opened.
+      fr: Un déclencheur push sur main s'exécute une fois les modifications arrivées dans main, pas à l'ouverture d'une demande de tirage.
+    ignore:
+      en: paths-ignore would skip pull requests that change only prompt files, the opposite of the requirement.
+      fr: paths-ignore ignorerait les demandes de tirage qui ne modifient que des fichiers d'invite, l'inverse de l'exigence.
+    actions:
+      en: The actions permission concerns workflow runs and artifacts; it does not allow requesting an OIDC token.
+      fr: L'autorisation actions concerne les exécutions de flux de travail et les artefacts ; elle ne permet pas de demander un jeton OIDC.
+references:
+  - title: Integrate evaluations into GitHub Actions
+    url: https://learn.microsoft.com/en-us/training/modules/automated-evaluation-genaiops/6-github-actions-workflow

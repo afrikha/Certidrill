@@ -1,0 +1,86 @@
+id: dp750-3d-expect-sql
+objective: "3.4.4"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Fabrikam defines the streaming table **fabrikam.silver.meter_reads** in the SQL source file of a Lakeflow Spark Declarative Pipelines pipeline.
+
+    You need to meet the following requirements:
+
+    - Reads without a `region` value must be kept in the table, and the pipeline must report how many there are.
+    - Reads whose `kwh` value is negative must not be written to the table.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam définit la table de streaming **fabrikam.silver.meter_reads** dans le fichier source SQL d'un pipeline Lakeflow Spark Declarative Pipelines.
+
+    Vous devez satisfaire les exigences suivantes :
+
+    - Les relevés sans valeur `region` doivent être conservés dans la table, et le pipeline doit indiquer leur nombre.
+    - Les relevés dont la valeur `kwh` est négative ne doivent pas être écrits dans la table.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH STREAMING TABLE fabrikam.silver.meter_reads (
+      CONSTRAINT has_region EXPECT (region IS NOT NULL) [[region]],
+      CONSTRAINT valid_kwh [[kwh]]
+    )
+    AS SELECT * FROM STREAM(fabrikam.bronze.meter_reads);
+  slots:
+    - id: region
+      options:
+        - { id: drop, text: "ON VIOLATION DROP ROW" }
+        - { id: none, text: { en: "(no ON VIOLATION clause)", fr: "(pas de clause ON VIOLATION)" } }
+        - { id: fail, text: "ON VIOLATION FAIL UPDATE" }
+    - id: kwh
+      options:
+        - { id: warn, text: "EXPECT (kwh >= 0)" }
+        - { id: inverted, text: "EXPECT (kwh < 0) ON VIOLATION DROP ROW" }
+        - { id: check, text: "CHECK (kwh >= 0)" }
+        - { id: drop, text: "EXPECT (kwh >= 0) ON VIOLATION DROP ROW" }
+answer:
+  values: { region: none, kwh: drop }
+explanation:
+  correct:
+    en: |
+      An expectation without an `ON VIOLATION` clause uses the warn action: invalid records are written and counted in the metrics. The constraint describes a valid record, so `EXPECT (kwh >= 0) ON VIOLATION DROP ROW` drops the reads with a negative value before the write.
+    fr: |
+      Une attente sans clause `ON VIOLATION` utilise l'action d'avertissement : les enregistrements non valides sont écrits et comptés dans les métriques. La contrainte décrit un enregistrement valide : `EXPECT (kwh >= 0) ON VIOLATION DROP ROW` supprime les relevés à valeur négative avant l'écriture.
+  options:
+    drop:
+      en: |
+        For `has_region`, `DROP ROW` removes the reads without a region, which must be kept.
+      fr: |
+        Pour `has_region`, `DROP ROW` supprime les relevés sans région, qui doivent être conservés.
+    fail:
+      en: |
+        `FAIL UPDATE` stops the update at the first read without a region.
+      fr: |
+        `FAIL UPDATE` arrête la mise à jour au premier relevé sans région.
+    warn:
+      en: |
+        Without `ON VIOLATION`, the negative reads are still written to the table.
+      fr: |
+        Sans `ON VIOLATION`, les relevés négatifs sont quand même écrits dans la table.
+    inverted:
+      en: |
+        The constraint must be true for valid records; this one drops every read whose value is zero or positive.
+      fr: |
+        La contrainte doit être vraie pour les enregistrements valides ; celle-ci supprime tous les relevés dont la valeur est nulle ou positive.
+    check:
+      en: |
+        Pipeline dataset definitions declare expectations with `EXPECT`; `CHECK` isn't the expectation syntax.
+      fr: |
+        Les définitions de jeux de données d'un pipeline déclarent les attentes avec `EXPECT` ; `CHECK` n'est pas la syntaxe des attentes.
+references:
+  - title: Manage data quality with pipeline expectations
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/expectations

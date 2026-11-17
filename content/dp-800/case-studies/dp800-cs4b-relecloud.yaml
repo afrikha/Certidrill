@@ -1,0 +1,127 @@
+id: dp800-cs4b-relecloud
+status: draft
+title:
+  en: "Relecloud"
+  fr: "Relecloud"
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Relecloud operates regional passenger trains on a network of 140 stations. The company is redesigning ticketing, wants planners to query the rail network directly in the database, and must control the growth of its trip history. A small team of developers owns the operations database and its deployment.
+      fr: |
+        Relecloud exploite des trains régionaux de voyageurs sur un réseau de 140 gares. L'entreprise refond sa billetterie, souhaite que les planificateurs interrogent le réseau ferroviaire directement dans la base de données et doit maîtriser la croissance de son historique de trajets. Une petite équipe de développeurs gère la base de données d'exploitation et son déploiement.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Platform**
+
+        An Azure SQL Managed Instance named **mi-relecloud** uses the Always-up-to-date update policy and hosts a database named **RailOps**. Query Store is enabled on RailOps in READ_WRITE mode.
+
+        **Rail network**
+
+        - **Rail.Station** is a node table with the columns StationId (int) and StationName (nvarchar(100)).
+        - **Rail.TrackTo** is an edge table with the column LengthKm (decimal(6,1)). Each track segment between two adjacent stations is stored as two edges, one for each direction.
+
+        **Trip history**
+
+        - **dbo.TripLegs** contains about 900 million rows. It's partitioned on TravelDate (date) by the partition function **PF_TripMonth**, defined `AS RANGE RIGHT` with one boundary on the first day of each month, from 2024-11-01 to 2026-12-01. The partition scheme **PS_TripMonth** maps every partition to [PRIMARY], and every index of dbo.TripLegs is aligned.
+        - Partition 1 (dates before 2024-11-01) is empty, partition 2 contains November 2024, and the last partition (dates from 2026-12-01) is empty.
+        - An empty table named **dbo.TripLegsStage** exists on [PRIMARY] with the same columns and indexes as dbo.TripLegs.
+
+        **Reporting**
+
+        A vendor application named **RailInsight** queries dbo.Bookings. Its code can't be changed. Yesterday, after a statistics update, the average duration of its main query (query_id 1182 in Query Store) rose from 0.4 seconds with plan_id 14 to 38 seconds with plan_id 27.
+
+        **Customer feedback**
+
+        **dbo.FeedbackVectors** contains FeedbackId (int, primary key) and Embedding (vector(768), NOT NULL). The embeddings are produced by an embedding model hosted by Relecloud. This model doesn't return normalized vectors.
+
+        **Development**
+
+        - The schema of RailOps is in an SDK-style SQL database project named **RailOps.sqlproj** in a GitHub repository. A GitHub Actions workflow builds the project and publishes the .dacpac file to RailOps by using SqlPackage. RailOps isn't registered as a data-tier application.
+        - Last week, during an incident, a database administrator created an index named **IX_Bookings_TravelDate** directly in RailOps. The index isn't in the project.
+      fr: |
+        **Plateforme**
+
+        Une instance Azure SQL Managed Instance nommée **mi-relecloud** utilise la stratégie de mise à jour Always-up-to-date et héberge une base de données nommée **RailOps**. Le Magasin des requêtes est activé sur RailOps en mode READ_WRITE.
+
+        **Réseau ferroviaire**
+
+        - **Rail.Station** est une table de nœuds avec les colonnes StationId (int) et StationName (nvarchar(100)).
+        - **Rail.TrackTo** est une table d'arêtes avec la colonne LengthKm (decimal(6,1)). Chaque tronçon de voie entre deux gares adjacentes est stocké sous forme de deux arêtes, une pour chaque sens.
+
+        **Historique des trajets**
+
+        - **dbo.TripLegs** contient environ 900 millions de lignes. Elle est partitionnée sur TravelDate (date) par la fonction de partition **PF_TripMonth**, définie `AS RANGE RIGHT` avec une limite le premier jour de chaque mois, du 2024-11-01 au 2026-12-01. Le schéma de partition **PS_TripMonth** associe chaque partition à [PRIMARY], et tous les index de dbo.TripLegs sont alignés.
+        - La partition 1 (dates antérieures au 2024-11-01) est vide, la partition 2 contient novembre 2024, et la dernière partition (dates à partir du 2026-12-01) est vide.
+        - Une table vide nommée **dbo.TripLegsStage** existe sur [PRIMARY] avec les mêmes colonnes et les mêmes index que dbo.TripLegs.
+
+        **Création de rapports**
+
+        Une application d'éditeur nommée **RailInsight** interroge dbo.Bookings. Son code ne peut pas être modifié. Hier, après une mise à jour des statistiques, la durée moyenne de sa requête principale (query_id 1182 dans le Magasin des requêtes) est passée de 0,4 seconde avec le plan_id 14 à 38 secondes avec le plan_id 27.
+
+        **Avis des clients**
+
+        **dbo.FeedbackVectors** contient FeedbackId (int, clé primaire) et Embedding (vector(768), NOT NULL). Les incorporations sont produites par un modèle d'incorporation hébergé par Relecloud. Ce modèle ne renvoie pas de vecteurs normalisés.
+
+        **Développement**
+
+        - Le schéma de RailOps se trouve dans un projet de base de données SQL de style SDK nommé **RailOps.sqlproj**, dans un dépôt GitHub. Un workflow GitHub Actions génère le projet et publie le fichier .dacpac sur RailOps à l'aide de SqlPackage. RailOps n'est pas inscrite comme application de couche Données.
+        - La semaine dernière, lors d'un incident, un administrateur de base de données a créé un index nommé **IX_Bookings_TravelDate** directement dans RailOps. L'index ne figure pas dans le projet.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Network planning**
+
+        1. For a departure station and a destination station, planners need the route with the fewest track segments, whatever the number of segments. The result shows the stations of the route in order and the number of segments.
+
+        **Ticketing**
+
+        2. Tickets are stored in two new tables, **dbo.WebTickets** and **dbo.KioskTickets**. Ticket numbers must be unique across both tables and come from one increasing series. Gaps in the numbering are acceptable.
+        3. The website inserts rows into dbo.WebTickets without supplying a ticket number.
+        4. A stored procedure named **dbo.SellKioskTicket** must know the ticket number before it inserts the row, because it computes a QR code signature from the number and stores both in the same row.
+
+        **Trip history**
+
+        5. dbo.TripLegs must keep 24 months of trips. On the 20th of each month, a job removes the oldest month from dbo.TripLegs to dbo.TripLegsStage as a metadata-only operation, removes the boundary of that month without moving rows, and adds one monthly boundary so that an empty partition always remains at the end of the range.
+
+        **Reporting**
+
+        6. The performance of the RailInsight query must be restored without changing the application. The fix must persist after a restart or a failover of mi-relecloud.
+
+        **Customer feedback**
+
+        7. Feedback search ranks the rows of dbo.FeedbackVectors by their similarity to the embedding of a search phrase.
+
+        **Development**
+
+        8. The developers must identify every object of RailOps that differs from the project, and IX_Bookings_TravelDate must be kept by adding it to the project before the next deployment.
+      fr: |
+        **Planification du réseau**
+
+        1. Pour une gare de départ et une gare de destination, les planificateurs ont besoin de l'itinéraire comportant le moins de tronçons de voie, quel que soit le nombre de tronçons. Le résultat affiche les gares de l'itinéraire dans l'ordre et le nombre de tronçons.
+
+        **Billetterie**
+
+        2. Les billets sont stockés dans deux nouvelles tables, **dbo.WebTickets** et **dbo.KioskTickets**. Les numéros de billet doivent être uniques dans les deux tables et provenir d'une seule série croissante. Les trous dans la numérotation sont acceptables.
+        3. Le site web insère des lignes dans dbo.WebTickets sans fournir de numéro de billet.
+        4. Une procédure stockée nommée **dbo.SellKioskTicket** doit connaître le numéro de billet avant d'insérer la ligne, car elle calcule une signature de code QR à partir du numéro et stocke les deux dans la même ligne.
+
+        **Historique des trajets**
+
+        5. dbo.TripLegs doit conserver 24 mois de trajets. Le 20 de chaque mois, un travail déplace le mois le plus ancien de dbo.TripLegs vers dbo.TripLegsStage par une opération portant uniquement sur les métadonnées, supprime la limite de ce mois sans déplacer de lignes, et ajoute une limite mensuelle afin qu'une partition vide subsiste toujours à la fin de la plage.
+
+        **Création de rapports**
+
+        6. Les performances de la requête de RailInsight doivent être rétablies sans modifier l'application. Le correctif doit persister après un redémarrage ou un basculement de mi-relecloud.
+
+        **Avis des clients**
+
+        7. La recherche dans les avis classe les lignes de dbo.FeedbackVectors selon leur similarité avec l'incorporation d'une phrase de recherche.
+
+        **Développement**
+
+        8. Les développeurs doivent identifier chaque objet de RailOps qui diffère du projet, et IX_Bookings_TravelDate doit être conservé en l'ajoutant au projet avant le prochain déploiement.

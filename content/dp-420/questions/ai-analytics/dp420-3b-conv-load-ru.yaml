@@ -1,0 +1,70 @@
+id: dp420-3b-conv-load-ru
+objective: "3.2.2"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum's scheduling agent runs as a single process that uses one `CosmosClient` instance. The default consistency level of its Azure Cosmos DB for NoSQL account is Strong, and the agent's client uses that default. Turns are stored one item per turn in a container partitioned by `/threadId`.
+
+    Before each model call, the agent loads its context with the following Python code:
+
+    ```python
+    turns = list(container.query_items(
+        query="SELECT * FROM c WHERE c.threadId = @t",
+        parameters=[{"name": "@t", "value": thread_id}],
+        partition_key=thread_id))
+    context = sorted(turns, key=lambda t: t["turnIndex"])[-10:]
+    ```
+
+    The agent must always read the turns it has just written. You need to reduce the RU charge of loading the context.
+
+    Which two actions should you perform? Each correct answer presents part of the solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'agent de planification d'Adatum s'exécute dans un seul processus qui utilise une seule instance `CosmosClient`. Le niveau de cohérence par défaut de son compte Azure Cosmos DB for NoSQL est Strong, et le client de l'agent utilise cette valeur par défaut. Les tours sont stockés à raison d'un élément par tour dans un conteneur partitionné par `/threadId`.
+
+    Avant chaque appel au modèle, l'agent charge son contexte avec le code Python suivant :
+
+    ```python
+    turns = list(container.query_items(
+        query="SELECT * FROM c WHERE c.threadId = @t",
+        parameters=[{"name": "@t", "value": thread_id}],
+        partition_key=thread_id))
+    context = sorted(turns, key=lambda t: t["turnIndex"])[-10:]
+    ```
+
+    L'agent doit toujours lire les tours qu'il vient d'écrire. Vous devez réduire les frais en RU du chargement du contexte.
+
+    Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "Configure the agent's client to use Session consistency.", fr: "Configurer le client de l'agent pour qu'il utilise la cohérence Session." } }
+    - { id: b, text: { en: "Configure the agent's client to use Eventual consistency.", fr: "Configurer le client de l'agent pour qu'il utilise la cohérence Eventual." } }
+    - { id: c, text: { en: "Pass max_item_count=10 to query_items.", fr: "Passer max_item_count=10 à query_items." } }
+    - { id: d, text: { en: "Replace partition_key=thread_id with enable_cross_partition_query=True.", fr: "Remplacer partition_key=thread_id par enable_cross_partition_query=True." } }
+    - { id: e, text: { en: "Change the query to SELECT TOP 10 ... ORDER BY c.turnIndex DESC and reverse the results in code.", fr: "Changer la requête en SELECT TOP 10 ... ORDER BY c.turnIndex DESC et inverser les résultats dans le code." } }
+answer: { optionIds: [ a, e ] }
+explanation:
+  correct:
+    en: "Reads under Strong (or Bounded Staleness) consistency cost twice as many RU as under weaker levels; Session consistency still guarantees that a client reads its own writes, which is what the single agent process needs. The current query loads every turn of the thread, and query cost grows with the number of items loaded and returned, so TOP 10 with ORDER BY c.turnIndex DESC loads only the turns that are used."
+    fr: "Les lectures en cohérence Strong (ou Bounded Staleness) coûtent deux fois plus de RU qu'avec des niveaux plus faibles ; la cohérence Session garantit toujours qu'un client lit ses propres écritures, ce dont a besoin le processus unique de l'agent. La requête actuelle charge tous les tours du thread, et le coût d'une requête croît avec le nombre d'éléments chargés et renvoyés ; TOP 10 avec ORDER BY c.turnIndex DESC ne charge que les tours utilisés."
+  options:
+    b:
+      en: "Eventual consistency also halves the read cost compared with Strong, but it does not guarantee that the agent reads the turns it has just written."
+      fr: "La cohérence Eventual réduit aussi de moitié le coût des lectures par rapport à Strong, mais elle ne garantit pas que l'agent lise les tours qu'il vient d'écrire."
+    c:
+      en: "max_item_count only sets the page size; list() reads every page, and the RU of all the pages add up to the same total."
+      fr: "max_item_count définit seulement la taille de page ; list() lit toutes les pages, et les RU de toutes les pages totalisent le même montant."
+    d:
+      en: "A cross-partition query cannot be cheaper than a query that already targets the thread's partition."
+      fr: "Une requête interpartitions ne peut pas coûter moins cher qu'une requête qui cible déjà la partition du thread."
+references:
+  - title: Optimize Request Cost - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/optimize-cost-reads-writes
+  - title: Agent Memory in Azure Cosmos DB for NoSQL - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories

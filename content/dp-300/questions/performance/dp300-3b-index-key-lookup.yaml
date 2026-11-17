@@ -1,0 +1,60 @@
+id: dp300-3b-index-key-lookup
+objective: "3.2.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named **SalesDB** that contains a table named **dbo.Orders**. The table has a clustered primary key on **OrderID** and a nonclustered index named **IX_Orders_CustomerID** on the **CustomerID** column.
+
+    The following query runs thousands of times per minute:
+
+    ```text
+    SELECT OrderID, OrderDate, TotalDue
+    FROM dbo.Orders
+    WHERE CustomerID = @CustomerID;
+    ```
+
+    The actual execution plan shows an Index Seek on IX_Orders_CustomerID followed by a Key Lookup on the clustered index that accounts for 85 percent of the query cost.
+
+    You need to remove the Key Lookup. The solution must not increase the number of indexes on the table.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée **SalesDB** qui contient une table nommée **dbo.Orders**. La table a une clé primaire cluster sur **OrderID** et un index non cluster nommé **IX_Orders_CustomerID** sur la colonne **CustomerID**.
+
+    La requête suivante s'exécute des milliers de fois par minute :
+
+    ```text
+    SELECT OrderID, OrderDate, TotalDue
+    FROM dbo.Orders
+    WHERE CustomerID = @CustomerID;
+    ```
+
+    Le plan d'exécution réel montre un Index Seek sur IX_Orders_CustomerID suivi d'un Key Lookup sur l'index cluster qui représente 85 % du coût de la requête.
+
+    Vous devez supprimer le Key Lookup. La solution ne doit pas augmenter le nombre d'index de la table.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Re-create IX_Orders_CustomerID on (CustomerID) with INCLUDE (OrderDate, TotalDue) by using DROP_EXISTING = ON.", fr: "Recréer IX_Orders_CustomerID sur (CustomerID) avec INCLUDE (OrderDate, TotalDue) en utilisant DROP_EXISTING = ON." } }
+    - { id: b, text: { en: "Re-create IX_Orders_CustomerID as a filtered index on (CustomerID) with WHERE TotalDue > 0.", fr: "Recréer IX_Orders_CustomerID comme index filtré sur (CustomerID) avec WHERE TotalDue > 0." } }
+    - { id: c, text: { en: "Rebuild the clustered index of dbo.Orders with ONLINE = ON.", fr: "Reconstruire l'index cluster de dbo.Orders avec ONLINE = ON." } }
+    - { id: d, text: { en: "Re-create IX_Orders_CustomerID on (CustomerID, OrderID) by using DROP_EXISTING = ON.", fr: "Recréer IX_Orders_CustomerID sur (CustomerID, OrderID) en utilisant DROP_EXISTING = ON." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      The Key Lookup fetches OrderDate and TotalDue from the clustered index because the nonclustered index doesn't contain them. Adding them as included (nonkey) columns makes the index cover the query, so the table data isn't accessed anymore. OrderID, the clustered key, is already stored in every nonclustered index, and `DROP_EXISTING = ON` replaces the index instead of adding a new one.
+    fr: |
+      Le Key Lookup va chercher OrderDate et TotalDue dans l'index cluster, car l'index non cluster ne les contient pas. Les ajouter comme colonnes incluses (non clés) rend l'index couvrant pour la requête : les données de la table ne sont plus lues. OrderID, la clé cluster, est déjà stockée dans chaque index non cluster, et `DROP_EXISTING = ON` remplace l'index au lieu d'en ajouter un nouveau.
+  options:
+    b: { en: "A filter limits the rows in the index but doesn't add the OrderDate and TotalDue columns, so the lookup remains.", fr: "Un filtre limite les lignes de l'index mais n'ajoute pas les colonnes OrderDate et TotalDue : la recherche de clé subsiste." }
+    c: { en: "Rebuilding the clustered index removes fragmentation; it doesn't change which columns the nonclustered index contains.", fr: "Reconstruire l'index cluster supprime la fragmentation ; cela ne change pas les colonnes contenues dans l'index non cluster." }
+    d: { en: "OrderID is already in the nonclustered index as the clustered key; OrderDate and TotalDue would still require a lookup.", fr: "OrderID figure déjà dans l'index non cluster en tant que clé cluster ; OrderDate et TotalDue exigeraient toujours une recherche de clé." }
+references:
+  - title: Create indexes with included columns
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/indexes/create-indexes-with-included-columns
+  - title: Index architecture and design guide
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-index-design-guide

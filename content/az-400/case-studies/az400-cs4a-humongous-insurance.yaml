@@ -1,0 +1,119 @@
+id: az400-cs4a-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is a property and casualty insurer based in Brussels. It processes about 2,000 claims per day through **ClaimsHub**, a set of .NET services hosted in Azure.
+
+        A platform team of four engineers supports 60 developers. All the work is managed in an Azure DevOps Services organization named **humongous**, in a project named **ClaimsHub**.
+      fr: |
+        Humongous Insurance est un assureur IARD dont le siège est à Bruxelles. Il traite environ 2 000 sinistres par jour au moyen de **ClaimsHub**, un ensemble de services .NET hébergés dans Azure.
+
+        Une équipe plateforme de quatre ingénieurs accompagne 60 développeurs. Tout le travail est géré dans une organisation Azure DevOps Services nommée **humongous**, dans un projet nommé **ClaimsHub**.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure DevOps**
+
+        | Item | Configuration |
+        | --- | --- |
+        | claims-api | Azure Repos Git repository of the claims web API. Default branch **main**. |
+        | claims-db | Azure Repos Git repository of an SQL database project that builds a DACPAC file. |
+        | claims-ci | YAML pipeline that builds claims-api and runs its unit tests. |
+        | claims-release | Classic release pipeline that deploys claims-api and the DACPAC. It runs on Microsoft-hosted agents. |
+        | humongous-libs | Project-scoped Azure Artifacts NuGet feed of ClaimsHub. It contains internal libraries and has no upstream source. |
+        | sc-claims-azure | Azure Resource Manager service connection created by Azure DevOps with the **App registration (automatic)** option and a client secret. Only ClaimsHub uses it. |
+
+        **Azure (region West Europe)**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | app-claims-prod | Windows web app in an App Service plan of the Premium v3 tier. It has a deployment slot named **staging**. |
+        | sql-claims-prod | Logical server of Azure SQL Database that hosts the database **claimsdb**. Public network access is disabled; the server is reachable only through a private endpoint in **VNet-Claims**. |
+        | VNet-Claims | Virtual network with a free subnet named **snet-build** (10.40.8.0/24). |
+        | appi-claims | Workspace-based Application Insights resource of claims-api. Its telemetry is stored in the Log Analytics workspace **log-claims**. |
+
+        Both the production slot and the staging slot of app-claims-prod connect to claimsdb.
+      fr: |
+        **Azure DevOps**
+
+        | Élément | Configuration |
+        | --- | --- |
+        | claims-api | Dépôt Git Azure Repos de l'API web des sinistres. Branche par défaut **main**. |
+        | claims-db | Dépôt Git Azure Repos d'un projet de base de données SQL qui génère un fichier DACPAC. |
+        | claims-ci | Pipeline YAML qui génère claims-api et exécute ses tests unitaires. |
+        | claims-release | Pipeline de mise en production classique qui déploie claims-api et le DACPAC. Il s'exécute sur des agents hébergés par Microsoft. |
+        | humongous-libs | Flux NuGet Azure Artifacts limité au projet ClaimsHub. Il contient des bibliothèques internes et n'a aucune source en amont. |
+        | sc-claims-azure | Connexion de service Azure Resource Manager créée par Azure DevOps avec l'option **App registration (automatic)** et une clé secrète client. Seul ClaimsHub l'utilise. |
+
+        **Azure (région West Europe)**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | app-claims-prod | Application web Windows dans un plan App Service du niveau Premium v3. Elle dispose d'un emplacement de déploiement nommé **staging**. |
+        | sql-claims-prod | Serveur logique Azure SQL Database qui héberge la base de données **claimsdb**. L'accès au réseau public est désactivé ; le serveur n'est joignable que par un point de terminaison privé dans **VNet-Claims**. |
+        | VNet-Claims | Réseau virtuel avec un sous-réseau libre nommé **snet-build** (10.40.8.0/24). |
+        | appi-claims | Ressource Application Insights basée sur un espace de travail, pour claims-api. Sa télémétrie est stockée dans l'espace de travail Log Analytics **log-claims**. |
+
+        L'emplacement de production et l'emplacement staging d'app-claims-prod se connectent tous deux à claimsdb.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Pipelines and agents**
+
+        1. claims-release will be replaced by a multi-stage YAML pipeline. The jobs that deploy the DACPAC must reach sql-claims-prod through its private endpoint.
+        2. The platform team must not patch, scale, or maintain agent virtual machines or their operating system images.
+
+        **Deployments**
+
+        3. Schema changes in claims-db are always backward compatible with the version of claims-api that is in production.
+        4. If the database deployment fails, the new version of claims-api must not be deployed.
+        5. The new version of claims-api must pass smoke tests before it receives production traffic, and users must not experience downtime.
+
+        **Packages**
+
+        6. Other teams of the organization must consume only the versions of the humongous-libs packages that passed the integration tests.
+        7. Restores of public NuGet packages already used by ClaimsHub must keep working during an outage of nuget.org.
+        8. Developers must be able to restore new packages from nuget.org through humongous-libs so that the packages are kept in the feed. Grant the least privilege.
+
+        **Security and source control**
+
+        9. No client secret must be used to authenticate to Azure. Existing pipeline definitions must keep referencing sc-claims-azure, and administrative effort must be minimized.
+        10. Every change to main in claims-api must be reviewed by two people other than its author, be linked to a work item, and pass claims-ci.
+
+        **Monitoring**
+
+        11. The operations team needs an hourly chart of the 95th percentile duration of the calls that claims-api makes to claimsdb.
+      fr: |
+        **Pipelines et agents**
+
+        1. claims-release sera remplacé par un pipeline YAML à phases multiples. Les travaux qui déploient le DACPAC doivent joindre sql-claims-prod par son point de terminaison privé.
+        2. L'équipe plateforme ne doit pas avoir à corriger, mettre à l'échelle ni maintenir des machines virtuelles d'agent ou leurs images de système d'exploitation.
+
+        **Déploiements**
+
+        3. Les modifications de schéma de claims-db sont toujours rétrocompatibles avec la version de claims-api en production.
+        4. Si le déploiement de la base de données échoue, la nouvelle version de claims-api ne doit pas être déployée.
+        5. La nouvelle version de claims-api doit réussir des tests de fumée avant de recevoir le trafic de production, et les utilisateurs ne doivent subir aucun temps d'arrêt.
+
+        **Packages**
+
+        6. Les autres équipes de l'organisation ne doivent consommer que les versions des packages de humongous-libs qui ont réussi les tests d'intégration.
+        7. Les restaurations de packages NuGet publics déjà utilisés par ClaimsHub doivent continuer à fonctionner pendant une panne de nuget.org.
+        8. Les développeurs doivent pouvoir restaurer de nouveaux packages de nuget.org au travers de humongous-libs afin que ces packages soient conservés dans le flux. Accordez le privilège minimum.
+
+        **Sécurité et contrôle de code source**
+
+        9. Aucune clé secrète client ne doit servir à s'authentifier auprès d'Azure. Les définitions de pipeline existantes doivent continuer à référencer sc-claims-azure, et l'effort d'administration doit être réduit au minimum.
+        10. Toute modification de main dans claims-api doit être relue par deux personnes autres que son auteur, être liée à un élément de travail et réussir claims-ci.
+
+        **Supervision**
+
+        11. L'équipe d'exploitation a besoin d'un graphique horaire du 95e centile de la durée des appels que claims-api effectue vers claimsdb.

@@ -100,7 +100,8 @@ GFM Markdown...
   objectives.
 - ✔ Code blocks are identical in both languages, comments included.
 - ✔ Same tables (rows × columns) and same callouts, section by section.
-- French: terminology of `content/<certification>/glossary.yaml`; service,
+- French: terminology of the shared glossary `content/glossary.yaml` and of
+  `content/<certification>/glossary.yaml`; service,
   role and SKU names, commands and technical values stay in English; storage
   tiers are written « niveau froid (Cool) », « niveau froid (Cold) » as in the
   question bank.
@@ -118,8 +119,8 @@ Chapters follow the same cycle as the questions (`draft` → `reviewed` →
 `published`), and stay in `draft` until a human review:
 
 ```bash
-npm run content:status -- reviewed 12-rbac --course     # one chapter (id prefix)
-npm run content:status -- published all --from reviewed --course
+npm run content:status -- --cert az-104 reviewed 12-rbac --course     # one chapter (id prefix)
+npm run content:status -- --cert az-104 published all --from reviewed --course
 npm run seed                                            # loads the course
 ```
 

@@ -1,0 +1,54 @@
+id: ai200-2a-sdk-optimistic-concurrency
+objective: "2.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank stores the state of long-running AI review jobs in Azure Cosmos DB for NoSQL. Several Python workers can process the same job. Each worker runs:
+
+    ```python
+    job = container.read_item(item=job_id, partition_key=team_id)
+    job["steps"].append(result)
+    container.replace_item(item=job_id, body=job)
+    ```
+
+    Sometimes a worker overwrites a step added by another worker a moment earlier. You need to make sure that a worker never overwrites a newer version of the item. The solution must not increase the RU cost of the reads.
+
+    What should you do?
+  fr: |
+    Woodgrove Bank stocke l'état de travaux de revue IA de longue durée dans Azure Cosmos DB for NoSQL. Plusieurs workers Python peuvent traiter le même travail. Chaque worker exécute :
+
+    ```python
+    job = container.read_item(item=job_id, partition_key=team_id)
+    job["steps"].append(result)
+    container.replace_item(item=job_id, body=job)
+    ```
+
+    Parfois, un worker écrase une étape ajoutée un instant plus tôt par un autre worker. Vous devez garantir qu'un worker n'écrase jamais une version plus récente de l'élément. La solution ne doit pas augmenter le coût en RU des lectures.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Pass etag=job[\"_etag\"] and match_condition=MatchConditions.IfNotModified to replace_item(), and reread and retry when the write is rejected.", fr: "Passer etag=job[\"_etag\"] et match_condition=MatchConditions.IfNotModified à replace_item(), puis relire et réessayer quand l'écriture est refusée." } }
+    - { id: b, text: { en: "Change the default consistency level of the account to Strong so that every worker reads the latest version.", fr: "Changer le niveau de cohérence par défaut du compte en Strong pour que chaque worker lise la dernière version." } }
+    - { id: c, text: { en: "Replace replace_item() with upsert_item() so that the write never fails when another worker changed the item.", fr: "Remplacer replace_item() par upsert_item() pour que l'écriture n'échoue jamais quand un autre worker a modifié l'élément." } }
+    - { id: d, text: { en: "Pass the session token returned by read_item() as session_token to replace_item() so that the write uses the same version.", fr: "Passer le jeton de session renvoyé par read_item() comme session_token à replace_item() pour que l'écriture utilise la même version." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "Optimistic concurrency uses the item's `_etag`: with `match_condition=MatchConditions.IfNotModified`, the service applies the write only if the stored item still has that ETag. If another worker wrote in between, the write is rejected and the worker rereads the item and applies its change again."
+    fr: "La concurrence optimiste utilise le `_etag` de l'élément : avec `match_condition=MatchConditions.IfNotModified`, le service n'applique l'écriture que si l'élément stocké a toujours cet ETag. Si un autre worker a écrit entre-temps, l'écriture est refusée, et le worker relit l'élément et réapplique sa modification."
+  options:
+    b:
+      en: "Strong consistency doubles the RU of reads, and two workers can still read the same version and overwrite each other."
+      fr: "La cohérence forte double les RU des lectures, et deux workers peuvent toujours lire la même version et s'écraser mutuellement."
+    c:
+      en: "An upsert also overwrites the item unconditionally, so the lost update remains."
+      fr: "Un upsert écrase lui aussi l'élément sans condition : la mise à jour perdue demeure."
+    d:
+      en: "A session token only guarantees read-your-writes for reads; it isn't a write precondition."
+      fr: "Un jeton de session garantit seulement la lecture de ses propres écritures pour les lectures ; ce n'est pas une condition préalable d'écriture."
+references:
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy?view=azure-python

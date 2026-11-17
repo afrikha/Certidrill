@@ -1,0 +1,82 @@
+id: dp800-2b-deadlock-index
+objective: "2.2.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin has a database in Azure SQL Database. A vendor application frequently receives error 1205. The deadlock graphs show two sessions that run the following statement with different `@Ref` values.
+
+    ```sql
+    UPDATE dbo.Shipment SET Status = @Status WHERE CarrierRef = @Ref;
+    ```
+
+    Both processes own and request KEY locks on `PK_Shipment`, the clustered index. The execution plan of the statement shows a clustered index scan, and no index exists on `CarrierRef`.
+
+    You need to reduce the likelihood of the deadlock. You can't modify the application code.
+
+    What should you do?
+  fr: |
+    Tailspin dispose d'une base de données dans Azure SQL Database. Une application d'éditeur reçoit fréquemment l'erreur 1205. Les graphes d'interblocage montrent deux sessions qui exécutent l'instruction suivante avec des valeurs `@Ref` différentes.
+
+    ```sql
+    UPDATE dbo.Shipment SET Status = @Status WHERE CarrierRef = @Ref;
+    ```
+
+    Les deux processus détiennent et demandent des verrous KEY sur `PK_Shipment`, l'index cluster. Le plan d'exécution de l'instruction montre une analyse de l'index cluster, et aucun index n'existe sur `CarrierRef`.
+
+    Vous devez réduire la probabilité de l'interblocage. Vous ne pouvez pas modifier le code de l'application.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: |
+          Create a nonclustered index on dbo.Shipment (CarrierRef).
+        fr: |
+          Créer un index non cluster sur dbo.Shipment (CarrierRef).
+    - id: b
+      text:
+        en: |
+          Set DEADLOCK_PRIORITY LOW in the sessions of the application.
+        fr: |
+          Définir DEADLOCK_PRIORITY LOW dans les sessions de l'application.
+    - id: c
+      text:
+        en: |
+          Disable optimized locking on the database.
+        fr: |
+          Désactiver le verrouillage optimisé sur la base de données.
+    - id: d
+      text:
+        en: |
+          Add a TRY...CATCH block that retries the statement on error 1205.
+        fr: |
+          Ajouter un bloc TRY...CATCH qui relance l'instruction en cas d'erreur 1205.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A scan during a modification takes update locks on many rows while it searches for matches, so two sessions updating different rows still collide. An index on CarrierRef lets each UPDATE seek directly to its own rows, which reduces the rows read and locked. Index tuning is the lowest-risk prevention strategy because it doesn't change the query text.
+    fr: |
+      Une analyse pendant une modification prend des verrous de mise à jour sur de nombreuses lignes pendant la recherche des correspondances : deux sessions qui mettent à jour des lignes différentes entrent donc quand même en conflit. Un index sur CarrierRef permet à chaque UPDATE d'accéder directement à ses propres lignes, ce qui réduit les lignes lues et verrouillées. L'optimisation des index est la stratégie de prévention la moins risquée, car elle ne modifie pas le texte de la requête.
+  options:
+    b:
+      en: |
+        DEADLOCK_PRIORITY only chooses which session becomes the victim, and it would need a change in the application's sessions.
+      fr: |
+        DEADLOCK_PRIORITY ne fait que choisir la session victime, et il faudrait modifier les sessions de l'application.
+    c:
+      en: |
+        Optimized locking is always on in Azure SQL Database and reduces locking; it isn't the cause of the scan.
+      fr: |
+        Le verrouillage optimisé est toujours activé dans Azure SQL Database et réduit le verrouillage ; il n'est pas la cause de l'analyse.
+    d:
+      en: |
+        Retry logic handles the error after the fact and requires a code change.
+      fr: |
+        Une logique de nouvelle tentative traite l'erreur après coup et exige une modification du code.
+references:
+  - title: Analyze and prevent deadlocks in Azure SQL Database and SQL database in Fabric
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/analyze-prevent-deadlocks

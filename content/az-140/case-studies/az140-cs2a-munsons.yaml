@@ -1,0 +1,97 @@
+id: az140-cs2a-munsons
+status: draft
+title:
+  en: Munson's Pickles and Preserves
+  fr: Munson's Pickles and Preserves
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Munson's Pickles and Preserves is a food manufacturer with a head office and three production plants in the United States. The company has 420 employees and an IT team of five administrators.
+
+        Munson's is replacing its on-premises Remote Desktop Services farm with Azure Virtual Desktop. Office staff work in shifts at the plants, and a team of packaging engineers designs jars and labels with a 3D CAD application.
+      fr: |
+        Munson's Pickles and Preserves est un fabricant agroalimentaire qui possède un siège et trois usines de production aux États-Unis. L'entreprise compte 420 employés et une équipe informatique de cinq administrateurs.
+
+        Munson's remplace sa batterie de serveurs Services Bureau à distance locale par Azure Virtual Desktop. Le personnel administratif travaille en équipes dans les usines, et une équipe d'ingénieurs packaging conçoit les bocaux et les étiquettes avec une application de CAO 3D.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity.** Munson's has an Active Directory Domain Services (AD DS) domain named munsons.com. Microsoft Entra Connect Sync synchronizes users and groups to a Microsoft Entra tenant. Two domain controllers run in Azure.
+
+        **Network.** The Azure resources are in a subscription named **Sub-AVD** in the East US 2 region.
+
+        | Resource | Configuration |
+        | --- | --- |
+        | VNet-Hub | 10.20.0.0/16, Azure Firewall **FW1** (private IP address 10.20.1.4), ExpressRoute gateway |
+        | VNet-AVD | 10.21.0.0/16, subnet **snet-hosts**, peered with VNet-Hub |
+        | RT-Hosts | Route table associated with snet-hosts, route 0.0.0.0/0 with the next hop type Virtual appliance and the address 10.20.1.4 |
+        | NSG-Hosts | Network security group associated with snet-hosts, default rules only |
+
+        All the plants and the head office connect to VNet-Hub through ExpressRoute private peering.
+
+        **Planned host pools.**
+
+        | Host pool | Type | Users | Session hosts |
+        | --- | --- | --- | --- |
+        | HP-Office | Pooled | 380 office and shift staff, group **GRP-Office** | 12 VMs, Windows 11 Enterprise multi-session, AD DS joined |
+        | HP-Eng | Personal | 25 packaging engineers, group **GRP-Eng** | 25 VMs, Windows 11 Enterprise, AD DS joined, VM size not chosen yet |
+
+        An existing auto-shutdown schedule deallocates the HP-Eng VMs every evening.
+
+        **Storage.** A storage account named **stmunprofiles** contains a premium file share named **profiles**. The storage account is not configured for identity-based authentication.
+
+        **Licensing.** All users have Microsoft 365 E3 licenses.
+      fr: |
+        **Identité.** Munson's dispose d'un domaine Active Directory Domain Services (AD DS) nommé munsons.com. Microsoft Entra Connect Sync synchronise les utilisateurs et les groupes vers un locataire Microsoft Entra. Deux contrôleurs de domaine s'exécutent dans Azure.
+
+        **Réseau.** Les ressources Azure se trouvent dans un abonnement nommé **Sub-AVD** dans la région East US 2.
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | VNet-Hub | 10.20.0.0/16, Pare-feu Azure **FW1** (adresse IP privée 10.20.1.4), passerelle ExpressRoute |
+        | VNet-AVD | 10.21.0.0/16, sous-réseau **snet-hosts**, peering avec VNet-Hub |
+        | RT-Hosts | Table de routage associée à snet-hosts, itinéraire 0.0.0.0/0 avec le type de tronçon suivant Appliance virtuelle et l'adresse 10.20.1.4 |
+        | NSG-Hosts | Groupe de sécurité réseau associé à snet-hosts, règles par défaut uniquement |
+
+        Toutes les usines et le siège se connectent à VNet-Hub par le peering privé ExpressRoute.
+
+        **Pools d'hôtes prévus.**
+
+        | Pool d'hôtes | Type | Utilisateurs | Hôtes de session |
+        | --- | --- | --- | --- |
+        | HP-Office | Pooled | 380 employés administratifs et postés, groupe **GRP-Office** | 12 machines virtuelles, Windows 11 Enterprise multi-session, jointes à AD DS |
+        | HP-Eng | Personal | 25 ingénieurs packaging, groupe **GRP-Eng** | 25 machines virtuelles, Windows 11 Enterprise, jointes à AD DS, taille non encore choisie |
+
+        Une planification d'arrêt automatique existante libère les machines virtuelles de HP-Eng chaque soir.
+
+        **Stockage.** Un compte de stockage nommé **stmunprofiles** contient un partage de fichiers Premium nommé **profiles**. Le compte de stockage n'est pas configuré pour l'authentification basée sur l'identité.
+
+        **Licences.** Tous les utilisateurs disposent de licences Microsoft 365 E3.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Munson's identifies the following requirements:
+
+        1. **Plant connectivity.** Connections from the plants must use a direct UDP transport over ExpressRoute, without a TURN relay. This must not depend on outbound UDP traffic from the session hosts to the internet.
+        2. **Profiles.** HP-Office users must store FSLogix profile containers on the profiles share, with AD DS identity-based access. Each user must be able to access only their own profile folder.
+        3. **Engineering desktops.** When an engineer connects to a deallocated HP-Eng VM, the VM must start automatically.
+        4. **Shift scaling.** The number of running HP-Office session hosts must follow the shift schedule to minimize compute costs. Users must be warned before they are signed out.
+        5. **Maintenance.** The members of a group named **GRP-Supervisors** must be able to put HP-Office session hosts in drain mode.
+        6. **CAD performance.** The CAD application requires GPU-accelerated rendering and hardware-accelerated video encoding.
+        7. **Inspection.** All internet-bound traffic from the session hosts must be inspected by FW1, except the traffic that must bypass FW1 to keep Azure Virtual Desktop sessions stable.
+        8. **Security.** Every permission must follow the principle of least privilege.
+      fr: |
+        Munson's a défini les exigences suivantes :
+
+        1. **Connectivité des usines.** Les connexions depuis les usines doivent utiliser un transport UDP direct sur ExpressRoute, sans relais TURN. Cela ne doit pas dépendre d'un trafic UDP sortant des hôtes de session vers Internet.
+        2. **Profils.** Les utilisateurs de HP-Office doivent stocker leurs conteneurs de profils FSLogix sur le partage profiles, avec un accès basé sur l'identité AD DS. Chaque utilisateur ne doit pouvoir accéder qu'à son propre dossier de profil.
+        3. **Postes d'ingénierie.** Quand un ingénieur se connecte à une machine virtuelle de HP-Eng libérée, celle-ci doit démarrer automatiquement.
+        4. **Mise à l'échelle par équipe.** Le nombre d'hôtes de session HP-Office en cours d'exécution doit suivre le planning des équipes pour réduire les coûts de calcul. Les utilisateurs doivent être prévenus avant d'être déconnectés de force.
+        5. **Maintenance.** Les membres d'un groupe nommé **GRP-Supervisors** doivent pouvoir placer les hôtes de session HP-Office en mode drainage.
+        6. **Performances de la CAO.** L'application de CAO nécessite un rendu accéléré par GPU et un encodage vidéo accéléré par le matériel.
+        7. **Inspection.** Tout le trafic à destination d'Internet issu des hôtes de session doit être inspecté par FW1, sauf le trafic qui doit contourner FW1 pour que les sessions Azure Virtual Desktop restent stables.
+        8. **Sécurité.** Chaque autorisation doit respecter le principe du moindre privilège.

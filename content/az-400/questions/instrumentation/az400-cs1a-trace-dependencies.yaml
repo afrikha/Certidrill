@@ -1,0 +1,74 @@
+id: az400-cs1a-trace-dependencies
+objective: "5.2.3"
+type: dropdown
+caseStudy: az400-cs1a-consolidated-messenger
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a query in the Log Analytics workspace of appi-cm-prod for the support engineers.
+
+    You need to meet the monitoring requirement for the failed requests of tracking-api over the last 24 hours.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez une requête dans l'espace de travail Log Analytics d'appi-cm-prod pour les ingénieurs du support.
+
+    Vous devez satisfaire l'exigence de supervision pour les requêtes de tracking-api en échec au cours des dernières 24 heures.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    AppRequests
+    | where TimeGenerated > ago(24h)
+    | where AppRoleName == "tracking-api" and [[filter]]
+    | project OperationId, RequestName = Name, RequestResult = ResultCode
+    | join kind=inner (
+        [[table]]
+        | where TimeGenerated > ago(24h)
+      ) on [[key]]
+    | project RequestName, RequestResult, AppRoleName, Target, DependencyType, DurationMs
+  slots:
+    - id: filter
+      options:
+        - { id: success, text: "Success == false" }
+        - { id: code, text: "ResultCode == \"200\"" }
+        - { id: duration, text: "DurationMs > 0" }
+    - id: table
+      options:
+        - { id: traces, text: AppTraces }
+        - { id: deps, text: AppDependencies }
+        - { id: exceptions, text: AppExceptions }
+        - { id: pages, text: AppPageViews }
+    - id: key
+      options:
+        - { id: opid, text: OperationId }
+        - { id: session, text: SessionId }
+        - { id: parent, text: ParentId }
+        - { id: role, text: AppRoleName }
+answer:
+  values: { filter: success, table: deps, key: opid }
+explanation:
+  correct:
+    en: "`Success == false` keeps the failed requests of tracking-api. The AppDependencies table stores the outgoing calls (HTTP, SQL, queues) with their Target, DependencyType and DurationMs. All the telemetry of one end-to-end operation, in every service that propagates the trace context, shares the same OperationId, so joining on OperationId returns the calls made by tracking-api and by routing-api."
+    fr: "`Success == false` conserve les requêtes de tracking-api en échec. La table AppDependencies stocke les appels sortants (HTTP, SQL, files d'attente) avec leurs colonnes Target, DependencyType et DurationMs. Toute la télémétrie d'une même opération de bout en bout, dans chaque service qui propage le contexte de trace, partage le même OperationId : la jointure sur OperationId renvoie les appels effectués par tracking-api et par routing-api."
+  options:
+    code: { en: "ResultCode == \"200\" selects successful HTTP responses, not failures.", fr: "ResultCode == \"200\" sélectionne les réponses HTTP réussies, pas les échecs." }
+    duration: { en: "DurationMs > 0 keeps almost every request, failed or not.", fr: "DurationMs > 0 conserve presque toutes les requêtes, en échec ou non." }
+    traces: { en: "AppTraces holds log messages, not dependency calls with a target and a type.", fr: "AppTraces contient des messages de journal, pas des appels de dépendance avec une cible et un type." }
+    exceptions: { en: "AppExceptions holds exceptions, not the outgoing calls of the operation.", fr: "AppExceptions contient des exceptions, pas les appels sortants de l'opération." }
+    pages: { en: "AppPageViews holds browser page views.", fr: "AppPageViews contient les affichages de pages dans le navigateur." }
+    session: { en: "SessionId groups the requests of a user session, not the telemetry of one operation.", fr: "SessionId regroupe les requêtes d'une session utilisateur, pas la télémétrie d'une opération." }
+    parent: { en: "Joining ParentId to ParentId compares the parents of two items instead of linking every call of the operation.", fr: "Joindre ParentId à ParentId compare les parents de deux éléments au lieu de relier tous les appels de l'opération." }
+    role: { en: "AppRoleName would join each failed request with every dependency call of tracking-api, whatever the operation.", fr: "AppRoleName joindrait chaque requête en échec à tous les appels de dépendance de tracking-api, quelle que soit l'opération." }
+references:
+  - title: Azure Monitor Logs reference - AppRequests
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/apprequests
+  - title: Azure Monitor Logs reference - AppDependencies
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/appdependencies

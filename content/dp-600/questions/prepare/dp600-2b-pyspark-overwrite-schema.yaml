@@ -1,0 +1,70 @@
+id: dp600-2b-pyspark-overwrite-schema
+objective: "2.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a lakehouse that contains Delta tables named silver_orders and gold_orders. gold_orders currently contains the same columns as silver_orders, including a Discount column.
+
+    You need to rebuild gold_orders from silver_orders so that it contains two new columns, OrderYear and SizeBand, and no longer contains the Discount column. SizeBand must be Bulk when Quantity is 100 or more, and Standard otherwise.
+
+    How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse qui contient des tables Delta nommées silver_orders et gold_orders. gold_orders contient actuellement les mêmes colonnes que silver_orders, dont une colonne Discount.
+
+    Vous devez reconstruire gold_orders à partir de silver_orders pour qu'elle contienne deux nouvelles colonnes, OrderYear et SizeBand, et qu'elle ne contienne plus la colonne Discount. SizeBand doit valoir Bulk quand Quantity est supérieure ou égale à 100, et Standard sinon.
+
+    Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    orders = spark.read.table("silver_orders")
+    gold = (orders
+        .[[add]]("OrderYear", F.year("OrderDate"))
+        .withColumn("SizeBand", F.[[cond]](F.col("Quantity") >= 100, "Bulk").otherwise("Standard"))
+        .drop("Discount"))
+    gold.write.mode("overwrite").option("[[opt]]", "true").saveAsTable("gold_orders")
+  slots:
+    - id: add
+      options:
+        - { id: withcolumn, text: withColumn }
+        - { id: renamed, text: withColumnRenamed }
+        - { id: select, text: select }
+    - id: cond
+      options:
+        - { id: when, text: when }
+        - { id: filter, text: filter }
+        - { id: coalesce, text: coalesce }
+    - id: opt
+      options:
+        - { id: overwriteschema, text: overwriteSchema }
+        - { id: mergeschema, text: mergeSchema }
+        - { id: inferschema, text: inferSchema }
+answer:
+  values: { add: withcolumn, cond: when, opt: overwriteschema }
+explanation:
+  correct:
+    en: |
+      withColumn adds OrderYear from a column expression, and F.when(...).otherwise(...) builds the conditional SizeBand value. By default, overwriting a Delta table doesn't replace its schema; overwriteSchema set to true replaces the schema with the DataFrame's, which adds the new columns and removes Discount.
+    fr: |
+      withColumn ajoute OrderYear à partir d'une expression de colonne, et F.when(...).otherwise(...) construit la valeur conditionnelle de SizeBand. Par défaut, écraser une table Delta ne remplace pas son schéma ; overwriteSchema défini sur true remplace le schéma par celui du DataFrame, ce qui ajoute les nouvelles colonnes et supprime Discount.
+  options:
+    renamed: { en: "withColumnRenamed renames an existing column; it doesn't take an expression.", fr: "withColumnRenamed renomme une colonne existante ; elle ne prend pas d'expression." }
+    select: { en: "select(\"OrderYear\", expr) would return only the listed columns, and a name string is not an alias.", fr: "select(\"OrderYear\", expr) ne renverrait que les colonnes listées, et une chaîne de nom n'est pas un alias." }
+    filter: { en: "F.filter filters the elements of an array column; it has no otherwise() branch.", fr: "F.filter filtre les éléments d'une colonne de tableau ; elle n'a pas de branche otherwise()." }
+    coalesce: { en: "coalesce returns the first non-null value; it doesn't evaluate a condition.", fr: "coalesce renvoie la première valeur non nulle ; elle n'évalue pas de condition." }
+    mergeschema: { en: "mergeSchema adds new columns to the table schema but keeps the existing ones, so Discount would remain.", fr: "mergeSchema ajoute les nouvelles colonnes au schéma de la table mais conserve les existantes : Discount resterait." }
+    inferschema: { en: "inferSchema is a read option for files such as CSV; it doesn't change a Delta table schema.", fr: "inferSchema est une option de lecture de fichiers comme CSV ; elle ne change pas le schéma d'une table Delta." }
+references:
+  - title: Update table schemas with schema evolution
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/update-schema
+  - title: Lakehouse tutorial - Prepare and transform lakehouse data
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/tutorial-lakehouse-data-preparation

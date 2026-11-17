@@ -1,0 +1,104 @@
+id: ai200-3a-deferred-lines
+objective: "3.1.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Wingtip sends order events to a Service Bus queue named **order-events**. Each event has its `subject` set to `header` or `line` and its correlation ID set to the order ID. An AI pricing worker must process the header of an order before its lines, but lines sometimes arrive first.
+
+    The worker must set aside each early line, keep it in the queue, and process it right after the header of its order. The worker runs as a single process.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip envoie des événements de commande à une file d'attente Service Bus nommée **order-events**. Le `subject` de chaque événement vaut `header` ou `line` et son ID de corrélation est l'ID de la commande. Un worker de tarification par IA doit traiter l'en-tête d'une commande avant ses lignes, mais les lignes arrivent parfois en premier.
+
+    Le worker doit mettre de côté chaque ligne arrivée trop tôt, la conserver dans la file d'attente, et la traiter juste après l'en-tête de sa commande. Le worker s'exécute dans un seul processus.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    pending = {}            # order ID -> values saved for the early lines
+    headers_done = set()
+
+    with client.get_queue_receiver(queue_name="order-events", max_wait_time=30) as receiver:
+        for msg in receiver:
+            order_id = msg.correlation_id
+            if msg.subject == "line" and order_id not in headers_done:
+                pending.setdefault(order_id, []).append(msg.[[key]])
+                receiver.[[aside]](msg)
+                continue
+            price(msg)
+            receiver.complete_message(msg)
+            if msg.subject == "header":
+                headers_done.add(order_id)
+                if order_id in pending:
+                    for line in receiver.[[back]](pending.pop(order_id)):
+                        price(line)
+                        receiver.complete_message(line)
+  slots:
+    - id: key
+      options:
+        - { id: seq, text: sequence_number }
+        - { id: msgid, text: message_id }
+        - { id: lock, text: lock_token }
+    - id: aside
+      options:
+        - { id: defer, text: defer_message }
+        - { id: abandon, text: abandon_message }
+        - { id: deadletter, text: dead_letter_message }
+    - id: back
+      options:
+        - { id: deferred, text: receive_deferred_messages }
+        - { id: peek, text: peek_messages }
+        - { id: receive, text: receive_messages }
+answer:
+  values: { key: seq, aside: defer, back: deferred }
+explanation:
+  correct:
+    en: |
+      defer_message keeps the message in the queue but hides it from normal receives. The only way to get it back is receive_deferred_messages with its sequence number, so the worker must save sequence_number before deferring. The returned messages are locked and can be completed like any received message.
+    fr: |
+      defer_message conserve le message dans la file d'attente mais le cache aux réceptions normales. La seule façon de le récupérer est receive_deferred_messages avec son numéro de séquence : le worker doit donc enregistrer sequence_number avant le report. Les messages renvoyés sont verrouillés et peuvent être terminés comme tout message reçu.
+  options:
+    msgid:
+      en: |
+        receive_deferred_messages takes sequence numbers, not message IDs.
+      fr: |
+        receive_deferred_messages prend des numéros de séquence, pas des ID de message.
+    lock:
+      en: |
+        The lock token identifies one delivery and is lost when the lock is released; it can't retrieve a deferred message.
+      fr: |
+        Le jeton de verrou identifie une remise et disparaît à la libération du verrou ; il ne permet pas de récupérer un message reporté.
+    abandon:
+      en: |
+        An abandoned line is redelivered at once by the normal receive loop, again and again, until it is dead-lettered after the maximum delivery count.
+      fr: |
+        Une ligne abandonnée est remise aussitôt par la boucle de réception normale, encore et encore, jusqu'à son placement en lettres mortes après le nombre maximal de remises.
+    deadletter:
+      en: |
+        A dead-lettered line leaves the main queue, and a dead-letter receiver would be needed to read it.
+      fr: |
+        Une ligne placée en lettres mortes quitte la file principale, et il faudrait un récepteur de lettres mortes pour la lire.
+    peek:
+      en: |
+        Peeked messages are not locked and can't be completed, so the lines would never leave the queue.
+      fr: |
+        Les messages lus par peek ne sont pas verrouillés et ne peuvent pas être terminés : les lignes ne quitteraient jamais la file d'attente.
+    receive:
+      en: |
+        receive_messages takes a message count and a wait time, and normal receives never return deferred messages.
+      fr: |
+        receive_messages prend un nombre de messages et un temps d'attente, et les réceptions normales ne renvoient jamais les messages reportés.
+references:
+  - title: Message Deferral Overview
+    url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-deferral
+  - title: azure.servicebus.ServiceBusReceiver class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.servicebusreceiver

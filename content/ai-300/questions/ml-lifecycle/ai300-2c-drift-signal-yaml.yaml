@@ -1,0 +1,86 @@
+id: ai300-2c-drift-signal-yaml
+objective: "2.4.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has a loan model deployed as **blue** on the managed online endpoint **ep-loans**, with production inputs and outputs collected. The training data is registered as the data asset **loans-train**.
+
+    You are writing a monitoring schedule. The signal must compare the distribution of the model inputs in production with the training data, for the 10 most important features, and alert when a distance metric between the distributions of a numerical feature exceeds 0.01.
+
+    How should you complete the YAML file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank dispose d'un modèle de prêts déployé en tant que **blue** sur le point de terminaison en ligne managé **ep-loans**, avec collecte des entrées et des sorties de production. Les données d'entraînement sont inscrites en tant que ressource de données **loans-train**.
+
+    Vous rédigez une planification de surveillance. Le signal doit comparer la distribution des entrées du modèle en production avec les données d'entraînement, pour les 10 caractéristiques les plus importantes, et générer une alerte quand une métrique de distance entre les distributions d'une caractéristique numérique dépasse 0,01.
+
+    Comment devez-vous compléter le fichier YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    create_monitor:
+      compute:
+        instance_type: standard_e4s_v3
+        runtime_version: "3.4"
+      monitoring_target:
+        ml_task: classification
+        endpoint_deployment_id: azureml:ep-loans:blue
+      monitoring_signals:
+        loans_drift:
+          type: [[sig]]
+          reference_data:
+            input_data:
+              path: azureml:loans-train:2
+              type: mltable
+            data_context: [[ctx]]
+            data_column_names:
+              target_column: approved
+          features:
+            top_n_feature_importance: 10
+          alert_enabled: true
+          metric_thresholds:
+            numerical:
+              [[num]]: 0.01
+  slots:
+    - id: sig
+      options:
+        - { id: dd, text: data_drift }
+        - { id: pd, text: prediction_drift }
+        - { id: dq, text: data_quality }
+        - { id: mp, text: model_performance }
+    - id: ctx
+      options:
+        - { id: training, text: training }
+        - { id: validation, text: validation }
+        - { id: gt, text: ground_truth }
+    - id: num
+      options:
+        - { id: jsd, text: jensen_shannon_distance }
+        - { id: nvr, text: null_value_rate }
+        - { id: acc, text: accuracy }
+        - { id: ndcg, text: normalized_discounted_cumulative_gain }
+answer:
+  values: { sig: dd, ctx: training, num: jsd }
+explanation:
+  correct:
+    en: |
+      A `data_drift` signal compares production inputs with reference data; the training data is declared with `data_context: training`, and `top_n_feature_importance` limits the computation to the most important features. Jensen-Shannon distance is one of the data drift metrics for comparing distributions.
+    fr: |
+      Un signal `data_drift` compare les entrées de production avec des données de référence ; les données d'entraînement sont déclarées avec `data_context: training`, et `top_n_feature_importance` limite le calcul aux caractéristiques les plus importantes. La distance de Jensen-Shannon est l'une des métriques de dérive des données qui comparent des distributions.
+  options:
+    pd: { en: "prediction_drift compares model outputs, not inputs.", fr: "prediction_drift compare les sorties du modèle, pas les entrées." }
+    dq: { en: "data_quality measures nulls, type errors and out-of-bounds values, not distribution distances.", fr: "data_quality mesure les valeurs nulles, les erreurs de type et les valeurs hors limites, pas des distances entre distributions." }
+    gt: { en: "ground_truth describes actual outcomes used by the model performance signal.", fr: "ground_truth désigne les résultats réels utilisés par le signal de performances du modèle." }
+    nvr: { en: "null_value_rate is a data quality metric.", fr: "null_value_rate est une métrique de qualité des données." }
+    ndcg: { en: "Normalized discounted cumulative gain is the feature attribution drift metric.", fr: "Le gain cumulé actualisé normalisé est la métrique de dérive de l'attribution des caractéristiques." }
+references:
+  - title: Monitor model performance in production
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-monitor-model-performance
+  - title: Model monitoring in production
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/concept-model-monitoring

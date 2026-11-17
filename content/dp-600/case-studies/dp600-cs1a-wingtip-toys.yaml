@@ -1,0 +1,105 @@
+id: dp600-cs1a-wingtip-toys
+status: draft
+title:
+  en: Wingtip Toys
+  fr: Wingtip Toys
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wingtip Toys is a toy retailer with 180 stores in Europe and an online store. The head office is in Lille. A team of five analytics engineers builds the reporting platform in Microsoft Fabric. Store managers and the marketing department consume the reports.
+
+        Wingtip is rebuilding its sales analytics on a lakehouse that uses a medallion architecture (bronze, silver and gold layers).
+      fr: |
+        Wingtip Toys est un distributeur de jouets qui exploite 180 magasins en Europe et une boutique en ligne. Le siège est à Lille. Une équipe de cinq ingénieurs analytiques construit la plateforme de reporting dans Microsoft Fabric. Les directeurs de magasin et le service marketing consultent les rapports.
+
+        Wingtip reconstruit son analytique des ventes sur un lakehouse qui utilise une architecture en médaillon (couches bronze, argent et or).
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Wingtip has a Fabric capacity (F64) and the following workspaces.
+
+        | Workspace | Content |
+        | --- | --- |
+        | WT-Dev | Lakehouse **LH_Retail**, notebook **NB_Gold**, semantic model **SalesModel**, report **Store Sales** |
+        | WT-Test | Empty |
+        | WT-Prod | Empty |
+        | MKT-Data | Lakehouse **LH_Marketing**, owned by the marketing department |
+
+        LH_Retail stores the daily point-of-sale extracts as CSV files in the `Files/bronze` folder. NB_Gold, a PySpark notebook, reads the silver Delta tables and writes the gold tables **gold_fact_sales**, **gold_dim_store**, **gold_dim_customer** and **gold_dim_date**.
+
+        The **silver_customers** table contains several rows for some customers, because the CRM extract is loaded more than once. Some rows have a null **Country** value.
+
+        SalesModel was created in Power BI Desktop as a **Direct Lake on OneLake** semantic model. It uses the gold tables of LH_Retail and the **campaign_results** table of LH_Marketing, through a cloud connection that uses a fixed identity. The gold_dim_store table contains one row per store with a **ManagerEmail** column that stores the user principal name of the store manager.
+
+        The following Microsoft Entra security groups exist: **SG-StoreManagers**, **SG-AnalyticsEng** and **SG-DataScience**.
+      fr: |
+        Wingtip dispose d'une capacité Fabric (F64) et des espaces de travail suivants.
+
+        | Espace de travail | Contenu |
+        | --- | --- |
+        | WT-Dev | Lakehouse **LH_Retail**, notebook **NB_Gold**, modèle sémantique **SalesModel**, rapport **Store Sales** |
+        | WT-Test | Vide |
+        | WT-Prod | Vide |
+        | MKT-Data | Lakehouse **LH_Marketing**, dont le service marketing est propriétaire |
+
+        LH_Retail stocke les extractions quotidiennes des caisses sous forme de fichiers CSV dans le dossier `Files/bronze`. NB_Gold, un notebook PySpark, lit les tables Delta de la couche argent et écrit les tables de la couche or **gold_fact_sales**, **gold_dim_store**, **gold_dim_customer** et **gold_dim_date**.
+
+        La table **silver_customers** contient plusieurs lignes pour certains clients, car l'extraction du CRM est chargée plusieurs fois. Certaines lignes ont une valeur **Country** null.
+
+        SalesModel a été créé dans Power BI Desktop en tant que modèle sémantique **Direct Lake sur OneLake**. Il utilise les tables de la couche or de LH_Retail et la table **campaign_results** de LH_Marketing, via une connexion cloud qui utilise une identité fixe. La table gold_dim_store contient une ligne par magasin avec une colonne **ManagerEmail** qui stocke le nom d'utilisateur principal du directeur du magasin.
+
+        Les groupes de sécurité Microsoft Entra suivants existent : **SG-StoreManagers**, **SG-AnalyticsEng** et **SG-DataScience**.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Lifecycle**
+
+        1. Every change made in WT-Dev must be versioned in an Azure DevOps Git repository.
+        2. Content must move from WT-Dev to WT-Test and then to WT-Prod by using a deployment pipeline named **WT-Pipeline**.
+        3. In each stage, SalesModel must read the LH_Retail lakehouse of the same stage.
+
+        **Data preparation**
+
+        4. gold_dim_customer must contain exactly one row per **CustomerID**. A null Country must be replaced by the value `Unknown`.
+        5. NB_Gold must rebuild gold_dim_customer completely at each run.
+
+        **Semantic model**
+
+        6. Sales must be calculated as **Quantity** multiplied by **UnitPrice** for each row of gold_fact_sales. No sales amount column must be stored in the tables.
+        7. Reports must show the sales of the same period in the previous year.
+        8. The sales targets that the finance department maintains in an Excel workbook must be added to SalesModel.
+        9. Reports must show new gold data without waiting for a scheduled refresh.
+
+        **Security**
+
+        10. Each store manager must see only the sales of their own store in the Store Sales report.
+        11. The members of SG-DataScience must be able to read the Delta tables and files of LH_Retail in WT-Prod from Spark notebooks in their own workspace. They must not get access to the other items of WT-Prod.
+        12. The principle of least privilege must be followed.
+      fr: |
+        **Cycle de vie**
+
+        1. Chaque modification effectuée dans WT-Dev doit être versionnée dans un référentiel Git Azure DevOps.
+        2. Le contenu doit passer de WT-Dev à WT-Test, puis à WT-Prod, à l'aide d'un pipeline de déploiement nommé **WT-Pipeline**.
+        3. Dans chaque phase, SalesModel doit lire le lakehouse LH_Retail de la même phase.
+
+        **Préparation des données**
+
+        4. gold_dim_customer doit contenir exactement une ligne par **CustomerID**. Une valeur Country null doit être remplacée par la valeur `Unknown`.
+        5. NB_Gold doit reconstruire entièrement gold_dim_customer à chaque exécution.
+
+        **Modèle sémantique**
+
+        6. Les ventes doivent être calculées comme **Quantity** multiplié par **UnitPrice** pour chaque ligne de gold_fact_sales. Aucune colonne de montant des ventes ne doit être stockée dans les tables.
+        7. Les rapports doivent afficher les ventes de la même période de l'année précédente.
+        8. Les objectifs de ventes que le service financier gère dans un classeur Excel doivent être ajoutés à SalesModel.
+        9. Les rapports doivent afficher les nouvelles données de la couche or sans attendre une actualisation planifiée.
+
+        **Sécurité**
+
+        10. Chaque directeur de magasin ne doit voir que les ventes de son propre magasin dans le rapport Store Sales.
+        11. Les membres de SG-DataScience doivent pouvoir lire les tables Delta et les fichiers de LH_Retail dans WT-Prod à partir de notebooks Spark de leur propre espace de travail. Ils ne doivent pas obtenir d'accès aux autres éléments de WT-Prod.
+        12. Le principe des privilèges minimum doit être respecté.

@@ -1,0 +1,78 @@
+id: dp800-1c-graph-shortest-route
+objective: "1.3.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a node table named **Air.Airport** (Code) and an edge table named **Air.FlightTo** (FlightNo). Each edge goes from the departure airport to the arrival airport.
+
+    You need a query that returns the shortest route from SEA to LIS that uses at most three flights. The query must return the route as a string of airport codes and the destination code.
+
+    How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table de nœuds nommée **Air.Airport** (Code) et une table d'arêtes nommée **Air.FlightTo** (FlightNo). Chaque arête va de l'aéroport de départ vers l'aéroport d'arrivée.
+
+    Vous avez besoin d'une requête qui renvoie l'itinéraire le plus court de SEA à LIS qui utilise au plus trois vols. La requête doit renvoyer l'itinéraire sous forme de chaîne de codes d'aéroport, ainsi que le code de destination.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT Origin, Route, Destination
+    FROM (
+        SELECT a1.Code AS Origin,
+               STRING_AGG(a2.Code, '->') WITHIN GROUP (GRAPH PATH) AS Route,
+               [[last]] AS Destination
+        FROM Air.Airport AS a1,
+             [[edge]] AS f,
+             Air.Airport FOR PATH AS a2
+        WHERE MATCH(SHORTEST_PATH(a1(-(f)->a2)[[q]]))
+          AND a1.Code = 'SEA'
+    ) AS r
+    WHERE r.Destination = 'LIS';
+  slots:
+    - id: last
+      options:
+        - { id: lastnode, text: "LAST_VALUE(a2.Code) WITHIN GROUP (GRAPH PATH)" }
+        - { id: lastedge, text: "LAST_VALUE(f.FlightNo) WITHIN GROUP (GRAPH PATH)" }
+        - { id: direct, text: "a2.Code" }
+        - { id: lastfn, text: "LAST_NODE(a2)" }
+    - id: edge
+      options:
+        - { id: forpath, text: "Air.FlightTo FOR PATH" }
+        - { id: plain, text: "Air.FlightTo" }
+        - { id: temporal, text: "Air.FlightTo FOR SYSTEM_TIME ALL" }
+    - id: q
+      options:
+        - { id: upto3, text: "{1,3}" }
+        - { id: plus, text: "+" }
+        - { id: zero3, text: "{0,3}" }
+        - { id: exact3, text: "{3}" }
+answer:
+  values: { last: lastnode, edge: forpath, q: upto3 }
+explanation:
+  correct:
+    en: |
+      Every node or edge table that takes part in an arbitrary length pattern must be marked FOR PATH. LAST_VALUE with WITHIN GROUP (GRAPH PATH) returns the last node of the path, and only node tables are allowed as its input. The quantifier {1,3} repeats the pattern one to three times, so the route uses at most three flights; the outer query keeps the path that ends at LIS.
+    fr: |
+      Chaque table de nœuds ou d'arêtes qui participe à un modèle de longueur arbitraire doit être marquée FOR PATH. LAST_VALUE avec WITHIN GROUP (GRAPH PATH) renvoie le dernier nœud du chemin, et seules les tables de nœuds sont admises en entrée. Le quantificateur {1,3} répète le modèle de une à trois fois : l'itinéraire utilise au plus trois vols ; la requête externe conserve le chemin qui se termine à LIS.
+  options:
+    lastedge: { en: "LAST_VALUE accepts only node tables or aliases; an edge alias returns an error.", fr: "LAST_VALUE n'accepte que des tables ou alias de nœuds ; un alias d'arête renvoie une erreur." }
+    direct: { en: "Columns of a FOR PATH table can't be projected directly in the SELECT list.", fr: "Les colonnes d'une table FOR PATH ne peuvent pas être projetées directement dans la liste SELECT." }
+    lastfn: { en: "LAST_NODE is used inside MATCH to chain patterns; it isn't a function of the SELECT list.", fr: "LAST_NODE s'utilise dans MATCH pour chaîner des modèles ; ce n'est pas une fonction de la liste SELECT." }
+    plain: { en: "The edge table takes part in the arbitrary length pattern, so it must be marked FOR PATH.", fr: "La table d'arêtes participe au modèle de longueur arbitraire : elle doit être marquée FOR PATH." }
+    temporal: { en: "FOR SYSTEM_TIME queries the history of a temporal table; it doesn't mark a table for a graph path.", fr: "FOR SYSTEM_TIME interroge l'historique d'une table temporelle ; il ne marque pas une table pour un chemin de graphe." }
+    plus: { en: "+ repeats the pattern with no upper limit, so a route with more than three flights could be returned.", fr: "+ répète le modèle sans limite supérieure : un itinéraire de plus de trois vols pourrait être renvoyé." }
+    zero3: { en: "The supported quantifiers are + and {1,n}; a minimum of 0 isn't allowed.", fr: "Les quantificateurs pris en charge sont + et {1,n} ; un minimum de 0 n'est pas autorisé." }
+    exact3: { en: "The supported quantifiers are + and {1,n}; an exact count isn't a supported form.", fr: "Les quantificateurs pris en charge sont + et {1,n} ; un nombre exact n'est pas une forme prise en charge." }
+references:
+  - title: SHORTEST_PATH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/graphs/sql-graph-shortest-path
+  - title: MATCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/match-sql-graph

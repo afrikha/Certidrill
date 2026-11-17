@@ -1,0 +1,66 @@
+id: dp420-1d-hot-key-kql
+objective: "1.3.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An Azure Cosmos DB for NoSQL account sends its **PartitionKeyRUConsumption** diagnostic logs to a Log Analytics workspace by using resource-specific tables. A container named **orders** returns HTTP 429 responses, and you suspect a hot logical partition.
+
+    You need a query that lists, for the last 24 hours, the logical partition keys that consumed the most request units in any one second.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un compte Azure Cosmos DB for NoSQL envoie ses journaux de diagnostic **PartitionKeyRUConsumption** vers un espace de travail Log Analytics en utilisant des tables spécifiques aux ressources. Un conteneur nommé **orders** renvoie des réponses HTTP 429, et vous soupçonnez une partition logique chaude.
+
+    Vous avez besoin d'une requête qui liste, sur les dernières 24 heures, les clés de partition logique qui ont consommé le plus d'unités de requête au cours d'une même seconde.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated >= ago(24h)
+    | where CollectionName == "orders"
+    | where isnotempty(PartitionKey)
+    | summarize TotalRU = [[agg]] by PartitionKey, OperationName, bin(TimeGenerated, [[bin]])
+    | order by TotalRU desc
+  slots:
+    - id: table
+      options:
+        - { id: tpk, text: CDBPartitionKeyRUConsumption }
+        - { id: tdp, text: CDBDataPlaneRequests }
+        - { id: tqr, text: CDBQueryRuntimeStatistics }
+        - { id: tps, text: CDBPartitionKeyStatistics }
+    - id: agg
+      options:
+        - { id: gsum, text: sum(RequestCharge) }
+        - { id: gcnt, text: count() }
+        - { id: gavg, text: avg(RequestCharge) }
+    - id: bin
+      options:
+        - { id: b1s, text: 1s }
+        - { id: b1h, text: 1h }
+        - { id: b1d, text: 1d }
+answer:
+  values: { table: tpk, agg: gsum, bin: b1s }
+explanation:
+  correct:
+    en: |
+      The CDBPartitionKeyRUConsumption table records the request charge per logical partition key. Summing RequestCharge per key in 1-second bins shows which keys exceed their share of a physical partition's RU/s in a given second, which is how throughput limits are enforced.
+    fr: |
+      La table CDBPartitionKeyRUConsumption enregistre la charge de requête par clé de partition logique. Additionner RequestCharge par clé dans des intervalles d'une seconde montre quelles clés dépassent, au cours d'une seconde donnée, leur part des RU/s d'une partition physique, ce qui correspond à la façon dont les limites de débit s'appliquent.
+  options:
+    tdp: { en: "CDBDataPlaneRequests holds one row per request and is used to find the operations that return 429s, not RU consumption per logical partition key.", fr: "CDBDataPlaneRequests contient une ligne par requête et sert à trouver les opérations qui renvoient des 429, pas la consommation de RU par clé de partition logique." }
+    tps: { en: "CDBPartitionKeyStatistics reports storage per partition key, not request charges.", fr: "CDBPartitionKeyStatistics indique le stockage par clé de partition, pas les charges de requête." }
+    gcnt: { en: "Counting rows ignores how many RUs each request consumed.", fr: "Compter les lignes ignore le nombre de RU consommées par chaque requête." }
+    gavg: { en: "An average hides the total consumed by a key in each second.", fr: "Une moyenne masque le total consommé par une clé à chaque seconde." }
+    b1h: { en: "Throughput is budgeted per second; hourly totals hide one-second peaks.", fr: "Le débit est budgété par seconde ; des totaux horaires masquent les pics d'une seconde." }
+references:
+  - title: Troubleshoot Request Rate Too Large Exceptions - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-request-rate-too-large

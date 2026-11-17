@@ -1,0 +1,67 @@
+id: ai200-cs3c-vanarsdel
+status: draft
+title:
+  en: VanArsdel, Ltd.
+  fr: VanArsdel, Ltd.
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        VanArsdel, Ltd. sells furniture online in Europe. Its storefront receives about two million product page views a day.
+
+        VanArsdel is adding **Ask VanArsdel**, a product assistant written in Python, to its storefront. Many customers ask almost the same questions, so VanArsdel wants to reuse previous answers through a semantic cache instead of calling the language model each time. VanArsdel also exposes a recommendation API that queues the recommendation requests for a batch process.
+      fr: |
+        VanArsdel, Ltd. vend des meubles en ligne en Europe. Sa boutique en ligne reçoit environ deux millions de consultations de pages produit par jour.
+
+        VanArsdel ajoute à sa boutique **Ask VanArsdel**, un assistant produit écrit en Python. De nombreux clients posent presque les mêmes questions : VanArsdel veut donc réutiliser les réponses précédentes au moyen d'un cache sémantique au lieu d'appeler le modèle de langage à chaque fois. VanArsdel expose aussi une API de recommandation qui place les demandes de recommandation en file d'attente pour un traitement par lots.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        VanArsdel has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | app-vanarsdel-shop | App Service web app | Python storefront; system-assigned managed identity |
+        | func-vanarsdel | Function app | Python, v2 programming model; system-assigned managed identity that has the Storage Queue Data Message Sender role on stvanarsdel; app setting `RecoQueue__queueServiceUri` set to `https://stvanarsdel.queue.core.windows.net` |
+        | stvanarsdel | Storage account | Queue **recommendation-requests** |
+        | appcs-vanarsdel | Azure App Configuration store | Storefront settings whose keys start with `Shop:`; the key **Shop:Sentinel** |
+        | appi-vanarsdel | Application Insights | Workspace-based; receives the telemetry of app-vanarsdel-shop and func-vanarsdel |
+
+        VanArsdel plans to create an Azure Managed Redis instance named **amr-vanarsdel** on the Balanced tier. The identities of app-vanarsdel-shop and func-vanarsdel will be added as Redis users of amr-vanarsdel.
+
+        When the operations team changes storefront settings in appcs-vanarsdel, it updates all the keys first and then updates Shop:Sentinel.
+      fr: |
+        VanArsdel dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | app-vanarsdel-shop | Application web App Service | Boutique en ligne Python ; identité managée affectée par le système |
+        | func-vanarsdel | Application de fonction | Python, modèle de programmation v2 ; identité managée affectée par le système qui a le rôle Storage Queue Data Message Sender sur stvanarsdel ; paramètre d'application `RecoQueue__queueServiceUri` défini sur `https://stvanarsdel.queue.core.windows.net` |
+        | stvanarsdel | Compte de stockage | File d'attente **recommendation-requests** |
+        | appcs-vanarsdel | Magasin Azure App Configuration | Paramètres de la boutique dont les clés commencent par `Shop:` ; la clé **Shop:Sentinel** |
+        | appi-vanarsdel | Application Insights | Basé sur un espace de travail ; reçoit les données de télémétrie de app-vanarsdel-shop et de func-vanarsdel |
+
+        VanArsdel prévoit de créer une instance Azure Managed Redis nommée **amr-vanarsdel** sur le niveau Balanced. Les identités de app-vanarsdel-shop et de func-vanarsdel seront ajoutées comme utilisateurs Redis de amr-vanarsdel.
+
+        Quand l'équipe d'exploitation modifie des paramètres de la boutique dans appcs-vanarsdel, elle met d'abord à jour toutes les clés, puis met à jour Shop:Sentinel.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        VanArsdel identifies the following requirements:
+
+        1. **Product cache**: app-vanarsdel-shop must cache each product document in amr-vanarsdel under the key `product:<id>` for 10 minutes. When the price of a product changes, its cached document must be removed immediately. The clients must authenticate to amr-vanarsdel by using Microsoft Entra ID.
+        2. **Semantic cache**: each answered question must be stored in amr-vanarsdel as a Redis hash whose key starts with `answer:`. The hash contains the fields `question`, `answer` and `embedding`, a 1,536-dimension FLOAT32 vector. Ask VanArsdel must find the stored question nearest to a new question by using the cosine distance.
+        3. **Recommendation API**: func-vanarsdel must expose `POST /api/recommend`, which requires a function key, and must write the request body as a message to the recommendation-requests queue by using an output binding. The binding must connect to stvanarsdel by using the managed identity of func-vanarsdel.
+        4. **Configuration**: app-vanarsdel-shop loads the `Shop:` settings by using the App Configuration provider for Python. A settings change must apply without a restart, about 60 seconds after the operations team updates Shop:Sentinel, and all the values must change together. The number of requests to appcs-vanarsdel must be minimized.
+        5. **Operations**: a daily report must list the three operations of func-vanarsdel with the highest 95th percentile duration over the last 24 hours, with their request and failure counts.
+      fr: |
+        VanArsdel a défini les exigences suivantes :
+
+        1. **Cache des produits** : app-vanarsdel-shop doit mettre en cache chaque document produit dans amr-vanarsdel sous la clé `product:<id>` pendant 10 minutes. Quand le prix d'un produit change, son document en cache doit être supprimé immédiatement. Les clients doivent s'authentifier auprès de amr-vanarsdel à l'aide de Microsoft Entra ID.
+        2. **Cache sémantique** : chaque question ayant reçu une réponse doit être stockée dans amr-vanarsdel sous la forme d'un hachage Redis dont la clé commence par `answer:`. Le hachage contient les champs `question`, `answer` et `embedding`, un vecteur FLOAT32 de 1 536 dimensions. Ask VanArsdel doit trouver la question stockée la plus proche d'une nouvelle question à l'aide de la distance cosinus.
+        3. **API de recommandation** : func-vanarsdel doit exposer `POST /api/recommend`, qui exige une clé de fonction, et doit écrire le corps de la requête sous forme de message dans la file d'attente recommendation-requests à l'aide d'une liaison de sortie. La liaison doit se connecter à stvanarsdel à l'aide de l'identité managée de func-vanarsdel.
+        4. **Configuration** : app-vanarsdel-shop charge les paramètres `Shop:` à l'aide du fournisseur App Configuration pour Python. Une modification des paramètres doit s'appliquer sans redémarrage, environ 60 secondes après la mise à jour de Shop:Sentinel par l'équipe d'exploitation, et toutes les valeurs doivent changer ensemble. Le nombre de requêtes adressées à appcs-vanarsdel doit être réduit au minimum.
+        5. **Exploitation** : un rapport quotidien doit lister les trois opérations de func-vanarsdel dont le 95e centile de durée est le plus élevé sur les dernières 24 heures, avec leur nombre de requêtes et d'échecs.

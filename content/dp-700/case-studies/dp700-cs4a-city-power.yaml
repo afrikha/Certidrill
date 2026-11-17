@@ -1,0 +1,95 @@
+id: dp700-cs4a-city-power
+status: draft
+title:
+  en: City Power & Light
+  fr: City Power & Light
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        City Power & Light is an electricity distribution company that serves 1.2 million customers. It operates 85 substations and 900,000 smart meters. A data engineering team of five people builds the grid analytics platform in Microsoft Fabric.
+
+        City Power & Light wants to analyze meter readings in near real time, combine them with billing and tariff data, and detect substations that stop reporting.
+      fr: |
+        City Power & Light est un distributeur d'électricité qui dessert 1,2 million de clients. Il exploite 85 postes électriques et 900 000 compteurs intelligents. Une équipe d'ingénierie des données de cinq personnes construit la plateforme d'analytique du réseau dans Microsoft Fabric.
+
+        City Power & Light souhaite analyser les relevés des compteurs en quasi temps réel, les combiner avec les données de facturation et de tarifs, et détecter les postes électriques qui cessent d'envoyer des données.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Fabric.** The workspace **CPL-Grid** is assigned to an F64 capacity and contains the following items.
+
+        | Item | Type | Details |
+        | --- | --- | --- |
+        | ES-Meters | Eventstream | Source: the Azure Event Hubs event hub **eh-meters**, which receives the readings sent by the meter gateways. No destination yet. |
+        | EH-Grid | Eventhouse | Contains the KQL database **KDB-Grid**. |
+        | LH-Reference | Lakehouse | Stores the reference tables of the analytics platform. |
+
+        KDB-Grid contains an empty table named **Readings** with the columns GatewayId (string), SubstationId (string), MeterId (string), ReadingTime (datetime), kWh (real) and SentAt (datetime).
+
+        **Meter gateways.** Each gateway sends one JSON event every minute. The event contains the fields GatewayId, SubstationId, BusVoltage (the voltage measured at the substation) and SentAt (the time the gateway sent the event), and an array named **readings** that contains up to 200 objects with the fields MeterId, ReadingTime and kWh.
+
+        When a gateway loses its connection, it resends the buffered readings in new events after it reconnects. The same reading (same MeterId and ReadingTime) can therefore arrive several times. A resent reading can contain a corrected kWh value, and the version from the most recently sent event is always the correct one.
+
+        **Billing.** The customer billing data is stored in an Azure SQL database named **BillingDB** on the logical server **sql-cpl-billing**. The server allows public network access and connections from Azure services. No managed identity is enabled on the server. Change data capture (CDC) is not enabled on BillingDB. Twelve legacy tables of BillingDB have no primary key.
+
+        **Tariffs.** The pricing team maintains the tariffs in an Excel workbook stored in SharePoint Online. The workbook has one row for each tariff and one column for each month. The members of the pricing team use Power Query in Excel, but they do not write code.
+      fr: |
+        **Fabric.** L'espace de travail **CPL-Grid** est affecté à une capacité F64 et contient les éléments suivants.
+
+        | Élément | Type | Détails |
+        | --- | --- | --- |
+        | ES-Meters | Flux d'événements | Source : le hub d'événements Azure Event Hubs **eh-meters**, qui reçoit les relevés envoyés par les passerelles des compteurs. Aucune destination pour l'instant. |
+        | EH-Grid | Eventhouse | Contient la base de données KQL **KDB-Grid**. |
+        | LH-Reference | Lakehouse | Stocke les tables de référence de la plateforme d'analytique. |
+
+        KDB-Grid contient une table vide nommée **Readings** avec les colonnes GatewayId (string), SubstationId (string), MeterId (string), ReadingTime (datetime), kWh (real) et SentAt (datetime).
+
+        **Passerelles des compteurs.** Chaque passerelle envoie un événement JSON toutes les minutes. L'événement contient les champs GatewayId, SubstationId, BusVoltage (la tension mesurée au poste électrique) et SentAt (l'heure d'envoi de l'événement par la passerelle), ainsi qu'un tableau nommé **readings** qui contient jusqu'à 200 objets avec les champs MeterId, ReadingTime et kWh.
+
+        Quand une passerelle perd sa connexion, elle renvoie les relevés mis en mémoire tampon dans de nouveaux événements après sa reconnexion. Le même relevé (même MeterId et même ReadingTime) peut donc arriver plusieurs fois. Un relevé renvoyé peut contenir une valeur kWh corrigée, et la version issue de l'événement envoyé le plus récemment est toujours la bonne.
+
+        **Facturation.** Les données de facturation des clients sont stockées dans une base de données Azure SQL nommée **BillingDB** sur le serveur logique **sql-cpl-billing**. Le serveur autorise l'accès réseau public et les connexions des services Azure. Aucune identité managée n'est activée sur le serveur. La capture des changements de données (CDC) n'est pas activée sur BillingDB. Douze tables héritées de BillingDB n'ont pas de clé primaire.
+
+        **Tarifs.** L'équipe tarification gère les tarifs dans un classeur Excel stocké dans SharePoint Online. Le classeur comporte une ligne par tarif et une colonne par mois. Les membres de l'équipe tarification utilisent Power Query dans Excel, mais n'écrivent pas de code.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        City Power & Light identifies the following requirements.
+
+        **Ingestion**
+
+        1. All the tables of BillingDB, including the legacy tables, must be replicated to OneLake in near real time. The solution must not require a copy pipeline.
+        2. ES-Meters must write each reading of the readings array to Readings as a separate row, together with the GatewayId, SubstationId and SentAt values of its event. The solution must not require KQL code or an intermediate table.
+        3. Every week, the tariff workbook must be loaded into a table of LH-Reference that has one row for each tariff and month. The pricing team must be able to maintain the transformation itself.
+
+        **Analytics**
+
+        4. A KQL query must return, for each meter, the average kWh per 15-minute interval. Each reading must be counted once, by using the version from the most recently sent event.
+
+        **Monitoring**
+
+        5. The on-call engineer must receive a Microsoft Teams message when a substation sends no reading for 10 minutes. Each substation must be evaluated separately.
+        6. The team must be able to use KQL to investigate the failed ingestion operations of EH-Grid over the last 30 days.
+        7. Development effort must be minimized.
+      fr: |
+        City Power & Light a défini les exigences suivantes.
+
+        **Ingestion**
+
+        1. Toutes les tables de BillingDB, y compris les tables héritées, doivent être répliquées dans OneLake en quasi temps réel. La solution ne doit pas nécessiter de pipeline de copie.
+        2. ES-Meters doit écrire chaque relevé du tableau readings dans Readings sous la forme d'une ligne distincte, avec les valeurs GatewayId, SubstationId et SentAt de son événement. La solution ne doit nécessiter ni code KQL ni table intermédiaire.
+        3. Chaque semaine, le classeur des tarifs doit être chargé dans une table de LH-Reference qui comporte une ligne par tarif et par mois. L'équipe tarification doit pouvoir maintenir elle-même la transformation.
+
+        **Analytique**
+
+        4. Une requête KQL doit renvoyer, pour chaque compteur, la moyenne des kWh par intervalle de 15 minutes. Chaque relevé doit être compté une seule fois, en utilisant la version issue de l'événement envoyé le plus récemment.
+
+        **Supervision**
+
+        5. L'ingénieur d'astreinte doit recevoir un message Microsoft Teams quand un poste électrique n'envoie aucun relevé pendant 10 minutes. Chaque poste électrique doit être évalué séparément.
+        6. L'équipe doit pouvoir utiliser KQL pour analyser les opérations d'ingestion ayant échoué dans EH-Grid au cours des 30 derniers jours.
+        7. L'effort de développement doit être réduit au minimum.

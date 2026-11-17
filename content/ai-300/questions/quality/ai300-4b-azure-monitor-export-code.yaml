@@ -1,0 +1,71 @@
+id: ai300-4b-azure-monitor-export-code
+objective: "4.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum Corporation has a Python application that calls agents of a Microsoft Foundry project. An Application Insights resource is connected to the project.
+
+    You need the application to send OpenTelemetry GenAI traces to the Application Insights resource of the project, without storing the connection string in the code or in a configuration file.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum Corporation dispose d'une application Python qui appelle des agents d'un projet Microsoft Foundry. Une ressource Application Insights est connectée au projet.
+
+    L'application doit envoyer des traces OpenTelemetry GenAI à la ressource Application Insights du projet, sans stocker la chaîne de connexion dans le code ni dans un fichier de configuration.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    os.environ["[[env]]"] = "true"
+
+    from azure.ai.projects import AIProjectClient
+    from azure.identity import DefaultAzureCredential
+    from [[mod]] import configure_azure_monitor
+
+    project = AIProjectClient(
+        endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"],
+        credential=DefaultAzureCredential(),
+    )
+    connection_string = project.telemetry.[[cs]]()
+    configure_azure_monitor(connection_string=connection_string)
+  slots:
+    - id: env
+      options:
+        - { id: content, text: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT }
+        - { id: enable, text: AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING }
+        - { id: responses, text: AZURE_TRACING_GEN_AI_INSTRUMENT_RESPONSES_API }
+    - id: mod
+      options:
+        - { id: projtel, text: azure.ai.projects.telemetry }
+        - { id: sdktrace, text: opentelemetry.sdk.trace }
+        - { id: monitor, text: azure.monitor.opentelemetry }
+    - id: cs
+      options:
+        - { id: getcs, text: get_application_insights_connection_string }
+        - { id: instr, text: instrument }
+        - { id: tracer, text: get_tracer }
+answer:
+  values: { env: enable, mod: monitor, cs: getcs }
+explanation:
+  correct:
+    en: "GenAI tracing must be enabled with `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING=true` before instrumentation. The project client returns the connection string of the connected Application Insights resource with `project.telemetry.get_application_insights_connection_string()`, and `configure_azure_monitor` from the `azure.monitor.opentelemetry` package (Azure Monitor OpenTelemetry distro) sets up the exporter."
+    fr: "Le traçage GenAI doit être activé avec `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING=true` avant l'instrumentation. Le client du projet renvoie la chaîne de connexion de la ressource Application Insights connectée avec `project.telemetry.get_application_insights_connection_string()`, et `configure_azure_monitor`, du package `azure.monitor.opentelemetry` (distribution OpenTelemetry d'Azure Monitor), configure l'exportateur."
+  options:
+    content: { en: "This variable captures message content in traces; it does not enable tracing.", fr: "Cette variable capture le contenu des messages dans les traces ; elle n'active pas le traçage." }
+    responses: { en: "This variable controls auto-instrumentation of the Responses and Conversations APIs (true by default); it does not enable GenAI tracing.", fr: "Cette variable contrôle l'instrumentation automatique des API Responses et Conversations (true par défaut) ; elle n'active pas le traçage GenAI." }
+    projtel: { en: "azure.ai.projects.telemetry provides AIProjectInstrumentor and trace_function, not configure_azure_monitor.", fr: "azure.ai.projects.telemetry fournit AIProjectInstrumentor et trace_function, pas configure_azure_monitor." }
+    sdktrace: { en: "opentelemetry.sdk.trace provides TracerProvider and span processors, not the Azure Monitor exporter setup.", fr: "opentelemetry.sdk.trace fournit TracerProvider et les processeurs d'étendues, pas la configuration de l'exportateur Azure Monitor." }
+    instr: { en: "instrument() is a method of AIProjectInstrumentor, not of project.telemetry, and returns no connection string.", fr: "instrument() est une méthode d'AIProjectInstrumentor, pas de project.telemetry, et ne renvoie aucune chaîne de connexion." }
+    tracer: { en: "get_tracer belongs to the OpenTelemetry trace API and creates a tracer, not a connection string.", fr: "get_tracer appartient à l'API de trace OpenTelemetry et crée un traceur, pas une chaîne de connexion." }
+references:
+  - title: Add client-side tracing to Foundry agents (preview)
+    url: https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/trace-agent-client-side

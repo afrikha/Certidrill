@@ -1,0 +1,42 @@
+id: ai200-2b-idempotent-retry
+objective: "2.2.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin's assistant saves each conversation summary to an Azure Database for PostgreSQL flexible server in a write transaction. Sometimes the connection drops right after the application sends `COMMIT`, and the application receives no acknowledgment.
+
+    The application must retry the transaction after a transient error without ever storing the same summary twice.
+
+    What should you do?
+  fr: |
+    L'assistant de Tailspin enregistre chaque résumé de conversation dans un serveur flexible Azure Database for PostgreSQL au sein d'une transaction d'écriture. Parfois, la connexion tombe juste après l'envoi de `COMMIT` par l'application, et l'application ne reçoit aucun accusé de réception.
+
+    L'application doit réessayer la transaction après une erreur temporaire sans jamais stocker deux fois le même résumé.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Generate an ID on the client once, store it in a column with a unique constraint, and reuse it on every retry.", fr: "Générer un ID une seule fois sur le client, le stocker dans une colonne avec une contrainte d'unicité et le réutiliser à chaque tentative." } }
+    - { id: b, text: { en: "Use an identity primary key so that the server generates a new ID for every retry of the transaction.", fr: "Utiliser une clé primaire d'identité afin que le serveur génère un nouvel ID pour chaque nouvelle tentative de la transaction." } }
+    - { id: c, text: { en: "Run each retry on a read replica first to check whether the earlier commit reached the database.", fr: "Exécuter d'abord chaque tentative sur un réplica en lecture pour vérifier si la validation précédente a atteint la base de données." } }
+    - { id: d, text: { en: "Retry the transaction only when the server returns an error, and skip it when no reply arrives.", fr: "Réessayer la transaction uniquement quand le serveur renvoie une erreur, et l'ignorer quand aucune réponse n'arrive." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "When a write transaction loses its connection, the client cannot know whether it was committed. Learn suggests a client-generated unique ID stored in a column with a unique constraint and reused for all the retries. A retry succeeds if the first attempt was rolled back, and fails with a duplicate key violation if it was committed, so the summary is never stored twice."
+    fr: "Quand une transaction d'écriture perd sa connexion, le client ne peut pas savoir si elle a été validée. Learn suggère un ID unique généré par le client, stocké dans une colonne avec une contrainte d'unicité et réutilisé pour toutes les tentatives. Une tentative réussit si la première a été annulée, et échoue avec une violation de clé en double si elle a été validée : le résumé n'est jamais stocké deux fois."
+  options:
+    b:
+      en: "A new server-generated ID for each retry is exactly what creates a duplicate when the first commit succeeded."
+      fr: "Un nouvel ID généré par le serveur à chaque tentative est justement ce qui crée un doublon quand la première validation a réussi."
+    c:
+      en: "Read replicas are asynchronous and can lag behind the primary, so a missing row on the replica does not prove the commit failed."
+      fr: "Les réplicas en lecture sont asynchrones et peuvent être en retard sur le serveur principal : une ligne absente du réplica ne prouve pas que la validation a échoué."
+    d:
+      en: "A dropped connection gives no reply; skipping the retry loses the summary whenever the first attempt was rolled back."
+      fr: "Une connexion interrompue ne donne aucune réponse ; ignorer la nouvelle tentative perd le résumé chaque fois que la première tentative a été annulée."
+references:
+  - title: Handle Transient Connectivity Errors
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-connectivity

@@ -1,0 +1,117 @@
+id: dp300-cs1b-margies-travel
+status: draft
+title:
+  en: Margie's Travel
+  fr: Margie's Travel
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Margie's Travel sells a software as a service (SaaS) booking platform to 420 independent travel agencies in Europe. Each agency is a tenant of the platform.
+
+        The platform was built in Azure from the start. A team of three database administrators (DBAs) and a team of developers support it.
+      fr: |
+        Margie's Travel commercialise une plateforme de réservation SaaS (software as a service) auprès de 420 agences de voyages indépendantes en Europe. Chaque agence est un locataire de la plateforme.
+
+        La plateforme a été conçue dans Azure dès l'origine. Une équipe de trois administrateurs de bases de données (DBA) et une équipe de développeurs la prennent en charge.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Databases**
+
+        All the databases are on a logical server named **sql-mt-prod** in the France Central region. The server has a Microsoft Entra admin and uses the default automatic tuning settings of Azure.
+
+        | Database | Deployment | Usage |
+        | --- | --- | --- |
+        | tdb-0001 to tdb-0420 | Three General Purpose elastic pools named pool-1, pool-2 and pool-3 | One database per agency: bookings, customers and payments |
+        | Catalog | Single database | Maps each agency to its tenant database |
+        | Insights | Single database, Business Critical | Shared reporting database. Each row of the **dbo.Bookings** table has a **TenantId** column. |
+
+        New tenant databases are created in one of the three pools every week by a provisioning script.
+
+        **Applications**
+
+        - The booking application connects to the tenant databases.
+        - An embedded reporting portal connects to Insights by using a single service account. After it opens a connection, the portal stores the agency ID of the signed-in user in the session context by running `sp_set_session_context` with the key `TenantId`.
+
+        **Backups**
+
+        All the databases use the default point-in-time restore retention of seven days. No long-term retention policy is configured.
+
+        **Identities**
+
+        A user-assigned managed identity named **umi-jobs** exists. The provisioning script creates a database user for umi-jobs, with the permissions required for index and statistics maintenance, in every tenant database. A user for umi-jobs also exists in the master database of sql-mt-prod.
+      fr: |
+        **Bases de données**
+
+        Toutes les bases de données se trouvent sur un serveur logique nommé **sql-mt-prod** dans la région France Central. Le serveur dispose d'un administrateur Microsoft Entra et utilise les paramètres de réglage automatique par défaut d'Azure.
+
+        | Base de données | Déploiement | Usage |
+        | --- | --- | --- |
+        | tdb-0001 à tdb-0420 | Trois pools élastiques General Purpose nommés pool-1, pool-2 et pool-3 | Une base de données par agence : réservations, clients et paiements |
+        | Catalog | Base de données unique | Associe chaque agence à sa base de données de locataire |
+        | Insights | Base de données unique, Business Critical | Base de données de rapports partagée. Chaque ligne de la table **dbo.Bookings** comporte une colonne **TenantId**. |
+
+        Chaque semaine, un script d'approvisionnement crée de nouvelles bases de données de locataire dans l'un des trois pools.
+
+        **Applications**
+
+        - L'application de réservation se connecte aux bases de données de locataire.
+        - Un portail de rapports intégré se connecte à Insights avec un compte de service unique. Après avoir ouvert une connexion, le portail stocke l'identifiant d'agence de l'utilisateur connecté dans le contexte de session en exécutant `sp_set_session_context` avec la clé `TenantId`.
+
+        **Sauvegardes**
+
+        Toutes les bases de données utilisent la rétention par défaut de sept jours pour la restauration à un point dans le temps. Aucune stratégie de rétention à long terme n'est configurée.
+
+        **Identités**
+
+        Une identité managée affectée par l'utilisateur nommée **umi-jobs** existe. Le script d'approvisionnement crée, dans chaque base de données de locataire, un utilisateur de base de données pour umi-jobs avec les autorisations nécessaires à la maintenance des index et des statistiques. Un utilisateur pour umi-jobs existe aussi dans la base de données master de sql-mt-prod.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Maintenance requirements**
+
+        1. Index and statistics maintenance must run every Sunday at 02:00 on every tenant database, including the databases that are added to the pools later, without editing the job definition.
+        2. No virtual machine must be deployed.
+
+        **Security requirements**
+
+        3. In Insights, users of the reporting portal must see only the dbo.Bookings rows of their own agency, and the portal must be unable to insert a row for another agency.
+        4. In the tenant databases:
+           - Support agents must see only the last four digits of the customers' phone numbers. The full number must remain stored.
+           - Passport numbers must be readable in plaintext only by the booking application. The DBAs and Microsoft operators must never see them.
+           - Any change made to the rows of the **Refunds** table must be detectable by an auditor through cryptographic verification.
+
+        **Performance requirements**
+
+        5. When a new application release causes a query plan regression, the previous plan must be restored without manual intervention.
+        6. A DBA must review every index change before it is applied.
+
+        **Recovery requirements**
+
+        7. When an agency reports rows deleted by mistake, the deleted rows must be recovered without losing the changes made in the database since the deletion.
+      fr: |
+        **Exigences de maintenance**
+
+        1. La maintenance des index et des statistiques doit s'exécuter chaque dimanche à 02:00 sur toutes les bases de données de locataire, y compris celles qui seront ajoutées plus tard aux pools, sans modifier la définition du travail.
+        2. Aucune machine virtuelle ne doit être déployée.
+
+        **Exigences de sécurité**
+
+        3. Dans Insights, les utilisateurs du portail de rapports ne doivent voir que les lignes de dbo.Bookings de leur propre agence, et le portail ne doit pas pouvoir insérer de ligne pour une autre agence.
+        4. Dans les bases de données de locataire :
+           - Les agents du support ne doivent voir que les quatre derniers chiffres des numéros de téléphone des clients. Le numéro complet doit rester stocké.
+           - Les numéros de passeport ne doivent être lisibles en texte clair que par l'application de réservation. Les DBA et les opérateurs Microsoft ne doivent jamais les voir.
+           - Toute modification apportée aux lignes de la table **Refunds** doit pouvoir être détectée par un auditeur grâce à une vérification cryptographique.
+
+        **Exigences de performances**
+
+        5. Quand une nouvelle version de l'application provoque une régression de plan de requête, le plan précédent doit être rétabli sans intervention manuelle.
+        6. Un DBA doit examiner chaque modification d'index avant son application.
+
+        **Exigences de récupération**
+
+        7. Quand une agence signale des lignes supprimées par erreur, ces lignes doivent être récupérées sans perdre les modifications apportées à la base de données depuis la suppression.

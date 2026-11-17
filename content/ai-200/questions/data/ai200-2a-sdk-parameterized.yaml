@@ -1,0 +1,44 @@
+id: ai200-2a-sdk-parameterized
+objective: "2.1.1"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Proseware has a shopping assistant that receives a product name typed by the user in the variable `name`. A Python function looks up matching products in an Azure Cosmos DB for NoSQL container partitioned on `/category`; the category is known and stored in the variable `cat`.
+
+    A security review found that the current code builds the SQL text by concatenating `name`. You need to prevent injection through `name` and keep the query scoped to one logical partition.
+
+    Which code should you use?
+  fr: |
+    Proseware dispose d'un assistant d'achat qui reçoit dans la variable `name` un nom de produit saisi par l'utilisateur. Une fonction Python recherche les produits correspondants dans un conteneur Azure Cosmos DB for NoSQL partitionné sur `/category` ; la catégorie est connue et stockée dans la variable `cat`.
+
+    Une revue de sécurité a constaté que le code actuel construit le texte SQL en concaténant `name`. Vous devez empêcher l'injection par `name` et conserver une requête limitée à une seule partition logique.
+
+    Quel code devez-vous utiliser ?
+body:
+  options:
+    - { id: a, text: 'container.query_items(query="SELECT * FROM c WHERE c.name = @name", parameters=[{"name": "@name", "value": name}], partition_key=cat)' }
+    - { id: b, text: 'container.query_items(query=f"SELECT * FROM c WHERE c.name = ''{name}''", partition_key=cat)' }
+    - { id: c, text: 'container.query_items(query="SELECT * FROM c WHERE c.name = @name", parameters=[{"name": "@name", "value": name}], enable_cross_partition_query=True)' }
+    - { id: d, text: '[i for i in container.read_all_items() if i["category"] == cat and i["name"] == name]' }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "A parameterized query sends `name` as a value in `parameters` (a list of `name`/`value` dictionaries), so the input is never parsed as SQL. Passing `partition_key=cat` keeps the query in the logical partition of that category."
+    fr: "Une requête paramétrée envoie `name` comme valeur dans `parameters` (une liste de dictionnaires `name`/`value`) : l'entrée n'est jamais analysée comme du SQL. Passer `partition_key=cat` maintient la requête dans la partition logique de cette catégorie."
+  options:
+    b:
+      en: "An f-string still inserts the user input into the SQL text, which is exactly the injection risk."
+      fr: "Une f-string insère toujours l'entrée de l'utilisateur dans le texte SQL, ce qui est précisément le risque d'injection."
+    c:
+      en: "The query is parameterized, but without `partition_key` it fans out to every partition instead of staying in one logical partition."
+      fr: "La requête est paramétrée, mais sans `partition_key` elle est envoyée à toutes les partitions au lieu de rester dans une seule partition logique."
+    d:
+      en: "`read_all_items()` reads the whole container and filters in Python, which costs far more RUs and isn't scoped to a partition."
+      fr: "`read_all_items()` lit tout le conteneur et filtre en Python, ce qui coûte beaucoup plus de RU et n'est limité à aucune partition."
+references:
+  - title: Quickstart - Azure SDK for Python - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/quickstart-python
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy?view=azure-python

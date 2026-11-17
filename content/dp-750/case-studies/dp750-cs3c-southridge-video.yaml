@@ -1,0 +1,87 @@
+id: dp750-cs3c-southridge-video
+status: draft
+title:
+  en: Southridge Video
+  fr: Southridge Video
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Southridge Video is a video streaming service with nine million subscribers in Europe. The head office is in Dublin.
+
+        A data team of eight engineers processes the viewing events of the subscribers in Azure Databricks. Every night, the team computes the royalties that Southridge Video pays to the owners of the titles.
+      fr: |
+        Southridge Video est un service de streaming vidéo qui compte neuf millions d'abonnés en Europe. Le siège est à Dublin.
+
+        Une équipe de données de huit ingénieurs traite les événements de visionnage des abonnés dans Azure Databricks. Chaque nuit, l'équipe calcule les redevances que Southridge Video verse aux propriétaires des titres.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Workspaces.** Southridge Video has two Premium workspaces attached to the same Unity Catalog metastore: **adb-sv-dev** for development and **adb-sv-prod** for production. The workspace ID of adb-sv-prod is 4455667788990011. In adb-sv-prod, all the jobs run on job compute or on serverless compute.
+
+        **Source control.** The code is stored in an Azure Repos Git repository named **sv-pipelines**, which contains notebooks, Python modules and a Declarative Automation Bundles project (formerly Databricks Asset Bundles). All the engineers currently work in a single Git folder, /Workspace/Shared/sv-pipelines in adb-sv-dev, which is checked out on the main branch, and they commit directly to main. The changes of one engineer often break the work of another.
+
+        **Royalties job.** The job **job-royalties** runs every night in adb-sv-prod as the service principal **sp-sv-jobs**, on a classic job cluster that runs Databricks Runtime 18.1. It contains the tasks ingest_views, aggregate_views, compute_royalties and publish_report.
+
+        - aggregate_views imports the internal Python package sv_common. The CI pipeline builds it as the wheel sv_common-2.3.0-py3-none-any.whl, which an engineer then copies manually to the DBFS root.
+        - The managed volume **sv_prod.tools.wheels** exists, and sp-sv-jobs has the READ VOLUME privilege on it.
+        - compute_royalties sets a task value named **owners**: a JSON array of strings that contains the IDs of the title owners to pay that night, between 20 and 60 IDs depending on the day.
+        - A notebook named **publish_owner_report** has a parameter named owner_id. It publishes the royalty report of one owner to the royalties portal.
+
+        **Viewing events.** The managed Delta table **sv_prod.silver.view_events** (45 TB) is partitioned by event_date, a column of type DATE. Its other columns are event_id, title_id, country, device_type and watch_seconds.
+      fr: |
+        **Espaces de travail.** Southridge Video dispose de deux espaces de travail Premium attachés au même metastore Unity Catalog : **adb-sv-dev** pour le développement et **adb-sv-prod** pour la production. L'ID de l'espace de travail adb-sv-prod est 4455667788990011. Dans adb-sv-prod, tous les jobs s'exécutent sur un calcul de jobs ou sur un calcul serverless.
+
+        **Contrôle de code source.** Le code est stocké dans un dépôt Git Azure Repos nommé **sv-pipelines**, qui contient des notebooks, des modules Python et un projet Declarative Automation Bundles (anciennement Databricks Asset Bundles). Tous les ingénieurs travaillent actuellement dans un seul dossier Git, /Workspace/Shared/sv-pipelines dans adb-sv-dev, extrait sur la branche main, et ils effectuent leurs commits directement sur main. Les modifications d'un ingénieur cassent souvent le travail d'un autre.
+
+        **Job de redevances.** Le job **job-royalties** s'exécute chaque nuit dans adb-sv-prod sous l'identité du principal de service **sp-sv-jobs**, sur un cluster de jobs classique qui exécute Databricks Runtime 18.1. Il contient les tâches ingest_views, aggregate_views, compute_royalties et publish_report.
+
+        - aggregate_views importe le package Python interne sv_common. Le pipeline de CI le génère sous forme de wheel sv_common-2.3.0-py3-none-any.whl, qu'un ingénieur copie ensuite manuellement à la racine DBFS.
+        - Le volume managé **sv_prod.tools.wheels** existe, et sp-sv-jobs dispose du privilège READ VOLUME sur ce volume.
+        - compute_royalties définit une valeur de tâche nommée **owners** : un tableau JSON de chaînes qui contient les ID des propriétaires de titres à payer cette nuit-là, entre 20 et 60 ID selon le jour.
+        - Un notebook nommé **publish_owner_report** a un paramètre nommé owner_id. Il publie le rapport de redevances d'un propriétaire sur le portail des redevances.
+
+        **Événements de visionnage.** La table Delta managée **sv_prod.silver.view_events** (45 To) est partitionnée par event_date, une colonne de type DATE. Ses autres colonnes sont event_id, title_id, country, device_type et watch_seconds.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Southridge Video identifies the following requirements.
+
+        **Development lifecycle**
+
+        1. Each engineer must be able to work on a change without affecting the work of the other engineers.
+        2. Every change to the main branch must be reviewed by another engineer before it is merged.
+        3. The team must implement a testing strategy that includes unit tests, integration tests, end-to-end tests and user acceptance tests (UAT).
+
+        **Royalties job**
+
+        4. aggregate_views must install sv_common from a location where access is governed by Unity Catalog privileges. The job must no longer depend on the DBFS root.
+        5. publish_report must run publish_owner_report once for each owner ID in owners. The royalties portal accepts at most four uploads at the same time.
+        6. The finance team must be able to report the DBUs consumed by each job of adb-sv-prod during the last 30 days.
+
+        **Data layout**
+
+        7. Most queries on sv_prod.silver.view_events filter on title_id and country. The partitioning of the table must be replaced by liquid clustering on these two columns.
+        8. sv_prod.silver.view_events must keep its name and its history, and all its existing data must be reclustered on the new keys.
+      fr: |
+        Southridge Video a défini les exigences suivantes.
+
+        **Cycle de vie du développement**
+
+        1. Chaque ingénieur doit pouvoir travailler sur une modification sans affecter le travail des autres ingénieurs.
+        2. Chaque modification de la branche main doit être relue par un autre ingénieur avant d'être fusionnée.
+        3. L'équipe doit mettre en œuvre une stratégie de test qui comprend des tests unitaires, des tests d'intégration, des tests de bout en bout et des tests d'acceptation utilisateur (UAT).
+
+        **Job de redevances**
+
+        4. aggregate_views doit installer sv_common depuis un emplacement dont l'accès est régi par des privilèges Unity Catalog. Le job ne doit plus dépendre de la racine DBFS.
+        5. publish_report doit exécuter publish_owner_report une fois pour chaque ID de propriétaire d'owners. Le portail des redevances accepte au plus quatre chargements simultanés.
+        6. L'équipe financière doit pouvoir rendre compte des DBU consommés par chaque job d'adb-sv-prod au cours des 30 derniers jours.
+
+        **Disposition des données**
+
+        7. La plupart des requêtes sur sv_prod.silver.view_events filtrent sur title_id et country. Le partitionnement de la table doit être remplacé par un clustering liquide sur ces deux colonnes.
+        8. sv_prod.silver.view_events doit conserver son nom et son historique, et toutes ses données existantes doivent être reclusterisées sur les nouvelles clés.

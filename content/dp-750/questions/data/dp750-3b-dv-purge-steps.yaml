@@ -1,0 +1,54 @@
+id: dp750-3b-dv-purge-steps
+objective: "3.1.9"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware has a Delta table named **litware.crm.contacts** that has deletion vectors enabled. A customer whose ID is `C-1042` asks for the erasure of their personal data.
+
+    You must make sure that the customer's rows are removed from the table and that no data file in storage still contains them.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Litware dispose d'une table Delta nommée **litware.crm.contacts** sur laquelle les vecteurs de suppression sont activés. Un client dont l'ID est `C-1042` demande l'effacement de ses données personnelles.
+
+    Vous devez vous assurer que les lignes du client sont supprimées de la table et qu'aucun fichier de données du stockage ne les contient encore.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: delete, text: { en: "Run DELETE FROM litware.crm.contacts WHERE customer_id = 'C-1042'.", fr: "Exécuter DELETE FROM litware.crm.contacts WHERE customer_id = 'C-1042'." } }
+    - { id: reorg, text: { en: "Run REORG TABLE litware.crm.contacts APPLY (PURGE).", fr: "Exécuter REORG TABLE litware.crm.contacts APPLY (PURGE)." } }
+    - { id: vacuum, text: { en: "Run VACUUM on litware.crm.contacts once the retention threshold has passed since the purge.", fr: "Exécuter VACUUM sur litware.crm.contacts une fois le seuil de rétention écoulé depuis la purge." } }
+    - { id: zorder, text: { en: "Run OPTIMIZE litware.crm.contacts ZORDER BY (customer_id).", fr: "Exécuter OPTIMIZE litware.crm.contacts ZORDER BY (customer_id)." } }
+    - { id: disable, text: { en: "Set the delta.enableDeletionVectors table property to false.", fr: "Définir la propriété de table delta.enableDeletionVectors sur false." } }
+    - { id: restore, text: { en: "Run RESTORE TABLE litware.crm.contacts to the version before the DELETE.", fr: "Exécuter RESTORE TABLE litware.crm.contacts vers la version antérieure au DELETE." } }
+answer:
+  sequence: [ delete, reorg, vacuum ]
+explanation:
+  correct:
+    en: |
+      With deletion vectors, DELETE only marks the rows as removed; the Parquet files still contain them. REORG TABLE ... APPLY (PURGE) rewrites every file that has deletion vector changes, and VACUUM then removes the old files that are no longer referenced by the table, which completes the physical removal.
+    fr: |
+      Avec les vecteurs de suppression, DELETE se contente de marquer les lignes comme supprimées ; les fichiers Parquet les contiennent toujours. REORG TABLE ... APPLY (PURGE) réécrit chaque fichier qui comporte des modifications de vecteurs de suppression, puis VACUUM supprime les anciens fichiers qui ne sont plus référencés par la table, ce qui achève la suppression physique.
+  options:
+    zorder:
+      en: |
+        OPTIMIZE can apply deletion vectors, but compaction gives no guarantee that every affected file is rewritten.
+      fr: |
+        OPTIMIZE peut appliquer les vecteurs de suppression, mais le compactage ne garantit pas que chaque fichier concerné est réécrit.
+    disable:
+      en: |
+        Turning the property off doesn't rewrite the files; existing deletion vectors remain and still apply.
+      fr: |
+        Désactiver la propriété ne réécrit pas les fichiers ; les vecteurs de suppression existants restent et s'appliquent toujours.
+    restore:
+      en: |
+        Restoring the earlier version brings the customer's rows back.
+      fr: |
+        Restaurer la version antérieure fait revenir les lignes du client.
+references:
+  - title: Deletion vectors in Databricks
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/deletion-vectors

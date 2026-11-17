@@ -1,0 +1,65 @@
+id: dp800-1a-json-computed-index
+objective: "1.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has a SQL Server 2022 database. The **Sales.Orders** table stores order documents as JSON text in an nvarchar(max) column named **OrderDoc**. A frequent query filters on the customer email address stored at `$.customer.email`.
+
+    You need to index the email address. Existing queries that filter with `JSON_VALUE(OrderDoc, '$.customer.email')` must be able to use the index without being rewritten.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'une base de données SQL Server 2022. La table **Sales.Orders** stocke des documents de commande sous forme de texte JSON dans une colonne nvarchar(max) nommée **OrderDoc**. Une requête fréquente filtre sur l'adresse e-mail du client stockée dans `$.customer.email`.
+
+    Vous devez indexer l'adresse e-mail. Les requêtes existantes qui filtrent avec `JSON_VALUE(OrderDoc, '$.customer.email')` doivent pouvoir utiliser l'index sans être réécrites.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE Sales.Orders
+        ADD CustomerEmail AS [[fn]](OrderDoc, '$.customer.email');
+
+    CREATE [[idx]] IX_Orders_CustomerEmail
+        ON Sales.Orders ([[col]]);
+  slots:
+    - id: fn
+      options:
+        - { id: jv, text: JSON_VALUE }
+        - { id: jq, text: JSON_QUERY }
+        - { id: jm, text: JSON_MODIFY }
+        - { id: oj, text: OPENJSON }
+    - id: idx
+      options:
+        - { id: ncl, text: NONCLUSTERED INDEX }
+        - { id: json, text: JSON INDEX }
+        - { id: ft, text: FULLTEXT INDEX }
+    - id: col
+      options:
+        - { id: email, text: CustomerEmail }
+        - { id: doc, text: OrderDoc }
+answer:
+  values: { fn: jv, idx: ncl, col: email }
+explanation:
+  correct:
+    en: |
+      For JSON stored as text, you expose the property as a computed column with JSON_VALUE, which returns a scalar, and index that column with a regular nonclustered index. Because the computed column uses the same expression as the queries, the optimizer matches the expression to the column and can use the index without any query change.
+    fr: |
+      Pour du JSON stocké sous forme de texte, vous exposez la propriété dans une colonne calculée avec JSON_VALUE, qui renvoie une valeur scalaire, puis vous indexez cette colonne avec un index non cluster classique. Comme la colonne calculée utilise la même expression que les requêtes, l'optimiseur fait correspondre l'expression à la colonne et peut utiliser l'index sans modifier les requêtes.
+  options:
+    jq: { en: "JSON_QUERY returns an object or an array, not the scalar email value.", fr: "JSON_QUERY renvoie un objet ou un tableau, pas la valeur scalaire de l'e-mail." }
+    jm: { en: "JSON_MODIFY returns a modified document; it doesn't extract a value.", fr: "JSON_MODIFY renvoie un document modifié ; il n'extrait pas de valeur." }
+    oj: { en: "OPENJSON is a table-valued function and can't define a computed column.", fr: "OPENJSON est une fonction table et ne peut pas définir une colonne calculée." }
+    json: { en: "A JSON index requires the json data type, which SQL Server 2022 doesn't have, and indexes a json column, not a computed column.", fr: "Un index JSON exige le type de données json, absent de SQL Server 2022, et indexe une colonne json, pas une colonne calculée." }
+    ft: { en: "A full-text index supports word searches with CONTAINS, not equality filters through JSON_VALUE.", fr: "Un index de recherche en texte intégral prend en charge la recherche de mots avec CONTAINS, pas des filtres d'égalité via JSON_VALUE." }
+    doc: { en: "An nvarchar(max) column can't be an index key column, and indexing the whole document doesn't serve the filter.", fr: "Une colonne nvarchar(max) ne peut pas être une colonne clé d'index, et indexer le document entier ne sert pas le filtre." }
+references:
+  - title: Index JSON data
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/json/index-json-data

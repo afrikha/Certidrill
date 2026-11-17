@@ -1,0 +1,69 @@
+id: ai200-cs2a-wideworld
+status: draft
+title:
+  en: Wide World Importers
+  fr: Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers is a freight forwarder that files customs declarations for about 12,000 shipments a day. Its customs brokers spend a lot of time finding past declarations for similar goods before they choose a tariff code.
+
+        Wide World Importers is building a service named **DocParser** in Python. DocParser extracts the goods descriptions from scanned shipping documents, generates an embedding for each description, and stores the declarations so that the brokers can search for semantically similar past declarations.
+      fr: |
+        Wide World Importers est un commissionnaire de transport qui dépose les déclarations en douane d'environ 12 000 expéditions par jour. Ses déclarants en douane passent beaucoup de temps à rechercher d'anciennes déclarations de marchandises similaires avant de choisir un code tarifaire.
+
+        Wide World Importers développe en Python un service nommé **DocParser**. DocParser extrait les descriptions des marchandises des documents d'expédition numérisés, génère une incorporation pour chaque description et stocke les déclarations afin que les déclarants puissent rechercher d'anciennes déclarations sémantiquement similaires.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Wide World Importers has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | crwwi | Azure Container Registry | Standard SKU |
+        | aks-wwi | Azure Kubernetes Service (AKS) cluster | Kubelet managed identity; namespace **docparser**; Container insights sends the container logs to the ContainerLogV2 table of the workspace log-wwi |
+        | sb-wwi | Azure Service Bus namespace | Standard tier; queue **customs-docs** with the default maximum delivery count |
+        | cosmos-wwi | Azure Cosmos DB for NoSQL account | Database **trade**; container **declarations** with the partition key `/shipperId`; container **leases** |
+        | log-wwi | Log Analytics workspace | Used by the operations team |
+
+        The DocParser source code is in a GitHub repository named **wwi/docparser**. Its Dockerfile is based on a Python image from a public registry. The developers currently build the images on their workstations and push them to crwwi manually.
+
+        The DocParser workers run as a deployment in the docparser namespace of aks-wwi. Each worker receives one message per scanned document from customs-docs.
+      fr: |
+        Wide World Importers dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | crwwi | Azure Container Registry | SKU Standard |
+        | aks-wwi | Cluster Azure Kubernetes Service (AKS) | Identité managée kubelet ; espace de noms **docparser** ; Container insights envoie les journaux des conteneurs vers la table ContainerLogV2 de l'espace de travail log-wwi |
+        | sb-wwi | Espace de noms Azure Service Bus | Niveau Standard ; file d'attente **customs-docs** avec le nombre maximal de remises par défaut |
+        | cosmos-wwi | Compte Azure Cosmos DB for NoSQL | Base de données **trade** ; conteneur **declarations** avec la clé de partition `/shipperId` ; conteneur **leases** |
+        | log-wwi | Espace de travail Log Analytics | Utilisé par l'équipe d'exploitation |
+
+        Le code source de DocParser se trouve dans un dépôt GitHub nommé **wwi/docparser**. Son Dockerfile est basé sur une image Python d'un registre public. Les développeurs génèrent actuellement les images sur leurs postes de travail et les envoient manuellement vers crwwi.
+
+        Les workers DocParser s'exécutent sous la forme d'un déploiement dans l'espace de noms docparser d'aks-wwi. Chaque worker reçoit de customs-docs un message par document numérisé.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Wide World Importers identifies the following requirements:
+
+        1. **Image builds**: the DocParser image must be built in Azure every time code is committed to the main branch of wwi/docparser, and again when its base image is updated. No image may be built on a workstation. Each image tag must identify the build run that produced it.
+        2. **Image pulls**: aks-wwi must pull the images from crwwi without storing any registry credential in the cluster.
+        3. **Failed documents**: a nightly repair job must read every message that Service Bus moved out of customs-docs after too many failed deliveries, log the reason recorded by Service Bus, and then remove the message permanently.
+        4. **Similarity search**: each item of the declarations container stores a 3,072-dimension embedding in the `/descVector` property. Brokers search across all the declarations (about 20 million items) by using cosine similarity. The lowest latency and RU charge are the priority, and approximate results are acceptable.
+        5. **Notifications**: a Python function app must notify the broker in charge each time a declaration is created or updated, by using the leases container to track its progress.
+        6. **Operations**: the operations team must find which DocParser pods log the most lines that contain the text `MemoryError`.
+      fr: |
+        Wide World Importers a défini les exigences suivantes :
+
+        1. **Génération des images** : l'image DocParser doit être générée dans Azure chaque fois que du code est validé dans la branche main de wwi/docparser, ainsi que lorsque son image de base est mise à jour. Aucune image ne doit être générée sur un poste de travail. Chaque balise d'image doit identifier l'exécution de génération qui l'a produite.
+        2. **Tirage des images** : aks-wwi doit tirer les images de crwwi sans stocker d'informations d'identification du registre dans le cluster.
+        3. **Documents en échec** : une tâche de réparation nocturne doit lire chaque message que Service Bus a retiré de customs-docs après trop de remises en échec, journaliser le motif enregistré par Service Bus, puis supprimer définitivement le message.
+        4. **Recherche de similarité** : chaque élément du conteneur declarations stocke une incorporation de 3 072 dimensions dans la propriété `/descVector`. Les déclarants effectuent leurs recherches sur l'ensemble des déclarations (environ 20 millions d'éléments) à l'aide de la similarité cosinus. La latence et la consommation de RU les plus faibles sont la priorité, et des résultats approximatifs sont acceptables.
+        5. **Notifications** : une application de fonction Python doit avertir le déclarant responsable chaque fois qu'une déclaration est créée ou mise à jour, en utilisant le conteneur leases pour suivre sa progression.
+        6. **Exploitation** : l'équipe d'exploitation doit trouver quels pods DocParser journalisent le plus de lignes qui contiennent le texte `MemoryError`.

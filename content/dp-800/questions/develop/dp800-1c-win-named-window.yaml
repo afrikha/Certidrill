@@ -1,0 +1,87 @@
+id: dp800-1c-win-named-window
+objective: "1.3.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that has a compatibility level of 160. The database contains a table named **Sales.ProductTotals** that has the columns CategoryID, ProductID and Sales (int).
+
+    You need a query that meets the following requirements:
+
+    - For each category, return the products that have the highest and the second-highest distinct Sales amounts. Products that tie must all be returned, and the next lower amount after a tie is still in position 2.
+    - Return PctOfCategory, the Sales of the product as a percentage of the total Sales of its category.
+    - Define the partitioning and the ordering of the ranking window only once.
+
+    How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL dont le niveau de compatibilité est 160. La base de données contient une table nommée **Sales.ProductTotals** qui contient les colonnes CategoryID, ProductID et Sales (int).
+
+    Vous avez besoin d'une requête qui respecte les exigences suivantes :
+
+    - Pour chaque catégorie, renvoyer les produits qui ont le montant Sales distinct le plus élevé et le deuxième plus élevé. Les produits ex aequo doivent tous être renvoyés, et le montant inférieur suivant un ex aequo reste en position 2.
+    - Renvoyer PctOfCategory, la valeur Sales du produit en pourcentage du total Sales de sa catégorie.
+    - Définir une seule fois le partitionnement et le tri de la fenêtre de classement.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    WITH Ranked AS
+    (
+        SELECT CategoryID, ProductID, Sales,
+               [[fn]] OVER w AS Position,
+               Sales * 100.0 / [[total]] AS PctOfCategory
+        FROM Sales.ProductTotals
+        [[win]]
+    )
+    SELECT CategoryID, ProductID, Sales, PctOfCategory
+    FROM Ranked
+    WHERE Position <= 2;
+  slots:
+    - id: fn
+      options:
+        - { id: dense, text: "DENSE_RANK()" }
+        - { id: rank, text: "RANK()" }
+        - { id: rownum, text: "ROW_NUMBER()" }
+        - { id: ntile, text: "NTILE(2)" }
+    - id: total
+      options:
+        - { id: part, text: "SUM(Sales) OVER (PARTITION BY CategoryID)" }
+        - { id: overw, text: "SUM(Sales) OVER w" }
+        - { id: plain, text: "SUM(Sales)" }
+        - { id: grand, text: "SUM(Sales) OVER ()" }
+    - id: win
+      options:
+        - { id: good, text: "WINDOW w AS (PARTITION BY CategoryID ORDER BY Sales DESC)" }
+        - { id: nopart, text: "WINDOW w AS (ORDER BY Sales DESC)" }
+        - { id: asc, text: "WINDOW w AS (PARTITION BY CategoryID ORDER BY Sales)" }
+        - { id: groupby, text: "GROUP BY CategoryID" }
+answer:
+  values: { fn: dense, total: part, win: good }
+explanation:
+  correct:
+    en: |
+      DENSE_RANK gives tied rows the same position without leaving gaps, so the next lower amount gets position 2. The WINDOW clause, available at compatibility level 160, names the partitioning and ordering once for OVER w. The category total needs its own OVER (PARTITION BY CategoryID) without ORDER BY, so that the frame covers the whole category.
+    fr: |
+      DENSE_RANK donne la même position aux lignes ex aequo sans laisser de trou : le montant inférieur suivant obtient la position 2. La clause WINDOW, disponible au niveau de compatibilité 160, nomme une seule fois le partitionnement et le tri pour OVER w. Le total de la catégorie nécessite son propre OVER (PARTITION BY CategoryID) sans ORDER BY, afin que le cadre couvre toute la catégorie.
+  options:
+    rank: { en: "RANK leaves a gap after a tie: two products in position 1 push the next one to position 3.", fr: "RANK laisse un trou après un ex aequo : deux produits en position 1 repoussent le suivant en position 3." }
+    rownum: { en: "ROW_NUMBER gives tied products different positions, so one of them can be dropped.", fr: "ROW_NUMBER donne des positions différentes aux produits ex aequo : l'un d'eux peut être exclu." }
+    ntile: { en: "NTILE(2) splits each category into two halves; it doesn't rank amounts.", fr: "NTILE(2) coupe chaque catégorie en deux moitiés ; il ne classe pas les montants." }
+    overw: { en: "Window w has ORDER BY, so the default frame stops at the current row and returns a running total.", fr: "La fenêtre w a un ORDER BY : le cadre par défaut s'arrête à la ligne courante et renvoie un cumul." }
+    plain: { en: "An aggregate without OVER and without GROUP BY can't be mixed with non-aggregated columns.", fr: "Un agrégat sans OVER ni GROUP BY ne peut pas être mélangé à des colonnes non agrégées." }
+    grand: { en: "OVER () returns the total of all categories.", fr: "OVER () renvoie le total de toutes les catégories." }
+    nopart: { en: "Without PARTITION BY, products are ranked across all categories.", fr: "Sans PARTITION BY, les produits sont classés toutes catégories confondues." }
+    asc: { en: "Ascending order puts the lowest amounts in positions 1 and 2.", fr: "L'ordre croissant place les montants les plus faibles en positions 1 et 2." }
+    groupby: { en: "GROUP BY doesn't define window w, and Sales and ProductID aren't grouped.", fr: "GROUP BY ne définit pas la fenêtre w, et Sales et ProductID ne sont pas regroupés." }
+references:
+  - title: SELECT - WINDOW clause (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/select-window-transact-sql
+  - title: RANK (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/rank-transact-sql

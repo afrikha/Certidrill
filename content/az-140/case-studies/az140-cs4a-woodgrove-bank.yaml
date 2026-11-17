@@ -1,0 +1,79 @@
+id: az140-cs4a-woodgrove-bank
+status: draft
+title:
+  en: |
+    Woodgrove Bank
+  fr: |
+    Woodgrove Bank
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Woodgrove Bank is a retail bank based in Brussels. It has 1,100 employees, including 600 contact center agents who work in shifts in Brussels and Liège, and 150 credit analysts.
+
+        Woodgrove is moving the contact center and the credit analysts to Azure Virtual Desktop. The security team must approve every change that affects the session hosts.
+      fr: |
+        Woodgrove Bank est une banque de détail dont le siège est à Bruxelles. Elle compte 1 100 employés, dont 600 conseillers de centre de contact qui travaillent en équipes à Bruxelles et à Liège, et 150 analystes crédit.
+
+        Woodgrove migre le centre de contact et les analystes crédit vers Azure Virtual Desktop. L'équipe de sécurité doit approuver toute modification qui concerne les hôtes de session.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity.** The AD DS domain woodgrovebank.com has domain controllers in Azure. Microsoft Entra Connect Sync synchronizes the users to Microsoft Entra ID. The session hosts are joined to woodgrovebank.com. The computer accounts of the HP-Agents session hosts are in the OU **AVD-Agents**, and those of the HP-Analysts session hosts are in the OU **AVD-Analysts**. The user accounts are in the OU **Staff**.
+
+        **Network.** The virtual network **VNet-Hub** in West Europe contains the Azure Bastion host **bas-hub** (Basic SKU). VNet-Hub is peered with **VNet-AVD**, which contains the session hosts. The session hosts don't have public IP addresses. Administrators work from the offices or from home.
+
+        **Azure Virtual Desktop.**
+
+        | Resource | Region | Configuration |
+        | --- | --- | --- |
+        | HP-Agents | West Europe | Pooled host pool, Windows 11 Enterprise multi-session, 30 session hosts, desktop application group, FSLogix profile containers on Azure Files |
+        | HP-Analysts | West Europe | Pooled host pool, Windows 11 Enterprise multi-session, 10 session hosts, RemoteApp application group that publishes CreditScore and Excel |
+        | gal_woodgrove | West Europe | Azure Compute Gallery in the resource group **RG-Images**, with the Gen2 image definition **win11-ms-agents** |
+
+        **Images.** Each month, an administrator updates a reference VM manually, runs Sysprep and captures a new image.
+
+        **Security pilot.** The session hosts run Fabrikam Endpoint Shield, a third-party antivirus product. Microsoft Defender Antivirus runs in passive mode. Woodgrove plans to replace Fabrikam Endpoint Shield with Microsoft Defender Antivirus before the production launch.
+
+        **Teams.** Agents call customers with the new Microsoft Teams app. The thin clients of the Liège office run a version of the Remote Desktop client that doesn't support SlimCore and can't be updated before 2027.
+      fr: |
+        **Identité.** Le domaine AD DS woodgrovebank.com dispose de contrôleurs de domaine dans Azure. Microsoft Entra Connect Sync synchronise les utilisateurs vers Microsoft Entra ID. Les hôtes de session sont joints à woodgrovebank.com. Les comptes d'ordinateur des hôtes de session de HP-Agents se trouvent dans l'unité d'organisation **AVD-Agents**, et ceux des hôtes de session de HP-Analysts dans l'unité d'organisation **AVD-Analysts**. Les comptes d'utilisateurs se trouvent dans l'unité d'organisation **Staff**.
+
+        **Réseau.** Le réseau virtuel **VNet-Hub** en West Europe contient l'hôte Azure Bastion **bas-hub** (référence SKU Basic). VNet-Hub est relié par peering à **VNet-AVD**, qui contient les hôtes de session. Les hôtes de session n'ont pas d'adresse IP publique. Les administrateurs travaillent depuis les bureaux ou depuis leur domicile.
+
+        **Azure Virtual Desktop.**
+
+        | Ressource | Région | Configuration |
+        | --- | --- | --- |
+        | HP-Agents | West Europe | Pool d'hôtes regroupé (pooled), Windows 11 Entreprise multisession, 30 hôtes de session, groupe d'applications de bureau, conteneurs de profils FSLogix sur Azure Files |
+        | HP-Analysts | West Europe | Pool d'hôtes regroupé (pooled), Windows 11 Entreprise multisession, 10 hôtes de session, groupe d'applications RemoteApp qui publie CreditScore et Excel |
+        | gal_woodgrove | West Europe | Galerie Azure Compute Gallery dans le groupe de ressources **RG-Images**, avec la définition d'image Gen2 **win11-ms-agents** |
+
+        **Images.** Chaque mois, un administrateur met à jour manuellement une machine virtuelle de référence, exécute Sysprep et capture une nouvelle image.
+
+        **Pilote de sécurité.** Les hôtes de session exécutent Fabrikam Endpoint Shield, un antivirus tiers. Microsoft Defender Antivirus s'exécute en mode passif. Woodgrove prévoit de remplacer Fabrikam Endpoint Shield par Microsoft Defender Antivirus avant la mise en production.
+
+        **Teams.** Les conseillers appellent les clients avec la nouvelle application Microsoft Teams. Les clients légers du bureau de Liège exécutent une version du client Bureau à distance qui ne prend pas en charge SlimCore et ne peut pas être mise à jour avant 2027.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Woodgrove identifies the following requirements:
+
+        1. **Image build.** The monthly image build must be automated by using Azure VM Image Builder, without a permanent build VM. The build runs PowerShell scripts and Windows Update, and produces a managed image in RG-Images. The identity that the build uses must have only the permissions that the build needs.
+        2. **Image publishing.** Each version of win11-ms-agents must be stored on zone-redundant storage in West Europe, have the recommended number of replicas in West Europe to deploy 80 session hosts at the same time, and have one replica in North Europe for disaster recovery. A new version must not be used as the latest version until the pilot validates it.
+        3. **Administrative access.** Administrators must open RDP sessions to the session hosts through Azure Bastion by using the Remote Desktop Connection client (mstsc.exe) of their workstations. The session hosts must not get public IP addresses. Costs must be minimized.
+        4. **Application control.** Only the applications that the security team approves may run on the session hosts, for every user. Ransomware must not be able to modify the files in the users' Documents folders.
+        5. **Sessions.** On HP-Agents, sessions with no user input for 30 minutes must be disconnected, and disconnected sessions must be signed out after 2 hours. The settings must be deployed by using Group Policy.
+        6. **Teams.** Teams calls must use media optimization on every agent device, including the Liège thin clients. Teams must be installed in the image.
+      fr: |
+        Woodgrove a défini les exigences suivantes :
+
+        1. **Création des images.** La création mensuelle de l'image doit être automatisée avec le Générateur d'images de machine virtuelle Azure (Azure VM Image Builder), sans machine virtuelle de build permanente. Le build exécute des scripts PowerShell et Windows Update, et produit une image managée dans RG-Images. L'identité utilisée par le build ne doit disposer que des autorisations dont le build a besoin.
+        2. **Publication des images.** Chaque version de win11-ms-agents doit être stockée sur un stockage redondant interzone en West Europe, disposer du nombre de réplicas recommandé en West Europe pour déployer 80 hôtes de session en même temps, et disposer d'un réplica en North Europe pour la reprise d'activité après sinistre. Une nouvelle version ne doit pas être utilisée comme dernière version (latest) tant que le pilote ne l'a pas validée.
+        3. **Accès administratif.** Les administrateurs doivent ouvrir des sessions RDP vers les hôtes de session via Azure Bastion avec le client Connexion Bureau à distance (mstsc.exe) de leur poste de travail. Les hôtes de session ne doivent pas recevoir d'adresse IP publique. Les coûts doivent être réduits au minimum.
+        4. **Contrôle des applications.** Seules les applications approuvées par l'équipe de sécurité peuvent s'exécuter sur les hôtes de session, pour tous les utilisateurs. Un rançongiciel ne doit pas pouvoir modifier les fichiers des dossiers Documents des utilisateurs.
+        5. **Sessions.** Sur HP-Agents, les sessions sans aucune action de l'utilisateur pendant 30 minutes doivent être déconnectées, et les sessions déconnectées doivent être fermées au bout de 2 heures. Les paramètres doivent être déployés par stratégie de groupe.
+        6. **Teams.** Les appels Teams doivent utiliser l'optimisation multimédia sur tous les appareils des conseillers, y compris les clients légers de Liège. Teams doit être installé dans l'image.

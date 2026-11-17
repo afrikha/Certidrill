@@ -1,0 +1,73 @@
+id: dp700-2c-kql-failed-requests
+objective: "2.2.8"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You have an eventhouse that contains a KQL database named OpsDB. OpsDB contains a table named WebRequests that has the following columns: Timestamp, Service, StatusCode, and DurationMs.
+
+    You need a query that returns, for each service and each 5-minute interval of the last day, the total number of requests and the number of requests that have a status code of 500 or higher.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse qui contient une base de données KQL nommée OpsDB. OpsDB contient une table nommée WebRequests qui comporte les colonnes suivantes : Timestamp, Service, StatusCode et DurationMs.
+
+    Vous avez besoin d'une requête qui renvoie, pour chaque service et chaque intervalle de 5 minutes du dernier jour, le nombre total de requêtes et le nombre de requêtes dont le code d'état est supérieur ou égal à 500.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    WebRequests
+    | where Timestamp > ago(1d)
+    | summarize Requests = count(), Failed = [[agg]](StatusCode >= 500)
+        by Service, [[grp]]
+  slots:
+    - id: agg
+      options:
+        - { id: countif, text: countif }
+        - { id: dcount, text: dcount }
+        - { id: sumif, text: sumif }
+        - { id: any, text: take_any }
+    - id: grp
+      options:
+        - { id: bin, text: "bin(Timestamp, 5m)" }
+        - { id: day, text: startofday(Timestamp) }
+        - { id: raw, text: Timestamp }
+        - { id: ago, text: ago(5m) }
+answer:
+  values: { agg: countif, grp: bin }
+explanation:
+  correct:
+    en: |
+      `countif(StatusCode >= 500)` counts the rows of each group for which the predicate is true. `bin(Timestamp, 5m)` rounds each timestamp down to the start of its 5-minute interval, so summarize returns one row per service and interval.
+    fr: |
+      `countif(StatusCode >= 500)` compte les lignes de chaque groupe pour lesquelles le prédicat est vrai. `bin(Timestamp, 5m)` arrondit chaque horodatage au début de son intervalle de 5 minutes : summarize renvoie donc une ligne par service et par intervalle.
+  options:
+    dcount:
+      en: "dcount estimates the number of distinct values of the expression (true or false), so it returns at most 2."
+      fr: "dcount estime le nombre de valeurs distinctes de l'expression (vrai ou faux) : il renvoie donc au plus 2."
+    sumif:
+      en: "sumif adds the values of an expression for the rows that match a predicate; it needs two arguments and sums values instead of counting rows."
+      fr: "sumif additionne les valeurs d'une expression pour les lignes qui vérifient un prédicat ; il attend deux arguments et additionne des valeurs au lieu de compter des lignes."
+    any:
+      en: "take_any returns an arbitrary value of the group, not a count."
+      fr: "take_any renvoie une valeur arbitraire du groupe, pas un comptage."
+    day:
+      en: "startofday groups the rows by day, not by 5-minute interval."
+      fr: "startofday regroupe les lignes par jour, pas par intervalle de 5 minutes."
+    raw:
+      en: "Grouping by the raw timestamp creates one group per distinct timestamp value."
+      fr: "Regrouper sur l'horodatage brut crée un groupe par valeur d'horodatage distincte."
+    ago:
+      en: "ago(5m) is a constant (the time 5 minutes ago), so every row falls into the same group."
+      fr: "ago(5m) est une constante (l'heure qu'il était il y a 5 minutes) : toutes les lignes tombent dans le même groupe."
+references:
+  - title: summarize operator
+    url: https://learn.microsoft.com/en-us/kusto/query/summarize-operator?view=microsoft-fabric

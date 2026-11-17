@@ -10,19 +10,27 @@ import { ReadinessCard } from "@/components/progress/readiness";
 import { ProgressionCard } from "@/components/progress/progression";
 import { OutcomeCard } from "@/components/progress/outcome-card";
 import { latestOutcomeDay, listOutcomes } from "@/lib/progress/outcomes";
-import { buttonClasses } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
 import { AccessBadge } from "./access-badge";
 import { getAccessSummary } from "@/lib/access";
 import { getCourseOutline, suggestedSections } from "@/lib/course/read";
 import { CourseCard } from "./course-card";
+import { OverviewCard } from "@/components/progress/overview-card";
+import { progressOverview, selectedCertification } from "@/lib/progress/overview";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+/**
+ * The dashboard: the global indicator across certifications, then the
+ * progress of one certification at a time (?certification=, else the latest
+ * practised), so that it stays readable with many certifications.
+ */
+export default async function DashboardPage({ searchParams }: Readonly<{ searchParams: Promise<{ certification?: string | string[] }> }>) {
   const user = await requireUser();
+  const sp = await searchParams;
   const t = await getTranslations("dashboard");
   const format = await getFormatter();
   await expireOverdue(prisma, user.id);
@@ -41,13 +49,19 @@ export default async function DashboardPage() {
   });
   const progress = await getProgress(prisma, user.id, user.locale === "fr" ? "fr" : "en");
   const outcomes = await listOutcomes(prisma, user.id);
+  const activeCodes = certifications.map((c) => c.code);
+  // Only active certifications count: an inactive one is invisible everywhere.
+  const overview = progressOverview({ ...progress, attempts: progress.attempts.filter((a) => activeCodes.includes(a.certification)) }, outcomes);
+  const selected = selectedCertification(activeCodes, typeof sp.certification === "string" ? sp.certification : null, overview, inProgress.map((a) => a.certification.code));
+  const shown = certifications.filter((c) => c.code === selected);
+  const titles = Object.fromEntries(certifications.map((c) => [c.code, c.title]));
   const latestDay = latestOutcomeDay();
   const access = new Map((await getAccessSummary(prisma, user.id)).map((a) => [a.certification, a]));
   const viewer = { userId: user.id, isAdmin: user.role === "admin" };
   const courseLocale = user.locale === "fr" ? "fr" : "en";
   const courses = (
     await Promise.all(
-      certifications.map(async (c) => {
+      shown.map(async (c) => {
         const outline = await getCourseOutline(prisma, { certification: c.code, viewer, locale: courseLocale });
         return outline && { outline, suggestions: await suggestedSections(prisma, { certificationId: c.id, viewer, locale: courseLocale }) };
       }),
@@ -68,7 +82,23 @@ export default async function DashboardPage() {
         </Card>
       ))}
 
-      {certifications.map((c) => {
+      {overview.rows.length > 0 && <OverviewCard overview={overview} selected={selected} titles={titles} />}
+
+      {certifications.length > 1 && (
+        <form method="get" className="flex flex-wrap items-end gap-3" data-testid="certification-picker">
+          <div>
+            <label htmlFor="dashboard-certification" className="block text-sm font-medium">{t("chooseCertification")}</label>
+            <select id="dashboard-certification" name="certification" defaultValue={selected ?? undefined} className="mt-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
+              {certifications.map((c) => (
+                <option key={c.code} value={c.code}>{c.code.toUpperCase()} — {c.title}</option>
+              ))}
+            </select>
+          </div>
+          <Button type="submit" variant="secondary">{t("show")}</Button>
+        </form>
+      )}
+
+      {shown.map((c) => {
         const bp = c.blueprints[0];
         const busy = inProgress.some((a) => a.certificationId === c.id);
         return (
@@ -87,7 +117,7 @@ export default async function DashboardPage() {
 
       {courses.map(({ outline, suggestions }) => <CourseCard key={outline.certification.code} outline={outline} suggestions={suggestions} />)}
 
-      {certifications.map((c) => {
+      {shown.map((c) => {
         const history = progress.attempts.filter((a) => a.certification === c.code);
         if (history.length === 0) return null;
         // Scores only make sense against the certification's own blueprint (data, never a default).

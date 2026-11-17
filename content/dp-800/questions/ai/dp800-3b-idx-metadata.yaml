@@ -1,0 +1,71 @@
+id: dp800-3b-idx-metadata
+objective: "3.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You manage an Azure SQL database that contains several vector indexes, some of them created in 2025 with an earlier index version.
+
+    You need a report that lists, for each vector index, its table, its name, its distance metric and its index version.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous gérez une base de données Azure SQL qui contient plusieurs index vectoriels, dont certains ont été créés en 2025 avec une version d'index antérieure.
+
+    Vous avez besoin d'un rapport qui répertorie, pour chaque index vectoriel, sa table, son nom, sa métrique de distance et sa version d'index.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT t.name AS table_name,
+           i.name AS index_name,
+           v.[[col]] AS metric,
+           [[fn]](v.build_parameters, '$.Version') AS index_version
+    FROM [[view]] AS v
+    INNER JOIN sys.indexes AS i
+        ON v.object_id = i.object_id AND v.index_id = i.index_id
+    INNER JOIN sys.tables AS t
+        ON v.object_id = t.object_id;
+  slots:
+    - id: col
+      options:
+        - { id: metric, text: distance_metric }
+        - { id: type, text: vector_index_type }
+        - { id: typedesc, text: type_desc }
+    - id: fn
+      options:
+        - { id: value, text: JSON_VALUE }
+        - { id: query, text: JSON_QUERY }
+        - { id: openjson, text: OPENJSON }
+    - id: view
+      options:
+        - { id: catalog, text: sys.vector_indexes }
+        - { id: dmv, text: sys.dm_db_vector_indexes }
+        - { id: fulltext, text: sys.fulltext_indexes }
+answer:
+  values: { col: metric, fn: value, view: catalog }
+explanation:
+  correct:
+    en: |-
+      The sys.vector_indexes catalog view has one row per vector index; it inherits the columns of sys.indexes and adds vector_index_type, distance_metric and build_parameters. JSON_VALUE extracts the scalar Version value from build_parameters; version 3 is the latest index version.
+    fr: |-
+      La vue de catalogue sys.vector_indexes contient une ligne par index vectoriel ; elle hérite des colonnes de sys.indexes et ajoute vector_index_type, distance_metric et build_parameters. JSON_VALUE extrait la valeur scalaire Version de build_parameters ; la version 3 est la dernière version d'index.
+  options:
+    type: { en: "vector_index_type returns the index type, DiskANN, not the metric.", fr: "vector_index_type renvoie le type d'index, DiskANN, pas la métrique." }
+    typedesc: { en: "type_desc, inherited from sys.indexes, describes the kind of index, not its distance metric.", fr: "type_desc, hérité de sys.indexes, décrit le genre d'index, pas sa métrique de distance." }
+    query: { en: "JSON_QUERY extracts an object or an array, not a scalar value such as a version number.", fr: "JSON_QUERY extrait un objet ou un tableau, pas une valeur scalaire comme un numéro de version." }
+    openjson: { en: "OPENJSON is a table-valued function; it cannot be used as a scalar expression in the select list.", fr: "OPENJSON est une fonction table ; elle ne peut pas être utilisée comme expression scalaire dans la liste de sélection." }
+    dmv: { en: "sys.dm_db_vector_indexes is used to monitor index maintenance; the metric and build parameters are in sys.vector_indexes.", fr: "sys.dm_db_vector_indexes sert à surveiller la maintenance des index ; la métrique et les paramètres de création se trouvent dans sys.vector_indexes." }
+    fulltext: { en: "sys.fulltext_indexes describes full-text indexes, not vector indexes.", fr: "sys.fulltext_indexes décrit les index de recherche en texte intégral, pas les index vectoriels." }
+references:
+  - title: sys.vector_indexes (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-vector-indexes-transact-sql
+  - title: CREATE VECTOR INDEX (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-index-transact-sql

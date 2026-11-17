@@ -1,0 +1,111 @@
+id: ai300-5a-gha-variant-compare
+objective: "5.1.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam's RAG assistant is a Microsoft Foundry agent named **rag-agent**. Version 7 runs in production, and version 8 uses a new retrieval configuration. A GitHub repository contains a test dataset file for the assistant. A Microsoft Entra application with a federated credential for the repository already has the Foundry User role on the Foundry project.
+
+    You need a GitHub Actions workflow that evaluates both versions and reports whether version 8 differs significantly from version 7. The workflow must not use any client secret.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'assistant RAG de Fabrikam est un agent Microsoft Foundry nommé **rag-agent**. La version 7 s'exécute en production, et la version 8 utilise une nouvelle configuration de récupération. Un dépôt GitHub contient un fichier de jeu de données de test pour l'assistant. Une application Microsoft Entra dotée d'informations d'identification fédérées pour le dépôt dispose déjà du rôle Foundry User sur le projet Foundry.
+
+    Vous avez besoin d'un workflow GitHub Actions qui évalue les deux versions et indique si la version 8 diffère de manière significative de la version 7. Le workflow ne doit utiliser aucun secret client.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: rag-agent-evaluation
+    on:
+      workflow_dispatch:
+
+    permissions:
+      id-token: [[perm]]
+      contents: read
+
+    jobs:
+      evaluate:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - name: Azure login
+            uses: [[login]]
+            with:
+              client-id: ${{ vars.AZURE_CLIENT_ID }}
+              tenant-id: ${{ vars.AZURE_TENANT_ID }}
+              subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          - name: Evaluate versions
+            uses: microsoft/ai-agent-evals@v3-beta
+            with:
+              azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+              deployment-name: gpt-4.1-mini
+              agent-ids: "rag-agent:7,rag-agent:8"
+              [[base]]: "rag-agent:7"
+              data-path: ${{ github.workspace }}/eval/rag-dataset.json
+  slots:
+    - id: perm
+      options:
+        - { id: write, text: write }
+        - { id: read, text: read }
+        - { id: none, text: none }
+    - id: login
+      options:
+        - { id: azlogin, text: azure/login@v2 }
+        - { id: azcli, text: azure/cli@v2 }
+        - { id: checkout, text: actions/checkout@v4 }
+    - id: base
+      options:
+        - { id: baseline, text: baseline-agent-id }
+        - { id: deployment, text: deployment-name }
+        - { id: datapath, text: data-path }
+answer:
+  values: { perm: write, login: azlogin, base: baseline }
+explanation:
+  correct:
+    en: |
+      OpenID Connect sign-in needs the `id-token: write` permission so that the job can request a GitHub token, and `azure/login@v2` exchanges it for a Microsoft Entra token through the federated credential, with no client secret. The `microsoft/ai-agent-evals` action (preview) evaluates every agent listed in `agent-ids` and, with several agents, adds a pairwise statistical comparison; `baseline-agent-id` names the version to compare against (by default, the first agent of the list).
+    fr: |
+      La connexion OpenID Connect exige l'autorisation `id-token: write` pour que le travail puisse demander un jeton GitHub, et `azure/login@v2` l'échange contre un jeton Microsoft Entra par les informations d'identification fédérées, sans secret client. L'action `microsoft/ai-agent-evals` (préversion) évalue chaque agent répertorié dans `agent-ids` et, avec plusieurs agents, ajoute une comparaison statistique par paires ; `baseline-agent-id` désigne la version de référence (par défaut, le premier agent de la liste).
+  options:
+    read:
+      en: |
+        With id-token set to read, the job can't request the OIDC token that the federated sign-in needs.
+      fr: |
+        Avec id-token défini sur read, le travail ne peut pas demander le jeton OIDC nécessaire à la connexion fédérée.
+    none:
+      en: |
+        Without the id-token permission, no OIDC token is issued, so the sign-in fails.
+      fr: |
+        Sans l'autorisation id-token, aucun jeton OIDC n'est émis et la connexion échoue.
+    azcli:
+      en: |
+        azure/cli runs Azure CLI scripts in an already signed-in context; it doesn't perform the federated sign-in with these inputs.
+      fr: |
+        azure/cli exécute des scripts Azure CLI dans un contexte déjà connecté ; il n'effectue pas la connexion fédérée avec ces entrées.
+    checkout:
+      en: |
+        actions/checkout retrieves the repository content; it doesn't sign in to Azure.
+      fr: |
+        actions/checkout récupère le contenu du dépôt ; il ne connecte pas à Azure.
+    deployment:
+      en: |
+        deployment-name, already set, is the model deployment used by the evaluators; it doesn't select the baseline.
+      fr: |
+        deployment-name, déjà défini, est le déploiement de modèle utilisé par les évaluateurs ; il ne sélectionne pas la référence.
+    datapath:
+      en: |
+        data-path, already set, points to the dataset file; it doesn't select the baseline.
+      fr: |
+        data-path, déjà défini, pointe vers le fichier du jeu de données ; il ne sélectionne pas la référence.
+references:
+  - title: How to run an evaluation in GitHub Action (preview)
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/evaluation-github-action

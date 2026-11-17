@@ -1,0 +1,82 @@
+id: sc500-1a-mi-cli-assign
+objective: "1.1.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware, Inc. has a virtual machine named **vm-orders** in a resource group named **rg-app**. The ID of a storage account is stored in the variable `$storageId`.
+
+    You need to create a user-assigned managed identity named **id-orders**, attach it to vm-orders, and allow it to read blobs in the storage account. The role assignment must not depend on a Microsoft Graph lookup of the identity.
+
+    How should you complete the Azure CLI script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware, Inc. dispose d'une machine virtuelle nommée **vm-orders** dans un groupe de ressources nommé **rg-app**. L'ID d'un compte de stockage est stocké dans la variable `$storageId`.
+
+    Vous devez créer une identité managée affectée par l'utilisateur nommée **id-orders**, l'associer à vm-orders et lui permettre de lire les objets blob du compte de stockage. L'attribution de rôle ne doit pas dépendre d'une recherche de l'identité dans Microsoft Graph.
+
+    Comment devez-vous compléter le script Azure CLI ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az identity create -g rg-app -n id-orders
+    principalId=$(az identity show -g rg-app -n id-orders --query principalId -o tsv)
+
+    az vm identity [[op]] -g rg-app -n vm-orders [[flag]] id-orders
+
+    az role assignment create \
+      --assignee-object-id $principalId \
+      --assignee-principal-type [[ptype]] \
+      --role "Storage Blob Data Reader" \
+      --scope $storageId
+  slots:
+    - id: op
+      options:
+        - { id: assign, text: assign }
+        - { id: show, text: show }
+        - { id: remove, text: remove }
+    - id: flag
+      options:
+        - { id: identities, text: "--identities" }
+        - { id: scope, text: "--scope" }
+        - { id: role, text: "--role" }
+    - id: ptype
+      options:
+        - { id: sp, text: ServicePrincipal }
+        - { id: user, text: User }
+        - { id: group, text: Group }
+        - { id: foreign, text: ForeignGroup }
+answer:
+  values: { op: assign, flag: identities, ptype: sp }
+explanation:
+  correct:
+    en: |
+      `az vm identity assign` with `--identities` attaches an existing user-assigned identity to the VM; without `--identities` it would enable the system-assigned identity instead. A managed identity is represented by a service principal, so `--assignee-object-id` is combined with `--assignee-principal-type ServicePrincipal`, which avoids the Microsoft Graph lookup and propagation latency errors.
+    fr: |
+      `az vm identity assign` avec `--identities` associe une identité affectée par l'utilisateur existante à la machine virtuelle ; sans `--identities`, la commande activerait l'identité affectée par le système. Une identité managée est représentée par un principal de service : `--assignee-object-id` est donc combiné avec `--assignee-principal-type ServicePrincipal`, ce qui évite la recherche dans Microsoft Graph et les erreurs dues à la latence de propagation.
+  options:
+    remove:
+      en: |
+        `az vm identity remove` detaches an identity from the VM.
+      fr: |
+        `az vm identity remove` dissocie une identité de la machine virtuelle.
+    scope:
+      en: |
+        `--scope` sets the scope of a role assignment made for the system-assigned identity; it does not name a user-assigned identity.
+      fr: |
+        `--scope` définit l'étendue d'une attribution de rôle pour l'identité affectée par le système ; il ne désigne pas une identité affectée par l'utilisateur.
+    user:
+      en: |
+        A managed identity is not a user object in Microsoft Entra ID.
+      fr: |
+        Une identité managée n'est pas un objet utilisateur dans Microsoft Entra ID.
+references:
+  - title: Configure managed identities on Azure virtual machines (VMs)
+    url: https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/how-to-configure-managed-identities
+  - title: az role assignment
+    url: https://learn.microsoft.com/en-us/cli/azure/role/assignment

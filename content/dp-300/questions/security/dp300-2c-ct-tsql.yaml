@@ -1,0 +1,91 @@
+id: dp300-2c-ct-tsql
+objective: "2.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named Sales that contains a table named dbo.Orders. dbo.Orders has a primary key.
+
+    You need to configure change tracking to meet the following requirements:
+
+    - Keep change information for seven days.
+    - Record which columns were changed by each update.
+    - Before returning changes, detect whether the client's last synchronization version is too old, so that the client can be reinitialized.
+    - Return the rows changed since the client's last synchronization.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée Sales qui contient une table nommée dbo.Orders. dbo.Orders possède une clé primaire.
+
+    Vous devez configurer le suivi des modifications pour répondre aux exigences suivantes :
+
+    - Conserver les informations de modification pendant sept jours.
+    - Enregistrer les colonnes modifiées par chaque mise à jour.
+    - Avant de renvoyer les modifications, détecter si la dernière version de synchronisation du client est trop ancienne, afin de pouvoir réinitialiser le client.
+    - Renvoyer les lignes modifiées depuis la dernière synchronisation du client.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER DATABASE Sales
+    SET CHANGE_TRACKING = ON ([[ret]] = 7 DAYS, AUTO_CLEANUP = ON);
+
+    ALTER TABLE dbo.Orders
+    ENABLE CHANGE_TRACKING WITH ([[cols]] = ON);
+
+    -- Synchronization procedure; @last_sync_version is supplied by the client
+    IF @last_sync_version < [[minv]](OBJECT_ID('dbo.Orders'))
+        THROW 50001, 'Reinitialize the client.', 1;
+
+    SELECT ct.OrderID, ct.SYS_CHANGE_OPERATION, ct.SYS_CHANGE_COLUMNS
+    FROM [[fn]](CHANGES dbo.Orders, @last_sync_version) AS ct;
+  slots:
+    - id: ret
+      options:
+        - { id: r_hist, text: HISTORY_RETENTION_PERIOD }
+        - { id: r_change, text: CHANGE_RETENTION }
+        - { id: r_days, text: RETENTION_DAYS }
+    - id: cols
+      options:
+        - { id: c_sysver, text: SYSTEM_VERSIONING }
+        - { id: c_snap, text: ALLOW_SNAPSHOT_ISOLATION }
+        - { id: c_track, text: TRACK_COLUMNS_UPDATED }
+    - id: minv
+      options:
+        - { id: m_current, text: CHANGE_TRACKING_CURRENT_VERSION }
+        - { id: m_min, text: CHANGE_TRACKING_MIN_VALID_VERSION }
+        - { id: m_lsn, text: sys.fn_cdc_get_min_lsn }
+    - id: fn
+      options:
+        - { id: f_changetable, text: CHANGETABLE }
+        - { id: f_contains, text: CONTAINSTABLE }
+        - { id: f_freetext, text: FREETEXTTABLE }
+answer:
+  values: { ret: r_change, cols: c_track, minv: m_min, fn: f_changetable }
+explanation:
+  correct:
+    en: |
+      CHANGE_RETENTION sets how long change information is kept, and AUTO_CLEANUP removes it after that period. TRACK_COLUMNS_UPDATED = ON makes the engine store which columns each update changed (it is OFF by default), returned in SYS_CHANGE_COLUMNS. If the client's last version is lower than CHANGE_TRACKING_MIN_VALID_VERSION for the table, cleanup may have removed changes and the client must be reinitialized. CHANGETABLE(CHANGES ...) returns the rows changed after the given version.
+    fr: |
+      CHANGE_RETENTION définit la durée de conservation des informations de modification, et AUTO_CLEANUP les supprime après ce délai. TRACK_COLUMNS_UPDATED = ON fait stocker par le moteur les colonnes modifiées par chaque mise à jour (OFF par défaut), renvoyées dans SYS_CHANGE_COLUMNS. Si la dernière version du client est inférieure à CHANGE_TRACKING_MIN_VALID_VERSION pour la table, le nettoyage a pu supprimer des modifications et le client doit être réinitialisé. CHANGETABLE(CHANGES ...) renvoie les lignes modifiées après la version indiquée.
+  options:
+    r_hist: { en: "HISTORY_RETENTION_PERIOD sets the retention of a temporal table's history, not of change tracking.", fr: "HISTORY_RETENTION_PERIOD définit la rétention de l'historique d'une table temporelle, pas celle du suivi des modifications." }
+    r_days: { en: "RETENTION_DAYS is an option of a server audit target.", fr: "RETENTION_DAYS est une option de la cible d'un audit du serveur." }
+    c_sysver: { en: "SYSTEM_VERSIONING turns a table into a temporal table; it doesn't configure change tracking.", fr: "SYSTEM_VERSIONING transforme une table en table temporelle ; il ne configure pas le suivi des modifications." }
+    c_snap: { en: "ALLOW_SNAPSHOT_ISOLATION is a recommended database option for consistent change tracking reads, not a table change tracking option.", fr: "ALLOW_SNAPSHOT_ISOLATION est une option de base de données recommandée pour des lectures cohérentes du suivi des modifications, pas une option de suivi des modifications de la table." }
+    m_current: { en: "CHANGE_TRACKING_CURRENT_VERSION returns the version to store for the next synchronization, not the oldest valid one.", fr: "CHANGE_TRACKING_CURRENT_VERSION renvoie la version à stocker pour la prochaine synchronisation, pas la plus ancienne version valide." }
+    m_lsn: { en: "sys.fn_cdc_get_min_lsn belongs to change data capture and returns a log sequence number, not a change tracking version.", fr: "sys.fn_cdc_get_min_lsn appartient à la capture des changements de données et renvoie un numéro séquentiel dans le journal, pas une version du suivi des modifications." }
+    f_contains: { en: "CONTAINSTABLE is a full-text search function.", fr: "CONTAINSTABLE est une fonction de recherche en texte intégral." }
+    f_freetext: { en: "FREETEXTTABLE is a full-text search function.", fr: "FREETEXTTABLE est une fonction de recherche en texte intégral." }
+references:
+  - title: Enable and Disable Change Tracking (SQL Server)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/enable-and-disable-change-tracking-sql-server
+  - title: Work with Change Tracking (SQL Server)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/work-with-change-tracking-sql-server

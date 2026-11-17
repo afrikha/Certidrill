@@ -1,0 +1,76 @@
+id: dp420-2c-lat-telemetry-thresholds
+objective: "2.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A .NET service uses the Azure Cosmos DB .NET SDK 3.45 (non-preview). The service objective is 50 ms for point operations and 400 ms for queries.
+
+    You need to send operation-level traces of Azure Cosmos DB requests to Application Insights by using OpenTelemetry. The SDK must also emit the request diagnostics of point operations slower than 50 ms and of queries slower than 400 ms.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un service .NET utilise le SDK .NET Azure Cosmos DB 3.45 (version hors préversion). L'objectif de service est de 50 ms pour les opérations ponctuelles et de 400 ms pour les requêtes.
+
+    Vous devez envoyer à Application Insights les traces de niveau opération des requêtes Azure Cosmos DB à l'aide d'OpenTelemetry. Le SDK doit également émettre les diagnostics des opérations ponctuelles plus lentes que 50 ms et des requêtes plus lentes que 400 ms.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    CosmosClientOptions options = new CosmosClientOptions
+    {
+        CosmosClientTelemetryOptions = new CosmosClientTelemetryOptions
+        {
+            [[trace]],
+            CosmosThresholdOptions = new CosmosThresholdOptions
+            {
+                [[point]] = TimeSpan.FromMilliseconds(50),
+                NonPointOperationLatencyThreshold = TimeSpan.FromMilliseconds(400)
+            }
+        }
+    };
+
+    TracerProvider tracerProvider = Sdk.CreateTracerProviderBuilder()
+        .AddSource("[[source]]")
+        .AddAzureMonitorTraceExporter(o => o.ConnectionString = aiConnectionString)
+        .Build();
+  slots:
+    - id: trace
+      options:
+        - { id: enable, text: "DisableDistributedTracing = false" }
+        - { id: disable, text: "DisableDistributedTracing = true" }
+        - { id: metrics, text: "IsClientMetricsEnabled = true" }
+        - { id: send, text: "DisableSendingMetricsToService = false" }
+    - id: point
+      options:
+        - { id: pointlat, text: PointOperationLatencyThreshold }
+        - { id: charge, text: RequestChargeThreshold }
+        - { id: payload, text: PayloadSizeThresholdInBytes }
+    - id: source
+      options:
+        - { id: op, text: Azure.Cosmos.Operation }
+        - { id: diag, text: Azure-Cosmos-Operation-Request-Diagnostics }
+        - { id: pkg, text: Microsoft.Azure.Cosmos }
+answer:
+  values: { trace: enable, point: pointlat, source: op }
+explanation:
+  correct:
+    en: "In non-preview versions of the .NET SDK (3.36.0 or later), distributed tracing is off by default and is enabled by setting `DisableDistributedTracing = false` in `CosmosClientTelemetryOptions`. `CosmosThresholdOptions` sets the latency thresholds above which successful requests emit their diagnostics; the defaults are 1 second for point operations and 3 seconds for other operations. Traces are collected by adding the `Azure.Cosmos.Operation` source to the OpenTelemetry trace provider."
+    fr: "Dans les versions hors préversion du SDK .NET (3.36.0 ou ultérieures), le traçage distribué est désactivé par défaut et s'active en définissant `DisableDistributedTracing = false` dans `CosmosClientTelemetryOptions`. `CosmosThresholdOptions` définit les seuils de latence au-delà desquels les requêtes réussies émettent leurs diagnostics ; les valeurs par défaut sont de 1 seconde pour les opérations ponctuelles et de 3 secondes pour les autres opérations. Les traces sont collectées en ajoutant la source `Azure.Cosmos.Operation` au fournisseur de traces OpenTelemetry."
+  options:
+    disable: { en: "Setting the property to true turns operation-level tracing off.", fr: "Définir la propriété sur true désactive le traçage de niveau opération." }
+    metrics: { en: "IsClientMetricsEnabled controls client-side metrics collection, not operation traces.", fr: "IsClientMetricsEnabled contrôle la collecte des métriques côté client, pas les traces d'opération." }
+    charge: { en: "RequestChargeThreshold triggers diagnostics on the RU charge, not on the latency.", fr: "RequestChargeThreshold déclenche les diagnostics selon les frais en RU, pas selon la latence." }
+    diag: { en: "Azure-Cosmos-Operation-Request-Diagnostics is the name used for the diagnostics log events, not the trace source.", fr: "Azure-Cosmos-Operation-Request-Diagnostics est le nom utilisé pour les événements de journal de diagnostic, pas la source de traces." }
+references:
+  - title: Azure Cosmos DB SDK observability
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/sdk-observability
+  - title: CosmosThresholdOptions Class
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.cosmosthresholdoptions

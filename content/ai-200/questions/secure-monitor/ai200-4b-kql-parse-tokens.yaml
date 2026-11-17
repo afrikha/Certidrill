@@ -1,0 +1,81 @@
+id: ai200-4b-kql-parse-tokens
+objective: "4.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An older Python service at Proseware doesn't emit custom metrics. After each completion, it writes a log line such as `completion model=gpt-4.1-mini tokens=812` to `AppTraces`.
+
+    You need the total number of tokens per model for the last day. The query must extract the values from the `Message` column.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un ancien service Python de Proseware n'émet pas de métriques personnalisées. Après chaque complétion, il écrit dans `AppTraces` une ligne de journal comme `completion model=gpt-4.1-mini tokens=812`.
+
+    Vous avez besoin du nombre total de jetons par modèle pour la dernière journée. La requête doit extraire les valeurs de la colonne `Message`.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    AppTraces
+    | where TimeGenerated > ago(1d) and Message startswith "completion"
+    | [[op]] Message with * "model=" Model " tokens=" Tokens:[[type]]
+    | summarize TotalTokens = [[agg]](Tokens) by Model
+  slots:
+    - id: op
+      options:
+        - { id: parse, text: parse }
+        - { id: extend, text: extend }
+        - { id: project, text: project }
+    - id: type
+      options:
+        - { id: long, text: long }
+        - { id: string, text: string }
+        - { id: datetime, text: datetime }
+    - id: agg
+      options:
+        - { id: sum, text: sum }
+        - { id: count, text: count }
+        - { id: dcount, text: dcount }
+answer:
+  values: { op: parse, type: long, agg: sum }
+explanation:
+  correct:
+    en: "`parse ... with` matches the string against a pattern of constants and column names: `*` skips the leading text, and the text between the constants becomes the `Model` and `Tokens` columns. Typing `Tokens` as `long` makes it numeric, so `sum()` adds the tokens of each model."
+    fr: "`parse ... with` compare la chaîne à un modèle composé de constantes et de noms de colonnes : `*` ignore le texte de début, et le texte situé entre les constantes devient les colonnes `Model` et `Tokens`. Typer `Tokens` en `long` le rend numérique : `sum()` additionne les jetons de chaque modèle."
+  options:
+    extend:
+      en: |-
+        extend computes columns from expressions; it doesn't accept a with pattern.
+      fr: |-
+        extend calcule des colonnes à partir d'expressions ; il n'accepte pas de modèle with.
+    project:
+      en: |-
+        project selects or computes columns; it doesn't accept a with pattern.
+      fr: |-
+        project sélectionne ou calcule des colonnes ; il n'accepte pas de modèle with.
+    string:
+      en: |-
+        A string column can't be summed.
+      fr: |-
+        Une colonne de type chaîne ne peut pas être additionnée.
+    count:
+      en: |-
+        count() would return the number of completions, not the number of tokens.
+      fr: |-
+        count() renverrait le nombre de complétions, pas le nombre de jetons.
+    dcount:
+      en: |-
+        dcount() counts the distinct token values.
+      fr: |-
+        dcount() compte les valeurs distinctes de jetons.
+references:
+  - title: parse operator
+    url: https://learn.microsoft.com/en-us/kusto/query/parse-operator

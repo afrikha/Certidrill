@@ -1,0 +1,76 @@
+id: sc500-1c-rbac-bicep-assign
+objective: "1.3.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware, Inc. has a storage account named **stinvoices001**. You need to grant the Microsoft Entra security group **Finance-Readers** the built-in **Storage Blob Data Reader** role on stinvoices001 by using Bicep. The object ID of the group is passed in the `groupObjectId` parameter, and `blobReaderRoleId` contains the GUID of the role definition.
+
+    The deployment must be repeatable without creating duplicate assignments, and it must avoid the intermittent deployment errors that can occur when the principal type is not specified.
+
+    How should you complete the file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware, Inc. dispose d'un compte de stockage nommé **stinvoices001**. Vous devez accorder au groupe de sécurité Microsoft Entra **Finance-Readers** le rôle intégré **Storage Blob Data Reader** sur stinvoices001 à l'aide de Bicep. L'ID d'objet du groupe est passé dans le paramètre `groupObjectId`, et `blobReaderRoleId` contient le GUID de la définition de rôle.
+
+    Le déploiement doit pouvoir être répété sans créer d'attributions en double, et il doit éviter les erreurs de déploiement intermittentes qui peuvent se produire quand le type de principal n'est pas indiqué.
+
+    Comment devez-vous compléter le fichier ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    param groupObjectId string
+    var blobReaderRoleId = '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
+
+    resource st 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+      name: 'stinvoices001'
+    }
+
+    resource ra 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+      name: [[name]]
+      scope: st
+      properties: {
+        roleDefinitionId: [[roledef]]
+        principalId: groupObjectId
+        principalType: [[ptype]]
+      }
+    }
+  slots:
+    - id: name
+      options:
+        - { id: guid, text: "guid(st.id, groupObjectId, blobReaderRoleId)" }
+        - { id: str, text: "'finance-readers-blob'" }
+        - { id: unique, text: "uniqueString(st.id, groupObjectId)" }
+    - id: roledef
+      options:
+        - { id: rolename, text: "'Storage Blob Data Reader'" }
+        - { id: subid, text: "subscriptionResourceId('Microsoft.Authorization/roleDefinitions', blobReaderRoleId)" }
+        - { id: rawguid, text: blobReaderRoleId }
+    - id: ptype
+      options:
+        - { id: user, text: "'User'" }
+        - { id: sp, text: "'ServicePrincipal'" }
+        - { id: group, text: "'Group'" }
+answer:
+  values: { name: guid, roledef: subid, ptype: group }
+explanation:
+  correct:
+    en: |
+      A role assignment name must be a GUID; `guid()` built from the scope, principal and role is deterministic, so redeploying updates the same assignment instead of creating a new one. `roleDefinitionId` expects the fully qualified resource ID of the role definition, a subscription-scoped resource that `subscriptionResourceId()` builds from the GUID. Setting `principalType` to `'Group'` avoids intermittent deployment errors.
+    fr: |
+      Le nom d'une attribution de rôle doit être un GUID ; `guid()` construit à partir de l'étendue, du principal et du rôle est déterministe : redéployer met à jour la même attribution au lieu d'en créer une nouvelle. `roleDefinitionId` attend l'ID de ressource complet de la définition de rôle, une ressource de niveau abonnement que `subscriptionResourceId()` construit à partir du GUID. Définir `principalType` sur `'Group'` évite les erreurs de déploiement intermittentes.
+  options:
+    str: { en: "A role assignment name must be a GUID, not a free-form string.", fr: "Le nom d'une attribution de rôle doit être un GUID, pas une chaîne libre." }
+    unique: { en: "uniqueString() returns a 13-character hash, not a GUID.", fr: "uniqueString() renvoie un hachage de 13 caractères, pas un GUID." }
+    rolename: { en: "roleDefinitionId takes the resource ID of the definition, not the role's display name.", fr: "roleDefinitionId prend l'ID de ressource de la définition, pas le nom d'affichage du rôle." }
+    rawguid: { en: "The GUID alone is not the resource ID of the role definition.", fr: "Le GUID seul n'est pas l'ID de ressource de la définition de rôle." }
+    user: { en: "Finance-Readers is a security group, not a user.", fr: "Finance-Readers est un groupe de sécurité, pas un utilisateur." }
+    sp: { en: "ServicePrincipal is used for applications and managed identities, not for groups.", fr: "ServicePrincipal s'utilise pour les applications et les identités managées, pas pour les groupes." }
+references:
+  - title: Use Bicep to create Azure role-based access control (Azure RBAC) resources
+    url: https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/scenarios-rbac

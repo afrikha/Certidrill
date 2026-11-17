@@ -1,0 +1,65 @@
+id: az802-3a-psd-copy-session
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Hyper-V host named **HV1** that runs Windows Server 2025. HV1 hosts a running virtual machine named **VM6** that runs Windows Server 2022 and has no network adapter.
+
+    You need to copy an installation package from HV1 into VM6 and then install the package in VM6. You plan to run the following script on HV1 and reuse one session for both steps.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un hôte Hyper-V nommé **HV1** qui exécute Windows Server 2025. HV1 héberge une machine virtuelle en cours d'exécution nommée **VM6** qui exécute Windows Server 2022 et n'a pas de carte réseau.
+
+    Vous devez copier un package d'installation de HV1 vers VM6, puis installer le package dans VM6. Vous prévoyez d'exécuter le script suivant sur HV1 et de réutiliser une même session pour les deux étapes.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $cred = Get-Credential
+    $s = New-PSSession [[p1]] VM6 -Credential $cred
+    Copy-Item [[p2]] $s -Path C:\Packages\agent.msi -Destination C:\Temp\
+    Invoke-Command [[p3]] $s -ScriptBlock { Start-Process msiexec.exe -ArgumentList '/i C:\Temp\agent.msi /qn' -Wait }
+    Remove-PSSession $s
+  slots:
+    - id: p1
+      options:
+        - { id: vmname, text: "-VMName" }
+        - { id: computer, text: "-ComputerName" }
+        - { id: hostname, text: "-HostName" }
+        - { id: vmid, text: "-VMId" }
+    - id: p2
+      options:
+        - { id: from, text: "-FromSession" }
+        - { id: to, text: "-ToSession" }
+        - { id: cred, text: "-Credential" }
+    - id: p3
+      options:
+        - { id: icvm, text: "-VMName" }
+        - { id: iccomp, text: "-ComputerName" }
+        - { id: session, text: "-Session" }
+answer:
+  values: { p1: vmname, p2: to, p3: session }
+explanation:
+  correct:
+    en: |
+      `New-PSSession -VMName` creates a persistent PowerShell Direct session to a VM on the local host, which works without any network adapter. `Copy-Item -ToSession` copies a file from the host into that session, and `Invoke-Command -Session` runs the installation in the same session.
+    fr: |
+      `New-PSSession -VMName` crée une session PowerShell Direct persistante vers une machine virtuelle de l'hôte local, qui fonctionne sans carte réseau. `Copy-Item -ToSession` copie un fichier de l'hôte vers cette session, et `Invoke-Command -Session` exécute l'installation dans la même session.
+  options:
+    computer: { en: "-ComputerName creates a WinRM session over the network, and VM6 has no network adapter.", fr: "-ComputerName crée une session WinRM par le réseau, et VM6 n'a pas de carte réseau." }
+    hostname: { en: "-HostName creates a session over SSH, which also needs network connectivity.", fr: "-HostName crée une session sur SSH, qui exige elle aussi une connectivité réseau." }
+    vmid: { en: "-VMId expects the GUID of the VM, not its name.", fr: "-VMId attend le GUID de la machine virtuelle, pas son nom." }
+    from: { en: "-FromSession copies a file from the guest to the host, the opposite direction.", fr: "-FromSession copie un fichier de l'invité vers l'hôte, dans le sens inverse." }
+    icvm: { en: "-VMName expects a VM name and would open a new connection instead of reusing $s.", fr: "-VMName attend un nom de machine virtuelle et ouvrirait une nouvelle connexion au lieu de réutiliser $s." }
+references:
+  - title: Manage Windows virtual machines with PowerShell Direct
+    url: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/manage/manage-windows-virtual-machines-with-powershell-direct

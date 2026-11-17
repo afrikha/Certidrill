@@ -1,0 +1,76 @@
+id: az140-1b-cloudcache-settings
+objective: "1.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure Virtual Desktop pooled host pool named **HP-Sales**. User profiles must be stored by FSLogix in two places: an Azure file share named **profiles** in a storage account named **stsalesprof01**, and an Azure page blob storage provider whose connection string is stored on each session host under the key name **salesblob**.
+
+    You need to configure the session hosts to meet the following requirements:
+
+    - Every profile change must be written to both storage providers.
+    - A user's local cache must not be created when one of the providers is unhealthy at sign-in.
+    - Containers must use the VHDX format.
+
+    How should you complete the PowerShell script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un pool d'hôtes regroupé Azure Virtual Desktop nommé **HP-Sales**. FSLogix doit stocker les profils utilisateur à deux endroits : un partage de fichiers Azure nommé **profiles** dans un compte de stockage nommé **stsalesprof01**, et un fournisseur de stockage d'objets blob de pages Azure dont la chaîne de connexion est stockée sur chaque hôte de session sous le nom de clé **salesblob**.
+
+    Vous devez configurer les hôtes de session pour répondre aux exigences suivantes :
+
+    - Chaque modification de profil doit être écrite dans les deux fournisseurs de stockage.
+    - Le cache local d'un utilisateur ne doit pas être créé quand l'un des fournisseurs n'est pas sain à l'ouverture de session.
+    - Les conteneurs doivent utiliser le format VHDX.
+
+    Comment devez-vous compléter le script PowerShell ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $path = "HKLM:\SOFTWARE\FSLogix\Profiles"
+    $providers = 'type=smb,name="FILES",connectionString=\\stsalesprof01.file.core.windows.net\profiles;type=azure,name="BLOB",connectionString="|fslogix/salesblob|"'
+
+    New-ItemProperty -Path $path -Name Enabled -PropertyType dword -Value 1 -Force
+    New-ItemProperty -Path $path -Name [[loc]] -PropertyType string -Value $providers -Force
+    New-ItemProperty -Path $path -Name [[health]] -PropertyType dword -Value 1 -Force
+    New-ItemProperty -Path $path -Name [[format]] -PropertyType string -Value vhdx -Force
+  slots:
+    - id: loc
+      options:
+        - { id: ccd, text: CCDLocations }
+        - { id: vhd, text: VHDLocations }
+        - { id: redir, text: RedirXMLSourceFolder }
+    - id: health
+      options:
+        - { id: hp, text: HealthyProvidersRequiredForRegister }
+        - { id: clear, text: ClearCacheOnLogoff }
+        - { id: prevent, text: PreventLoginWithFailure }
+        - { id: del, text: DeleteLocalProfileWhenVHDShouldApply }
+    - id: format
+      options:
+        - { id: vol, text: VolumeType }
+        - { id: dyn, text: IsDynamic }
+        - { id: ptype, text: ProfileType }
+        - { id: pattern, text: VHDNamePattern }
+answer:
+  values: { loc: ccd, health: hp, format: vol }
+explanation:
+  correct:
+    en: A provider list in the `type=...,name=...,connectionString=...` format is read from CCDLocations, which turns on Cloud Cache and writes changes to every listed provider; it replaces VHDLocations, and the two shouldn't be used together. HealthyProvidersRequiredForRegister = 1 prevents the local cache from being created when a provider is unhealthy. VolumeType = vhdx makes FSLogix create VHDX files instead of the default VHD.
+    fr: "Une liste de fournisseurs au format `type=...,name=...,connectionString=...` est lue dans CCDLocations, qui active Cloud Cache et écrit les modifications dans chaque fournisseur listé ; elle remplace VHDLocations, et les deux ne doivent pas être utilisés ensemble. HealthyProvidersRequiredForRegister = 1 empêche la création du cache local quand un fournisseur n'est pas sain. VolumeType = vhdx fait créer à FSLogix des fichiers VHDX au lieu des fichiers VHD par défaut."
+  options:
+    vhd: { en: "VHDLocations accepts SMB paths only and doesn't replicate to several providers.", fr: "VHDLocations n'accepte que des chemins SMB et ne réplique pas vers plusieurs fournisseurs." }
+    clear: { en: "ClearCacheOnLogoff deletes the local cache at sign-out; it doesn't check provider health at sign-in.", fr: "ClearCacheOnLogoff supprime le cache local à la fermeture de session ; il ne vérifie pas l'intégrité des fournisseurs à l'ouverture de session." }
+    prevent: { en: "PreventLoginWithFailure loads a blocking shell when the container fails to attach; it isn't the Cloud Cache provider-health check.", fr: "PreventLoginWithFailure charge un shell bloquant quand le conteneur ne peut pas être attaché ; ce n'est pas la vérification d'intégrité des fournisseurs de Cloud Cache." }
+    dyn: { en: "IsDynamic chooses between a growing and a fully allocated file, not between VHD and VHDX.", fr: "IsDynamic choisit entre un fichier qui croît et un fichier entièrement alloué, pas entre VHD et VHDX." }
+    pattern: { en: "VHDNamePattern sets the file name of the container, not its disk format.", fr: "VHDNamePattern définit le nom du fichier du conteneur, pas son format de disque." }
+references:
+  - title: "Tutorial: Configure profile containers with Cloud Cache"
+    url: https://learn.microsoft.com/en-us/fslogix/tutorial-cloud-cache-containers
+  - title: Configuration Setting Reference
+    url: https://learn.microsoft.com/en-us/fslogix/reference-configuration-settings

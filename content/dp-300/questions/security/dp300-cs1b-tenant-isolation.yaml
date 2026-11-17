@@ -1,0 +1,66 @@
+id: dp300-cs1b-tenant-isolation
+objective: "2.3.6"
+type: dropdown
+caseStudy: dp300-cs1b-margies-travel
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to meet the security requirements for Insights. How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez satisfaire les exigences de sécurité concernant Insights. Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION Security.fn_tenant(@TenantId int)
+        RETURNS TABLE
+        WITH SCHEMABINDING
+    AS
+        RETURN SELECT 1 AS fn_result
+        WHERE CAST([[ctx]](N'TenantId') AS int) = @TenantId;
+    GO
+    CREATE SECURITY POLICY Security.TenantPolicy
+        ADD [[pred]] PREDICATE Security.fn_tenant(TenantId)
+            ON dbo.Bookings,
+        ADD BLOCK PREDICATE Security.fn_tenant(TenantId)
+            ON dbo.Bookings [[op]]
+        WITH (STATE = ON);
+  slots:
+    - id: ctx
+      options:
+        - { id: context_info, text: CONTEXT_INFO }
+        - { id: session_context, text: SESSION_CONTEXT }
+        - { id: app_name, text: APP_NAME }
+    - id: pred
+      options:
+        - { id: filter, text: FILTER }
+        - { id: block, text: BLOCK }
+    - id: op
+      options:
+        - { id: before_update, text: BEFORE UPDATE }
+        - { id: after_update, text: AFTER UPDATE }
+        - { id: before_delete, text: BEFORE DELETE }
+        - { id: after_insert, text: AFTER INSERT }
+answer:
+  values: { ctx: session_context, pred: filter, op: after_insert }
+explanation:
+  correct:
+    en: |
+      The portal stores the agency ID with `sp_set_session_context`, so the predicate reads it with `SESSION_CONTEXT(N'TenantId')`. A filter predicate silently removes the rows of other agencies from SELECT, UPDATE and DELETE operations. A block predicate `AFTER INSERT` rejects any inserted row whose TenantId does not match the session context, which prevents the portal from inserting rows for another agency.
+    fr: |
+      Le portail stocke l'identifiant d'agence avec `sp_set_session_context` : le prédicat le lit donc avec `SESSION_CONTEXT(N'TenantId')`. Un prédicat de filtre retire silencieusement les lignes des autres agences des opérations SELECT, UPDATE et DELETE. Un prédicat de blocage `AFTER INSERT` rejette toute ligne insérée dont la valeur TenantId ne correspond pas au contexte de session, ce qui empêche le portail d'insérer des lignes pour une autre agence.
+  options:
+    context_info: { en: "CONTEXT_INFO returns a single binary value set by SET CONTEXT_INFO; it does not read keys set by sp_set_session_context.", fr: "CONTEXT_INFO renvoie une valeur binaire unique définie par SET CONTEXT_INFO ; il ne lit pas les clés définies par sp_set_session_context." }
+    app_name: { en: "APP_NAME returns the application name of the session, not the agency of the signed-in user.", fr: "APP_NAME renvoie le nom d'application de la session, pas l'agence de l'utilisateur connecté." }
+    block: { en: "A block predicate only rejects write operations; it does not hide the rows of other agencies from queries.", fr: "Un prédicat de blocage rejette seulement des opérations d'écriture ; il ne masque pas les lignes des autres agences dans les requêtes." }
+    before_update: { en: "BEFORE UPDATE blocks updates of rows that already fail the predicate; it does not control inserted rows.", fr: "BEFORE UPDATE bloque la mise à jour de lignes qui ne satisfont déjà pas le prédicat ; il ne contrôle pas les lignes insérées." }
+    after_update: { en: "AFTER UPDATE prevents changing a row to another agency, but it does not control inserted rows.", fr: "AFTER UPDATE empêche de modifier une ligne pour l'attribuer à une autre agence, mais il ne contrôle pas les lignes insérées." }
+    before_delete: { en: "BEFORE DELETE controls deletions only.", fr: "BEFORE DELETE ne contrôle que les suppressions." }
+references:
+  - title: Row-level security
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/row-level-security

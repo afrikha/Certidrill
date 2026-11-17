@@ -1,0 +1,69 @@
+id: dp300-3a-xe-session-syntax
+objective: "3.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named **DB1**. A database scoped credential for the blob container `https://stcontosoxe.blob.core.windows.net/xe` already exists in DB1.
+
+    You need to capture every statement of DB1 that runs for more than 10 seconds, with its text. The events must be kept after the session stops, and the session must restart automatically after a failover.
+
+    How should you complete the Transact-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée **DB1**. Des informations d'identification délimitées à la base de données pour le conteneur blob `https://stcontosoxe.blob.core.windows.net/xe` existent déjà dans DB1.
+
+    Vous devez capturer chaque instruction de DB1 qui s'exécute pendant plus de 10 secondes, avec son texte. Les événements doivent être conservés après l'arrêt de la session, et la session doit redémarrer automatiquement après un basculement.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE EVENT SESSION LongStatements ON [[scope]]
+    ADD EVENT sqlserver.sql_statement_completed (
+        ACTION (sqlserver.sql_text, sqlserver.client_app_name)
+        WHERE duration > [[dur]])
+    ADD TARGET package0.[[target]] (
+        SET filename = 'https://stcontosoxe.blob.core.windows.net/xe/LongStatements.xel')
+    WITH (STARTUP_STATE = ON);
+  slots:
+    - id: scope
+      options:
+        - { id: db, text: DATABASE }
+        - { id: srv, text: SERVER }
+        - { id: all, text: ALL SERVER }
+    - id: dur
+      options:
+        - { id: d10, text: "10" }
+        - { id: d10k, text: "10000" }
+        - { id: d10m, text: "10000000" }
+    - id: target
+      options:
+        - { id: file, text: event_file }
+        - { id: ring, text: ring_buffer }
+        - { id: hist, text: histogram }
+answer:
+  values: { scope: db, dur: d10m, target: file }
+explanation:
+  correct:
+    en: |
+      Azure SQL Database supports only database-scoped sessions, created with ON DATABASE. The duration field of sql_statement_completed is in microseconds, so 10 seconds is 10000000. The event_file target writes .xel files to the blob container through the database scoped credential, so the events survive the end of the session; STARTUP_STATE = ON restarts the session after a failover.
+    fr: |
+      Azure SQL Database ne prend en charge que les sessions délimitées à la base de données, créées avec ON DATABASE. Le champ duration de sql_statement_completed est exprimé en microsecondes : 10 secondes valent 10000000. La cible event_file écrit des fichiers .xel dans le conteneur blob grâce aux informations d'identification délimitées à la base de données, ce qui conserve les événements après la fin de la session ; STARTUP_STATE = ON redémarre la session après un basculement.
+  options:
+    srv: { en: "Server-scoped sessions exist in SQL Server and SQL Managed Instance, not in Azure SQL Database.", fr: "Les sessions délimitées au serveur existent dans SQL Server et SQL Managed Instance, pas dans Azure SQL Database." }
+    all: { en: "ON ALL SERVER is a scope of DDL triggers, not of event sessions.", fr: "ON ALL SERVER est une étendue des déclencheurs DDL, pas des sessions d'événements." }
+    d10: { en: "10 microseconds would capture almost every statement.", fr: "10 microsecondes captureraient presque toutes les instructions." }
+    d10k: { en: "10000 microseconds is 10 milliseconds, not 10 seconds.", fr: "10000 microsecondes font 10 millisecondes, pas 10 secondes." }
+    ring: { en: "ring_buffer keeps events in memory, and they are lost when the session stops.", fr: "ring_buffer conserve les événements en mémoire, et ils sont perdus à l'arrêt de la session." }
+    hist: { en: "histogram only counts occurrences per value; it doesn't keep the statements.", fr: "histogram ne fait que compter les occurrences par valeur ; il ne conserve pas les instructions." }
+references:
+  - title: Extended Events in Azure SQL
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/xevent-db-diff-from-svr
+  - title: Targets for Extended Events
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/extended-events/targets-for-extended-events-in-sql-server

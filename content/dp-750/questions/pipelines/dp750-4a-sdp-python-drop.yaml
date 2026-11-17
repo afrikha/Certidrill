@@ -1,0 +1,100 @@
+id: dp750-4a-sdp-python-drop
+objective: "4.1.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a Lakeflow Spark Declarative Pipelines pipeline that contains the streaming table **orders_bronze**. You are adding a Python source file that defines **orders_silver**.
+
+    The solution must meet the following requirements:
+
+    - orders_silver must be a streaming table that processes each new row of orders_bronze once.
+    - Rows with a negative amount must not be written to orders_silver, and the update must continue.
+    - The number of rejected rows must appear in the data quality metrics of the pipeline.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un pipeline des pipelines déclaratifs Lakeflow Spark qui contient la table de diffusion en continu **orders_bronze**. Vous ajoutez un fichier source Python qui définit **orders_silver**.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - orders_silver doit être une table de diffusion en continu qui traite une seule fois chaque nouvelle ligne de orders_bronze.
+    - Les lignes dont le montant est négatif ne doivent pas être écrites dans orders_silver, et la mise à jour doit se poursuivre.
+    - Le nombre de lignes rejetées doit apparaître dans les métriques de qualité des données du pipeline.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark import pipelines as dp
+
+    @dp.[[dec]]
+    @dp.[[exp]]("valid_amount", "amount >= 0")
+    def orders_silver():
+        return [[read]]
+  slots:
+    - id: dec
+      options:
+        - { id: table, text: table }
+        - { id: mv, text: materialized_view }
+        - { id: tv, text: temporary_view }
+    - id: exp
+      options:
+        - { id: drop, text: expect_or_drop }
+        - { id: warn, text: expect }
+        - { id: fail, text: expect_or_fail }
+    - id: read
+      options:
+        - { id: stream, text: 'spark.readStream.table("orders_bronze")' }
+        - { id: batch, text: 'spark.read.table("orders_bronze")' }
+        - { id: files, text: 'spark.readStream.format("cloudFiles").load("orders_bronze")' }
+answer:
+  values: { dec: table, exp: drop, read: stream }
+explanation:
+  correct:
+    en: |
+      In the Python API, `@dp.table` with a streaming DataFrame defines a streaming table, and `spark.readStream.table()` reads orders_bronze incrementally. `@dp.expect_or_drop` drops the invalid rows before the write and records the dropped count with the dataset metrics, while the update continues.
+    fr: |
+      Dans l'API Python, `@dp.table` associé à un DataFrame de streaming définit une table de diffusion en continu, et `spark.readStream.table()` lit orders_bronze de façon incrémentielle. `@dp.expect_or_drop` supprime les lignes non valides avant l'écriture et enregistre leur nombre avec les métriques du jeu de données, tandis que la mise à jour se poursuit.
+  options:
+    mv:
+      en: |
+        A materialized view is a batch target; it doesn't process each new row once as a stream.
+      fr: |
+        Une vue matérialisée est une cible batch ; elle ne traite pas chaque nouvelle ligne une seule fois comme un flux.
+    tv:
+      en: |
+        A temporary view isn't persisted, so no table would be written.
+      fr: |
+        Une vue temporaire n'est pas persistée : aucune table ne serait écrite.
+    warn:
+      en: |
+        expect only records the violations; the invalid rows are still written.
+      fr: |
+        expect ne fait qu'enregistrer les violations ; les lignes non valides sont tout de même écrites.
+    fail:
+      en: |
+        expect_or_fail makes the update fail, which breaks the requirement that the update continues.
+      fr: |
+        expect_or_fail fait échouer la mise à jour, ce qui enfreint l'exigence de poursuite de la mise à jour.
+    batch:
+      en: |
+        A batch read reprocesses the whole source at each update instead of only the new rows.
+      fr: |
+        Une lecture batch retraite toute la source à chaque mise à jour au lieu des seules nouvelles lignes.
+    files:
+      en: |
+        Auto Loader reads files from a path; orders_bronze is a dataset of the pipeline, not a file location.
+      fr: |
+        Auto Loader lit des fichiers à partir d'un chemin ; orders_bronze est un jeu de données du pipeline, pas un emplacement de fichiers.
+references:
+  - title: Manage data quality with pipeline expectations
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/expectations
+  - title: Lakeflow pipelines Python language reference
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/developer/python-ref

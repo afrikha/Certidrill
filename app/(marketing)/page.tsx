@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { readSwitches } from "@/lib/settings";
 import { freeExamQuota } from "@/lib/access";
 import { getOffers, type Offer } from "@/lib/access/offers";
-import { canBuyOnline } from "@/lib/billing/checkout";
+import { passPricing } from "@/lib/billing/checkout";
 import { stripeApi } from "@/lib/billing/stripe";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -80,8 +80,15 @@ export default async function HomePage() {
   const faq = FAQ.filter((q) => blueprint || q !== "score");
   const codes = certifications.map((c) => c.code.toUpperCase()).join(" · ");
   const pass = offers.find((o) => o.kind === "pass");
-  const buyable = pass ? await canBuyOnline(prisma, pass.code, stripeApi()) : false;
-  const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
+  const pricing = pass ? await passPricing(prisma, pass.code, stripeApi()) : null;
+  const buyable = (pricing?.buyable.length ?? 0) > 0;
+  const money = (cents: number, currency: string) => format.number(cents / 100, { style: "currency", currency: currency.toUpperCase() });
+  // The Pass is priced per certification: "from X" when the prices differ.
+  const price = (o: Offer) => {
+    const range = o.kind === "pass" ? pricing?.range : null;
+    if (range && range.min !== range.max) return tOffer("priceFrom", { price: money(range.min, range.currency) });
+    return range ? money(range.min, range.currency) : money(o.amountCents, o.currency);
+  };
   const freeExams = quota === null ? null : t("freeExams", { count: quota });
 
   // The main call to action, the same in every section that offers one.

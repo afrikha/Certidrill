@@ -1,0 +1,107 @@
+id: dp800-1a-covering-index
+objective: "1.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a table defined by the following statement.
+
+    ```sql
+    CREATE TABLE Sales.Orders
+    (
+        OrderID    int NOT NULL CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED,
+        CustomerID int NOT NULL,
+        OrderDate  date NOT NULL,
+        TotalDue   decimal(12, 2) NOT NULL,
+        Comments   nvarchar(1000) NULL
+    );
+    ```
+
+    An application runs the following query thousands of times per hour.
+
+    ```sql
+    SELECT OrderDate, TotalDue
+    FROM Sales.Orders
+    WHERE CustomerID = @CustomerID
+    ORDER BY OrderDate;
+    ```
+
+    You need to create an index that lets the query seek on the customer, return rows already sorted by date, and avoid key lookups. The index must be as small as possible.
+
+    How should you complete the Transact-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une table définie par l'instruction suivante.
+
+    ```sql
+    CREATE TABLE Sales.Orders
+    (
+        OrderID    int NOT NULL CONSTRAINT PK_Orders PRIMARY KEY CLUSTERED,
+        CustomerID int NOT NULL,
+        OrderDate  date NOT NULL,
+        TotalDue   decimal(12, 2) NOT NULL,
+        Comments   nvarchar(1000) NULL
+    );
+    ```
+
+    Une application exécute la requête suivante des milliers de fois par heure.
+
+    ```sql
+    SELECT OrderDate, TotalDue
+    FROM Sales.Orders
+    WHERE CustomerID = @CustomerID
+    ORDER BY OrderDate;
+    ```
+
+    Vous devez créer un index qui permet à la requête d'effectuer une recherche (seek) sur le client, de renvoyer les lignes déjà triées par date et d'éviter les recherches de clés. L'index doit être aussi petit que possible.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE [[kind]] INDEX IX_Orders_Customer
+        ON Sales.Orders ([[key]])
+        [[extra]];
+  slots:
+    - id: kind
+      options:
+        - { id: ncl, text: NONCLUSTERED }
+        - { id: cl, text: CLUSTERED }
+        - { id: uncl, text: UNIQUE NONCLUSTERED }
+        - { id: ncci, text: NONCLUSTERED COLUMNSTORE }
+    - id: key
+      options:
+        - { id: cust, text: CustomerID }
+        - { id: custdate, text: "CustomerID, OrderDate" }
+        - { id: datecust, text: "OrderDate, CustomerID" }
+        - { id: custtotal, text: "CustomerID, TotalDue" }
+    - id: extra
+      options:
+        - { id: inctotal, text: INCLUDE (TotalDue) }
+        - { id: incall, text: "INCLUDE (TotalDue, Comments)" }
+        - { id: filter, text: WHERE TotalDue > 0 }
+answer:
+  values: { kind: ncl, key: custdate, extra: inctotal }
+explanation:
+  correct:
+    en: |
+      A nonclustered index keyed on (CustomerID, OrderDate) supports a seek on CustomerID and returns each customer's rows in OrderDate order, so no Sort operator is needed. Only key columns serve seeks and sorts; TotalDue is only returned, so it belongs in INCLUDE, which removes the key lookup while keeping the upper levels of the index small.
+    fr: |
+      Un index non cluster dont la clé est (CustomerID, OrderDate) permet une recherche sur CustomerID et renvoie les lignes de chaque client dans l'ordre de OrderDate : aucun opérateur Sort n'est nécessaire. Seules les colonnes clés servent aux recherches et aux tris ; TotalDue est seulement renvoyée, elle va donc dans INCLUDE, ce qui supprime la recherche de clé tout en gardant les niveaux supérieurs de l'index petits.
+  options:
+    cl: { en: "The table already has a clustered index (the primary key), and a table can have only one.", fr: "La table possède déjà un index cluster (la clé primaire), et une table ne peut en avoir qu'un." }
+    uncl: { en: "A customer has many orders, possibly on the same day, so a unique index would reject valid rows.", fr: "Un client a de nombreuses commandes, parfois le même jour : un index unique rejetterait des lignes valides." }
+    ncci: { en: "A columnstore index is built for scans and aggregates, not for seeks on one customer.", fr: "Un index columnstore est conçu pour les analyses et les agrégats, pas pour des recherches sur un client." }
+    cust: { en: "Without OrderDate in the key, the rows of a customer aren't ordered by date and the plan needs a Sort.", fr: "Sans OrderDate dans la clé, les lignes d'un client ne sont pas triées par date et le plan nécessite un Sort." }
+    datecust: { en: "With OrderDate first, the query can't seek on CustomerID.", fr: "Avec OrderDate en premier, la requête ne peut pas effectuer de recherche sur CustomerID." }
+    custtotal: { en: "TotalDue in the key doesn't help the ORDER BY on OrderDate.", fr: "TotalDue dans la clé n'aide pas l'ORDER BY sur OrderDate." }
+    incall: { en: "Comments isn't used by the query and makes the index much larger.", fr: "Comments n'est pas utilisée par la requête et agrandit beaucoup l'index." }
+    filter: { en: "A filter limits the rows in the index; the query needs every order of the customer.", fr: "Un filtre limite les lignes de l'index ; la requête a besoin de toutes les commandes du client." }
+references:
+  - title: Create indexes with included columns
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/indexes/create-indexes-with-included-columns

@@ -1,0 +1,87 @@
+id: dp750-4d-reused-lookup-cache
+objective: "4.4.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso runs a PySpark notebook on classic all-purpose compute. The notebook builds the DataFrame `df_rates` by joining two tables of the **contoso.finance** schema, and then joins `df_rates` with three other DataFrames.
+
+    The DAG and the Spark UI show that the join that builds `df_rates` runs again for each of the three joins. The shuffle stages also spill to disk.
+
+    You need to modify the notebook to meet the following requirements:
+
+    - Let Spark choose the number of shuffle partitions from the query plan and the data size.
+    - Compute `df_rates` only once and keep it for the three joins.
+    - Release the memory that `df_rates` uses after the three results are written.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso exécute un notebook PySpark sur un calcul universel classique. Le notebook construit le DataFrame `df_rates` en joignant deux tables du schéma **contoso.finance**, puis joint `df_rates` à trois autres DataFrames.
+
+    Le DAG et l'interface utilisateur Spark montrent que la jointure qui construit `df_rates` s'exécute de nouveau pour chacune des trois jointures. Les étapes de shuffle déversent également sur le disque.
+
+    Vous devez modifier le notebook pour répondre aux exigences suivantes :
+
+    - Laisser Spark choisir le nombre de partitions de shuffle à partir du plan de requête et du volume de données.
+    - Calculer `df_rates` une seule fois et le conserver pour les trois jointures.
+    - Libérer la mémoire utilisée par `df_rates` une fois les trois résultats écrits.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    spark.conf.set("spark.sql.shuffle.partitions", "[[parts]]")
+
+    df_rates = (spark.table("contoso.finance.fx_rates")
+        .join(spark.table("contoso.finance.fx_sources"), "source_id")
+        .filter("rate_date >= '2026-01-01'"))
+    df_rates.[[keep]]()
+
+    orders_eur = orders.join(df_rates, ["currency", "rate_date"])
+    invoices_eur = invoices.join(df_rates, ["currency", "rate_date"])
+    refunds_eur = refunds.join(df_rates, ["currency", "rate_date"])
+    # write orders_eur, invoices_eur and refunds_eur to tables
+
+    df_rates.[[free]]()
+  slots:
+    - id: parts
+      options:
+        - { id: auto, text: auto }
+        - { id: one, text: "1" }
+        - { id: tf, text: "true" }
+    - id: keep
+      options:
+        - { id: cache, text: cache }
+        - { id: collect, text: collect }
+        - { id: explain, text: explain }
+        - { id: topandas, text: toPandas }
+    - id: free
+      options:
+        - { id: unpersist, text: unpersist }
+        - { id: checkpoint, text: checkpoint }
+        - { id: dropdup, text: dropDuplicates }
+answer:
+  values: { parts: auto, keep: cache, free: unpersist }
+explanation:
+  correct:
+    en: "Setting `spark.sql.shuffle.partitions` to `auto` lets Databricks pick the number of shuffle partitions from the plan and the data size, which also reduces spill. `cache()` is the explicit Spark cache: the first action computes `df_rates` and the next joins reuse the cached blocks. The Spark cache is evicted only in LRU fashion or manually, so `unpersist()` releases it when it is no longer needed."
+    fr: "Définir `spark.sql.shuffle.partitions` sur `auto` laisse Databricks choisir le nombre de partitions de shuffle à partir du plan et du volume de données, ce qui réduit aussi le déversement. `cache()` est le cache Spark explicite : la première action calcule `df_rates` et les jointures suivantes réutilisent les blocs en cache. Le cache Spark n'est évincé qu'en LRU ou manuellement : `unpersist()` le libère quand il n'est plus utile."
+  options:
+    one: { en: "A single shuffle partition removes all parallelism and makes spill worse.", fr: "Une seule partition de shuffle supprime tout parallélisme et aggrave le déversement." }
+    tf: { en: "The setting expects a number of partitions or auto, not a Boolean.", fr: "Le paramètre attend un nombre de partitions ou auto, pas un booléen." }
+    collect: { en: "collect() returns every row to the driver and keeps nothing on the executors for the joins.", fr: "collect() renvoie toutes les lignes au pilote et ne conserve rien sur les exécuteurs pour les jointures." }
+    topandas: { en: "toPandas() also pulls all the data to the driver, which risks an out-of-memory error.", fr: "toPandas() rapatrie lui aussi toutes les données sur le pilote, avec un risque de manque de mémoire." }
+    explain: { en: "explain() only prints the plan; it does not persist anything.", fr: "explain() affiche seulement le plan ; il ne conserve rien." }
+    checkpoint: { en: "checkpoint() writes a new copy of the DataFrame; it does not release cached data.", fr: "checkpoint() écrit une nouvelle copie du DataFrame ; il ne libère pas les données en cache." }
+    dropdup: { en: "dropDuplicates() returns a new DataFrame without duplicate rows; it does not free memory.", fr: "dropDuplicates() renvoie un nouveau DataFrame sans lignes en double ; il ne libère pas de mémoire." }
+references:
+  - title: Optimize performance with caching on Azure Databricks
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/disk-cache
+  - title: Diagnosing I/O-bound Spark stages
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/long-spark-stage-io

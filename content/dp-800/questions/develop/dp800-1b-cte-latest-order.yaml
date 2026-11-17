@@ -1,0 +1,88 @@
+id: dp800-1b-cte-latest-order
+objective: "1.3.1"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Northwind Traders. The Sales.Orders table has the columns OrderID, CustomerID, OrderDate and Amount. OrderID is unique.
+
+    You need a query that returns one row per customer: the customer's most recent order. When two orders of a customer have the same OrderDate, the order with the highest OrderID must be returned. You are evaluating the queries shown in the Queries exhibit.
+
+    Which two queries meet the requirement? Each correct answer presents a complete solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Northwind Traders. La table Sales.Orders comporte les colonnes OrderID, CustomerID, OrderDate et Amount. OrderID est unique.
+
+    Vous avez besoin d'une requête qui renvoie une ligne par client : la commande la plus récente du client. Quand deux commandes d'un client ont la même valeur OrderDate, la commande dont l'OrderID est le plus élevé doit être renvoyée. Vous évaluez les requêtes présentées dans la pièce Requêtes.
+
+    Quelles sont les deux requêtes qui satisfont l'exigence ? Chaque bonne réponse constitue une solution complète.
+
+    Remarque : chaque sélection correcte vaut un point.
+exhibits:
+  - id: queries
+    title: { en: "Queries", fr: "Requêtes" }
+    body: |
+      ```sql
+      -- Query 1
+      WITH Ranked AS
+      (
+          SELECT OrderID, CustomerID, OrderDate, Amount,
+                 ROW_NUMBER() OVER (ORDER BY OrderDate DESC, OrderID DESC) AS rn
+          FROM Sales.Orders
+      )
+      SELECT CustomerID, OrderID, OrderDate, Amount
+      FROM Ranked
+      WHERE rn = 1;
+
+      -- Query 2
+      WITH Ranked AS
+      (
+          SELECT OrderID, CustomerID, OrderDate, Amount,
+                 ROW_NUMBER() OVER (PARTITION BY CustomerID
+                                    ORDER BY OrderDate DESC, OrderID DESC) AS rn
+          FROM Sales.Orders
+      )
+      SELECT CustomerID, OrderID, OrderDate, Amount
+      FROM Ranked
+      WHERE rn = 1;
+
+      -- Query 3
+      SELECT CustomerID, OrderID, OrderDate, Amount,
+             ROW_NUMBER() OVER (PARTITION BY CustomerID
+                                ORDER BY OrderDate DESC, OrderID DESC) AS rn
+      FROM Sales.Orders
+      WHERE rn = 1;
+
+      -- Query 4
+      SELECT CustomerID, OrderID, OrderDate, Amount
+      FROM (
+          SELECT OrderID, CustomerID, OrderDate, Amount,
+                 ROW_NUMBER() OVER (PARTITION BY CustomerID
+                                    ORDER BY OrderDate DESC, OrderID DESC) AS rn
+          FROM Sales.Orders
+      ) AS Ranked
+      WHERE rn = 1;
+      ```
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "Query 1", fr: "Requête 1" } }
+    - { id: b, text: { en: "Query 2", fr: "Requête 2" } }
+    - { id: c, text: { en: "Query 3", fr: "Requête 3" } }
+    - { id: d, text: { en: "Query 4", fr: "Requête 4" } }
+shuffle: false
+answer: { optionIds: [ b, d ] }
+explanation:
+  correct:
+    en: |
+      A window function cannot be filtered in the WHERE clause of the query that computes it, because WHERE is evaluated before the SELECT list. Computing ROW_NUMBER() partitioned by customer in a CTE, or in a derived table, and filtering rn = 1 in the outer query returns the latest order of each customer, with OrderID DESC breaking ties.
+    fr: |
+      Une fonction de fenêtre ne peut pas être filtrée dans la clause WHERE de la requête qui la calcule, car WHERE est évaluée avant la liste SELECT. Calculer ROW_NUMBER() partitionné par client dans une CTE, ou dans une table dérivée, puis filtrer rn = 1 dans la requête externe renvoie la dernière commande de chaque client, OrderID DESC départageant les égalités.
+  options:
+    a: { en: "Without PARTITION BY CustomerID, the numbering covers the whole table, so the query returns a single order.", fr: "Sans PARTITION BY CustomerID, la numérotation couvre toute la table : la requête ne renvoie qu'une seule commande." }
+    c: { en: "The alias rn is not visible in the WHERE clause of the same query, and a window function cannot be used in WHERE, so the query fails.", fr: "L'alias rn n'est pas visible dans la clause WHERE de la même requête, et une fonction de fenêtre ne peut pas être utilisée dans WHERE : la requête échoue." }
+references:
+  - title: WITH common_table_expression (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/with-common-table-expression-transact-sql

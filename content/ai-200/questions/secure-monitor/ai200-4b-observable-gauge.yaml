@@ -1,0 +1,77 @@
+id: ai200-4b-observable-gauge
+objective: "4.2.1"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Adatum's ingestion worker keeps pending embedding jobs in a queue. The function `get_pending_jobs()` returns the current number of pending jobs. The worker is instrumented with the Azure Monitor OpenTelemetry Distro.
+
+    You need a custom metric that reports the current number of pending jobs each time metrics are collected, and Azure Monitor must aggregate it as an average.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le worker d'ingestion d'Adatum conserve les travaux d'embedding en attente dans une file d'attente. La fonction `get_pending_jobs()` renvoie le nombre actuel de travaux en attente. Le worker est instrumenté avec la distribution OpenTelemetry Azure Monitor.
+
+    Vous avez besoin d'une métrique personnalisée qui indique le nombre actuel de travaux en attente à chaque collecte des métriques, et Azure Monitor doit l'agréger sous forme de moyenne.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from opentelemetry import metrics
+    from opentelemetry.metrics import CallbackOptions, Observation
+
+    def read_pending(options: CallbackOptions):
+        yield [[obs]](get_pending_jobs(), {"queue": "embeddings"})
+
+    meter = metrics.get_meter("adatum.ingest")
+    meter.[[create]]("ingest.pending_jobs", [[cb]])
+  slots:
+    - id: obs
+      options:
+        - { id: observation, text: Observation }
+        - { id: options, text: CallbackOptions }
+        - { id: dict, text: dict }
+    - id: create
+      options:
+        - { id: gauge, text: create_observable_gauge }
+        - { id: counter, text: create_counter }
+        - { id: histogram, text: create_histogram }
+    - id: cb
+      options:
+        - { id: list, text: "[read_pending]" }
+        - { id: call, text: "read_pending()" }
+        - { id: listcall, text: "[read_pending()]" }
+answer:
+  values: { obs: observation, create: gauge, cb: list }
+explanation:
+  correct:
+    en: |-
+      An observable (asynchronous) gauge calls its callbacks each time metrics are collected; each callback yields `Observation` objects with a value and attributes. You pass the callback functions themselves in a list, and Azure Monitor aggregates an asynchronous gauge as an average.
+    fr: |-
+      Une jauge observable (asynchrone) appelle ses fonctions de rappel à chaque collecte des métriques ; chaque fonction de rappel produit des objets `Observation` avec une valeur et des attributs. Vous passez les fonctions de rappel elles-mêmes dans une liste, et Azure Monitor agrège une jauge asynchrone sous forme de moyenne.
+  options:
+    counter:
+      en: |-
+        A counter only adds increments and is aggregated as a sum; it doesn't report a current value.
+      fr: |-
+        Un compteur ne fait qu'ajouter des incréments et est agrégé sous forme de somme ; il n'indique pas une valeur actuelle.
+    histogram:
+      en: |-
+        A histogram records individual measurements with record(); it takes no callbacks.
+      fr: |-
+        Un histogramme enregistre des mesures individuelles avec record() ; il n'accepte pas de fonctions de rappel.
+    call:
+      en: |-
+        Calling the function passes a generator instead of the list of callbacks that the SDK calls at each collection.
+      fr: |-
+        Appeler la fonction passe un générateur au lieu de la liste des fonctions de rappel que le SDK appelle à chaque collecte.
+references:
+  - title: Add and Modify OpenTelemetry in Application Insights
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-add-modify

@@ -1,0 +1,67 @@
+id: dp750-cs3a-daily-sales-mv
+objective: "1.2.5"
+type: dropdown
+caseStudy: dp750-cs3a-proseware
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to create pw_prod.gold.daily_shop_sales to meet gold layer requirement 5. You will run the statement on a SQL warehouse.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer pw_prod.gold.daily_shop_sales pour satisfaire l'exigence 5 de la couche gold. Vous exécuterez l'instruction sur un entrepôt SQL.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REPLACE [[obj]] pw_prod.gold.daily_shop_sales
+      [[refresh]]
+    AS SELECT
+      shop_id,
+      CAST(sold_at AS DATE) AS sale_date,
+      SUM(gross_amount - discount_amount) AS net_sales
+    FROM pw_prod.gold.sales
+    [[grp]];
+  slots:
+    - id: obj
+      options:
+        - { id: mv, text: MATERIALIZED VIEW }
+        - { id: view, text: VIEW }
+        - { id: st, text: STREAMING TABLE }
+        - { id: temp, text: TEMPORARY VIEW }
+    - id: refresh
+      options:
+        - { id: cron6, text: "SCHEDULE CRON '0 0 5 * * ?' AT TIME ZONE 'UTC'" }
+        - { id: cron5, text: "SCHEDULE CRON '0 5 * * *' AT TIME ZONE 'UTC'" }
+        - { id: onupdate, text: TRIGGER ON UPDATE }
+    - id: grp
+      options:
+        - { id: groupboth, text: "GROUP BY shop_id, CAST(sold_at AS DATE)" }
+        - { id: groupshop, text: GROUP BY shop_id }
+        - { id: order, text: "ORDER BY shop_id, sale_date" }
+answer:
+  values: { obj: mv, refresh: cron6, grp: groupboth }
+explanation:
+  correct:
+    en: |
+      A materialized view stores precomputed results and is refreshed by a serverless pipeline, so no job is needed. The SCHEDULE CRON clause uses a Quartz expression with six fields (seconds, minutes, hours, day of month, month, day of week), so '0 0 5 * * ?' with AT TIME ZONE 'UTC' refreshes it every day at 05:00 UTC. The aggregation needs a GROUP BY on both non-aggregated expressions: shop_id and the sale date.
+    fr: |
+      Une vue matérialisée stocke des résultats précalculés et est actualisée par un pipeline serverless : aucun job n'est nécessaire. La clause SCHEDULE CRON utilise une expression Quartz à six champs (secondes, minutes, heures, jour du mois, mois, jour de la semaine) : '0 0 5 * * ?' avec AT TIME ZONE 'UTC' l'actualise chaque jour à 05:00 UTC. L'agrégation exige un GROUP BY sur les deux expressions non agrégées : shop_id et la date de vente.
+  options:
+    view: { en: "A view is computed at query time; nothing is precomputed.", fr: "Une vue est calculée au moment de la requête ; rien n'est précalculé." }
+    st: { en: "A streaming table processes new rows of a streaming source incrementally; it does not fit an aggregation that is recomputed on a daily schedule over a batch source.", fr: "Une table de streaming traite de façon incrémentielle les nouvelles lignes d'une source de streaming ; elle ne convient pas à une agrégation recalculée selon une planification quotidienne sur une source batch." }
+    temp: { en: "A temporary view exists only in the session and stores no results.", fr: "Une vue temporaire n'existe que dans la session et ne stocke aucun résultat." }
+    cron5: { en: "A five-field Unix cron expression is not a valid Quartz expression, which needs a seconds field.", fr: "Une expression cron Unix à cinq champs n'est pas une expression Quartz valide, qui exige un champ des secondes." }
+    onupdate: { en: "TRIGGER ON UPDATE refreshes the view when its sources change, not once a day at 05:00 UTC.", fr: "TRIGGER ON UPDATE actualise la vue quand ses sources changent, et non une fois par jour à 05:00 UTC." }
+    groupshop: { en: "sale_date is not aggregated, so it must also appear in the GROUP BY clause.", fr: "sale_date n'est pas agrégée : elle doit aussi figurer dans la clause GROUP BY." }
+    order: { en: "ORDER BY sorts the rows but does not group them per shop and day.", fr: "ORDER BY trie les lignes mais ne les regroupe pas par café et par jour." }
+references:
+  - title: Use standalone materialized views
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/dbsql/materialized

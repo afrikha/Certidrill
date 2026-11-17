@@ -1,0 +1,80 @@
+id: dp750-4a-sdp-sql-datasets
+objective: "4.1.6"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Contoso is creating a Lakeflow Spark Declarative Pipelines pipeline whose default catalog and schema are **contoso.sales**. JSON order files arrive in **/Volumes/contoso/landing/orders/** and are never modified after they arrive.
+
+    The pipeline must meet the following requirements:
+
+    - **orders_bronze** must ingest the new files incrementally and process each file once.
+    - **sales_by_day** must store the revenue per day and stay consistent with orders_bronze.
+
+    How should you complete the SQL source file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso crée un pipeline des pipelines déclaratifs Lakeflow Spark dont le catalogue et le schéma par défaut sont **contoso.sales**. Des fichiers de commandes JSON arrivent dans **/Volumes/contoso/landing/orders/** et ne sont jamais modifiés après leur arrivée.
+
+    Le pipeline doit répondre aux exigences suivantes :
+
+    - **orders_bronze** doit ingérer les nouveaux fichiers de façon incrémentielle et traiter chaque fichier une seule fois.
+    - **sales_by_day** doit stocker le chiffre d'affaires par jour et rester cohérente avec orders_bronze.
+
+    Comment devez-vous compléter le fichier source SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH [[t1]] orders_bronze
+    AS SELECT *, _metadata.file_path AS source_file
+    FROM [[src]] read_files('/Volumes/contoso/landing/orders/', format => 'json');
+
+    CREATE OR REFRESH [[t2]] sales_by_day
+    AS SELECT DATE(order_ts) AS order_day, sum(amount) AS revenue
+    FROM orders_bronze
+    GROUP BY DATE(order_ts);
+  slots:
+    - id: t1
+      options:
+        - { id: st, text: STREAMING TABLE }
+        - { id: mv, text: MATERIALIZED VIEW }
+        - { id: tv, text: TEMPORARY VIEW }
+    - id: src
+      options:
+        - { id: stream, text: STREAM }
+        - { id: table, text: TABLE }
+        - { id: none, text: { en: "(no keyword)", fr: "(aucun mot clé)" } }
+    - id: t2
+      options:
+        - { id: mv, text: MATERIALIZED VIEW }
+        - { id: st, text: STREAMING TABLE }
+        - { id: tv, text: TEMPORARY VIEW }
+answer:
+  values: { t1: st, src: stream, t2: mv }
+explanation:
+  correct:
+    en: |
+      A streaming table processes each record of an append-only source once, and its query must be a streaming query, so `read_files` is wrapped with the `STREAM` keyword. An aggregate over the bronze table is a materialized view, which the pipeline keeps up to date with its source, recomputing only the changes when possible.
+    fr: |
+      Une table de diffusion en continu traite une seule fois chaque enregistrement d'une source en ajout seul, et sa requête doit être une requête de streaming : `read_files` est donc précédé du mot clé `STREAM`. Un agrégat sur la table bronze est une vue matérialisée, que le pipeline maintient à jour avec sa source, en ne recalculant que les changements quand c'est possible.
+  options:
+    tv:
+      en: |
+        A temporary view isn't persisted or published; it is computed on demand inside the pipeline.
+      fr: |
+        Une vue temporaire n'est ni persistée ni publiée ; elle est calculée à la demande dans le pipeline.
+    none:
+      en: |
+        Without STREAM, the query is a batch read, which a streaming table definition doesn't accept.
+      fr: |
+        Sans STREAM, la requête est une lecture batch, ce que la définition d'une table de diffusion en continu n'accepte pas.
+references:
+  - title: CREATE STREAMING TABLE (pipelines)
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/developer/ldp-sql-ref-create-streaming-table
+  - title: Pipeline concepts
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/concepts

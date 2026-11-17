@@ -1,0 +1,73 @@
+id: az400-3b-auto-oidc-login
+objective: "3.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso chose GitHub Actions to deploy a web app to Azure. A Microsoft Entra app registration has a federated credential for the **production** environment of the repository, and the repository stores its client ID, tenant ID and subscription ID as secrets.
+
+    The deployment job must sign in to Azure without any stored client secret or certificate.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso a choisi GitHub Actions pour déployer une application web sur Azure. Une inscription d'application Microsoft Entra possède des informations d'identification fédérées pour l'environnement **production** du dépôt, et le dépôt stocke son ID client, son ID de locataire et son ID d'abonnement sous forme de secrets.
+
+    Le job de déploiement doit se connecter à Azure sans aucun secret client ni certificat stocké.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: production
+        permissions:
+          [[perm]]
+          contents: read
+        steps:
+          - uses: actions/checkout@v4
+          - uses: [[action]]
+            with:
+              [[input]]: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  slots:
+    - id: perm
+      options:
+        - { id: contents, text: "contents: write" }
+        - { id: idtoken, text: "id-token: write" }
+        - { id: actions, text: "actions: read" }
+        - { id: deployments, text: "deployments: write" }
+    - id: action
+      options:
+        - { id: cli, text: azure/cli@v2 }
+        - { id: script, text: actions/github-script@v7 }
+        - { id: login, text: azure/login@v2 }
+    - id: input
+      options:
+        - { id: clientid, text: client-id }
+        - { id: creds, text: creds }
+        - { id: audience, text: audience }
+answer:
+  values: { perm: idtoken, action: login, input: clientid }
+explanation:
+  correct:
+    en: |
+      With OpenID Connect, the job requests a token from GitHub, which requires the `id-token: write` permission. The azure/login action exchanges that token with Microsoft Entra ID for the app registration identified by `client-id`, `tenant-id` and `subscription-id`, so no client secret is stored.
+    fr: |
+      Avec OpenID Connect, le job demande un jeton à GitHub, ce qui exige l'autorisation `id-token: write`. L'action azure/login échange ce jeton auprès de Microsoft Entra ID pour l'inscription d'application identifiée par `client-id`, `tenant-id` et `subscription-id` : aucun secret client n'est stocké.
+  options:
+    contents: { en: "contents: write allows pushing to the repository; it doesn't issue an OIDC token.", fr: "contents: write permet d'envoyer des modifications au dépôt ; il n'émet pas de jeton OIDC." }
+    cli: { en: "azure/cli runs Azure CLI scripts after a sign-in; it doesn't perform the OIDC sign-in.", fr: "azure/cli exécute des scripts Azure CLI après une connexion ; il n'effectue pas la connexion OIDC." }
+    creds: { en: "creds expects a JSON object that contains a client secret.", fr: "creds attend un objet JSON qui contient un secret client." }
+    audience: { en: "audience changes the token audience, which defaults to api://AzureADTokenExchange; it doesn't identify the app.", fr: "audience modifie l'audience du jeton, api://AzureADTokenExchange par défaut ; il n'identifie pas l'application." }
+references:
+  - title: Authenticate to Azure from GitHub Actions by OpenID Connect
+    url: https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect

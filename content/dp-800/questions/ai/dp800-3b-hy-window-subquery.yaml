@@ -1,0 +1,60 @@
+id: dp800-3b-hy-window-subquery
+objective: "3.2.8"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are implementing a hybrid search in an Azure SQL database. A latest-version vector index exists on dbo.Products.DescriptionVector. The vector part of the query is the following CTE, and the query fails.
+
+    ```sql
+    semantic AS (
+        SELECT TOP (50) WITH APPROXIMATE
+               p.ProductID,
+               RANK() OVER (ORDER BY r.distance) AS vec_rank
+        FROM VECTOR_SEARCH(TABLE = dbo.Products AS p, COLUMN = DescriptionVector,
+                           SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+        ORDER BY r.distance
+    )
+    ```
+
+    You need the CTE to return the 50 approximate nearest products and their rank for the fusion. The search must use the vector index.
+
+    What should you do?
+  fr: |
+    Vous implémentez une recherche hybride dans une base de données Azure SQL. Un index vectoriel de dernière version existe sur dbo.Products.DescriptionVector. La partie vectorielle de la requête est la CTE suivante, et la requête échoue.
+
+    ```sql
+    semantic AS (
+        SELECT TOP (50) WITH APPROXIMATE
+               p.ProductID,
+               RANK() OVER (ORDER BY r.distance) AS vec_rank
+        FROM VECTOR_SEARCH(TABLE = dbo.Products AS p, COLUMN = DescriptionVector,
+                           SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+        ORDER BY r.distance
+    )
+    ```
+
+    La CTE doit renvoyer les 50 produits les plus proches de manière approximative et leur rang pour la fusion. La recherche doit utiliser l'index vectoriel.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Replace RANK() with ROW_NUMBER(), and keep TOP (50) WITH APPROXIMATE in the same SELECT of the CTE.", fr: "Remplacer RANK() par ROW_NUMBER(), et conserver TOP (50) WITH APPROXIMATE dans le même SELECT de la CTE." } }
+    - { id: b, text: { en: "Remove the ORDER BY clause of the CTE, because RANK() already orders the products by distance.", fr: "Supprimer la clause ORDER BY de la CTE, car RANK() trie déjà les produits par distance." } }
+    - { id: c, text: { en: "Replace TOP (50) WITH APPROXIMATE with a TOP_N = 50 argument in the VECTOR_SEARCH call.", fr: "Remplacer TOP (50) WITH APPROXIMATE par un argument TOP_N = 50 dans l'appel à VECTOR_SEARCH." } }
+    - { id: d, text: { en: "Compute RANK() in an outer SELECT over a subquery that returns the TOP (50) WITH APPROXIMATE rows.", fr: "Calculer RANK() dans un SELECT externe sur une sous-requête qui renvoie les lignes TOP (50) WITH APPROXIMATE." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Window functions cannot appear in the same query block as TOP (N) WITH APPROXIMATE; they require the subquery pattern. The inner query performs the approximate search ordered by distance, and the outer SELECT of the CTE assigns RANK() over the returned distances.
+    fr: |-
+      Les fonctions de fenêtre ne peuvent pas figurer dans le même bloc de requête que TOP (N) WITH APPROXIMATE ; elles exigent le modèle de sous-requête. La requête interne effectue la recherche approximative triée par distance, et le SELECT externe de la CTE attribue RANK() sur les distances renvoyées.
+  options:
+    a: { en: "ROW_NUMBER is also a window function, so the same restriction applies.", fr: "ROW_NUMBER est aussi une fonction de fenêtre : la même restriction s'applique." }
+    b: { en: "APPROXIMATE requires an ORDER BY on distance (Msg 42248), and the window function would still be rejected.", fr: "APPROXIMATE exige un ORDER BY sur distance (Msg 42248), et la fonction de fenêtre serait toujours refusée." }
+    c: { en: "TOP_N is not supported with a latest-version index (Msg 42274).", fr: "TOP_N n'est pas pris en charge avec un index de dernière version (Msg 42274)." }
+references:
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

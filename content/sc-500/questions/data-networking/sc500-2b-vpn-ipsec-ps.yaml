@@ -1,0 +1,75 @@
+id: sc500-2b-vpn-ipsec-ps
+objective: "2.3.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are creating a site-to-site connection from a VPN gateway of SKU VpnGw2AZ to a branch firewall. The security standard requires:
+
+    - IKE phase: AES256 encryption, SHA384 integrity, DH group 24.
+    - IPsec phase: AES-GCM with a 256-bit key, and perfect forward secrecy with DH group 24.
+
+    How should you complete the PowerShell script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous créez une connexion site à site entre une passerelle VPN de référence SKU VpnGw2AZ et le pare-feu d'une succursale. La norme de sécurité exige :
+
+    - Phase IKE : chiffrement AES256, intégrité SHA384, groupe DH 24.
+    - Phase IPsec : AES-GCM avec une clé de 256 bits, et confidentialité persistante parfaite (PFS) avec le groupe DH 24.
+
+    Comment devez-vous compléter le script PowerShell ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $policy = New-AzIpsecPolicy -IkeEncryption AES256 -IkeIntegrity SHA384 `
+      -DhGroup DHGroup24 -IpsecEncryption GCMAES256 -IpsecIntegrity [[integ]] `
+      -PfsGroup [[pfs]]
+
+    New-AzVirtualNetworkGatewayConnection -Name Conn-Branch1 -ResourceGroupName RG-Net `
+      -Location westeurope -VirtualNetworkGateway1 $gw -LocalNetworkGateway2 $lng `
+      -ConnectionType IPsec -SharedKey $psk [[param]] $policy
+  slots:
+    - id: integ
+      options:
+        - { id: sha256, text: SHA256 }
+        - { id: gcm128, text: GCMAES128 }
+        - { id: gcm256, text: GCMAES256 }
+        - { id: sha1, text: SHA1 }
+    - id: pfs
+      options:
+        - { id: dh24, text: DHGroup24 }
+        - { id: pfs24, text: PFS24 }
+        - { id: pfs2048, text: PFS2048 }
+        - { id: ecp384, text: ECP384 }
+    - id: param
+      options:
+        - { id: pols, text: "-IpsecPolicies" }
+        - { id: pbts, text: "-UsePolicyBasedTrafficSelectors" }
+        - { id: weight, text: "-RoutingWeight" }
+answer:
+  values: { integ: gcm256, pfs: pfs24, param: pols }
+explanation:
+  correct:
+    en: |-
+      With GCMAES256 for IPsec encryption, IPsec integrity must be the same algorithm and key length, GCMAES256. The PfsGroup parameter uses PFS values, and DH group 24 corresponds to PFS24. The policy object is attached to the connection with the -IpsecPolicies parameter of New-AzVirtualNetworkGatewayConnection.
+    fr: |-
+      Avec GCMAES256 pour le chiffrement IPsec, l'intégrité IPsec doit utiliser le même algorithme et la même longueur de clé, GCMAES256. Le paramètre PfsGroup utilise des valeurs PFS, et le groupe DH 24 correspond à PFS24. L'objet de stratégie est associé à la connexion avec le paramètre -IpsecPolicies de New-AzVirtualNetworkGatewayConnection.
+  options:
+    sha256: { en: "SHA256 isn't allowed as IPsec integrity when IPsec encryption is GCMAES256.", fr: "SHA256 n'est pas autorisé comme intégrité IPsec quand le chiffrement IPsec est GCMAES256." }
+    gcm128: { en: "The key length must match the encryption algorithm: GCMAES256, not GCMAES128.", fr: "La longueur de clé doit correspondre à l'algorithme de chiffrement : GCMAES256, pas GCMAES128." }
+    sha1: { en: "SHA1 is weaker and isn't allowed with GCMAES256 encryption.", fr: "SHA1 est plus faible et n'est pas autorisé avec un chiffrement GCMAES256." }
+    dh24: { en: "DHGroup24 is a value of -DhGroup (IKE phase), not of -PfsGroup.", fr: "DHGroup24 est une valeur de -DhGroup (phase IKE), pas de -PfsGroup." }
+    pfs2048: { en: "PFS2048 corresponds to DH group 14, not 24.", fr: "PFS2048 correspond au groupe DH 14, pas 24." }
+    ecp384: { en: "ECP384 corresponds to DH group 20, not 24.", fr: "ECP384 correspond au groupe DH 20, pas 24." }
+    pbts: { en: "This switch enables policy-based traffic selectors; it doesn't attach the IPsec policy.", fr: "Ce commutateur active les sélecteurs de trafic basés sur des stratégies ; il n'associe pas la stratégie IPsec." }
+    weight: { en: "RoutingWeight sets a routing weight, not the IPsec policy.", fr: "RoutingWeight définit un poids de routage, pas la stratégie IPsec." }
+references:
+  - title: New-AzIpsecPolicy
+    url: https://learn.microsoft.com/en-us/powershell/module/az.network/new-azipsecpolicy
+  - title: "Configure custom IPsec/IKE connection policies for S2S VPN and VNet-to-VNet: Azure portal"
+    url: https://learn.microsoft.com/en-us/azure/vpn-gateway/ipsec-ike-policy-howto

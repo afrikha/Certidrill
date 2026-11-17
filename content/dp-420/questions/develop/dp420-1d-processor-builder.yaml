@@ -1,0 +1,64 @@
+id: dp420-1d-processor-builder
+objective: "1.4.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are implementing a .NET service that archives orders from an Azure Cosmos DB for NoSQL container named **orders** to cold storage by using the change feed processor. The lease container has not been initialized yet.
+
+    The service must archive every order created since the container was created, not only the orders created after the service starts.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous implémentez un service .NET qui archive vers un stockage froid les commandes d'un conteneur Azure Cosmos DB for NoSQL nommé **orders**, à l'aide du processeur de flux de modification. Le conteneur de bail n'a pas encore été initialisé.
+
+    Le service doit archiver chaque commande créée depuis la création du conteneur, et pas uniquement les commandes créées après le démarrage du service.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    ChangeFeedProcessor processor = ordersContainer
+        .[[builder]]<Order>(processorName: "orderArchive", onChangesDelegate: HandleChangesAsync)
+        .WithInstanceName(Environment.MachineName)
+        .WithLeaseContainer(leaseContainer)
+        .[[start]]
+        .Build();
+
+    await processor.[[run]]();
+  slots:
+    - id: builder
+      options:
+        - { id: blv, text: GetChangeFeedProcessorBuilder }
+        - { id: bavd, text: GetChangeFeedProcessorBuilderWithAllVersionsAndDeletes }
+        - { id: best, text: GetChangeFeedEstimatorBuilder }
+    - id: start
+      options:
+        - { id: tmin, text: WithStartTime(DateTime.MinValue.ToUniversalTime()) }
+        - { id: tnow, text: WithStartTime(DateTime.UtcNow) }
+        - { id: tpoll, text: WithPollInterval(TimeSpan.FromSeconds(1)) }
+    - id: run
+      options:
+        - { id: rstart, text: StartAsync }
+        - { id: rstop, text: StopAsync }
+        - { id: rread, text: ReadNextAsync }
+answer:
+  values: { builder: blv, start: tmin, run: rstart }
+explanation:
+  correct:
+    en: "`GetChangeFeedProcessorBuilder` reads in latest version mode, which supports a custom starting point. `WithStartTime(DateTime.MinValue.ToUniversalTime())` starts from the beginning of the container's lifetime; it takes effect only because the lease container is not yet initialized. `Build` returns the processor, and `StartAsync` starts its processing life cycle."
+    fr: "`GetChangeFeedProcessorBuilder` lit en mode dernière version, qui accepte un point de départ personnalisé. `WithStartTime(DateTime.MinValue.ToUniversalTime())` démarre au début de la durée de vie du conteneur ; ce réglage ne prend effet que parce que le conteneur de bail n'est pas encore initialisé. `Build` renvoie le processeur, et `StartAsync` lance son cycle de traitement."
+  options:
+    bavd: { en: "All versions and deletes mode cannot start from a custom point in time; it starts when the processor starts.", fr: "Le mode toutes les versions et suppressions ne peut pas démarrer à un instant personnalisé ; il démarre au lancement du processeur." }
+    best: { en: "The estimator measures pending changes; it does not process them.", fr: "L'estimateur mesure les modifications en attente ; il ne les traite pas." }
+    tnow: { en: "Starting from the current time skips the existing orders, which is also the default behavior.", fr: "Démarrer à l'heure actuelle ignore les commandes existantes, ce qui est aussi le comportement par défaut." }
+    tpoll: { en: "The poll interval sets the wait between reads when there are no changes; it does not set the starting point.", fr: "L'intervalle d'interrogation définit l'attente entre deux lectures en l'absence de modifications ; il ne définit pas le point de départ." }
+references:
+  - title: Change Feed Processor - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-processor

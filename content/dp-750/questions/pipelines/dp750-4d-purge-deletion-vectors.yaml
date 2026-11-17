@@ -1,0 +1,42 @@
+id: dp750-4d-purge-deletion-vectors
+objective: "4.4.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The Delta table **woodgrove.crm.customers** has deletion vectors enabled and uses the default retention settings. After an erasure request, you run a `DELETE` statement that removes the rows of one customer.
+
+    The legal team requires that the deleted rows be physically removed from the storage of the table. Time travel to versions older than the retention threshold is not required.
+
+    What should you do?
+  fr: |
+    La table Delta **woodgrove.crm.customers** a les vecteurs de suppression activés et utilise les paramètres de rétention par défaut. Après une demande d'effacement, vous exécutez une instruction `DELETE` qui supprime les lignes d'un client.
+
+    L'équipe juridique exige que les lignes supprimées soient physiquement effacées du stockage de la table. Le voyage dans le temps vers des versions plus anciennes que le seuil de rétention n'est pas nécessaire.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Run VACUUM on the table now, and then run REORG TABLE ... APPLY (PURGE).", fr: "Exécuter VACUUM sur la table maintenant, puis exécuter REORG TABLE ... APPLY (PURGE)." } }
+    - { id: b, text: { en: "Run VACUUM ... LITE on the table now.", fr: "Exécuter VACUUM ... LITE sur la table maintenant." } }
+    - { id: c, text: { en: "Run REORG TABLE ... APPLY (PURGE), and then run VACUUM once the retention threshold has passed.", fr: "Exécuter REORG TABLE ... APPLY (PURGE), puis exécuter VACUUM une fois le seuil de rétention dépassé." } }
+    - { id: d, text: { en: "Run OPTIMIZE ... ZORDER BY (customer_id), and then run VACUUM ... DRY RUN.", fr: "Exécuter OPTIMIZE ... ZORDER BY (customer_id), puis exécuter VACUUM ... DRY RUN." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: With deletion vectors, DELETE only marks the rows as removed; the Parquet files that contain them are still referenced by the current version, so VACUUM cannot delete them. REORG TABLE ... APPLY (PURGE) rewrites those files without the deleted rows, and the old files become unreferenced. Once they are older than the retention threshold (7 days by default), VACUUM deletes them from storage.
+    fr: "Avec les vecteurs de suppression, DELETE se contente de marquer les lignes comme supprimées ; les fichiers Parquet qui les contiennent restent référencés par la version actuelle, et VACUUM ne peut donc pas les supprimer. REORG TABLE ... APPLY (PURGE) réécrit ces fichiers sans les lignes supprimées, et les anciens fichiers ne sont plus référencés. Une fois plus anciens que le seuil de rétention (7 jours par défaut), VACUUM les supprime du stockage."
+  options:
+    a:
+      en: The first VACUUM runs before the files are rewritten, so it cannot delete them, and nothing deletes the files that REORG replaces.
+      fr: Le premier VACUUM s'exécute avant la réécriture des fichiers et ne peut donc pas les supprimer, et rien ne supprime les fichiers que REORG remplace.
+    b:
+      en: The files that contain the deleted rows are still referenced, so VACUUM in any mode keeps them.
+      fr: "Les fichiers qui contiennent les lignes supprimées sont toujours référencés : VACUUM, quel que soit son mode, les conserve."
+    d:
+      en: DRY RUN only lists the files that would be deleted; nothing is removed from storage.
+      fr: DRY RUN ne fait que lister les fichiers qui seraient supprimés ; rien n'est effacé du stockage.
+references:
+  - title: Remove unused data files with vacuum
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/vacuum

@@ -1,0 +1,67 @@
+id: ai103-3b-inject-rest
+objective: "3.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has a Python function that screens screenshots uploaded to a support portal. The `image_text` variable contains the text extracted from a screenshot, `question` contains the user's message, and `endpoint` and `headers` are already defined for an Azure AI Content Safety resource.
+
+    The function must quarantine the upload when the screenshot text contains an injected instruction.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'une fonction Python qui filtre les captures d'écran chargées sur un portail de support. La variable `image_text` contient le texte extrait d'une capture d'écran, `question` contient le message de l'utilisateur, et `endpoint` et `headers` sont déjà définis pour une ressource Azure AI Content Safety.
+
+    La fonction doit mettre le fichier chargé en quarantaine quand le texte de la capture d'écran contient une instruction injectée.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    body = {"userPrompt": question, "documents": [image_text]}
+    r = requests.post(
+        f"{endpoint}/contentsafety/[[op]]?api-version=2024-09-01",
+        headers=headers, json=body)
+    result = r.json()
+
+    if result[[[where]]][0][[[flag]]]:
+        quarantine(upload)
+  slots:
+    - id: op
+      options:
+        - { id: shield, text: "text:shieldPrompt" }
+        - { id: text, text: "text:analyze" }
+        - { id: image, text: "image:analyze" }
+    - id: where
+      options:
+        - { id: docs, text: "\"documentsAnalysis\"" }
+        - { id: user, text: "\"userPromptAnalysis\"" }
+        - { id: cats, text: "\"categoriesAnalysis\"" }
+    - id: flag
+      options:
+        - { id: attack, text: "\"attackDetected\"" }
+        - { id: severity, text: "\"severity\"" }
+        - { id: filtered, text: "\"filtered\"" }
+answer:
+  values: { op: shield, where: docs, flag: attack }
+explanation:
+  correct:
+    en: |
+      Prompt Shields is called with POST `text:shieldPrompt`, with a `userPrompt` and a `documents` array. The response has one entry in `documentsAnalysis` per submitted document, and its `attackDetected` Boolean is `true` when a document attack is detected. The screenshot text is the first document, so the code checks `documentsAnalysis[0]`.
+    fr: |
+      Prompt Shields s'appelle avec POST `text:shieldPrompt`, avec un `userPrompt` et un tableau `documents`. La réponse contient une entrée dans `documentsAnalysis` par document envoyé, et sa valeur booléenne `attackDetected` vaut `true` quand une attaque par document est détectée. Le texte de la capture d'écran est le premier document : le code vérifie donc `documentsAnalysis[0]`.
+  options:
+    text: { en: "text:analyze rates harm categories in text; it doesn't detect prompt attacks.", fr: "text:analyze évalue les catégories de préjudices dans un texte ; il ne détecte pas les attaques par invite." }
+    image: { en: "image:analyze rates harmful imagery and doesn't take documents.", fr: "image:analyze évalue les images préjudiciables et ne reçoit pas de documents." }
+    user: { en: "userPromptAnalysis is an object for the user's own message, not a list of document results.", fr: "userPromptAnalysis est un objet pour le message de l'utilisateur lui-même, pas une liste de résultats de documents." }
+    cats: { en: "categoriesAnalysis belongs to the harm analysis APIs.", fr: "categoriesAnalysis appartient aux API d'analyse des préjudices." }
+    filtered: { en: "filtered is an annotation of Foundry guardrails, not a field of the standalone API.", fr: "filtered est une annotation des garde-fous Foundry, pas un champ de l'API autonome." }
+references:
+  - title: "Quickstart: Detect prompt attacks with Prompt Shields"
+    url: https://learn.microsoft.com/en-us/azure/ai-services/content-safety/quickstart-jailbreak

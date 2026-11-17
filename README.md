@@ -43,15 +43,15 @@ Les énoncés sont en Markdown (tableaux, blocs de code PowerShell / Azure CLI /
 
 ### Banque AZ-104
 
-598 questions originales, en anglais et en français, de quoi faire **10 examens blancs sans aucune question en double** (`npx tsx tools/questions/simulate.ts 10`). Elles se répartissent en 16 études de cas, 11 séries Oui/Non et 8 types de questions. Par domaine, la répartition suit les pondérations du rapport de score Microsoft. La terminologie française reprend celle de Microsoft Learn (`content/az-104/glossary.yaml` : 564 termes en-us → fr-fr, intitulés officiels du guide d'étude). Les règles de rédaction sont dans `tools/questions/WRITING_GUIDE.md`.
+598 questions originales, en anglais et en français, de quoi faire **10 examens blancs sans aucune question en double** (`npm run content:simulate -- --cert az-104 10`). Elles se répartissent en 16 études de cas, 11 séries Oui/Non et 8 types de questions. Par domaine, la répartition suit les pondérations du rapport de score Microsoft. La terminologie française reprend celle de Microsoft Learn (glossaire partagé `content/glossary.yaml` : 564 termes en-us → fr-fr, typographie, termes à trancher ; `content/az-104/glossary.yaml` : intitulés officiels du guide d'étude). Les règles de rédaction sont dans `tools/questions/WRITING_GUIDE.md`.
 
 Toutes les questions ont été vérifiées à l'aveugle : un agent indépendant y a répondu sans voir le corrigé, puis on a comparé ses réponses au corrigé (`tools/questions/export-blind.ts` puis `compare-blind.ts`). Les écarts ont été corrigés ou justifiés à partir de Learn.
 
 Toutes les questions sont en statut `draft`, car une **relecture humaine reste nécessaire** avant la publication (§7 des specs) :
 
 ```bash
-npm run content:status -- reviewed <préfixe-id>         # après relecture
-npm run content:status -- published all --from reviewed
+npm run content:status -- --cert az-104 reviewed <préfixe-id>         # après relecture
+npm run content:status -- --cert az-104 published all --from reviewed
 npm run seed
 ```
 
@@ -64,8 +64,8 @@ Le cours (`docs/SPECS-COURS.md`) est rédigé en anglais et en français dans `c
 `npm run seed` charge le cours (tables `course_module`, `course_chapter`, `course_section`) : le dépôt fait foi, et un chapitre ou une section retiré des fichiers est supprimé en base avec la progression de lecture associée (`course_progress`, supprimée aussi avec le compte). Les chapitres restent en `draft` jusqu'à relecture humaine :
 
 ```bash
-npm run content:status -- reviewed 12-rbac --course      # un chapitre (préfixe d'id)
-npm run content:status -- published all --from reviewed --course
+npm run content:status -- --cert az-104 reviewed 12-rbac --course      # un chapitre (préfixe d'id)
+npm run content:status -- --cert az-104 published all --from reviewed --course
 ```
 
 Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime : un identifiant de section renommé par erreur s'y voit tout de suite. Un dossier `course/` retiré supprime le cours de la certification.
@@ -82,6 +82,22 @@ Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime :
 **Accès** (§8) : au niveau gratuit, seuls les chapitres `free: true` de `course.yaml` sont lisibles ; les autres montrent leurs titres de sections et leurs objectifs, un cadenas et un lien vers l'écran d'offre (`/offer?reason=course`). Le corps d'une section verrouillée n'est jamais lu en base pour ce lecteur, donc jamais envoyé au navigateur, et une telle section ne peut pas être marquée comme lue. Le Pass, l'abonnement ou le rôle administrateur ouvrent tout le cours ; l'écran d'offre mentionne le cours dès qu'un chapitre est publié.
 
 **Liens avec l'examen** : sous l'explication de chaque question de la correction, « Revoir le cours : … » mène aux sections qui couvrent son objectif (deux au plus, dans l'ordre du cours, avec un cadenas si le chapitre est payant) ; le rapport de score liste les chapitres des domaines sous le seuil ; le tableau de bord suggère les trois sections non lues qui couvrent le plus de questions manquées au dernier examen blanc. Rien de tout cela n'apparaît pendant l'examen.
+
+### Autres certifications
+
+`content/` contient 23 certifications : AZ-104 (en ligne) et 21 autres livrées en brouillon (`active: false`, tout en `status: draft`), dont l'état est décrit dans `docs/ETAT-CONTENU-MULTI-CERTIFICATIONS.md`. Une certification inactive est invisible partout : accueil, tarifs, offre, tableau de bord, cours, plan du site, démarrage d'un examen, achat et déclaration d'un résultat réel. Seul le back-office (cours, prix) la montre.
+
+- **Outils par certification** : `--cert <code>` (ou une liste, ou `all`) pour `content:validate`, `content:simulate`, `content:status`, `content:blind:export` et `content:blind:compare`. La CI valide et simule 10 examens sur toutes les certifications.
+- **Fondamentaux** (AZ-900, AI-901, DP-900, SC-900) : le blueprint n'a ni `caseStudies` ni `series` ; l'examen n'a alors qu'une section, et `content:check` refuse un fichier d'étude de cas ou de série pour un tel blueprint.
+- **Glossaire partagé** : `content/glossary.yaml` (typographie, termes en-us → fr-fr, termes à trancher sous `undecided`), complété par `content/<code>/glossary.yaml` (intitulés du guide d'étude, termes propres). `content:check` refuse un terme anglais avec deux traductions.
+- **Vérification à l'aveugle** : `npm run content:blind:export -- --cert az-900 all out.md --split 4` découpe la banque en 4 fichiers sans corrigé (une étude de cas ou une série reste dans un seul fichier), chacun avec son `.map.json` ; un relecteur répond dans `out.1.answers.json`, puis `npm run content:blind:compare -- out.1.answers.json --map out.1.md.map.json --out ecarts.json`. Sans `--apply`, rien ne change de statut.
+- **`factory/`** : traces de production des 21 certifications (consignes, profils d'examen, lots, rapports) et, dans `factory/blind/` et `factory/reports/blind-fundamentals.md`, la vérification à l'aveugle des fondamentaux.
+
+**Progression par certification** : chaque certification garde son échelle, son indice de préparation, son XP, ses badges et sa maîtrise par domaine. Le tableau de bord montre d'abord l'indicateur global « Toutes mes certifications » (certifications travaillées, examens blancs passés et réussis, certifications prêtes, XP et badges cumulés, examens réels réussis, puis une ligne par certification), et ensuite la progression d'une seule certification : celle de `?certification=`, à défaut la dernière travaillée. Un sélecteur permet de passer de l'une à l'autre.
+
+Mise en ligne d'une certification : vérification à l'aveugle, relecture des rapports `factory/reports/*-<code>-*.md`, corrections, `content:status -- --cert <code> reviewed …` après relecture humaine, puis `active: true` dans son `blueprint.yaml` et `npm run seed`.
+
+Le seed charge toutes les certifications (environ 50 s sur le serveur, même sans changement : la lecture et la validation des ~13 000 questions dominent ; une question inchangée n'est pas réécrite). Le conteneur le lance à chaque démarrage, avant l'application.
 
 ## Démarrage en local
 
@@ -120,8 +136,10 @@ Les comptes se créent avec `npm run user:create` ou depuis **Administration →
 | `npm run test:e2e` | Tous les tests Playwright (parcours + non-régression) sur un build de production — même contrainte de base jetable |
 | `npm run test:regression` | Seulement la suite de non-régression Playwright (`tests/e2e/regression`) |
 | `npm run content:check` | Valide `content/` (schémas et références croisées, cours compris) |
-| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et liste tous les problèmes ; sans argument (ou avec `--course`), valide le cours |
-| `npm run content:status -- <statut> <préfixe\|all> [--from <statut>] [--course]` | Change le statut de questions en masse, ou de chapitres avec `--course` |
+| `npm run content:validate -- --cert <code\|all> [--prefix <p>] [--course] [--chapters <ids>]` | Valide les fichiers de questions (toute la banque avec `--cert` seul) et le cours, et liste tous les problèmes ; sans argument, valide les cours |
+| `npm run content:simulate -- --cert <code\|all> [n=10]` | Simule `n` examens d'un même candidat avec le vrai assembleur : aucune question répétée, aucun manque, pondérations des domaines respectées |
+| `npm run content:blind:export -- --cert <code> <préfixe\|all> <out.md> [--split <n>]` | Exporte des questions sans corrigé pour une vérification à l'aveugle (`compare-blind.ts` compare ensuite, `--out` écrit les écarts) |
+| `npm run content:status -- --cert <code\|all> <statut> <préfixe\|all> [--from <statut>] [--course]` | Change le statut de questions en masse, ou de chapitres avec `--course` |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |
 | `npm run user:create` | Crée un compte (`--email`, `--password`, `--name`, `--admin`, `--locale`) |
@@ -293,6 +311,8 @@ Mise en place, d'abord en **mode test** :
 En local, `stripe listen --forward-to localhost:3000/api/webhooks/stripe` (outil en ligne de commande de Stripe) relaie les événements et affiche le secret `whsec_…` à utiliser.
 
 Chaque événement est enregistré dans `stripe_event`, dans la même transaction que ses effets. Un événement reçu deux fois, ou deux fois en même temps, ne crée donc qu'un droit et qu'un paiement. Un traitement en échec est annulé en entier : le webhook répond 500, l'erreur est gardée dans `stripe_event.error`, et Stripe renvoie l'événement plus tard.
+
+**Prix par certification** : le prix du Pass est celui du tarif (`plan`), sauf pour une certification qui a son propre prix (table `plan_price`, *Administration → Droits → Prix du Pass par certification*, chaque changement est dans le journal d'audit). Les pages publiques affichent alors « À partir de … » et la liste des prix, et le formulaire d'achat le prix de la certification choisie. Un nouveau prix n'est en vente en ligne qu'après `npm run stripe:sync-prices`, qui crée son prix Stripe (lookup key `<tarif>.<certification>.<montant><devise>` : un nouveau montant est un nouveau prix Stripe).
 
 **Paiement retenu** : si Stripe a encaissé moins que le tarif, ou dans une autre devise (un prix Stripe modifié à la main, par exemple), le paiement passe au statut `held`. Aucun Pass n'est accordé, et l'acheteur voit « En vérification ». La liste « Paiements à vérifier » d'*Administration → Droits* les montre avec le tarif, le montant encaissé et la référence du paiement Stripe. Il faut alors rembourser dans le tableau de bord Stripe, ou accorder le Pass à la main depuis la fiche de l'utilisateur, avec le motif « Paiement retenu vérifié ». Le remboursement depuis l'application vient avec le lot C.
 

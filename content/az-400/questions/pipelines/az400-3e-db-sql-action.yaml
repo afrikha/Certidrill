@@ -1,0 +1,89 @@
+id: az400-3e-db-sql-action
+objective: "3.4.8"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip stores a SQL Server Database Project in a GitHub repository. A build job produces **Wingtip.dacpac** and uploads it as an artifact. You are writing the job that deploys it to an Azure SQL database.
+
+    The job must meet the following requirements:
+
+    - Sign in to Azure by using OpenID Connect, without a client secret.
+    - Let the deployment action add a temporary firewall rule for the runner's IP address on the logical server.
+    - Apply the schema of the .dacpac file to the database.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip stocke un projet de base de données SQL Server dans un dépôt GitHub. Un job de build produit **Wingtip.dacpac** et le charge comme artefact. Vous écrivez le job qui le déploie vers une base de données Azure SQL.
+
+    Le job doit respecter les exigences suivantes :
+
+    - Se connecter à Azure avec OpenID Connect, sans secret client.
+    - Laisser l'action de déploiement ajouter une règle de pare-feu temporaire pour l'adresse IP de l'exécuteur sur le serveur logique.
+    - Appliquer le schéma du fichier .dacpac à la base de données.
+
+    Comment devez-vous compléter le flux de travail ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    deploy-db:
+      needs: build
+      runs-on: windows-latest
+      environment: production
+      permissions:
+        [[perm]]
+        contents: read
+      steps:
+        # (a previous step downloads Wingtip.dacpac)
+        - uses: [[login]]
+          with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        - uses: azure/sql-action@v2.3
+          with:
+            connection-string: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+            path: './Wingtip.dacpac'
+            action: [[action]]
+  slots:
+    - id: perm
+      options:
+        - { id: idtoken, text: "id-token: write" }
+        - { id: deploy, text: "deployments: write" }
+        - { id: actions, text: "actions: write" }
+        - { id: checks, text: "checks: write" }
+    - id: login
+      options:
+        - { id: azlogin, text: azure/login@v2 }
+        - { id: azcli, text: azure/cli@v2 }
+        - { id: webapps, text: azure/webapps-deploy@v3 }
+        - { id: setup, text: actions/setup-dotnet@v4 }
+    - id: action
+      options:
+        - { id: script, text: "'Script'" }
+        - { id: publish, text: "'Publish'" }
+        - { id: report, text: "'DeployReport'" }
+        - { id: drift, text: "'DriftReport'" }
+answer:
+  values: { perm: idtoken, login: azlogin, action: publish }
+explanation:
+  correct:
+    en: "The `id-token: write` permission lets the job request the OpenID Connect token that azure/login exchanges for an Azure access token, so no client secret is stored. When an azure/login step runs before azure/sql-action, the action can add a firewall rule for the runner's IP address and remove it afterward. The Publish action applies the .dacpac schema to the database."
+    fr: "L'autorisation `id-token: write` permet au job de demander le jeton OpenID Connect qu'azure/login échange contre un jeton d'accès Azure : aucun secret client n'est stocké. Lorsqu'une étape azure/login s'exécute avant azure/sql-action, l'action peut ajouter une règle de pare-feu pour l'adresse IP de l'exécuteur, puis la supprimer. L'action Publish applique le schéma du .dacpac à la base de données."
+  options:
+    deploy: { en: "This permission manages GitHub deployment objects; it doesn't allow requesting an OIDC token.", fr: "Cette autorisation gère les objets de déploiement GitHub ; elle ne permet pas de demander un jeton OIDC." }
+    azcli: { en: "azure/cli runs Azure CLI scripts; it needs a prior sign-in and doesn't sign in itself.", fr: "azure/cli exécute des scripts Azure CLI ; il a besoin d'une connexion préalable et ne se connecte pas lui-même." }
+    webapps: { en: "azure/webapps-deploy deploys App Service apps; it doesn't sign in to Azure.", fr: "azure/webapps-deploy déploie des applications App Service ; il ne se connecte pas à Azure." }
+    script: { en: "Script only generates a Transact-SQL update script; it doesn't change the database.", fr: "Script génère seulement un script de mise à jour Transact-SQL ; il ne modifie pas la base de données." }
+    report: { en: "DeployReport only reports the changes a publish would make.", fr: "DeployReport indique seulement les modifications qu'une publication effectuerait." }
+references:
+  - title: "Quickstart: Connect to database with GitHub Actions"
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/connect-github-actions-sql-db
+  - title: SqlPackage
+    url: https://learn.microsoft.com/en-us/sql/tools/sqlpackage/sqlpackage

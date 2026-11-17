@@ -1,0 +1,57 @@
+id: ai200-4b-custom-transport-context
+objective: "4.2.1"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware's API publishes indexing jobs to a stream in Azure Managed Redis, and a separate worker reads and processes them. Both services use the Azure Monitor OpenTelemetry Distro, but no bundled instrumentation propagates the trace context through the stream. Each stream entry can carry string fields in addition to the job body.
+
+    You need the worker's processing to appear in `AppRequests` within the same end-to-end transaction as the API request that published the job.
+
+    Which four actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    L'API de Litware publie des travaux d'indexation dans un flux Azure Managed Redis, et un worker distinct les lit puis les traite. Les deux services utilisent la distribution OpenTelemetry Azure Monitor, mais aucune instrumentation intégrée ne propage le contexte de trace dans le flux. Chaque entrée du flux peut porter des champs de type chaîne en plus du corps du travail.
+
+    Le traitement du worker doit apparaître dans `AppRequests` dans la même transaction de bout en bout que la requête de l'API qui a publié le travail.
+
+    Quelles sont les quatre actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - id: inject
+      text: { en: "In the API, call `inject(fields)` on an empty dictionary while the request span is current.", fr: "Dans l'API, appeler `inject(fields)` sur un dictionnaire vide pendant que l'étendue de la requête est courante." }
+    - id: send
+      text: { en: "In the API, add the job to the stream with the `fields` entries as extra fields.", fr: "Dans l'API, ajouter le travail au flux avec les entrées de `fields` comme champs supplémentaires." }
+    - id: extract
+      text: { en: "In the worker, call `extract()` on the fields of the entry that it reads.", fr: "Dans le worker, appeler `extract()` sur les champs de l'entrée qu'il lit." }
+    - id: span
+      text: { en: "In the worker, start the processing span with the extracted context and `kind=SpanKind.CONSUMER`.", fr: "Dans le worker, démarrer l'étendue de traitement avec le contexte extrait et `kind=SpanKind.CONSUMER`." }
+    - id: winject
+      text: { en: "In the worker, call `inject()` on the fields of the entry before processing it.", fr: "Dans le worker, appeler `inject()` sur les champs de l'entrée avant de la traiter." }
+    - id: baggage
+      text: { en: "Set the `OTEL_PROPAGATORS` environment variable of both services to `baggage`.", fr: "Définir la variable d'environnement `OTEL_PROPAGATORS` des deux services sur `baggage`." }
+answer:
+  sequence: [ inject, send, extract, span ]
+explanation:
+  correct:
+    en: |-
+      The producer writes the current context into a carrier with `inject()`, which adds the W3C `traceparent` value, and sends it with the message. The consumer rebuilds the context from the same carrier with `extract()` and passes it as the parent of its span; the CONSUMER kind makes Application Insights store the span as a request of the same operation.
+    fr: |-
+      Le producteur écrit le contexte courant dans un porteur avec `inject()`, qui ajoute la valeur W3C `traceparent`, puis l'envoie avec le message. Le consommateur reconstruit le contexte à partir du même porteur avec `extract()` et le passe comme parent de son étendue ; le type CONSUMER fait stocker l'étendue comme requête de la même opération par Application Insights.
+  options:
+    winject:
+      en: |-
+        The worker must read the caller's context, not overwrite the carrier with its own context.
+      fr: |-
+        Le worker doit lire le contexte de l'appelant, pas écraser le porteur avec son propre contexte.
+    baggage:
+      en: |-
+        The default propagators are tracecontext and baggage; keeping only baggage would stop propagating the traceparent header.
+      fr: |-
+        Les propagateurs par défaut sont tracecontext et baggage ; ne conserver que baggage arrêterait la propagation de l'en-tête traceparent.
+references:
+  - title: Add and Modify OpenTelemetry in Application Insights
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-add-modify
+  - title: Azure Monitor Opentelemetry Distro client library for Python
+    url: https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-readme

@@ -1,0 +1,66 @@
+id: ai200-2c-redis-embedding-cache
+objective: "2.3.1"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Proseware, Inc. calls an embedding model for the same frequent search phrases many times a day. You decide to cache each embedding in Azure Managed Redis for 24 hours. The `r` variable is a connected `redis.Redis` client created with `decode_responses=True`.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware, Inc. appelle un modèle d'incorporation pour les mêmes expressions de recherche fréquentes plusieurs fois par jour. Vous décidez de mettre en cache chaque incorporation dans Azure Managed Redis pendant 24 heures. La variable `r` est un client `redis.Redis` connecté créé avec `decode_responses=True`.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import hashlib, json
+
+    def get_embedding(text: str) -> list[float]:
+        key = "emb:" + hashlib.sha256(text.encode()).hexdigest()
+        cached = r.[[read]](key)
+        if cached [[check]]:
+            return json.loads(cached)
+        vector = embed(text)
+        r.[[write]](key, 86400, json.dumps(vector))
+        return vector
+  slots:
+    - id: read
+      options:
+        - { id: get, text: get }
+        - { id: exists, text: exists }
+        - { id: getdel, text: getdel }
+    - id: check
+      options:
+        - { id: isnone, text: "is None" }
+        - { id: notnone, text: "is not None" }
+        - { id: eqone, text: "== 1" }
+    - id: write
+      options:
+        - { id: psetex, text: psetex }
+        - { id: setnx, text: setnx }
+        - { id: setex, text: setex }
+answer:
+  values: { read: get, check: notnone, write: setex }
+explanation:
+  correct:
+    en: |
+      In the cache-aside pattern, the code reads the key with GET; redis-py returns `None` on a miss, so a value that `is not None` is a hit. On a miss, `setex(name, time, value)` stores the embedding with a time to live of 86,400 seconds (24 hours) in one command.
+    fr: |
+      Dans le modèle cache-aside, le code lit la clé avec GET ; redis-py renvoie `None` en cas d'échec : une valeur qui n'est pas `None` est donc un succès. En cas d'échec, `setex(name, time, value)` stocke l'incorporation avec une durée de vie de 86 400 secondes (24 heures) en une seule commande.
+  options:
+    exists: { en: "EXISTS returns a count of keys, not the cached value.", fr: "EXISTS renvoie un nombre de clés, pas la valeur mise en cache." }
+    getdel: { en: "GETDEL deletes the key on the first read, so each embedding is served from the cache only once.", fr: "GETDEL supprime la clé à la première lecture : chaque incorporation n'est servie qu'une fois depuis le cache." }
+    isnone: { en: "This condition parses `None` on a miss and recomputes on a hit.", fr: "Cette condition analyse `None` en cas d'échec et recalcule en cas de succès." }
+    eqone: { en: "GET returns the stored JSON string, not 1.", fr: "GET renvoie la chaîne JSON stockée, pas 1." }
+    psetex: { en: "PSETEX takes milliseconds, so the entry would expire after 86.4 seconds.", fr: "PSETEX prend des millisecondes : l'entrée expirerait au bout de 86,4 secondes." }
+    setnx: { en: "SETNX takes a name and a value only and sets no expiration.", fr: "SETNX ne prend qu'un nom et une valeur, et ne définit pas d'expiration." }
+references:
+  - title: Cache-Aside Pattern
+    url: https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside

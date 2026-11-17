@@ -1,0 +1,87 @@
+id: dp800-1c-json-shred-lines
+objective: "1.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An Azure SQL database receives order payloads such as the following one.
+
+    ```json
+    {"order":{"id":5521,"customer":"C-104",
+      "lines":[{"sku":"TX-1","qty":3,"options":{"gift":true}},
+               {"sku":"TX-9","qty":1}]}}
+    ```
+
+    You need a query that meets the following requirements:
+
+    - Return one row per element of the lines array.
+    - Return the order ID 5521 on each row.
+    - Return the options object of each line as JSON text, or NULL when the line has no options.
+
+    How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Une base de données Azure SQL reçoit des charges utiles de commande comme la suivante.
+
+    ```json
+    {"order":{"id":5521,"customer":"C-104",
+      "lines":[{"sku":"TX-1","qty":3,"options":{"gift":true}},
+               {"sku":"TX-9","qty":1}]}}
+    ```
+
+    Vous avez besoin d'une requête qui respecte les exigences suivantes :
+
+    - Renvoyer une ligne par élément du tableau lines.
+    - Renvoyer l'ID de commande 5521 sur chaque ligne.
+    - Renvoyer l'objet options de chaque ligne sous forme de texte JSON, ou NULL quand la ligne n'a pas d'options.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT [[id]] AS OrderID, l.Sku, l.Qty, l.Options
+    FROM OPENJSON(@payload, [[path]])
+         WITH (Sku     varchar(20) '$.sku',
+               Qty     int         '$.qty',
+               Options [[opt]]) AS l;
+  slots:
+    - id: id
+      options:
+        - { id: value, text: "JSON_VALUE(@payload, '$.order.id')" }
+        - { id: query, text: "JSON_QUERY(@payload, '$.order.id')" }
+        - { id: rootid, text: "JSON_VALUE(@payload, '$.id')" }
+    - id: path
+      options:
+        - { id: lines, text: "'$.order.lines'" }
+        - { id: rootlines, text: "'$.lines'" }
+        - { id: order, text: "'$.order'" }
+    - id: opt
+      options:
+        - { id: asjson, text: "nvarchar(max) '$.options' AS JSON" }
+        - { id: asjson4000, text: "nvarchar(4000) '$.options' AS JSON" }
+        - { id: noasjson, text: "nvarchar(max) '$.options'" }
+        - { id: gift, text: "varchar(10) '$.options.gift'" }
+answer:
+  values: { id: value, path: lines, opt: asjson }
+explanation:
+  correct:
+    en: |
+      JSON_VALUE extracts the scalar order ID. The OPENJSON path must point to the array, $.order.lines, so that each element becomes a row. A column that returns a nested object needs AS JSON, and AS JSON requires the nvarchar(max) type; in lax mode, a line without options returns NULL.
+    fr: |
+      JSON_VALUE extrait l'ID de commande scalaire. Le chemin d'OPENJSON doit désigner le tableau, $.order.lines, pour que chaque élément devienne une ligne. Une colonne qui renvoie un objet imbriqué nécessite AS JSON, et AS JSON exige le type nvarchar(max) ; en mode lax, une ligne sans options renvoie NULL.
+  options:
+    query: { en: "JSON_QUERY returns objects and arrays; for the scalar id it returns NULL.", fr: "JSON_QUERY renvoie des objets et des tableaux ; pour l'id scalaire, il renvoie NULL." }
+    rootid: { en: "id is inside the order object; $.id doesn't exist, so lax mode returns NULL.", fr: "id se trouve dans l'objet order ; $.id n'existe pas, le mode lax renvoie donc NULL." }
+    rootlines: { en: "lines is inside order: in lax mode, a path that doesn't exist returns an empty result set.", fr: "lines se trouve dans order : en mode lax, un chemin inexistant renvoie un jeu de résultats vide." }
+    order: { en: "$.order points to the order object, so OPENJSON returns one row instead of one row per line.", fr: "$.order désigne l'objet order : OPENJSON renvoie une seule ligne au lieu d'une ligne par ligne de commande." }
+    asjson4000: { en: "A column defined with AS JSON must be of type nvarchar(max).", fr: "Une colonne définie avec AS JSON doit être de type nvarchar(max)." }
+    noasjson: { en: "Without AS JSON, a path that points to an object returns NULL in lax mode.", fr: "Sans AS JSON, un chemin qui désigne un objet renvoie NULL en mode lax." }
+    gift: { en: "This returns the scalar gift value, not the options object.", fr: "Cela renvoie la valeur scalaire gift, pas l'objet options." }
+references:
+  - title: OPENJSON (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/openjson-transact-sql

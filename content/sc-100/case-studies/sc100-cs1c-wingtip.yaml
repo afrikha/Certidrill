@@ -1,0 +1,123 @@
+id: sc100-cs1c-wingtip
+status: draft
+title:
+  en: Wingtip Toys
+  fr: Wingtip Toys
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wingtip Toys is an online game studio that has 12 million players. Its games run as cloud services, and players buy content in an online store. Partner studios use Wingtip APIs to read player profiles and achievements.
+
+        A penetration test found several weaknesses in the game platform. The board asks the security architects to define the target security architecture for the next year.
+      fr: |
+        Wingtip Toys est un studio de jeux en ligne qui compte 12 millions de joueurs. Ses jeux s'exécutent comme des services cloud, et les joueurs achètent du contenu dans une boutique en ligne. Des studios partenaires utilisent les API de Wingtip pour lire les profils et les succès des joueurs.
+
+        Un test d'intrusion a révélé plusieurs faiblesses dans la plateforme de jeux. Le conseil d'administration demande aux architectes de sécurité de définir l'architecture de sécurité cible pour l'année à venir.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity**
+
+        Wingtip has a Microsoft Entra tenant named wingtiptoys.com. The employees have Microsoft 365 E5 licenses and use Windows 11 laptops managed by Microsoft Intune.
+
+        **Cloud platform**
+
+        | Resource | Description |
+        | --- | --- |
+        | Sub-Games | Azure subscription that contains all the production resources |
+        | aks-games | Azure Kubernetes Service (AKS) cluster that runs the game services |
+        | fd-wingtip | Azure Front Door Standard profile that publishes the online store and the game services from two Azure regions; no WAF policy is associated |
+        | apim-partners | Azure API Management instance that publishes the player APIs to the partner studios |
+        | kv-signing | Azure Key Vault that stores the keys used to sign game builds and anti-cheat updates |
+
+        In Microsoft Defender for Cloud, the Defender for Containers plan is enabled on Sub-Games. No other plan is enabled.
+
+        **Development**
+
+        The developers use a GitHub Enterprise Cloud organization named **wingtip**. The GitHub Actions workflows build the container images, run the Microsoft Security DevOps action, and deploy the images to aks-games.
+
+        **Penetration test findings**
+
+        - Attackers could chain a vulnerable container image, an overprivileged identity and a laptop without endpoint protection to reach kv-signing.
+        - Several player APIs accept requests without authentication, and some APIs have received no traffic for months.
+        - The online store is exposed to SQL injection attempts and to bots that buy limited items for resale.
+        - A container in aks-games runs in privileged mode, and images with critical vulnerabilities were deployed to production.
+      fr: |
+        **Identité**
+
+        Wingtip dispose d'un locataire Microsoft Entra nommé wingtiptoys.com. Les employés disposent de licences Microsoft 365 E5 et utilisent des ordinateurs portables Windows 11 gérés par Microsoft Intune.
+
+        **Plateforme cloud**
+
+        | Ressource | Description |
+        | --- | --- |
+        | Sub-Games | Abonnement Azure qui contient toutes les ressources de production |
+        | aks-games | Cluster Azure Kubernetes Service (AKS) qui exécute les services de jeu |
+        | fd-wingtip | Profil Azure Front Door Standard qui publie la boutique en ligne et les services de jeu depuis deux régions Azure ; aucune stratégie WAF n'est associée |
+        | apim-partners | Instance Azure API Management qui publie les API des joueurs pour les studios partenaires |
+        | kv-signing | Coffre Azure Key Vault qui stocke les clés utilisées pour signer les builds des jeux et les mises à jour anti-triche |
+
+        Dans Microsoft Defender for Cloud, le plan Defender for Containers est activé sur Sub-Games. Aucun autre plan n'est activé.
+
+        **Développement**
+
+        Les développeurs utilisent une organisation GitHub Enterprise Cloud nommée **wingtip**. Les workflows GitHub Actions génèrent les images conteneur, exécutent l'action Microsoft Security DevOps et déploient les images sur aks-games.
+
+        **Constats du test d'intrusion**
+
+        - Des attaquants pourraient enchaîner une image conteneur vulnérable, une identité disposant de privilèges excessifs et un ordinateur portable sans protection des points de terminaison pour atteindre kv-signing.
+        - Plusieurs API des joueurs acceptent des requêtes sans authentification, et certaines API n'ont reçu aucun trafic depuis des mois.
+        - La boutique en ligne est exposée à des tentatives d'injection SQL et à des bots qui achètent des articles en édition limitée pour les revendre.
+        - Un conteneur de aks-games s'exécute en mode privilégié, et des images qui présentent des vulnérabilités critiques ont été déployées en production.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Container requirements**
+
+        - Deployments to aks-games of images that don't meet the vulnerability policy of Wingtip must be blocked.
+        - Requests to create privileged containers in aks-games must be blocked.
+        - Suspicious activities in the running containers of aks-games must raise security alerts.
+
+        **Application requirements**
+
+        - The security team must have an inventory of the player APIs that identifies unauthenticated and inactive APIs and the APIs that return sensitive data. Runtime attacks against the APIs must raise security alerts.
+        - Web attacks such as SQL injection and malicious bots must be blocked at the network edge, before they reach any region. Requests from a single client IP address must be rate limited. fd-wingtip must remain the entry point.
+
+        **DevSecOps requirements**
+
+        - When a vulnerable container image runs in aks-games, the security team must be able to trace it back to the GitHub repository that built it, and analyze the attack paths that include the cluster.
+
+        **Exposure management requirements**
+
+        - The security team must identify the combinations of weaknesses across devices, identities and cloud resources that lead to kv-signing, and focus remediation on the points that the largest number of these combinations go through.
+
+        **General requirements**
+
+        - Minimize administrative effort.
+      fr: |
+        **Exigences relatives aux conteneurs**
+
+        - Les déploiements sur aks-games d'images qui ne respectent pas la stratégie de vulnérabilité de Wingtip doivent être bloqués.
+        - Les demandes de création de conteneurs privilégiés dans aks-games doivent être bloquées.
+        - Les activités suspectes dans les conteneurs en cours d'exécution de aks-games doivent déclencher des alertes de sécurité.
+
+        **Exigences relatives aux applications**
+
+        - L'équipe de sécurité doit disposer d'un inventaire des API des joueurs qui identifie les API non authentifiées et inactives ainsi que les API qui renvoient des données sensibles. Les attaques contre les API à l'exécution doivent déclencher des alertes de sécurité.
+        - Les attaques web comme l'injection SQL et les bots malveillants doivent être bloqués en périphérie du réseau, avant d'atteindre une région. Les requêtes provenant d'une même adresse IP cliente doivent être limitées en débit. fd-wingtip doit rester le point d'entrée.
+
+        **Exigences DevSecOps**
+
+        - Quand une image conteneur vulnérable s'exécute dans aks-games, l'équipe de sécurité doit pouvoir remonter jusqu'au dépôt GitHub qui l'a générée et analyser les chemins d'attaque qui incluent le cluster.
+
+        **Exigences relatives à la gestion de l'exposition**
+
+        - L'équipe de sécurité doit identifier les combinaisons de faiblesses qui, à travers les appareils, les identités et les ressources cloud, mènent à kv-signing, et concentrer la correction sur les points par lesquels passe le plus grand nombre de ces combinaisons.
+
+        **Exigences générales**
+
+        - Réduire au minimum l'effort d'administration.

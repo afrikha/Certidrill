@@ -1,0 +1,82 @@
+id: dp420-1d-pull-loop-csharp
+objective: "1.4.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a .NET worker that keeps a search index synchronized with an Azure Cosmos DB for NoSQL container named **products**. The worker uses the change feed pull model.
+
+    The worker must:
+
+    - index every product that already exists in the container, then keep indexing new creates and updates;
+    - wait five seconds before polling again only when there are no new changes.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un service de traitement .NET qui maintient un index de recherche synchronisé avec un conteneur Azure Cosmos DB for NoSQL nommé **products**. Le service utilise le modèle de tirage du flux de modification.
+
+    Le service doit :
+
+    - indexer chaque produit qui existe déjà dans le conteneur, puis continuer à indexer les nouvelles créations et mises à jour ;
+    - attendre cinq secondes avant d'interroger à nouveau uniquement lorsqu'il n'y a pas de nouvelles modifications.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    FeedIterator<Product> iterator = container.[[method]](
+        ChangeFeedStartFrom.[[start]],
+        ChangeFeedMode.LatestVersion);
+
+    while (iterator.HasMoreResults)
+    {
+        FeedResponse<Product> response = await iterator.ReadNextAsync();
+
+        if (response.StatusCode == HttpStatusCode.[[status]])
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5));
+        }
+        else
+        {
+            foreach (Product product in response)
+            {
+                await searchIndex.UpsertAsync(product);
+            }
+        }
+    }
+  slots:
+    - id: start
+      options:
+        - { id: sbeg, text: Beginning() }
+        - { id: snow, text: Now() }
+        - { id: stime, text: Time(DateTime.UtcNow) }
+    - id: method
+      options:
+        - { id: mcf, text: GetChangeFeedIterator<Product> }
+        - { id: mstream, text: GetChangeFeedStreamIterator }
+        - { id: mquery, text: GetItemQueryIterator<Product> }
+    - id: status
+      options:
+        - { id: c304, text: NotModified }
+        - { id: c200, text: OK }
+        - { id: c204, text: NoContent }
+answer:
+  values: { method: mcf, start: sbeg, status: c304 }
+explanation:
+  correct:
+    en: "`GetChangeFeedIterator<Product>` returns a typed change feed iterator, and `ChangeFeedStartFrom.Beginning()` reads the changes since the creation of the container, which covers every existing product, and latest version mode returns the current version of each created or updated item. When no new change is available, the response has the status `NotModified` (HTTP 304); `HasMoreResults` stays true because the change feed never ends."
+    fr: "`GetChangeFeedIterator<Product>` renvoie un itérateur typé du flux de modification, et `ChangeFeedStartFrom.Beginning()` lit les modifications depuis la création du conteneur, ce qui couvre chaque produit existant, et le mode dernière version renvoie la version actuelle de chaque élément créé ou mis à jour. Lorsqu'aucune nouvelle modification n'est disponible, la réponse a l'état `NotModified` (HTTP 304) ; `HasMoreResults` reste vrai, car le flux de modification ne se termine jamais."
+  options:
+    snow: { en: "Now() skips the products that already exist.", fr: "Now() ignore les produits qui existent déjà." }
+    mstream: { en: "The stream iterator returns a non-generic FeedIterator of raw streams, not FeedIterator<Product> objects.", fr: "L'itérateur de flux brut renvoie un FeedIterator non générique de flux (Stream), pas des objets FeedIterator<Product>." }
+    mquery: { en: "GetItemQueryIterator runs a query; it does not read the change feed.", fr: "GetItemQueryIterator exécute une requête ; il ne lit pas le flux de modification." }
+    c200: { en: "A 200 OK response can contain zero items while more changes are available; you should keep reading until NotModified.", fr: "Une réponse 200 OK peut contenir zéro élément alors que d'autres modifications sont disponibles ; vous devez continuer à lire jusqu'à NotModified." }
+references:
+  - title: Change Feed Pull Model - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-pull-model

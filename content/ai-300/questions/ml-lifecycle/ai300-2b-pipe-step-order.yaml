@@ -1,0 +1,80 @@
+id: ai300-2b-pipe-step-order
+objective: "2.1.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure Machine Learning workspace named **mlw-contoso**. You submit the following pipeline job by using `az ml job create`.
+
+    ```yaml
+    type: pipeline
+    inputs:
+      raw_data:
+        type: uri_folder
+        path: azureml:churn-raw@latest
+    settings:
+      default_compute: azureml:cpu-cluster
+    jobs:
+      prep:
+        type: command
+        component: ./prep.yml
+        inputs:
+          raw_data: ${{parent.inputs.raw_data}}
+      train:
+        type: command
+        component: ./train.yml
+        inputs:
+          training_data: ${{parent.inputs.raw_data}}
+    ```
+
+    The `prep` component writes cleaned data to an output named `clean_data`. The studio shows that `train` starts at the same time as `prep` and trains on uncleaned data. You need `train` to start only after `prep` completes and to use the cleaned data.
+
+    What should you do?
+  fr: |
+    Vous disposez d'un espace de travail Azure Machine Learning nommé **mlw-contoso**. Vous soumettez le travail de pipeline suivant avec `az ml job create`.
+
+    ```yaml
+    type: pipeline
+    inputs:
+      raw_data:
+        type: uri_folder
+        path: azureml:churn-raw@latest
+    settings:
+      default_compute: azureml:cpu-cluster
+    jobs:
+      prep:
+        type: command
+        component: ./prep.yml
+        inputs:
+          raw_data: ${{parent.inputs.raw_data}}
+      train:
+        type: command
+        component: ./train.yml
+        inputs:
+          training_data: ${{parent.inputs.raw_data}}
+    ```
+
+    Le composant `prep` écrit les données nettoyées dans une sortie nommée `clean_data`. Le studio montre que `train` démarre en même temps que `prep` et s'entraîne sur des données non nettoyées. Vous devez faire en sorte que `train` ne démarre qu'après la fin de `prep` et utilise les données nettoyées.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add `continue_on_step_failure: false` under `settings` so that the steps run one after the other.", fr: "Ajouter `continue_on_step_failure: false` sous `settings` pour que les étapes s'exécutent l'une après l'autre." } }
+    - { id: b, text: { en: "Set `is_deterministic: false` in `train.yml` so that `train` waits for the upstream steps.", fr: "Définir `is_deterministic: false` dans `train.yml` pour que `train` attende les étapes en amont." } }
+    - { id: c, text: { en: "Set the `training_data` input of `train` to `${{parent.jobs.prep.outputs.clean_data}}`.", fr: "Définir l'entrée `training_data` de `train` sur `${{parent.jobs.prep.outputs.clean_data}}`." } }
+    - { id: d, text: { en: "Add `force_rerun: true` under `settings` so that `prep` always produces new data before `train`.", fr: "Ajouter `force_rerun: true` sous `settings` pour que `prep` produise toujours de nouvelles données avant `train`." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: In a pipeline job, the execution order comes from data bindings, not from the position of the steps in the file. Binding the `train` input to `${{parent.jobs.prep.outputs.clean_data}}` creates a dependency on `prep`, so `train` waits for `prep` to finish and receives its cleaned output.
+    fr: "Dans un travail de pipeline, l'ordre d'exécution découle des liaisons de données, pas de la position des étapes dans le fichier. Lier l'entrée de `train` à `${{parent.jobs.prep.outputs.clean_data}}` crée une dépendance envers `prep` : `train` attend la fin de `prep` et reçoit sa sortie nettoyée."
+  options:
+    a: { en: "This setting only controls whether the pipeline stops when a step fails; it creates no dependency between steps.", fr: "Ce paramètre détermine seulement si le pipeline s'arrête quand une étape échoue ; il ne crée aucune dépendance entre les étapes." }
+    d: { en: "`force_rerun` disables output reuse for all steps; the two steps would still run in parallel and `train` would still read raw data.", fr: "`force_rerun` désactive la réutilisation des sorties pour toutes les étapes ; les deux étapes s'exécuteraient toujours en parallèle et `train` lirait toujours les données brutes." }
+    b: { en: "`is_deterministic` controls whether a component's earlier results can be reused; it does not order steps.", fr: "`is_deterministic` détermine si les résultats précédents d'un composant peuvent être réutilisés ; il n'ordonne pas les étapes." }
+references:
+  - title: Create and run component-based ML pipelines with the Azure Machine Learning CLI
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-create-component-pipelines-cli
+  - title: CLI (v2) pipeline job YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-job-pipeline

@@ -1,0 +1,64 @@
+id: dp750-4a-cdc-scd2-choice
+objective: "4.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam captures the changes of its CRM database in the append-only Delta table **fabrikam.bronze.customer_changes**. Each row contains **customer_id**, the customer attributes, an operation code **op** (INSERT, UPDATE or DELETE) and a sequence number **change_seq**. Change rows can arrive out of order.
+
+    You need to build **fabrikam.silver.customers_history**, which must keep every version of each customer with the period during which the version was valid.
+
+    The solution must meet the following requirements:
+
+    - Run on serverless compute.
+    - Minimize the custom code that the team must write and maintain.
+
+    What should you use?
+  fr: |
+    Fabrikam capture les modifications de sa base de données CRM dans la table Delta en ajout seul **fabrikam.bronze.customer_changes**. Chaque ligne contient **customer_id**, les attributs du client, un code d'opération **op** (INSERT, UPDATE ou DELETE) et un numéro de séquence **change_seq**. Les lignes de modification peuvent arriver dans le désordre.
+
+    Vous devez créer **fabrikam.silver.customers_history**, qui doit conserver chaque version de chaque client avec la période pendant laquelle cette version était valide.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - S'exécuter sur un calcul serverless.
+    - Réduire au minimum le code personnalisé que l'équipe doit écrire et maintenir.
+
+    Que devez-vous utiliser ?
+body:
+  options:
+    - id: a
+      text: { en: "A notebook task that runs MERGE INTO with WHEN MATCHED THEN UPDATE on customer_id", fr: "Une tâche notebook qui exécute MERGE INTO avec WHEN MATCHED THEN UPDATE sur customer_id" }
+    - id: b
+      text: { en: "A pipeline with a materialized view that keeps the row with the highest change_seq per customer", fr: "Un pipeline avec une vue matérialisée qui conserve la ligne dont change_seq est le plus élevé par client" }
+    - id: c
+      text: { en: "A notebook task with a streaming query and foreachBatch that applies type 2 merges", fr: "Une tâche notebook avec une requête de streaming et foreachBatch qui applique des merges de type 2" }
+    - id: d
+      text: { en: "A pipeline with a streaming table and an AUTO CDC flow stored as SCD type 2", fr: "Un pipeline avec une table de diffusion en continu et un flux AUTO CDC stocké en SCD de type 2" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      The AUTO CDC flow of Lakeflow pipelines applies a change feed to a streaming table, orders the events by the SEQUENCE BY column to handle out-of-order rows, and with SCD type 2 keeps every version with __START_AT and __END_AT columns. It runs on serverless pipelines and needs no merge or ordering code.
+    fr: |
+      Le flux AUTO CDC des pipelines Lakeflow applique un flux de modifications à une table de diffusion en continu, ordonne les événements selon la colonne SEQUENCE BY pour gérer les lignes désordonnées et, en SCD de type 2, conserve chaque version avec les colonnes __START_AT et __END_AT. Il s'exécute sur des pipelines serverless et ne demande aucun code de merge ni de tri.
+  options:
+    a:
+      en: |
+        An update on match overwrites the current row, which gives a type 1 table without history, and it doesn't handle out-of-order changes.
+      fr: |
+        Une mise à jour en cas de correspondance remplace la ligne actuelle, ce qui donne une table de type 1 sans historique, et elle ne gère pas les modifications désordonnées.
+    b:
+      en: |
+        Keeping the latest row per customer gives only the current state, not the history of versions.
+      fr: |
+        Conserver la dernière ligne par client ne donne que l'état actuel, pas l'historique des versions.
+    c:
+      en: |
+        This can work, but the type 2 logic and the handling of out-of-order events are custom code to maintain.
+      fr: |
+        Cela peut fonctionner, mais la logique de type 2 et la gestion des événements désordonnés sont du code personnalisé à maintenir.
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

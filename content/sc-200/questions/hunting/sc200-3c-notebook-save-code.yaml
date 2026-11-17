@@ -1,0 +1,91 @@
+id: sc200-3c-notebook-save-code
+objective: "3.2.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam has onboarded Microsoft Sentinel to the data lake. The Sentinel workspace is named **SOC-WS**, and the data lake managed identity has the Log Analytics Contributor role on SOC-WS.
+
+    A threat hunter writes a data lake notebook that counts failed sign-ins per user from the SigninLogs table of SOC-WS. The notebook will run every day as a notebook job. Each run must add its results to a custom table in the analytics tier of SOC-WS, so that a scheduled analytics rule can query the table.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam a intégré Microsoft Sentinel au data lake. L'espace de travail Sentinel est nommé **SOC-WS**, et l'identité managée du data lake dispose du rôle Log Analytics Contributor sur SOC-WS.
+
+    Un chasseur de menaces écrit un notebook du data lake qui compte les échecs de connexion par utilisateur à partir de la table SigninLogs de SOC-WS. Le notebook s'exécutera chaque jour comme tâche de notebook. Chaque exécution doit ajouter ses résultats à une table personnalisée du niveau Analytics de SOC-WS, afin qu'une règle d'analytique planifiée puisse interroger la table.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from sentinel_lake.providers import MicrosoftSentinelProvider
+    data_provider = MicrosoftSentinelProvider(spark)
+    df = data_provider.[[read]]("SigninLogs", "SOC-WS")
+    failed = df.filter(df.ResultType != "0").groupBy("UserPrincipalName").count()
+    data_provider.save_as_table(failed, "[[name]]", "SOC-WS", write_options={"mode": "[[mode]]"})
+  slots:
+    - id: read
+      options:
+        - { id: listtables, text: list_tables }
+        - { id: readtable, text: read_table }
+        - { id: listdb, text: list_databases }
+    - id: name
+      options:
+        - { id: sprk, text: FailedSignins_SPRK }
+        - { id: kqlcl, text: FailedSignins_KQL_CL }
+        - { id: sprkcl, text: FailedSignins_SPRK_CL }
+        - { id: srch, text: FailedSignins_SRCH }
+    - id: mode
+      options:
+        - { id: append, text: append }
+        - { id: overwrite, text: overwrite }
+answer:
+  values: { read: readtable, name: sprkcl, mode: append }
+explanation:
+  correct:
+    en: |
+      read_table returns a DataFrame of a table from a given database (workspace). In save_as_table, the table name suffix selects the tier: _SPRK writes to the lake tier and _SPRK_CL writes to the analytics tier, where analytics rules can query it. Analytics-tier tables support only the append mode, which also matches the requirement to add each day's results.
+    fr: |
+      read_table renvoie un DataFrame d'une table d'une base de données (espace de travail) donnée. Dans save_as_table, le suffixe du nom de table choisit le niveau : _SPRK écrit au niveau lake et _SPRK_CL écrit au niveau Analytics, où les règles d'analytique peuvent l'interroger. Les tables du niveau Analytics ne prennent en charge que le mode append, qui correspond aussi à l'exigence d'ajouter les résultats de chaque jour.
+  options:
+    listtables:
+      en: |
+        list_tables returns the names of the tables of a database, not a DataFrame.
+      fr: |
+        list_tables renvoie les noms des tables d'une base de données, pas un DataFrame.
+    listdb:
+      en: |
+        list_databases returns the names of the databases (workspaces) of the data lake.
+      fr: |
+        list_databases renvoie les noms des bases de données (espaces de travail) du data lake.
+    sprk:
+      en: |
+        The _SPRK suffix writes to the lake tier, which analytics rules don't query.
+      fr: |
+        Le suffixe _SPRK écrit au niveau lake, que les règles d'analytique n'interrogent pas.
+    kqlcl:
+      en: |
+        _KQL_CL is the suffix of analytics-tier tables created by KQL jobs, not by notebooks.
+      fr: |
+        _KQL_CL est le suffixe des tables du niveau Analytics créées par les tâches KQL, pas par les notebooks.
+    srch:
+      en: |
+        _SRCH is the suffix of search job result tables.
+      fr: |
+        _SRCH est le suffixe des tables de résultats des travaux de recherche.
+    overwrite:
+      en: |
+        overwrite is supported only in the lake tier, and it would replace the previous days' results.
+      fr: |
+        overwrite n'est pris en charge qu'au niveau lake, et il remplacerait les résultats des jours précédents.
+references:
+  - title: Microsoft Sentinel Provider class reference
+    url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/sentinel-provider-class-reference
+  - title: Run notebooks on the Microsoft Sentinel data lake
+    url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/notebooks

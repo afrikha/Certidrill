@@ -1,0 +1,76 @@
+id: dp700-2c-latest-customer
+objective: "2.2.9"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a lakehouse that contains a Delta table named bronze_customers. Each change to a customer in the source system adds a row to bronze_customers. The table has a CustomerID column and a ModifiedAt column. Two rows of the same customer can have the same ModifiedAt value.
+
+    You need to create a DataFrame that contains exactly one row per customer: the most recent version.
+
+    How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse qui contient une table Delta nommée bronze_customers. Chaque modification d'un client dans le système source ajoute une ligne à bronze_customers. La table comporte une colonne CustomerID et une colonne ModifiedAt. Deux lignes d'un même client peuvent avoir la même valeur ModifiedAt.
+
+    Vous devez créer un DataFrame qui contient exactement une ligne par client : la version la plus récente.
+
+    Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+    from pyspark.sql.window import Window
+
+    w = Window.partitionBy("CustomerID").orderBy([[ord]])
+
+    latest = (spark.read.table("bronze_customers")
+        .withColumn("rn", [[fn]].over(w))
+        .filter("rn = 1")
+        .drop("rn"))
+  slots:
+    - id: ord
+      options:
+        - { id: desc, text: "F.col(\"ModifiedAt\").desc()" }
+        - { id: asc, text: "F.col(\"ModifiedAt\").asc()" }
+        - { id: key, text: "F.col(\"CustomerID\").desc()" }
+    - id: fn
+      options:
+        - { id: rownum, text: F.row_number() }
+        - { id: rank, text: F.rank() }
+        - { id: dense, text: F.dense_rank() }
+        - { id: count, text: "F.count(\"*\")" }
+answer:
+  values: { ord: desc, fn: rownum }
+explanation:
+  correct:
+    en: |
+      Ordering each customer's partition by ModifiedAt descending puts the latest version first. row_number() numbers the rows 1, 2, 3... without ties, so filtering on rn = 1 keeps exactly one row per customer even when two versions share the same ModifiedAt.
+    fr: |
+      Trier la partition de chaque client par ModifiedAt décroissant place la version la plus récente en premier. row_number() numérote les lignes 1, 2, 3... sans ex aequo : filtrer sur rn = 1 conserve exactement une ligne par client, même quand deux versions ont le même ModifiedAt.
+  options:
+    asc:
+      en: "An ascending order puts the oldest version first, so rn = 1 keeps the first version of each customer."
+      fr: "Un ordre croissant place la version la plus ancienne en premier : rn = 1 conserve la première version de chaque client."
+    key:
+      en: "Every row of a partition has the same CustomerID, so this order is arbitrary and rn = 1 keeps any version."
+      fr: "Toutes les lignes d'une partition ont le même CustomerID : cet ordre est arbitraire et rn = 1 conserve n'importe quelle version."
+    rank:
+      en: "rank gives the same rank to rows with the same ModifiedAt, so two rows of a customer can both have rank 1."
+      fr: "rank donne le même rang aux lignes qui ont le même ModifiedAt : deux lignes d'un client peuvent toutes deux avoir le rang 1."
+    dense:
+      en: "dense_rank also returns ties, so it can keep several rows per customer."
+      fr: "dense_rank renvoie aussi des ex aequo : il peut conserver plusieurs lignes par client."
+    count:
+      en: "A count over an ordered window is a running count, not a reliable row number when ModifiedAt values are tied."
+      fr: "Un comptage sur une fenêtre triée est un comptage cumulé, pas un numéro de ligne fiable quand des valeurs ModifiedAt sont ex aequo."
+references:
+  - title: Shape and clean data
+    url: https://learn.microsoft.com/en-us/training/modules/fabric-transform-data-notebooks/3-shape-clean-data
+  - title: Combine and aggregate data
+    url: https://learn.microsoft.com/en-us/training/modules/fabric-transform-data-notebooks/4-combine-aggregate

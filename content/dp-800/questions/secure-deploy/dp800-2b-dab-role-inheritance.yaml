@@ -1,0 +1,90 @@
+id: dp800-2b-dab-role-inheritance
+objective: "2.1.8"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso runs Data API builder (DAB) 2.0 in front of an Azure SQL database. The runtime uses the `EntraId` authentication provider. The configuration contains the following entity.
+
+    ```json
+    "Product": {
+      "source": { "object": "dbo.Product", "type": "table" },
+      "permissions": [
+        { "role": "anonymous", "actions": [ "read" ] },
+        { "role": "catalog-editor", "actions": [ "create", "read", "update" ] }
+      ]
+    }
+    ```
+
+    A user whose access token contains `catalog-editor` in the `roles` claim sends a `POST /api/Product` request. The request contains a valid bearer token but no `X-MS-API-ROLE` header.
+
+    What is the result of the request?
+  fr: |
+    Contoso exécute Data API builder (DAB) 2.0 devant une base de données Azure SQL. Le runtime utilise le fournisseur d'authentification `EntraId`. La configuration contient l'entité suivante.
+
+    ```json
+    "Product": {
+      "source": { "object": "dbo.Product", "type": "table" },
+      "permissions": [
+        { "role": "anonymous", "actions": [ "read" ] },
+        { "role": "catalog-editor", "actions": [ "create", "read", "update" ] }
+      ]
+    }
+    ```
+
+    Un utilisateur dont le jeton d'accès contient `catalog-editor` dans la revendication `roles` envoie une requête `POST /api/Product`. La requête contient un jeton du porteur valide, mais pas d'en-tête `X-MS-API-ROLE`.
+
+    Quel est le résultat de la requête ?
+body:
+  options:
+    - id: a
+      text:
+        en: |
+          The row is created, because the roles claim of the token contains catalog-editor.
+        fr: |
+          La ligne est créée, car la revendication roles du jeton contient catalog-editor.
+    - id: b
+      text:
+        en: |
+          It's rejected with 401 Unauthorized, because a request without X-MS-API-ROLE runs as anonymous.
+        fr: |
+          Elle est rejetée avec 401 Unauthorized, car une requête sans X-MS-API-ROLE s'exécute comme anonymous.
+    - id: c
+      text:
+        en: |
+          It's rejected with 403 Forbidden, because it runs as authenticated, which inherits only read.
+        fr: |
+          Elle est rejetée avec 403 Forbidden, car elle s'exécute comme authenticated, qui n'hérite que de read.
+    - id: d
+      text:
+        en: |
+          The row is created, because authenticated inherits the actions of every named role defined on the entity.
+        fr: |
+          La ligne est créée, car authenticated hérite des actions de tous les rôles nommés définis sur l'entité.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A request with a valid token and no X-MS-API-ROLE header is evaluated with the authenticated system role; a named role is used only when the header selects it. Product defines no authenticated permission, so in DAB 2.0 authenticated inherits from anonymous, which grants only read. The create action isn't granted, so the request is rejected with 403 Forbidden.
+    fr: |
+      Une requête avec un jeton valide et sans en-tête X-MS-API-ROLE est évaluée avec le rôle système authenticated ; un rôle nommé n'est utilisé que si l'en-tête le sélectionne. Product ne définit aucune autorisation pour authenticated : dans DAB 2.0, authenticated hérite donc de anonymous, qui n'accorde que read. L'action create n'est pas accordée, et la requête est rejetée avec 403 Forbidden.
+  options:
+    a:
+      en: |
+        Holding a role in the token isn't enough; the client must send X-MS-API-ROLE to be evaluated as catalog-editor.
+      fr: |
+        Détenir un rôle dans le jeton ne suffit pas ; le client doit envoyer X-MS-API-ROLE pour être évalué comme catalog-editor.
+    b:
+      en: |
+        A valid token without the header runs as authenticated, not anonymous; DAB returns 401 only when the token is invalid.
+      fr: |
+        Un jeton valide sans l'en-tête s'exécute comme authenticated, pas comme anonymous ; DAB ne renvoie 401 que si le jeton n'est pas valide.
+    d:
+      en: |
+        Inheritance goes from named roles to authenticated to anonymous, never from named roles down to authenticated.
+      fr: |
+        L'héritage va des rôles nommés vers authenticated puis vers anonymous, jamais des rôles nommés vers authenticated.
+references:
+  - title: Authorization overview
+    url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/authorization

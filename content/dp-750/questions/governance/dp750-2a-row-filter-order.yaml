@@ -1,0 +1,40 @@
+id: dp750-2a-row-filter-order
+objective: "2.1.2"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a Unity Catalog table named **fabrikam.sales.orders** that contains a column named region. The table is owned by the account group **data-eng**. You are not a member of data-eng. data-eng already has USE CATALOG on fabrikam and USE SCHEMA on every schema of fabrikam.
+
+    You need to implement row-level security on the table itself: members of the account group **sales-admins** must see all rows, and all other users must see only the rows where region is EMEA, whatever the compute they use. You will create the filter function in the schema **fabrikam.governance**, and a member of data-eng will apply it.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Fabrikam dispose d'une table Unity Catalog nommée **fabrikam.sales.orders** qui contient une colonne nommée region. Le propriétaire de la table est le groupe de compte **data-eng**. Vous n'êtes pas membre de data-eng. data-eng dispose déjà de USE CATALOG sur fabrikam et de USE SCHEMA sur tous les schémas de fabrikam.
+
+    Vous devez implémenter la sécurité au niveau des lignes sur la table elle-même : les membres du groupe de compte **sales-admins** doivent voir toutes les lignes, et tous les autres utilisateurs uniquement les lignes où region vaut EMEA, quel que soit le calcul utilisé. Vous créerez la fonction de filtre dans le schéma **fabrikam.governance**, et un membre de data-eng l'appliquera.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: partition, text: { en: "Rewrite fabrikam.sales.orders partitioned by region.", fr: "Réécrire fabrikam.sales.orders en la partitionnant par region." } }
+    - { id: fn, text: { en: "Create the SQL function fabrikam.governance.emea_filter(region STRING) that returns IF(is_account_group_member('sales-admins'), true, region = 'EMEA').", fr: "Créer la fonction SQL fabrikam.governance.emea_filter(region STRING) qui renvoie IF(is_account_group_member('sales-admins'), true, region = 'EMEA')." } }
+    - { id: grant, text: { en: "Grant EXECUTE on fabrikam.governance.emea_filter to data-eng.", fr: "Accorder EXECUTE sur fabrikam.governance.emea_filter à data-eng." } }
+    - { id: set, text: { en: "As a member of data-eng, run ALTER TABLE fabrikam.sales.orders SET ROW FILTER fabrikam.governance.emea_filter ON (region).", fr: "En tant que membre de data-eng, exécuter ALTER TABLE fabrikam.sales.orders SET ROW FILTER fabrikam.governance.emea_filter ON (region)." } }
+    - { id: mask, text: { en: "As a member of data-eng, run ALTER TABLE fabrikam.sales.orders ALTER COLUMN region SET MASK fabrikam.governance.emea_filter.", fr: "En tant que membre de data-eng, exécuter ALTER TABLE fabrikam.sales.orders ALTER COLUMN region SET MASK fabrikam.governance.emea_filter." } }
+    - { id: view, text: { en: "Create a view over fabrikam.sales.orders and run ALTER VIEW to set the row filter on the view.", fr: "Créer une vue sur fabrikam.sales.orders et exécuter ALTER VIEW pour définir le filtre de lignes sur la vue." } }
+answer:
+  sequence: [ fn, grant, set ]
+explanation:
+  correct:
+    en: A row filter is a SQL function that returns a BOOLEAN; rows for which it returns FALSE are excluded. Assigning it requires EXECUTE on the function (plus the usage privileges), and adding a filter to an existing table requires being its owner or having MANAGE and SELECT on it, so the function must exist, then data-eng receives EXECUTE, then a data-eng member runs ALTER TABLE ... SET ROW FILTER.
+    fr: Un filtre de lignes est une fonction SQL qui renvoie un BOOLEAN ; les lignes pour lesquelles elle renvoie FALSE sont exclues. L'affecter exige EXECUTE sur la fonction (en plus des privilèges d'utilisation), et ajouter un filtre à une table existante exige d'en être propriétaire ou de disposer de MANAGE et SELECT ; la fonction doit donc exister, puis data-eng reçoit EXECUTE, puis un membre de data-eng exécute ALTER TABLE ... SET ROW FILTER.
+  options:
+    mask: { en: "A column mask replaces column values; it does not remove rows.", fr: "Un masque de colonne remplace des valeurs de colonne ; il ne supprime pas de lignes." }
+    view: { en: "Row filters cannot be applied to views, and the requirement is to protect the table itself.", fr: "Les filtres de lignes ne peuvent pas être appliqués à des vues, et l'exigence est de protéger la table elle-même." }
+    partition: { en: "Partitioning organizes data files; Unity Catalog has no partition-level permissions.", fr: "Le partitionnement organise les fichiers de données ; Unity Catalog n'a pas d'autorisations au niveau des partitions." }
+references:
+  - title: Manually apply row filters and column masks
+    url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/manually-apply

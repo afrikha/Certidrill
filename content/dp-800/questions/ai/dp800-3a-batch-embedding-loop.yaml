@@ -1,0 +1,80 @@
+id: dp800-3a-batch-embedding-loop
+objective: "3.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind Traders has an Azure SQL database that contains three million customer reviews in dbo.Reviews. The dbo.ReviewEmbeddings table already has one row per review, with a NULL Embedding.
+
+    You need to generate the missing embeddings by using an external model named ReviewEmbedder. The solution must meet the following requirements:
+
+    - Each UPDATE statement must process at most 500 rows.
+    - The loop must stop when no row is left without an embedding.
+    - If the script stops, a new run must continue with the rows that still have no embedding.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders dispose d'une base de données Azure SQL qui contient trois millions d'avis clients dans dbo.Reviews. La table dbo.ReviewEmbeddings contient déjà une ligne par avis, avec un Embedding NULL.
+
+    Vous devez générer les incorporations manquantes à l'aide d'un modèle externe nommé ReviewEmbedder. La solution doit satisfaire les exigences suivantes :
+
+    - Chaque instruction UPDATE doit traiter au plus 500 lignes.
+    - La boucle doit s'arrêter quand il ne reste aucune ligne sans incorporation.
+    - Si le script s'arrête, une nouvelle exécution doit reprendre avec les lignes qui n'ont toujours pas d'incorporation.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    WHILE 1 = 1
+    BEGIN
+        UPDATE TOP (500) e
+        SET e.Embedding = AI_GENERATE_EMBEDDINGS(r.ReviewText [[clause]] ReviewEmbedder)
+        FROM dbo.ReviewEmbeddings AS e
+        INNER JOIN dbo.Reviews AS r ON r.ReviewID = e.ReviewID
+        WHERE e.Embedding [[pred]];
+
+        IF [[stop]] = 0 BREAK;
+    END;
+  slots:
+    - id: clause
+      options:
+        - { id: use, text: USE MODEL }
+        - { id: with, text: WITH MODEL }
+        - { id: eq, text: "MODEL =" }
+    - id: pred
+      options:
+        - { id: isnull, text: IS NULL }
+        - { id: eqnull, text: "= NULL" }
+        - { id: notnull, text: IS NOT NULL }
+    - id: stop
+      options:
+        - { id: rowcount, text: "@@ROWCOUNT" }
+        - { id: error, text: "@@ERROR" }
+        - { id: trancount, text: "@@TRANCOUNT" }
+answer:
+  values: { clause: use, pred: isnull, stop: rowcount }
+explanation:
+  correct:
+    en: |
+      AI_GENERATE_EMBEDDINGS names its model with USE MODEL. Filtering on Embedding IS NULL makes each batch take only rows without a vector, so a rerun naturally resumes where the previous run stopped. @@ROWCOUNT returns the number of rows the UPDATE affected: when it reaches 0, every row has an embedding and the loop ends. Batches limit the size of each transaction and of each wave of model calls.
+    fr: |
+      AI_GENERATE_EMBEDDINGS désigne son modèle avec USE MODEL. Filtrer sur Embedding IS NULL fait prendre à chaque lot uniquement des lignes sans vecteur : une nouvelle exécution reprend naturellement là où la précédente s'est arrêtée. @@ROWCOUNT retourne le nombre de lignes affectées par l'UPDATE : quand il atteint 0, chaque ligne a une incorporation et la boucle se termine. Les lots limitent la taille de chaque transaction et de chaque vague d'appels au modèle.
+  options:
+    with: { en: "WITH MODEL isn't part of the function syntax.", fr: "WITH MODEL ne fait pas partie de la syntaxe de la fonction." }
+    eq: { en: "The model isn't passed as a named argument; the function uses USE MODEL.", fr: "Le modèle ne se passe pas comme argument nommé ; la fonction utilise USE MODEL." }
+    eqnull: { en: "A comparison with = NULL is never true under the default ANSI_NULLS setting, so no row would be updated.", fr: "Une comparaison = NULL n'est jamais vraie avec le paramètre ANSI_NULLS par défaut : aucune ligne ne serait mise à jour." }
+    notnull: { en: "IS NOT NULL would regenerate rows that already have a vector and never process the missing ones.", fr: "IS NOT NULL régénérerait des lignes qui ont déjà un vecteur et ne traiterait jamais les lignes manquantes." }
+    error: { en: "@@ERROR is 0 after every successful statement, so the loop would stop after the first batch.", fr: "@@ERROR vaut 0 après chaque instruction réussie : la boucle s'arrêterait après le premier lot." }
+    trancount: { en: "@@TRANCOUNT counts open transactions; it is 0 here after each batch, so the loop would stop after the first one.", fr: "@@TRANCOUNT compte les transactions ouvertes ; il vaut 0 ici après chaque lot : la boucle s'arrêterait après le premier." }
+references:
+  - title: AI_GENERATE_EMBEDDINGS (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/ai-generate-embeddings-transact-sql
+  - title: Generate and maintain embeddings for SQL database workloads
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-models-embeddings-with-sql/05-generate-maintain-embeddings-sql-database-workloads

@@ -1,0 +1,71 @@
+id: dp420-1c-model-sync-denormalized
+objective: "1.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin stores blog data in Azure Cosmos DB for NoSQL:
+
+    - The **posts** container is partitioned by `/postId`. It holds post items and comment items, distinguished by a `type` property. Each post item has a `commentCount` property, and every post and comment item has a `userUsername` property copied from the author's profile.
+    - The **users** container is partitioned by `/userId` and holds one profile item per user.
+
+    You need to keep the denormalized properties correct.
+
+    Which feature should you use for each requirement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin stocke les données d'un blog dans Azure Cosmos DB for NoSQL :
+
+    - Le conteneur **posts** est partitionné par `/postId`. Il contient des éléments de publication et des éléments de commentaire, distingués par une propriété `type`. Chaque publication a une propriété `commentCount`, et chaque publication et chaque commentaire a une propriété `userUsername` copiée du profil de l'auteur.
+    - Le conteneur **users** est partitionné par `/userId` et contient un élément de profil par utilisateur.
+
+    Vous devez maintenir l'exactitude des propriétés dénormalisées.
+
+    Quelle fonctionnalité devez-vous utiliser pour chaque exigence ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Create a comment and increment the commentCount of its post as one all-or-nothing operation: [[atomic]]
+
+      Update userUsername on every post and comment of a user who changes their username: [[propagate]]
+    fr: |
+      Créer un commentaire et incrémenter le commentCount de sa publication en une seule opération tout-ou-rien : [[atomic]]
+
+      Mettre à jour userUsername sur toutes les publications et tous les commentaires d'un utilisateur qui change de nom d'utilisateur : [[propagate]]
+  slots:
+    - id: atomic
+      options:
+        - { id: batch, text: { en: "A transactional batch on the post's partition key value", fr: "Un lot transactionnel sur la valeur de clé de partition de la publication" } }
+        - { id: bulk, text: { en: "Bulk execution enabled on the CosmosClient", fr: "L'exécution en bloc activée sur le CosmosClient" } }
+        - { id: patch, text: { en: "A single patch operation on the post item", fr: "Une seule opération de correctif (patch) sur la publication" } }
+        - { id: cfp, text: { en: "A change feed processor on the posts container", fr: "Un processeur de flux de modification sur le conteneur posts" } }
+    - id: propagate
+      options:
+        - { id: pcfp, text: { en: "A change feed processor on the users container", fr: "Un processeur de flux de modification sur le conteneur users" } }
+        - { id: pbatch, text: { en: "A transactional batch on the user's partition key value", fr: "Un lot transactionnel sur la valeur de clé de partition de l'utilisateur" } }
+        - { id: ttl, text: { en: "A time to live (TTL) on the copied properties", fr: "Une durée de vie (TTL) sur les propriétés copiées" } }
+        - { id: etag, text: { en: "An If-Match condition with the profile's ETag", fr: "Une condition If-Match avec l'ETag du profil" } }
+answer:
+  values: { atomic: batch, propagate: pcfp }
+explanation:
+  correct:
+    en: |-
+      The comment and its post share the same `postId` value, so a transactional batch can create the comment and update the post atomically in that logical partition. A username change must reach items in many logical partitions of another container, which a transactional batch cannot do; a change feed processor on **users** reacts to the profile update and rewrites the copies.
+    fr: |-
+      Le commentaire et sa publication partagent la même valeur `postId` : un lot transactionnel peut créer le commentaire et mettre à jour la publication de façon atomique dans cette partition logique. Un changement de nom doit atteindre des éléments répartis dans de nombreuses partitions logiques d'un autre conteneur, ce qu'un lot transactionnel ne peut pas faire ; un processeur de flux de modification sur **users** réagit à la mise à jour du profil et réécrit les copies.
+  options:
+    bulk: { en: "Bulk execution optimizes throughput for many independent operations; it gives no all-or-nothing guarantee.", fr: "L'exécution en bloc optimise le débit pour de nombreuses opérations indépendantes ; elle n'offre aucune garantie tout-ou-rien." }
+    patch: { en: "A patch changes one item; it cannot also create the comment item.", fr: "Un correctif (patch) modifie un seul élément ; il ne peut pas créer en plus l'élément de commentaire." }
+    pbatch: { en: "A transactional batch is limited to one logical partition; the user's posts and comments are spread over many partitions of another container.", fr: "Un lot transactionnel est limité à une partition logique ; les publications et commentaires de l'utilisateur sont répartis sur de nombreuses partitions d'un autre conteneur." }
+    ttl: { en: "TTL expires whole items; it cannot refresh a copied property.", fr: "La durée de vie fait expirer des éléments entiers ; elle ne peut pas actualiser une propriété copiée." }
+    etag: { en: "An ETag condition prevents lost updates on one item; it does not propagate a change to other items.", fr: "Une condition ETag évite les mises à jour perdues sur un élément ; elle ne propage pas un changement vers d'autres éléments." }
+references:
+  - title: Transactional batch operations in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/transactional-batch
+  - title: How to model and partition data using a real-world example
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/model-partition-example

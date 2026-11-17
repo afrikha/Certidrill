@@ -1,0 +1,44 @@
+id: dp300-2c-ledger-migrate
+objective: "2.3.5"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named DB1 that contains a regular table named dbo.Payments. The table contains 400 million rows.
+
+    You need to make the data in dbo.Payments tamper-evident. The applications must continue to insert and update rows in a table named dbo.Payments, all the existing rows must be kept, and the solution must minimize the duration of future ledger verifications.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée DB1 qui contient une table ordinaire nommée dbo.Payments. La table contient 400 millions de lignes.
+
+    Vous devez rendre détectable toute falsification des données de dbo.Payments. Les applications doivent continuer à insérer et à mettre à jour des lignes dans une table nommée dbo.Payments, toutes les lignes existantes doivent être conservées, et la solution doit réduire au minimum la durée des futures vérifications du registre.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: create, text: { en: "Create an empty table named dbo.Payments_Ledger with the same columns and the WITH (SYSTEM_VERSIONING = ON, LEDGER = ON) option.", fr: "Créer une table vide nommée dbo.Payments_Ledger avec les mêmes colonnes et l'option WITH (SYSTEM_VERSIONING = ON, LEDGER = ON)." } }
+    - { id: copy, text: { en: "Run sys.sp_copy_data_in_batches with dbo.Payments as the source table and dbo.Payments_Ledger as the target table.", fr: "Exécuter sys.sp_copy_data_in_batches avec dbo.Payments comme table source et dbo.Payments_Ledger comme table cible." } }
+    - { id: rename, text: { en: "Rename dbo.Payments to dbo.Payments_Old, and then rename dbo.Payments_Ledger to dbo.Payments.", fr: "Renommer dbo.Payments en dbo.Payments_Old, puis renommer dbo.Payments_Ledger en dbo.Payments." } }
+    - { id: append, text: { en: "Create an empty table named dbo.Payments_Ledger with the same columns and the WITH (LEDGER = ON (APPEND_ONLY = ON)) option.", fr: "Créer une table vide nommée dbo.Payments_Ledger avec les mêmes colonnes et l'option WITH (LEDGER = ON (APPEND_ONLY = ON))." } }
+    - { id: single, text: { en: "Copy the rows by running a single INSERT INTO dbo.Payments_Ledger SELECT * FROM dbo.Payments statement.", fr: "Copier les lignes en exécutant une seule instruction INSERT INTO dbo.Payments_Ledger SELECT * FROM dbo.Payments." } }
+    - { id: sysver, text: { en: "Run ALTER TABLE dbo.Payments SET (SYSTEM_VERSIONING = ON) on the existing table.", fr: "Exécuter ALTER TABLE dbo.Payments SET (SYSTEM_VERSIONING = ON) sur la table existante." } }
+answer:
+  sequence: [create, copy, rename]
+explanation:
+  correct:
+    en: |
+      An existing regular table can't be converted to a ledger table. You create an empty ledger table with the same schema (an updatable ledger table, because rows are updated), copy the data with sys.sp_copy_data_in_batches, and then swap the names so that the applications use the ledger table. The procedure checks that the schemas match and copies the rows in many small transactions, which keeps ledger verification fast.
+    fr: |
+      Une table ordinaire existante ne peut pas être transformée en table de registre. Vous créez une table de registre vide de même schéma (une table de registre modifiable, car les lignes sont mises à jour), vous copiez les données avec sys.sp_copy_data_in_batches, puis vous échangez les noms pour que les applications utilisent la table de registre. La procédure vérifie que les schémas correspondent et copie les lignes en nombreuses petites transactions, ce qui accélère la vérification du registre.
+  options:
+    append: { en: "An append-only ledger table blocks updates, which the applications still need.", fr: "Une table de registre d'ajout uniquement bloque les mises à jour, dont les applications ont encore besoin." }
+    single: { en: "A single large transaction slows down ledger verification; Microsoft recommends copying in small batches.", fr: "Une seule grosse transaction ralentit la vérification du registre ; Microsoft recommande de copier par petits lots." }
+    sysver: { en: "System versioning makes the table temporal, not tamper-evident, and requires period columns.", fr: "La gestion système des versions rend la table temporelle, pas inviolable, et exige des colonnes de période." }
+references:
+  - title: Migrate data from regular tables to ledger tables
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/ledger/ledger-how-to-migrate-data-to-ledger-tables
+  - title: Ledger considerations and limitations
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/ledger/ledger-limits

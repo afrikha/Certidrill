@@ -1,0 +1,50 @@
+id: ai200-3a-eg-batch-failure
+objective: "3.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Relecloud receives clickstream events from an Event Grid custom topic in a webhook that feeds a recommendation model. To reduce the number of HTTP requests, the event subscription was created with `--max-events-per-batch 1000`.
+
+    The webhook receives a batch of 1,000 events, stores 600 of them in the feature store, and then fails on the next event and returns HTTP 500.
+
+    What does Event Grid do next?
+  fr: |
+    Relecloud reçoit des événements de parcours de navigation d'une rubrique personnalisée Event Grid dans un webhook qui alimente un modèle de recommandation. Pour réduire le nombre de requêtes HTTP, l'abonnement aux événements a été créé avec `--max-events-per-batch 1000`.
+
+    Le webhook reçoit un lot de 1 000 événements, en stocke 600 dans le magasin de caractéristiques, puis échoue sur l'événement suivant et renvoie HTTP 500.
+
+    Que fait ensuite Event Grid ?
+body:
+  options:
+    - { id: a, text: { en: "It retries only the 400 events that the webhook didn't store.", fr: "Il retente uniquement les 400 événements que le webhook n'a pas stockés." } }
+    - { id: b, text: { en: "It splits the batch and retries each of the 1,000 events in its own request.", fr: "Il divise le lot et retente chacun des 1 000 événements dans sa propre requête." } }
+    - { id: c, text: { en: "It retries the whole batch, including the 600 stored events.", fr: "Il retente tout le lot, y compris les 600 événements stockés." } }
+    - { id: d, text: { en: "It dead-letters the batch at once because a partial failure can't be retried.", fr: "Il place aussitôt le lot en lettres mortes, car un échec partiel ne peut pas être retenté." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      Output batching is all-or-none, with no partial success. A 500 response fails the whole batch, which Event Grid retries according to the retry policy. The handler must therefore be idempotent, and the batch size should be limited to what it can process within the 30-second response time.
+    fr: |
+      Le traitement par lots en sortie fonctionne en tout ou rien, sans réussite partielle. Une réponse 500 fait échouer tout le lot, qu'Event Grid retente selon la stratégie de nouvelle tentative. Le gestionnaire doit donc être idempotent, et la taille des lots doit se limiter à ce qu'il traite dans le délai de réponse de 30 secondes.
+  options:
+    a:
+      en: |
+        Event Grid can't know which events of the batch succeeded; partial success isn't supported.
+      fr: |
+        Event Grid ne peut pas savoir quels événements du lot ont réussi ; la réussite partielle n'est pas prise en charge.
+    b:
+      en: |
+        A batch succeeds or fails as a whole; Event Grid retries the failed batch, it doesn't break it up to isolate the failing event.
+      fr: |
+        Un lot réussit ou échoue en entier ; Event Grid retente le lot en échec, il ne le décompose pas pour isoler l'événement fautif.
+    d:
+      en: |
+        A 500 response is retried; only responses such as 400 and 413 dead-letter immediately.
+      fr: |
+        Une réponse 500 est retentée ; seules des réponses comme 400 et 413 entraînent un placement immédiat en lettres mortes.
+references:
+  - title: Azure Event Grid Delivery and Retry Explained
+    url: https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry

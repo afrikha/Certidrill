@@ -1,0 +1,76 @@
+id: dp800-3a-create-model-identity
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has an Azure SQL database named ProductsDb. The system-assigned managed identity of the logical server has the Cognitive Services OpenAI User role on an Azure OpenAI resource named aoai-contoso. The resource has a deployment named embed-small of the text-embedding-3-small model.
+
+    You need to create an external model that AI_GENERATE_EMBEDDINGS can use. The solution must not store any key in the database.
+
+    How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'une base de données Azure SQL nommée ProductsDb. L'identité managée affectée par le système du serveur logique dispose du rôle Cognitive Services OpenAI User sur une ressource Azure OpenAI nommée aoai-contoso. La ressource contient un déploiement nommé embed-small du modèle text-embedding-3-small.
+
+    Vous devez créer un modèle externe utilisable par AI_GENERATE_EMBEDDINGS. La solution ne doit stocker aucune clé dans la base de données.
+
+    Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE DATABASE SCOPED CREDENTIAL [https://aoai-contoso.cognitiveservices.azure.com/]
+        WITH IDENTITY = [[ident]],
+        SECRET = '{"resourceid":"https://cognitiveservices.azure.com"}';
+    GO
+    CREATE EXTERNAL MODEL ProductEmbedder
+    WITH (
+        LOCATION = 'https://aoai-contoso.cognitiveservices.azure.com/openai/deployments/embed-small/[[path]]?api-version=2024-02-01',
+        API_FORMAT = [[fmt]],
+        MODEL_TYPE = EMBEDDINGS,
+        MODEL = 'text-embedding-3-small',
+        CREDENTIAL = [https://aoai-contoso.cognitiveservices.azure.com/]
+    );
+  slots:
+    - id: ident
+      options:
+        - { id: mi, text: "'Managed Identity'" }
+        - { id: headers, text: "'HTTPEndpointHeaders'" }
+        - { id: sas, text: "'SHARED ACCESS SIGNATURE'" }
+    - id: path
+      options:
+        - { id: emb, text: embeddings }
+        - { id: chat, text: chat/completions }
+        - { id: compl, text: completions }
+    - id: fmt
+      options:
+        - { id: aoai, text: "'Azure OpenAI'" }
+        - { id: openai, text: "'OpenAI'" }
+        - { id: ollama, text: "'Ollama'" }
+        - { id: onnx, text: "'ONNX Runtime'" }
+answer:
+  values: { ident: mi, path: emb, fmt: aoai }
+explanation:
+  correct:
+    en: |
+      A credential with IDENTITY = 'Managed Identity' and the cognitiveservices.azure.com resource ID authenticates with the server's managed identity, so no key is stored. For API_FORMAT = 'Azure OpenAI', LOCATION is https://{endpoint}/openai/deployments/{deployment}/embeddings?api-version={date}, because MODEL_TYPE = EMBEDDINGS calls the embeddings operation of the deployment.
+    fr: |
+      Des informations d'identification avec IDENTITY = 'Managed Identity' et l'ID de ressource cognitiveservices.azure.com s'authentifient avec l'identité managée du serveur : aucune clé n'est stockée. Pour API_FORMAT = 'Azure OpenAI', LOCATION vaut https://{endpoint}/openai/deployments/{deployment}/embeddings?api-version={date}, car MODEL_TYPE = EMBEDDINGS appelle l'opération embeddings du déploiement.
+  options:
+    headers: { en: "HTTPEndpointHeaders stores an api-key or Bearer token in the secret, which the requirement forbids.", fr: "HTTPEndpointHeaders stocke une clé api-key ou un jeton Bearer dans le secret, ce que l'exigence interdit." }
+    sas: { en: "A shared access signature authenticates to Azure Storage, not to Azure OpenAI.", fr: "Une signature d'accès partagé authentifie auprès de Stockage Azure, pas d'Azure OpenAI." }
+    chat: { en: "chat/completions is the path of a chat model, not of an embeddings deployment.", fr: "chat/completions est le chemin d'un modèle de conversation, pas d'un déploiement d'incorporations." }
+    compl: { en: "completions is a text generation operation; embeddings are returned by the embeddings operation.", fr: "completions est une opération de génération de texte ; les incorporations sont retournées par l'opération embeddings." }
+    openai: { en: "'OpenAI' is the format of the OpenAI service, whose path is /v1/embeddings.", fr: "'OpenAI' est le format du service OpenAI, dont le chemin est /v1/embeddings." }
+    ollama: { en: "'Ollama' targets an Ollama server and its /api/embed path.", fr: "'Ollama' cible un serveur Ollama et son chemin /api/embed." }
+    onnx: { en: "'ONNX Runtime' runs a local model from a folder on SQL Server, not an Azure endpoint.", fr: "'ONNX Runtime' exécute un modèle local à partir d'un dossier sur SQL Server, pas un point de terminaison Azure." }
+references:
+  - title: CREATE EXTERNAL MODEL (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-external-model-transact-sql
+  - title: Create and manage external models in SQL
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-models-embeddings-with-sql/03-create-manage-external-model-sql

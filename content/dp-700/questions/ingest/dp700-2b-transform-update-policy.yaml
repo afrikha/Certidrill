@@ -1,0 +1,60 @@
+id: dp700-2b-transform-update-policy
+objective: "2.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a KQL database named KQL-Devices. An eventstream ingests JSON events into a table named RawEvents that has a single column named Payload. You created a table named CleanEvents with the columns Timestamp, DeviceId and Temp, and a stored function named ParseRaw() that parses RawEvents into that schema.
+
+    You need every batch ingested into RawEvents to be transformed into CleanEvents automatically. If the transformation fails, the ingestion into RawEvents must fail too, so that the two tables stay consistent.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données KQL nommée KQL-Devices. Un flux d'événements ingère des événements JSON dans une table nommée RawEvents qui possède une seule colonne nommée Payload. Vous avez créé une table nommée CleanEvents avec les colonnes Timestamp, DeviceId et Temp, et une fonction stockée nommée ParseRaw() qui analyse RawEvents selon ce schéma.
+
+    Chaque lot ingéré dans RawEvents doit être transformé automatiquement dans CleanEvents. Si la transformation échoue, l'ingestion dans RawEvents doit échouer aussi, pour que les deux tables restent cohérentes.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .alter table [[target]] policy update
+    @'[{"IsEnabled": true, "Source": "[[source]]", "Query": "ParseRaw()", "IsTransactional": [[tx]], "PropagateIngestionProperties": false}]'
+  slots:
+    - id: target
+      options:
+        - { id: t_clean, text: CleanEvents }
+        - { id: t_raw, text: RawEvents }
+        - { id: t_fn, text: "ParseRaw()" }
+    - id: source
+      options:
+        - { id: s_raw, text: RawEvents }
+        - { id: s_clean, text: CleanEvents }
+        - { id: s_fn, text: "ParseRaw()" }
+    - id: tx
+      options:
+        - { id: tx_true, text: "true" }
+        - { id: tx_false, text: "false" }
+answer:
+  values: { target: t_clean, source: s_raw, tx: tx_true }
+explanation:
+  correct:
+    en: |
+      An update policy is set on the target table, CleanEvents; its Source property names the table whose ingestions trigger the policy, RawEvents, and Query calls the stored function whose output must match the target schema. With IsTransactional set to true, a failure of the policy also fails the ingestion, so neither table receives the data.
+    fr: |
+      Une stratégie de mise à jour se définit sur la table cible, CleanEvents ; sa propriété Source désigne la table dont les ingestions déclenchent la stratégie, RawEvents, et Query appelle la fonction stockée dont la sortie doit correspondre au schéma de la cible. Avec IsTransactional défini sur true, un échec de la stratégie fait aussi échouer l'ingestion : aucune des deux tables ne reçoit les données.
+  options:
+    t_raw: { en: "The policy is attached to the table that receives the transformed rows, not to the source.", fr: "La stratégie est attachée à la table qui reçoit les lignes transformées, pas à la source." }
+    t_fn: { en: "A policy is altered on a table, not on a function.", fr: "Une stratégie se modifie sur une table, pas sur une fonction." }
+    s_clean: { en: "Source must be the table whose ingestions trigger the policy.", fr: "Source doit être la table dont les ingestions déclenchent la stratégie." }
+    s_fn: { en: "The function goes in Query; Source names a table.", fr: "La fonction va dans Query ; Source désigne une table." }
+    tx_false: { en: "With false (the default), RawEvents still receives the data when the policy fails, and CleanEvents misses it.", fr: "Avec false (valeur par défaut), RawEvents reçoit quand même les données quand la stratégie échoue, et CleanEvents ne les reçoit pas." }
+references:
+  - title: Update policy overview
+    url: https://learn.microsoft.com/en-us/kusto/management/update-policy?view=microsoft-fabric

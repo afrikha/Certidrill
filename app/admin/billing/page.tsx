@@ -9,11 +9,12 @@ import { recentAudit, type AuditAction } from "@/lib/audit";
 import { readSwitches, SWITCHES, type Switch } from "@/lib/settings";
 import { setSwitchAction } from "@/lib/actions/billing";
 import { heldPayments } from "@/lib/billing/checkout";
+import { resolvePrice } from "@/lib/billing/prices";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { GrantForm, RevokeForm } from "./forms";
+import { GrantForm, PriceForm, RevokeForm } from "./forms";
 
 export const metadata = { title: "Billing" };
 export const dynamic = "force-dynamic";
@@ -42,9 +43,12 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
     findUsers(prisma, q),
     userId ? prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, role: true, emailVerified: true, createdAt: true } }) : null,
     prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { code: true, title: true } }),
-    prisma.plan.findUnique({ where: { code: "pass_90" }, select: { durationDays: true } }),
+    prisma.plan.findUnique({ where: { code: "pass_90" }, include: { prices: true } }),
     heldPayments(prisma),
   ]);
+  // Every certification, active or not, so that a price can be set before it opens.
+  const allCertifications = passPlan ? await prisma.certification.findMany({ orderBy: { code: "asc" }, select: { id: true, code: true, title: true, active: true } }) : [];
+  const ownPrices = new Map(passPlan?.prices.map((p) => [p.certificationId, p]) ?? []);
   const money = (cents: number | null, currency: string) => (cents === null ? "—" : format.number(cents / 100, { style: "currency", currency: currency.toUpperCase() }));
   const [access, entitlements, log] = await Promise.all([
     selected ? getAccessSummary(prisma, selected.id, now) : [],
@@ -76,6 +80,36 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
           ))}
         </ul>
       </Card>
+
+      {passPlan && (
+        <Card className="overflow-x-auto">
+          <h2 className="mb-1 font-semibold">{t("prices")}</h2>
+          <p className="mb-4 text-sm text-muted-foreground">{t("pricesHelp")}</p>
+          <table className="w-full text-left text-sm" data-testid="certification-prices">
+            <tbody>
+              {allCertifications.map((c) => {
+                const price = resolvePrice(passPlan, ownPrices.get(c.id));
+                return (
+                  <tr key={c.code} className="border-t border-border align-middle" data-price-certification={c.code} data-custom={price.custom}>
+                    <th scope="row" className="py-2 pr-3 font-normal">
+                      <span className="font-mono uppercase">{c.code}</span> <span className="text-muted-foreground">{c.title}</span>
+                      {!c.active && <span className="ml-2 rounded bg-muted px-1.5 text-xs">{t("priceInactive")}</span>}
+                    </th>
+                    <td className="py-2 pr-3 tabular-nums">
+                      <span className="font-semibold">{money(price.amountCents, price.currency)}</span>{" "}
+                      <span className="text-xs text-muted-foreground">{price.custom ? t("priceOwn") : t("pricePlan")}</span>
+                      {!price.stripePriceId && <span className="block text-xs text-danger">{t("priceNotLinked")}</span>}
+                    </td>
+                    <td className="py-2">
+                      <PriceForm planCode={passPlan.code} code={c.code} current={price.custom ? (price.amountCents / 100).toFixed(2) : ""} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
 
       {held.length > 0 && (
         <Card className="overflow-x-auto p-0">

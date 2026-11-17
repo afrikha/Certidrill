@@ -1,0 +1,50 @@
+id: az700-cs4b-nsg-sql
+objective: "5.1.5"
+type: hotarea
+caseStudy: az700-cs4b-fernhill
+difficulty: 2
+status: draft
+stem:
+  en: |
+    NSG-SQL contains the inbound security rules shown in the following table. No other NSG applies to VM-SQL1. Traffic from the datacenters reaches snet-sql through ERGW1 and the virtual network peering, without any address translation.
+
+    Answer each prompt by selecting the rule that processes the connection.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    NSG-SQL contient les règles de sécurité entrantes du tableau suivant. Aucun autre NSG ne s'applique à VM-SQL1. Le trafic des centres de données atteint snet-sql par ERGW1 et le peering de réseaux virtuels, sans aucune traduction d'adresse.
+
+    Répondez à chaque consigne en sélectionnant la règle qui traite la connexion.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text: { en: "TCP 1433 from a reporting server in the London datacenter (10.20.8.15) to VM-SQL1", fr: "TCP 1433 depuis un serveur de rapports du centre de données de Londres (10.20.8.15) vers VM-SQL1" }
+    - id: p2
+      text: { en: "TCP 1433 from an application server in the Paris datacenter (10.10.4.20) to VM-SQL1", fr: "TCP 1433 depuis un serveur d'applications du centre de données de Paris (10.10.4.20) vers VM-SQL1" }
+  grid:
+    header: [{ en: "Priority", fr: "Priorité" }, { en: Name, fr: Nom }, { en: "Source", fr: "Source" }, { en: "Destination", fr: "Destination" }, Port, Action]
+    rows:
+      - [{ text: "100" }, { text: Allow-ETL-SQL, area: r100 }, { text: ASG-ETL }, { text: ASG-SQL }, { text: "1433" }, { text: Allow }]
+      - [{ text: "200" }, { text: Deny-Paris-SQL, area: r200 }, { text: 10.10.0.0/16 }, { text: Any }, { text: "1433" }, { text: Deny }]
+      - [{ text: "300" }, { text: Allow-VNet-SQL, area: r300 }, { text: VirtualNetwork }, { text: ASG-SQL }, { text: "1433" }, { text: Allow }]
+      - [{ text: "400" }, { text: Deny-SQL-Any, area: r400 }, { text: Any }, { text: Any }, { text: "1433" }, { text: Deny }]
+      - [{ text: "65000" }, { text: AllowVnetInBound, area: r65000 }, { text: VirtualNetwork }, { text: VirtualNetwork }, { text: Any }, { text: Allow }]
+      - [{ text: "65500" }, { text: DenyAllInBound, area: r65500 }, { text: Any }, { text: Any }, { text: Any }, { text: Deny }]
+answer:
+  values: { p1: r300, p2: r200 }
+explanation:
+  correct:
+    en: |
+      Rules are processed by priority, lowest number first, and processing stops at the first match. The London server isn't in ASG-ETL and isn't in 10.10.0.0/16, but the VirtualNetwork service tag includes all the on-premises address spaces connected through the gateway, so Allow-VNet-SQL (300) matches before Deny-SQL-Any (400). The Paris server matches Deny-Paris-SQL (200) before any allow rule that would include it.
+    fr: |
+      Les règles sont traitées par priorité, du plus petit numéro au plus grand, et le traitement s'arrête à la première correspondance. Le serveur de Londres n'est pas dans ASG-ETL ni dans 10.10.0.0/16, mais l'étiquette de service VirtualNetwork inclut tous les espaces d'adressage locaux connectés par la passerelle : Allow-VNet-SQL (300) correspond donc avant Deny-SQL-Any (400). Le serveur de Paris correspond à Deny-Paris-SQL (200) avant toute règle d'autorisation qui l'inclurait.
+  options:
+    r400: { en: "Deny-SQL-Any would process the London traffic only if VirtualNetwork didn't include the on-premises address spaces.", fr: "Deny-SQL-Any ne traiterait le trafic de Londres que si VirtualNetwork n'incluait pas les espaces d'adressage locaux." }
+    r100: { en: "An ASG contains only network interfaces of the virtual network; an on-premises address can never match ASG-ETL.", fr: "Un ASG ne contient que des interfaces réseau du réseau virtuel ; une adresse locale ne peut jamais correspondre à ASG-ETL." }
+references:
+  - title: Azure service tags overview for virtual network security
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/service-tags-overview
+  - title: Azure network security groups overview
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview

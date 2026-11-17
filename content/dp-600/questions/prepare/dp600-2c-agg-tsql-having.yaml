@@ -1,0 +1,74 @@
+id: dp600-2c-agg-tsql-having
+objective: "2.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named **WH1** that contains a table named **silver.Sales** with one row per order line (StoreID, OrderDate, CustomerID, SalesAmount).
+
+    You need to create a table named **gold.SalesByStoreMonth** that contains one row per store and month for 2026, with the total sales and the number of different customers. Only the store and month combinations whose total sales exceed 10,000 must be kept.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé **WH1** qui contient une table nommée **silver.Sales** avec une ligne par ligne de commande (StoreID, OrderDate, CustomerID, SalesAmount).
+
+    Vous devez créer une table nommée **gold.SalesByStoreMonth** qui contient une ligne par magasin et par mois pour 2026, avec le total des ventes et le nombre de clients différents. Seules les combinaisons de magasin et de mois dont le total des ventes dépasse 10 000 doivent être conservées.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE gold.SalesByStoreMonth
+    AS
+    SELECT StoreID,
+           YEAR(OrderDate) AS OrderYear,
+           MONTH(OrderDate) AS OrderMonth,
+           SUM(SalesAmount) AS TotalSales,
+           [[cnt]](DISTINCT CustomerID) AS Customers
+    FROM silver.Sales
+    WHERE OrderDate >= '2026-01-01' AND OrderDate < '2027-01-01'
+    [[grp]]
+    [[flt]] SUM(SalesAmount) > 10000;
+  slots:
+    - id: cnt
+      options:
+        - { id: count, text: COUNT }
+        - { id: sum, text: SUM }
+        - { id: max, text: MAX }
+        - { id: avg, text: AVG }
+    - id: grp
+      options:
+        - { id: groupby, text: "GROUP BY StoreID, YEAR(OrderDate), MONTH(OrderDate)" }
+        - { id: storeonly, text: "GROUP BY StoreID" }
+        - { id: partition, text: "PARTITION BY StoreID, YEAR(OrderDate), MONTH(OrderDate)" }
+        - { id: orderby, text: "ORDER BY StoreID, YEAR(OrderDate), MONTH(OrderDate)" }
+    - id: flt
+      options:
+        - { id: having, text: HAVING }
+        - { id: and, text: AND }
+        - { id: qualify, text: QUALIFY }
+        - { id: on, text: ON }
+answer:
+  values: { cnt: count, grp: groupby, flt: having }
+explanation:
+  correct:
+    en: "`COUNT(DISTINCT CustomerID)` counts the different customers in each group. The `GROUP BY` must list every non-aggregated column of the SELECT list, including the year and month expressions. `HAVING` filters the groups after aggregation, which is required because the condition uses `SUM`; `WHERE` filters rows before grouping."
+    fr: "`COUNT(DISTINCT CustomerID)` compte les clients différents de chaque groupe. Le `GROUP BY` doit lister chaque colonne non agrégée de la liste SELECT, y compris les expressions d'année et de mois. `HAVING` filtre les groupes après l'agrégation, ce qui est obligatoire car la condition utilise `SUM` ; `WHERE` filtre les lignes avant le regroupement."
+  options:
+    sum: { en: "SUM(DISTINCT CustomerID) adds up the distinct ID values instead of counting them.", fr: "SUM(DISTINCT CustomerID) additionne les valeurs d'ID distinctes au lieu de les compter." }
+    storeonly: { en: "Grouping only by StoreID makes the year and month columns invalid in the SELECT list.", fr: "Regrouper seulement par StoreID rend les colonnes d'année et de mois invalides dans la liste SELECT." }
+    partition: { en: "PARTITION BY belongs to the OVER clause of window functions, not to a query's grouping.", fr: "PARTITION BY appartient à la clause OVER des fonctions de fenêtrage, pas au regroupement d'une requête." }
+    orderby: { en: "ORDER BY only sorts; without GROUP BY, SUM can't be returned with the non-aggregated columns.", fr: "ORDER BY ne fait que trier ; sans GROUP BY, SUM ne peut pas être renvoyé avec les colonnes non agrégées." }
+    and: { en: "AND can't follow GROUP BY, and an aggregate can't be part of a WHERE condition anyway.", fr: "AND ne peut pas suivre GROUP BY, et un agrégat ne peut de toute façon pas faire partie d'une condition WHERE." }
+    qualify: { en: "QUALIFY filters on the result of window functions, not on group aggregates.", fr: "QUALIFY filtre sur le résultat des fonctions de fenêtrage, pas sur les agrégats de groupes." }
+references:
+  - title: SELECT - GROUP BY clause (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/select-group-by-transact-sql
+  - title: T-SQL surface area in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/tsql-surface-area

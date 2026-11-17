@@ -1,0 +1,81 @@
+id: ai200-4b-kql-model-latency
+objective: "4.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso's RAG API calls a model deployment whose host name is `contoso-ai.openai.azure.com`; the host name is stored in the `Target` column of `AppDependencies`. The API also calls other Azure endpoints.
+
+    You need a line chart of the 95th percentile duration of the calls to the model endpoint, by five-minute interval, for the last six hours.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'API RAG de Contoso appelle un déploiement de modèle dont le nom d'hôte est `contoso-ai.openai.azure.com` ; le nom d'hôte est stocké dans la colonne `Target` de `AppDependencies`. L'API appelle aussi d'autres points de terminaison Azure.
+
+    Vous avez besoin d'un graphique en courbes du 95e centile de la durée des appels au point de terminaison du modèle, par intervalle de cinq minutes, pour les six dernières heures.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    AppDependencies
+    | where TimeGenerated > ago(6h) and Target [[op]] "openai.azure.com"
+    | summarize P95 = [[agg]] by bin(TimeGenerated, 5m)
+    | render [[chart]]
+  slots:
+    - id: op
+      options:
+        - { id: ends, text: endswith }
+        - { id: starts, text: startswith }
+        - { id: eq, text: "==" }
+    - id: agg
+      options:
+        - { id: pct, text: "percentile(DurationMs, 95)" }
+        - { id: avg, text: "avg(DurationMs)" }
+        - { id: top, text: "max(DurationMs) * 0.95" }
+    - id: chart
+      options:
+        - { id: time, text: timechart }
+        - { id: pie, text: piechart }
+        - { id: table, text: table }
+answer:
+  values: { op: ends, agg: pct, chart: time }
+explanation:
+  correct:
+    en: "`endswith` keeps the targets whose host name ends with openai.azure.com. `percentile(DurationMs, 95)` returns the value below which 95 % of the durations fall in each bucket. `render timechart` draws a line graph whose x-axis is the first datetime column."
+    fr: "`endswith` conserve les cibles dont le nom d'hôte se termine par openai.azure.com. `percentile(DurationMs, 95)` renvoie la valeur sous laquelle se situent 95 % des durées de chaque intervalle. `render timechart` trace un graphique en courbes dont l'axe des abscisses est la première colonne de date et heure."
+  options:
+    starts:
+      en: |-
+        The host name starts with contoso-ai, not with openai.azure.com.
+      fr: |-
+        Le nom d'hôte commence par contoso-ai, pas par openai.azure.com.
+    eq:
+      en: "== compares the whole host name, which also contains contoso-ai."
+      fr: "== compare le nom d'hôte entier, qui contient aussi contoso-ai."
+    avg:
+      en: |-
+        The average hides the tail latency that the 95th percentile shows.
+      fr: |-
+        La moyenne masque la latence de queue que montre le 95e centile.
+    top:
+      en: |-
+        95 % of the maximum isn't a percentile; one slow call changes it.
+      fr: |-
+        95 % du maximum n'est pas un centile ; un seul appel lent le modifie.
+    pie:
+      en: |-
+        A pie chart doesn't show values over time.
+      fr: |-
+        Un graphique en secteurs ne montre pas l'évolution dans le temps.
+references:
+  - title: percentile(), percentiles()
+    url: https://learn.microsoft.com/en-us/kusto/query/percentiles-aggregation-function
+  - title: render operator
+    url: https://learn.microsoft.com/en-us/kusto/query/render-operator

@@ -1,0 +1,75 @@
+id: dp750-3a-availablenow-autoloader
+objective: "3.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso receives order files in **/Volumes/contoso/sales/landing/orders/**. A notebook task in a Lakeflow job runs every four hours on serverless compute and loads the files into **contoso.sales.bronze_orders**.
+
+    Each run must process all the files that arrived since the previous run as an incremental batch and then stop. Files must never be processed twice.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso reçoit des fichiers de commandes dans **/Volumes/contoso/sales/landing/orders/**. Une tâche de notebook d'un job Lakeflow s'exécute toutes les quatre heures sur du calcul serverless et charge les fichiers dans **contoso.sales.bronze_orders**.
+
+    Chaque exécution doit traiter, sous forme de lot incrémentiel, tous les fichiers arrivés depuis l'exécution précédente, puis s'arrêter. Les fichiers ne doivent jamais être traités deux fois.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    (spark.[[reader]]
+      .format("cloudFiles")
+      .option("cloudFiles.format", "json")
+      .option("cloudFiles.schemaLocation", "/Volumes/contoso/sales/_checkpoints/orders_schema")
+      .load("/Volumes/contoso/sales/landing/orders/")
+      .writeStream
+      .option("checkpointLocation", "/Volumes/contoso/sales/_checkpoints/orders")
+      .trigger([[trig]])
+      .toTable("contoso.sales.bronze_orders"))
+  slots:
+    - id: reader
+      options:
+        - { id: readstream, text: readStream }
+        - { id: read, text: read }
+        - { id: table, text: table }
+    - id: trig
+      options:
+        - { id: pt, text: "processingTime=\"4 hours\"" }
+        - { id: once, text: "once=True" }
+        - { id: avail, text: "availableNow=True" }
+        - { id: cont, text: "continuous=\"4 hours\"" }
+answer:
+  values: { reader: readstream, trig: avail }
+explanation:
+  correct:
+    en: |
+      Auto Loader (`cloudFiles`) is a Structured Streaming source, so it is read with `spark.readStream`, and its checkpoint guarantees exactly-once file processing. `Trigger.AvailableNow` consumes all available data as an incremental batch and then stops, and it is the trigger Databricks recommends on serverless notebooks and jobs.
+    fr: |
+      Auto Loader (`cloudFiles`) est une source Structured Streaming, lue avec `spark.readStream`, et son point de contrôle garantit un traitement exactement une fois des fichiers. `Trigger.AvailableNow` consomme toutes les données disponibles sous forme de lot incrémentiel puis s'arrête, et c'est le déclencheur recommandé par Databricks sur les notebooks et jobs serverless.
+  options:
+    read:
+      en: "`spark.read` is a batch reader; the `cloudFiles` source and `writeStream` require a streaming DataFrame."
+      fr: "`spark.read` est un lecteur par lots ; la source `cloudFiles` et `writeStream` exigent un DataFrame de streaming."
+    pt:
+      en: |
+        A processing-time trigger keeps the stream running with fixed-interval micro-batches instead of stopping, and serverless compute supports only AvailableNow and Once.
+      fr: |
+        Un déclencheur processingTime maintient le flux actif avec des micro-lots à intervalle fixe au lieu de s'arrêter, et le calcul serverless ne prend en charge que AvailableNow et Once.
+    once:
+      en: "`Trigger.Once` is deprecated since Databricks Runtime 11.3 LTS; use `Trigger.AvailableNow` for incremental batch processing."
+      fr: "`Trigger.Once` est déprécié depuis Databricks Runtime 11.3 LTS ; utilisez `Trigger.AvailableNow` pour le traitement incrémentiel par lots."
+    cont:
+      en: |
+        The continuous trigger is an experimental Spark OSS feature that Azure Databricks does not support.
+      fr: |
+        Le déclencheur continuous est une fonctionnalité expérimentale de Spark OSS qu'Azure Databricks ne prend pas en charge.
+references:
+  - title: Configure Structured Streaming trigger intervals
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/triggers

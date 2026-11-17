@@ -1,0 +1,84 @@
+id: az802-3b-aznic-cli
+objective: "3.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure virtual machine named **FW1** that runs Windows Server 2025 and firewall software. FW1 has one network interface named **fw1-nic** in a resource group named RG1. User-defined routes in other subnets already send traffic to FW1 as the next hop.
+
+    You need to meet the following requirements:
+
+    - FW1 must be able to forward traffic that isn't addressed to its own IP address.
+    - fw1-nic must use the DNS servers 10.0.0.4 and 10.0.0.5 instead of the DNS setting of the virtual network.
+    - Windows on FW1 must start using the new DNS servers without a restart.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une machine virtuelle Azure nommée **FW1** qui exécute Windows Server 2025 et un logiciel de pare-feu. FW1 possède une interface réseau nommée **fw1-nic** dans un groupe de ressources nommé RG1. Des itinéraires définis par l'utilisateur d'autres sous-réseaux envoient déjà le trafic vers FW1 comme tronçon suivant.
+
+    Vous devez satisfaire les exigences suivantes :
+
+    - FW1 doit pouvoir transférer le trafic qui n'est pas adressé à sa propre adresse IP.
+    - fw1-nic doit utiliser les serveurs DNS 10.0.0.4 et 10.0.0.5 au lieu du paramètre DNS du réseau virtuel.
+    - Windows sur FW1 doit commencer à utiliser les nouveaux serveurs DNS sans redémarrage.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network nic update --resource-group RG1 --name fw1-nic [[fwd]] true
+    az network nic update --resource-group RG1 --name fw1-nic [[dns]] 10.0.0.4 10.0.0.5
+
+    # Then, in a command prompt on FW1
+    [[renew]]
+  slots:
+    - id: fwd
+      options:
+        - { id: accel, text: --accelerated-networking }
+        - { id: ipfwd, text: --ip-forwarding }
+        - { id: intdns, text: --internal-dns-name }
+    - id: dns
+      options:
+        - { id: dnsservers, text: --dns-servers }
+        - { id: intdns2, text: --internal-dns-name }
+        - { id: nsg, text: --network-security-group }
+    - id: renew
+      options:
+        - { id: flush, text: ipconfig /flushdns }
+        - { id: register, text: ipconfig /registerdns }
+        - { id: renewcmd, text: ipconfig /renew }
+answer:
+  values: { fwd: ipfwd, dns: dnsservers, renew: renewcmd }
+explanation:
+  correct:
+    en: |
+      IP forwarding is a setting of the Azure network interface (`--ip-forwarding true`) that lets the VM receive and send traffic not addressed to its own IP address; the firewall software does the forwarding in the guest. `--dns-servers` sets custom DNS servers on the network interface, which override the virtual network setting. Azure DHCP delivers DNS servers, so you run `ipconfig /renew` in Windows to apply the change.
+    fr: |
+      Le transfert IP est un paramètre de l'interface réseau Azure (`--ip-forwarding true`) qui permet à la machine virtuelle de recevoir et d'envoyer du trafic qui n'est pas adressé à sa propre adresse IP ; le logiciel de pare-feu assure le transfert dans l'invité. `--dns-servers` définit des serveurs DNS personnalisés sur l'interface réseau, qui remplacent le paramètre du réseau virtuel. Le DHCP d'Azure fournit les serveurs DNS : vous exécutez `ipconfig /renew` dans Windows pour appliquer la modification.
+  options:
+    accel:
+      en: |
+        Accelerated networking improves network performance with SR-IOV; it doesn't allow the VM to forward traffic.
+      fr: |
+        La mise en réseau accélérée améliore les performances réseau grâce à SR-IOV ; elle ne permet pas à la machine virtuelle de transférer du trafic.
+    intdns2:
+      en: |
+        `--internal-dns-name` sets the DNS name label of the interface for Azure-provided name resolution, not the DNS servers it uses.
+      fr: |
+        `--internal-dns-name` définit l'étiquette de nom DNS de l'interface pour la résolution de noms fournie par Azure, pas les serveurs DNS qu'elle utilise.
+    flush:
+      en: |
+        `ipconfig /flushdns` empties the resolver cache but doesn't obtain the new DNS server list from DHCP.
+      fr: |
+        `ipconfig /flushdns` vide le cache du résolveur, mais n'obtient pas la nouvelle liste de serveurs DNS auprès du DHCP.
+references:
+  - title: Create, Change, or Delete Azure Network Interfaces
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-network-interface
+  - title: Azure Virtual Network Name Resolution Guide
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-name-resolution-for-vms-and-role-instances

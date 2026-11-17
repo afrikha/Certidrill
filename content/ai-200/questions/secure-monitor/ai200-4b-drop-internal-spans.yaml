@@ -1,0 +1,70 @@
+id: ai200-4b-drop-internal-spans
+objective: "4.2.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware's document-ingestion service uses a third-party chunking library that creates an INTERNAL span for every chunk. You can't modify the library. The service uses the Azure Monitor OpenTelemetry Distro.
+
+    You need to keep exporting the SERVER and CLIENT spans of the service, and the INTERNAL spans must never be sent to Azure Monitor.
+
+    What should you implement?
+  fr: |
+    Le service d'ingestion de documents de Proseware utilise une bibliothèque tierce de découpage qui crée une étendue (span) INTERNAL pour chaque segment. Vous ne pouvez pas modifier la bibliothèque. Le service utilise la distribution OpenTelemetry Azure Monitor.
+
+    Vous devez continuer à exporter les étendues SERVER et CLIENT du service, et les étendues INTERNAL ne doivent jamais être envoyées à Azure Monitor.
+
+    Que devez-vous implémenter ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          A span processor whose `on_start` method calls `span.set_attribute("sampled", False)` on INTERNAL spans, registered with the `span_processors` argument.
+        fr: |-
+          Un processeur d'étendues dont la méthode `on_start` appelle `span.set_attribute("sampled", False)` sur les étendues INTERNAL, inscrit avec l'argument `span_processors`.
+    - id: b
+      text:
+        en: |-
+          A span processor whose `on_start` method gives INTERNAL spans a span context with `TraceFlags.DEFAULT`, registered with the `span_processors` argument.
+        fr: |-
+          Un processeur d'étendues dont la méthode `on_start` attribue aux étendues INTERNAL un contexte d'étendue avec `TraceFlags.DEFAULT`, inscrit avec l'argument `span_processors`.
+    - id: c
+      text:
+        en: |-
+          A workspace transformation data collection rule whose `transformKql` removes the `AppDependencies` rows that have the dependency type `InProc`.
+        fr: |-
+          Une règle de collecte de données de transformation d'espace de travail dont le `transformKql` supprime les lignes `AppDependencies` ayant le type de dépendance `InProc`.
+    - id: d
+      text:
+        en: |-
+          The `OTEL_TRACES_SAMPLER` environment variable set to `parentbased_always_off`.
+        fr: |-
+          La variable d'environnement `OTEL_TRACES_SAMPLER` définie sur `parentbased_always_off`.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Microsoft documents a custom span processor that replaces the context of the spans to exclude with one whose trace flags are `TraceFlags.DEFAULT` (not sampled), so the exporter skips them. Registered with `span_processors`, it checks the span kind and leaves SERVER and CLIENT spans untouched.
+    fr: |-
+      Microsoft documente un processeur d'étendues personnalisé qui remplace le contexte des étendues à exclure par un contexte dont les indicateurs de trace valent `TraceFlags.DEFAULT` (non échantillonné) : l'exportateur les ignore. Inscrit avec `span_processors`, il teste le type de l'étendue et ne touche pas aux étendues SERVER et CLIENT.
+  options:
+    a:
+      en: |-
+        An attribute named `sampled` is only exported as a custom property; it doesn't change the sampling decision.
+      fr: |-
+        Un attribut nommé `sampled` n'est exporté que comme propriété personnalisée ; il ne modifie pas la décision d'échantillonnage.
+    c:
+      en: |-
+        An ingestion-time transformation filters the rows after Azure Monitor receives them, so the spans are still sent.
+      fr: |-
+        Une transformation au moment de l'ingestion filtre les lignes après leur réception par Azure Monitor : les étendues sont tout de même envoyées.
+    d:
+      en: |-
+        This sampler drops every trace that has no sampled parent, including the SERVER and CLIENT spans of the service.
+      fr: |-
+        Cet échantillonneur supprime toutes les traces sans parent échantillonné, y compris les étendues SERVER et CLIENT du service.
+references:
+  - title: Filter OpenTelemetry in Application Insights
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-filter

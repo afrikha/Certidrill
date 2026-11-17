@@ -1,0 +1,71 @@
+id: dp700-2d-ss-read-parse
+objective: "2.3.5"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You have a Fabric notebook that uses the Azure Event Hubs connector for Apache Spark. The `ehConf` dictionary contains the connection settings of an event hub named **eh-meters**, and `meterSchema` is a `StructType` that describes the JSON document sent in the body of each event.
+
+    You need a streaming DataFrame that continuously receives the events and exposes each field of the JSON document as a typed column.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un notebook Fabric qui utilise le connecteur Azure Event Hubs pour Apache Spark. Le dictionnaire `ehConf` contient les paramètres de connexion d'un hub d'événements nommé **eh-meters**, et `meterSchema` est un `StructType` qui décrit le document JSON envoyé dans le corps de chaque événement.
+
+    Vous avez besoin d'un DataFrame de streaming qui reçoit les événements en continu et expose chaque champ du document JSON sous la forme d'une colonne typée.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    raw = (spark.[[reader]]
+        .format("eventhubs")
+        .options(**ehConf)
+        .load())
+
+    meters = (raw
+        .withColumn("body", F.col("body").[[conv]])
+        .select(F.[[parse]]("body", meterSchema).alias("m"))
+        .select("m.*"))
+  slots:
+    - id: reader
+      options:
+        - { id: rdBatch, text: read }
+        - { id: rdStream, text: readStream }
+        - { id: rdWrite, text: writeStream }
+    - id: conv
+      options:
+        - { id: cvBinary, text: "cast(\"binary\")" }
+        - { id: cvAlias, text: "alias(\"string\")" }
+        - { id: cvString, text: "cast(\"string\")" }
+    - id: parse
+      options:
+        - { id: psFrom, text: from_json }
+        - { id: psTo, text: to_json }
+        - { id: psSchema, text: schema_of_json }
+        - { id: psGet, text: get_json_object }
+answer:
+  values: { reader: rdStream, conv: cvString, parse: psFrom }
+explanation:
+  correct:
+    en: "`spark.readStream` creates a streaming DataFrame that keeps receiving new events. The Event Hubs connector returns the event body as binary, so it's cast to a string before parsing. `from_json` parses the JSON string with the given schema into a struct, and `select(\"m.*\")` turns its fields into columns."
+    fr: "`spark.readStream` crée un DataFrame de streaming qui continue de recevoir les nouveaux événements. Le connecteur Event Hubs renvoie le corps de l'événement en binaire : il est converti en chaîne avant l'analyse. `from_json` analyse la chaîne JSON avec le schéma fourni pour produire une structure, et `select(\"m.*\")` transforme ses champs en colonnes."
+  options:
+    rdBatch: { en: "spark.read reads the events available once, as a batch DataFrame; it doesn't keep receiving events.", fr: "spark.read lit une seule fois les événements disponibles, sous forme de DataFrame par lots ; il ne continue pas à recevoir les événements." }
+    rdWrite: { en: "writeStream is a property of a DataFrame used to write a stream, not a way to read one from the session.", fr: "writeStream est une propriété d'un DataFrame qui sert à écrire un flux, pas à en lire un depuis la session." }
+    cvBinary: { en: "The body is already binary; from_json expects a string column.", fr: "Le corps est déjà binaire ; from_json attend une colonne de type chaîne." }
+    cvAlias: { en: "alias only renames the column; it doesn't change its binary type.", fr: "alias renomme seulement la colonne ; il ne change pas son type binaire." }
+    psTo: { en: "to_json converts a struct into a JSON string, the opposite direction.", fr: "to_json convertit une structure en chaîne JSON, c'est-à-dire le sens inverse." }
+    psSchema: { en: "schema_of_json infers the schema of a JSON string; it doesn't parse each document with meterSchema.", fr: "schema_of_json déduit le schéma d'une chaîne JSON ; il n'analyse pas chaque document avec meterSchema." }
+    psGet: { en: "get_json_object extracts one value by JSON path as a string; it doesn't apply a StructType.", fr: "get_json_object extrait une valeur par chemin JSON sous forme de chaîne ; il n'applique pas de StructType." }
+references:
+  - title: Data streaming into a lakehouse with Spark
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/lakehouse-streaming-data

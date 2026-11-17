@@ -1,0 +1,89 @@
+id: ai300-2b-pipe-optional-input
+objective: "2.1.7"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing a command component for a training pipeline in Azure Machine Learning. The training script accepts an optional `--max-epochs` argument and uses its own default value when the argument is absent.
+
+    You need to meet the following requirements:
+
+    - Pipelines can use the component without supplying a value for `max_epochs`.
+    - When no value is supplied, the `--max-epochs` flag is not passed to the script.
+    - The trained model is written to the component output.
+
+    How should you complete the component definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un composant command pour un pipeline d'entraînement dans Azure Machine Learning. Le script d'entraînement accepte un argument facultatif `--max-epochs` et utilise sa propre valeur par défaut quand l'argument est absent.
+
+    Vous devez répondre aux exigences suivantes :
+
+    - Les pipelines peuvent utiliser le composant sans fournir de valeur pour `max_epochs`.
+    - Quand aucune valeur n'est fournie, l'indicateur `--max-epochs` n'est pas transmis au script.
+    - Le modèle entraîné est écrit dans la sortie du composant.
+
+    Comment devez-vous compléter la définition du composant ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+    type: command
+    name: train_churn_model
+    inputs:
+      training_data:
+        type: uri_folder
+      max_epochs:
+        type: integer
+        [[s1]]
+    outputs:
+      model_output:
+        type: uri_folder
+    code: ./train_src
+    environment: azureml://registries/azureml/environments/sklearn-1.5/labels/latest
+    command: >-
+      python train.py --data ${{inputs.training_data}}
+      [[s2]]
+      --model-dir [[s3]]
+  slots:
+    - id: s1
+      options:
+        - { id: s1b, text: "default: 0" }
+        - { id: s1d, text: "enum: []" }
+        - { id: s1c, text: "min: 0" }
+        - { id: s1a, text: "optional: true" }
+    - id: s2
+      options:
+        - { id: s2c, text: "--max-epochs ${{inputs.max_epochs}}" }
+        - { id: s2d, text: "--max-epochs ${{parent.inputs.max_epochs}}" }
+        - { id: s2b, text: "--max-epochs $[[${{inputs.max_epochs}}]]" }
+        - { id: s2a, text: "$[[--max-epochs ${{inputs.max_epochs}}]]" }
+    - id: s3
+      options:
+        - { id: s3c, text: "${{inputs.model_output}}" }
+        - { id: s3a, text: "${{outputs.model_output}}" }
+        - { id: s3b, text: "${{parent.outputs.model_output}}" }
+answer:
+  values: { s1: s1a, s2: s2a, s3: s3a }
+explanation:
+  correct:
+    en: |
+      An input becomes optional with `optional: true`. In the command, the whole flag and its value go inside `$[[ ]]`, so that the flag is dropped when no value and no default exist at runtime. Inside a component command, inputs and outputs are referenced with `${{inputs.<name>}}` and `${{outputs.<name>}}`.
+    fr: |
+      Une entrée devient facultative avec `optional: true`. Dans la commande, l'indicateur et sa valeur sont placés ensemble dans `$[[ ]]`, pour que l'indicateur soit omis quand aucune valeur ni valeur par défaut n'existe à l'exécution. Dans la commande d'un composant, les entrées et sorties sont référencées avec `${{inputs.<name>}}` et `${{outputs.<name>}}`.
+  options:
+    s1b: { en: "A default value would always pass `--max-epochs 0` to the script instead of omitting the flag.", fr: "Une valeur par défaut transmettrait toujours `--max-epochs 0` au script au lieu d'omettre l'indicateur." }
+    s1c: { en: "`min` only bounds a numeric value; the input stays required.", fr: "`min` borne seulement une valeur numérique ; l'entrée reste obligatoire." }
+    s2b: { en: "The flag must be inside the brackets too; otherwise `--max-epochs` is passed without a value.", fr: "L'indicateur doit lui aussi se trouver entre les crochets ; sinon `--max-epochs` est transmis sans valeur." }
+    s2c: { en: "An optional input must be wrapped in `$[[ ]]`; otherwise the flag isn't dropped when no value is supplied.", fr: "Une entrée facultative doit être placée dans `$[[ ]]` ; sinon l'indicateur n'est pas omis quand aucune valeur n'est fournie." }
+    s2d: { en: "`parent.` bindings are used in the pipeline job file, not in a component command.", fr: "Les liaisons `parent.` s'utilisent dans le fichier du travail de pipeline, pas dans la commande d'un composant." }
+    s3b: { en: "`parent.outputs` refers to pipeline outputs in the pipeline file, not to the component's own output.", fr: "`parent.outputs` désigne les sorties du pipeline dans le fichier de pipeline, pas la sortie propre du composant." }
+    s3c: { en: "`model_output` is declared under `outputs`, not `inputs`.", fr: "`model_output` est déclaré sous `outputs`, pas sous `inputs`." }
+references:
+  - title: CLI (v2) command component YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-component-command

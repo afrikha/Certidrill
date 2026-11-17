@@ -1,0 +1,64 @@
+id: dp420-2d-fa-meter-usage-sql
+objective: "2.4.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware sends the fleet analytics of its Azure Cosmos DB fleet to a lakehouse in a Microsoft Fabric workspace. For chargeback, you need a query on the SQL endpoint of the lakehouse that returns, for the last 30 days, the total units consumed by each tenant account for each billing meter.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware envoie l'analytique de la flotte de sa flotte Azure Cosmos DB vers un lakehouse d'un espace de travail Microsoft Fabric. Pour la refacturation, vous avez besoin d'une requête sur le point de terminaison SQL du lakehouse qui renvoie, pour les 30 derniers jours, le total des unités consommées par chaque compte de locataire pour chaque compteur de facturation.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT DR.AccountName, DM.MeterName, SUM(F.[[col]]) AS TotalUnits
+    FROM [[fact]] F
+    JOIN DimResource DR ON F.ResourceId = DR.ResourceId
+    JOIN DimMeter DM ON [[join]]
+    WHERE F.Timestamp >= DATEADD(DAY, -30, GETDATE())
+    GROUP BY DR.AccountName, DM.MeterName
+    ORDER BY TotalUnits DESC;
+  slots:
+    - id: col
+      options:
+        - { id: ccu, text: ConsumedUnits }
+        - { id: ctrc, text: TotalRequestCount }
+        - { id: cmds, text: MaxDataStorageInKB }
+    - id: fact
+      options:
+        - { id: fmu, text: FactMeterUsageHourly }
+        - { id: frq, text: FactRequestHourly }
+        - { id: fac, text: FactAccountHourly }
+        - { id: fru, text: FactResourceUsageHourly }
+    - id: join
+      options:
+        - { id: jmeter, text: F.MeterId = DM.MeterId }
+        - { id: jres, text: F.ResourceId = DM.MeterId }
+        - { id: jfleet, text: F.FleetId = DM.MeterId }
+answer:
+  values: { col: ccu, fact: fmu, join: jmeter }
+explanation:
+  correct:
+    en: |
+      Fleet analytics uses a star schema. FactMeterUsageHourly stores ConsumedUnits per resource, meter and hour; it joins DimResource on ResourceId for the account name and DimMeter on MeterId for the meter name and description. Summing ConsumedUnits over the period gives the units to charge back.
+    fr: |
+      L'analytique de la flotte utilise un schéma en étoile. FactMeterUsageHourly stocke ConsumedUnits par ressource, compteur et heure ; elle se joint à DimResource sur ResourceId pour le nom du compte et à DimMeter sur MeterId pour le nom et la description du compteur. Additionner ConsumedUnits sur la période donne les unités à refacturer.
+  options:
+    ctrc: { en: "TotalRequestCount, in FactRequestHourly, counts requests; it isn't tied to billing meters.", fr: "TotalRequestCount, dans FactRequestHourly, compte les requêtes ; il n'est pas lié aux compteurs de facturation." }
+    frq: { en: "FactRequestHourly has no MeterId, so it can't be joined to DimMeter.", fr: "FactRequestHourly n'a pas de MeterId : elle ne peut pas être jointe à DimMeter." }
+    fac: { en: "FactAccountHourly holds account settings per hour, not usage per meter.", fr: "FactAccountHourly contient les paramètres des comptes par heure, pas l'utilisation par compteur." }
+    jres: { en: "A resource ID never matches a meter ID; the facts reference the meter through MeterId.", fr: "Un ID de ressource ne correspond jamais à un ID de compteur ; les faits référencent le compteur par MeterId." }
+references:
+  - title: Fleet Analytics Schema Reference (Preview) - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/fleet-analytics-schema-reference
+  - title: Enable Fleet Analytics (Preview) - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-enable-fleet-analytics

@@ -1,0 +1,104 @@
+id: ai200-3a-eg-publish-cloudevent
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Graphic Design Institute has an Event Grid custom topic named **egt-gdi-renders** that was created with the input schema `cloudeventschemav1_0`. A Python render service must publish a "render completed" event to the topic after each AI image generation.
+
+    The service runs with a managed identity that has the EventGrid Data Sender role on the topic, and no access key may be stored in the code or the configuration. The events of a render job must be sent in one call.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Graphic Design Institute dispose d'une rubrique personnalisée Event Grid nommée **egt-gdi-renders**, créée avec le schéma d'entrée `cloudeventschemav1_0`. Un service de rendu Python doit publier un événement « rendu terminé » dans la rubrique après chaque génération d'image par IA.
+
+    Le service s'exécute avec une identité managée qui dispose du rôle EventGrid Data Sender sur la rubrique, et aucune clé d'accès ne doit être stockée dans le code ni dans la configuration. Les événements d'un travail de rendu doivent être envoyés en un seul appel.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.identity import DefaultAzureCredential
+    from azure.core.credentials import AzureKeyCredential
+    from azure.core.messaging import CloudEvent
+    from azure.eventgrid import EventGridPublisherClient, EventGridEvent
+
+    client = EventGridPublisherClient(
+        "https://egt-gdi-renders.westeurope-1.eventgrid.azure.net/api/events",
+        [[cred]])
+
+    events = [
+        [[cls]](
+            source="/gdi/render-service",
+            type="Gdi.Render.Completed",
+            data={"jobId": job.id, "image": url},
+        )
+        for url in job.image_urls
+    ]
+    client.[[method]](events)
+  slots:
+    - id: cred
+      options:
+        - { id: dac, text: DefaultAzureCredential() }
+        - { id: key, text: "AzureKeyCredential(os.environ[\"EG_TOPIC_KEY\"])" }
+        - { id: keyvault, text: "AzureKeyCredential(get_secret(\"eg-topic-key\"))" }
+    - id: cls
+      options:
+        - { id: cloud, text: CloudEvent }
+        - { id: egevent, text: EventGridEvent }
+        - { id: sbmsg, text: ServiceBusMessage }
+    - id: method
+      options:
+        - { id: send, text: send }
+        - { id: sendmsg, text: send_messages }
+        - { id: schedule, text: schedule_messages }
+answer:
+  values: { cred: dac, cls: cloud, method: send }
+explanation:
+  correct:
+    en: |
+      EventGridPublisherClient accepts a token credential, so DefaultAzureCredential uses the managed identity and its EventGrid Data Sender role without any key. A topic with the CloudEvents 1.0 input schema accepts CloudEvent objects, built with source, type and data. send() takes a single event or a list, and sending a list in one call is the recommended way to publish.
+    fr: |
+      EventGridPublisherClient accepte des informations d'identification par jeton : DefaultAzureCredential utilise l'identité managée et son rôle EventGrid Data Sender, sans aucune clé. Une rubrique au schéma d'entrée CloudEvents 1.0 accepte des objets CloudEvent, construits avec source, type et data. send() prend un événement ou une liste, et envoyer une liste en un appel est la méthode de publication recommandée.
+  options:
+    key:
+      en: |
+        An access key in an environment variable is still a key stored in the configuration.
+      fr: |
+        Une clé d'accès dans une variable d'environnement reste une clé stockée dans la configuration.
+    keyvault:
+      en: |
+        Reading the topic key from a secret store still authenticates with a key, which the managed identity and its role make unnecessary.
+      fr: |
+        Lire la clé de la rubrique dans un magasin de secrets revient toujours à s'authentifier par clé, ce que l'identité managée et son rôle rendent inutile.
+    egevent:
+      en: |
+        EventGridEvent follows the Event Grid schema and takes subject, event_type and data_version, not source and type; the topic expects CloudEvents.
+      fr: |
+        EventGridEvent suit le schéma Event Grid et prend subject, event_type et data_version, pas source et type ; la rubrique attend des CloudEvents.
+    sbmsg:
+      en: |
+        ServiceBusMessage is a message of the Service Bus library; it isn't an event that Event Grid accepts and takes no source or type.
+      fr: |
+        ServiceBusMessage est un message de la bibliothèque Service Bus ; ce n'est pas un événement accepté par Event Grid et il ne prend ni source ni type.
+    sendmsg:
+      en: |
+        send_messages is a method of the Service Bus sender, not of EventGridPublisherClient.
+      fr: |
+        send_messages est une méthode de l'expéditeur Service Bus, pas d'EventGridPublisherClient.
+    schedule:
+      en: |
+        schedule_messages belongs to Service Bus; Event Grid publishes events immediately.
+      fr: |
+        schedule_messages appartient à Service Bus ; Event Grid publie les événements immédiatement.
+references:
+  - title: Azure Event Grid client library for Python
+    url: https://learn.microsoft.com/en-us/python/api/overview/azure/eventgrid-readme
+  - title: Event Grid Access Control with Azure RBAC
+    url: https://learn.microsoft.com/en-us/azure/event-grid/security-authorization

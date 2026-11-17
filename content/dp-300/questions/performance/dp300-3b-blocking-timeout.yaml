@@ -1,0 +1,42 @@
+id: dp300-3b-blocking-timeout
+objective: "3.2.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An Azure SQL database named **OrdersDB** is used by an order-processing application. The application calls stored procedures that start explicit transactions and uses a 30-second command timeout.
+
+    During peak hours, `UPDATE` statements on the **dbo.Orders** table are blocked. The head blocker has the status `sleeping`, its `open_transaction_count` is 1, and its input buffer shows an `UPDATE` that the application cancelled when the command timeout expired.
+
+    You need to prevent this blocking from recurring. The solution must not depend on an administrator intervening.
+
+    What should you recommend?
+  fr: |
+    Une base de données Azure SQL nommée **OrdersDB** est utilisée par une application de traitement des commandes. L'application appelle des procédures stockées qui démarrent des transactions explicites et utilise un délai d'expiration de commande de 30 secondes.
+
+    Aux heures de pointe, des instructions `UPDATE` sur la table **dbo.Orders** sont bloquées. Le bloqueur de tête a l'état `sleeping`, son `open_transaction_count` vaut 1 et sa mémoire tampon d'entrée montre un `UPDATE` que l'application a annulé à l'expiration du délai de commande.
+
+    Vous devez empêcher que ce blocage se reproduise. La solution ne doit pas dépendre de l'intervention d'un administrateur.
+
+    Que devez-vous recommander ?
+body:
+  options:
+    - { id: a, text: { en: "Enable read committed snapshot isolation (RCSI) on OrdersDB.", fr: "Activer l'isolation de capture instantanée read committed (RCSI) sur OrdersDB." } }
+    - { id: b, text: { en: "Increase the command timeout of the application to 120 seconds.", fr: "Porter le délai d'expiration de commande de l'application à 120 secondes." } }
+    - { id: c, text: { en: "Add `SET XACT_ABORT ON` at the beginning of the application's stored procedures.", fr: "Ajouter `SET XACT_ABORT ON` au début des procédures stockées de l'application." } }
+    - { id: d, text: { en: "Run `KILL` on the head blocker session each time the issue occurs.", fr: "Exécuter `KILL` sur la session du bloqueur de tête chaque fois que le problème survient." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      When a query receives a timeout or a cancel, the engine ends the batch but neither commits nor rolls back the open transaction, so its locks stay held while the session sleeps. With `SET XACT_ABORT ON`, an error aborts and rolls back the open transaction, which releases the locks without any manual action. Rolling back in the application's error handler (`IF @@TRANCOUNT > 0 ROLLBACK TRAN`) is the other documented fix.
+    fr: |
+      Quand une requête subit un dépassement de délai ou une annulation, le moteur termine le lot mais ne valide ni ne restaure la transaction ouverte ; ses verrous restent donc détenus pendant que la session est en veille. Avec `SET XACT_ABORT ON`, une erreur abandonne et restaure la transaction ouverte, ce qui libère les verrous sans action manuelle. Restaurer la transaction dans le gestionnaire d'erreurs de l'application (`IF @@TRANCOUNT > 0 ROLLBACK TRAN`) est l'autre correction documentée.
+  options:
+    a: { en: "RCSI is already on by default in Azure SQL Database, and it only stops readers from blocking writers; an `UPDATE` still waits for the locks of another uncommitted `UPDATE`.", fr: "RCSI est déjà activée par défaut dans Azure SQL Database et elle empêche seulement les lecteurs de bloquer les écrivains ; un `UPDATE` attend toujours les verrous d'un autre `UPDATE` non validé." }
+    b: { en: "A longer timeout makes the cancellation less frequent, but any cancelled command still leaves its transaction open with its locks.", fr: "Un délai plus long rend l'annulation moins fréquente, mais toute commande annulée laisse encore sa transaction ouverte avec ses verrous." }
+    d: { en: "`KILL` releases the locks once, but it requires an administrator each time and doesn't fix the cause.", fr: "`KILL` libère les verrous une fois, mais il exige un administrateur à chaque fois et ne corrige pas la cause." }
+references:
+  - title: Understand and resolve blocking problems
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/understand-resolve-blocking

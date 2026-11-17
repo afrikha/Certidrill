@@ -1,0 +1,84 @@
+id: ai103-cs2b-search-tool
+objective: "5.1.5"
+type: dropdown
+caseStudy: ai103-cs2b-trey-research
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the Python code that creates protocol-assistant-de and sends the questions of the users to it. The `project` variable is an authenticated `AIProjectClient` for clinical-prj, and `question` contains the question of a user. You need to meet the grounding requirement. How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le code Python qui crée protocol-assistant-de et qui lui envoie les questions des utilisateurs. La variable `project` est un `AIProjectClient` authentifié pour clinical-prj, et `question` contient la question d'un utilisateur. Vous devez satisfaire l'exigence relative à l'ancrage. Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    azs_connection = project.connections.get("trey-search")
+
+    agent = project.agents.create_version(
+        agent_name="protocol-assistant-de",
+        definition=PromptAgentDefinition(
+            model="chat-main",
+            instructions="Answer only from the search results and cite your sources.",
+            tools=[
+                AzureAISearchTool(
+                    azure_ai_search=AzureAISearchToolResource(
+                        indexes=[
+                            AISearchIndexResource(
+                                project_connection_id=[[conn]],
+                                index_name="trial-reports",
+                                [[param]]="site_country eq 'DE'",
+                            ),
+                        ]
+                    )
+                )
+            ],
+        ),
+    )
+
+    with project.get_openai_client(agent_name=agent.name) as openai:
+        response = openai.responses.create(
+            input=question,
+            tool_choice=[[choice]],
+        )
+  slots:
+    - id: conn
+      options:
+        - { id: id, text: azs_connection.id }
+        - { id: name, text: azs_connection.name }
+        - { id: url, text: '"https://trey-search.search.windows.net"' }
+    - id: param
+      options:
+        - { id: filter, text: filter }
+        - { id: querytype, text: query_type }
+        - { id: topk, text: top_k }
+    - id: choice
+      options:
+        - { id: required, text: '"required"' }
+        - { id: auto, text: '"auto"' }
+        - { id: none, text: '"none"' }
+answer:
+  values: { conn: id, param: filter, choice: required }
+explanation:
+  correct:
+    en: |
+      `project_connection_id` expects the ID of the project connection to the search service, which you get from `project.connections.get(...).id`. The `filter` parameter of the index resource applies an OData filter to every query that the agent sends to the index, so only DE documents are retrieved. `tool_choice="required"` forces the model to call a tool, so every answer uses the index instead of the model's own knowledge.
+    fr: |
+      `project_connection_id` attend l'ID de la connexion de projet au service de recherche, obtenu avec `project.connections.get(...).id`. Le paramètre `filter` de la ressource d'index applique un filtre OData à chaque requête que l'agent envoie à l'index : seuls les documents DE sont récupérés. `tool_choice="required"` oblige le modèle à appeler un outil : chaque réponse utilise l'index au lieu des connaissances propres du modèle.
+  options:
+    conn:
+      en: The connection name and the service endpoint aren't connection IDs; the tool authenticates through the project connection that the ID identifies.
+      fr: Le nom de la connexion et le point de terminaison du service ne sont pas des ID de connexion ; l'outil s'authentifie au moyen de la connexion de projet désignée par l'ID.
+    param:
+      en: "`query_type` chooses the retrieval method (for example `vector_semantic_hybrid`, the default) and `top_k` the number of results; neither accepts an OData expression."
+      fr: "`query_type` choisit la méthode de récupération (par exemple `vector_semantic_hybrid`, la valeur par défaut) et `top_k` le nombre de résultats ; aucun des deux n'accepte d'expression OData."
+    choice:
+      en: With `auto`, the model can answer without calling the tool; `none` prevents tool calls.
+      fr: Avec `auto`, le modèle peut répondre sans appeler l'outil ; `none` empêche les appels d'outils.
+references:
+  - title: Connect an Azure AI Search index to Foundry agents
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/agents/how-to/tools/ai-search

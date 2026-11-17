@@ -1,0 +1,113 @@
+id: dp750-cs1a-lamna-healthcare
+status: draft
+title:
+  en: Lamna Healthcare
+  fr: Lamna Healthcare
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lamna Healthcare is a hospital network that operates six hospitals in Belgium. Its main hospital is in Liège. A data platform team of five data engineers builds the analytics platform on Azure Databricks.
+
+        Lamna wants to centralize the admission records of all its hospitals in Unity Catalog, protect patient identifiers, and share de-identified data with a university research center.
+      fr: |
+        Lamna Healthcare est un réseau hospitalier qui exploite six hôpitaux en Belgique. Son hôpital principal est à Liège. Une équipe plateforme de données de cinq ingénieurs données construit la plateforme d'analytique sur Azure Databricks.
+
+        Lamna souhaite centraliser les dossiers d'admission de tous ses hôpitaux dans Unity Catalog, protéger les identifiants des patients et partager des données anonymisées avec un centre de recherche universitaire.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Lamna has the following resources in the West Europe region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | sqldb-ehr | Azure SQL Database | Admission system database; tables **admissions**, **patients** and **wards**, each with a primary key; heavily used by the hospitals during the day |
+        | adb-lamna-dev | Azure Databricks workspace | Premium plan; used by the data engineers for development |
+        | adb-lamna-prod | Azure Databricks workspace | Premium plan; production workloads |
+        | uc-lamna | Unity Catalog metastore | Both workspaces are attached; metastore-level storage is configured |
+        | stlamnaclinical | Storage account | ADLS Gen2 (hierarchical namespace enabled), container **clinical**; no Unity Catalog object references it yet |
+
+        The same five data engineers work in both workspaces with the same Microsoft Entra accounts.
+
+        The silver table **clinical.silver.admissions** contains the columns admission_id, patient_id, national_id, hospital_code, ward_id, admit_ts, discharge_ts and age.
+
+        The account-level group **privacy-officers** contains the data protection team. The account-level group **network-analysts** contains the analysts of the head office.
+      fr: |
+        Lamna dispose des ressources suivantes dans la région West Europe.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | sqldb-ehr | Azure SQL Database | Base de données du système d'admission ; tables **admissions**, **patients** et **wards**, chacune avec une clé primaire ; très sollicitée par les hôpitaux pendant la journée |
+        | adb-lamna-dev | Espace de travail Azure Databricks | Plan Premium ; utilisé par les ingénieurs données pour le développement |
+        | adb-lamna-prod | Espace de travail Azure Databricks | Plan Premium ; charges de travail de production |
+        | uc-lamna | Metastore Unity Catalog | Les deux espaces de travail y sont attachés ; un stockage de niveau metastore est configuré |
+        | stlamnaclinical | Compte de stockage | ADLS Gen2 (espace de noms hiérarchique activé), conteneur **clinical** ; aucun objet Unity Catalog ne le référence encore |
+
+        Les cinq mêmes ingénieurs données travaillent dans les deux espaces de travail avec les mêmes comptes Microsoft Entra.
+
+        La table silver **clinical.silver.admissions** contient les colonnes admission_id, patient_id, national_id, hospital_code, ward_id, admit_ts, discharge_ts et age.
+
+        Le groupe de niveau compte **privacy-officers** contient l'équipe de protection des données. Le groupe de niveau compte **network-analysts** contient les analystes du siège.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Ingestion**
+
+        - The admissions, patients and wards tables must be ingested incrementally from sqldb-ehr into Unity Catalog with the least development effort.
+        - The change-tracking method chosen on sqldb-ehr must minimize the load on the source database.
+
+        **Storage and isolation**
+
+        - Azure Databricks must access stlamnaclinical without any secret, password or client secret to rotate.
+        - All the managed tables of the **clinical** catalog must be stored in the clinical container of stlamnaclinical, not in the metastore-level storage.
+        - The clinical catalog must not be accessible from adb-lamna-dev.
+
+        **Data quality**
+
+        The pipeline that builds clinical.silver.admissions in Lakeflow Spark Declarative Pipelines (Lakeflow pipelines) must apply the following rules:
+
+        - Records without a patient_id must be excluded from the table.
+        - A record whose discharge_ts is earlier than its admit_ts indicates a defect in the source system: the update must stop and the table must not be modified.
+        - Records whose age is outside 0 to 120 must be kept, but their number must be visible in the pipeline data quality metrics.
+
+        **Protection of patient data**
+
+        - Only the members of privacy-officers can read national_id in clear text. The other users see a masked value.
+        - The members of network-analysts can see the admissions of every hospital. All the other users can see only the admissions of the Liège hospital (hospital_code **LIE**).
+
+        **Research sharing**
+
+        - The university research center must receive the table **clinical.research.deid_admissions**. The center does not use Azure Databricks; its researchers read the data with Python and pandas.
+        - Lamna's security policy forbids sending long-lived credentials to external organizations. The research center has its own identity provider, which supports OpenID Connect (OIDC).
+      fr: |
+        **Ingestion**
+
+        - Les tables admissions, patients et wards doivent être ingérées de façon incrémentielle depuis sqldb-ehr dans Unity Catalog avec le moins d'effort de développement possible.
+        - La méthode de suivi des modifications choisie sur sqldb-ehr doit réduire au minimum la charge sur la base de données source.
+
+        **Stockage et isolation**
+
+        - Azure Databricks doit accéder à stlamnaclinical sans aucun secret, mot de passe ou secret client à renouveler.
+        - Toutes les tables managées du catalogue **clinical** doivent être stockées dans le conteneur clinical de stlamnaclinical, et non dans le stockage de niveau metastore.
+        - Le catalogue clinical ne doit pas être accessible depuis adb-lamna-dev.
+
+        **Qualité des données**
+
+        Le pipeline qui construit clinical.silver.admissions dans les pipelines déclaratifs Lakeflow Spark (pipelines Lakeflow) doit appliquer les règles suivantes :
+
+        - Les enregistrements sans patient_id doivent être exclus de la table.
+        - Un enregistrement dont discharge_ts est antérieur à admit_ts révèle un défaut du système source : la mise à jour doit s'arrêter et la table ne doit pas être modifiée.
+        - Les enregistrements dont l'âge (age) est en dehors de l'intervalle 0 à 120 doivent être conservés, mais leur nombre doit être visible dans les métriques de qualité des données du pipeline.
+
+        **Protection des données patients**
+
+        - Seuls les membres de privacy-officers peuvent lire national_id en clair. Les autres utilisateurs voient une valeur masquée.
+        - Les membres de network-analysts voient les admissions de tous les hôpitaux. Tous les autres utilisateurs ne voient que les admissions de l'hôpital de Liège (hospital_code **LIE**).
+
+        **Partage avec la recherche**
+
+        - Le centre de recherche universitaire doit recevoir la table **clinical.research.deid_admissions**. Le centre n'utilise pas Azure Databricks ; ses chercheurs lisent les données avec Python et pandas.
+        - La stratégie de sécurité de Lamna interdit d'envoyer des informations d'identification à longue durée de vie à des organisations externes. Le centre de recherche dispose de son propre fournisseur d'identité, qui prend en charge OpenID Connect (OIDC).

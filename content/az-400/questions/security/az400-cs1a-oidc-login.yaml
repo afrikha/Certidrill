@@ -1,0 +1,85 @@
+id: az400-cs1a-oidc-login
+objective: "4.2.2"
+type: dropdown
+caseStudy: az400-cs1a-consolidated-messenger
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are replacing the AZURE_CREDENTIALS secret in the deployment workflow of tracking-api. You add a federated identity credential to id-cm-deploy and store its client ID, tenant ID and subscription ID as repository secrets.
+
+    You need to complete the workflow and the subject identifier of the federated credential. The solution must meet the security requirements.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous remplacez le secret AZURE_CREDENTIALS dans le workflow de déploiement de tracking-api. Vous ajoutez des informations d'identification fédérées à id-cm-deploy et vous stockez l'ID client, l'ID de locataire et l'ID d'abonnement dans des secrets de dépôt.
+
+    Vous devez compléter le workflow et l'identificateur de sujet des informations d'identification fédérées. La solution doit respecter les exigences de sécurité.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: deploy-tracking
+    on:
+      push:
+        branches: [ main ]
+    permissions:
+      id-token: [[perm]]
+      contents: read
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+          - uses: actions/checkout@v4
+          - uses: azure/login@v2
+            with:
+              [[input]]: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # Federated identity credential on id-cm-deploy
+    # Issuer:  https://token.actions.githubusercontent.com
+    # Subject: [[subject]]
+  slots:
+    - id: perm
+      options:
+        - { id: read, text: read }
+        - { id: write, text: write }
+        - { id: none, text: none }
+    - id: input
+      options:
+        - { id: creds, text: creds }
+        - { id: clientid, text: client-id }
+        - { id: authtype, text: auth-type }
+    - id: subject
+      options:
+        - { id: branch, text: "repo:consolidated-messenger/tracking-api:ref:refs/heads/main" }
+        - { id: env, text: "repo:consolidated-messenger/tracking-api:environment:production" }
+        - { id: pr, text: "repo:consolidated-messenger/tracking-api:pull_request" }
+answer:
+  values: { perm: write, input: clientid, subject: env }
+explanation:
+  correct:
+    en: |
+      The workflow needs the `id-token: write` permission to request an OpenID Connect token from GitHub. With OIDC, azure/login receives the `client-id` of the managed identity together with the tenant and subscription IDs, so no secret value is stored. Because the job references the production environment, the subject claim of the GitHub token is `repo:<org>/<repo>:environment:production`; a credential with this subject lets only jobs that target that environment exchange a token.
+    fr: |
+      Le workflow a besoin de l'autorisation `id-token: write` pour demander un jeton OpenID Connect à GitHub. Avec OIDC, azure/login reçoit le `client-id` de l'identité managée ainsi que les ID de locataire et d'abonnement : aucune valeur secrète n'est stockée. Comme le travail référence l'environnement production, la revendication de sujet du jeton GitHub est `repo:<org>/<repo>:environment:production` ; des informations d'identification avec ce sujet ne permettent l'échange de jeton qu'aux travaux qui ciblent cet environnement.
+  options:
+    read: { en: "With `id-token: read`, the job cannot request an OIDC token; write is required.", fr: "Avec `id-token: read`, le travail ne peut pas demander de jeton OIDC ; write est obligatoire." }
+    none: { en: "`id-token: none` removes the permission, so azure/login cannot obtain a token.", fr: "`id-token: none` retire l'autorisation : azure/login ne peut pas obtenir de jeton." }
+    creds: { en: "creds expects a JSON object that contains a client secret, which the requirements forbid.", fr: "creds attend un objet JSON qui contient une clé secrète client, ce que les exigences interdisent." }
+    authtype: { en: "auth-type selects the authentication type (for example IDENTITY on an Azure-hosted runner); it does not take the client ID.", fr: "auth-type choisit le type d'authentification (par exemple IDENTITY sur un exécuteur hébergé dans Azure) ; il ne reçoit pas l'ID client." }
+    branch: { en: "When a job references an environment, the token subject contains the environment, not the branch, so a branch subject would not match. It would also not restrict the token to the production environment.", fr: "Quand un travail référence un environnement, le sujet du jeton contient l'environnement et non la branche : un sujet de branche ne correspondrait pas. Il ne limiterait pas non plus le jeton à l'environnement production." }
+    pr: { en: "The pull_request subject matches workflows triggered by pull requests, not this push-triggered production job.", fr: "Le sujet pull_request correspond aux workflows déclenchés par des pull requests, pas à ce travail de production déclenché par un push." }
+references:
+  - title: Use the Azure Login action with OpenID Connect
+    url: https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect
+  - title: Configure a user-assigned managed identity to trust an external identity provider
+    url: https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust-user-assigned-managed-identity

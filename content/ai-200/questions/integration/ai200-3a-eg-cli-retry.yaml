@@ -1,0 +1,91 @@
+id: ai200-3a-eg-cli-retry
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank publishes "credit decision made" events to an Event Grid custom topic. You are creating an event subscription that delivers the events to a Service Bus queue for an AI audit service.
+
+    The subscription must stop retrying an event after 2 hours or 10 attempts, whichever comes first, and keep the events that can't be delivered in a blob container named **eg-failed**.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank publie des événements « décision de crédit prise » dans une rubrique personnalisée Event Grid. Vous créez un abonnement aux événements qui remet les événements à une file d'attente Service Bus pour un service d'audit par IA.
+
+    L'abonnement doit cesser de retenter un événement au bout de 2 heures ou de 10 tentatives, selon la première limite atteinte, et conserver les événements impossibles à remettre dans un conteneur d'objets blob nommé **eg-failed**.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az eventgrid event-subscription create --name credit-audit \
+      --source-resource-id "$TOPIC_ID" \
+      --endpoint-type [[etype]] --endpoint "$QUEUE_ID" \
+      --max-delivery-attempts 10 [[ttl]] \
+      [[dl]] "$STORAGE_ID/blobServices/default/containers/eg-failed"
+  slots:
+    - id: etype
+      options:
+        - { id: sbqueue, text: servicebusqueue }
+        - { id: storagequeue, text: storagequeue }
+        - { id: webhook, text: webhook }
+    - id: ttl
+      options:
+        - { id: ttl120, text: --event-ttl 120 }
+        - { id: ttl2, text: --event-ttl 2 }
+        - { id: qttl, text: --storage-queue-msg-ttl 7200 }
+    - id: dl
+      options:
+        - { id: deadletter, text: --deadletter-endpoint }
+        - { id: endpoint, text: --delivery-identity-endpoint }
+        - { id: fwd, text: --forward-dead-lettered-messages-to }
+answer:
+  values: { etype: sbqueue, ttl: ttl120, dl: deadletter }
+explanation:
+  correct:
+    en: |
+      The endpoint type servicebusqueue delivers the events to the queue identified by its resource ID. --event-ttl is expressed in minutes (1 to 1,440), so 2 hours is 120, and delivery stops at the first limit reached. --deadletter-endpoint takes the resource ID of the blob container that receives the undeliverable events.
+    fr: |
+      Le type de point de terminaison servicebusqueue remet les événements à la file d'attente désignée par son ID de ressource. --event-ttl s'exprime en minutes (de 1 à 1 440) : 2 heures valent donc 120, et la remise s'arrête à la première limite atteinte. --deadletter-endpoint prend l'ID de ressource du conteneur d'objets blob qui reçoit les événements impossibles à remettre.
+  options:
+    storagequeue:
+      en: |
+        storagequeue targets an Azure Storage queue, not a Service Bus queue.
+      fr: |
+        storagequeue cible une file d'attente Stockage Azure, pas une file d'attente Service Bus.
+    webhook:
+      en: |
+        webhook, the default endpoint type, expects an HTTPS URL, not the resource ID of a queue.
+      fr: |
+        webhook, le type de point de terminaison par défaut, attend une URL HTTPS, pas l'ID de ressource d'une file d'attente.
+    ttl2:
+      en: |
+        The event time to live is in minutes, so 2 would stop retries after 2 minutes.
+      fr: |
+        La durée de vie des événements s'exprime en minutes : 2 arrêterait les nouvelles tentatives au bout de 2 minutes.
+    qttl:
+      en: |
+        --storage-queue-msg-ttl sets the time to live of messages written to a Storage queue endpoint; it isn't the retry policy.
+      fr: |
+        --storage-queue-msg-ttl définit la durée de vie des messages écrits dans un point de terminaison file d'attente Stockage ; ce n'est pas la stratégie de nouvelle tentative.
+    endpoint:
+      en: |
+        --delivery-identity-endpoint sets the delivery destination used with a managed identity, not the dead-letter container.
+      fr: |
+        --delivery-identity-endpoint définit la destination de remise utilisée avec une identité managée, pas le conteneur de lettres mortes.
+    fwd:
+      en: |
+        --forward-dead-lettered-messages-to is a parameter of Service Bus queues and subscriptions, not of Event Grid event subscriptions.
+      fr: |
+        --forward-dead-lettered-messages-to est un paramètre des files d'attente et abonnements Service Bus, pas des abonnements aux événements Event Grid.
+references:
+  - title: az eventgrid event-subscription
+    url: https://learn.microsoft.com/en-us/cli/azure/eventgrid/event-subscription
+  - title: Azure Event Grid Delivery and Retry Explained
+    url: https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry

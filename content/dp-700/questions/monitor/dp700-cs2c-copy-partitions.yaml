@@ -1,0 +1,64 @@
+id: dp700-cs2c-copy-partitions
+objective: "3.3.2"
+type: dropdown
+caseStudy: dp700-cs2c-wide-world
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are configuring a Copy activity that copies Warehouse.StockMovements from WWI-ERP to a Delta table of LH_Trade. You need to meet the requirement for the history of the stock movements.
+
+    How should you configure the source settings of the Copy activity? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous configurez une activité Copy qui copie Warehouse.StockMovements de WWI-ERP vers une table Delta de LH_Trade. Vous devez satisfaire l'exigence relative à l'historique des mouvements de stock.
+
+    Comment devez-vous configurer les paramètres source de l'activité Copy ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Partition option: [[part]]
+      Partition column: [[col]]
+      Degree of copy parallelism: [[dop]]
+    fr: |
+      Option de partition (Partition option) : [[part]]
+      Colonne de partition (Partition column) : [[col]]
+      Degré de parallélisme de copie (Degree of copy parallelism) : [[dop]]
+  slots:
+    - id: part
+      options:
+        - { id: none, text: None }
+        - { id: physical, text: Physical partitions of table }
+        - { id: dynamic, text: Dynamic range }
+    - id: col
+      options:
+        - { id: stockitem, text: StockItemId }
+        - { id: movement, text: MovementId }
+        - { id: occurred, text: TransactionOccurredWhen }
+    - id: dop
+      options:
+        - { id: auto, text: Auto }
+        - { id: d16, text: "16" }
+        - { id: d50, text: "50" }
+answer:
+  values: { part: dynamic, col: movement, dop: d50 }
+explanation:
+  correct:
+    en: |
+      Warehouse.StockMovements is not partitioned, so the Dynamic range option is needed to split the copy into parallel range queries on a partition column. MovementId is indexed and evenly distributed, which gives ranges of similar size. Each parallel copy opens a query on the source, so a degree of copy parallelism of 50 gives the fastest load allowed by the 50-session limit.
+    fr: |
+      Warehouse.StockMovements n'est pas partitionnée : l'option Dynamic range est nécessaire pour diviser la copie en requêtes de plage parallèles sur une colonne de partition. MovementId est indexée et répartie uniformément, ce qui donne des plages de taille comparable. Chaque copie parallèle ouvre une requête sur la source : un degré de parallélisme de 50 donne le chargement le plus rapide autorisé par la limite de 50 sessions.
+  options:
+    none: { en: "None runs a single-threaded copy, the slowest option for 1.2 billion rows.", fr: "None exécute une copie monothread, l'option la plus lente pour 1,2 milliard de lignes." }
+    physical: { en: "Physical partitions require a partitioned table; the parallelism is capped by the number of physical partitions.", fr: "Les partitions physiques exigent une table partitionnée ; le parallélisme est limité par le nombre de partitions physiques." }
+    stockitem: { en: "StockItemId is heavily skewed: a few ranges would contain most of the rows and slow down the whole copy.", fr: "StockItemId est fortement asymétrique : quelques plages contiendraient la plupart des lignes et ralentiraient toute la copie." }
+    occurred: { en: "TransactionOccurredWhen is not indexed; every range query would scan the table, whereas an indexed partition column greatly improves the performance of dynamic range copies.", fr: "TransactionOccurredWhen n'est pas indexée : chaque requête de plage analyserait la table, alors qu'une colonne de partition indexée améliore fortement les performances des copies par plage dynamique." }
+    auto: { en: "With Auto, the service can generate far more than 50 parallel copies with Dynamic range, which breaks the session limit.", fr: "Avec Auto, le service peut générer bien plus de 50 copies parallèles avec Dynamic range, ce qui enfreint la limite de sessions." }
+    d16: { en: "16 respects the limit but uses less parallelism than allowed, so the load is slower.", fr: "16 respecte la limite mais utilise moins de parallélisme que ce qui est permis : le chargement est plus lent." }
+references:
+  - title: Optimizing Copy Activity Performance from SQL Databases
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/copy-performance-sql-databases

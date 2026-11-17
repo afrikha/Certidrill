@@ -1,0 +1,52 @@
+id: dp420-2c-qm-cross-partition
+objective: "2.3.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A container named **readings** stores about 400 GB of IoT data, uses `/deviceId` as the partition key and has 60,000 RU/s of provisioned throughput. Each item has an `id` and a business key named `readingId`. The application always knows the `deviceId` of the reading it looks for, and it runs the following query.
+
+    ```sql
+    SELECT * FROM r WHERE r.readingId = @readingId
+    ```
+
+    The query metrics show a Retrieved Document Count of 1 and an Output Document Count of 1, but the request charge is 92 RUs.
+
+    You need to minimize the request charge of this lookup.
+
+    What should you do?
+  fr: |
+    Un conteneur nommé **readings** stocke environ 400 Go de données IoT, utilise `/deviceId` comme clé de partition et dispose de 60 000 RU/s de débit provisionné. Chaque élément possède un `id` et une clé métier nommée `readingId`. L'application connaît toujours le `deviceId` de la mesure recherchée et exécute la requête suivante.
+
+    ```sql
+    SELECT * FROM r WHERE r.readingId = @readingId
+    ```
+
+    Les métriques de requête indiquent un Retrieved Document Count de 1 et un Output Document Count de 1, mais les frais de requête sont de 92 RU.
+
+    Vous devez réduire au minimum les frais de requête de cette recherche.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Add a composite index on (/deviceId ASC, /readingId ASC) to the indexing policy.", fr: "Ajouter un index composite sur (/deviceId ASC, /readingId ASC) à la stratégie d'indexation." }
+    - id: b
+      text: { en: "Set MaxConcurrency to the number of physical partitions in QueryRequestOptions.", fr: "Définir MaxConcurrency sur le nombre de partitions physiques dans QueryRequestOptions." }
+    - id: c
+      text: { en: "Scope the query to the reading's deviceId so that it targets a single partition.", fr: "Limiter la requête au deviceId de la mesure pour qu'elle cible une seule partition." }
+    - id: d
+      text: { en: "Exclude every path except /readingId/? from the indexing policy.", fr: "Exclure de la stratégie d'indexation tous les chemins sauf /readingId/?." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "When the Retrieved Document Count is approximately equal to the Output Document Count, the index is used efficiently and the cost comes from elsewhere. Without a partition key filter, the query fans out and checks the index of every physical partition, which is significant for a container of this size. Adding the `deviceId` (in the filter or as the query's partition key) routes the query to one partition."
+    fr: "Lorsque le Retrieved Document Count est à peu près égal à l'Output Document Count, l'index est utilisé efficacement et le coût vient d'ailleurs. Sans filtre sur la clé de partition, la requête est diffusée et consulte l'index de chaque partition physique, ce qui pèse lourd pour un conteneur de cette taille. Ajouter le `deviceId` (dans le filtre ou comme clé de partition de la requête) achemine la requête vers une seule partition."
+  options:
+    a: { en: "The equality filter on readingId already uses the index; a composite index does not stop the query from fanning out.", fr: "Le filtre d'égalité sur readingId utilise déjà l'index ; un index composite n'empêche pas la diffusion de la requête." }
+    b: { en: "More parallelism can lower latency, but every partition is still queried, so the request charge stays the same.", fr: "Plus de parallélisme peut réduire la latence, mais chaque partition est toujours interrogée : les frais restent identiques." }
+    d: { en: "The query is already served by the index; excluding paths lowers write costs and could break other queries.", fr: "La requête est déjà servie par l'index ; exclure des chemins réduit le coût des écritures et pourrait casser d'autres requêtes." }
+references:
+  - title: Troubleshoot query issues when using Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-query-performance

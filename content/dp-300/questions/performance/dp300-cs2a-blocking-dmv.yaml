@@ -1,0 +1,67 @@
+id: dp300-cs2a-blocking-dmv
+objective: "3.2.3"
+type: dropdown
+caseStudy: dp300-cs2a-proseware-market
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to write a query for the DBAs that meets the performance requirement for flash sales.
+
+    How should you complete the Transact-SQL query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire pour les DBA une requête qui satisfait l'exigence de performances relative aux ventes flash.
+
+    Comment devez-vous compléter la requête Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT r.session_id,
+           r.blocking_session_id,
+           r.wait_type,
+           r.wait_time,
+           blocked_statement  = t.text,
+           blocker_last_batch = ib.event_info
+    FROM [[src]] AS r
+    CROSS APPLY [[txt]](r.sql_handle) AS t
+    OUTER APPLY [[buf]](r.blocking_session_id, NULL) AS ib
+    WHERE r.blocking_session_id <> 0;
+  slots:
+    - id: src
+      options:
+        - { id: src_req, text: sys.dm_exec_requests }
+        - { id: src_ses, text: sys.dm_exec_sessions }
+        - { id: src_wt, text: sys.dm_os_waiting_tasks }
+    - id: txt
+      options:
+        - { id: txt_plan, text: sys.dm_exec_query_plan }
+        - { id: txt_sql, text: sys.dm_exec_sql_text }
+        - { id: txt_buf, text: sys.dm_exec_input_buffer }
+    - id: buf
+      options:
+        - { id: buf_cur, text: sys.dm_exec_cursors }
+        - { id: buf_sql, text: sys.dm_exec_sql_text }
+        - { id: buf_buf, text: sys.dm_exec_input_buffer }
+answer:
+  values: { src: src_req, txt: txt_sql, buf: buf_buf }
+explanation:
+  correct:
+    en: |
+      `sys.dm_exec_requests` returns one row per running request, with its `blocking_session_id` (0 when the request is not blocked), its wait and its `sql_handle`. `sys.dm_exec_sql_text` turns the `sql_handle` into the text of the blocked statement. A blocking session that is idle with an open transaction has no row in `sys.dm_exec_requests`, so its last batch is read with `sys.dm_exec_input_buffer`, which takes a session ID and a request ID (NULL here).
+    fr: |
+      `sys.dm_exec_requests` renvoie une ligne par requête en cours, avec son `blocking_session_id` (0 quand la requête n'est pas bloquée), son attente et son `sql_handle`. `sys.dm_exec_sql_text` convertit le `sql_handle` en texte de l'instruction bloquée. Une session bloquante inactive avec une transaction ouverte n'a pas de ligne dans `sys.dm_exec_requests` : son dernier lot se lit avec `sys.dm_exec_input_buffer`, qui prend un ID de session et un ID de requête (NULL ici).
+  options:
+    src_ses: { en: "sys.dm_exec_sessions has one row per session but no blocking_session_id or sql_handle column.", fr: "sys.dm_exec_sessions a une ligne par session mais pas de colonne blocking_session_id ni sql_handle." }
+    src_wt: { en: "sys.dm_os_waiting_tasks exposes blocking_session_id but has no sql_handle column to pass to the text function.", fr: "sys.dm_os_waiting_tasks expose blocking_session_id mais n'a pas de colonne sql_handle à passer à la fonction de texte." }
+    txt_plan: { en: "sys.dm_exec_query_plan takes a plan handle and returns the XML plan, not the statement text.", fr: "sys.dm_exec_query_plan prend un descripteur de plan et renvoie le plan XML, pas le texte de l'instruction." }
+    txt_buf: { en: "sys.dm_exec_input_buffer takes a session ID and a request ID, not a SQL handle.", fr: "sys.dm_exec_input_buffer prend un ID de session et un ID de requête, pas un descripteur SQL." }
+    buf_sql: { en: "sys.dm_exec_sql_text needs a SQL or plan handle; an idle blocking session has no request and therefore no handle to pass.", fr: "sys.dm_exec_sql_text a besoin d'un descripteur SQL ou de plan ; une session bloquante inactive n'a pas de requête, donc pas de descripteur à passer." }
+    buf_cur: { en: "sys.dm_exec_cursors returns the open cursors of a session, not its last batch.", fr: "sys.dm_exec_cursors renvoie les curseurs ouverts d'une session, pas son dernier lot." }
+references:
+  - title: Understand and Resolve Blocking Problems - Azure SQL Database
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/understand-resolve-blocking

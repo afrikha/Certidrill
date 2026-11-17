@@ -1,0 +1,91 @@
+id: ai200-2b-entra-uri
+objective: "2.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A developer at Fabrikam runs a Python script locally to update an Azure Database for PostgreSQL flexible server by using Microsoft Entra authentication. The `DBUSER` environment variable contains the developer's user principal name, `dev.lee@fabrikam.com`.
+
+    The script must build a valid connection URI, never fall back to an unencrypted connection, and make the update permanent.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un développeur de Fabrikam exécute localement un script Python qui met à jour un serveur flexible Azure Database for PostgreSQL à l'aide de l'authentification Microsoft Entra. La variable d'environnement `DBUSER` contient le nom d'utilisateur principal du développeur, `dev.lee@fabrikam.com`.
+
+    Le script doit construire un URI de connexion valide, ne jamais se rabattre sur une connexion non chiffrée et rendre la mise à jour permanente.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    import urllib.parse
+    import psycopg
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    user = [[quote]](os.environ["DBUSER"])
+    password = credential.get_token(
+        "https://ossrdbms-aad.database.windows.net/.default").token
+    uri = (f"postgresql://{user}:{password}@{os.environ['DBHOST']}"
+           f"/{os.environ['DBNAME']}?sslmode=[[ssl]]")
+
+    conn = psycopg.connect(uri)
+    cur = conn.cursor()
+    cur.execute("UPDATE agents SET status = %s WHERE id = %s", ("busy", 7))
+    [[end]]
+    cur.close()
+    conn.close()
+  slots:
+    - id: quote
+      options:
+        - { id: quote, text: urllib.parse.quote }
+        - { id: unquote, text: urllib.parse.unquote }
+        - { id: str, text: str }
+        - { id: repr, text: repr }
+    - id: ssl
+      options:
+        - { id: require, text: require }
+        - { id: prefer, text: prefer }
+        - { id: allow, text: allow }
+        - { id: disable, text: disable }
+    - id: end
+      options:
+        - { id: commit, text: conn.commit() }
+        - { id: rollback, text: conn.rollback() }
+        - { id: fetch, text: cur.fetchall() }
+        - { id: closecur, text: cur.close() }
+answer:
+  values: { quote: quote, ssl: require, end: commit }
+explanation:
+  correct:
+    en: "The user name contains `@`, which is a separator in a URI, so the Learn sample encodes it with `urllib.parse.quote`. `sslmode=require` makes the client refuse any unencrypted connection. psycopg runs the statement in a transaction, and `conn.commit()` makes it permanent before the connection is closed."
+    fr: "Le nom d'utilisateur contient `@`, qui est un séparateur dans un URI : l'exemple de Learn l'encode avec `urllib.parse.quote`. `sslmode=require` fait refuser au client toute connexion non chiffrée. psycopg exécute l'instruction dans une transaction, et `conn.commit()` la rend permanente avant la fermeture de la connexion."
+  options:
+    unquote:
+      en: "unquote decodes an already encoded string; the raw `@` would still break the URI."
+      fr: "unquote décode une chaîne déjà encodée ; le caractère `@` brut casserait toujours l'URI."
+    str:
+      en: "str returns the name unchanged, so the `@` of the user principal name is not encoded."
+      fr: "str renvoie le nom inchangé : le `@` du nom d'utilisateur principal n'est pas encodé."
+    prefer:
+      en: "prefer tries TLS first but accepts an unencrypted connection when TLS is not available."
+      fr: "prefer essaie d'abord TLS, mais accepte une connexion non chiffrée si TLS n'est pas disponible."
+    allow:
+      en: "allow first tries an unencrypted connection."
+      fr: "allow essaie d'abord une connexion non chiffrée."
+    rollback:
+      en: "rollback discards the update."
+      fr: "rollback annule la mise à jour."
+    closecur:
+      en: "Closing the cursor does not commit the transaction; closing the connection then discards the update."
+      fr: "Fermer le curseur ne valide pas la transaction ; la fermeture de la connexion annule ensuite la mise à jour."
+references:
+  - title: "Quickstart: Use Python to Connect and Query Data in Azure Database for PostgreSQL Flexible Server"
+    url: https://learn.microsoft.com/en-us/azure/postgresql/connectivity/connect-python

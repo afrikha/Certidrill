@@ -1,0 +1,69 @@
+id: dp420-1d-feedrange-workers
+objective: "1.4.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are parallelizing the change feed of an Azure Cosmos DB for NoSQL container named **orders** by using the .NET pull model. An orchestrator sends work items to a queue, and each worker reads one message.
+
+    Each worker must process all the existing and future changes of its own share of the container, and no change may be processed by two workers.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous parallélisez le flux de modification d'un conteneur Azure Cosmos DB for NoSQL nommé **orders** à l'aide du modèle de tirage .NET. Un orchestrateur envoie des éléments de travail dans une file d'attente, et chaque processus de traitement lit un message.
+
+    Chaque processus doit traiter toutes les modifications existantes et futures de sa propre part du conteneur, et aucune modification ne doit être traitée par deux processus.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    // Orchestrator
+    IReadOnlyList<FeedRange> ranges = await container.[[ranges]];
+    foreach (FeedRange range in ranges)
+    {
+        await queue.SendMessageAsync(range.[[serialize]]);
+    }
+
+    // Worker
+    FeedRange myRange = FeedRange.FromJsonString(message);
+    FeedIterator<Order> iterator = container.GetChangeFeedIterator<Order>(
+        ChangeFeedStartFrom.[[start]],
+        ChangeFeedMode.LatestVersion);
+  slots:
+    - id: ranges
+      options:
+        - { id: rget, text: GetFeedRangesAsync() }
+        - { id: rthr, text: ReadThroughputAsync() }
+        - { id: rcont, text: ReadContainerAsync() }
+    - id: serialize
+      options:
+        - { id: sjson, text: ToJsonString() }
+        - { id: shash, text: GetHashCode() }
+        - { id: stype, text: GetType() }
+    - id: start
+      options:
+        - { id: brange, text: Beginning(myRange) }
+        - { id: ball, text: Beginning() }
+        - { id: nrange, text: Now(myRange) }
+answer:
+  values: { ranges: rget, serialize: sjson, start: brange }
+explanation:
+  correct:
+    en: |
+      GetFeedRangesAsync returns one FeedRange per physical partition. The orchestrator serializes each range with ToJsonString so that a worker can rebuild it with FeedRange.FromJsonString. Starting each iterator from Beginning(myRange) reads all past and future changes of that range only, so the ranges never overlap.
+    fr: |
+      GetFeedRangesAsync renvoie un FeedRange par partition physique. L'orchestrateur sérialise chaque plage avec ToJsonString pour qu'un processus puisse la reconstruire avec FeedRange.FromJsonString. Démarrer chaque itérateur avec Beginning(myRange) lit toutes les modifications passées et futures de cette seule plage ; les plages ne se chevauchent donc jamais.
+  options:
+    rthr: { en: "ReadThroughputAsync returns the provisioned throughput, not feed ranges.", fr: "ReadThroughputAsync renvoie le débit approvisionné, pas des plages de flux." }
+    ball: { en: "Without a range, every worker reads the whole container, so changes are processed several times.", fr: "Sans plage, chaque processus lit tout le conteneur : les modifications sont traitées plusieurs fois." }
+    nrange: { en: "Now() skips the changes that already exist in the range.", fr: "Now() ignore les modifications déjà présentes dans la plage." }
+references:
+  - title: Change Feed Pull Model - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-pull-model

@@ -1,0 +1,69 @@
+id: sc200-3b-kj-delay
+objective: "3.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware stores firewall logs in the CommonSecurityLog table of the Microsoft Sentinel data lake. You create a KQL job that runs every hour and promotes the connections to known malicious IP addresses to the analytics tier.
+
+    New rows in the data lake can take up to about 15 minutes to become queryable. Each run must cover one hour of events, and no event must be missed between two runs.
+
+    How should you complete the job query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware stocke les journaux de pare-feu dans la table CommonSecurityLog du data lake Microsoft Sentinel. Vous créez une tâche KQL qui s'exécute toutes les heures et promeut au niveau Analytics les connexions vers des adresses IP malveillantes connues.
+
+    Les nouvelles lignes du data lake peuvent mettre jusqu'à environ 15 minutes pour être interrogeables. Chaque exécution doit couvrir une heure d'événements, et aucun événement ne doit être manqué entre deux exécutions.
+
+    Comment devez-vous compléter la requête de la tâche ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let lookback = 1h;
+    let delay = [[d]];
+    let endTime = [[e]];
+    let startTime = endTime - lookback;
+    let BadIPs = dynamic(["203.0.113.10", "198.51.100.7"]);
+    CommonSecurityLog
+    | where TimeGenerated [[op]] (startTime .. endTime)
+    | where DestinationIP in (BadIPs)
+    | project EventTime = TimeGenerated, DeviceVendor, SourceIP, DestinationIP, DestinationPort
+  slots:
+    - id: d
+      options:
+        - { id: d0, text: 0m }
+        - { id: d1, text: 1m }
+        - { id: d15, text: 15m }
+    - id: e
+      options:
+        - { id: minus, text: now() - delay }
+        - { id: plus, text: now() + delay }
+        - { id: ago, text: ago(lookback) }
+        - { id: now, text: now() }
+    - id: op
+      options:
+        - { id: between, text: between }
+        - { id: in, text: in }
+        - { id: hasany, text: has_any }
+answer:
+  values: { d: d15, e: minus, op: between }
+explanation:
+  correct:
+    en: |
+      The data lake needs about 15 minutes before new rows can be queried, so Microsoft recommends ending the window at now() - delay with a delay that matches this latency. Each hourly run then covers a full hour that ends 15 minutes ago, and the next run starts where the previous one ended. between (startTime .. endTime) filters on that range.
+    fr: |
+      Le data lake a besoin d'environ 15 minutes avant que les nouvelles lignes soient interrogeables : Microsoft recommande donc de terminer la fenêtre à now() - delay, avec un délai correspondant à cette latence. Chaque exécution horaire couvre alors une heure complète qui se termine il y a 15 minutes, et l'exécution suivante reprend là où la précédente s'est arrêtée. between (startTime .. endTime) filtre sur cette plage.
+  options:
+    d0: { en: "With no delay, rows that arrive late fall into a window that has already been processed and are missed.", fr: "Sans délai, les lignes qui arrivent tardivement tombent dans une fenêtre déjà traitée et sont manquées." }
+    plus: { en: "now() + delay ends the window in the future, where no data exists yet.", fr: "now() + delay termine la fenêtre dans le futur, où aucune donnée n'existe encore." }
+    ago: { en: "ago(lookback) ends the window one hour ago and ignores the configured delay.", fr: "ago(lookback) termine la fenêtre il y a une heure et ignore le délai configuré." }
+    now: { en: "Ending at now() queries the last 15 minutes before their data is available.", fr: "Terminer à now() interroge les 15 dernières minutes avant que leurs données soient disponibles." }
+    in: { en: "in compares a value with a list of values, not with a time range.", fr: "in compare une valeur à une liste de valeurs, pas à une plage de temps." }
+references:
+  - title: Create KQL jobs in the Microsoft Sentinel data lake
+    url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/kql-jobs

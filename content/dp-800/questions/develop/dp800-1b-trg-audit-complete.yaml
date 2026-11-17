@@ -1,0 +1,72 @@
+id: dp800-1b-trg-audit-complete
+objective: "1.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Adatum. The ListPrice column of the Production.Product table is defined as NOT NULL.
+
+    You need to record every change of ListPrice in the Audit.PriceChange table with the old price and the new price. The updates of Production.Product must still be applied, and statements that update several products at once must be audited for every product.
+
+    How should you complete the trigger? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Adatum. La colonne ListPrice de la table Production.Product est définie avec NOT NULL.
+
+    Vous devez enregistrer chaque modification de ListPrice dans la table Audit.PriceChange avec l'ancien prix et le nouveau prix. Les mises à jour de Production.Product doivent toujours être appliquées, et les instructions qui mettent à jour plusieurs produits à la fois doivent être auditées pour chaque produit.
+
+    Comment devez-vous compléter le déclencheur ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR ALTER TRIGGER Production.trg_Product_PriceAudit
+    ON Production.Product
+    [[timing]]
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        INSERT INTO Audit.PriceChange (ProductID, OldPrice, NewPrice, ChangedBy, ChangedAt)
+        SELECT i.ProductID, [[old]], i.ListPrice, SUSER_SNAME(), SYSUTCDATETIME()
+        FROM inserted AS i
+        JOIN [[src]] AS d ON d.ProductID = i.ProductID
+        WHERE i.ListPrice <> d.ListPrice;
+    END;
+  slots:
+    - id: timing
+      options:
+        - { id: after, text: AFTER UPDATE }
+        - { id: insteadof, text: INSTEAD OF UPDATE }
+        - { id: afterins, text: AFTER INSERT }
+    - id: old
+      options:
+        - { id: dprice, text: d.ListPrice }
+        - { id: iprice, text: i.ListPrice }
+        - { id: sub, text: "(SELECT ListPrice FROM Production.Product AS p WHERE p.ProductID = i.ProductID)" }
+    - id: src
+      options:
+        - { id: deleted, text: deleted }
+        - { id: product, text: Production.Product }
+        - { id: inserted, text: inserted }
+answer:
+  values: { timing: after, old: dprice, src: deleted }
+explanation:
+  correct:
+    en: |
+      An AFTER UPDATE trigger runs after the update has been applied. In an UPDATE trigger, the deleted table holds the rows as they were before the statement and the inserted table holds the new values, so joining them on the key returns the old and the new price of every updated product, whatever the number of rows.
+    fr: |
+      Un déclencheur AFTER UPDATE s'exécute après l'application de la mise à jour. Dans un déclencheur UPDATE, la table deleted contient les lignes telles qu'elles étaient avant l'instruction et la table inserted contient les nouvelles valeurs : leur jointure sur la clé renvoie l'ancien et le nouveau prix de chaque produit mis à jour, quel que soit le nombre de lignes.
+  options:
+    insteadof: { en: "An INSTEAD OF trigger replaces the UPDATE statement, so the new prices would not be applied unless the trigger ran the update itself.", fr: "Un déclencheur INSTEAD OF remplace l'instruction UPDATE : les nouveaux prix ne seraient pas appliqués, sauf si le déclencheur exécutait lui-même la mise à jour." }
+    afterins: { en: "An AFTER INSERT trigger fires for new products, not for price changes.", fr: "Un déclencheur AFTER INSERT se déclenche pour les nouveaux produits, pas pour les modifications de prix." }
+    iprice: { en: "i.ListPrice is the new price, so the old and new values would be identical.", fr: "i.ListPrice est le nouveau prix : l'ancienne et la nouvelle valeur seraient identiques." }
+    sub: { en: "In an AFTER trigger, the table already contains the new price, so the subquery returns the new value.", fr: "Dans un déclencheur AFTER, la table contient déjà le nouveau prix : la sous-requête renvoie la nouvelle valeur." }
+    product: { en: "Production.Product already contains the new values in an AFTER trigger, so the WHERE clause never finds a difference.", fr: "Production.Product contient déjà les nouvelles valeurs dans un déclencheur AFTER : la clause WHERE ne trouve jamais de différence." }
+    inserted: { en: "Joining inserted to itself compares the new price with itself.", fr: "Joindre inserted à elle-même compare le nouveau prix avec lui-même." }
+references:
+  - title: CREATE TRIGGER (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-trigger-transact-sql

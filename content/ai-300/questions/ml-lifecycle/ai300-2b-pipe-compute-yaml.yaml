@@ -1,0 +1,83 @@
+id: ai300-2b-pipe-compute-yaml
+objective: "2.1.7"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You have an Azure Machine Learning workspace that contains two compute clusters named **cpu-cluster** and **gpu-cluster**, and a registered command component named `train_churn_model` with several versions.
+
+    You are writing a pipeline job. You need to meet the following requirements:
+
+    - Every step runs on cpu-cluster, except `train`, which runs on gpu-cluster.
+    - `train` always uses the most recent registered version of `train_churn_model`.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Azure Machine Learning qui contient deux clusters de calcul nommés **cpu-cluster** et **gpu-cluster**, ainsi qu'un composant command inscrit nommé `train_churn_model` qui possède plusieurs versions.
+
+    Vous écrivez un travail de pipeline. Vous devez répondre aux exigences suivantes :
+
+    - Toutes les étapes s'exécutent sur cpu-cluster, sauf `train`, qui s'exécute sur gpu-cluster.
+    - `train` utilise toujours la version inscrite la plus récente de `train_churn_model`.
+
+    Comment devez-vous compléter le fichier YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    type: pipeline
+    settings:
+      [[s1]]: azureml:cpu-cluster
+    jobs:
+      prep:
+        type: command
+        component: ./prep.yml
+      train:
+        type: command
+        component: [[s2]]
+        [[s3]]: azureml:gpu-cluster
+        inputs:
+          training_data: ${{parent.jobs.prep.outputs.clean_data}}
+  slots:
+    - id: s1
+      options:
+        - { id: s1d, text: instance_type }
+        - { id: s1c, text: default_datastore }
+        - { id: s1a, text: default_compute }
+        - { id: s1b, text: compute }
+    - id: s2
+      options:
+        - { id: s2d, text: "azureml:train_churn_model:1" }
+        - { id: s2c, text: "./train_churn_model@latest" }
+        - { id: s2a, text: "azureml:train_churn_model@latest" }
+        - { id: s2b, text: "azureml:train_churn_model:latest" }
+    - id: s3
+      options:
+        - { id: s3c, text: instance_count }
+        - { id: s3a, text: compute }
+        - { id: s3b, text: default_compute }
+answer:
+  values: { s1: s1a, s2: s2a, s3: s3a }
+explanation:
+  correct:
+    en: |
+      `settings.default_compute` sets the compute for every step that doesn't define its own, and a step-level `compute` overrides it for `train`. A registered component is referenced with `azureml:<name>:<version>` or, for the newest version, `azureml:<name>@latest`.
+    fr: |
+      `settings.default_compute` définit le calcul de toutes les étapes qui n'en déclarent pas, et un `compute` au niveau de l'étape le remplace pour `train`. Un composant inscrit est référencé avec `azureml:<name>:<version>` ou, pour la version la plus récente, `azureml:<name>@latest`.
+  options:
+    s1b: { en: "Under `settings`, the pipeline-level key is `default_compute`.", fr: "Sous `settings`, la clé au niveau du pipeline est `default_compute`." }
+    s1c: { en: "`default_datastore` is where outputs are written, not where steps run.", fr: "`default_datastore` désigne l'emplacement d'écriture des sorties, pas celui d'exécution des étapes." }
+    s2b: { en: "After a colon, the reference expects a version number; the latest version is selected with `@latest`.", fr: "Après deux-points, la référence attend un numéro de version ; la version la plus récente se sélectionne avec `@latest`." }
+    s2c: { en: "A `./` path points to a local YAML file, not to a registered component.", fr: "Un chemin `./` désigne un fichier YAML local, pas un composant inscrit." }
+    s2d: { en: "This pins version 1, so new versions would not be used.", fr: "Cette référence fige la version 1 : les nouvelles versions ne seraient pas utilisées." }
+    s3b: { en: "`default_compute` is a pipeline setting; a step overrides it with `compute`.", fr: "`default_compute` est un paramètre du pipeline ; une étape le remplace avec `compute`." }
+references:
+  - title: Create and run component-based ML pipelines with the Azure Machine Learning CLI
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-create-component-pipelines-cli
+  - title: CLI (v2) pipeline job YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-job-pipeline

@@ -1,0 +1,86 @@
+id: dp420-1b-python-batch
+objective: "1.2.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum's ticketing platform stores reservations, seat counters and temporary holds of a venue in an Azure Cosmos DB for NoSQL container partitioned by `/venueId`. A Python service uses the `azure-cosmos` SDK. A venue has 50 seats.
+
+    To confirm a reservation, the service must, in one transaction:
+
+    - create the reservation, and fail if a reservation with the same `id` already exists;
+    - increase the `booked` counter of the venue, only if fewer than 50 seats are booked;
+    - delete the temporary hold.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    La plateforme de billetterie d'Adatum stocke les réservations, les compteurs de places et les blocages temporaires d'un lieu dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/venueId`. Un service Python utilise le SDK `azure-cosmos`. Un lieu compte 50 places.
+
+    Pour confirmer une réservation, le service doit, en une seule transaction :
+
+    - créer la réservation, et échouer si une réservation avec le même `id` existe déjà ;
+    - augmenter le compteur `booked` du lieu, uniquement si moins de 50 places sont réservées ;
+    - supprimer le blocage temporaire.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.cosmos import exceptions
+
+    operations = [
+        ([[o1]], (reservation,)),
+        ("patch", (counter_id, [{"op": "incr", "path": "/booked", "value": 1}]),
+            [[kw]]),
+        ("delete", (hold_id,)),
+    ]
+
+    try:
+        container.[[exec]](batch_operations=operations, partition_key=venue_id)
+    except exceptions.[[ex]] as error:
+        handle_failure(error)
+  slots:
+    - id: o1
+      options:
+        - { id: create, text: '"create"' }
+        - { id: upsert, text: '"upsert"' }
+        - { id: replace, text: '"replace"' }
+    - id: kw
+      options:
+        - { id: filter, text: '{"filter_predicate": "FROM c WHERE c.booked < 50"}' }
+        - { id: nonematch, text: '{"if_none_match_etag": "FROM c WHERE c.booked < 50"}' }
+        - { id: match, text: '{"if_match_etag": "c.booked < 50"}' }
+    - id: exec
+      options:
+        - { id: batch, text: execute_item_batch }
+        - { id: many, text: read_items }
+        - { id: upsertitem, text: upsert_item }
+    - id: ex
+      options:
+        - { id: batch, text: CosmosBatchOperationError }
+        - { id: cond, text: CosmosAccessConditionFailedError }
+        - { id: exists, text: CosmosResourceExistsError }
+answer:
+  values: { o1: create, kw: filter, exec: batch, ex: batch }
+explanation:
+  correct:
+    en: "`execute_item_batch` runs a list of `(operation, args, kwargs)` tuples that share one partition key as a single transaction. The `create` operation fails when the id exists, and the `filter_predicate` option makes the patch conditional. When any operation fails, the SDK raises `CosmosBatchOperationError`, which identifies the failed operation, and nothing is committed."
+    fr: "`execute_item_batch` exécute une liste de tuples `(opération, arguments, kwargs)` qui partagent une clé de partition, en une seule transaction. L'opération `create` échoue si l'id existe, et l'option `filter_predicate` rend le patch conditionnel. Quand une opération échoue, le SDK lève `CosmosBatchOperationError`, qui identifie l'opération en échec, et rien n'est validé."
+  options:
+    upsert: { en: "upsert overwrites an existing reservation instead of failing.", fr: "upsert remplace une réservation existante au lieu d'échouer." }
+    replace: { en: "replace requires an existing item and takes an id and a body.", fr: "replace exige un élément existant et prend un id et un corps." }
+    nonematch: { en: "if_none_match_etag expects an ETag value, not a predicate.", fr: "if_none_match_etag attend une valeur d'ETag, pas un prédicat." }
+    match: { en: "if_match_etag expects an ETag value, not a condition on properties.", fr: "if_match_etag attend une valeur d'ETag, pas une condition sur des propriétés." }
+    many: { en: "read_items reads items by id and partition key; it does not run write operations.", fr: "read_items lit des éléments par id et clé de partition ; il n'exécute pas d'opérations d'écriture." }
+    upsertitem: { en: "upsert_item writes one item; it does not run a list of operations as a transaction.", fr: "upsert_item écrit un seul élément ; il n'exécute pas une liste d'opérations en tant que transaction." }
+    cond: { en: "Inside a batch, a failed operation is reported through CosmosBatchOperationError.", fr: "Dans un lot, une opération en échec est signalée par CosmosBatchOperationError." }
+    exists: { en: "Inside a batch, a failed operation is reported through CosmosBatchOperationError.", fr: "Dans un lot, une opération en échec est signalée par CosmosBatchOperationError." }
+references:
+  - title: Azure Cosmos DB SQL API client library for Python
+    url: https://learn.microsoft.com/en-us/python/api/overview/azure/cosmos-readme

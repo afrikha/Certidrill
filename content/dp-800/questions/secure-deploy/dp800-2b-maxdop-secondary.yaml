@@ -1,0 +1,86 @@
+id: dp800-2b-maxdop-secondary
+objective: "2.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a Business Critical database in Azure SQL Database. The primary replica runs an OLTP workload, and reports connect to the read-only replica.
+
+    You need to configure parallelism to meet the following requirements:
+
+    - Queries on the primary replica must use at most four schedulers.
+    - Queries on the read-only replica must be able to use up to eight schedulers.
+    - One month-end query on the primary replica must run serially, without changing the database setting for other queries.
+
+    How should you complete the Transact-SQL? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'une base de données Business Critical dans Azure SQL Database. Le réplica principal exécute une charge de travail OLTP, et les rapports se connectent au réplica en lecture seule.
+
+    Vous devez configurer le parallélisme pour satisfaire les exigences suivantes :
+
+    - Les requêtes du réplica principal doivent utiliser au maximum quatre planificateurs.
+    - Les requêtes du réplica en lecture seule doivent pouvoir utiliser jusqu'à huit planificateurs.
+    - Une requête de fin de mois sur le réplica principal doit s'exécuter en série, sans modifier le paramètre de la base pour les autres requêtes.
+
+    Comment devez-vous compléter le code Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    -- Primary replica
+    ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = [[p]];
+
+    -- Read-only replica
+    [[sec]]
+
+    -- Month-end query on the primary replica
+    SELECT CustomerID, SUM(Amount) AS Total
+    FROM dbo.Invoice
+    WHERE InvoiceDate >= @MonthStart
+    GROUP BY CustomerID
+    OPTION ([[h]]);
+  slots:
+    - id: p
+      options:
+        - { id: p0, text: "0" }
+        - { id: p1, text: "1" }
+        - { id: p4, text: "4" }
+        - { id: p8, text: "8" }
+    - id: sec
+      options:
+        - { id: forsec, text: "ALTER DATABASE SCOPED CONFIGURATION FOR SECONDARY SET MAXDOP = 8;" }
+        - { id: forprim, text: "ALTER DATABASE SCOPED CONFIGURATION FOR SECONDARY SET MAXDOP = PRIMARY;" }
+        - { id: setall, text: "ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 8;" }
+        - { id: spconf, text: "EXEC sp_configure 'max degree of parallelism', 8;" }
+    - id: h
+      options:
+        - { id: dop0, text: "MAXDOP 0" }
+        - { id: recompile, text: "RECOMPILE" }
+        - { id: dop1, text: "MAXDOP 1" }
+        - { id: maxrec, text: "MAXRECURSION 1" }
+answer:
+  values: { p: p4, sec: forsec, h: dop1 }
+explanation:
+  correct:
+    en: |
+      The database scoped MAXDOP of 4 applies to the primary replica. FOR SECONDARY sets a separate value for secondary replicas, which otherwise inherit the primary value (PRIMARY is their default). The OPTION (MAXDOP 1) query hint overrides the database value for that statement only and makes it run serially.
+    fr: |
+      La valeur MAXDOP de 4 dans la configuration de la base s'applique au réplica principal. FOR SECONDARY définit une valeur distincte pour les réplicas secondaires, qui héritent sinon de la valeur du principal (PRIMARY est leur valeur par défaut). L'indicateur de requête OPTION (MAXDOP 1) remplace la valeur de la base pour cette seule instruction et la fait s'exécuter en série.
+  options:
+    p0: { en: "0 allows up to 64 schedulers, and Microsoft recommends avoiding it.", fr: "0 autorise jusqu'à 64 planificateurs, et Microsoft recommande de l'éviter." }
+    p8: { en: "8 is the default for new databases and exceeds the limit for the primary replica.", fr: "8 est la valeur par défaut des nouvelles bases et dépasse la limite fixée pour le réplica principal." }
+    forprim: { en: "PRIMARY makes the replica follow the primary value, 4.", fr: "PRIMARY fait suivre au réplica la valeur du principal, soit 4." }
+    setall: { en: "Without FOR SECONDARY, the statement changes the primary value back to 8.", fr: "Sans FOR SECONDARY, l'instruction remet la valeur du principal à 8." }
+    spconf: { en: "Azure SQL Database is configured with the database scoped configuration, not the server-level sp_configure option.", fr: "Azure SQL Database se configure avec la configuration délimitée à la base de données, pas avec l'option sp_configure au niveau serveur." }
+    dop0: { en: "MAXDOP 0 removes the limit instead of forcing a serial plan.", fr: "MAXDOP 0 supprime la limite au lieu de forcer un plan en série." }
+    recompile: { en: "RECOMPILE builds a new plan at each execution; it doesn't limit parallelism.", fr: "RECOMPILE crée un nouveau plan à chaque exécution ; il ne limite pas le parallélisme." }
+references:
+  - title: Configure the max degree of parallelism (MAXDOP) in Azure SQL Database and SQL database in Fabric
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/configure-max-degree-of-parallelism
+  - title: ALTER DATABASE SCOPED CONFIGURATION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-database-scoped-configuration-transact-sql

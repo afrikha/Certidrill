@@ -1,0 +1,56 @@
+id: dp420-2d-log-pk-stats-missing
+objective: "2.3.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin stores the data of all its tenants in a container named **bookings**, partitioned by `/tenantId`. For the past week, a diagnostic setting has sent the **PartitionKeyStatistics** category to a Log Analytics workspace in resource-specific mode.
+
+    You run the following query:
+
+    ```kusto
+    CDBPartitionKeyStatistics
+    | where CollectionName == "bookings"
+    | summarize SizeKb = max(SizeKb) by PartitionKey
+    ```
+
+    The results list about 40 tenants, each with several gigabytes. Tenant `t-0042` stores about 300 MB of bookings, but no row is returned for it.
+
+    What explains the missing row?
+  fr: |
+    Tailspin stocke les données de tous ses locataires dans un conteneur nommé **bookings**, partitionné par `/tenantId`. Depuis une semaine, un paramètre de diagnostic envoie la catégorie **PartitionKeyStatistics** vers un espace de travail Log Analytics en mode spécifique à la ressource.
+
+    Vous exécutez la requête suivante :
+
+    ```kusto
+    CDBPartitionKeyStatistics
+    | where CollectionName == "bookings"
+    | summarize SizeKb = max(SizeKb) by PartitionKey
+    ```
+
+    Les résultats listent environ 40 locataires de plusieurs gigaoctets chacun. Le locataire `t-0042` stocke environ 300 Mo de réservations, mais aucune ligne n'est renvoyée pour lui.
+
+    Qu'est-ce qui explique la ligne manquante ?
+body:
+  options:
+    - { id: a, text: { en: "The category reports only the logical partition keys that received rate-limited requests.", fr: "La catégorie ne signale que les clés de partition logique qui ont reçu des requêtes limitées." } }
+    - { id: b, text: { en: "The category samples the largest logical partition keys, and keys under about 1 GB might not appear.", fr: "La catégorie échantillonne les plus grandes clés de partition logique, et les clés de moins d'environ 1 Go peuvent ne pas apparaître." } }
+    - { id: c, text: { en: "The category reports partition key values only after the Diagnostics full-text query feature is enabled.", fr: "La catégorie ne signale les valeurs de clé de partition qu'après l'activation de la fonctionnalité Diagnostics full-text query." } }
+    - { id: d, text: { en: "The query must also filter on PartitionKeyRangeId to return the keys of every physical partition.", fr: "La requête doit aussi filtrer sur PartitionKeyRangeId pour renvoyer les clés de chaque partition physique." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      PartitionKeyStatistics reports the outlier logical partition keys that consume more storage than others. Its values come from subsampling, so they are approximate, and keys smaller than about 1 GB might not appear. The category is meant to find keys that approach the 20 GB logical partition limit, not to list every tenant.
+    fr: |
+      PartitionKeyStatistics signale les clés de partition logique atypiques qui consomment plus de stockage que les autres. Ses valeurs proviennent d'un sous-échantillonnage et sont donc approximatives, et les clés de moins d'environ 1 Go peuvent ne pas apparaître. La catégorie sert à trouver les clés qui approchent la limite de 20 Go d'une partition logique, pas à lister chaque locataire.
+  options:
+    a: { en: "Rate-limited requests are in CDBDataPlaneRequests; PartitionKeyStatistics is about storage.", fr: "Les requêtes limitées figurent dans CDBDataPlaneRequests ; PartitionKeyStatistics porte sur le stockage." }
+    c: { en: "Full-text query affects the query text in QueryRuntimeStatistics, not storage statistics.", fr: "Full-text query concerne le texte des requêtes dans QueryRuntimeStatistics, pas les statistiques de stockage." }
+    d: { en: "CDBPartitionKeyStatistics has no PartitionKeyRangeId column, and the query isn't restricted to one physical partition.", fr: "CDBPartitionKeyStatistics n'a pas de colonne PartitionKeyRangeId, et la requête n'est pas limitée à une partition physique." }
+references:
+  - title: Monitoring Data Reference - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-reference
+  - title: Azure Monitor Logs reference - CDBPartitionKeyStatistics
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cdbpartitionkeystatistics

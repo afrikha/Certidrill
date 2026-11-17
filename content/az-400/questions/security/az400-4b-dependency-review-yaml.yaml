@@ -1,0 +1,90 @@
+id: az400-4b-dependency-review-yaml
+objective: "4.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware, Inc. has a GitHub repository that has GitHub Code Security. Company policy states that new dependencies must meet the following requirements:
+
+    - A change that introduces a vulnerability of severity **high** or **critical** must fail before it's merged.
+    - Only packages licensed under MIT, Apache-2.0 or BSD-3-Clause can be added.
+
+    You need to complete the workflow that enforces the policy.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware, Inc. dispose d'un dépôt GitHub qui bénéficie de GitHub Code Security. La stratégie de l'entreprise impose les exigences suivantes aux nouvelles dépendances :
+
+    - Une modification qui introduit une vulnérabilité de gravité **high** ou **critical** doit échouer avant d'être fusionnée.
+    - Seuls les packages sous licence MIT, Apache-2.0 ou BSD-3-Clause peuvent être ajoutés.
+
+    Vous devez compléter le workflow qui applique la stratégie.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: Dependency review
+    on: [[trigger]]
+
+    permissions:
+      contents: read
+
+    jobs:
+      review:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v6
+          - uses: [[action]]
+            with:
+              fail-on-severity: [[severity]]
+              [[license]]: MIT, Apache-2.0, BSD-3-Clause
+  slots:
+    - id: trigger
+      options:
+        - { id: push, text: "[push]" }
+        - { id: pr, text: "[pull_request]" }
+        - { id: dispatch, text: "[workflow_dispatch]" }
+    - id: action
+      options:
+        - { id: analyze, text: github/codeql-action/analyze@v4 }
+        - { id: upload, text: github/codeql-action/upload-sarif@v4 }
+        - { id: review, text: actions/dependency-review-action@v4 }
+    - id: severity
+      options:
+        - { id: low, text: low }
+        - { id: moderate, text: moderate }
+        - { id: high, text: high }
+        - { id: critical, text: critical }
+    - id: license
+      options:
+        - { id: allow, text: allow-licenses }
+        - { id: deny, text: deny-licenses }
+        - { id: scopes, text: fail-on-scopes }
+answer:
+  values: { trigger: pr, action: review, severity: high, license: allow }
+explanation:
+  correct:
+    en: |
+      The dependency review action compares the dependencies of the pull request with those of its base branch, so it runs on `pull_request` and, made a required status check, stops the merge. `fail-on-severity` fails the check for vulnerabilities at the given severity or higher, so `high` covers high and critical. `allow-licenses` accepts only the listed SPDX licenses, which matches an allow list; the action accepts either allow-licenses or deny-licenses, not both.
+    fr: |
+      L'action de révision des dépendances compare les dépendances de la pull request à celles de sa branche de base : elle s'exécute sur `pull_request` et, définie comme vérification d'état obligatoire, empêche la fusion. `fail-on-severity` fait échouer la vérification pour les vulnérabilités de la gravité indiquée ou supérieure : `high` couvre donc high et critical. `allow-licenses` n'accepte que les licences SPDX listées, ce qui correspond à une liste d'autorisation ; l'action accepte allow-licenses ou deny-licenses, pas les deux.
+  options:
+    push: { en: "A push has no base to compare with and runs after the change is in the branch, not before the merge.", fr: "Un push n'a pas de base à comparer et s'exécute une fois la modification dans la branche, pas avant la fusion." }
+    dispatch: { en: "A manual trigger doesn't run automatically on each change.", fr: "Un déclencheur manuel ne s'exécute pas automatiquement à chaque modification." }
+    analyze: { en: "The CodeQL analyze action scans your own code, not the vulnerabilities and licenses of dependencies.", fr: "L'action analyze de CodeQL analyse votre propre code, pas les vulnérabilités ni les licences des dépendances." }
+    upload: { en: "upload-sarif uploads results produced by another tool; it doesn't review dependencies.", fr: "upload-sarif charge les résultats produits par un autre outil ; elle ne révise pas les dépendances." }
+    critical: { en: "critical would let high-severity vulnerabilities through.", fr: "critical laisserait passer les vulnérabilités de gravité high." }
+    moderate: { en: "moderate would also fail changes with moderate vulnerabilities, which the policy doesn't require.", fr: "moderate ferait aussi échouer les modifications comportant des vulnérabilités moderate, ce que la stratégie n'exige pas." }
+    low: { en: "low would fail changes for every severity.", fr: "low ferait échouer les modifications pour toutes les gravités." }
+    deny: { en: "deny-licenses blocks the listed licenses, the opposite of the policy.", fr: "deny-licenses bloque les licences listées, à l'inverse de la stratégie." }
+    scopes: { en: "fail-on-scopes takes dependency scopes such as runtime or development, not licenses.", fr: "fail-on-scopes prend des étendues de dépendances comme runtime ou development, pas des licences." }
+references:
+  - title: Dependency review
+    url: https://learn.microsoft.com/en-us/training/modules/configure-dependabot-security-updates-on-github-repo/6-dependency-review

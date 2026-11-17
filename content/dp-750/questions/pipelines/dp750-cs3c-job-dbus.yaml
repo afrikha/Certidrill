@@ -1,0 +1,66 @@
+id: dp750-cs3c-job-dbus
+objective: "4.4.1"
+type: dropdown
+caseStudy: dp750-cs3c-southridge-video
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to write the query for royalties job requirement 6.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire la requête de l'exigence 6 du job de redevances.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT
+      [[key]] AS job_id,
+      SUM([[qty]]) AS dbus
+    FROM system.billing.usage
+    WHERE workspace_id = '4455667788990011'
+      AND usage_date >= current_date() - INTERVAL 30 DAYS
+      AND [[filt]]
+    GROUP BY ALL
+    ORDER BY dbus DESC;
+  slots:
+    - id: key
+      options:
+        - { id: jobid, text: usage_metadata.job_id }
+        - { id: clusterid, text: usage_metadata.cluster_id }
+        - { id: runas, text: identity_metadata.run_as }
+    - id: qty
+      options:
+        - { id: quantity, text: usage_quantity }
+        - { id: unit, text: usage_unit }
+        - { id: sku, text: sku_name }
+    - id: filt
+      options:
+        - { id: jobnotnull, text: usage_metadata.job_id IS NOT NULL }
+        - { id: clusternotnull, text: usage_metadata.cluster_id IS NOT NULL }
+        - { id: allpurpose, text: "sku_name LIKE '%ALL_PURPOSE%'" }
+answer:
+  values: { key: jobid, qty: quantity, filt: jobnotnull }
+explanation:
+  correct:
+    en: |
+      In system.billing.usage, usage_metadata.job_id identifies the job for serverless jobs and for jobs on job compute, which are the only compute types used by the jobs of adb-sv-prod. usage_quantity is the number of units consumed by the record, so its sum per job gives the DBUs. Filtering on a non-null job_id keeps only the usage records of jobs.
+    fr: |
+      Dans system.billing.usage, usage_metadata.job_id identifie le job pour les jobs serverless et pour les jobs sur calcul de jobs, les seuls types de calcul utilisés par les jobs d'adb-sv-prod. usage_quantity est le nombre d'unités consommées par l'enregistrement : sa somme par job donne les DBU. Filtrer sur un job_id non NULL ne conserve que les enregistrements d'utilisation des jobs.
+  options:
+    clusterid: { en: "cluster_id identifies classic compute, not a job: each run on job compute gets a new cluster, and cluster_id is not populated for serverless usage.", fr: "cluster_id identifie un calcul classique, pas un job : chaque exécution sur un calcul de jobs obtient un nouveau cluster, et cluster_id n'est pas renseigné pour l'utilisation serverless." }
+    runas: { en: "run_as is the identity that ran the workload; sp-sv-jobs can run several jobs.", fr: "run_as est l'identité qui a exécuté la charge de travail ; sp-sv-jobs peut exécuter plusieurs jobs." }
+    unit: { en: "usage_unit is the name of the unit (for example DBU), not a quantity that can be summed.", fr: "usage_unit est le nom de l'unité (par exemple DBU), pas une quantité qu'on peut additionner." }
+    sku: { en: "sku_name is the name of the SKU, not a quantity.", fr: "sku_name est le nom de la référence (SKU), pas une quantité." }
+    clusternotnull: { en: "This filter also keeps notebooks and pipelines on classic compute, and it removes serverless jobs.", fr: "Ce filtre conserve aussi les notebooks et les pipelines sur calcul classique, et il élimine les jobs serverless." }
+    allpurpose: { en: "The jobs of adb-sv-prod do not run on all-purpose compute, and job_id is not populated for all-purpose compute.", fr: "Les jobs d'adb-sv-prod ne s'exécutent pas sur un calcul polyvalent, et job_id n'est pas renseigné pour le calcul polyvalent." }
+references:
+  - title: Billable usage system table reference
+    url: https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/billing

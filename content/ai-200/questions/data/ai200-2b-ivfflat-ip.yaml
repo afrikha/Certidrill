@@ -1,0 +1,72 @@
+id: ai200-2b-ivfflat-ip
+objective: "2.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso stores one million product review embeddings in a table named **reviews** on Azure Database for PostgreSQL. The embeddings are normalized to length 1, and the search query orders rows by `embedding <#> %s::vector`.
+
+    The index must use little memory and build quickly, and 90 to 95 percent recall is acceptable. You must follow the Learn starting recommendation for the index size parameter.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso stocke un million d'incorporations d'avis sur des produits dans une table nommée **reviews** sur Azure Database for PostgreSQL. Les incorporations sont normalisées à une longueur de 1, et la requête de recherche trie les lignes par `embedding <#> %s::vector`.
+
+    L'index doit utiliser peu de mémoire et se construire rapidement, et un rappel de 90 à 95 % est acceptable. Vous devez suivre la recommandation de départ de Learn pour le paramètre de taille de l'index.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE INDEX idx_reviews_embedding
+    ON reviews USING [[method]] (embedding [[ops]])
+    WITH ([[param]]);
+  slots:
+    - id: method
+      options:
+        - { id: ivfflat, text: ivfflat }
+        - { id: hnsw, text: hnsw }
+        - { id: gin, text: gin }
+        - { id: btree, text: btree }
+    - id: ops
+      options:
+        - { id: ip, text: vector_ip_ops }
+        - { id: cosine, text: vector_cosine_ops }
+        - { id: l2, text: vector_l2_ops }
+    - id: param
+      options:
+        - { id: lists1000, text: lists = 1000 }
+        - { id: lists1m, text: lists = 1000000 }
+        - { id: probes, text: probes = 1000 }
+        - { id: m, text: m = 1000 }
+answer:
+  values: { method: ivfflat, ops: ip, param: lists1000 }
+explanation:
+  correct:
+    en: "IVFFlat builds faster and uses less memory than HNSW, at the cost of a lower speed-recall trade-off, which fits a 90 to 95 percent recall target. The operator class must match the query operator, so `<#>` needs `vector_ip_ops`. Learn suggests starting with `lists` = rows / 1000 for tables up to one million rows, which gives 1,000."
+    fr: "IVFFlat se construit plus vite et utilise moins de mémoire que HNSW, au prix d'un moins bon compromis vitesse-rappel, ce qui convient à un objectif de rappel de 90 à 95 %. La classe d'opérateurs doit correspondre à l'opérateur de la requête : `<#>` nécessite `vector_ip_ops`. Learn suggère de commencer avec `lists` = lignes / 1000 pour les tables jusqu'à un million de lignes, soit 1 000."
+  options:
+    hnsw:
+      en: "HNSW gives better recall but takes more memory and more time to build."
+      fr: "HNSW offre un meilleur rappel, mais prend plus de mémoire et plus de temps de construction."
+    cosine:
+      en: "An index built with vector_cosine_ops serves `<=>`, not `<#>`; the query would fall back to a sequential scan."
+      fr: "Un index construit avec vector_cosine_ops sert `<=>`, pas `<#>` ; la requête reviendrait à une analyse séquentielle."
+    lists1m:
+      en: "One list per row defeats the clustering and is far above the recommended starting value."
+      fr: "Une liste par ligne annule l'intérêt du partitionnement en clusters et dépasse de loin la valeur de départ recommandée."
+    probes:
+      en: "probes is a query-time setting (`ivfflat.probes`), not an index option."
+      fr: "probes est un paramètre de requête (`ivfflat.probes`), pas une option d'index."
+    m:
+      en: "m is an HNSW option; it does not apply to IVFFlat."
+      fr: "m est une option HNSW ; elle ne s'applique pas à IVFFlat."
+references:
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

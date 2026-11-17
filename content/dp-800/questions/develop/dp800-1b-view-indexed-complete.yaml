@@ -1,0 +1,75 @@
+id: dp800-1b-view-indexed-complete
+objective: "1.2.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Contoso. The Sales.Orders and Sales.OrderLine tables are owned by dbo. The Quantity and UnitPrice columns of Sales.OrderLine are defined as NOT NULL.
+
+    Dozens of dashboard queries compute the daily revenue by joining the two tables and aggregating millions of rows. You need to store the aggregated result in the database so that the engine maintains it automatically when orders change.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Contoso. Les tables Sales.Orders et Sales.OrderLine appartiennent à dbo. Les colonnes Quantity et UnitPrice de Sales.OrderLine sont définies avec NOT NULL.
+
+    Des dizaines de requêtes de tableau de bord calculent le chiffre d'affaires quotidien en joignant les deux tables et en agrégeant des millions de lignes. Vous devez stocker le résultat agrégé dans la base de données pour que le moteur le maintienne automatiquement quand les commandes changent.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE VIEW Sales.vDailyRevenue
+    WITH [[bind]]
+    AS
+    SELECT o.OrderDate,
+           SUM(ol.Quantity * ol.UnitPrice) AS Revenue,
+           [[cnt]] AS LineCount
+    FROM Sales.Orders AS o
+    JOIN Sales.OrderLine AS ol ON ol.OrderID = o.OrderID
+    GROUP BY o.OrderDate;
+    GO
+
+    CREATE [[idx]] INDEX IX_vDailyRevenue
+        ON Sales.vDailyRevenue (OrderDate);
+  slots:
+    - id: bind
+      options:
+        - { id: schemabinding, text: SCHEMABINDING }
+        - { id: viewmeta, text: VIEW_METADATA }
+        - { id: encryption, text: ENCRYPTION }
+    - id: cnt
+      options:
+        - { id: countbig, text: "COUNT_BIG(*)" }
+        - { id: count, text: "COUNT(*)" }
+        - { id: countcol, text: "COUNT(ol.OrderID)" }
+    - id: idx
+      options:
+        - { id: ucl, text: UNIQUE CLUSTERED }
+        - { id: cl, text: CLUSTERED }
+        - { id: unc, text: UNIQUE NONCLUSTERED }
+        - { id: nc, text: NONCLUSTERED }
+answer:
+  values: { bind: schemabinding, cnt: countbig, idx: ucl }
+explanation:
+  correct:
+    en: |
+      This requirement is an indexed view. The view must be created WITH SCHEMABINDING and use two-part names. A view with GROUP BY must include COUNT_BIG(*), and the first index created on a view must be a unique clustered index, which stores the result set; nonclustered indexes can be added only after it exists.
+    fr: |
+      Cette exigence correspond à une vue indexée. La vue doit être créée avec WITH SCHEMABINDING et utiliser des noms en deux parties. Une vue avec GROUP BY doit inclure COUNT_BIG(*), et le premier index créé sur une vue doit être un index cluster unique, qui stocke le jeu de résultats ; des index non cluster ne peuvent être ajoutés qu'après sa création.
+  options:
+    viewmeta: { en: "VIEW_METADATA changes the metadata returned to client APIs; an indexed view requires schema binding.", fr: "VIEW_METADATA modifie les métadonnées renvoyées aux API clientes ; une vue indexée exige la liaison au schéma." }
+    encryption: { en: "ENCRYPTION obfuscates the definition; an indexed view requires schema binding.", fr: "ENCRYPTION masque la définition ; une vue indexée exige la liaison au schéma." }
+    count: { en: "COUNT is not allowed in an indexed view; COUNT_BIG(*) is required with GROUP BY.", fr: "COUNT n'est pas autorisé dans une vue indexée ; COUNT_BIG(*) est obligatoire avec GROUP BY." }
+    countcol: { en: "COUNT is not allowed in an indexed view; the view needs COUNT_BIG(*).", fr: "COUNT n'est pas autorisé dans une vue indexée ; la vue a besoin de COUNT_BIG(*)." }
+    cl: { en: "The first index on a view must be unique as well as clustered.", fr: "Le premier index d'une vue doit être unique en plus d'être cluster." }
+    unc: { en: "A nonclustered index can be created on a view only after its unique clustered index.", fr: "Un index non cluster ne peut être créé sur une vue qu'après son index cluster unique." }
+    nc: { en: "A nonclustered index can be created on a view only after its unique clustered index.", fr: "Un index non cluster ne peut être créé sur une vue qu'après son index cluster unique." }
+references:
+  - title: Create indexed views
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/views/create-indexed-views

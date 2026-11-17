@@ -1,0 +1,49 @@
+id: ai200-2b-concurrent-build
+objective: "2.2.3"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso's support platform writes new rows to a production table named **ticket_chunks** on Azure Database for PostgreSQL around the clock. The table has no vector index yet.
+
+    You need to build an HNSW index on the embedding column without blocking the writes, follow the build while it runs, and then confirm that the search query uses the index.
+
+    Which four actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    La plateforme de support de Contoso écrit en permanence de nouvelles lignes dans une table de production nommée **ticket_chunks** sur Azure Database for PostgreSQL. La table n'a pas encore d'index vectoriel.
+
+    Vous devez construire un index HNSW sur la colonne embedding sans bloquer les écritures, suivre la construction pendant son exécution, puis confirmer que la requête de recherche utilise l'index.
+
+    Quelles sont les quatre actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - { id: mem, text: { en: "Raise `maintenance_work_mem` in the session that will build the index.", fr: "Augmenter `maintenance_work_mem` dans la session qui construira l'index." } }
+    - { id: build, text: { en: "Run `CREATE INDEX CONCURRENTLY ... USING hnsw (embedding vector_cosine_ops)`.", fr: "Exécuter `CREATE INDEX CONCURRENTLY ... USING hnsw (embedding vector_cosine_ops)`." } }
+    - { id: progress, text: { en: "Query `pg_stat_progress_create_index` from another session.", fr: "Interroger `pg_stat_progress_create_index` depuis une autre session." } }
+    - { id: explain, text: { en: "Run `EXPLAIN ANALYZE` on the search query and look for an index scan.", fr: "Exécuter `EXPLAIN ANALYZE` sur la requête de recherche et rechercher une analyse d'index." } }
+    - { id: plain, text: { en: "Run `CREATE INDEX ... USING hnsw (embedding vector_cosine_ops)`.", fr: "Exécuter `CREATE INDEX ... USING hnsw (embedding vector_cosine_ops)`." } }
+    - { id: lock, text: { en: "Run `LOCK TABLE ticket_chunks IN EXCLUSIVE MODE`.", fr: "Exécuter `LOCK TABLE ticket_chunks IN EXCLUSIVE MODE`." } }
+    - { id: reindex, text: { en: "Run `REINDEX INDEX CONCURRENTLY` on the new index before using it.", fr: "Exécuter `REINDEX INDEX CONCURRENTLY` sur le nouvel index avant de l'utiliser." } }
+answer:
+  sequence: [ mem, build, progress, explain ]
+explanation:
+  correct:
+    en: "Build memory is set in the session before the statement starts. `CREATE INDEX CONCURRENTLY` builds the index without blocking writes, at the cost of a longer build. While it runs, `pg_stat_progress_create_index` shows its phase and progress. After the build, `EXPLAIN ANALYZE` must show an index scan that uses the new index."
+    fr: "La mémoire de construction se définit dans la session avant le démarrage de l'instruction. `CREATE INDEX CONCURRENTLY` construit l'index sans bloquer les écritures, au prix d'une construction plus longue. Pendant son exécution, `pg_stat_progress_create_index` indique sa phase et sa progression. Après la construction, `EXPLAIN ANALYZE` doit montrer une analyse d'index qui utilise le nouvel index."
+  options:
+    plain:
+      en: "A plain CREATE INDEX blocks writes to the table for the whole build."
+      fr: "Un CREATE INDEX simple bloque les écritures dans la table pendant toute la construction."
+    lock:
+      en: "An exclusive lock blocks the writes that must continue."
+      fr: "Un verrou exclusif bloque les écritures qui doivent continuer."
+    reindex:
+      en: "A freshly built HNSW index does not need to be rebuilt; REINDEX is for an index whose quality has degraded."
+      fr: "Un index HNSW qui vient d'être construit n'a pas besoin d'être reconstruit ; REINDEX sert pour un index dont la qualité s'est dégradée."
+references:
+  - title: Choose and configure vector indexes
+    url: https://learn.microsoft.com/en-us/training/modules/optimize-vector-search-azure-database-postgresql/3-choose-configure-vector-indexes
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

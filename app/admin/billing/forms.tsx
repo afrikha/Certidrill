@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
-import { grantPassAction, revokeEntitlementAction, type BillingState } from "@/lib/actions/billing";
+import { grantPassAction, revokeEntitlementAction, setCertificationPriceAction, type BillingState } from "@/lib/actions/billing";
 import { GRANT_REASONS, REVOKE_REASONS } from "@/lib/access/reasons";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -75,6 +75,25 @@ export function RevokeForm({ entitlementId }: Readonly<{ entitlementId: string }
       </Select>
       <Button type="submit" variant="secondary" disabled={pending}>{t("revoke")}</Button>
       {state?.error && <Alert tone="error">{t(`error_${state.error}`)}</Alert>}
+    </form>
+  );
+}
+
+/** The Pass price of one certification: a new amount, or empty for the plan's price. */
+export function PriceForm({ planCode, code, current }: Readonly<{ planCode: string; code: string; current: string }>) {
+  const t = useTranslations("billingAdmin");
+  const [state, action, pending] = useActionState(setCertificationPriceAction, undefined);
+  const id = `price-${code}`;
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2" data-testid={`price-form-${code}`}>
+      <input type="hidden" name="plan" value={planCode} />
+      <input type="hidden" name="certification" value={code} />
+      <label htmlFor={id} className="sr-only">{t("priceAmount", { code: code.toUpperCase() })}</label>
+      <Input id={id} name="amount" inputMode="decimal" defaultValue={current} placeholder="—" className="w-24" />
+      <Button type="submit" variant="secondary" disabled={pending}>{t("priceSave")}</Button>
+      {state?.ok && <output className="text-sm text-success">{t("priceSaved")}</output>}
+      {state?.unchanged && <output className="text-sm text-muted-foreground">{t("priceUnchanged")}</output>}
+      {state?.error && <span role="alert" className="text-sm text-danger">{t(`error_${state.error}`)}</span>}
     </form>
   );
 }

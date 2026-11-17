@@ -1,0 +1,82 @@
+id: ai200-4b-handled-exception
+objective: "4.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso's indexing worker calls an embedding endpoint in batches and is instrumented with the Azure Monitor OpenTelemetry Distro. When the endpoint throttles a batch, the client raises `RateLimitError`; the worker catches it and queues the batch for a retry, so the exception never leaves the span.
+
+    You need each throttled batch to produce exception telemetry with the exception type and stack trace, and the embed-batch span must be reported as failed.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le worker d'indexation de Contoso appelle un point de terminaison d'embeddings par lots et est instrumenté avec la distribution OpenTelemetry Azure Monitor. Quand le point de terminaison limite un lot, le client lève `RateLimitError` ; le worker l'intercepte et met le lot en file d'attente pour une nouvelle tentative : l'exception ne sort jamais de l'étendue.
+
+    Chaque lot limité doit produire une télémétrie d'exception avec le type d'exception et la trace de pile, et l'étendue embed-batch doit être signalée en échec.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode
+
+    tracer = trace.get_tracer(__name__)
+
+    def embed_batch(docs):
+        with tracer.start_as_current_span("embed-batch") as span:
+            try:
+                return client.embed(docs)
+            except RateLimitError as ex:
+                span.[[rec]](ex)
+                span.set_status(Status([[code]]))
+                return queue_for_retry(docs)
+  slots:
+    - id: rec
+      options:
+        - { id: record, text: record_exception }
+        - { id: event, text: add_event }
+        - { id: attr, text: set_attribute }
+    - id: code
+      options:
+        - { id: error, text: StatusCode.ERROR }
+        - { id: ok, text: StatusCode.OK }
+        - { id: unset, text: StatusCode.UNSET }
+answer:
+  values: { rec: record, code: error }
+explanation:
+  correct:
+    en: |-
+      An exception is recorded automatically only when it leaves the `with` block. Because the code handles it, you call `span.record_exception(ex)`, which records the type, message and stack trace exported as exception telemetry. `Status(StatusCode.ERROR)` marks the span as failed.
+    fr: |-
+      Une exception n'est enregistrée automatiquement que lorsqu'elle sort du bloc `with`. Comme le code la gère, vous appelez `span.record_exception(ex)`, qui enregistre le type, le message et la trace de pile exportés comme télémétrie d'exception. `Status(StatusCode.ERROR)` marque l'étendue en échec.
+  options:
+    event:
+      en: |-
+        add_event expects an event name and attributes; it doesn't capture the exception details.
+      fr: |-
+        add_event attend un nom d'événement et des attributs ; il ne capture pas les détails de l'exception.
+    attr:
+      en: |-
+        set_attribute expects a key and a value and only adds a custom property.
+      fr: |-
+        set_attribute attend une clé et une valeur, et ajoute seulement une propriété personnalisée.
+    ok:
+      en: |-
+        OK marks the operation as successful.
+      fr: |-
+        OK marque l'opération comme réussie.
+    unset:
+      en: |-
+        UNSET is the default status; it doesn't report a failure.
+      fr: |-
+        UNSET est l'état par défaut ; il ne signale aucun échec.
+references:
+  - title: Add and Modify OpenTelemetry in Application Insights
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-add-modify

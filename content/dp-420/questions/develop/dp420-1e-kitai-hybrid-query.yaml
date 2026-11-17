@@ -1,0 +1,66 @@
+id: dp420-1e-kitai-hybrid-query
+objective: "1.5.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin sells outdoor equipment and stores its catalog in an Azure Cosmos DB for NoSQL container. Each item has an `embedding` property with a vector policy and a vector index, and a `description` property with a full-text policy and a full-text index.
+
+    You ask your AI coding assistant, which has the Azure Cosmos DB Agent Kit installed, to write the search query of a shopping agent. The query must return the 10 most relevant products by merging the semantic ranking and the BM25 keyword ranking into one list, and the semantic ranking must count twice as much as the keyword ranking.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin vend du matériel de plein air et stocke son catalogue dans un conteneur Azure Cosmos DB for NoSQL. Chaque élément possède une propriété `embedding` dotée d'une stratégie vectorielle et d'un index vectoriel, et une propriété `description` dotée d'une stratégie de texte intégral et d'un index de texte intégral.
+
+    Vous demandez à votre assistant de codage IA, sur lequel Azure Cosmos DB Agent Kit est installé, d'écrire la requête de recherche d'un agent d'achat. La requête doit renvoyer les 10 produits les plus pertinents en fusionnant le classement sémantique et le classement par mots clés BM25 en une seule liste, et le classement sémantique doit compter deux fois plus que le classement par mots clés.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 10 c.id, c.name, c.price
+    FROM c
+    ORDER BY [[rank]] [[fuse]](
+        VectorDistance(c.embedding, @queryVector),
+        FullTextScore(c.description, "waterproof", "hiking", "boots"),
+        [[weights]])
+  slots:
+    - id: rank
+      options:
+        - { id: desc, text: DESC }
+        - { id: rank, text: RANK }
+        - { id: distinct, text: DISTINCT }
+    - id: fuse
+      options:
+        - { id: rrf, text: RRF }
+        - { id: all, text: FullTextContainsAll }
+        - { id: vd, text: VectorDistance }
+    - id: weights
+      options:
+        - { id: w12, text: "[1, 2]" }
+        - { id: whalf, text: "[0.5, 1]" }
+        - { id: w21, text: "[2, 1]" }
+answer:
+  values: { rank: rank, fuse: rrf, weights: w21 }
+explanation:
+  correct:
+    en: |
+      A hybrid search query uses the RRF (Reciprocal Rank Fusion) system function in an ORDER BY RANK clause, with a VectorDistance score and a FullTextScore score. The optional last argument of RRF is an array of weights in the same order as the component scores, so [2, 1] makes the vector ranking twice as important as the BM25 ranking.
+    fr: |
+      Une requête de recherche hybride utilise la fonction système RRF (Reciprocal Rank Fusion) dans une clause ORDER BY RANK, avec un score VectorDistance et un score FullTextScore. Le dernier argument facultatif de RRF est un tableau de poids dans le même ordre que les scores des composants : [2, 1] rend donc le classement vectoriel deux fois plus important que le classement BM25.
+  options:
+    desc: { en: "Scores such as FullTextScore and RRF are used with ORDER BY RANK, not with a sort direction.", fr: "Les scores comme FullTextScore et RRF s'utilisent avec ORDER BY RANK, pas avec un sens de tri." }
+    distinct: { en: "DISTINCT removes duplicates in a projection; it is not valid after ORDER BY.", fr: "DISTINCT supprime les doublons d'une projection ; il n'est pas valide après ORDER BY." }
+    all: { en: "FullTextContainsAll is a Boolean filter for a WHERE clause; it does not merge rankings.", fr: "FullTextContainsAll est un filtre booléen pour une clause WHERE ; il ne fusionne pas des classements." }
+    vd: { en: "VectorDistance computes one similarity score; it cannot combine two scores.", fr: "VectorDistance calcule un seul score de similarité ; il ne peut pas combiner deux scores." }
+    w12: { en: "[1, 2] gives twice the weight to the second score, the BM25 ranking.", fr: "[1, 2] donne deux fois plus de poids au second score, le classement BM25." }
+    whalf: { en: "[0.5, 1] gives the vector ranking half the weight of the BM25 ranking.", fr: "[0.5, 1] donne au classement vectoriel la moitié du poids du classement BM25." }
+references:
+  - title: Use Hybrid Search - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/hybrid-search

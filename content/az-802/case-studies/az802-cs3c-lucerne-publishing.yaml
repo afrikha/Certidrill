@@ -1,0 +1,109 @@
+id: az802-cs3c-lucerne-publishing
+status: draft
+title:
+  en: Lucerne Publishing
+  fr: Lucerne Publishing
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lucerne Publishing publishes books and magazines. The head office and the design studio are in Boston. A disaster recovery site is in Chicago. Forty freelance editors work from home on Windows 11 laptops.
+
+        Layout designers work on GPU-accelerated virtual machines hosted on Hyper-V.
+      fr: |
+        Lucerne Publishing publie des livres et des magazines. Le siège et le studio de création se trouvent à Boston. Un site de reprise d'activité se trouve à Chicago. Quarante éditeurs indépendants travaillent à domicile sur des ordinateurs portables Windows 11.
+
+        Les maquettistes travaillent sur des machines virtuelles accélérées par GPU hébergées sur Hyper-V.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Hyper-V hosts.** All the hosts are in Boston.
+
+        | Host | Operating system | Processor | GPUs | Configuration |
+        | --- | --- | --- | --- | --- |
+        | HV1, HV2 | Windows Server 2025 Datacenter | AMD EPYC 7003 series | Two NVIDIA L4 per host | Nodes of the failover cluster HVC1 |
+        | HV3 | Windows Server 2025 Standard | AMD EPYC 7002 series | One NVIDIA A16 | Standalone host |
+
+        GPU partitioning is configured on all the GPUs with the same partition count. HV1 and HV2 each have enough free GPU partitions to run all eight VM-Design VMs. HV1, HV2 and HV3 are connected to Azure Arc.
+
+        **Virtual machines.**
+
+        | VM | Host | Guest operating system | Role |
+        | --- | --- | --- | --- |
+        | VM-Design1 to VM-Design8 | HVC1 | Windows 11 Enterprise | Layout workstations, one GPU partition each |
+        | VM-Render | HV3 | Windows Server 2025 | Image rendering, one GPU partition |
+        | VM-SQL1 | HVC1 | Windows Server 2025 | SQL Server database of the editorial system |
+        | VM-Lab | HVC1 | Windows Server 2025 | Testing of application updates |
+        | VM-LIC | HVC1 | Windows Server 2022 | License server of the design software |
+        | VM-Wiki | HVC1 | Ubuntu 22.04 LTS | Intranet wiki |
+
+        **File servers.** All the file servers run Windows Server 2025 Standard.
+
+        | Server | Location | Configuration |
+        | --- | --- | --- |
+        | FS-PROD | Boston | Volume E: (1.5 TB) stores the manuscripts |
+        | FS-DR | Chicago | Empty data disks |
+        | FS-EDGE | Boston, perimeter network | Hosts the share **Proofs**; published on the internet as files.lucernepublishing.com (203.0.113.10) |
+
+        The perimeter firewall blocks all inbound traffic from the internet. The link between Boston and Chicago has an average round-trip latency of 25 ms.
+
+        **Azure.** Lucerne has an Azure subscription that contains a Log Analytics workspace named **law-lucerne**.
+      fr: |
+        **Hôtes Hyper-V.** Tous les hôtes se trouvent à Boston.
+
+        | Hôte | Système d'exploitation | Processeur | GPU | Configuration |
+        | --- | --- | --- | --- | --- |
+        | HV1, HV2 | Windows Server 2025 Datacenter | AMD EPYC série 7003 | Deux NVIDIA L4 par hôte | Nœuds du cluster de basculement HVC1 |
+        | HV3 | Windows Server 2025 Standard | AMD EPYC série 7002 | Un NVIDIA A16 | Hôte autonome |
+
+        Le partitionnement GPU est configuré sur tous les GPU avec le même nombre de partitions. HV1 et HV2 disposent chacun d'assez de partitions GPU libres pour exécuter les huit machines virtuelles VM-Design. HV1, HV2 et HV3 sont connectés à Azure Arc.
+
+        **Machines virtuelles.**
+
+        | Machine virtuelle | Hôte | Système d'exploitation invité | Rôle |
+        | --- | --- | --- | --- |
+        | VM-Design1 à VM-Design8 | HVC1 | Windows 11 Enterprise | Postes de mise en page, une partition GPU chacun |
+        | VM-Render | HV3 | Windows Server 2025 | Rendu d'images, une partition GPU |
+        | VM-SQL1 | HVC1 | Windows Server 2025 | Base de données SQL Server du système éditorial |
+        | VM-Lab | HVC1 | Windows Server 2025 | Test des mises à jour d'applications |
+        | VM-LIC | HVC1 | Windows Server 2022 | Serveur de licences du logiciel de mise en page |
+        | VM-Wiki | HVC1 | Ubuntu 22.04 LTS | Wiki de l'intranet |
+
+        **Serveurs de fichiers.** Tous les serveurs de fichiers exécutent Windows Server 2025 Standard.
+
+        | Serveur | Emplacement | Configuration |
+        | --- | --- | --- |
+        | FS-PROD | Boston | Le volume E: (1,5 To) stocke les manuscrits |
+        | FS-DR | Chicago | Disques de données vides |
+        | FS-EDGE | Boston, réseau de périmètre | Héberge le partage **Proofs** ; publié sur Internet sous le nom files.lucernepublishing.com (203.0.113.10) |
+
+        Le pare-feu de périmètre bloque tout le trafic entrant depuis Internet. La liaison entre Boston et Chicago a une latence aller-retour moyenne de 25 ms.
+
+        **Azure.** Lucerne dispose d'un abonnement Azure qui contient un espace de travail Log Analytics nommé **law-lucerne**.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Lucerne Publishing identifies the following requirements:
+
+        1. **Remote editors.** The editors must access \\\\files.lucernepublishing.com\\Proofs from the internet by using SMB over QUIC, without a VPN.
+        2. **Disaster recovery.** The manuscripts must be replicated from FS-PROD to FS-DR by using Storage Replica, in the mode that Microsoft recommends for the Boston–Chicago link. The Windows Server editions must not change.
+        3. **Checkpoints.**
+           - VM-SQL1: only application-consistent checkpoints are allowed. If one cannot be created, no checkpoint must be created.
+           - VM-Lab: a checkpoint must return the VM to its exact running state, including the applications open in memory.
+           - VM-LIC: the software vendor does not support restoring the VM from a checkpoint. Nobody must be able to create one.
+           - VM-Wiki: application-consistent checkpoints whenever possible, but a checkpoint must always be created when requested.
+        4. **Monitoring.** The Critical and Error events of the System log of HV1, HV2 and HV3 must be collected in law-lucerne by using the Azure Monitor Agent. The administrators want to test the query locally on each host first.
+      fr: |
+        Lucerne Publishing a défini les exigences suivantes :
+
+        1. **Éditeurs à distance.** Les éditeurs doivent accéder à \\\\files.lucernepublishing.com\\Proofs depuis Internet à l'aide de SMB sur QUIC, sans VPN.
+        2. **Reprise d'activité.** Les manuscrits doivent être répliqués de FS-PROD vers FS-DR à l'aide du réplica de stockage, dans le mode recommandé par Microsoft pour la liaison Boston–Chicago. Les éditions de Windows Server ne doivent pas changer.
+        3. **Points de contrôle.**
+           - VM-SQL1 : seuls les points de contrôle cohérents avec les applications sont autorisés. Si un tel point de contrôle ne peut pas être créé, aucun point de contrôle ne doit être créé.
+           - VM-Lab : un point de contrôle doit ramener la machine virtuelle à son état d'exécution exact, y compris les applications ouvertes en mémoire.
+           - VM-LIC : l'éditeur du logiciel ne prend pas en charge la restauration de la machine virtuelle à partir d'un point de contrôle. Personne ne doit pouvoir en créer.
+           - VM-Wiki : des points de contrôle cohérents avec les applications chaque fois que possible, mais un point de contrôle doit toujours être créé quand il est demandé.
+        4. **Supervision.** Les événements Critique et Erreur du journal Système de HV1, HV2 et HV3 doivent être collectés dans law-lucerne à l'aide de l'agent Azure Monitor. Les administrateurs veulent d'abord tester la requête localement sur chaque hôte.

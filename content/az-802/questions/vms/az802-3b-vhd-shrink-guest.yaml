@@ -1,0 +1,54 @@
+id: az802-3b-vhd-shrink-guest
+objective: "3.1.10"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Hyper-V host named **HV2** that runs Windows Server 2025. HV2 hosts a generation 2 virtual machine named **SQL2**.
+
+    SQL2 has a 500 GB dynamically expanding data disk named `SQL2-logs.vhdx` attached to a SCSI controller. Inside SQL2, a single volume named L: uses the whole disk and contains 120 GB of data.
+
+    You need to reduce the size of the disk to 200 GB while SQL2 keeps running. You run `Resize-VHD -Path D:\VMs\SQL2-logs.vhdx -SizeBytes 200GB` on HV2, and the command fails because the requested size is smaller than the minimum size of the disk.
+
+    What should you do first?
+  fr: |
+    Vous disposez d'un hôte Hyper-V nommé **HV2** qui exécute Windows Server 2025. HV2 héberge une machine virtuelle de génération 2 nommée **SQL2**.
+
+    SQL2 possède un disque de données dynamiquement extensible de 500 Go nommé `SQL2-logs.vhdx`, attaché à un contrôleur SCSI. Dans SQL2, un seul volume nommé L: occupe tout le disque et contient 120 Go de données.
+
+    Vous devez réduire la taille du disque à 200 Go sans arrêter SQL2. Vous exécutez `Resize-VHD -Path D:\VMs\SQL2-logs.vhdx -SizeBytes 200GB` sur HV2, et la commande échoue, car la taille demandée est inférieure à la taille minimale du disque.
+
+    Que devez-vous faire en premier ?
+body:
+  options:
+    - { id: a, text: { en: "Run Optimize-VHD on SQL2-logs.vhdx with the Full mode.", fr: "Exécuter Optimize-VHD sur SQL2-logs.vhdx avec le mode Full." } }
+    - { id: b, text: { en: "Shrink the L: volume inside SQL2 to less than 200 GB.", fr: "Réduire le volume L: dans SQL2 à moins de 200 Go." } }
+    - { id: c, text: { en: "Convert SQL2-logs.vhdx to a fixed-size disk by using Convert-VHD.", fr: "Convertir SQL2-logs.vhdx en disque de taille fixe avec Convert-VHD." } }
+    - { id: d, text: { en: "Move SQL2-logs.vhdx from the SCSI controller to an IDE controller.", fr: "Déplacer SQL2-logs.vhdx du contrôleur SCSI vers un contrôleur IDE." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      `Resize-VHD` can shrink a VHDX, online when it is on a SCSI controller, but never below its `MinimumSize`, which the partitions inside the guest determine. Because L: still spans the whole 500 GB, you must first shrink the volume in the guest (Disk Management or `Resize-Partition`), then run `Resize-VHD` again.
+    fr: |
+      `Resize-VHD` peut réduire un VHDX, en ligne lorsqu'il est sur un contrôleur SCSI, mais jamais sous sa valeur `MinimumSize`, que déterminent les partitions de l'invité. Comme L: occupe encore les 500 Go, vous devez d'abord réduire le volume dans l'invité (Gestion des disques ou `Resize-Partition`), puis exécuter de nouveau `Resize-VHD`.
+  options:
+    a:
+      en: |
+        Compacting reduces the size of the file on the host but not the minimum size of the disk, which depends on the volume in the guest. The Full mode also requires the disk to be mounted read-only.
+      fr: |
+        Le compactage réduit la taille du fichier sur l'hôte, mais pas la taille minimale du disque, qui dépend du volume de l'invité. Le mode Full exige aussi que le disque soit monté en lecture seule.
+    c:
+      en: |
+        Converting the disk type doesn't change its minimum size, and `Convert-VHD` requires the disk to be detached, so SQL2 couldn't keep using it.
+      fr: |
+        Changer le type du disque ne modifie pas sa taille minimale, et `Convert-VHD` exige que le disque soit détaché : SQL2 ne pourrait plus l'utiliser.
+    d:
+      en: |
+        A generation 2 VM has no IDE controller, and a disk on an IDE controller can't be resized while the VM runs.
+      fr: |
+        Une machine virtuelle de génération 2 n'a pas de contrôleur IDE, et un disque sur un contrôleur IDE ne peut pas être redimensionné pendant que la machine virtuelle s'exécute.
+references:
+  - title: Resize-VHD (Hyper-V)
+    url: https://learn.microsoft.com/en-us/powershell/module/hyper-v/resize-vhd

@@ -1,0 +1,63 @@
+id: sc200-3a-kql-dd-usb-json
+objective: "3.1.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware, Inc. uses Microsoft Defender for Endpoint. Security policy forbids removable storage on finance devices.
+
+    In DeviceEvents, the events whose ActionType is UsbDriveMount store the drive letter in the DriveLetter property of the AdditionalFields column, which contains JSON text. You need an advanced hunting query that counts the mounts of the last seven days by device and drive letter.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware, Inc. utilise Microsoft Defender for Endpoint. La stratégie de sécurité interdit le stockage amovible sur les appareils du service financier.
+
+    Dans DeviceEvents, les événements dont l'ActionType est UsbDriveMount stockent la lettre de lecteur dans la propriété DriveLetter de la colonne AdditionalFields, qui contient du texte JSON. Vous avez besoin d'une requête de repérage avancé qui compte les montages des sept derniers jours par appareil et par lettre de lecteur.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    DeviceEvents
+    | where Timestamp > ago(7d)
+    | where ActionType == "UsbDriveMount"
+    | extend Details = [[parse]](AdditionalFields)
+    | extend DriveLetter = [[cast]](Details.DriveLetter)
+    | summarize Mounts = count() by DeviceName, DriveLetter
+  slots:
+    - id: parse
+      options:
+        - { id: json, text: parse_json }
+        - { id: tostr, text: tostring }
+        - { id: path, text: parse_path }
+        - { id: split, text: split }
+    - id: cast
+      options:
+        - { id: tostr, text: tostring }
+        - { id: toint, text: toint }
+        - { id: todt, text: todatetime }
+        - { id: json, text: parse_json }
+answer:
+  values: { parse: json, cast: tostr }
+explanation:
+  correct:
+    en: parse_json converts the JSON text of AdditionalFields into a dynamic value whose properties can be read with dot notation. Details.DriveLetter is itself dynamic, and summarize can't group by a dynamic column, so tostring converts the drive letter into a string key.
+    fr: |
+      parse_json convertit le texte JSON d'AdditionalFields en valeur dynamique dont les propriétés se lisent avec la notation pointée. Details.DriveLetter est lui-même dynamique, et summarize ne peut pas regrouper sur une colonne dynamique : tostring convertit la lettre de lecteur en clé de type chaîne.
+  options:
+    tostr: { en: "In the first slot, tostring keeps AdditionalFields as text, so Details.DriveLetter can't be read.", fr: "Dans le premier emplacement, tostring laisse AdditionalFields sous forme de texte : Details.DriveLetter ne peut pas être lu." }
+    path: { en: "parse_path extracts the sections of a file or folder path, not JSON properties.", fr: "parse_path extrait les sections d'un chemin de fichier ou de dossier, pas des propriétés JSON." }
+    toint: { en: "A drive letter such as E is not a number; toint returns null.", fr: "Une lettre de lecteur comme E n'est pas un nombre ; toint renvoie null." }
+    todt: { en: "todatetime converts to a date, which a drive letter is not.", fr: "todatetime convertit en date, ce qu'une lettre de lecteur n'est pas." }
+    json: { en: "In the second slot, parse_json returns a dynamic value again, which summarize can't use as a group key.", fr: "Dans le second emplacement, parse_json renvoie à nouveau une valeur dynamique, que summarize ne peut pas utiliser comme clé de regroupement." }
+references:
+  - title: Advanced hunting query best practices
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-best-practices
+  - title: DeviceEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceevents-table

@@ -1,0 +1,48 @@
+id: dp700-2c-inferred-load
+objective: "2.2.9"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse that contains a dimension table named dbo.DimProduct and a fact table named dbo.FactSales. dbo.DimProduct has the columns ProductKey (an IDENTITY column), ProductCode, ProductName, and IsInferredMember.
+
+    Sales rows can arrive before their product exists in dbo.DimProduct. The product codes in the sales data are reliable. Every sales row must be loaded in the current run with a valid ProductKey, and the product must show its real name as soon as its details arrive.
+
+    Which three actions should the fact load perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'un entrepôt Fabric qui contient une table de dimension nommée dbo.DimProduct et une table de faits nommée dbo.FactSales. dbo.DimProduct comporte les colonnes ProductKey (une colonne IDENTITY), ProductCode, ProductName et IsInferredMember.
+
+    Des lignes de vente peuvent arriver avant que leur produit existe dans dbo.DimProduct. Les codes produits des données de vente sont fiables. Chaque ligne de vente doit être chargée lors de l'exécution en cours avec une ProductKey valide, et le produit doit afficher son vrai nom dès que ses informations arrivent.
+
+    Quelles sont les trois actions que le chargement des faits doit effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: stage, text: { en: "Load the new sales rows into a staging table.", fr: "Charger les nouvelles lignes de vente dans une table intermédiaire." } }
+    - { id: infer, text: { en: "Insert into dbo.DimProduct a row with Unknown attributes and IsInferredMember = 1 for each staged ProductCode that isn't in dbo.DimProduct.", fr: "Insérer dans dbo.DimProduct une ligne avec des attributs Unknown et IsInferredMember = 1 pour chaque ProductCode de la table intermédiaire absent de dbo.DimProduct." } }
+    - { id: lookup, text: { en: "Insert the staged rows into dbo.FactSales with the ProductKey found by joining on ProductCode.", fr: "Insérer les lignes de la table intermédiaire dans dbo.FactSales avec la ProductKey trouvée par une jointure sur ProductCode." } }
+    - { id: nullkey, text: { en: "Insert the staged rows into dbo.FactSales with a NULL ProductKey when the lookup fails.", fr: "Insérer les lignes de la table intermédiaire dans dbo.FactSales avec une ProductKey NULL quand la recherche échoue." } }
+    - { id: reject, text: { en: "Move the staged rows whose ProductCode isn't in dbo.DimProduct to an error table.", fr: "Déplacer les lignes de la table intermédiaire dont le ProductCode est absent de dbo.DimProduct vers une table d'erreurs." } }
+    - { id: reload, text: { en: "Truncate dbo.DimProduct and reload it from the product source.", fr: "Tronquer dbo.DimProduct et la recharger depuis la source des produits." } }
+answer:
+  sequence: [ stage, infer, lookup ]
+explanation:
+  correct:
+    en: |
+      Because the product codes are reliable, the fact load can create an inferred member for each missing code before the key lookup, so every fact row gets a valid surrogate key in the same run. When the product details arrive later, the dimension load updates the inferred row and clears the flag, and the existing facts show the real name.
+    fr: |
+      Comme les codes produits sont fiables, le chargement des faits peut créer un membre déduit pour chaque code manquant avant la recherche de clé : chaque ligne de faits reçoit une clé de substitution valide lors de la même exécution. Quand les informations du produit arrivent plus tard, le chargement de la dimension met à jour la ligne déduite et efface l'indicateur, et les faits existants affichent le vrai nom.
+  options:
+    nullkey:
+      en: "A NULL key isn't a valid dimension key, and the facts would never be linked to the product."
+      fr: "Une clé NULL n'est pas une clé de dimension valide, et les faits ne seraient jamais reliés au produit."
+    reject:
+      en: "Rejecting the rows means they aren't loaded in the current run."
+      fr: "Rejeter les lignes signifie qu'elles ne sont pas chargées lors de l'exécution en cours."
+    reload:
+      en: "Truncating a dimension with IDENTITY keys regenerates the keys and breaks the facts that reference them."
+      fr: "Tronquer une dimension à clés IDENTITY régénère les clés et casse les faits qui les référencent."
+references:
+  - title: "Dimensional modeling in Microsoft Fabric Warehouse: Load tables"
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables

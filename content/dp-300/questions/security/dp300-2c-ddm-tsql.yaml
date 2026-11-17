@@ -1,0 +1,84 @@
+id: dp300-2c-ddm-tsql
+objective: "2.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named Sales.Customer. The table contains columns named CardNumber and Email. No masking rule exists.
+
+    You need to meet the following requirements:
+
+    - Users who lack the UNMASK permission see CardNumber in the format XXXX-XXXX-XXXX-1234, where 1234 are the last four digits of the card.
+    - Users who lack the UNMASK permission see Email in the format aXXX@XXXX.com, where a is the first letter of the address.
+    - Members of the SupportLead role see the real email addresses but masked card numbers.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée Sales.Customer. La table contient les colonnes CardNumber et Email. Aucune règle de masquage n'existe.
+
+    Vous devez répondre aux exigences suivantes :
+
+    - Les utilisateurs qui n'ont pas l'autorisation UNMASK voient CardNumber au format XXXX-XXXX-XXXX-1234, où 1234 représente les quatre derniers chiffres de la carte.
+    - Les utilisateurs qui n'ont pas l'autorisation UNMASK voient Email au format aXXX@XXXX.com, où a est la première lettre de l'adresse.
+    - Les membres du rôle SupportLead voient les vraies adresses e-mail, mais des numéros de carte masqués.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE Sales.Customer ALTER COLUMN CardNumber
+        ADD MASKED WITH (FUNCTION = '[[card]]');
+
+    ALTER TABLE Sales.Customer ALTER COLUMN Email
+        ADD MASKED WITH (FUNCTION = '[[mail]]');
+
+    GRANT [[perm]] ON Sales.Customer ([[col]]) TO SupportLead;
+  slots:
+    - id: card
+      options:
+        - { id: card_default, text: "default()" }
+        - { id: card_prefix, text: 'partial(4, "-XXXX-XXXX-XXXX", 0)' }
+        - { id: card_suffix, text: 'partial(0, "XXXX-XXXX-XXXX-", 4)' }
+        - { id: card_random, text: "random(1000, 9999)" }
+    - id: mail
+      options:
+        - { id: mail_email, text: "email()" }
+        - { id: mail_default, text: "default()" }
+        - { id: mail_partial, text: 'partial(1, "XXXXXXX", 0)' }
+    - id: perm
+      options:
+        - { id: perm_select, text: SELECT }
+        - { id: perm_unmask, text: UNMASK }
+        - { id: perm_refs, text: REFERENCES }
+    - id: col
+      options:
+        - { id: col_email, text: Email }
+        - { id: col_card, text: CardNumber }
+answer:
+  values: { card: card_suffix, mail: mail_email, perm: perm_unmask, col: col_email }
+explanation:
+  correct:
+    en: |
+      The custom string function partial(prefix, padding, suffix) exposes the given number of first and last characters: partial(0, "XXXX-XXXX-XXXX-", 4) shows only the last four digits after the padding. The email() function exposes the first letter and replaces the rest with XXX@XXXX.com. UNMASK can be granted at the column level, so granting it on Email only lets SupportLead see real addresses while CardNumber stays masked.
+    fr: |
+      La fonction de chaîne personnalisée partial(préfixe, remplissage, suffixe) expose le nombre indiqué de premiers et de derniers caractères : partial(0, "XXXX-XXXX-XXXX-", 4) n'affiche que les quatre derniers chiffres après le remplissage. La fonction email() expose la première lettre et remplace le reste par XXX@XXXX.com. UNMASK peut être accordé au niveau de la colonne : l'accorder sur Email uniquement permet à SupportLead de voir les vraies adresses tandis que CardNumber reste masqué.
+  options:
+    card_default: { en: "default() fully masks the value (xxxx for strings) and doesn't show the last four digits.", fr: "default() masque entièrement la valeur (xxxx pour les chaînes) et n'affiche pas les quatre derniers chiffres." }
+    card_prefix: { en: "This exposes the first four characters, not the last four.", fr: "Cette fonction expose les quatre premiers caractères, pas les quatre derniers." }
+    card_random: { en: "random() applies to numeric types and returns a random number, not the real last four digits.", fr: "random() s'applique aux types numériques et renvoie un nombre aléatoire, pas les quatre derniers chiffres réels." }
+    mail_default: { en: "default() returns xxxx and doesn't keep the email format.", fr: "default() renvoie xxxx et ne conserve pas le format de l'adresse e-mail." }
+    mail_partial: { en: "This returns the first letter followed by XXXXXXX, not the aXXX@XXXX.com format.", fr: "Cette fonction renvoie la première lettre suivie de XXXXXXX, pas le format aXXX@XXXX.com." }
+    perm_select: { en: "SELECT lets users query the column but still returns masked values.", fr: "SELECT permet d'interroger la colonne mais renvoie toujours des valeurs masquées." }
+    perm_refs: { en: "REFERENCES lets the role reference the column, for example in a foreign key; it doesn't reveal masked values.", fr: "REFERENCES permet au rôle de référencer la colonne, par exemple dans une clé étrangère ; il ne révèle pas les valeurs masquées." }
+    col_card: { en: "Granting UNMASK on CardNumber would reveal the card numbers to SupportLead.", fr: "Accorder UNMASK sur CardNumber révélerait les numéros de carte à SupportLead." }
+references:
+  - title: Dynamic data masking
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/dynamic-data-masking-overview
+  - title: Dynamic Data Masking
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/dynamic-data-masking

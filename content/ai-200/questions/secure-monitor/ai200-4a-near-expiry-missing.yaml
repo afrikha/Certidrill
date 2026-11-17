@@ -1,0 +1,40 @@
+id: ai200-4a-near-expiry-missing
+objective: "4.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove stores the client secrets of three partner APIs in a key vault named kv-woodgrove. A Python function named func-rotate regenerates a partner secret and writes it with `set_secret`. An Event Grid subscription on kv-woodgrove sends `Microsoft.KeyVault.SecretNearExpiry` events to func-rotate.
+
+    The secrets were written with `client.set_secret(name, value, content_type="text/plain", tags={"Owner": "partners"})`. The function identity has the Key Vault Secrets Officer role, and purge protection is disabled on the vault. Months later, func-rotate has never run.
+
+    What is the cause?
+  fr: |
+    Woodgrove stocke les secrets client de trois API partenaires dans un coffre de clés nommé kv-woodgrove. Une fonction Python nommée func-rotate régénère un secret partenaire et l'écrit avec `set_secret`. Un abonnement Event Grid sur kv-woodgrove envoie les événements `Microsoft.KeyVault.SecretNearExpiry` à func-rotate.
+
+    Les secrets ont été écrits avec `client.set_secret(name, value, content_type="text/plain", tags={"Owner": "partners"})`. L'identité de la fonction a le rôle Key Vault Secrets Officer, et la protection contre le vidage est désactivée sur le coffre. Des mois plus tard, func-rotate ne s'est jamais exécutée.
+
+    Quelle est la cause ?
+body:
+  options:
+    - { id: a, text: { en: "The secrets have a content type, and Key Vault raises expiry events only for secrets without one.", fr: "Les secrets ont un type de contenu, et Key Vault ne déclenche les événements d'expiration que pour les secrets qui n'en ont pas." } }
+    - { id: b, text: { en: "Purge protection is disabled, and Key Vault raises expiry events only in vaults where it is enabled.", fr: "La protection contre le vidage est désactivée, et Key Vault ne déclenche les événements d'expiration que dans les coffres où elle est activée." } }
+    - { id: c, text: { en: "The secrets have no expiration date, so Key Vault has no date from which to raise the event.", fr: "Les secrets n'ont pas de date d'expiration : Key Vault n'a aucune date à partir de laquelle déclencher l'événement." } }
+    - { id: d, text: { en: "The function identity needs the Key Vault Administrator role to receive events from kv-woodgrove.", fr: "L'identité de la fonction a besoin du rôle Key Vault Administrator pour recevoir les événements de kv-woodgrove." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      `SecretNearExpiry` is raised 30 days before the expiration date of the current version of a secret. The `set_secret` call doesn't pass `expires_on`, so the secrets never expire and the event is never raised. Writing the secrets with an expiration date fixes the trigger.
+    fr: |
+      `SecretNearExpiry` est déclenché 30 jours avant la date d'expiration de la version actuelle d'un secret. L'appel `set_secret` ne passe pas `expires_on` : les secrets n'expirent jamais et l'événement n'est jamais déclenché. Écrire les secrets avec une date d'expiration corrige le déclenchement.
+  options:
+    a: { en: "The content type is a free-form attribute that has no effect on Key Vault events.", fr: "Le type de contenu est un attribut libre sans effet sur les événements Key Vault." }
+    b: { en: "Purge protection only blocks purging during the retention period; it has nothing to do with events.", fr: "La protection contre le vidage bloque seulement le vidage pendant la période de rétention : elle n'a aucun lien avec les événements." }
+    d: { en: "Event Grid delivers events to the subscription endpoint; the function identity's vault role doesn't decide whether the function is called.", fr: "Event Grid remet les événements au point de terminaison de l'abonnement : le rôle de l'identité de la fonction sur le coffre ne décide pas si la fonction est appelée." }
+references:
+  - title: Azure Key Vault as Event Grid source
+    url: https://learn.microsoft.com/en-us/azure/event-grid/event-schema-key-vault
+  - title: azure.keyvault.secrets.SecretClient class
+    url: https://learn.microsoft.com/en-us/python/api/azure-keyvault-secrets/azure.keyvault.secrets.secretclient

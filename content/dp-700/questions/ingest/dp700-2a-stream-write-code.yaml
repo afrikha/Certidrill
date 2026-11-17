@@ -1,0 +1,70 @@
+id: dp700-2a-stream-write-code
+objective: "2.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric notebook that reads a stream of sensor events into a DataFrame named **readings** by using Spark structured streaming. You need to write the stream to a Delta table named **bronze_readings** in the default lakehouse. The solution must meet the following requirements:
+
+    - After a restart, the query must continue from where it stopped, without losing or duplicating events.
+    - Only new rows must be added to the table.
+    - Events must be available in the table within five minutes, with as few small files as possible.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un notebook Fabric qui lit un flux d'événements de capteurs dans un DataFrame nommé **readings** avec le streaming structuré Spark. Vous devez écrire le flux dans une table Delta nommée **bronze_readings** du lakehouse par défaut. La solution doit satisfaire les exigences suivantes :
+
+    - Après un redémarrage, la requête doit reprendre là où elle s'est arrêtée, sans perdre ni dupliquer d'événements.
+    - Seules de nouvelles lignes doivent être ajoutées à la table.
+    - Les événements doivent être disponibles dans la table en moins de cinq minutes, avec le moins de petits fichiers possible.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    (readings.writeStream
+        .format("delta")
+        .option("[[opt]]", "Files/checkpoints/bronze_readings")
+        .outputMode("[[mode]]")
+        .trigger([[trig]])
+        .toTable("bronze_readings"))
+  slots:
+    - id: opt
+      options:
+        - { id: checkpoint, text: checkpointLocation }
+        - { id: path, text: path }
+        - { id: merge, text: mergeSchema }
+    - id: mode
+      options:
+        - { id: append, text: append }
+        - { id: complete, text: complete }
+        - { id: update, text: update }
+    - id: trig
+      options:
+        - { id: proc, text: 'processingTime="5 minutes"' }
+        - { id: avail, text: "availableNow=True" }
+        - { id: cont, text: 'continuous="5 minutes"' }
+answer:
+  values: { opt: checkpoint, mode: append, trig: proc }
+explanation:
+  correct:
+    en: |
+      The checkpoint location stores the progress and state of the query, so a restart resumes from the last processed offsets. The append output mode writes only new rows. By default each micro-batch starts as soon as the previous one ends, which creates many small files; a processing-time trigger of five minutes batches the events into fewer, larger files while meeting the latency.
+    fr: |
+      L'emplacement du point de contrôle stocke la progression et l'état de la requête : un redémarrage reprend aux derniers offsets traités. Le mode de sortie append n'écrit que les nouvelles lignes. Par défaut, chaque micro-lot démarre dès la fin du précédent, ce qui crée beaucoup de petits fichiers ; un déclencheur processingTime de cinq minutes regroupe les événements en fichiers moins nombreux et plus gros tout en respectant la latence.
+  options:
+    path: { en: "path sets a storage location for the table, not the progress tracking of the stream.", fr: "path définit un emplacement de stockage de la table, pas le suivi de progression du flux." }
+    merge: { en: "mergeSchema allows schema evolution; it doesn't track progress.", fr: "mergeSchema autorise l'évolution du schéma ; il ne suit pas la progression." }
+    complete: { en: "complete rewrites the whole result table at every batch.", fr: "complete réécrit toute la table de résultats à chaque lot." }
+    update: { en: "update outputs the changed rows of a stateful query; with Delta it is used with foreachBatch and MERGE for upserts, not to append raw events.", fr: "update produit les lignes modifiées d'une requête avec état ; avec Delta, il s'utilise avec foreachBatch et MERGE pour des upserts, pas pour ajouter des événements bruts." }
+    avail: { en: "availableNow processes the available data and then stops, so the table isn't fed continuously.", fr: "availableNow traite les données disponibles puis s'arrête : la table n'est pas alimentée en continu." }
+    cont: { en: "Continuous processing isn't the micro-batch trigger that controls file size for a Delta sink.", fr: "Le traitement continu n'est pas le déclencheur de micro-lots qui contrôle la taille des fichiers d'un récepteur Delta." }
+references:
+  - title: Data streaming into a lakehouse with Spark
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/lakehouse-streaming-data

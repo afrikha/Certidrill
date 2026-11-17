@@ -1,0 +1,75 @@
+id: dp700-cs3c-merge-code
+objective: "2.2.9"
+type: dropdown
+caseStudy: dp700-cs3c-tailspin
+difficulty: 3
+status: draft
+stem:
+  en: |
+    In NB-SilverOrders, a DataFrame named incoming contains the rows of the order file to load. LH-Silver is the default lakehouse of the notebook.
+
+    You need to write the rows to the orders table to meet the transformation requirement.
+
+    How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Dans NB-SilverOrders, un DataFrame nommé incoming contient les lignes du fichier de commandes à charger. LH-Silver est le lakehouse par défaut du notebook.
+
+    Vous devez écrire les lignes dans la table orders pour respecter l'exigence de transformation.
+
+    Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from delta.tables import DeltaTable
+    from pyspark.sql import Window
+    from pyspark.sql.functions import col, row_number
+
+    w = Window.partitionBy("OrderId").orderBy(col("ModifiedAt").desc())
+    latest = (incoming
+        .withColumn("rn", row_number().over(w))
+        .filter([[rn]])
+        .drop("rn"))
+
+    orders = DeltaTable.forName(spark, "orders")
+    (orders.alias("t")
+        .merge(latest.alias("s"), "t.OrderId = s.OrderId")
+        .[[matched]]("s.ModifiedAt > t.ModifiedAt")
+        .[[notmatched]]()
+        .execute())
+  slots:
+    - id: rn
+      options:
+        - { id: rn0, text: 'col("rn") == 0' }
+        - { id: rn1, text: 'col("rn") == 1' }
+        - { id: rngt1, text: 'col("rn") > 1' }
+    - id: matched
+      options:
+        - { id: m_update, text: whenMatchedUpdateAll }
+        - { id: m_insert, text: whenNotMatchedInsertAll }
+        - { id: m_delsrc, text: whenNotMatchedBySourceDelete }
+    - id: notmatched
+      options:
+        - { id: n_update, text: whenMatchedUpdateAll }
+        - { id: n_insert, text: whenNotMatchedInsertAll }
+        - { id: n_delsrc, text: whenNotMatchedBySourceDelete }
+answer:
+  values: { rn: rn1, matched: m_update, notmatched: n_insert }
+explanation:
+  correct:
+    en: "row_number() numbers the versions of each OrderId from 1, newest first, so keeping `rn == 1` leaves one row per order with the latest ModifiedAt. This deduplication is required because a merge can fail when several source rows match the same target row. `whenMatchedUpdateAll` with the ModifiedAt condition updates an existing order only when the incoming version is more recent, which protects the table from late-arriving older versions, and `whenNotMatchedInsertAll` inserts the new orders."
+    fr: "row_number() numérote les versions de chaque OrderId à partir de 1, de la plus récente à la plus ancienne : conserver `rn == 1` laisse une ligne par commande avec la valeur ModifiedAt la plus récente. Cette déduplication est nécessaire, car une fusion peut échouer quand plusieurs lignes sources correspondent à la même ligne cible. `whenMatchedUpdateAll` avec la condition sur ModifiedAt ne met à jour une commande existante que si la version entrante est plus récente, ce qui protège la table des anciennes versions arrivées en retard, et `whenNotMatchedInsertAll` insère les nouvelles commandes."
+  options:
+    rn0: { en: "row_number() starts at 1, so no row has the value 0.", fr: "row_number() commence à 1 : aucune ligne n'a la valeur 0." }
+    rngt1: { en: "rn > 1 keeps the older versions and drops the most recent one.", fr: "rn > 1 conserve les anciennes versions et supprime la plus récente." }
+    m_insert: { en: "whenNotMatchedInsertAll handles new orders; it cannot update the orders that already exist.", fr: "whenNotMatchedInsertAll traite les nouvelles commandes ; il ne peut pas mettre à jour les commandes existantes." }
+    m_delsrc: { en: "whenNotMatchedBySourceDelete deletes target rows that are absent from the file; it updates nothing.", fr: "whenNotMatchedBySourceDelete supprime les lignes cibles absentes du fichier ; il ne met rien à jour." }
+    n_update: { en: "The matched rows are already handled; new orders need an insert clause.", fr: "Les lignes correspondantes sont déjà traitées ; les nouvelles commandes demandent une clause d'insertion." }
+    n_delsrc: { en: "whenNotMatchedBySourceDelete would delete every order that is not in the current file and would insert no new order.", fr: "whenNotMatchedBySourceDelete supprimerait toutes les commandes absentes du fichier courant et n'insérerait aucune nouvelle commande." }
+references:
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

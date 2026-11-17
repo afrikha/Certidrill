@@ -1,0 +1,85 @@
+id: dp750-3b-retention-90-days
+objective: "3.1.8"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has a Unity Catalog managed table named **woodgrove.risk.positions** that uses the default retention settings. You use compute that runs Databricks Runtime 18.0.
+
+    Risk analysts must be able to query any state of the table from the last 90 days by date. The company accepts the additional storage cost, but the storage must be minimized.
+
+    How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank dispose d'une table managée Unity Catalog nommée **woodgrove.risk.positions** qui utilise les paramètres de rétention par défaut. Vous utilisez un calcul qui exécute Databricks Runtime 18.0.
+
+    Les analystes des risques doivent pouvoir interroger par date n'importe quel état de la table des 90 derniers jours. L'entreprise accepte le coût de stockage supplémentaire, mais le stockage doit être réduit au minimum.
+
+    Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE woodgrove.risk.positions SET TBLPROPERTIES (
+      'delta.logRetentionDuration' = '[[log]]',
+      'delta.deletedFileRetentionDuration' = '[[files]]'
+    );
+
+    SELECT * FROM woodgrove.risk.positions [[tt]] '2026-09-01';
+  slots:
+    - id: log
+      options:
+        - { id: d30, text: interval 30 days }
+        - { id: d90, text: interval 90 days }
+        - { id: d365, text: interval 365 days }
+    - id: files
+      options:
+        - { id: d7, text: interval 7 days }
+        - { id: d30, text: interval 30 days }
+        - { id: d90, text: interval 90 days }
+    - id: tt
+      options:
+        - { id: ts, text: TIMESTAMP AS OF }
+        - { id: ver, text: VERSION AS OF }
+        - { id: changes, text: CHANGES FROM }
+answer:
+  values: { log: d90, files: d90, tt: ts }
+explanation:
+  correct:
+    en: |
+      To query a past version, both its log and its data files must be retained. The data file retention (default 7 days) must cover 90 days, and the log retention (default 30 days) must be greater than or equal to it, so 90 days for both meets the need with the least storage. TIMESTAMP AS OF selects the state of the table at a date.
+    fr: |
+      Pour interroger une version passée, son journal et ses fichiers de données doivent être conservés. La rétention des fichiers de données (7 jours par défaut) doit couvrir 90 jours, et la rétention du journal (30 jours par défaut) doit lui être supérieure ou égale : 90 jours pour les deux répond au besoin avec le moins de stockage. TIMESTAMP AS OF sélectionne l'état de la table à une date.
+  options:
+    d30:
+      en: |
+        30 days is the default log retention: versions older than 30 days would be removed from the log, and 30 days of data files don't cover 90 days either.
+      fr: |
+        30 jours est la rétention par défaut du journal : les versions de plus de 30 jours seraient supprimées du journal, et 30 jours de fichiers de données ne couvrent pas non plus 90 jours.
+    d365:
+      en: |
+        A 365-day log retention also works but keeps more history than required.
+      fr: |
+        Une rétention du journal de 365 jours fonctionne aussi, mais conserve plus d'historique que nécessaire.
+    d7:
+      en: |
+        From Databricks Runtime 18.0, time travel is blocked for versions older than the data file retention, so 7 days isn't enough.
+      fr: |
+        À partir de Databricks Runtime 18.0, le voyage dans le temps est bloqué pour les versions plus anciennes que la rétention des fichiers de données : 7 jours ne suffisent pas.
+    ver:
+      en: |
+        VERSION AS OF expects a version number, whereas the analysts query by date.
+      fr: |
+        VERSION AS OF attend un numéro de version, alors que les analystes interrogent par date.
+    changes:
+      en: |
+        CHANGES FROM isn't a time travel clause.
+      fr: |
+        CHANGES FROM n'est pas une clause de voyage dans le temps.
+references:
+  - title: Work with table history
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/history

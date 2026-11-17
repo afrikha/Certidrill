@@ -1,0 +1,82 @@
+id: ai103-1c-approval-response-code
+objective: "1.4.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware, Inc. has a prompt agent named **ops-agent** in Foundry Agent Service. ops-agent uses an `MCPTool` whose `require_approval` is `"always"`. For the audit trail, every tool call that ops-agent proposes must be logged, and an operator must approve or reject it.
+
+    The application created a conversation by calling `openai.conversations.create()`, sent the request of the operator in that conversation, and stored the result in `response`.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware, Inc. dispose d'un agent d'invite nommé **ops-agent** dans Foundry Agent Service. ops-agent utilise un `MCPTool` dont `require_approval` vaut `"always"`. Pour la piste d'audit, chaque appel d'outil que propose ops-agent doit être journalisé, et un opérateur doit l'approuver ou le refuser.
+
+    L'application a créé une conversation en appelant `openai.conversations.create()`, a envoyé la requête de l'opérateur dans cette conversation et a stocké le résultat dans `response`.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    approvals = []
+    for item in response.output:
+        if item.type == [[kind]]:
+            audit_log(item.server_label, item.name, item.arguments)
+            approvals.append(
+                McpApprovalResponse(
+                    type="mcp_approval_response",
+                    approve=ask_operator(item),
+                    [[field]]=item.id,
+                )
+            )
+
+    if approvals:
+        response = openai.responses.create(
+            [[link]],
+            input=approvals,
+        )
+  slots:
+    - id: kind
+      options:
+        - { id: request, text: '"mcp_approval_request"' }
+        - { id: call, text: '"mcp_call"' }
+        - { id: function, text: '"function_call"' }
+        - { id: list, text: '"mcp_list_tools"' }
+    - id: field
+      options:
+        - { id: reqid, text: approval_request_id }
+        - { id: callid, text: call_id }
+        - { id: prev, text: previous_response_id }
+    - id: link
+      options:
+        - { id: conv, text: conversation=conversation.id }
+        - { id: prevresp, text: previous_response_id=response.id }
+        - { id: choice, text: 'tool_choice="required"' }
+answer:
+  values: { kind: request, field: reqid, link: conv }
+explanation:
+  correct:
+    en: |
+      When approval is required, the agent returns an `mcp_approval_request` item that contains the server label, the tool name and the arguments, instead of calling the tool. The application answers with an `mcp_approval_response` item whose `approval_request_id` is the `id` of the request and whose `approve` is the decision. The approvals are sent in the same conversation; the MCP tool documentation states that the harness of these prompt agents doesn't support `previous_response_id`.
+    fr: |
+      Quand une approbation est exigée, l'agent renvoie un élément `mcp_approval_request` qui contient l'étiquette du serveur, le nom de l'outil et les arguments, au lieu d'appeler l'outil. L'application répond par un élément `mcp_approval_response` dont `approval_request_id` est l'`id` de la demande et dont `approve` est la décision. Les approbations sont envoyées dans la même conversation ; la documentation de l'outil MCP indique que le harnais de ces agents d'invite ne prend pas en charge `previous_response_id`.
+  options:
+    kind:
+      en: |
+        An mcp_call item is a tool call that already ran, function_call is a request to run a function tool in the application, and mcp_list_tools lists the tools of the server.
+      fr: |
+        Un élément mcp_call est un appel d'outil déjà exécuté, function_call est une demande d'exécution d'un outil de fonction dans l'application, et mcp_list_tools liste les outils du serveur.
+    field:
+      en: |
+        call_id links a function_call_output to its function call; it doesn't identify an approval request.
+      fr: |
+        call_id relie un function_call_output à son appel de fonction ; il n'identifie pas une demande d'approbation.
+references:
+  - title: Connect agents to MCP server endpoints
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/agents/how-to/tools/model-context-protocol

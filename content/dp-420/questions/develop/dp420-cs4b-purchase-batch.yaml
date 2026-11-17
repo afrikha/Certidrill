@@ -1,0 +1,78 @@
+id: dp420-cs4b-purchase-batch
+objective: "1.2.4"
+type: dropdown
+caseStudy: dp420-cs4b-relecloud-tickets
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the purchase method of the API for an order that contains one seat. The method has already read the seat item into `seat` and stored the ETag of that read in `seatEtag`. `GetEventKey` returns the full partition key value of the seat's event, which is shared by the seat, its hold and the order.
+
+    You need to complete the code to meet the inventory and hold requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la méthode d'achat de l'API pour une commande qui contient une place. La méthode a déjà lu l'élément de place dans `seat` et stocké l'ETag de cette lecture dans `seatEtag`. `GetEventKey` renvoie la valeur complète de clé de partition de l'événement de la place, partagée par la place, sa réservation temporaire et la commande.
+
+    Vous devez compléter le code pour satisfaire les exigences d'inventaire et de réservation temporaire.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    PartitionKey pk = GetEventKey(seat);
+    seat.Status = "sold";
+    seat.OrderId = order.Id;
+
+    using TransactionalBatchResponse response = await inventory
+        .[[create]](pk)
+        .ReplaceItem(seat.Id, seat,
+            new TransactionalBatchItemRequestOptions { [[cond]] = seatEtag })
+        .DeleteItem(holdId)
+        .CreateItem(order)
+        .ExecuteAsync();
+
+    if (![[check]])
+    {
+        // The seat changed since it was read, or the hold no longer exists.
+        return PurchaseResult.SeatUnavailable;
+    }
+  slots:
+    - id: create
+      options:
+        - { id: batch, text: CreateTransactionalBatch }
+        - { id: upsert, text: UpsertItemAsync }
+        - { id: patch, text: PatchItemAsync }
+    - id: cond
+      options:
+        - { id: nonematch, text: IfNoneMatchEtag }
+        - { id: match, text: IfMatchEtag }
+        - { id: content, text: EnableContentResponseOnWrite }
+    - id: check
+      options:
+        - { id: charge, text: "(response.RequestCharge > 0)" }
+        - { id: count, text: "(response.Count == 3)" }
+        - { id: success, text: response.IsSuccessStatusCode }
+answer:
+  values: { create: batch, cond: match, check: success }
+explanation:
+  correct:
+    en: "`CreateTransactionalBatch` groups the operations on one logical partition key, and the batch commits only if every operation succeeds. `IfMatchEtag` makes the seat replace fail with 412 if another request changed the seat after it was read, so a seat cannot be sold twice; if the hold has already expired, `DeleteItem` fails with 404. In both cases the whole batch is rolled back, and `IsSuccessStatusCode` is false."
+    fr: "`CreateTransactionalBatch` regroupe les opérations sur une même clé de partition logique, et le lot n'est validé que si toutes les opérations réussissent. `IfMatchEtag` fait échouer le remplacement de la place avec 412 si une autre requête a modifié la place après sa lecture : une place ne peut pas être vendue deux fois ; si la réservation temporaire a déjà expiré, `DeleteItem` échoue avec 404. Dans les deux cas, tout le lot est annulé et `IsSuccessStatusCode` est faux."
+  options:
+    upsert: { en: "UpsertItemAsync writes one item and returns an item response; it cannot chain the other operations into a transaction.", fr: "UpsertItemAsync écrit un seul élément et renvoie une réponse d'élément ; il ne peut pas enchaîner les autres opérations dans une transaction." }
+    patch: { en: "PatchItemAsync updates one item; it does not create a batch.", fr: "PatchItemAsync met à jour un seul élément ; il ne crée pas de lot." }
+    nonematch: { en: "If-None-Match succeeds only when the ETag differs, which is the opposite of the required check.", fr: "If-None-Match ne réussit que si l'ETag est différent, soit l'inverse du contrôle nécessaire." }
+    content: { en: "EnableContentResponseOnWrite controls whether the item is returned; it adds no concurrency check.", fr: "EnableContentResponseOnWrite détermine si l'élément est renvoyé ; il n'ajoute aucun contrôle de concurrence." }
+    charge: { en: "A failed batch also consumes request units.", fr: "Un lot en échec consomme aussi des unités de requête." }
+    count: { en: "A failed batch still returns one result per operation (the failed one and 424 for the others).", fr: "Un lot en échec renvoie quand même un résultat par opération (celle qui a échoué et 424 pour les autres)." }
+references:
+  - title: Transactional Batch Operations - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/transactional-batch
+  - title: TransactionalBatchItemRequestOptions Class (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.transactionalbatchitemrequestoptions

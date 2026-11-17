@@ -1,0 +1,70 @@
+id: az120-3a-sql-probe-port-ps
+objective: "3.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum runs the SQL Server database of an SAP system in an Always On availability group named **AG1** on two Windows Server VMs in the same subnet. The listener uses the IP address 10.0.1.20. A Standard internal load balancer has the frontend IP address 10.0.1.20, a TCP health probe on port 59999 and a load-balancing rule with floating IP enabled. Connections to the listener fail.
+
+    You need to configure the cluster IP address resource of the listener so that only the primary replica answers the load balancer probe.
+
+    How should you complete the PowerShell script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum exécute la base de données SQL Server d'un système SAP dans un groupe de disponibilité Always On nommé **AG1** sur deux machines virtuelles Windows Server du même sous-réseau. L'écouteur utilise l'adresse IP 10.0.1.20. Un équilibreur de charge interne Standard possède l'adresse IP frontale 10.0.1.20, une sonde d'intégrité TCP sur le port 59999 et une règle d'équilibrage de charge avec l'IP flottante activée. Les connexions à l'écouteur échouent.
+
+    Vous devez configurer la ressource d'adresse IP de cluster de l'écouteur pour que seul le réplica principal réponde à la sonde de l'équilibreur de charge.
+
+    Comment devez-vous compléter le script PowerShell ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $IPResourceName = "AG1_10.0.1.20"
+    $ILBIP = "10.0.1.20"
+    [int]$ProbePort = 59999
+
+    Import-Module FailoverClusters
+
+    Get-ClusterResource $IPResourceName | [[cmd]] -Multiple @{
+        "Address"    = "$ILBIP";
+        "ProbePort"  = [[probe]];
+        "SubnetMask" = "[[mask]]";
+        "Network"    = "Cluster Network 1";
+        "EnableDhcp" = 0
+    }
+  slots:
+    - id: cmd
+      options:
+        - { id: setparam, text: Set-ClusterParameter }
+        - { id: setowner, text: Set-ClusterOwnerNode }
+        - { id: setres, text: Set-ClusterResourceDependency }
+    - id: probe
+      options:
+        - { id: pvar, text: "$ProbePort" }
+        - { id: p1433, text: "1433" }
+        - { id: p5022, text: "5022" }
+    - id: mask
+      options:
+        - { id: m32, text: "255.255.255.255" }
+        - { id: m24, text: "255.255.255.0" }
+        - { id: m16, text: "255.255.0.0" }
+answer:
+  values: { cmd: setparam, probe: pvar, mask: m32 }
+explanation:
+  correct:
+    en: Set-ClusterParameter sets the private properties of the listener IP address resource. ProbePort must equal the load balancer probe port (59999), so the node that owns the IP resource answers the probe, and SubnetMask must be 255.255.255.255. The change takes effect after the IP resource is taken offline and brought online again, or after a failover. Because 59999 is in the dynamic port range, Microsoft also recommends excluding it with netsh on each VM.
+    fr: Set-ClusterParameter définit les propriétés privées de la ressource d'adresse IP de l'écouteur. ProbePort doit être égal au port de la sonde de l'équilibreur de charge (59999), afin que le nœud propriétaire de la ressource IP réponde à la sonde, et SubnetMask doit être 255.255.255.255. La modification prend effet après la mise hors connexion puis en connexion de la ressource IP, ou après un basculement. Comme 59999 se trouve dans la plage de ports dynamiques, Microsoft recommande aussi de l'exclure avec netsh sur chaque machine virtuelle.
+  options:
+    setowner: { en: "Set-ClusterOwnerNode defines which nodes can own a resource; it doesn't set the probe port.", fr: "Set-ClusterOwnerNode définit les nœuds qui peuvent détenir une ressource ; il ne définit pas le port de sonde." }
+    setres: { en: "Set-ClusterResourceDependency sets resource dependencies, not resource parameters.", fr: "Set-ClusterResourceDependency définit des dépendances de ressources, pas des paramètres de ressource." }
+    p1433: { en: "1433 is the SQL Server port of the load-balancing rule, not the probe port.", fr: "1433 est le port SQL Server de la règle d'équilibrage de charge, pas le port de sonde." }
+    p5022: { en: "5022 is commonly used by the database mirroring endpoint of the replicas, not by the load balancer probe.", fr: "5022 est couramment utilisé par le point de terminaison de mise en miroir de bases de données des réplicas, pas par la sonde de l'équilibreur de charge." }
+    m24: { en: "The documented value is a host mask, 255.255.255.255, not the subnet's mask.", fr: "La valeur documentée est un masque d'hôte, 255.255.255.255, et non le masque du sous-réseau." }
+references:
+  - title: Configure an Azure Load Balancer for an AG VNN Listener - SQL Server on Azure VMs
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/availability-group-vnn-azure-load-balancer-configure

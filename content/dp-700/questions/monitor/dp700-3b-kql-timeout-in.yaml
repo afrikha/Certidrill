@@ -1,0 +1,68 @@
+id: dp700-3b-kql-timeout-in
+objective: "3.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric workspace named Workspace1 that contains an eventhouse. An analyst's KQL query against a table named Readings fails for two reasons:
+
+    - Its filter is a chain of 400 or conditions on DeviceId, and the query fails with a query complexity error.
+    - After the filter is fixed, the query needs about 12 minutes and stops at the default query timeout.
+
+    You need the query to run successfully. The query must be allowed to run for up to 15 minutes.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Fabric nommé Workspace1 qui contient un eventhouse. La requête KQL d'un analyste sur une table nommée Readings échoue pour deux raisons :
+
+    - Son filtre est une chaîne de 400 conditions or sur DeviceId, et la requête échoue avec une erreur de complexité de requête.
+    - Une fois le filtre corrigé, la requête dure environ 12 minutes et s'arrête au délai d'expiration par défaut des requêtes.
+
+    La requête doit s'exécuter avec succès. Elle doit être autorisée à s'exécuter jusqu'à 15 minutes.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    set [[opt]] = 15m;
+    let devices = dynamic(["dev-0001", "dev-0002", "dev-0003"]);  // 400 IDs in the real query
+    Readings
+    | where DeviceId [[op]] (devices)
+    | summarize AvgTemp = avg(Temperature) by DeviceId, bin(Timestamp, 1h)
+  slots:
+    - id: opt
+      options:
+        - { id: memory, text: maxmemoryconsumptionperiterator }
+        - { id: servertimeout, text: servertimeout }
+        - { id: truncation, text: truncationmaxsize }
+        - { id: fanout, text: query_fanout_nodes_percent }
+    - id: op
+      options:
+        - { id: eq, text: "==" }
+        - { id: contains, text: contains }
+        - { id: in, text: in }
+        - { id: between, text: between }
+answer:
+  values: { opt: servertimeout, op: in }
+explanation:
+  correct:
+    en: |
+      The default timeout is 4 minutes for queries, and servertimeout raises it, up to 1 hour. Long chains of or conditions make the operator tree too complex; Microsoft recommends rewriting them with the in() operator, which compares DeviceId with every value of the list.
+    fr: |
+      Le délai d'expiration par défaut est de 4 minutes pour les requêtes, et servertimeout permet de le relever, jusqu'à 1 heure. Les longues chaînes de conditions or rendent l'arbre d'opérateurs trop complexe ; Microsoft recommande de les réécrire avec l'opérateur in(), qui compare DeviceId à chaque valeur de la liste.
+  options:
+    memory: { en: "This option sets a memory budget in bytes, not a duration.", fr: "Cette option définit un budget mémoire en octets, pas une durée." }
+    truncation: { en: "truncationmaxsize limits the size of the result in bytes, not the execution time.", fr: "truncationmaxsize limite la taille du résultat en octets, pas la durée d'exécution." }
+    fanout: { en: "This option controls how many nodes run each subquery, as a percentage.", fr: "Cette option contrôle, en pourcentage, le nombre de nœuds qui exécutent chaque sous-requête." }
+    eq: { en: "== compares DeviceId with a single value, not with a list.", fr: "== compare DeviceId à une seule valeur, pas à une liste." }
+    contains: { en: "contains tests whether a string contains a substring; it doesn't take a list of values.", fr: "contains teste si une chaîne contient une sous-chaîne ; il ne prend pas de liste de valeurs." }
+    between: { en: "between tests a range between two values, not membership in a list.", fr: "between teste une plage entre deux valeurs, pas l'appartenance à une liste." }
+references:
+  - title: Query limits
+    url: https://learn.microsoft.com/en-us/kusto/concepts/query-limits?view=microsoft-fabric

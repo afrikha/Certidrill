@@ -1,0 +1,60 @@
+id: dp800-2a-ae-literal-clash
+objective: "2.1.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A .NET application uses Microsoft.Data.SqlClient to connect to an Azure SQL Database. The connection string contains `Column Encryption Setting=Enabled`.
+
+    The **NationalID** column of **dbo.Patient** is `char(11)`, uses the `Latin1_General_BIN2` collation and is encrypted with Always Encrypted deterministic encryption. The application identity can access the column master key and has the required metadata permissions.
+
+    A developer adds the following code:
+
+    ```text
+    cmd.CommandText = "SELECT PatientID FROM dbo.Patient WHERE NationalID = '" + nationalId + "'";
+    ```
+
+    The query fails with error 206: "Operand type clash: char(11) encrypted with (encryption_type = 'DETERMINISTIC', ...) is incompatible with varchar".
+
+    You need to fix the query. What should you do?
+  fr: |
+    Une application .NET utilise Microsoft.Data.SqlClient pour se connecter à une base de données Azure SQL Database. La chaîne de connexion contient `Column Encryption Setting=Enabled`.
+
+    La colonne **NationalID** de **dbo.Patient** est de type `char(11)`, utilise le classement `Latin1_General_BIN2` et est chiffrée avec le chiffrement déterministe d'Always Encrypted. L'identité de l'application peut accéder à la clé principale de colonne et dispose des autorisations de métadonnées requises.
+
+    Un développeur ajoute le code suivant :
+
+    ```text
+    cmd.CommandText = "SELECT PatientID FROM dbo.Patient WHERE NationalID = '" + nationalId + "'";
+    ```
+
+    La requête échoue avec l'erreur 206 : « Operand type clash: char(11) encrypted with (encryption_type = 'DETERMINISTIC', ...) is incompatible with varchar ».
+
+    Vous devez corriger la requête. Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Change the collation of NationalID to Latin1_General_CI_AS.", fr: "Remplacer le classement de NationalID par Latin1_General_CI_AS." }
+    - id: b
+      text: { en: "Pass the value in a SqlParameter whose type matches char(11).", fr: "Transmettre la valeur dans un SqlParameter dont le type correspond à char(11)." }
+    - id: c
+      text: { en: "Re-encrypt NationalID with randomized encryption.", fr: "Rechiffrer NationalID avec le chiffrement aléatoire." }
+    - id: d
+      text: { en: "Wrap the literal in CONVERT(char(11), ...) in the query text.", fr: "Encadrer le littéral par CONVERT(char(11), ...) dans le texte de la requête." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      The Always Encrypted driver can only encrypt values that it sends as query parameters, because it needs the parameter metadata to know which column the value targets. A literal embedded in the query text reaches the server in plaintext and is compared with an encrypted column, which raises the operand type clash. Passing the value as a SqlParameter with a matching type lets the driver encrypt it transparently.
+    fr: |
+      Le pilote Always Encrypted ne peut chiffrer que les valeurs qu'il envoie sous forme de paramètres de requête, car il a besoin des métadonnées du paramètre pour savoir quelle colonne la valeur cible. Un littéral intégré au texte de la requête arrive en clair sur le serveur et est comparé à une colonne chiffrée, ce qui provoque le conflit de type d'opérande. Transmettre la valeur dans un SqlParameter de type correspondant permet au pilote de la chiffrer de façon transparente.
+  options:
+    a: { en: "String columns encrypted with Always Encrypted must use a _BIN2 collation; changing it would make the encryption invalid, not fix the literal.", fr: "Les colonnes de chaînes chiffrées avec Always Encrypted doivent utiliser un classement _BIN2 ; le changer rendrait le chiffrement invalide sans régler le problème du littéral." }
+    c: { en: "Randomized encryption supports no equality comparison without an enclave, and literals stay unsupported.", fr: "Le chiffrement aléatoire ne prend en charge aucune comparaison d'égalité sans enclave, et les littéraux restent non pris en charge." }
+    d: { en: "CONVERT runs on the server on a plaintext value; the engine cannot encrypt it, so the clash remains.", fr: "CONVERT s'exécute sur le serveur sur une valeur en clair ; le moteur ne peut pas la chiffrer, le conflit subsiste." }
+references:
+  - title: Using Always Encrypted with the Microsoft .NET Data Provider for SQL Server
+    url: https://learn.microsoft.com/en-us/sql/connect/ado-net/sql/sqlclient-support-always-encrypted
+  - title: Always Encrypted
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/encryption/always-encrypted-database-engine

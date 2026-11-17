@@ -1,0 +1,69 @@
+id: dp750-3c-dedup-window-steps
+objective: "3.3.3"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam is writing a PySpark notebook that builds **fabrikam.silver.devices** from **fabrikam.bronze.device_updates**. The notebook already contains the following code.
+
+    ```python
+    from pyspark.sql import functions as F
+    from pyspark.sql.window import Window
+
+    df = spark.read.table("fabrikam.bronze.device_updates")
+    w = Window.partitionBy("device_id").orderBy(F.col("updated_at").desc())
+    ```
+
+    The silver table must contain only the most recent row of each device, with the same columns as the bronze table.
+
+    Which four code segments should you add in sequence? To answer, move the appropriate code segments from the list to the answer area and arrange them in the correct order.
+  fr: |
+    Fabrikam écrit un notebook PySpark qui crée **fabrikam.silver.devices** à partir de **fabrikam.bronze.device_updates**. Le notebook contient déjà le code suivant.
+
+    ```python
+    from pyspark.sql import functions as F
+    from pyspark.sql.window import Window
+
+    df = spark.read.table("fabrikam.bronze.device_updates")
+    w = Window.partitionBy("device_id").orderBy(F.col("updated_at").desc())
+    ```
+
+    La table silver ne doit contenir que la ligne la plus récente de chaque appareil, avec les mêmes colonnes que la table bronze.
+
+    Quels sont les quatre segments de code à ajouter dans l'ordre ? Pour répondre, déplacez les segments de code appropriés de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - { id: rn, text: "df = df.withColumn(\"rn\", F.row_number().over(w))" }
+    - { id: filter, text: "df = df.filter(F.col(\"rn\") == 1)" }
+    - { id: drop, text: "df = df.drop(\"rn\")" }
+    - { id: write, text: "df.write.mode(\"overwrite\").saveAsTable(\"fabrikam.silver.devices\")" }
+    - { id: dropdup, text: "df = df.dropDuplicates([\"device_id\"])" }
+    - { id: sort, text: "df = df.orderBy(F.col(\"updated_at\").desc())" }
+    - { id: distinct, text: "df = df.distinct()" }
+answer:
+  sequence: [ rn, filter, drop, write ]
+explanation:
+  correct:
+    en: |
+      `row_number()` over the window numbers the rows of each device from the most recent update, so the filter on `rn == 1` keeps one row per device. The helper column can be dropped only after the filter has used it, and the table is written last so that it has the same columns as the bronze table.
+    fr: |
+      `row_number()` sur la fenêtre numérote les lignes de chaque appareil à partir de la mise à jour la plus récente : le filtre sur `rn == 1` conserve donc une ligne par appareil. La colonne intermédiaire ne peut être supprimée qu'après son utilisation par le filtre, et la table est écrite en dernier afin d'avoir les mêmes colonnes que la table bronze.
+  options:
+    dropdup:
+      en: "`dropDuplicates` keeps an arbitrary row of each device, not necessarily the most recent one."
+      fr: "`dropDuplicates` conserve une ligne arbitraire de chaque appareil, pas nécessairement la plus récente."
+    sort:
+      en: |
+        Sorting the DataFrame does not remove any row, and Spark does not guarantee that a later deduplication keeps the first sorted row.
+      fr: |
+        Trier le DataFrame ne supprime aucune ligne, et Spark ne garantit pas qu'une déduplication ultérieure conserve la première ligne triée.
+    distinct:
+      en: "`distinct()` removes only rows identical in every column; updates of the same device differ by updated_at."
+      fr: "`distinct()` ne supprime que les lignes identiques dans toutes les colonnes ; les mises à jour d'un même appareil diffèrent par updated_at."
+references:
+  - title: dropDuplicates
+    url: https://learn.microsoft.com/en-us/azure/databricks/pyspark/reference/classes/dataframe/dropduplicates
+  - title: QUALIFY clause
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-qry-select-qualify

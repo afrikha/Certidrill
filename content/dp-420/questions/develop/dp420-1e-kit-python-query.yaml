@@ -1,0 +1,84 @@
+id: dp420-1e-kit-python-query
+objective: "1.5.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove has a Python service that reads loyalty transactions from an Azure Cosmos DB for NoSQL container named **transactions**. The partition key is `/memberId`. Key-based authentication is disabled on the account.
+
+    Your AI coding assistant uses the Azure Cosmos DB Agent Kit to review the following code. You need to apply its recommendations:
+
+    - Authenticate with Microsoft Entra ID, both on developer workstations (signed-in developer) and in Azure (managed identity), without changing the code.
+    - Pass the member ID as a query parameter.
+    - Run the query in a single logical partition.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove dispose d'un service Python qui lit des transactions de fidélité dans un conteneur Azure Cosmos DB for NoSQL nommé **transactions**. La clé de partition est `/memberId`. L'authentification par clé est désactivée sur le compte.
+
+    Votre assistant de codage IA utilise Azure Cosmos DB Agent Kit pour réviser le code suivant. Vous devez appliquer ses recommandations :
+
+    - s'authentifier avec Microsoft Entra ID, à la fois sur les postes des développeurs (développeur connecté) et dans Azure (identité managée), sans modifier le code ;
+    - transmettre l'ID du membre comme paramètre de requête ;
+    - exécuter la requête dans une seule partition logique.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    from azure import identity
+    from azure.cosmos import CosmosClient
+
+    # Created once when the module is loaded and reused by every call
+    client = CosmosClient(os.environ["COSMOS_ENDPOINT"], credential=[[cred]])
+    container = client.get_database_client("loyalty").get_container_client("transactions")
+
+    def list_transactions(member_id: str):
+        return list(container.query_items(
+            query="SELECT c.id, c.points, c.date FROM c WHERE c.memberId = @memberId",
+            parameters=[[params]],
+            [[scope]],
+        ))
+  slots:
+    - id: cred
+      options:
+        - { id: mi, text: identity.ManagedIdentityCredential() }
+        - { id: dac, text: identity.DefaultAzureCredential() }
+        - { id: key, text: "os.environ[\"COSMOS_KEY\"]" }
+    - id: params
+      options:
+        - { id: dict, text: "{\"@memberId\": member_id}" }
+        - { id: tuple, text: "[(\"@memberId\", member_id)]" }
+        - { id: list, text: "[{\"name\": \"@memberId\", \"value\": member_id}]" }
+    - id: scope
+      options:
+        - { id: pk, text: partition_key=member_id }
+        - { id: cross, text: enable_cross_partition_query=True }
+        - { id: metrics, text: populate_query_metrics=True }
+answer:
+  values: { cred: dac, params: list, scope: pk }
+explanation:
+  correct:
+    en: |
+      DefaultAzureCredential tries several Microsoft Entra credential sources in turn, so the same code works with the developer's sign-in locally and with a managed identity in Azure. The Python SDK expects parameters as a list of dictionaries with name and value keys. Passing partition_key scopes the query to the member's logical partition.
+    fr: |
+      DefaultAzureCredential essaie successivement plusieurs sources d'informations d'identification Microsoft Entra : le même code fonctionne donc avec la connexion du développeur en local et avec une identité managée dans Azure. Le SDK Python attend les paramètres sous forme de liste de dictionnaires avec les clés name et value. Transmettre partition_key limite la requête à la partition logique du membre.
+  options:
+    mi: { en: "ManagedIdentityCredential works only where a managed identity is available, not on a developer workstation.", fr: "ManagedIdentityCredential ne fonctionne que là où une identité managée est disponible, pas sur un poste de développeur." }
+    key: { en: "An account key is not Microsoft Entra authentication, and key-based authentication is disabled.", fr: "Une clé de compte n'est pas une authentification Microsoft Entra, et l'authentification par clé est désactivée." }
+    dict: { en: "The SDK does not accept a dictionary that maps names to values; each parameter is a name/value dictionary in a list.", fr: "Le SDK n'accepte pas un dictionnaire associant noms et valeurs ; chaque paramètre est un dictionnaire name/value dans une liste." }
+    tuple: { en: "Tuples are not the parameter format of query_items.", fr: "Les tuples ne sont pas le format de paramètres de query_items." }
+    cross: { en: "Enabling cross-partition queries is the opposite of the requirement.", fr: "Activer les requêtes entre partitions est le contraire de l'exigence." }
+    metrics: { en: "Query metrics help diagnose cost but do not scope the query to a partition.", fr: "Les métriques de requête aident à diagnostiquer le coût mais ne limitent pas la requête à une partition." }
+references:
+  - title: Use the Azure Cosmos DB Agent Kit - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agent-kit/usage
+  - title: Quickstart - Azure SDK for Python - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/quickstart-python

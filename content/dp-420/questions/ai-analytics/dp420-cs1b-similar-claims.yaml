@@ -1,0 +1,73 @@
+id: dp420-cs1b-similar-claims
+objective: "3.1.4"
+type: dropdown
+caseStudy: dp420-cs1b-humongous-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    ClaimDesk generates the embedding of each new claim description into `new_claim_embedding` with the same model as the stored embeddings.
+
+    You need to complete the code that returns similar claims to meet the requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    ClaimDesk génère l'incorporation de chaque nouvelle description de sinistre dans `new_claim_embedding` avec le même modèle que celui des incorporations stockées.
+
+    Vous devez compléter le code qui renvoie les sinistres similaires pour satisfaire les exigences.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    results = claim_vectors.query_items(
+        query=(
+            "SELECT [[top]] c.claimId, VectorDistance(c.embedding, @v) AS score "
+            "FROM c WHERE [[filter]] "
+            "ORDER BY [[order]]"
+        ),
+        parameters=[
+            {"name": "@v", "value": new_claim_embedding},
+            {"name": "@t", "value": tenant_id},
+        ],
+        enable_cross_partition_query=True,
+    )
+  slots:
+    - id: top
+      options:
+        - { id: distinct, text: DISTINCT }
+        - { id: top10, text: TOP 10 }
+        - { id: value, text: VALUE }
+    - id: filter
+      options:
+        - { id: claim, text: "c.claimId = @t" }
+        - { id: defined, text: "IS_DEFINED(c.embedding)" }
+        - { id: tenant, text: "c.tenantId = @t" }
+    - id: order
+      options:
+        - { id: distance, text: "VectorDistance(c.embedding, @v)" }
+        - { id: alias, text: c.score }
+        - { id: ts, text: c._ts DESC }
+answer:
+  values: { top: top10, filter: tenant, order: distance }
+explanation:
+  correct:
+    en: "A vector search orders the results by `VectorDistance` on the embedding path and must include `TOP N`; without it the query returns far more results and costs more RUs. Filtering on `c.tenantId` restricts the search to the tenant's claims, and because `tenantId` is the `vectorIndexShardKey`, the search uses only that tenant's smaller DiskANN index, which lowers the RU charge."
+    fr: "Une recherche vectorielle trie les résultats par `VectorDistance` sur le chemin d'incorporation et doit inclure `TOP N` ; sans cela, la requête renvoie beaucoup plus de résultats et consomme plus de RU. Le filtre sur `c.tenantId` limite la recherche aux sinistres du locataire et, comme `tenantId` est la `vectorIndexShardKey`, la recherche n'utilise que l'index DiskANN plus petit de ce locataire, ce qui réduit la consommation de RU."
+  options:
+    distinct: { en: "DISTINCT removes duplicates but does not limit the number of results to 10.", fr: "DISTINCT supprime les doublons mais ne limite pas le nombre de résultats à 10." }
+    value: { en: "VALUE returns the projected value without its property name; it does not limit the results and cannot be combined with several projected properties.", fr: "VALUE renvoie la valeur projetée sans son nom de propriété ; il ne limite pas les résultats et ne peut pas être combiné avec plusieurs propriétés projetées." }
+    claim: { en: "Comparing claimId with the tenant identifier returns no claim.", fr: "Comparer claimId à l'identifiant du locataire ne renvoie aucun sinistre." }
+    defined: { en: "IS_DEFINED keeps the claims of every tenant, so the search is not limited to the same tenant.", fr: "IS_DEFINED conserve les sinistres de tous les locataires : la recherche n'est pas limitée au même locataire." }
+    alias: { en: "In ORDER BY, c.score refers to a property of the stored items, not to the alias of the projection.", fr: "Dans ORDER BY, c.score désigne une propriété des éléments stockés, pas l'alias de la projection." }
+    ts: { en: "Ordering by _ts returns the most recent claims, not the most similar ones.", fr: "Trier par _ts renvoie les sinistres les plus récents, pas les plus similaires." }
+references:
+  - title: Vector search in Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search
+  - title: "Sharded DiskANN: Focused vector search"
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/sharded-diskann

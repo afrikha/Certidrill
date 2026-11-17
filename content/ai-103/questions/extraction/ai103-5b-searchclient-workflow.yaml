@@ -1,0 +1,71 @@
+id: ai103-5b-searchclient-workflow
+objective: "5.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has an Azure Functions app that triages insurance claims. One step of the workflow retrieves passages from an Azure AI Search index named claims-index and adds them to the prompt of a chat model.
+
+    The contentVector field of claims-index has a vector profile with a vectorizer. The step must run a hybrid query with semantic ranking, and the function must authenticate with its managed identity.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank dispose d'une application Azure Functions qui trie les déclarations de sinistre. Une étape du flux de travail récupère des passages dans un index Azure AI Search nommé claims-index et les ajoute à l'invite d'un modèle de conversation.
+
+    Le champ contentVector de claims-index possède un profil vectoriel avec un vectoriseur. L'étape doit exécuter une requête hybride avec classement sémantique, et la fonction doit s'authentifier avec son identité managée.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    search = SearchClient(endpoint=search_endpoint, index_name="claims-index",
+                          credential=[[cred]])
+
+    results = search.search(
+        search_text=question,
+        vector_queries=[
+            [[vq]](text=question, k_nearest_neighbors=50, fields="contentVector")
+        ],
+        query_type=[[qt]],
+        semantic_configuration_name="default",
+        top=5,
+    )
+    sources = "\n".join(f"[{r['title']}] {r['chunk']}" for r in results)
+  slots:
+    - id: cred
+      options:
+        - { id: dac, text: DefaultAzureCredential() }
+        - { id: admin, text: AzureKeyCredential(admin_key) }
+        - { id: query, text: AzureKeyCredential(query_key) }
+    - id: vq
+      options:
+        - { id: vectorized, text: VectorizedQuery }
+        - { id: vectorizable, text: VectorizableTextQuery }
+    - id: qt
+      options:
+        - { id: simple, text: '"simple"' }
+        - { id: full, text: '"full"' }
+        - { id: semantic, text: '"semantic"' }
+answer:
+  values: { cred: dac, vq: vectorizable, qt: semantic }
+explanation:
+  correct:
+    en: |
+      DefaultAzureCredential picks up the function's managed identity, so no key is stored. VectorizableTextQuery sends the question as text, and the vectorizer of the field's profile converts it to a vector at query time; together with `search_text`, the request is a hybrid query. `query_type="semantic"` with a semantic configuration reranks the fused results.
+    fr: |
+      DefaultAzureCredential utilise l'identité managée de la fonction : aucune clé n'est stockée. VectorizableTextQuery envoie la question sous forme de texte, et le vectoriseur du profil du champ la convertit en vecteur au moment de la requête ; avec `search_text`, la requête est hybride. `query_type="semantic"` avec une configuration sémantique reclasse les résultats fusionnés.
+  options:
+    cred: { en: "Both AzureKeyCredential options authenticate with an API key, which the managed identity requirement excludes.", fr: "Les deux options AzureKeyCredential s'authentifient avec une clé API, ce que l'exigence d'identité managée exclut." }
+    vq: { en: "VectorizedQuery expects a precomputed embedding in its `vector` parameter; it doesn't use the index vectorizer to convert text.", fr: "VectorizedQuery attend un vecteur déjà calculé dans son paramètre `vector` ; il n'utilise pas le vectoriseur de l'index pour convertir du texte." }
+    qt: { en: "The simple and full query types select the keyword query syntax; they don't apply the semantic ranker.", fr: "Les types de requête simple et full choisissent la syntaxe de la requête par mots clés ; ils n'appliquent pas le classeur sémantique." }
+references:
+  - title: Create a vector query in Azure AI Search
+    url: https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-query
+  - title: VectorizableTextQuery Class
+    url: https://learn.microsoft.com/en-us/python/api/azure-search-documents/azure.search.documents.models.vectorizabletextquery

@@ -1,0 +1,69 @@
+id: dp700-3d-update-policy-command
+objective: "3.3.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a KQL database named DB1 in a Fabric eventhouse. An eventstream ingests raw events into a table named RawEvents. Each row of RawEvents stores the event as JSON in a column named Payload.
+
+    Analysts query a table named Events, which has typed columns. Today, a scheduled notebook parses RawEvents into Events every hour, and dashboards run the same JSON parsing at query time for the most recent data.
+
+    You create a stored function named ParseRawEvents() whose output schema matches the Events table. You need Events to be populated as soon as data is ingested into RawEvents. If the transformation fails, the ingestion into RawEvents must fail too, so that no data is lost.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données KQL nommée DB1 dans un eventhouse Fabric. Un eventstream ingère des événements bruts dans une table nommée RawEvents. Chaque ligne de RawEvents stocke l'événement au format JSON dans une colonne nommée Payload.
+
+    Les analystes interrogent une table nommée Events, qui possède des colonnes typées. Aujourd'hui, un notebook planifié analyse RawEvents vers Events toutes les heures, et les tableaux de bord refont la même analyse JSON au moment de la requête pour les données les plus récentes.
+
+    Vous créez une fonction stockée nommée ParseRawEvents() dont le schéma de sortie correspond à la table Events. Events doit être alimentée dès que des données sont ingérées dans RawEvents. Si la transformation échoue, l'ingestion dans RawEvents doit échouer elle aussi, afin qu'aucune donnée ne soit perdue.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .alter table [[target]] policy update
+    @'[{"IsEnabled": true, "Source": "[[source]]", "Query": "[[query]]", "IsTransactional": [[tx]]}]'
+  slots:
+    - id: target
+      options:
+        - { id: t_events, text: Events }
+        - { id: t_raw, text: RawEvents }
+        - { id: t_fn, text: ParseRawEvents }
+    - id: source
+      options:
+        - { id: s_events, text: Events }
+        - { id: s_raw, text: RawEvents }
+        - { id: s_fn, text: ParseRawEvents }
+    - id: query
+      options:
+        - { id: q_fn, text: ParseRawEvents() }
+        - { id: q_raw, text: RawEvents }
+        - { id: q_events, text: Events | take 1 }
+    - id: tx
+      options:
+        - { id: tx_true, text: "true" }
+        - { id: tx_false, text: "false" }
+answer:
+  values: { target: t_events, source: s_raw, query: q_fn, tx: tx_true }
+explanation:
+  correct:
+    en: "An update policy is set on the target table (Events) and names the table whose ingestions trigger it in Source (RawEvents). The Query runs on each newly ingested batch of the source; calling the stored function keeps the parsing logic in one place, and its output must match the target schema in column types and order. With IsTransactional set to true, a failure of the policy fails the ingestion into the source table as well, which avoids silent data loss."
+    fr: "Une stratégie de mise à jour se définit sur la table cible (Events) et désigne dans Source la table dont les ingestions la déclenchent (RawEvents). Query s'exécute sur chaque nouveau lot ingéré dans la source ; appeler la fonction stockée garde la logique d'analyse à un seul endroit, et sa sortie doit correspondre au schéma de la cible (types et ordre des colonnes). Avec IsTransactional à true, un échec de la stratégie fait aussi échouer l'ingestion dans la table source, ce qui évite une perte de données silencieuse."
+  options:
+    t_raw: { en: "The policy belongs to the table that receives the transformed rows, not to the source table.", fr: "La stratégie appartient à la table qui reçoit les lignes transformées, pas à la table source." }
+    t_fn: { en: "A function cannot hold a table policy.", fr: "Une fonction ne peut pas porter de stratégie de table." }
+    s_events: { en: "Events is the target; using it as the source would not react to ingestions into RawEvents.", fr: "Events est la cible ; l'utiliser comme source ne réagirait pas aux ingestions dans RawEvents." }
+    s_fn: { en: "Source must be a table, not a function.", fr: "Source doit être une table, pas une fonction." }
+    q_raw: { en: "Returning RawEvents unchanged does not produce the typed columns of Events.", fr: "Renvoyer RawEvents tel quel ne produit pas les colonnes typées d'Events." }
+    q_events: { en: "The query must transform the source data, not read the target table.", fr: "La requête doit transformer les données sources, pas lire la table cible." }
+    tx_false: { en: "With false, a failed policy still ingests the data into RawEvents, so Events silently misses rows.", fr: "Avec false, un échec de la stratégie ingère quand même les données dans RawEvents : Events perd des lignes sans erreur." }
+references:
+  - title: Update policy overview
+    url: https://learn.microsoft.com/en-us/kusto/management/update-policy?view=microsoft-fabric

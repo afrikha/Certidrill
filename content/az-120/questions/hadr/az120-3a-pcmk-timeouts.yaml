@@ -1,0 +1,69 @@
+id: az120-3a-pcmk-timeouts
+objective: "3.1.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam operates two Pacemaker clusters on SLES for SAP:
+
+    - **CL-A** uses the Azure fence agent.
+    - **CL-B** uses SBD with an Azure shared disk.
+
+    You need to apply the corosync and STONITH timeout values from Microsoft's guidance.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam exploite deux clusters Pacemaker sur SLES pour SAP :
+
+    - **CL-A** utilise l'agent de clôture Azure.
+    - **CL-B** utilise SBD avec un disque partagé Azure.
+
+    Vous devez appliquer les valeurs de délai de corosync et de STONITH issues des recommandations de Microsoft.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    # Both clusters
+    sudo crm corosync set totem.token [[token]]
+
+    # CL-A (Azure fence agent)
+    sudo crm configure property stonith-timeout=[[fa]]
+
+    # CL-B (SBD)
+    sudo crm configure property stonith-timeout=[[sbd]]
+  slots:
+    - id: token
+      options:
+        - { id: t5000, text: "5000" }
+        - { id: t30000, text: "30000" }
+        - { id: t90000, text: "90000" }
+    - id: fa
+      options:
+        - { id: fa60, text: "60" }
+        - { id: fa210, text: "210" }
+        - { id: fa900, text: "900" }
+    - id: sbd
+      options:
+        - { id: s60, text: "60" }
+        - { id: s210, text: "210" }
+        - { id: s900, text: "900" }
+answer:
+  values: { token: t30000, fa: fa900, sbd: s210 }
+explanation:
+  correct:
+    en: Microsoft's guidance sets the corosync token to 30000 ms, which tolerates short pauses of a node instead of declaring it lost. The stonith-timeout is 900 seconds with the Azure fence agent, whose power-off and restart operations go through Azure Resource Manager, and 210 seconds with SBD, which exceeds the msgwait timeout of 120 seconds written to the SBD device (sbd -4 120).
+    fr: Les recommandations de Microsoft définissent le jeton corosync à 30000 ms, ce qui tolère de brèves pauses d'un nœud au lieu de le déclarer perdu. Le stonith-timeout est de 900 secondes avec l'agent de clôture Azure, dont les opérations d'arrêt et de redémarrage passent par Azure Resource Manager, et de 210 secondes avec SBD, ce qui dépasse le délai msgwait de 120 secondes écrit sur le périphérique SBD (sbd -4 120).
+  options:
+    t5000: { en: "A 5-second token would declare a node lost during short platform pauses and cause needless failovers.", fr: "Un jeton de 5 secondes déclarerait un nœud perdu lors de brèves pauses de la plateforme et provoquerait des basculements inutiles." }
+    fa210: { en: "210 is the SBD value; Azure fence agent operations need the longer 900-second timeout.", fr: "210 est la valeur SBD ; les opérations de l'agent de clôture Azure nécessitent le délai plus long de 900 secondes." }
+    s900: { en: "900 is the Azure fence agent value; SBD uses 210.", fr: "900 est la valeur de l'agent de clôture Azure ; SBD utilise 210." }
+references:
+  - title: Set up Pacemaker on SUSE Linux Enterprise Server (SLES) in Azure
+    url: https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-suse-pacemaker

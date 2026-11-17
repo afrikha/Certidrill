@@ -1,0 +1,77 @@
+id: dp420-1c-synth-python-concatenate
+objective: "1.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a Python application that stores support tickets in an Azure Cosmos DB for NoSQL container named **tickets**. A tenant can have up to 2,000 stores and more than 20 GB of tickets, but each store stays below 1 GB. Every request concerns the tickets of one store of one tenant.
+
+    The container must use a single-level synthetic partition key, and listing the open tickets of a store must be a single-partition query.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez une application Python qui stocke des tickets de support dans un conteneur Azure Cosmos DB for NoSQL nommé **tickets**. Un locataire peut avoir jusqu'à 2 000 magasins et plus de 20 Go de tickets, mais chaque magasin reste sous 1 Go. Chaque requête concerne les tickets d'un magasin d'un locataire.
+
+    Le conteneur doit utiliser une clé de partition synthétique à un seul niveau, et lister les tickets ouverts d'un magasin doit être une requête sur une seule partition.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    container = database.create_container_if_not_exists(
+        id="tickets",
+        partition_key=PartitionKey(path="/partitionKey"),
+    )
+
+    ticket = {
+        "id": str(uuid.uuid4()),
+        "tenantId": tenant_id,
+        "storeId": store_id,
+        "status": "open",
+        "partitionKey": [[value]],
+    }
+    container.create_item(body=ticket)
+
+    open_tickets = container.query_items(
+        query="SELECT * FROM c WHERE c.status = 'open'",
+        partition_key=[[scope]],
+    )
+  slots:
+    - id: value
+      options:
+        - { id: vconcat, text: 'f"{tenant_id}-{store_id}"' }
+        - { id: vlist, text: "[tenant_id, store_id]" }
+        - { id: vrandom, text: 'f"{tenant_id}-{random.randint(1, 10)}"' }
+        - { id: vtenant, text: "tenant_id" }
+    - id: scope
+      options:
+        - { id: sconcat, text: 'f"{tenant_id}-{store_id}"' }
+        - { id: spath, text: '"/partitionKey"' }
+        - { id: stenant, text: "tenant_id" }
+        - { id: snone, text: "None" }
+answer:
+  values: { value: vconcat, scope: sconcat }
+explanation:
+  correct:
+    en: |-
+      Concatenating tenantId and storeId gives one logical partition per store, far below 20 GB, even for tenants larger than 20 GB. Because each request knows both values, the application rebuilds the same string and passes it as the partition key of the query, which keeps it in one logical partition.
+    fr: |-
+      Concaténer tenantId et storeId donne une partition logique par magasin, bien en dessous de 20 Go, même pour les locataires de plus de 20 Go. Comme chaque requête connaît les deux valeurs, l'application reconstruit la même chaîne et la transmet comme clé de partition de la requête, qui reste ainsi dans une seule partition logique.
+  options:
+    vlist: { en: "A list is a hierarchical key value; the container has a single-level key on /partitionKey.", fr: "Une liste est une valeur de clé hiérarchique ; le conteneur a une clé à un seul niveau sur /partitionKey." }
+    vrandom: { en: "A random suffix spreads a tenant's tickets, but the query could not know which suffix holds a store's tickets.", fr: "Un suffixe aléatoire répartit les tickets d'un locataire, mais la requête ne pourrait pas savoir quel suffixe contient les tickets d'un magasin." }
+    vtenant: { en: "A tenant can exceed 20 GB, the limit of a logical partition.", fr: "Un locataire peut dépasser 20 Go, la limite d'une partition logique." }
+    spath: { en: "partition_key expects a value, not the partition key path.", fr: "partition_key attend une valeur, pas le chemin de la clé de partition." }
+    stenant: { en: "tenant_id is not a value of the partitionKey property, so no item would match.", fr: "tenant_id n'est pas une valeur de la propriété partitionKey : aucun élément ne correspondrait." }
+    snone: { en: "With None, the SDK runs a cross-partition query.", fr: "Avec None, le SDK exécute une requête entre partitions." }
+references:
+  - title: Create a synthetic partition key
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/synthetic-partition-keys
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy

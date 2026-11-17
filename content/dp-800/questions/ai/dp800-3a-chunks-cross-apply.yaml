@@ -1,0 +1,68 @@
+id: dp800-3a-chunks-cross-apply
+objective: "3.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum has an Azure SQL database at compatibility level 170. The dbo.Documents table has the columns DocumentID, Title and Body (nvarchar(max)). The dbo.DocumentChunks table has the columns DocumentID, ChunkOrder and ChunkText.
+
+    You need to split the Body of every document into chunks of 800 characters and store one row per chunk.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum dispose d'une base de données Azure SQL au niveau de compatibilité 170. La table dbo.Documents contient les colonnes DocumentID, Title et Body (nvarchar(max)). La table dbo.DocumentChunks contient les colonnes DocumentID, ChunkOrder et ChunkText.
+
+    Vous devez découper le Body de chaque document en blocs de 800 caractères et stocker une ligne par bloc.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    INSERT INTO dbo.DocumentChunks (DocumentID, ChunkOrder, ChunkText)
+    SELECT d.DocumentID, c.chunk_order, c.[[col]]
+    FROM dbo.Documents AS d
+    [[apply]] AI_GENERATE_CHUNKS(
+        SOURCE = [[src]],
+        CHUNK_TYPE = FIXED,
+        CHUNK_SIZE = 800
+    ) AS c;
+  slots:
+    - id: col
+      options:
+        - { id: chunk, text: chunk }
+        - { id: chunktext, text: chunk_text }
+        - { id: value, text: value }
+    - id: apply
+      options:
+        - { id: cross, text: CROSS APPLY }
+        - { id: inner, text: INNER JOIN }
+        - { id: union, text: UNION ALL }
+    - id: src
+      options:
+        - { id: body, text: d.Body }
+        - { id: docid, text: d.DocumentID }
+        - { id: docs, text: dbo.Documents }
+answer:
+  values: { col: chunk, apply: cross, src: body }
+explanation:
+  correct:
+    en: |
+      AI_GENERATE_CHUNKS is a table-valued function, so CROSS APPLY calls it once per document with that row's Body as SOURCE, which must be a character expression. The function returns the text of each fragment in the chunk column, with chunk_order, chunk_offset and chunk_length.
+    fr: |
+      AI_GENERATE_CHUNKS est une fonction table : CROSS APPLY l'appelle une fois par document avec le Body de cette ligne comme SOURCE, qui doit être une expression de type caractère. La fonction retourne le texte de chaque fragment dans la colonne chunk, avec chunk_order, chunk_offset et chunk_length.
+  options:
+    chunktext: { en: "The function returns no chunk_text column; the text is in chunk.", fr: "La fonction ne retourne pas de colonne chunk_text ; le texte se trouve dans chunk." }
+    value: { en: "value is a column of functions such as STRING_SPLIT or OPENJSON, not of AI_GENERATE_CHUNKS.", fr: "value est une colonne de fonctions comme STRING_SPLIT ou OPENJSON, pas d'AI_GENERATE_CHUNKS." }
+    inner: { en: "A join can't pass a column of the outer row to a table-valued function; APPLY is required.", fr: "Une jointure ne peut pas transmettre une colonne de la ligne externe à une fonction table ; APPLY est requis." }
+    union: { en: "UNION ALL appends result sets; it doesn't evaluate the function for each document.", fr: "UNION ALL ajoute des jeux de résultats ; il n'évalue pas la fonction pour chaque document." }
+    docid: { en: "SOURCE must be the text to split, of a character type; DocumentID is an integer.", fr: "SOURCE doit être le texte à découper, de type caractère ; DocumentID est un entier." }
+    docs: { en: "SOURCE takes a text expression, not a table name.", fr: "SOURCE prend une expression de texte, pas un nom de table." }
+references:
+  - title: AI_GENERATE_CHUNKS (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/ai-generate-chunks-transact-sql

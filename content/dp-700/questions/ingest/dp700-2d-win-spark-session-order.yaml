@@ -1,0 +1,43 @@
+id: dp700-2d-win-spark-session-order
+objective: "2.3.7"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric Spark job definition that reads website clicks from an Azure event hub into a streaming DataFrame named `clicks`. Each click has the `UserId` and `EventTime` columns. Clicks can arrive up to 30 minutes late.
+
+    You need to write to a Delta table named **user_sessions** the number of clicks of each user session. A session ends after 30 minutes without a click from the same user. Each session must be written once, when it's final.
+
+    Which four code steps should you chain in sequence? To answer, move the appropriate steps from the list of steps to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez dans Fabric d'une définition de travail Spark qui lit les clics d'un site web d'un hub d'événements Azure dans un DataFrame de streaming nommé `clicks`. Chaque clic a les colonnes `UserId` et `EventTime`. Les clics peuvent arriver jusqu'à 30 minutes en retard.
+
+    Vous devez écrire dans une table Delta nommée **user_sessions** le nombre de clics de chaque session utilisateur. Une session se termine après 30 minutes sans clic du même utilisateur. Chaque session doit être écrite une seule fois, quand elle est définitive.
+
+    Quelles sont les quatre étapes de code à enchaîner dans l'ordre ? Pour répondre, déplacez les étapes appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - { id: watermark, text: { en: "Call `withWatermark(\"EventTime\", \"30 minutes\")` on `clicks`.", fr: "Appeler `withWatermark(\"EventTime\", \"30 minutes\")` sur `clicks`." } }
+    - { id: group, text: { en: "Call `groupBy(F.session_window(\"EventTime\", \"30 minutes\"), \"UserId\")`.", fr: "Appeler `groupBy(F.session_window(\"EventTime\", \"30 minutes\"), \"UserId\")`." } }
+    - { id: agg, text: { en: "Call `agg(F.count(\"*\").alias(\"Clicks\"))`.", fr: "Appeler `agg(F.count(\"*\").alias(\"Clicks\"))`." } }
+    - { id: write, text: { en: "Call `writeStream` with `outputMode(\"append\")`, a checkpoint location and `toTable(\"user_sessions\")`.", fr: "Appeler `writeStream` avec `outputMode(\"append\")`, un emplacement de point de contrôle et `toTable(\"user_sessions\")`." } }
+    - { id: sort, text: { en: "Call `orderBy(\"UserId\", \"EventTime\")` on `clicks`.", fr: "Appeler `orderBy(\"UserId\", \"EventTime\")` sur `clicks`." } }
+    - { id: complete, text: { en: "Call `writeStream` with `outputMode(\"complete\")` and `toTable(\"user_sessions\")`.", fr: "Appeler `writeStream` avec `outputMode(\"complete\")` et `toTable(\"user_sessions\")`." } }
+answer:
+  sequence: [ watermark, group, agg, write ]
+explanation:
+  correct:
+    en: |-
+      The watermark is declared on the event-time column before the aggregation, so that Spark knows when a session can no longer receive late clicks. `session_window()` with a 30-minute gap groups the clicks of each user into sessions, and `agg()` counts them. In append mode, a session is written only after the watermark has passed its end, so each session is written once with its final count.
+    fr: |-
+      Le filigrane est déclaré sur la colonne d'heure d'événement avant l'agrégation, pour que Spark sache quand une session ne peut plus recevoir de clics tardifs. `session_window()` avec un intervalle de 30 minutes regroupe les clics de chaque utilisateur en sessions, et `agg()` les compte. En mode append, une session n'est écrite qu'une fois que le filigrane a dépassé sa fin : chaque session est donc écrite une seule fois avec son nombre définitif.
+  options:
+    sort: { en: "Sorting a streaming DataFrame before an aggregation isn't supported, and session_window doesn't need sorted input.", fr: "Le tri d'un DataFrame de streaming avant une agrégation n'est pas pris en charge, et session_window n'a pas besoin d'une entrée triée." }
+    complete: { en: "Complete mode rewrites all the sessions at each trigger and keeps all the state, so sessions are written many times.", fr: "Le mode complete réécrit toutes les sessions à chaque déclenchement et conserve tout l'état : les sessions sont écrites de nombreuses fois." }
+references:
+  - title: session_window
+    url: https://learn.microsoft.com/en-us/azure/databricks/pyspark/reference/functions/session_window
+  - title: Apply watermarks to control data processing thresholds
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/watermarks

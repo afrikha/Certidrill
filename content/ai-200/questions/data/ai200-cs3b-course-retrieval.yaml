@@ -1,0 +1,68 @@
+id: ai200-cs3b-course-retrieval
+objective: "2.2.5"
+type: dropdown
+caseStudy: ai200-cs3b-bellows-college
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the retrieval function of StudyBuddy by using psycopg. The `qvec` argument contains the embedding of the student question in the pgvector text format, such as `[0.012,-0.034,...]`.
+
+    How should you complete the code to meet the retrieval requirement? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la fonction de récupération de StudyBuddy à l'aide de psycopg. L'argument `qvec` contient l'incorporation de la question de l'étudiant au format texte de pgvector, par exemple `[0.012,-0.034,...]`.
+
+    Comment devez-vous compléter le code pour respecter l'exigence de récupération ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    def retrieve_chunks(conn, course_id: int, qvec: str) -> list[str]:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT chunk_text
+                FROM course_chunks
+                [[filter]]
+                ORDER BY embedding <=> [[cast]]
+                [[limit]]
+                """,
+                (course_id, qvec),
+            )
+            return [row[0] for row in cur.fetchall()]
+  slots:
+    - id: filter
+      options:
+        - { id: where, text: "WHERE course_id = %s" }
+        - { id: having, text: "HAVING course_id = %s" }
+        - { id: notequal, text: "WHERE course_id <> %s" }
+    - id: cast
+      options:
+        - { id: vector, text: "%s::vector" }
+        - { id: float, text: "%s::float8[]" }
+        - { id: jsonb, text: "%s::jsonb" }
+    - id: limit
+      options:
+        - { id: limit5, text: "LIMIT 5" }
+        - { id: offset5, text: "OFFSET 5" }
+        - { id: limitoffset, text: "LIMIT 5 OFFSET 5" }
+answer:
+  values: { filter: where, cast: vector, limit: limit5 }
+explanation:
+  correct:
+    en: "The metadata filter `WHERE course_id = %s` restricts the results to the chunks of the current course. The `qvec` parameter, sent as text, must be cast to the `vector` type so that the cosine distance operator `<=>` compares two vectors, and `ORDER BY` with `LIMIT 5` returns the five nearest chunks."
+    fr: "Le filtre de métadonnées `WHERE course_id = %s` limite les résultats aux blocs du cours actuel. Le paramètre `qvec`, envoyé sous forme de texte, doit être converti dans le type `vector` pour que l'opérateur de distance cosinus `<=>` compare deux vecteurs, et `ORDER BY` avec `LIMIT 5` renvoie les cinq blocs les plus proches."
+  options:
+    having: { en: "HAVING filters groups after a GROUP BY; the query has no grouping.", fr: "HAVING filtre des groupes après un GROUP BY ; la requête n'a pas de regroupement." }
+    notequal: { en: "This keeps every course except the current one.", fr: "Cette condition conserve tous les cours sauf le cours actuel." }
+    float: { en: "A float array is not a vector; the `<=>` operator of pgvector needs the `vector` type.", fr: "Un tableau de flottants n'est pas un vecteur ; l'opérateur `<=>` de pgvector exige le type `vector`." }
+    jsonb: { en: "JSONB values cannot be compared with the pgvector distance operators.", fr: "Les valeurs JSONB ne peuvent pas être comparées avec les opérateurs de distance de pgvector." }
+    offset5: { en: "OFFSET 5 skips the five nearest chunks and returns all the others.", fr: "OFFSET 5 ignore les cinq blocs les plus proches et renvoie tous les autres." }
+    limitoffset: { en: "This returns the sixth to tenth nearest chunks.", fr: "Cette clause renvoie les blocs classés de la sixième à la dixième position." }
+references:
+  - title: Optimize performance when using pgvector in Azure Database for PostgreSQL flexible server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

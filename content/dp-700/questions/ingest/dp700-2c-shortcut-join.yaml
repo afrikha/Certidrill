@@ -1,0 +1,72 @@
+id: dp700-2c-shortcut-join
+objective: "2.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an eventhouse that contains a KQL database named PlantDB. PlantDB contains a native table named Telemetry and a OneLake shortcut named dim_product that points to a Delta table in a lakehouse. Both have a ProductId column.
+
+    You need a query that counts the telemetry events of the last hour by ProductName. Events whose ProductId isn't in dim_product must still be counted.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse qui contient une base de données KQL nommée PlantDB. PlantDB contient une table native nommée Telemetry et un raccourci OneLake nommé dim_product qui pointe vers une table Delta d'un lakehouse. Tous deux comportent une colonne ProductId.
+
+    Vous avez besoin d'une requête qui compte les événements de télémétrie de la dernière heure par ProductName. Les événements dont le ProductId est absent de dim_product doivent quand même être comptés.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    Telemetry
+    | where Timestamp > ago(1h)
+    | join kind=[[kind]] (
+        [[src]]
+        | project ProductId, ProductName
+      ) on ProductId
+    | summarize Events = count() by ProductName
+  slots:
+    - id: kind
+      options:
+        - { id: leftouter, text: leftouter }
+        - { id: inner, text: inner }
+        - { id: rightouter, text: rightouter }
+        - { id: leftanti, text: leftanti }
+    - id: src
+      options:
+        - { id: external, text: "external_table('dim_product')" }
+        - { id: table, text: "table('dim_product')" }
+        - { id: mv, text: "materialized_view('dim_product')" }
+answer:
+  values: { kind: leftouter, src: external }
+explanation:
+  correct:
+    en: |
+      A OneLake shortcut in a KQL database is queried as an external table with the external_table() function. A leftouter join keeps every telemetry row and adds the product columns when a match exists, so the events of unknown products are counted with an empty ProductName.
+    fr: |
+      Un raccourci OneLake d'une base de données KQL s'interroge comme une table externe avec la fonction external_table(). Une jointure leftouter conserve chaque ligne de télémétrie et ajoute les colonnes du produit quand une correspondance existe : les événements de produits inconnus sont comptés avec un ProductName vide.
+  options:
+    inner:
+      en: "An inner join drops the events whose ProductId has no match in dim_product."
+      fr: "Une jointure inner supprime les événements dont le ProductId n'a pas de correspondance dans dim_product."
+    rightouter:
+      en: "A rightouter join keeps every product, including products without events, and drops unmatched events."
+      fr: "Une jointure rightouter conserve tous les produits, y compris ceux sans événements, et supprime les événements sans correspondance."
+    leftanti:
+      en: "A leftanti join returns only the unmatched events, without ProductName."
+      fr: "Une jointure leftanti ne renvoie que les événements sans correspondance, sans ProductName."
+    table:
+      en: "table() references tables of the database, not shortcuts."
+      fr: "table() référence des tables de la base de données, pas des raccourcis."
+    mv:
+      en: "materialized_view() reads the materialized part of a materialized view, and dim_product is a shortcut."
+      fr: "materialized_view() lit la partie matérialisée d'une vue matérialisée, et dim_product est un raccourci."
+references:
+  - title: Create OneLake shortcuts in a KQL database
+    url: https://learn.microsoft.com/en-us/fabric/real-time-intelligence/onelake-shortcuts

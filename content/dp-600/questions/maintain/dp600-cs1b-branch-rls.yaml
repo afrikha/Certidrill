@@ -1,0 +1,67 @@
+id: dp600-cs1b-branch-rls
+objective: "1.1.3"
+type: dropdown
+caseStudy: dp600-cs1b-woodgrove-bank
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to meet the security requirement for dbo.Transactions in WH_Finance. How should you complete the T-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez satisfaire l'exigence de sécurité concernant dbo.Transactions dans WH_Finance. Comment devez-vous compléter les instructions T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION Security.fn_BranchFilter(@BranchId AS int)
+        RETURNS [[ret]]
+    WITH SCHEMABINDING
+    AS
+        RETURN SELECT 1 AS fn_result
+        FROM dbo.BranchManagers AS m
+        WHERE m.BranchId = @BranchId
+          AND m.ManagerUpn = [[who]];
+    GO
+
+    CREATE SECURITY POLICY Security.BranchPolicy
+    ADD [[pred]] PREDICATE Security.fn_BranchFilter(BranchId)
+    ON dbo.Transactions
+    WITH (STATE = ON);
+  slots:
+    - id: ret
+      options:
+        - { id: table, text: TABLE }
+        - { id: bit, text: BIT }
+        - { id: int, text: INT }
+    - id: who
+      options:
+        - { id: username, text: USER_NAME() }
+        - { id: appname, text: APP_NAME() }
+        - { id: dbname, text: DB_NAME() }
+        - { id: servername, text: "@@SERVERNAME" }
+    - id: pred
+      options:
+        - { id: filter, text: FILTER }
+        - { id: block, text: BLOCK }
+        - { id: mask, text: MASK }
+answer:
+  values: { ret: table, who: username, pred: filter }
+explanation:
+  correct:
+    en: Row-level security in a Fabric warehouse uses an inline table-valued function created WITH SCHEMABINDING; it returns a row when the user may see the row. USER_NAME() returns the identity of the user who runs the query, which is compared with ManagerUpn. A FILTER predicate in the security policy silently removes the other rows from every query on dbo.Transactions, whatever client is used.
+    fr: La sécurité au niveau des lignes dans un entrepôt Fabric utilise une fonction table inline créée WITH SCHEMABINDING ; elle renvoie une ligne quand l'utilisateur peut voir la ligne. USER_NAME() renvoie l'identité de l'utilisateur qui exécute la requête, comparée à ManagerUpn. Un prédicat FILTER dans la stratégie de sécurité supprime silencieusement les autres lignes de toutes les requêtes sur dbo.Transactions, quel que soit le client utilisé.
+  options:
+    bit: { en: "A security predicate must be an inline table-valued function, so the function returns TABLE, not a scalar.", fr: "Un prédicat de sécurité doit être une fonction table inline ; la fonction renvoie donc TABLE, pas une valeur scalaire." }
+    int: { en: "A security predicate must be an inline table-valued function, so the function returns TABLE, not a scalar.", fr: "Un prédicat de sécurité doit être une fonction table inline ; la fonction renvoie donc TABLE, pas une valeur scalaire." }
+    appname: { en: "APP_NAME() returns the name of the client application, not the identity of the user.", fr: "APP_NAME() renvoie le nom de l'application cliente, pas l'identité de l'utilisateur." }
+    dbname: { en: "DB_NAME() returns the database name, which is the same for every user.", fr: "DB_NAME() renvoie le nom de la base de données, identique pour tous les utilisateurs." }
+    servername: { en: "@@SERVERNAME returns the server name, which is the same for every user.", fr: "@@SERVERNAME renvoie le nom du serveur, identique pour tous les utilisateurs." }
+    block: { en: "A block predicate prevents write operations that violate the predicate; it does not hide rows from SELECT queries.", fr: "Un prédicat de blocage empêche les opérations d'écriture qui enfreignent le prédicat ; il ne masque pas les lignes des requêtes SELECT." }
+    mask: { en: "MASK is not a predicate type of a security policy; masking is configured on columns with dynamic data masking.", fr: "MASK n'est pas un type de prédicat de stratégie de sécurité ; le masquage se configure sur les colonnes avec le masquage dynamique des données." }
+references:
+  - title: Row-level security in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/row-level-security

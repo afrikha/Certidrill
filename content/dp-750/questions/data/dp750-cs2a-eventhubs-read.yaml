@@ -1,0 +1,76 @@
+id: dp750-cs2a-eventhubs-read
+objective: "3.2.6"
+type: dropdown
+caseStudy: dp750-cs2a-wide-world-importers
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the ingest_telemetry notebook.
+
+    How should you complete the code to meet the telemetry ingestion requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le notebook ingest_telemetry.
+
+    Comment devez-vous compléter le code pour respecter les exigences d'ingestion de la télémétrie ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    kafka_options = {
+        "kafka.bootstrap.servers": "evhns-wwi-telemetry.servicebus.windows.net:[[port]]",
+        "subscribe": "truck-telemetry",
+        "databricks.serviceCredential": "wwi-eh-cred",
+        [[offsets]],
+    }
+
+    raw = spark.readStream.format("[[fmt]]").options(**kafka_options).load()
+
+    (raw.writeStream
+        .option("checkpointLocation", "/Volumes/wwi_prod/telemetry/checkpoints/bronze_readings")
+        .trigger(processingTime="30 seconds")
+        .toTable("wwi_prod.telemetry.bronze_readings"))
+  slots:
+    - id: port
+      options:
+        - { id: p443, text: "443" }
+        - { id: p5671, text: "5671" }
+        - { id: p9093, text: "9093" }
+    - id: offsets
+      options:
+        - { id: earliest, text: "\"startingOffsets\": \"earliest\"" }
+        - { id: latest, text: "\"startingOffsets\": \"latest\"" }
+        - { id: dataloss, text: "\"failOnDataLoss\": \"false\"" }
+    - id: fmt
+      options:
+        - { id: kafka, text: "kafka" }
+        - { id: eventhubs, text: "eventhubs" }
+        - { id: cloudfiles, text: "cloudFiles" }
+answer:
+  values: { port: p9093, offsets: earliest, fmt: kafka }
+explanation:
+  correct:
+    en: "Azure Databricks reads Event Hubs through its Kafka endpoint, so the source format is `kafka` and the bootstrap server uses port 9093, the Event Hubs Kafka port. The `databricks.serviceCredential` option authenticates with the Unity Catalog service credential, so no secret appears in the code. The default `startingOffsets` is `latest`, which would skip the retained events; `earliest` makes the first start read everything that truck-telemetry still retains."
+    fr: "Azure Databricks lit Event Hubs par son point de terminaison Kafka : le format de source est donc `kafka` et le serveur d'amorçage utilise le port 9093, le port Kafka d'Event Hubs. L'option `databricks.serviceCredential` s'authentifie avec les informations d'identification de service Unity Catalog, si bien qu'aucun secret n'apparaît dans le code. La valeur par défaut de `startingOffsets` est `latest`, ce qui ignorerait les événements conservés ; `earliest` fait lire au premier démarrage tout ce que truck-telemetry conserve encore."
+  options:
+    p5671:
+      en: Port 5671 is the AMQP port of Event Hubs, not its Kafka endpoint.
+      fr: Le port 5671 est le port AMQP d'Event Hubs, pas son point de terminaison Kafka.
+    latest:
+      en: "`latest` is the default: the first start would read only new events and skip the events already retained."
+      fr: "`latest` est la valeur par défaut : le premier démarrage lirait uniquement les nouveaux événements et ignorerait ceux déjà conservés."
+    eventhubs:
+      en: The `eventhubs` format belongs to a separate Event Hubs connector library; the `databricks.serviceCredential` and `kafka.*` options apply to the built-in Kafka source.
+      fr: Le format `eventhubs` appartient à une bibliothèque de connecteur Event Hubs distincte ; les options `databricks.serviceCredential` et `kafka.*` s'appliquent à la source Kafka intégrée.
+    cloudfiles:
+      en: "`cloudFiles` is Auto Loader, which reads files from cloud storage, not events from Event Hubs."
+      fr: "`cloudFiles` correspond à Auto Loader, qui lit des fichiers dans le stockage cloud, pas des événements Event Hubs."
+references:
+  - title: Authentication
+    url: https://learn.microsoft.com/en-us/azure/databricks/connect/streaming/kafka/authentication
+  - title: Connect to Apache Kafka
+    url: https://learn.microsoft.com/en-us/azure/databricks/connect/streaming/kafka

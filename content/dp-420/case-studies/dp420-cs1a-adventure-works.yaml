@@ -1,0 +1,79 @@
+id: dp420-cs1a-adventure-works
+status: draft
+title:
+  en: Adventure Works Cycles
+  fr: Adventure Works Cycles
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Adventure Works Cycles sells bicycles, parts and accessories online in 12 European countries. The online store receives about 2 million visits a day, with peaks during promotional campaigns.
+
+        The store is made of several .NET 8 applications written in C# that use the Azure Cosmos DB .NET SDK v3 (latest version of Microsoft.Azure.Cosmos). Adventure Works is redesigning the catalog pipeline and the product search before the spring campaign.
+      fr: |
+        Adventure Works Cycles vend des vélos, des pièces et des accessoires en ligne dans 12 pays européens. La boutique en ligne reçoit environ 2 millions de visites par jour, avec des pics pendant les campagnes promotionnelles.
+
+        La boutique se compose de plusieurs applications .NET 8 écrites en C# qui utilisent le SDK .NET v3 d'Azure Cosmos DB (dernière version de Microsoft.Azure.Cosmos). Adventure Works refond la chaîne de traitement du catalogue et la recherche de produits avant la campagne de printemps.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Adventure Works has an Azure Cosmos DB for NoSQL account named **cosmos-aw-store** in the West Europe region. The account uses continuous backup (7-day tier), the all versions and deletes change feed mode is enabled, and the account uses the Session default consistency level and provisioned autoscale throughput. The applications currently authenticate with the primary key of the account.
+
+        The account contains a database named **store** with the following containers.
+
+        | Container | Partition key | Content |
+        | --- | --- | --- |
+        | products | /category | About 60,000 products; each item has `id`, `category`, `brand`, `name`, `description`, `price` and `rating`. The container has the default indexing policy, a full-text policy that declares `/description` in en-US, and a full-text index on `/description`. |
+        | sales | /customerId | Carts and orders |
+        | leases | /id | Empty |
+
+        The following applications use the account.
+
+        | Application | Description |
+        | --- | --- |
+        | app-storefront | ASP.NET Core web app in Azure App Service; uses a singleton `CosmosClient` in the default Direct connectivity mode |
+        | app-checkout | ASP.NET Core API in Azure App Service; has a system-assigned managed identity |
+        | job-price-import | Console app that runs every night and loads a supplier file of about 2 million product rows |
+        | app-catalog-sync | New worker that will send product changes to an external search service and to a price-history store |
+      fr: |
+        Adventure Works dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-aw-store** dans la région West Europe. Le compte utilise la sauvegarde continue (niveau 7 jours), le mode toutes les versions et suppressions du flux de modification est activé, et le compte utilise le niveau de cohérence par défaut Session et un débit provisionné avec mise à l'échelle automatique. Les applications s'authentifient actuellement avec la clé primaire du compte.
+
+        Le compte contient une base de données nommée **store** avec les conteneurs suivants.
+
+        | Conteneur | Clé de partition | Contenu |
+        | --- | --- | --- |
+        | products | /category | Environ 60 000 produits ; chaque élément contient `id`, `category`, `brand`, `name`, `description`, `price` et `rating`. Le conteneur a la stratégie d'indexation par défaut, une stratégie de texte intégral qui déclare `/description` en en-US et un index de texte intégral sur `/description`. |
+        | sales | /customerId | Paniers et commandes |
+        | leases | /id | Vide |
+
+        Les applications suivantes utilisent le compte.
+
+        | Application | Description |
+        | --- | --- |
+        | app-storefront | Application web ASP.NET Core dans Azure App Service ; utilise un `CosmosClient` singleton dans le mode de connectivité Direct par défaut |
+        | app-checkout | API ASP.NET Core dans Azure App Service ; dispose d'une identité managée affectée par le système |
+        | job-price-import | Application console qui s'exécute chaque nuit et charge un fichier fournisseur d'environ 2 millions de lignes de produits |
+        | app-catalog-sync | Nouveau worker qui enverra les modifications de produits à un service de recherche externe et à un magasin d'historique des prix |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Adventure Works identifies the following requirements:
+
+        1. job-price-import must create the products that do not exist yet and overwrite the products that already exist. The SDK must group the concurrent write operations into as few service calls as possible to maximize throughput.
+        2. app-catalog-sync must receive every creation, every intermediate update and every deletion of a product, in the order in which they occurred for each product.
+        3. The **Deals** page runs the query `SELECT TOP 48 c.id, c.name, c.price, c.rating FROM c ORDER BY c.price ASC, c.rating DESC`, which currently fails. The query must run successfully.
+        4. The p99 latency of point reads measured by app-storefront has increased. The developers must determine whether the time is spent in the Azure Cosmos DB backend before they change the application.
+        5. app-checkout must authenticate by using its managed identity. It must be able to read and write items in the sales container only. The principle of least privilege must be applied.
+        6. The search box must return the products whose description contains all the words that the shopper typed, ordered by BM25 relevance.
+      fr: |
+        Adventure Works a défini les exigences suivantes :
+
+        1. job-price-import doit créer les produits qui n'existent pas encore et remplacer les produits qui existent déjà. Le SDK doit regrouper les opérations d'écriture simultanées dans le moins d'appels de service possible pour maximiser le débit.
+        2. app-catalog-sync doit recevoir chaque création, chaque mise à jour intermédiaire et chaque suppression de produit, dans l'ordre où elles se sont produites pour chaque produit.
+        3. La page **Deals** exécute la requête `SELECT TOP 48 c.id, c.name, c.price, c.rating FROM c ORDER BY c.price ASC, c.rating DESC`, qui échoue actuellement. La requête doit s'exécuter correctement.
+        4. La latence p99 des lectures ponctuelles mesurée par app-storefront a augmenté. Les développeurs doivent déterminer si le temps est passé dans le back-end d'Azure Cosmos DB avant de modifier l'application.
+        5. app-checkout doit s'authentifier à l'aide de son identité managée. Elle doit pouvoir lire et écrire des éléments uniquement dans le conteneur sales. Le principe du moindre privilège doit être appliqué.
+        6. La zone de recherche doit renvoyer les produits dont la description contient tous les mots saisis par le client, triés par pertinence BM25.

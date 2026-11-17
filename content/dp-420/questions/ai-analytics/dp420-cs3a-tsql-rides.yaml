@@ -1,0 +1,78 @@
+id: dp420-cs3a-tsql-rides
+objective: "3.3.3"
+type: dropdown
+caseStudy: dp420-cs3a-alpine-ski-house
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The passdays container is mirrored into Fabric. In the SQL analytics endpoint of the mirrored database, the `rides` property of each row is shown as a JSON string.
+
+    An analyst needs one row per ride for the resort `verbier`, with the pass, the lift and the scan time. Pass days that have no ride must not be returned.
+
+    How should you complete the T-SQL query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le conteneur passdays est mis en miroir dans Fabric. Dans le point de terminaison d'analytique SQL de la base de données en miroir, la propriété `rides` de chaque ligne est présentée sous forme de chaîne JSON.
+
+    Un analyste a besoin d'une ligne par trajet pour la station `verbier`, avec le forfait, la remontée et l'heure du passage. Les journées de forfait sans aucun trajet ne doivent pas être renvoyées.
+
+    Comment devez-vous compléter la requête T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT p.passId, r.liftId, r.scannedAt
+    FROM passdays AS p
+    [[apply]] [[fn]](p.rides)
+    WITH (
+        liftId    VARCHAR(20) '$.liftId',
+        scannedAt VARCHAR(30) '$.scannedAt'
+    ) AS r
+    WHERE p.resortId = 'verbier';
+  slots:
+    - id: apply
+      options:
+        - { id: outer, text: OUTER APPLY }
+        - { id: cross, text: CROSS APPLY }
+        - { id: join, text: CROSS JOIN }
+        - { id: union, text: UNION ALL }
+    - id: fn
+      options:
+        - { id: value, text: JSON_VALUE }
+        - { id: query, text: JSON_QUERY }
+        - { id: openjson, text: OPENJSON }
+        - { id: rowset, text: OPENROWSET }
+answer:
+  values: { apply: cross, fn: openjson }
+explanation:
+  correct:
+    en: "Nested data of a mirrored container is exposed as a JSON string, and `OPENJSON` with a `WITH` clause turns each element of the `rides` array into a typed row. `CROSS APPLY` evaluates `OPENJSON` once per pass day and returns only the pass days for which it produces at least one row, so pass days without rides are excluded."
+    fr: "Les données imbriquées d'un conteneur en miroir sont exposées sous forme de chaîne JSON, et `OPENJSON` avec une clause `WITH` transforme chaque élément du tableau `rides` en ligne typée. `CROSS APPLY` évalue `OPENJSON` pour chaque journée de forfait et ne renvoie que les journées pour lesquelles il produit au moins une ligne : les journées sans trajet sont donc exclues."
+  options:
+    outer:
+      en: "`OUTER APPLY` also returns the pass days whose `rides` array is empty, with NULL lift and time values, which the analyst does not want."
+      fr: "`OUTER APPLY` renvoie aussi les journées de forfait dont le tableau `rides` est vide, avec des valeurs NULL pour la remontée et l'heure, ce que l'analyste ne veut pas."
+    join:
+      en: "A `CROSS JOIN` cannot reference a column of the outer table (`p.rides`) inside the joined table-valued function; that correlation requires `APPLY`."
+      fr: "Un `CROSS JOIN` ne peut pas référencer une colonne de la table externe (`p.rides`) dans la fonction table jointe ; cette corrélation nécessite `APPLY`."
+    union:
+      en: "`UNION ALL` appends the rows of two result sets; it does not expand a column of each row."
+      fr: "`UNION ALL` ajoute à la suite les lignes de deux jeux de résultats ; il ne développe pas une colonne de chaque ligne."
+    value:
+      en: "`JSON_VALUE` returns one scalar value, not a set of rows, so it cannot be applied with a `WITH` schema."
+      fr: "`JSON_VALUE` renvoie une seule valeur scalaire, pas un ensemble de lignes : il ne peut pas être appliqué avec un schéma `WITH`."
+    query:
+      en: "`JSON_QUERY` returns a JSON fragment as a string, not one row per array element."
+      fr: "`JSON_QUERY` renvoie un fragment JSON sous forme de chaîne, pas une ligne par élément du tableau."
+    rowset:
+      en: "`OPENROWSET` reads external files; it does not parse a JSON column of the mirrored table."
+      fr: "`OPENROWSET` lit des fichiers externes ; il n'analyse pas une colonne JSON de la table en miroir."
+references:
+  - title: Mirroring Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/fabric/mirroring/azure-cosmos-db
+  - title: OPENJSON (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/openjson-transact-sql

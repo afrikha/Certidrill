@@ -1,0 +1,101 @@
+id: dp420-cs2c-vanarsdel
+status: draft
+title:
+  en: VanArsdel
+  fr: VanArsdel
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        VanArsdel, Ltd. sells a SaaS platform that monitors the heating, ventilation and energy sensors of office buildings. Customers (tenants) subscribe to one of two plans:
+
+        - **Enterprise**: each tenant gets its own Azure Cosmos DB for NoSQL account.
+        - **Standard**: about 4,000 small tenants share one account named **cosmos-vad-shared**.
+
+        The traffic of each Enterprise tenant peaks at different times of the day, depending on the tenant's time zone.
+      fr: |
+        VanArsdel, Ltd. vend une plateforme SaaS qui surveille les capteurs de chauffage, de ventilation et d'énergie d'immeubles de bureaux. Les clients (locataires) souscrivent l'une des deux offres suivantes :
+
+        - **Enterprise** : chaque locataire dispose de son propre compte Azure Cosmos DB for NoSQL.
+        - **Standard** : environ 4 000 petits locataires partagent un compte nommé **cosmos-vad-shared**.
+
+        Le trafic de chaque locataire Enterprise culmine à des heures différentes de la journée, selon le fuseau horaire du locataire.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Enterprise accounts.** VanArsdel has created an Azure Cosmos DB fleet named **fleet-vad** that contains two fleetspaces named **fs-weu** and **fs-pilot**. A pool is configured for fs-weu, and the account vad-ent-01 is already in fs-weu. Each account uses autoscale throughput.
+
+        | Account | Subscription | Regions | Write configuration | Fleet membership |
+        | --- | --- | --- | --- | --- |
+        | vad-ent-01 | Sub-EntA | West Europe | Single-region write | fs-weu |
+        | vad-ent-02 | Sub-EntB | West Europe | Single-region write | None |
+        | vad-ent-03 | Sub-EntA | West Europe, North Europe | Single-region write | None |
+        | vad-ent-04 | Sub-EntC | West Europe | Single-region write | None |
+        | vad-ent-05 | Sub-EntC | West Europe, North Europe | Multi-region writes | None |
+        | vad-ent-06 | Sub-EntB | West Europe | Single-region write | fs-pilot |
+
+        **Shared account.** cosmos-vad-shared is in West Europe and has a database named **iot** that contains the following containers:
+
+        - **devices**: one item per sensor that holds its latest state, with `tenantId`, `buildingId`, `deviceId` and `status` properties. The container uses `/tenantId` as its partition key and will be recreated with a new partition key.
+        - **telemetry**: one item per sensor reading. Its traffic reaches 30,000 RU/s during business hours and stays below 3,000 RU/s at night and on weekends. It currently uses 30,000 RU/s of manual throughput.
+        - **manuals**: English text chunks of equipment maintenance manuals, with `tenantId` and `text` properties, a full-text policy and a full-text index on `/text`.
+
+        VanArsdel plans to add North Europe as a read region of cosmos-vad-shared next year.
+
+        The **Offline devices** page of the dashboard runs the following query against devices, where `status` contains values such as `Offline`, `OFFLINE` or `offline`:
+
+        ```sql
+        SELECT d.deviceId, d.buildingId FROM d
+        WHERE d.tenantId = @tenantId AND LOWER(d.status) = "offline"
+        ```
+
+        For a large tenant, the query metrics of the page show a Retrieved Document Count of 48,210, an Output Document Count of 37 and an Index Utilization of 0 %.
+      fr: |
+        **Comptes Enterprise.** VanArsdel a créé une flotte (fleet) Azure Cosmos DB nommée **fleet-vad** qui contient deux fleetspaces nommés **fs-weu** et **fs-pilot**. Un pool est configuré pour fs-weu, et le compte vad-ent-01 est déjà dans fs-weu. Chaque compte utilise un débit en mise à l'échelle automatique (autoscale).
+
+        | Compte | Abonnement | Régions | Configuration d'écriture | Appartenance à la flotte |
+        | --- | --- | --- | --- | --- |
+        | vad-ent-01 | Sub-EntA | West Europe | Écriture dans une seule région | fs-weu |
+        | vad-ent-02 | Sub-EntB | West Europe | Écriture dans une seule région | Aucune |
+        | vad-ent-03 | Sub-EntA | West Europe, North Europe | Écriture dans une seule région | Aucune |
+        | vad-ent-04 | Sub-EntC | West Europe | Écriture dans une seule région | Aucune |
+        | vad-ent-05 | Sub-EntC | West Europe, North Europe | Écritures multirégions | Aucune |
+        | vad-ent-06 | Sub-EntB | West Europe | Écriture dans une seule région | fs-pilot |
+
+        **Compte partagé.** cosmos-vad-shared se trouve dans West Europe et a une base de données nommée **iot** qui contient les conteneurs suivants :
+
+        - **devices** : un élément par capteur qui contient son dernier état, avec les propriétés `tenantId`, `buildingId`, `deviceId` et `status`. Le conteneur utilise `/tenantId` comme clé de partition et sera recréé avec une nouvelle clé de partition.
+        - **telemetry** : un élément par relevé de capteur. Son trafic atteint 30 000 RU/s pendant les heures ouvrées et reste inférieur à 3 000 RU/s la nuit et le week-end. Il utilise actuellement un débit manuel de 30 000 RU/s.
+        - **manuals** : des fragments de texte en anglais de manuels de maintenance d'équipements, avec les propriétés `tenantId` et `text`, une stratégie de texte intégral et un index de texte intégral sur `/text`.
+
+        VanArsdel prévoit d'ajouter North Europe comme région de lecture de cosmos-vad-shared l'an prochain.
+
+        La page **Offline devices** du tableau de bord exécute la requête suivante sur devices, où `status` contient des valeurs comme `Offline`, `OFFLINE` ou `offline` :
+
+        ```sql
+        SELECT d.deviceId, d.buildingId FROM d
+        WHERE d.tenantId = @tenantId AND LOWER(d.status) = "offline"
+        ```
+
+        Pour un locataire important, les métriques de requête de la page indiquent un Retrieved Document Count de 48 210, un Output Document Count de 37 et une Index Utilization de 0 %.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        VanArsdel identifies the following requirements:
+
+        1. The devices container must use a hierarchical partition key made of `tenantId`, `buildingId` and `deviceId`. The dashboard must load the state of one device, whose `id` and key values it knows, at the lowest RU cost.
+        2. Requests to telemetry must not be throttled at peak, telemetry costs must be minimized outside business hours, and the solution must remain valid when North Europe is added.
+        3. As many Enterprise accounts as possible must share RU/s from the pool of fs-weu. The region configuration, the write configuration and the fleetspace membership of the existing accounts must not be changed.
+        4. The RU charge of the **Offline devices** query must be reduced without increasing the throughput of devices.
+        5. In the maintenance copilot, a technician types a component name, sometimes with a typo, and selects one or more error codes. The copilot must return the manual chunks that contain the component name, tolerating one wrong character, and at least one of the selected error codes.
+      fr: |
+        VanArsdel a défini les exigences suivantes :
+
+        1. Le conteneur devices doit utiliser une clé de partition hiérarchique composée de `tenantId`, `buildingId` et `deviceId`. Le tableau de bord doit charger l'état d'un appareil, dont il connaît l'`id` et les valeurs de clé, au coût en RU le plus faible.
+        2. Les requêtes vers telemetry ne doivent pas être limitées en période de pointe, les coûts de telemetry doivent être réduits au minimum en dehors des heures ouvrées, et la solution doit rester valide après l'ajout de North Europe.
+        3. Le plus grand nombre possible de comptes Enterprise doit partager des RU/s du pool de fs-weu. La configuration des régions, la configuration d'écriture et l'appartenance aux fleetspaces des comptes existants ne doivent pas être modifiées.
+        4. Le coût en RU de la requête **Offline devices** doit être réduit sans augmenter le débit de devices.
+        5. Dans le copilote de maintenance, un technicien saisit le nom d'un composant, parfois avec une faute de frappe, et sélectionne un ou plusieurs codes d'erreur. Le copilote doit renvoyer les fragments de manuel qui contiennent le nom du composant, en tolérant un caractère erroné, et au moins l'un des codes d'erreur sélectionnés.

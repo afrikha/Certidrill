@@ -1,0 +1,84 @@
+id: ai300-4a-rs-safety-code
+objective: "4.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware has a model deployment named **wellbeing-chat** that answers employee questions. Each row of a test dataset contains a `query` and the `context` provided to the model. The evaluation run sends each query to wellbeing-chat as a model target, and the data source configuration includes the sample schema.
+
+    You need the run to detect:
+
+    - responses that describe or encourage hurting oneself;
+    - responses that infer an emotional state of the user that the context does not support.
+
+    How should you complete the testing criteria? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware dispose d'un déploiement de modèle nommé **wellbeing-chat** qui répond aux questions des employés. Chaque ligne d'un jeu de données de test contient une `query` et le `context` fourni au modèle. L'exécution de l'évaluation envoie chaque requête à wellbeing-chat en tant que cible de modèle, et la configuration de la source de données inclut le schéma sample.
+
+    L'exécution doit détecter :
+
+    - les réponses qui décrivent ou encouragent le fait de se faire du mal ;
+    - les réponses qui déduisent un état émotionnel de l'utilisateur que le contexte n'étaye pas.
+
+    Comment devez-vous compléter les critères de test ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    testing_criteria = [
+        {
+            "type": "azure_ai_evaluator",
+            "name": "safety_1",
+            "evaluator_name": [[ev]],
+            "data_mapping": {
+                "query": "{{item.query}}",
+                "response": [[resp]],
+            },
+        },
+        {
+            "type": "azure_ai_evaluator",
+            "name": "safety_2",
+            "evaluator_name": "builtin.ungrounded_attributes",
+            "data_mapping": {
+                "query": "{{item.query}}",
+                "response": "{{sample.output_text}}",
+                [[key]]: "{{item.context}}",
+            },
+        },
+    ]
+  slots:
+    - id: ev
+      options:
+        - { id: sh, text: "\"builtin.self_harm\"" }
+        - { id: vio, text: "\"builtin.violence\"" }
+        - { id: hu, text: "\"builtin.hate_unfairness\"" }
+        - { id: sex, text: "\"builtin.sexual\"" }
+    - id: resp
+      options:
+        - { id: out, text: "\"{{sample.output_text}}\"" }
+        - { id: item, text: "\"{{item.response}}\"" }
+        - { id: items, text: "\"{{sample.output_items}}\"" }
+    - id: key
+      options:
+        - { id: ctx, text: "\"context\"" }
+        - { id: gt, text: "\"ground_truth\"" }
+        - { id: tc, text: "\"tool_calls\"" }
+answer:
+  values: { ev: sh, resp: out, key: ctx }
+explanation:
+  correct:
+    en: "Self-harm detects language about physical actions intended to hurt oneself and scores it on the 0–7 severity scale. With a model target, `{{sample.output_text}}` references the generated text. Ungrounded attributes requires `context` to decide whether a detected emotional state is grounded; neither criterion needs a judge model deployment."
+    fr: "Self-harm détecte le langage relatif aux actions physiques visant à se faire du mal et le note sur l'échelle de gravité de 0 à 7. Avec une cible de modèle, `{{sample.output_text}}` référence le texte généré. Ungrounded attributes nécessite `context` pour décider si un état émotionnel détecté est fondé ; aucun des deux critères n'a besoin d'un déploiement de modèle juge."
+  options:
+    vio: { en: "Violence covers harm to others and weapons, not self-harm.", fr: "Violence couvre les atteintes à autrui et les armes, pas l'automutilation." }
+    item: { en: "The dataset stores no response; wellbeing-chat generates it during the run.", fr: "Le jeu de données ne stocke aucune réponse ; wellbeing-chat la génère pendant l'exécution." }
+    items: { en: "sample.output_items references structured agent output; this is a model target.", fr: "sample.output_items référence la sortie structurée d'un agent ; il s'agit ici d'une cible de modèle." }
+    tc: { en: "tool_calls is an input of agent-only evaluators such as prohibited actions.", fr: "tool_calls est une entrée des évaluateurs réservés aux agents, comme prohibited actions." }
+references:
+  - title: Risk and safety evaluators
+    url: https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/risk-safety-evaluators

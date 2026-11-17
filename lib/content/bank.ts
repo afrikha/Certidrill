@@ -46,6 +46,10 @@ export async function loadBank(content: CertificationContent): Promise<QuestionB
   });
   const ids = new Set<string>([...caseStudies.map((c) => c.id), ...series.map((s) => s.id)]);
   if (ids.size !== caseStudies.length + series.length) throw new ContentError(content.dir, "case study and series ids must be unique");
+  // A blueprint without case studies (or series), like the fundamentals, has no file for them.
+  const structure = content.blueprint.blueprint.structure;
+  if (structure.caseStudies.count.max === 0 && caseStudies.length > 0) throw new ContentError(content.dir, "the blueprint has no case study, but case-studies/ holds some");
+  if (structure.series.count.max === 0 && series.length > 0) throw new ContentError(content.dir, "the blueprint has no Yes/No series, but series/ holds some");
 
   const seriesOrders = new Map<string, Set<number>>();
   const questionsRoot = path.join(content.dir, "questions");

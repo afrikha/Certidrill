@@ -1,0 +1,73 @@
+id: az700-cs3b-bellows
+status: draft
+title:
+  en: Bellows College
+  fr: Bellows College
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Bellows College is a higher education institution with a main campus and two satellite campuses. Its computer science department gives students virtual lab environments in Azure every semester.
+
+        A central IT team manages the network and the shared Azure resources. Instructors manage their own lab environments. A separate security team defines the firewall rules that apply to the whole college.
+      fr: |
+        Bellows College est un établissement d'enseignement supérieur qui compte un campus principal et deux campus secondaires. Chaque semestre, son département d'informatique fournit aux étudiants des environnements de travaux pratiques virtuels dans Azure.
+
+        Une équipe informatique centrale gère le réseau et les ressources Azure partagées. Les enseignants gèrent leurs propres environnements de travaux pratiques. Une équipe sécurité distincte définit les règles de pare-feu qui s'appliquent à tout l'établissement.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Campuses**
+
+        The campuses use 10.10.0.0/16 (Main), 10.20.0.0/16 (North) and 10.30.0.0/16 (South). A vulnerability scanner runs on 10.10.5.50 in the Main campus.
+
+        **Azure (West Europe)**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | Hub-VNet | 10.200.0.0/20, in subscription Sub-Core. GatewaySubnet with a VPN gateway named **GW-VPN** that has site-to-site connections to the three campuses; AzureFirewallSubnet with an Azure Firewall named **FW-Hub**; AzureBastionSubnet with an Azure Bastion host named **Bastion-Hub** (Standard SKU); subnet AppGwSubnet with an Application Gateway WAF_v2 named **AGW-LMS** |
+        | VNet-LMS | 10.210.0.0/16, in Sub-Core, peered with Hub-VNet. Hosts the learning management system (LMS) VMs, which are the backend pool of AGW-LMS |
+        | Lab virtual networks | Created by instructors in subscription **Sub-Labs** at the start of each semester, up to 40 per semester. Each one has a /24 address space from 10.230.0.0/16 and the tag **Purpose = Lab**. Instructors can edit the NSGs of their lab virtual networks |
+        | AVNM1 | Azure Virtual Network Manager instance whose scope contains Sub-Core and Sub-Labs |
+
+        FW-Hub uses a firewall policy named **Policy-Hub** that the central IT team manages. Policy-Hub uses a parent policy named **Policy-Base** that the security team manages. The threat intelligence mode of Policy-Base is **Alert only**.
+
+        The LMS answers on HTTPS port 443. The path **/health** returns HTTP 200 when the Host header is **lms.bellowscollege.edu**. Every other path returns HTTP 401 to unauthenticated requests. The backend settings of AGW-LMS use HTTPS on port 443 with no host name override and no custom probe. All the LMS VMs currently appear as unhealthy in the backend health of AGW-LMS.
+      fr: |
+        **Campus**
+
+        Les campus utilisent 10.10.0.0/16 (Main), 10.20.0.0/16 (North) et 10.30.0.0/16 (South). Un scanner de vulnérabilités s'exécute sur 10.10.5.50 dans le campus Main.
+
+        **Azure (West Europe)**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | Hub-VNet | 10.200.0.0/20, dans l'abonnement Sub-Core. GatewaySubnet avec une passerelle VPN nommée **GW-VPN** qui a des connexions de site à site vers les trois campus ; AzureFirewallSubnet avec un Pare-feu Azure nommé **FW-Hub** ; AzureBastionSubnet avec un hôte Azure Bastion nommé **Bastion-Hub** (référence SKU Standard) ; sous-réseau AppGwSubnet avec une Application Gateway WAF_v2 nommée **AGW-LMS** |
+        | VNet-LMS | 10.210.0.0/16, dans Sub-Core, relié à Hub-VNet par un peering. Héberge les machines virtuelles de la plateforme d'apprentissage en ligne (LMS), qui forment le pool principal d'AGW-LMS |
+        | Réseaux virtuels de travaux pratiques | Créés par les enseignants dans l'abonnement **Sub-Labs** au début de chaque semestre, jusqu'à 40 par semestre. Chacun a un espace d'adressage /24 issu de 10.230.0.0/16 et l'étiquette **Purpose = Lab**. Les enseignants peuvent modifier les NSG de leurs réseaux virtuels de travaux pratiques |
+        | AVNM1 | Instance Azure Virtual Network Manager dont l'étendue contient Sub-Core et Sub-Labs |
+
+        FW-Hub utilise une stratégie de pare-feu nommée **Policy-Hub** gérée par l'équipe informatique centrale. Policy-Hub a pour stratégie parente une stratégie nommée **Policy-Base** gérée par l'équipe sécurité. Le mode de renseignement sur les menaces (Threat Intelligence) de Policy-Base est **Alert only**.
+
+        La plateforme LMS répond en HTTPS sur le port 443. Le chemin **/health** renvoie HTTP 200 quand l'en-tête Host vaut **lms.bellowscollege.edu**. Tous les autres chemins renvoient HTTP 401 aux requêtes non authentifiées. Les paramètres de back-end d'AGW-LMS utilisent HTTPS sur le port 443, sans remplacement du nom d'hôte et sans sonde personnalisée. Toutes les machines virtuelles LMS apparaissent actuellement comme défaillantes dans l'intégrité du back-end d'AGW-LMS.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        1. Every lab virtual network must be peered with Hub-VNet as soon as an instructor creates it, and it must reach the campuses through GW-VPN. Lab virtual networks must not communicate with each other.
+        2. RDP and SSH connections from the internet to lab VMs must be blocked, whatever NSG rules the instructors create.
+        3. The vulnerability scanner must reach the lab VMs on every port, even when an instructor's NSG denies the traffic.
+        4. Administrators connect to the lab VMs through Bastion-Hub. The lab VMs have no public IP addresses.
+        5. AGW-LMS must detect the LMS VMs as healthy and stop sending traffic to a VM whose /health page fails.
+        6. A new virtual network named **VNet-Research** will host research workloads in Sub-Core. It needs four /24 subnets, will be peered with Hub-VNet and must reach the campuses through GW-VPN.
+        7. Administrative effort must be minimized.
+      fr: |
+        1. Chaque réseau virtuel de travaux pratiques doit être relié à Hub-VNet par un peering dès qu'un enseignant le crée, et doit atteindre les campus par GW-VPN. Les réseaux virtuels de travaux pratiques ne doivent pas communiquer entre eux.
+        2. Les connexions RDP et SSH depuis Internet vers les machines virtuelles de travaux pratiques doivent être bloquées, quelles que soient les règles NSG créées par les enseignants.
+        3. Le scanner de vulnérabilités doit atteindre les machines virtuelles de travaux pratiques sur tous les ports, même quand un NSG d'enseignant refuse ce trafic.
+        4. Les administrateurs se connectent aux machines virtuelles de travaux pratiques par Bastion-Hub. Ces machines virtuelles n'ont pas d'adresse IP publique.
+        5. AGW-LMS doit détecter les machines virtuelles LMS comme saines et cesser d'envoyer du trafic à une machine virtuelle dont la page /health échoue.
+        6. Un nouveau réseau virtuel nommé **VNet-Research** hébergera des charges de travail de recherche dans Sub-Core. Il a besoin de quatre sous-réseaux /24, sera relié à Hub-VNet par un peering et doit atteindre les campus par GW-VPN.
+        7. L'effort d'administration doit être réduit au minimum.

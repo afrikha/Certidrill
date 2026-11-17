@@ -1,0 +1,64 @@
+id: dp750-2a-sp-oauth-spark-conf
+objective: "2.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware has a legacy notebook that cannot be migrated to Unity Catalog yet. The notebook must read data from the Azure Data Lake Storage account **stlitwarelake** by using a Microsoft Entra ID service principal. The service principal already has the required Azure role on the account, and its client secret is stored under the key **sp-secret** in the Azure Key Vault-backed secret scope **kv-lake**.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'un notebook hérité qui ne peut pas encore être migré vers Unity Catalog. Le notebook doit lire des données du compte Azure Data Lake Storage **stlitwarelake** à l'aide d'un principal de service Microsoft Entra ID. Le principal de service dispose déjà du rôle Azure nécessaire sur le compte, et sa clé secrète client est stockée sous la clé **sp-secret** dans l'étendue de secrets reposant sur Azure Key Vault **kv-lake**.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    secret = dbutils.secrets.get(scope="kv-lake", key="sp-secret")
+    acct = "stlitwarelake.dfs.core.windows.net"
+
+    spark.conf.set(f"fs.azure.account.auth.type.{acct}", [[auth]])
+    spark.conf.set(f"fs.azure.account.oauth.provider.type.{acct}",
+                   [[provider]])
+    spark.conf.set(f"fs.azure.account.oauth2.client.id.{acct}", "<application-id>")
+    spark.conf.set(f"fs.azure.account.oauth2.client.secret.{acct}", secret)
+    spark.conf.set(f"fs.azure.account.oauth2.client.endpoint.{acct}",
+                   [[endpoint]])
+  slots:
+    - id: auth
+      options:
+        - { id: sas, text: "\"SAS\"" }
+        - { id: sharedkey, text: "\"SharedKey\"" }
+        - { id: oauth, text: "\"OAuth\"" }
+    - id: provider
+      options:
+        - { id: fixedsas, text: "\"org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider\"" }
+        - { id: msi, text: "\"org.apache.hadoop.fs.azurebfs.oauth2.MsiTokenProvider\"" }
+        - { id: clientcreds, text: "\"org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider\"" }
+    - id: endpoint
+      options:
+        - { id: dbx, text: "\"https://<databricks-instance>/oidc/v1/token\"" }
+        - { id: arm, text: "\"https://management.azure.com/\"" }
+        - { id: entra, text: "\"https://login.microsoftonline.com/<directory-id>/oauth2/token\"" }
+answer:
+  values: { auth: oauth, provider: clientcreds, endpoint: entra }
+explanation:
+  correct:
+    en: Service principal access to ADLS sets the account's authentication type to OAuth and uses the ClientCredsTokenProvider, which exchanges the application ID and client secret for a token. The token endpoint is the Microsoft Entra ID endpoint of the directory (tenant), https://login.microsoftonline.com/<directory-id>/oauth2/token. Databricks recommends Unity Catalog for new workloads.
+    fr: L'accès d'un principal de service à ADLS définit le type d'authentification du compte sur OAuth et utilise ClientCredsTokenProvider, qui échange l'ID d'application et la clé secrète client contre un jeton. Le point de terminaison de jeton est celui de Microsoft Entra ID pour l'annuaire (locataire), https://login.microsoftonline.com/<directory-id>/oauth2/token. Databricks recommande Unity Catalog pour les nouvelles charges de travail.
+  options:
+    sas: { en: "SAS authentication uses a SAS token, not a service principal.", fr: "L'authentification SAS utilise un jeton SAS, pas un principal de service." }
+    sharedkey: { en: "Shared key authentication uses the storage account key.", fr: "L'authentification par clé partagée utilise la clé du compte de stockage." }
+    fixedsas: { en: "FixedSASTokenProvider supplies a fixed SAS token.", fr: "FixedSASTokenProvider fournit un jeton SAS fixe." }
+    msi: { en: "This provider obtains tokens for a managed identity, not for a service principal with a client secret.", fr: "Ce fournisseur obtient des jetons pour une identité managée, pas pour un principal de service avec une clé secrète client." }
+    dbx: { en: "This is the Azure Databricks OAuth endpoint for workspace APIs, not the Microsoft Entra ID token endpoint used for storage.", fr: "Il s'agit du point de terminaison OAuth Azure Databricks pour les API de l'espace de travail, pas du point de terminaison de jeton Microsoft Entra ID utilisé pour le stockage." }
+    arm: { en: "This is the Azure Resource Manager endpoint, not a token endpoint.", fr: "Il s'agit du point de terminaison Azure Resource Manager, pas d'un point de terminaison de jeton." }
+references:
+  - title: Connect to Azure Data Lake Storage and Blob Storage
+    url: https://learn.microsoft.com/en-us/azure/databricks/connect/storage/azure-storage

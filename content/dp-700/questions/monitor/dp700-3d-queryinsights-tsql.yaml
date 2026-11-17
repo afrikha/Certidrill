@@ -1,0 +1,79 @@
+id: dp700-3d-queryinsights-tsql
+objective: "3.3.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW4. Users report that some queries were slow during the last 24 hours.
+
+    You need a T-SQL query that lists the 10 slowest individual executions of the last 24 hours that completed successfully and read data from OneLake instead of only from the cache.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW4. Des utilisateurs signalent que certaines requêtes ont été lentes au cours des dernières 24 heures.
+
+    Vous avez besoin d'une requête T-SQL qui liste les 10 exécutions individuelles les plus lentes des dernières 24 heures qui se sont terminées avec succès et ont lu des données depuis OneLake au lieu de les lire seulement depuis le cache.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 10 distributed_statement_id, command, total_elapsed_time_ms
+    FROM queryinsights.[[view]]
+    WHERE start_time >= DATEADD(hour, -24, GETUTCDATE())
+      AND status = '[[status]]'
+      AND [[scan]] > 0
+    ORDER BY [[sort]] DESC;
+  slots:
+    - id: view
+      options:
+        - { id: v_req, text: exec_requests_history }
+        - { id: v_long, text: long_running_queries }
+        - { id: v_sess, text: exec_sessions_history }
+        - { id: v_freq, text: frequently_run_queries }
+    - id: status
+      options:
+        - { id: st_ok, text: Succeeded }
+        - { id: st_done, text: Completed }
+        - { id: st_success, text: Success }
+    - id: scan
+      options:
+        - { id: sc_remote, text: data_scanned_remote_storage_mb }
+        - { id: sc_mem, text: data_scanned_memory_mb }
+        - { id: sc_disk, text: data_scanned_disk_mb }
+        - { id: sc_cache, text: result_cache_hit }
+    - id: sort
+      options:
+        - { id: so_elapsed, text: total_elapsed_time_ms }
+        - { id: so_start, text: start_time }
+        - { id: so_rows, text: row_count }
+        - { id: so_cpu, text: allocated_cpu_time_ms }
+answer:
+  values: { view: v_req, status: st_ok, scan: sc_remote, sort: so_elapsed }
+explanation:
+  correct:
+    en: "queryinsights.exec_requests_history has one row per completed request, with its status (Succeeded, Failed or Canceled) and total_elapsed_time_ms. A value of data_scanned_remote_storage_mb greater than 0 means the query fetched data from OneLake, which is a cold run; data_scanned_memory_mb and data_scanned_disk_mb measure data read from the cache. Ordering by total_elapsed_time_ms descending returns the slowest executions."
+    fr: "queryinsights.exec_requests_history contient une ligne par requête terminée, avec son statut (Succeeded, Failed ou Canceled) et total_elapsed_time_ms. Une valeur de data_scanned_remote_storage_mb supérieure à 0 signifie que la requête a lu des données depuis OneLake, c'est-à-dire une exécution à froid ; data_scanned_memory_mb et data_scanned_disk_mb mesurent les données lues depuis le cache. Le tri décroissant sur total_elapsed_time_ms renvoie les exécutions les plus lentes."
+  options:
+    v_long: { en: "long_running_queries aggregates executions by query shape; it does not list individual executions.", fr: "long_running_queries agrège les exécutions par forme de requête ; elle ne liste pas les exécutions individuelles." }
+    v_sess: { en: "exec_sessions_history has one row per session, not per query.", fr: "exec_sessions_history contient une ligne par session, pas par requête." }
+    v_freq: { en: "frequently_run_queries aggregates by query shape and focuses on run counts.", fr: "frequently_run_queries agrège par forme de requête et porte sur le nombre d'exécutions." }
+    st_done: { en: "The status values are Succeeded, Failed and Canceled.", fr: "Les valeurs de statut sont Succeeded, Failed et Canceled." }
+    st_success: { en: "The status values are Succeeded, Failed and Canceled.", fr: "Les valeurs de statut sont Succeeded, Failed et Canceled." }
+    sc_mem: { en: "data_scanned_memory_mb measures data read from the in-memory cache, not from OneLake.", fr: "data_scanned_memory_mb mesure les données lues depuis le cache en mémoire, pas depuis OneLake." }
+    sc_disk: { en: "data_scanned_disk_mb measures data read from the local disk cache, not from OneLake.", fr: "data_scanned_disk_mb mesure les données lues depuis le cache sur disque local, pas depuis OneLake." }
+    sc_cache: { en: "result_cache_hit shows the result set cache status, not reads from OneLake.", fr: "result_cache_hit indique l'état du cache des jeux de résultats, pas les lectures depuis OneLake." }
+    so_start: { en: "Sorting by start time returns the most recent executions, not the slowest.", fr: "Trier sur l'heure de début renvoie les exécutions les plus récentes, pas les plus lentes." }
+    so_rows: { en: "row_count is the number of rows returned, not the duration.", fr: "row_count est le nombre de lignes renvoyées, pas la durée." }
+    so_cpu: { en: "CPU time differs from the elapsed time that users experience.", fr: "Le temps processeur diffère du temps écoulé que perçoivent les utilisateurs." }
+references:
+  - title: queryinsights.exec_requests_history (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-views/queryinsights-exec-requests-history-transact-sql?view=fabric
+  - title: Performance guidelines in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/guidelines-warehouse-performance

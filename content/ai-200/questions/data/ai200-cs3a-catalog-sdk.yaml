@@ -1,0 +1,73 @@
+id: ai200-cs3a-catalog-sdk
+objective: "2.1.1"
+type: dropdown
+caseStudy: ai200-cs3a-coho-vineyard
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the catalog access code of app-coho-pairing. The code must meet the catalog access requirement.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le code d'accès au catalogue de app-coho-pairing. Le code doit respecter l'exigence d'accès au catalogue.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    from azure.identity import DefaultAzureCredential
+    from azure.cosmos import CosmosClient
+
+    client = CosmosClient(url=os.environ["COSMOS_ENDPOINT"], credential=[[cred]])
+    wines = client.get_database_client("cellar").get_container_client("wines")
+
+    def get_wine(wine_id: str, region: str):
+        return wines.[[read]](item=wine_id, partition_key=region)
+
+    def wines_for_dish(region: str, dish: str):
+        return list(wines.query_items(
+            query="SELECT c.id, c.name FROM c WHERE c.region = @region AND ARRAY_CONTAINS(c.pairings, @dish)",
+            parameters=[{"name": "@region", "value": region}, {"name": "@dish", "value": dish}],
+            [[scope]],
+        ))
+  slots:
+    - id: cred
+      options:
+        - { id: dac, text: "DefaultAzureCredential()" }
+        - { id: key, text: "os.environ[\"COSMOS_KEY\"]" }
+        - { id: endpoint, text: "os.environ[\"COSMOS_ENDPOINT\"]" }
+    - id: read
+      options:
+        - { id: readitem, text: "read_item" }
+        - { id: query, text: "query_items" }
+        - { id: upsert, text: "upsert_item" }
+        - { id: readall, text: "read_all_items" }
+    - id: scope
+      options:
+        - { id: pk, text: "partition_key=region" }
+        - { id: cross, text: "enable_cross_partition_query=True" }
+        - { id: maxcount, text: "max_item_count=1" }
+answer:
+  values: { cred: dac, read: readitem, scope: pk }
+explanation:
+  correct:
+    en: "`DefaultAzureCredential()` authenticates with the managed identity of app-coho-pairing through Microsoft Entra ID, which works because the identity has a Cosmos DB data-plane role. `read_item` with the id and the partition key value is a point read, the cheapest way to read one item. Passing `partition_key=region` to `query_items` scopes the query to one logical partition instead of fanning it out."
+    fr: "`DefaultAzureCredential()` s'authentifie avec l'identité managée de app-coho-pairing par le biais de Microsoft Entra ID, ce qui fonctionne parce que l'identité a un rôle de plan de données Cosmos DB. `read_item` avec l'id et la valeur de la clé de partition est une lecture ponctuelle, la façon la moins coûteuse de lire un élément. Passer `partition_key=region` à `query_items` limite la requête à une seule partition logique au lieu de la distribuer."
+  options:
+    key: { en: "An account key is a secret and is not Microsoft Entra ID authentication.", fr: "Une clé de compte est un secret et n'est pas une authentification Microsoft Entra ID." }
+    endpoint: { en: "The endpoint identifies the account; it is not a credential.", fr: "Le point de terminaison identifie le compte ; ce n'est pas des informations d'identification." }
+    query: { en: "A query that returns one item costs more RUs than a point read.", fr: "Une requête qui renvoie un élément consomme plus de RU qu'une lecture ponctuelle." }
+    upsert: { en: "`upsert_item` writes an item; it does not read one.", fr: "`upsert_item` écrit un élément ; il n'en lit pas." }
+    readall: { en: "`read_all_items` reads the whole container.", fr: "`read_all_items` lit tout le conteneur." }
+    cross: { en: "A cross-partition query fans out to every partition, which the requirement forbids.", fr: "Une requête entre partitions est distribuée sur toutes les partitions, ce que l'exigence interdit." }
+    maxcount: { en: "`max_item_count` sets the page size; it does not scope the query to a partition.", fr: "`max_item_count` définit la taille de page ; il ne limite pas la requête à une partition." }
+references:
+  - title: Quickstart - Azure SDK for Python - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/quickstart-python

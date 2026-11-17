@@ -1,0 +1,86 @@
+id: dp750-3c-agg-pyspark-groupby
+objective: "3.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin Toys stores one row per flight in **tailspin.silver.flights**. You are writing a PySpark notebook that creates **tailspin.gold.route_delays**.
+
+    The result must contain one row per route with the average delay and the number of flights. Only completed flights must be included, and only routes with at least 100 completed flights must be returned.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys stocke une ligne par vol dans **tailspin.silver.flights**. Vous écrivez un notebook PySpark qui crée **tailspin.gold.route_delays**.
+
+    Le résultat doit contenir une ligne par route avec le retard moyen et le nombre de vols. Seuls les vols terminés doivent être pris en compte, et seules les routes comptant au moins 100 vols terminés doivent être renvoyées.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    route_delays = (spark.read.table("tailspin.silver.flights")
+        .[[first]](F.col("status") == "completed")
+        .groupBy("route_id")
+        .[[aggfn]](F.avg("delay_min").alias("avg_delay"),
+                   F.count("*").alias("flights"))
+        .[[last]](F.col("flights") >= 100))
+
+    route_delays.write.mode("overwrite").saveAsTable("tailspin.gold.route_delays")
+  slots:
+    - id: first
+      options:
+        - { id: select, text: select }
+        - { id: filter1, text: filter }
+        - { id: withcol, text: withColumn }
+    - id: aggfn
+      options:
+        - { id: agg, text: agg }
+        - { id: pivot, text: pivot }
+        - { id: count, text: count }
+    - id: last
+      options:
+        - { id: orderby, text: orderBy }
+        - { id: select2, text: select }
+        - { id: filter2, text: filter }
+answer:
+  values: { first: filter1, aggfn: agg, last: filter2 }
+explanation:
+  correct:
+    en: |
+      The first `filter` keeps the completed flights before the shuffle of `groupBy`, like a SQL WHERE clause. `agg` applies several aggregate expressions to each group. The second `filter` runs on the aggregated DataFrame, so it can reference the **flights** alias, like a SQL HAVING clause.
+    fr: |
+      Le premier `filter` conserve les vols terminés avant le shuffle de `groupBy`, comme une clause WHERE en SQL. `agg` applique plusieurs expressions d'agrégation à chaque groupe. Le second `filter` s'exécute sur le DataFrame agrégé : il peut donc référencer l'alias **flights**, comme une clause HAVING en SQL.
+  options:
+    select:
+      en: "`select` with a Boolean expression returns a Boolean column instead of removing rows."
+      fr: "`select` avec une expression booléenne renvoie une colonne booléenne au lieu de supprimer des lignes."
+    withcol:
+      en: "`withColumn` needs a column name and adds a column; it does not remove rows."
+      fr: "`withColumn` exige un nom de colonne et ajoute une colonne ; il ne supprime pas de lignes."
+    pivot:
+      en: "`pivot` turns the values of a column into columns; it takes a column name, not aggregate expressions."
+      fr: "`pivot` transforme les valeurs d'une colonne en colonnes ; il prend un nom de colonne, pas des expressions d'agrégation."
+    count:
+      en: |
+        GroupedData.count() takes no aggregate expressions; it returns only the number of rows of each group.
+      fr: |
+        GroupedData.count() ne prend aucune expression d'agrégation ; il renvoie uniquement le nombre de lignes de chaque groupe.
+    orderby:
+      en: "`orderBy` sorts the routes but returns all of them."
+      fr: "`orderBy` trie les routes mais les renvoie toutes."
+    select2:
+      en: |
+        A select of a Boolean expression returns a column of true and false values for every route.
+      fr: |
+        Un select d'une expression booléenne renvoie une colonne de valeurs true et false pour chaque route.
+references:
+  - title: agg (GroupedData)
+    url: https://learn.microsoft.com/en-us/azure/databricks/pyspark/reference/classes/groupeddata/agg

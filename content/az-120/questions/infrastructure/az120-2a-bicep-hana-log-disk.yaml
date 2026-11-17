@@ -1,0 +1,114 @@
+id: az120-2a-bicep-hana-log-disk
+objective: "2.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing a Bicep file that deploys a production SAP HANA VM of size **Standard_M64s_v2**. The data disk at LUN 4 will hold the /hana/log volume.
+
+    The configuration of the log disk must meet the following requirements:
+
+    - Use Premium SSD (v1) managed disks.
+    - Be compliant with the SAP HANA certification of the M-series VM.
+    - Use the host caching that Microsoft recommends for /hana/log.
+
+    How should you complete the Bicep file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un fichier Bicep qui déploie une machine virtuelle SAP HANA de production de taille **Standard_M64s_v2**. Le disque de données au LUN 4 hébergera le volume /hana/log.
+
+    La configuration du disque de journal doit répondre aux exigences suivantes :
+
+    - Utiliser des disques managés SSD Premium (v1).
+    - Être conforme à la certification SAP HANA de la machine virtuelle de la série M.
+    - Utiliser la mise en cache de l'hôte recommandée par Microsoft pour /hana/log.
+
+    Comment devez-vous compléter le fichier Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource vmHana 'Microsoft.Compute/virtualMachines@2023-09-01' = {
+      name: 'vmhanap01'
+      location: location
+      properties: {
+        hardwareProfile: {
+          vmSize: 'Standard_M64s_v2'
+        }
+        storageProfile: {
+          dataDisks: [
+            {
+              lun: 4
+              name: 'vmhanap01-log01'
+              createOption: 'Empty'
+              diskSizeGB: 512
+              caching: [[cache]]
+              [[wa]]
+              managedDisk: {
+                storageAccountType: [[sku]]
+              }
+            }
+          ]
+        }
+      }
+    }
+  slots:
+    - id: cache
+      options:
+        - { id: none, text: "'None'" }
+        - { id: ro, text: "'ReadOnly'" }
+        - { id: rw, text: "'ReadWrite'" }
+    - id: wa
+      options:
+        - { id: watrue, text: "writeAcceleratorEnabled: true" }
+        - { id: wafalse, text: "writeAcceleratorEnabled: false" }
+        - { id: detach, text: "deleteOption: 'Detach'" }
+    - id: sku
+      options:
+        - { id: v2, text: "'PremiumV2_LRS'" }
+        - { id: p1, text: "'Premium_LRS'" }
+        - { id: ultra, text: "'UltraSSD_LRS'" }
+        - { id: stdssd, text: "'StandardSSD_LRS'" }
+answer:
+  values: { cache: none, wa: watrue, sku: p1 }
+explanation:
+  correct:
+    en: |
+      SAP HANA certification of M-series VMs with Premium SSD requires Write Accelerator on the /hana/log volume, set with `writeAcceleratorEnabled: true` on the data disk. Microsoft recommends host caching None for /hana/log (the portal shows "None + Write Accelerator"). Premium SSD v1 managed disks use the storage account type `Premium_LRS`.
+    fr: |
+      La certification SAP HANA des machines virtuelles de la série M avec SSD Premium exige Write Accelerator sur le volume /hana/log, défini par `writeAcceleratorEnabled: true` sur le disque de données. Microsoft recommande la mise en cache de l'hôte None pour /hana/log (le portail affiche « None + Write Accelerator »). Les disques managés SSD Premium v1 utilisent le type de compte de stockage `Premium_LRS`.
+  options:
+    ro:
+      en: |
+        ReadOnly works with Write Accelerator, but Microsoft recommends no caching for /hana/log.
+      fr: |
+        ReadOnly fonctionne avec Write Accelerator, mais Microsoft recommande l'absence de cache pour /hana/log.
+    rw:
+      en: |
+        ReadWrite caching is not supported with Write Accelerator.
+      fr: |
+        La mise en cache ReadWrite n'est pas prise en charge avec Write Accelerator.
+    wafalse:
+      en: |
+        Without Write Accelerator, an M-series VM with Premium SSD for /hana/log is not compliant with its HANA certification.
+      fr: |
+        Sans Write Accelerator, une machine virtuelle de la série M avec SSD Premium pour /hana/log n'est pas conforme à sa certification HANA.
+    detach:
+      en: |
+        deleteOption controls what happens to the disk when the VM is deleted; it does not affect log write latency.
+      fr: |
+        deleteOption détermine le sort du disque à la suppression de la machine virtuelle ; il n'influe pas sur la latence d'écriture du journal.
+    v2:
+      en: |
+        PremiumV2_LRS is Premium SSD v2, not the Premium SSD v1 required, and Write Accelerator is supported only with Premium SSD managed disks.
+      fr: |
+        PremiumV2_LRS correspond au SSD Premium v2, et non au SSD Premium v1 exigé ; Write Accelerator n'est pris en charge qu'avec des disques managés SSD Premium.
+references:
+  - title: Azure Write Accelerator - Azure Virtual Machines
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/how-to-enable-write-accelerator
+  - title: SAP HANA Azure virtual machine Premium SSD configurations
+    url: https://learn.microsoft.com/en-us/azure/sap/workloads/hana-vm-premium-ssd-v1

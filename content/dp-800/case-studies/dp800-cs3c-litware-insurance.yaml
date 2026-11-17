@@ -1,0 +1,111 @@
+id: dp800-cs3c-litware-insurance
+status: draft
+title:
+  en: "Litware Insurance"
+  fr: "Litware Insurance"
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Litware Insurance sells auto and home insurance policies. Its claims department handles 300,000 claims a year through a call center, a fraud dashboard and a claims search application bought from a software vendor. The database team manages the claims database as code and is adding an assistant that summarizes claims for the adjusters.
+      fr: |
+        Litware Insurance vend des polices d'assurance auto et habitation. Son service des sinistres traite 300 000 déclarations par an au moyen d'un centre d'appels, d'un tableau de bord de détection des fraudes et d'une application de recherche des sinistres achetée à un éditeur de logiciels. L'équipe de base de données gère la base des sinistres sous forme de code et ajoute un assistant qui résume les sinistres pour les experts.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Databases**
+
+        Two Azure SQL databases named **ClaimsTest** and **ClaimsProd** contain the following tables.
+
+        | Table | Columns |
+        | --- | --- |
+        | Claims.Policy | PolicyId, PolicyNumber, CoverageLevel, HolderNationalId |
+        | Claims.AutoClaim | ClaimNumber (int, IDENTITY(1,1)), PolicyId, LossDate, Status, SettledAmount (NULL until the claim is settled) |
+        | Claims.PropertyClaim | ClaimNumber (int, IDENTITY(1,1)), PolicyId, LossDate, Status, SettledAmount (NULL until the claim is settled) |
+
+        Because both tables use their own IDENTITY column, the same claim number can exist in Claims.AutoClaim and Claims.PropertyClaim.
+
+        **Claims search**
+
+        The claims search application is supplied by a vendor, and Litware can't change its code or its queries. Query Store runs with its default settings on ClaimsProd. Since last Tuesday, the main search query has been five times slower. The Regressed Queries report shows that this query, query_id 4817, used plan_id 212 until last Tuesday and has used plan_id 389 since then.
+
+        **Database development**
+
+        - The schema of the claims database is an SDK-style SQL database project named **ClaimsDb** in the /Database folder of an Azure Repos Git repository named **litware-claims**.
+        - A YAML pipeline named **claims-cd** builds ClaimsDb from the main branch, deploys the .dacpac file to ClaimsTest, and then deploys it to ClaimsProd in a deployment job that targets an environment named **claims-prod**. The deployment to ClaimsProd uses a service connection named **sc-claims-prod**.
+        - Last week, a DBA created the index **IX_AutoClaim_LossDate** directly in ClaimsProd to fix a slow report. A vendor monitoring tool also created a table named **dbo.tmp_LoadAudit** in ClaimsProd.
+
+        **Claims assistant**
+
+        A stored procedure retrieves one auto claim with its policy, converts the data to JSON and sends it to an Azure OpenAI chat completions deployment by using sp_invoke_external_rest_endpoint.
+      fr: |
+        **Bases de données**
+
+        Deux bases de données Azure SQL nommées **ClaimsTest** et **ClaimsProd** contiennent les tables suivantes.
+
+        | Table | Colonnes |
+        | --- | --- |
+        | Claims.Policy | PolicyId, PolicyNumber, CoverageLevel, HolderNationalId |
+        | Claims.AutoClaim | ClaimNumber (int, IDENTITY(1,1)), PolicyId, LossDate, Status, SettledAmount (NULL jusqu'au règlement du sinistre) |
+        | Claims.PropertyClaim | ClaimNumber (int, IDENTITY(1,1)), PolicyId, LossDate, Status, SettledAmount (NULL jusqu'au règlement du sinistre) |
+
+        Comme chaque table utilise sa propre colonne IDENTITY, le même numéro de sinistre peut exister dans Claims.AutoClaim et dans Claims.PropertyClaim.
+
+        **Recherche des sinistres**
+
+        L'application de recherche des sinistres est fournie par un éditeur, et Litware ne peut modifier ni son code ni ses requêtes. Le Magasin des requêtes s'exécute avec ses paramètres par défaut sur ClaimsProd. Depuis mardi dernier, la requête de recherche principale est cinq fois plus lente. Le rapport Requêtes régressées montre que cette requête, query_id 4817, a utilisé le plan_id 212 jusqu'à mardi dernier et utilise le plan_id 389 depuis.
+
+        **Développement de base de données**
+
+        - Le schéma de la base des sinistres est un projet de base de données SQL de style SDK nommé **ClaimsDb**, dans le dossier /Database d'un dépôt Git Azure Repos nommé **litware-claims**.
+        - Un pipeline YAML nommé **claims-cd** génère ClaimsDb à partir de la branche main, déploie le fichier .dacpac sur ClaimsTest, puis le déploie sur ClaimsProd dans un travail de déploiement qui cible un environnement nommé **claims-prod**. Le déploiement sur ClaimsProd utilise une connexion de service nommée **sc-claims-prod**.
+        - La semaine dernière, un DBA a créé l'index **IX_AutoClaim_LossDate** directement dans ClaimsProd pour corriger un rapport lent. Un outil de supervision de l'éditeur a aussi créé une table nommée **dbo.tmp_LoadAudit** dans ClaimsProd.
+
+        **Assistant des sinistres**
+
+        Une procédure stockée récupère un sinistre auto avec sa police, convertit les données en JSON et les envoie à un déploiement de complétions de conversation Azure OpenAI à l'aide de sp_invoke_external_rest_endpoint.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Data requirements**
+
+        1. Claim numbers must come from a single numeric series that is unique across Claims.AutoClaim and Claims.PropertyClaim. The call center application must show the claim number to the caller before the claim is saved.
+        2. The fraud dashboard needs a function named Claims.ufn_OpenClaims that takes a PolicyId and returns the open claims of the policy from both claim tables. The dashboard query lists every policy, including the policies that have no open claims. The optimizer must be able to use index seeks and cardinality estimates based on statistics inside the function.
+        3. The performance of the claims search must be restored now, without any change to the vendor application.
+
+        **Development requirements**
+
+        4. IX_AutoClaim_LossDate must be kept, and dbo.tmp_LoadAudit must not be added to ClaimsDb.
+        5. Every change reaches ClaimsProd through a pull request to the main branch.
+        6. A pull request to main can be completed only if ClaimsDb builds successfully.
+        7. A pull request that changes a file in /Database must be reviewed by the DBA group.
+        8. A deployment to ClaimsProd must wait for the approval of the claims DBA lead.
+        9. Only pipeline runs from the main branch can use sc-claims-prod.
+
+        **Claims assistant requirements**
+
+        10. The claim data sent to the model must be a single JSON object (not an array) with nested claim and policy objects. A column whose value is NULL, such as SettledAmount for an open claim, must appear in the object with a null value. HolderNationalId must never be sent.
+        11. The user message must be a JSON object with a role property set to user and a content property that contains the instruction followed by the claim data. Special characters in the content must be escaped.
+      fr: |
+        **Exigences relatives aux données**
+
+        1. Les numéros de sinistre doivent provenir d'une seule série numérique, unique entre Claims.AutoClaim et Claims.PropertyClaim. L'application du centre d'appels doit indiquer le numéro de sinistre à l'appelant avant l'enregistrement du sinistre.
+        2. Le tableau de bord de détection des fraudes a besoin d'une fonction nommée Claims.ufn_OpenClaims qui prend un PolicyId et renvoie les sinistres ouverts de la police à partir des deux tables de sinistres. La requête du tableau de bord liste toutes les polices, y compris celles qui n'ont aucun sinistre ouvert. L'optimiseur doit pouvoir utiliser des recherches d'index et des estimations de cardinalité fondées sur les statistiques à l'intérieur de la fonction.
+        3. Les performances de la recherche des sinistres doivent être rétablies immédiatement, sans aucune modification de l'application de l'éditeur.
+
+        **Exigences de développement**
+
+        4. IX_AutoClaim_LossDate doit être conservé, et dbo.tmp_LoadAudit ne doit pas être ajoutée à ClaimsDb.
+        5. Chaque modification parvient à ClaimsProd par une pull request vers la branche main.
+        6. Une pull request vers main ne peut être terminée que si la génération de ClaimsDb réussit.
+        7. Une pull request qui modifie un fichier de /Database doit être révisée par le groupe des DBA.
+        8. Un déploiement sur ClaimsProd doit attendre l'approbation du responsable DBA des sinistres.
+        9. Seules les exécutions de pipeline issues de la branche main peuvent utiliser sc-claims-prod.
+
+        **Exigences de l'assistant des sinistres**
+
+        10. Les données de sinistre envoyées au modèle doivent former un seul objet JSON (pas un tableau) avec des objets claim et policy imbriqués. Une colonne dont la valeur est NULL, comme SettledAmount pour un sinistre ouvert, doit apparaître dans l'objet avec une valeur null. HolderNationalId ne doit jamais être envoyé.
+        11. Le message utilisateur doit être un objet JSON avec une propriété role définie sur user et une propriété content qui contient l'instruction suivie des données du sinistre. Les caractères spéciaux du contenu doivent être échappés.

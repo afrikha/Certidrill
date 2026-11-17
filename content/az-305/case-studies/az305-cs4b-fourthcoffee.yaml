@@ -1,0 +1,158 @@
+id: az305-cs4b-fourthcoffee
+status: draft
+title:
+  en: Fourth Coffee
+  fr: Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee operates 400 coffee shops in Spain, Portugal and Italy. The head office and a small datacenter are in Madrid.
+
+        Customers order and pay in advance with a website and a mobile app named **BrewAhead**, then collect their order in a shop. BrewAhead runs in Azure.
+      fr: |
+        Fourth Coffee exploite 400 cafés en Espagne, au Portugal et en Italie. Le siège et un petit centre de données sont à Madrid.
+
+        Les clients commandent et paient à l'avance avec un site web et une application mobile nommés **BrewAhead**, puis retirent leur commande dans un café. BrewAhead s'exécute dans Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure**
+
+        Fourth Coffee has one Azure subscription. Unless stated otherwise, the resources are in the West Europe region.
+
+        | Resource | Description |
+        | --- | --- |
+        | app-brewahead | App Service web app that hosts the website and the API of the mobile app. Its Premium v3 plan scales automatically between 4 and 20 instances. The app uses virtual network integration with a subnet of **VNet-Brew** and routes all its outbound traffic through it. |
+        | func-orders | Function app that sends each paid order to the shop. It runs in the same App Service plan as app-brewahead, uses virtual network integration with the same subnet and routes all its outbound traffic through it. |
+        | sql-brewahead | Azure SQL database that stores the orders of BrewAhead. The apps connect to the public endpoint of its logical server, which accepts connections from all Azure services. |
+        | sql-audit | Azure SQL database (single database) in the General Purpose service tier with 8 vCores of provisioned compute. It holds a copy of the accounting data for the internal auditors. |
+        | law-brew | Log Analytics workspace in the North Europe region, used by the operations team. |
+        | evh-soc | Event Hubs namespace in the North Europe region. The security information and event management (SIEM) product of the security provider of Fourth Coffee reads its event hubs. |
+
+        **Madrid datacenter**
+
+        A SQL Server instance named **SQL-SALES** receives the sales of all the shops every evening. SQL-SALES cannot be reached from the internet: the firewall of the datacenter allows outbound connections only. There is no VPN and no ExpressRoute circuit between the datacenter and Azure.
+
+        **Current problems**
+
+        - The auditors query sql-audit a few days per quarter. The rest of the time, the database receives no connection, but its 8 vCores are billed all year.
+        - New versions of app-brewahead are deployed directly to production. The last release caused an outage of 20 minutes.
+      fr: |
+        **Azure**
+
+        Fourth Coffee dispose d'un seul abonnement Azure. Sauf mention contraire, les ressources se trouvent dans la région West Europe.
+
+        | Ressource | Description |
+        | --- | --- |
+        | app-brewahead | Application web App Service qui héberge le site web et l'API de l'application mobile. Son plan Premium v3 est mis à l'échelle automatiquement entre 4 et 20 instances. L'application utilise l'intégration au réseau virtuel avec un sous-réseau de **VNet-Brew** et y fait passer tout son trafic sortant. |
+        | func-orders | Application de fonctions qui envoie chaque commande payée au café. Elle s'exécute dans le même plan App Service qu'app-brewahead, utilise l'intégration au réseau virtuel avec le même sous-réseau et y fait passer tout son trafic sortant. |
+        | sql-brewahead | Base de données Azure SQL qui stocke les commandes de BrewAhead. Les applications se connectent au point de terminaison public de son serveur logique, qui accepte les connexions de tous les services Azure. |
+        | sql-audit | Base de données Azure SQL (base de données unique) du niveau de service General Purpose avec 8 vCores de calcul provisionné. Elle contient une copie des données comptables destinée aux auditeurs internes. |
+        | law-brew | Espace de travail Log Analytics dans la région North Europe, utilisé par l'équipe d'exploitation. |
+        | evh-soc | Espace de noms Event Hubs dans la région North Europe. Le produit de gestion des informations et des événements de sécurité (SIEM) du prestataire de sécurité de Fourth Coffee lit ses hubs d'événements. |
+
+        **Centre de données de Madrid**
+
+        Une instance SQL Server nommée **SQL-SALES** reçoit chaque soir les ventes de tous les cafés. SQL-SALES n'est pas joignable depuis Internet : le pare-feu du centre de données n'autorise que les connexions sortantes. Il n'existe ni VPN ni circuit ExpressRoute entre le centre de données et Azure.
+
+        **Problèmes actuels**
+
+        - Les auditeurs interrogent sql-audit quelques jours par trimestre. Le reste du temps, la base de données ne reçoit aucune connexion, mais ses 8 vCores sont facturés toute l'année.
+        - Les nouvelles versions d'app-brewahead sont déployées directement en production. La dernière mise en production a provoqué une panne de 20 minutes.
+  - key: data-requirements
+    title: { en: "Data requirements", fr: "Exigences relatives aux données" }
+    body:
+      en: |
+        **Audit database requirements**
+
+        - Compute must not be billed while sql-audit receives no connection.
+        - The queries of the auditors must still be able to use up to 8 vCores.
+        - No administrator must have to start, stop or resize sql-audit.
+        - A delay of about one minute at the first connection after an idle period is acceptable.
+
+        **Data lake requirements**
+
+        Fourth Coffee plans to create a data lake in Azure for the sales data.
+
+        - Analysts will process the data with Apache Spark jobs that use the Azure Blob File System (ABFS) driver.
+        - The analysts of a country must access only the directories of that country. The permissions must be set with access control lists on directories and on files.
+        - The jobs rename and delete directories that contain thousands of files. Each of these operations must be atomic.
+        - The data must be billed at the price of object storage, with access tiers and lifecycle management.
+
+        **Data integration requirements**
+
+        - Every night, the sales of the day must be copied from SQL-SALES to the data lake.
+        - The copy must be scheduled, monitored and retried automatically if it fails, without custom code.
+        - No inbound port may be opened on the firewall of the Madrid datacenter, and no VPN may be deployed.
+      fr: |
+        **Exigences relatives à la base de données d'audit**
+
+        - Le calcul ne doit pas être facturé tant que sql-audit ne reçoit aucune connexion.
+        - Les requêtes des auditeurs doivent toujours pouvoir utiliser jusqu'à 8 vCores.
+        - Aucun administrateur ne doit avoir à démarrer, arrêter ou redimensionner sql-audit.
+        - Un délai d'environ une minute à la première connexion après une période d'inactivité est acceptable.
+
+        **Exigences relatives au lac de données**
+
+        Fourth Coffee prévoit de créer dans Azure un lac de données pour les données de ventes.
+
+        - Les analystes traiteront les données avec des travaux Apache Spark qui utilisent le pilote Azure Blob File System (ABFS).
+        - Les analystes d'un pays ne doivent accéder qu'aux répertoires de ce pays. Les autorisations doivent être définies par des listes de contrôle d'accès sur les répertoires et sur les fichiers.
+        - Les travaux renomment et suppriment des répertoires qui contiennent des milliers de fichiers. Chacune de ces opérations doit être atomique.
+        - Les données doivent être facturées au prix du stockage d'objets, avec des niveaux d'accès et la gestion du cycle de vie.
+
+        **Exigences d'intégration de données**
+
+        - Chaque nuit, les ventes du jour doivent être copiées de SQL-SALES vers le lac de données.
+        - La copie doit être planifiée, surveillée et relancée automatiquement en cas d'échec, sans code personnalisé.
+        - Aucun port entrant ne doit être ouvert sur le pare-feu du centre de données de Madrid, et aucun VPN ne doit être déployé.
+  - key: platform-requirements
+    title: { en: "Platform requirements", fr: "Exigences relatives à la plateforme" }
+    body:
+      en: |
+        **Deployment requirements**
+
+        - A new version of app-brewahead must be started and checked in Azure before it receives the requests of the customers.
+        - Putting a new version into production must not interrupt the service.
+        - Fourth Coffee must be able to return to the previous version within seconds.
+
+        **Network security requirements**
+
+        - Public network access to the logical server of sql-brewahead must be disabled.
+        - app-brewahead and func-orders must reach sql-brewahead through a private IP address of VNet-Brew.
+
+        **Monitoring requirements**
+
+        - The resource logs of the BrewAhead resources in West Europe must be sent to law-brew.
+        - The same resource logs must be streamed in near real time to the SIEM product of the security provider.
+        - The number of diagnostic settings must be minimized.
+
+        **General requirements**
+
+        - Costs must be minimized.
+        - Administrative effort must be minimized.
+      fr: |
+        **Exigences de déploiement**
+
+        - Une nouvelle version d'app-brewahead doit être démarrée et vérifiée dans Azure avant de recevoir les requêtes des clients.
+        - La mise en production d'une nouvelle version ne doit pas interrompre le service.
+        - Fourth Coffee doit pouvoir revenir à la version précédente en quelques secondes.
+
+        **Exigences de sécurité réseau**
+
+        - L'accès réseau public au serveur logique de sql-brewahead doit être désactivé.
+        - app-brewahead et func-orders doivent atteindre sql-brewahead par une adresse IP privée de VNet-Brew.
+
+        **Exigences de monitoring**
+
+        - Les journaux de ressources des ressources BrewAhead situées dans West Europe doivent être envoyés à law-brew.
+        - Les mêmes journaux de ressources doivent être diffusés en quasi-temps réel vers le produit SIEM du prestataire de sécurité.
+        - Le nombre de paramètres de diagnostic doit être réduit au minimum.
+
+        **Exigences générales**
+
+        - Les coûts doivent être réduits au minimum.
+        - L'effort d'administration doit être réduit au minimum.

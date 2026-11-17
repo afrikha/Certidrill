@@ -1,0 +1,88 @@
+id: dp800-3b-hy-query-analysis
+objective: "3.2.8"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Products. A vector index exists on the DescriptionVector column. You review the following hybrid search query.
+
+    ```sql
+    DECLARE @k int = 60;
+
+    WITH keyword AS (
+        SELECT TOP (50) ft.[KEY] AS ProductID,
+               RANK() OVER (ORDER BY ft.[RANK] DESC) AS kw_rank
+        FROM FREETEXTTABLE(dbo.Products, Description, @text) AS ft
+        ORDER BY ft.[RANK] DESC
+    ),
+    semantic AS (
+        SELECT TOP (50) ProductID,
+               RANK() OVER (ORDER BY VECTOR_DISTANCE('cosine', @qv, DescriptionVector)) AS vec_rank
+        FROM dbo.Products
+        ORDER BY VECTOR_DISTANCE('cosine', @qv, DescriptionVector)
+    )
+    SELECT TOP (10) COALESCE(k.ProductID, s.ProductID) AS ProductID,
+           COALESCE(1.0 / (@k + k.kw_rank), 0.0)
+         + COALESCE(2.0 / (@k + s.vec_rank), 0.0) AS rrf_score
+    FROM keyword AS k
+    FULL OUTER JOIN semantic AS s ON s.ProductID = k.ProductID
+    ORDER BY rrf_score DESC;
+    ```
+
+    Which two statements are true?
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Products. Un index vectoriel existe sur la colonne DescriptionVector. Vous examinez la requête de recherche hybride suivante.
+
+    ```sql
+    DECLARE @k int = 60;
+
+    WITH keyword AS (
+        SELECT TOP (50) ft.[KEY] AS ProductID,
+               RANK() OVER (ORDER BY ft.[RANK] DESC) AS kw_rank
+        FROM FREETEXTTABLE(dbo.Products, Description, @text) AS ft
+        ORDER BY ft.[RANK] DESC
+    ),
+    semantic AS (
+        SELECT TOP (50) ProductID,
+               RANK() OVER (ORDER BY VECTOR_DISTANCE('cosine', @qv, DescriptionVector)) AS vec_rank
+        FROM dbo.Products
+        ORDER BY VECTOR_DISTANCE('cosine', @qv, DescriptionVector)
+    )
+    SELECT TOP (10) COALESCE(k.ProductID, s.ProductID) AS ProductID,
+           COALESCE(1.0 / (@k + k.kw_rank), 0.0)
+         + COALESCE(2.0 / (@k + s.vec_rank), 0.0) AS rrf_score
+    FROM keyword AS k
+    FULL OUTER JOIN semantic AS s ON s.ProductID = k.ProductID
+    ORDER BY rrf_score DESC;
+    ```
+
+    Quelles sont les deux affirmations vraies ?
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "The semantic CTE uses the vector index on DescriptionVector.", fr: "La CTE semantic utilise l'index vectoriel sur DescriptionVector." } }
+    - { id: b, text: { en: "A product returned only by the keyword search gets a NULL rrf_score.", fr: "Un produit renvoyé uniquement par la recherche par mots clés obtient un rrf_score NULL." } }
+    - { id: c, text: { en: "A product returned only by the vector search can appear in the results.", fr: "Un produit renvoyé uniquement par la recherche vectorielle peut apparaître dans les résultats." } }
+    - { id: d, text: { en: "A product ranked first only by the vector search scores higher than a product ranked first only by the keyword search.", fr: "Un produit classé premier uniquement par la recherche vectorielle obtient un score plus élevé qu'un produit classé premier uniquement par la recherche par mots clés." } }
+    - { id: e, text: { en: "The products with the lowest rrf_score are returned first.", fr: "Les produits dont le rrf_score est le plus bas sont renvoyés en premier." } }
+answer: { optionIds: [ c, d ] }
+explanation:
+  correct:
+    en: |-
+      The FULL OUTER JOIN keeps the products found by either search, and COALESCE uses the key from whichever side is present. The vector term has a weight of 2, so rank 1 in the vector list alone scores 2/61 (about 0.033), while rank 1 in the keyword list alone scores 1/61 (about 0.016).
+    fr: |-
+      La jointure FULL OUTER JOIN conserve les produits trouvés par l'une ou l'autre recherche, et COALESCE utilise la clé du côté présent. Le terme vectoriel a un poids de 2 : le rang 1 dans la seule liste vectorielle vaut 2/61 (environ 0,033), alors que le rang 1 dans la seule liste par mots clés vaut 1/61 (environ 0,016).
+  options:
+    a: { en: "VECTOR_DISTANCE always computes exact distances and never uses a vector index.", fr: "VECTOR_DISTANCE calcule toujours des distances exactes et n'utilise jamais d'index vectoriel." }
+    b: { en: "COALESCE replaces the missing vector term with 0.0, so the score is the keyword term alone.", fr: "COALESCE remplace le terme vectoriel manquant par 0,0 : le score est le seul terme par mots clés." }
+    e: { en: "ORDER BY rrf_score DESC returns the highest scores, the most relevant products, first.", fr: "ORDER BY rrf_score DESC renvoie d'abord les scores les plus élevés, donc les produits les plus pertinents." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking
+  - title: VECTOR_DISTANCE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-distance-transact-sql

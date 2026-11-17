@@ -1,0 +1,65 @@
+id: dp800-2b-dmv-top-cpu
+objective: "2.2.3"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Wingtip has a database in Azure SQL Database. You need to list the ten cached queries with the highest average CPU time per execution, together with their text and their execution plan.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip dispose d'une base de données dans Azure SQL Database. Vous devez lister les dix requêtes en cache dont le temps processeur moyen par exécution est le plus élevé, avec leur texte et leur plan d'exécution.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 10
+           qs.total_worker_time / qs.execution_count AS avg_cpu_us,
+           qs.execution_count,
+           st.text,
+           qp.query_plan
+    FROM [[src]] AS qs
+    CROSS APPLY [[txt]](qs.sql_handle) AS st
+    CROSS APPLY [[pln]](qs.plan_handle) AS qp
+    ORDER BY avg_cpu_us DESC;
+  slots:
+    - id: src
+      options:
+        - { id: requests, text: sys.dm_exec_requests }
+        - { id: qstats, text: sys.dm_exec_query_stats }
+        - { id: resstats, text: sys.dm_db_resource_stats }
+        - { id: sessions, text: sys.dm_exec_sessions }
+    - id: txt
+      options:
+        - { id: sqltext, text: sys.dm_exec_sql_text }
+        - { id: inbuf, text: sys.dm_exec_input_buffer }
+        - { id: plan1, text: sys.dm_exec_query_plan }
+    - id: pln
+      options:
+        - { id: cached, text: sys.dm_exec_cached_plans }
+        - { id: sqltext2, text: sys.dm_exec_sql_text }
+        - { id: qplan, text: sys.dm_exec_query_plan }
+answer:
+  values: { src: qstats, txt: sqltext, pln: qplan }
+explanation:
+  correct:
+    en: |
+      sys.dm_exec_query_stats returns one row per statement of each cached plan, with cumulative counters such as total_worker_time (CPU in microseconds) and execution_count. sys.dm_exec_sql_text returns the text for a sql_handle, and sys.dm_exec_query_plan returns the XML plan for a plan_handle. Rows disappear when a plan leaves the cache, so Query Store is better for history.
+    fr: |
+      sys.dm_exec_query_stats renvoie une ligne par instruction de chaque plan en cache, avec des compteurs cumulés tels que total_worker_time (processeur en microsecondes) et execution_count. sys.dm_exec_sql_text renvoie le texte d'un sql_handle, et sys.dm_exec_query_plan renvoie le plan XML d'un plan_handle. Les lignes disparaissent lorsqu'un plan quitte le cache : le Magasin des requêtes convient mieux pour l'historique.
+  options:
+    requests: { en: "sys.dm_exec_requests shows only requests running now.", fr: "sys.dm_exec_requests ne montre que les requêtes en cours d'exécution." }
+    resstats: { en: "sys.dm_db_resource_stats reports database-wide resource use every 15 seconds, not per query.", fr: "sys.dm_db_resource_stats indique l'utilisation des ressources de toute la base toutes les 15 secondes, pas par requête." }
+    sessions: { en: "sys.dm_exec_sessions describes connected sessions and has no per-query CPU counters.", fr: "sys.dm_exec_sessions décrit les sessions connectées et n'a pas de compteurs de processeur par requête." }
+    inbuf: { en: "sys.dm_exec_input_buffer takes a session ID and returns the last statement sent by that session.", fr: "sys.dm_exec_input_buffer prend un ID de session et renvoie la dernière instruction envoyée par cette session." }
+    cached: { en: "sys.dm_exec_cached_plans is a view, not a function you can apply to a plan_handle.", fr: "sys.dm_exec_cached_plans est une vue, pas une fonction que l'on peut appliquer à un plan_handle." }
+references:
+  - title: sys.dm_exec_query_stats (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-exec-query-stats-transact-sql

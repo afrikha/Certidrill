@@ -1,0 +1,71 @@
+id: dp800-cs2c-rrf-query
+objective: "3.2.9"
+type: single
+caseStudy: dp800-cs2c-fabrikam-residences
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The query of the public search box ranks the full-text results (keyword_rank) and the vector results (vector_rank) separately, joins them with a FULL OUTER JOIN on ListingId, and computes the following score.
+
+    ```sql
+    DECLARE @k int = 60;
+    -- ...
+    COALESCE(1.0 / (@k + ks.keyword_rank), 0.0) +
+    COALESCE(2.0 / (@k + vs.vector_rank), 0.0) AS rrf_score
+    -- ...
+    ORDER BY rrf_score DESC;
+    ```
+
+    For one search, the two lists contain the following listings.
+
+    | ListingId | keyword_rank | vector_rank |
+    | --- | --- | --- |
+    | 101 | 1 | not returned |
+    | 102 | 4 | 3 |
+    | 103 | not returned | 1 |
+    | 104 | 2 | 10 |
+
+    In which order does the query return the four listings?
+  fr: |
+    La requête de la zone de recherche publique classe séparément les résultats en texte intégral (keyword_rank) et les résultats vectoriels (vector_rank), les joint par une jointure FULL OUTER JOIN sur ListingId et calcule le score suivant.
+
+    ```sql
+    DECLARE @k int = 60;
+    -- ...
+    COALESCE(1.0 / (@k + ks.keyword_rank), 0.0) +
+    COALESCE(2.0 / (@k + vs.vector_rank), 0.0) AS rrf_score
+    -- ...
+    ORDER BY rrf_score DESC;
+    ```
+
+    Pour une recherche, les deux listes contiennent les annonces suivantes.
+
+    | ListingId | keyword_rank | vector_rank |
+    | --- | --- | --- |
+    | 101 | 1 | non renvoyée |
+    | 102 | 4 | 3 |
+    | 103 | non renvoyée | 1 |
+    | 104 | 2 | 10 |
+
+    Dans quel ordre la requête renvoie-t-elle les quatre annonces ?
+body:
+  options:
+    - { id: a, text: "102, 104, 103, 101" }
+    - { id: b, text: "103, 101, 102, 104" }
+    - { id: c, text: "102, 103, 104, 101" }
+    - { id: d, text: "104, 102, 103, 101" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      RRF adds 1/(k + rank) for each list that returns the listing, here with a weight of 2 for the vector list, and COALESCE adds 0 for a missing rank. The scores are about 0.0474 for 102 (1/64 + 2/63), 0.0447 for 104 (1/62 + 2/70), 0.0328 for 103 (2/61) and 0.0164 for 101 (1/61). A listing found by both methods outranks a listing that is first in only one list, because RRF uses ranks rather than raw scores.
+    fr: |
+      RRF additionne 1/(k + rang) pour chaque liste qui renvoie l'annonce, ici avec un poids de 2 pour la liste vectorielle, et COALESCE ajoute 0 pour un rang manquant. Les scores sont d'environ 0,0474 pour 102 (1/64 + 2/63), 0,0447 pour 104 (1/62 + 2/70), 0,0328 pour 103 (2/61) et 0,0164 pour 101 (1/61). Une annonce trouvée par les deux méthodes passe devant une annonce première dans une seule liste, car RRF utilise des rangs et non des scores bruts.
+  options:
+    b: { en: "Being first in a single list gives only one term (2/61 or 1/61), which is lower than the sum of two terms for 102 and 104.", fr: "Être première dans une seule liste ne donne qu'un terme (2/61 ou 1/61), inférieur à la somme de deux termes pour 102 et 104." }
+    c: { en: "103 scores 2/61 ≈ 0.0328, lower than 104, which receives two terms (≈ 0.0447).", fr: "103 obtient 2/61 ≈ 0,0328, moins que 104, qui reçoit deux termes (≈ 0,0447)." }
+    d: { en: "104 (≈ 0.0447) scores slightly less than 102 (≈ 0.0474), because the weighted vector rank 3 contributes more than the keyword rank 2.", fr: "104 (≈ 0,0447) obtient un peu moins que 102 (≈ 0,0474), car le rang vectoriel 3 pondéré compte davantage que le rang 2 en texte intégral." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking

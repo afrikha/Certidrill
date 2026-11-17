@@ -1,0 +1,69 @@
+id: dp800-3b-ann-force-index
+objective: "3.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Listings. A latest-version vector index that uses the cosine metric exists on the DescriptionVector column.
+
+    You are load testing approximate nearest neighbor (ANN) search. The test query must use only the vector index and must never run an exact kNN scan.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Listings. Un index vectoriel de dernière version qui utilise la métrique cosinus existe sur la colonne DescriptionVector.
+
+    Vous effectuez des tests de charge de la recherche de plus proches voisins approximatifs (ANN). La requête de test doit utiliser uniquement l'index vectoriel et ne jamais exécuter d'analyse kNN exacte.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP (20) [[top]]
+           p.ListingID, p.Title, r.distance
+    FROM VECTOR_SEARCH(
+            TABLE = dbo.Listings AS p,
+            COLUMN = DescriptionVector,
+            SIMILAR_TO = @qv,
+            METRIC = 'cosine'
+        ) AS r [[hint]]
+    ORDER BY [[ord]];
+  slots:
+    - id: top
+      options:
+        - { id: approx, text: WITH APPROXIMATE }
+        - { id: ties, text: WITH TIES }
+        - { id: percent, text: PERCENT }
+    - id: hint
+      options:
+        - { id: forceann, text: WITH (FORCE_ANN_ONLY) }
+        - { id: forceseek, text: WITH (FORCESEEK) }
+        - { id: nolock, text: WITH (NOLOCK) }
+    - id: ord
+      options:
+        - { id: dist, text: r.distance }
+        - { id: distdesc, text: r.distance DESC }
+        - { id: title, text: p.Title }
+answer:
+  values: { top: approx, hint: forceann, ord: dist }
+explanation:
+  correct:
+    en: |-
+      The FORCE_ANN_ONLY table hint forces the optimizer to use only the ANN index; it requires a vector index on the column and SELECT TOP (N) WITH APPROXIMATE, otherwise the query fails. Approximate vector search must be ordered by the distance column alone, in ascending order.
+    fr: |-
+      L'indicateur de table FORCE_ANN_ONLY force l'optimiseur à n'utiliser que l'index ANN ; il exige un index vectoriel sur la colonne et SELECT TOP (N) WITH APPROXIMATE, sinon la requête échoue. Une recherche vectorielle approximative doit être triée sur la seule colonne distance, dans l'ordre croissant.
+  options:
+    ties: { en: "WITH TIES returns extra rows that tie with the last one; without APPROXIMATE, VECTOR_SEARCH runs an exact kNN search.", fr: "WITH TIES renvoie des lignes supplémentaires à égalité avec la dernière ; sans APPROXIMATE, VECTOR_SEARCH effectue une recherche kNN exacte." }
+    percent: { en: "TOP (20) PERCENT returns a percentage of the rows and does not request an approximate search.", fr: "TOP (20) PERCENT renvoie un pourcentage des lignes et ne demande pas de recherche approximative." }
+    forceseek: { en: "FORCESEEK applies to B-tree index seeks; it does not force the vector index.", fr: "FORCESEEK s'applique aux recherches dans un index B-tree ; il ne force pas l'index vectoriel." }
+    nolock: { en: "NOLOCK changes the locking behavior, not the choice between ANN and kNN.", fr: "NOLOCK change le comportement de verrouillage, pas le choix entre ANN et kNN." }
+    distdesc: { en: "Descending order on distance raises error 42271 with APPROXIMATE.", fr: "Un tri décroissant sur distance provoque l'erreur 42271 avec APPROXIMATE." }
+    title: { en: "With APPROXIMATE, distance is the only valid ordering key.", fr: "Avec APPROXIMATE, distance est la seule clé de tri valide." }
+references:
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

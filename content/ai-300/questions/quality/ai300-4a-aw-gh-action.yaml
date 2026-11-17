@@ -1,0 +1,85 @@
+id: ai300-4a-aw-gh-action
+objective: "4.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso stores the evaluation data file of a Foundry agent named **support-agent** in a GitHub repository. An app registration with a federated credential for the repository has the Foundry User role, and its IDs are stored as repository variables.
+
+    You need a workflow that runs on every push to main and compares version 2 of support-agent with version 1, which is the baseline. The workflow must not use any stored client secret.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso stocke le fichier de données d'évaluation d'un agent Foundry nommé **support-agent** dans un dépôt GitHub. Une inscription d'application dotée d'informations d'identification fédérées pour le dépôt possède le rôle Foundry User, et ses ID sont stockés comme variables du dépôt.
+
+    Vous avez besoin d'un workflow qui s'exécute à chaque envoi (push) sur main et compare la version 2 de support-agent avec la version 1, qui sert de référence. Le workflow ne doit utiliser aucun secret client stocké.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: "Agent evaluation"
+
+    on:
+      push:
+        branches:
+          - main
+
+    permissions:
+      [[perm]]
+      contents: read
+
+    jobs:
+      evaluate:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+
+          - uses: azure/login@v2
+            with:
+              client-id: ${{ vars.AZURE_CLIENT_ID }}
+              tenant-id: ${{ vars.AZURE_TENANT_ID }}
+              subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+          - uses: [[action]]
+            with:
+              azure-ai-project-endpoint: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
+              deployment-name: gpt-5-mini
+              data-path: ${{ github.workspace }}/evals/support-agent.json
+              [[agents]]
+  slots:
+    - id: perm
+      options:
+        - { id: idt, text: "id-token: write" }
+        - { id: act, text: "actions: read" }
+        - { id: pr, text: "pull-requests: write" }
+    - id: action
+      options:
+        - { id: evals, text: microsoft/ai-agent-evals@v3-beta }
+        - { id: cli, text: azure/cli@v2 }
+        - { id: art, text: actions/upload-artifact@v4 }
+    - id: agents
+      options:
+        - { id: both, text: "agent-ids: \"support-agent:1,support-agent:2\"" }
+        - { id: one, text: "agent-ids: \"support-agent:2\"" }
+        - { id: base, text: "baseline-agent-id: \"support-agent:1,support-agent:2\"" }
+answer:
+  values: { perm: idt, action: evals, agents: both }
+explanation:
+  correct:
+    en: "`id-token: write` lets `azure/login` request a GitHub OIDC token for the federated credential, so no secret is stored. `microsoft/ai-agent-evals` invokes the agents with the data file and runs the evaluators. `agent-ids` lists the agents as `name:version`, comma-separated; several agents are compared with statistical tests, and the first one is the baseline when `baseline-agent-id` is omitted."
+    fr: "`id-token: write` permet à `azure/login` de demander un jeton OIDC GitHub pour les informations d'identification fédérées : aucun secret n'est stocké. `microsoft/ai-agent-evals` appelle les agents avec le fichier de données et exécute les évaluateurs. `agent-ids` liste les agents au format `nom:version`, séparés par des virgules ; plusieurs agents sont comparés par des tests statistiques, et le premier sert de référence quand `baseline-agent-id` est omis."
+  options:
+    act: { en: "actions: read does not allow the workflow to request an OIDC token.", fr: "actions: read ne permet pas au workflow de demander un jeton OIDC." }
+    cli: { en: "azure/cli runs Azure CLI scripts; it does not run agent evaluations.", fr: "azure/cli exécute des scripts Azure CLI ; il n'exécute pas d'évaluations d'agent." }
+    one: { en: "With a single agent, there is nothing to compare with the baseline.", fr: "Avec un seul agent, il n'y a rien à comparer à la référence." }
+    base: { en: "baseline-agent-id identifies one baseline agent, and agent-ids is required.", fr: "baseline-agent-id identifie un seul agent de référence, et agent-ids est obligatoire." }
+references:
+  - title: How to run an evaluation in GitHub Action (preview)
+    url: https://learn.microsoft.com/en-us/azure/foundry/how-to/evaluation-github-action

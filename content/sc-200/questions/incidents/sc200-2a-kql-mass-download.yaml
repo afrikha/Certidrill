@@ -1,0 +1,69 @@
+id: sc200-2a-kql-mass-download
+objective: "2.1.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys uses Microsoft Defender for Cloud Apps. The Microsoft 365 app connector is configured with **Microsoft 365 activities**, so SharePoint Online and OneDrive activities are available in advanced hunting.
+
+    After an **Unusual file download (by user)** alert, you need an advanced hunting query that returns the users who downloaded more than 500 distinct files within a single one-hour interval, aligned on the hour, during the last day.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys utilise Microsoft Defender pour les applications cloud. Le connecteur d'application Microsoft 365 est configuré avec **Microsoft 365 activities** : les activités SharePoint Online et OneDrive sont donc disponibles dans le repérage avancé.
+
+    Après une alerte **Unusual file download (by user)**, vous avez besoin d'une requête de repérage avancé qui renvoie les utilisateurs ayant téléchargé plus de 500 fichiers distincts au cours d'un même intervalle d'une heure, aligné sur l'heure pleine, pendant la dernière journée.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    CloudAppEvents
+    | where Timestamp > ago(1d)
+    | where ActionType == "FileDownloaded"
+    | summarize Files = [[agg]](ObjectName) by AccountDisplayName, [[win]]
+    | [[op]] Files > 500
+  slots:
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+        - { id: set, text: make_set }
+        - { id: max, text: max }
+    - id: win
+      options:
+        - { id: bin, text: "bin(Timestamp, 1h)" }
+        - { id: ago, text: ago(1h) }
+        - { id: ts, text: Timestamp }
+        - { id: day, text: startofday(Timestamp) }
+    - id: op
+      options:
+        - { id: where, text: where }
+        - { id: extend, text: extend }
+        - { id: project, text: project }
+answer:
+  values: { agg: dcount, win: bin, op: where }
+explanation:
+  correct:
+    en: |
+      CloudAppEvents contains the activities of the apps connected to Defender for Cloud Apps, including SharePoint Online and OneDrive downloads. dcount(ObjectName) counts distinct files, bin(Timestamp, 1h) groups the events into one-hour windows, and the where operator after summarize keeps only the groups above the threshold.
+    fr: |
+      CloudAppEvents contient les activités des applications connectées à Defender pour les applications cloud, dont les téléchargements SharePoint Online et OneDrive. dcount(ObjectName) compte les fichiers distincts, bin(Timestamp, 1h) regroupe les événements par fenêtres d'une heure, et l'opérateur where après summarize ne conserve que les groupes au-dessus du seuil.
+  options:
+    count: { en: "count() counts download events, so the same file downloaded several times is counted several times.", fr: "count() compte les événements de téléchargement : un même fichier téléchargé plusieurs fois est compté plusieurs fois." }
+    set: { en: "make_set returns an array of file names, which can't be compared with 500.", fr: "make_set renvoie un tableau de noms de fichiers, qui ne peut pas être comparé à 500." }
+    ago: { en: "ago(1h) returns a single point in time, not a time window per event.", fr: "ago(1h) renvoie un instant unique, pas une fenêtre de temps par événement." }
+    ts: { en: "Grouping by the raw Timestamp creates one group per event time instead of one-hour windows.", fr: "Regrouper par le Timestamp brut crée un groupe par heure d'événement au lieu de fenêtres d'une heure." }
+    day: { en: "startofday groups the events by calendar day, not by one-hour windows.", fr: "startofday regroupe les événements par jour civil, pas par fenêtres d'une heure." }
+    extend: { en: "extend adds a column; it doesn't filter rows.", fr: "extend ajoute une colonne ; il ne filtre pas les lignes." }
+references:
+  - title: CloudAppEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table
+  - title: bin()
+    url: https://learn.microsoft.com/en-us/kusto/query/bin-function

@@ -1,0 +1,67 @@
+id: dp300-3a-watcher-grant-sql
+objective: "3.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a watcher named **wch-fabrikam** that uses its system-assigned managed identity and Microsoft Entra authentication. A logical server named **sql-fabrikam** is already listed as a SQL target of wch-fabrikam.
+
+    You need to grant wch-fabrikam the access it needs to collect data from all the databases of sql-fabrikam. The solution must follow the principle of least privilege.
+
+    How should you complete the Transact-SQL script that you run in the master database of sql-fabrikam? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un observateur nommé **wch-fabrikam** qui utilise son identité managée affectée par le système et l'authentification Microsoft Entra. Un serveur logique nommé **sql-fabrikam** figure déjà parmi les cibles SQL de wch-fabrikam.
+
+    Vous devez accorder à wch-fabrikam l'accès nécessaire pour collecter les données de toutes les bases de données de sql-fabrikam. La solution doit respecter le principe du moindre privilège.
+
+    Comment devez-vous compléter le script Transact-SQL que vous exécutez dans la base de données master de sql-fabrikam ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE LOGIN [wch-fabrikam] [[src]];
+
+    ALTER SERVER ROLE [[role1]] ADD MEMBER [wch-fabrikam];
+    ALTER SERVER ROLE ##MS_DefinitionReader## ADD MEMBER [wch-fabrikam];
+    ALTER SERVER ROLE [[role2]] ADD MEMBER [wch-fabrikam];
+  slots:
+    - id: src
+      options:
+        - { id: ext, text: FROM EXTERNAL PROVIDER }
+        - { id: pwd, text: "WITH PASSWORD = N'<strong password>'" }
+        - { id: win, text: FROM WINDOWS }
+        - { id: cert, text: FROM CERTIFICATE WatcherCert }
+    - id: role1
+      options:
+        - { id: perf, text: "##MS_ServerPerformanceStateReader##" }
+        - { id: statemgr, text: "##MS_ServerStateManager##" }
+        - { id: dbmgr, text: "##MS_DatabaseManager##" }
+        - { id: secdef, text: "##MS_SecurityDefinitionReader##" }
+    - id: role2
+      options:
+        - { id: conn, text: "##MS_DatabaseConnector##" }
+        - { id: login, text: "##MS_LoginManager##" }
+        - { id: state, text: "##MS_ServerStateReader##" }
+        - { id: dbmgr2, text: "##MS_DatabaseManager##" }
+answer:
+  values: { src: ext, role1: perf, role2: conn }
+explanation:
+  correct:
+    en: |
+      A watcher that uses Microsoft Entra authentication connects with its managed identity, so you create a login FROM EXTERNAL PROVIDER, named after the watcher for a system-assigned identity. The grant script adds it to ##MS_ServerPerformanceStateReader##, ##MS_DefinitionReader## and ##MS_DatabaseConnector##, which lets it read performance state and metadata and connect to every database of the logical server. Running it once in master covers all the databases and elastic pools of the server.
+    fr: |
+      Un observateur qui utilise l'authentification Microsoft Entra se connecte avec son identité managée : vous créez une connexion FROM EXTERNAL PROVIDER, portant le nom de l'observateur pour une identité affectée par le système. Le script d'octroi l'ajoute à ##MS_ServerPerformanceStateReader##, ##MS_DefinitionReader## et ##MS_DatabaseConnector##, ce qui lui permet de lire l'état des performances et les métadonnées et de se connecter à toutes les bases du serveur logique. Une seule exécution dans master couvre toutes les bases de données et tous les pools élastiques du serveur.
+  options:
+    pwd: { en: "A password creates a SQL authentication login, which the watcher would read from Key Vault; the watcher uses Microsoft Entra authentication here.", fr: "Un mot de passe crée une connexion d'authentification SQL, que l'observateur lirait dans Key Vault ; ici, l'observateur utilise l'authentification Microsoft Entra." }
+    win: { en: "Windows logins don't exist in Azure SQL Database.", fr: "Les connexions Windows n'existent pas dans Azure SQL Database." }
+    statemgr: { en: "##MS_ServerStateManager## also grants ALTER SERVER STATE, more than the watcher needs; extra permissions make the watcher disconnect.", fr: "##MS_ServerStateManager## accorde aussi ALTER SERVER STATE, plus que ce dont l'observateur a besoin ; des autorisations supplémentaires provoquent sa déconnexion." }
+    state: { en: "##MS_ServerStateReader## grants more than performance state, which breaks least privilege.", fr: "##MS_ServerStateReader## accorde plus que l'état des performances, ce qui ne respecte pas le moindre privilège." }
+    login: { en: "##MS_LoginManager## lets a principal create and drop logins, which the watcher doesn't need.", fr: "##MS_LoginManager## permet de créer et de supprimer des connexions, ce dont l'observateur n'a pas besoin." }
+references:
+  - title: Create and configure a watcher (preview)
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database-watcher-manage

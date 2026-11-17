@@ -1,0 +1,36 @@
+id: dp420-1b-batch-order-atomic
+objective: "1.2.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Contoso stores each order as one header item and up to 20 line items in an Azure Cosmos DB for NoSQL container partitioned by `/orderId`. All the items of an order share the same `orderId`.
+
+    A .NET service must create the header and the line items of a new order so that either all of them are written or none of them are.
+
+    What should you use?
+  fr: |
+    Contoso stocke chaque commande sous la forme d'un élément d'en-tête et de jusqu'à 20 éléments de ligne dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/orderId`. Tous les éléments d'une commande partagent le même `orderId`.
+
+    Un service .NET doit créer l'en-tête et les lignes d'une nouvelle commande de sorte que soit tous soient écrits, soit aucun.
+
+    Que devez-vous utiliser ?
+body:
+  options:
+    - { id: a, text: { en: "One UpsertItemAsync call per item, each with ItemRequestOptions.IfMatchEtag set", fr: "Un appel UpsertItemAsync par élément, chacun avec ItemRequestOptions.IfMatchEtag défini" } }
+    - { id: b, text: { en: "One PatchItemAsync call on the header that adds every line item to an array", fr: "Un appel PatchItemAsync sur l'en-tête qui ajoute chaque ligne à un tableau" } }
+    - { id: c, text: { en: "A TransactionalBatch created for the order's partition key, with one CreateItem operation per item", fr: "Un TransactionalBatch créé pour la clé de partition de la commande, avec une opération CreateItem par élément" } }
+    - { id: d, text: { en: "A CosmosClient with AllowBulkExecution enabled, with one CreateItemAsync task per item awaited by Task.WhenAll", fr: "Un CosmosClient avec AllowBulkExecution activé, avec une tâche CreateItemAsync par élément attendue par Task.WhenAll" } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "A transactional batch groups point operations that share the same partition key and runs them as one ACID transaction. If any operation fails, the whole batch is rolled back. An order of 21 items stays well below the limit of 100 operations per batch."
+    fr: "Un lot transactionnel regroupe des opérations ponctuelles qui partagent la même clé de partition et les exécute comme une seule transaction ACID. Si une opération échoue, tout le lot est annulé. Une commande de 21 éléments reste bien en dessous de la limite de 100 opérations par lot."
+  options:
+    d: { en: "Bulk execution optimizes throughput, but each operation succeeds or fails on its own.", fr: "L'exécution en bloc optimise le débit, mais chaque opération réussit ou échoue indépendamment." }
+    a: { en: "Separate calls are separate transactions, and an ETag condition does not apply to items that do not exist yet.", fr: "Des appels séparés sont des transactions séparées, et une condition ETag ne s'applique pas à des éléments qui n'existent pas encore." }
+    b: { en: "Patching an array in the header changes the data model; it does not create the line items.", fr: "Modifier un tableau dans l'en-tête change le modèle de données ; cela ne crée pas les éléments de ligne." }
+references:
+  - title: Transactional batch operations in Azure Cosmos DB using the .NET or Java SDK
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/transactional-batch

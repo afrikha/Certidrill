@@ -1,0 +1,66 @@
+id: sc200-cs3a-logon-hunt
+objective: "3.1.2"
+type: dropdown
+caseStudy: sc200-cs3a-trey-research
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to create an advanced hunting query in the Defender portal to meet the hunting requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer une requête de repérage avancé dans le portail Defender pour respecter l'exigence de chasse.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[tbl]]
+    | where Timestamp > ago(1d)
+    | where DeviceName startswith "labws-"
+    | where LogonType == "Interactive"
+    | summarize Workstations = [[agg]](DeviceId) by AccountDomain, AccountName, [[bucket]]
+    | where Workstations > 10
+  slots:
+    - id: tbl
+      options:
+        - { id: dle, text: DeviceLogonEvents }
+        - { id: ile, text: IdentityLogonEvents }
+        - { id: de, text: DeviceEvents }
+        - { id: sl, text: SigninLogs }
+    - id: agg
+      options:
+        - { id: count, text: count }
+        - { id: dcount, text: dcount }
+        - { id: makeset, text: make_set }
+        - { id: max, text: max }
+    - id: bucket
+      options:
+        - { id: day, text: "bin(Timestamp, 1d)" }
+        - { id: ago, text: ago(1h) }
+        - { id: hour, text: "bin(Timestamp, 1h)" }
+        - { id: sod, text: startofday(Timestamp) }
+answer:
+  values: { tbl: dle, agg: dcount, bucket: hour }
+explanation:
+  correct:
+    en: |
+      DeviceLogonEvents records the sign-ins and the LogonType observed by Defender for Endpoint on onboarded devices such as the lab workstations. dcount(DeviceId) counts the distinct workstations of each account, and bin(Timestamp, 1h) groups the events by clock hour, so the final filter keeps the accounts with more than 10 workstations in the same hour.
+    fr: |
+      DeviceLogonEvents enregistre les connexions et le LogonType observés par Defender pour point de terminaison sur les appareils intégrés, comme les postes de travail de laboratoire. dcount(DeviceId) compte les postes distincts de chaque compte, et bin(Timestamp, 1h) regroupe les événements par heure d'horloge : le filtre final garde les comptes ayant plus de 10 postes dans la même heure.
+  options:
+    ile: { en: "IdentityLogonEvents contains authentication activity seen by Defender for Identity and Microsoft Entra ID, not the logons recorded on each device.", fr: "IdentityLogonEvents contient l'activité d'authentification vue par Defender pour Identity et Microsoft Entra ID, pas les ouvertures de session enregistrées sur chaque appareil." }
+    sl: { en: "SigninLogs contains Microsoft Entra sign-ins and has no LogonType or DeviceId column for local logons.", fr: "SigninLogs contient les connexions Microsoft Entra et n'a ni colonne LogonType ni colonne DeviceId pour les ouvertures de session locales." }
+    count: { en: "count() returns the number of logon events, so ten logons to the same workstation would match.", fr: "count() renvoie le nombre d'événements d'ouverture de session : dix ouvertures sur le même poste correspondraient." }
+    makeset: { en: "make_set returns an array, which cannot be compared with 10.", fr: "make_set renvoie un tableau, qui ne peut pas être comparé à 10." }
+    day: { en: "A one-day bin counts the workstations over a whole day, not within the same hour.", fr: "Un intervalle d'un jour compte les postes sur une journée entière, pas au cours d'une même heure." }
+    ago: { en: "ago(1h) returns a single constant time, so it does not split the events into hourly groups.", fr: "ago(1h) renvoie une seule heure constante : il ne répartit pas les événements en groupes horaires." }
+references:
+  - title: DeviceLogonEvents
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicelogonevents-table

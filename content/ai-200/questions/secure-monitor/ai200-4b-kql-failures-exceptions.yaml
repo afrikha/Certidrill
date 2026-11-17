@@ -1,0 +1,86 @@
+id: ai200-4b-kql-failures-exceptions
+objective: "4.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware's document-classification API fails intermittently. You need a query that counts, for each API operation and each exception type, the failed requests of the last hour that are related to an exception. Failed requests without an exception must not appear.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'API de classification de documents de Litware échoue par intermittence. Vous avez besoin d'une requête qui compte, pour chaque opération d'API et chaque type d'exception, les requêtes en échec de la dernière heure associées à une exception. Les requêtes en échec sans exception ne doivent pas apparaître.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    AppRequests
+    | where TimeGenerated > ago(1h) and Success == false
+    | join kind=[[kind]] (AppExceptions | project OperationId, ExceptionType) on [[key]]
+    | summarize Failures = count() by Name, [[grp]]
+  slots:
+    - id: kind
+      options:
+        - { id: inner, text: inner }
+        - { id: leftouter, text: leftouter }
+        - { id: leftanti, text: leftanti }
+    - id: key
+      options:
+        - { id: opid, text: OperationId }
+        - { id: id, text: Id }
+        - { id: name, text: Name }
+    - id: grp
+      options:
+        - { id: type, text: ExceptionType }
+        - { id: problem, text: ProblemId }
+        - { id: code, text: ResultCode }
+answer:
+  values: { kind: inner, key: opid, grp: type }
+explanation:
+  correct:
+    en: |-
+      An `inner` join returns only the requests that have at least one matching exception. Requests and the exceptions raised while processing them share the same `OperationId`. The right side projects `ExceptionType`, which is the column to group by.
+    fr: |-
+      Une jointure `inner` ne renvoie que les requêtes qui ont au moins une exception correspondante. Les requêtes et les exceptions levées pendant leur traitement partagent le même `OperationId`. Le côté droit projette `ExceptionType`, la colonne de regroupement attendue.
+  options:
+    leftouter:
+      en: |-
+        leftouter keeps the failed requests that have no exception, with an empty exception type.
+      fr: |-
+        leftouter conserve les requêtes en échec sans exception, avec un type d'exception vide.
+    leftanti:
+      en: |-
+        leftanti returns only the requests without an exception, the opposite of the requirement.
+      fr: |-
+        leftanti ne renvoie que les requêtes sans exception, l'inverse de l'exigence.
+    id:
+      en: |-
+        Id is the unique ID of each telemetry item, so a request and an exception never share it.
+      fr: |-
+        Id est l'ID unique de chaque élément de télémétrie : une requête et une exception ne le partagent jamais.
+    name:
+      en: |-
+        The right side projects only OperationId and ExceptionType, so it has no Name column to join on.
+      fr: |-
+        Le côté droit ne projette que OperationId et ExceptionType : il n'a pas de colonne Name pour la jointure.
+    problem:
+      en: |-
+        ProblemId isn't projected on the right side, so it isn't available after the join.
+      fr: |-
+        ProblemId n'est pas projeté du côté droit : il n'est pas disponible après la jointure.
+    code:
+      en: |-
+        ResultCode groups by HTTP status code, not by exception type.
+      fr: |-
+        ResultCode regroupe par code d'état HTTP, pas par type d'exception.
+references:
+  - title: join operator
+    url: https://learn.microsoft.com/en-us/kusto/query/join-operator
+  - title: Azure Monitor Logs reference - AppExceptions
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/appexceptions

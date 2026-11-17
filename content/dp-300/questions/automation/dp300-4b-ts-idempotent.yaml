@@ -1,0 +1,48 @@
+id: dp300-4b-ts-idempotent
+objective: "4.3.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    An elastic job step runs the following script against 50 databases:
+
+    ```sql
+    CREATE TABLE dbo.AuditLog (Id int IDENTITY PRIMARY KEY, LoggedAt datetime2 NOT NULL);
+    INSERT INTO dbo.AuditLog (LoggedAt) VALUES (SYSUTCDATETIME());
+    ```
+
+    On some databases, a transient error interrupted the step after the table was created. The automatic retry then failed with the error "There is already an object named 'AuditLog' in the database."
+
+    You need the step to succeed when it is retried. What should you do?
+  fr: |
+    Une étape de travail élastique exécute le script suivant sur 50 bases de données :
+
+    ```sql
+    CREATE TABLE dbo.AuditLog (Id int IDENTITY PRIMARY KEY, LoggedAt datetime2 NOT NULL);
+    INSERT INTO dbo.AuditLog (LoggedAt) VALUES (SYSUTCDATETIME());
+    ```
+
+    Sur certaines bases, une erreur temporaire a interrompu l'étape après la création de la table. La nouvelle tentative automatique a ensuite échoué avec l'erreur « There is already an object named 'AuditLog' in the database. »
+
+    L'étape doit réussir lorsqu'elle est retentée. Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Set @retry_attempts of the step to 0.", fr: "Définir @retry_attempts de l'étape sur 0." } }
+    - { id: b, text: { en: "Increase @initial_retry_interval_seconds of the step.", fr: "Augmenter @initial_retry_interval_seconds de l'étape." } }
+    - { id: c, text: { en: "Change the script to create the table only if OBJECT_ID(N'dbo.AuditLog') is NULL.", fr: "Modifier le script pour ne créer la table que si OBJECT_ID(N'dbo.AuditLog') est NULL." } }
+    - { id: d, text: { en: "Increase @step_timeout_seconds of the step.", fr: "Augmenter @step_timeout_seconds de l'étape." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      Elastic jobs retry a step automatically after a transient failure, so the script must be idempotent - running it again on a target where it partly succeeded must not fail. Checking that the table doesn't exist before creating it makes the retry safe.
+    fr: |
+      Les travaux élastiques retentent automatiquement une étape après une défaillance temporaire : le script doit donc être idempotent, c'est-à-dire que sa réexécution sur une cible où il a partiellement réussi ne doit pas échouer. Vérifier que la table n'existe pas avant de la créer rend la nouvelle tentative sûre.
+  options:
+    a: { en: "Without retries, transient errors would make the step fail on those databases instead of recovering.", fr: "Sans nouvelle tentative, les erreurs temporaires feraient échouer l'étape sur ces bases au lieu de permettre la reprise." }
+    b: { en: "Waiting longer before the retry doesn't change the fact that the table already exists.", fr: "Attendre plus longtemps avant la nouvelle tentative ne change rien au fait que la table existe déjà." }
+    d: { en: "The step doesn't time out; it fails because the CREATE TABLE statement isn't idempotent.", fr: "L'étape ne dépasse pas son délai ; elle échoue parce que l'instruction CREATE TABLE n'est pas idempotente." }
+references:
+  - title: Elastic jobs in Azure SQL Database
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/elastic-jobs-overview

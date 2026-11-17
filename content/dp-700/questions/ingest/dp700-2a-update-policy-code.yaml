@@ -1,0 +1,60 @@
+id: dp700-2a-update-policy-code
+objective: "2.1.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an eventhouse that contains a KQL database named **TelemetryDB**. An eventstream ingests raw JSON events into a table named **RawEvents**. You create a table named **Readings** with typed columns, and a stored function named **ParseRawEvents()** that parses RawEvents into the schema of Readings.
+
+    You need Readings to be populated automatically each time data is ingested into RawEvents. If ParseRawEvents() fails during an ingestion, the ingestion must fail, so that no event is stored in RawEvents without also reaching Readings.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse qui contient une base de données KQL nommée **TelemetryDB**. Un flux d'événements ingère des événements JSON bruts dans une table nommée **RawEvents**. Vous créez une table nommée **Readings** avec des colonnes typées, ainsi qu'une fonction stockée nommée **ParseRawEvents()** qui analyse RawEvents selon le schéma de Readings.
+
+    Readings doit être alimentée automatiquement à chaque ingestion de données dans RawEvents. Si ParseRawEvents() échoue pendant une ingestion, l'ingestion doit échouer, afin qu'aucun événement ne soit stocké dans RawEvents sans atteindre aussi Readings.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .alter table [[target]] policy update
+    @'[{"IsEnabled": true, "Source": "[[source]]", "Query": "ParseRawEvents()", "[[prop]]": true}]'
+  slots:
+    - id: target
+      options:
+        - { id: t_readings, text: Readings }
+        - { id: t_raw, text: RawEvents }
+        - { id: t_fn, text: ParseRawEvents }
+    - id: source
+      options:
+        - { id: s_raw, text: RawEvents }
+        - { id: s_readings, text: Readings }
+        - { id: s_qualified, text: 'database(\"TelemetryDB\").RawEvents' }
+    - id: prop
+      options:
+        - { id: p_tx, text: IsTransactional }
+        - { id: p_prop, text: PropagateIngestionProperties }
+        - { id: p_wild, text: SourceIsWildCard }
+answer:
+  values: { target: t_readings, source: s_raw, prop: p_tx }
+explanation:
+  correct:
+    en: |
+      An update policy is defined on the target table (Readings) and names the source table whose ingestions trigger it (RawEvents). With IsTransactional set to true, a failure of the policy query makes the whole ingestion fail, so the data lands in neither table; with the default false, the source keeps the rows and the target misses them.
+    fr: |
+      Une stratégie de mise à jour est définie sur la table cible (Readings) et désigne la table source dont les ingestions la déclenchent (RawEvents). Avec IsTransactional sur true, un échec de la requête de la stratégie fait échouer toute l'ingestion : les données n'arrivent dans aucune des deux tables ; avec la valeur par défaut false, la source garde les lignes et la cible les manque.
+  options:
+    t_raw: { en: "The policy belongs to the table that receives the transformed rows, not to the source table.", fr: "La stratégie appartient à la table qui reçoit les lignes transformées, pas à la table source." }
+    s_qualified: { en: "When the policy references its source table, use only the table name, not a qualified name such as database(\"DB\").Table.", fr: "Quand la stratégie référence sa table source, utilisez seulement le nom de la table, pas un nom qualifié comme database(\"DB\").Table." }
+    p_prop: { en: "PropagateIngestionProperties copies properties such as extent tags to the target; it gives no consistency guarantee.", fr: "PropagateIngestionProperties copie des propriétés comme les balises d'extent vers la cible ; elle ne garantit aucune cohérence." }
+    p_wild: { en: "SourceIsWildCard lets Source be a pattern of several tables; it doesn't change failure handling.", fr: "SourceIsWildCard permet à Source d'être un modèle de plusieurs tables ; elle ne change pas la gestion des échecs." }
+references:
+  - title: Update policy overview
+    url: https://learn.microsoft.com/en-us/kusto/management/update-policy?view=microsoft-fabric

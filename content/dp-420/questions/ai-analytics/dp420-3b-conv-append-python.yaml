@@ -1,0 +1,90 @@
+id: dp420-3b-conv-append-python
+objective: "3.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware is implementing the conversation state of a multitenant assistant in Python. Turns are stored one item per turn in a container named **turns** with a hierarchical partition key: `/tenantId`, then `/threadId`. Each turn has a deterministic `id` built from the thread ID and the turn number.
+
+    The code must meet the following requirements:
+
+    - When the network fails, the client retries writing the same turn; a retry must neither fail nor create a duplicate.
+    - The latest turns must be passed to the model in chronological order.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware implémente l'état de conversation d'un assistant multilocataire en Python. Les tours sont stockés à raison d'un élément par tour dans un conteneur nommé **turns** avec une clé de partition hiérarchique : `/tenantId`, puis `/threadId`. Chaque tour a un `id` déterministe construit à partir de l'ID du thread et du numéro du tour.
+
+    Le code doit répondre aux exigences suivantes :
+
+    - En cas de panne réseau, le client réessaie d'écrire le même tour ; une nouvelle tentative ne doit ni échouer ni créer de doublon.
+    - Les derniers tours doivent être transmis au modèle dans l'ordre chronologique.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    turns = db.create_container_if_not_exists(
+        id="turns",
+        partition_key=PartitionKey(path=["/tenantId", "/threadId"], kind="[[kind]]"))
+
+    turns.[[write]](turn)
+
+    recent = list(turns.query_items(
+        query="SELECT TOP 10 c.turnIndex, c.messages FROM c "
+              "WHERE c.tenantId = @tn AND c.threadId = @th ORDER BY c.turnIndex DESC",
+        parameters=[{"name": "@tn", "value": tenant_id}, {"name": "@th", "value": thread_id}],
+        partition_key=[tenant_id, thread_id]))
+    recent.[[order]]()
+  slots:
+    - id: kind
+      options:
+        - { id: multi, text: MultiHash }
+        - { id: hash, text: Hash }
+        - { id: range, text: Range }
+    - id: write
+      options:
+        - { id: upsert, text: upsert_item }
+        - { id: create, text: create_item }
+        - { id: replace, text: replace_item }
+    - id: order
+      options:
+        - { id: rev, text: reverse }
+        - { id: sort, text: sort }
+        - { id: pop, text: pop }
+answer:
+  values: { kind: multi, write: upsert, order: rev }
+explanation:
+  correct:
+    en: "A hierarchical partition key is declared as a list of paths with the MultiHash kind. upsert_item creates the turn or overwrites it when the same id already exists, so a retried write is idempotent. The query returns the newest turns first, and reverse() puts them back in chronological order for the prompt."
+    fr: "Une clé de partition hiérarchique se déclare comme une liste de chemins avec le type MultiHash. upsert_item crée le tour ou l'écrase quand le même id existe déjà, si bien qu'une nouvelle tentative d'écriture est idempotente. La requête renvoie d'abord les tours les plus récents, et reverse() les remet dans l'ordre chronologique pour le prompt."
+  options:
+    hash:
+      en: "Hash is the kind of a single-path partition key; a list of several paths needs MultiHash."
+      fr: "Hash est le type d'une clé de partition à un seul chemin ; une liste de plusieurs chemins exige MultiHash."
+    range:
+      en: "Range is not a partition key kind for hierarchical partitioning."
+      fr: "Range n'est pas un type de clé de partition pour le partitionnement hiérarchique."
+    create:
+      en: "create_item raises an error when an item with the same id already exists, so the retry would fail."
+      fr: "create_item lève une erreur quand un élément avec le même id existe déjà : la nouvelle tentative échouerait."
+    replace:
+      en: "replace_item fails when the item does not exist yet, which is the case for the first attempt."
+      fr: "replace_item échoue quand l'élément n'existe pas encore, ce qui est le cas lors de la première tentative."
+    sort:
+      en: "sort() cannot compare dictionaries without a key function, and it does not reverse the newest-first order."
+      fr: "sort() ne peut pas comparer des dictionnaires sans fonction de clé, et n'inverse pas l'ordre du plus récent au plus ancien."
+    pop:
+      en: "pop() removes the last turn of the list instead of reordering the turns."
+      fr: "pop() supprime le dernier tour de la liste au lieu de réordonner les tours."
+references:
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy
+  - title: Hierarchical Partition Keys - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/hierarchical-partition-keys

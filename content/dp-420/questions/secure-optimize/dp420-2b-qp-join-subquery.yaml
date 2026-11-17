@@ -1,0 +1,60 @@
+id: dp420-2b-qp-join-subquery
+objective: "2.3.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam stores recipes in an Azure Cosmos DB for NoSQL container named **Recipes**. Each recipe has three arrays: `tags`, `ingredients` and `steps`, each with about 15 elements. A Python application runs the following query, which costs more than 150 RUs:
+
+    ```sql
+    SELECT VALUE COUNT(1)
+    FROM r
+    JOIN t IN r.tags
+    JOIN i IN r.ingredients
+    JOIN s IN r.steps
+    WHERE t.name = "vegan" AND i.grams > 100 AND s.minutes < 10
+    ```
+
+    You need to lower the RU charge of the query without changing the data model.
+
+    What should you do?
+  fr: |
+    Fabrikam stocke des recettes dans un conteneur Azure Cosmos DB for NoSQL nommé **Recipes**. Chaque recette comporte trois tableaux, `tags`, `ingredients` et `steps`, d'environ 15 éléments chacun. Une application Python exécute la requête suivante, qui coûte plus de 150 RU :
+
+    ```sql
+    SELECT VALUE COUNT(1)
+    FROM r
+    JOIN t IN r.tags
+    JOIN i IN r.ingredients
+    JOIN s IN r.steps
+    WHERE t.name = "vegan" AND i.grams > 100 AND s.minutes < 10
+    ```
+
+    Vous devez réduire le coût en RU de la requête sans modifier le modèle de données.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Rewrite each JOIN as a subquery that applies the filter of its array.", fr: "Réécrire chaque JOIN sous forme de sous-requête qui applique le filtre de son tableau." }
+    - id: b
+      text: { en: "Add a composite index on (/tags/[]/name, /ingredients/[]/grams, /steps/[]/minutes).", fr: "Ajouter un index composite sur (/tags/[]/name, /ingredients/[]/grams, /steps/[]/minutes)." }
+    - id: c
+      text: { en: "Add DISTINCT to the projection so that duplicate tuples are removed early.", fr: "Ajouter DISTINCT à la projection pour éliminer tôt les tuples en double." }
+    - id: d
+      text: { en: "Pass a larger max_item_count to query_items so that fewer pages are returned.", fr: "Passer un max_item_count plus grand à query_items pour renvoyer moins de pages." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      Without filters inside the JOINs, the engine builds the cross product of the three arrays (about 15 × 15 × 15 tuples per recipe) before the WHERE clause filters it. Pushing each predicate into a subquery filters each array first, so far fewer tuples are produced and the RU charge drops, for example `JOIN (SELECT VALUE t FROM t IN r.tags WHERE t.name = "vegan")`.
+    fr: |
+      Sans filtre dans les JOIN, le moteur construit le produit cartésien des trois tableaux (environ 15 × 15 × 15 tuples par recette) avant que la clause WHERE le filtre. Placer chaque prédicat dans une sous-requête filtre d'abord chaque tableau : beaucoup moins de tuples sont produits et le coût en RU diminue, par exemple `JOIN (SELECT VALUE t FROM t IN r.tags WHERE t.name = "vegan")`.
+  options:
+    b: { en: "Indexes speed up the filters but don't prevent the cross product that the JOINs build before filtering.", fr: "Les index accélèrent les filtres, mais n'empêchent pas le produit cartésien que les JOIN construisent avant le filtrage." }
+    c: { en: "DISTINCT is applied to the results, after the cross product has already been computed.", fr: "DISTINCT s'applique aux résultats, une fois le produit cartésien déjà calculé." }
+    d: { en: "The page size changes the number of round trips, not the work done to evaluate the JOINs.", fr: "La taille de page modifie le nombre d'allers-retours, pas le travail nécessaire pour évaluer les JOIN." }
+references:
+  - title: Troubleshoot query issues when using Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-query-performance

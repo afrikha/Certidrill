@@ -1,0 +1,66 @@
+id: ai200-1b-keda-tcp-cli
+objective: "1.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware is deploying **ca-vecproxy**, a proxy that speaks a binary, non-HTTP protocol on port 6379 in front of its vector store. Only the other apps of the Azure Container Apps environment call the proxy.
+
+    The proxy must always run at least one replica, run at most eight replicas, and add a replica when the replicas hold more than 200 concurrent connections each.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware déploie **ca-vecproxy**, un proxy qui utilise un protocole binaire non HTTP sur le port 6379 devant son magasin de vecteurs. Seules les autres applications de l'environnement Azure Container Apps appellent le proxy.
+
+    Le proxy doit toujours exécuter au moins un réplica, exécuter au plus huit réplicas, et ajouter un réplica quand les réplicas maintiennent chacun plus de 200 connexions simultanées.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az containerapp create --name ca-vecproxy --resource-group rg-vec \
+      --environment cae-vec --image crlitware.azurecr.io/vec/proxy:1.3.0 \
+      --ingress internal --target-port 6379 --transport [[transport]] \
+      --min-replicas 1 --max-replicas 8 \
+      --scale-rule-name tcp-conns --scale-rule-type [[type]] \
+      [[flag]] 200
+  slots:
+    - id: transport
+      options:
+        - { id: tcp, text: tcp }
+        - { id: http2, text: http2 }
+        - { id: auto, text: auto }
+    - id: type
+      options:
+        - { id: tcp, text: tcp }
+        - { id: http, text: http }
+        - { id: redis, text: redis }
+    - id: flag
+      options:
+        - { id: concurrency, text: "--scale-rule-tcp-concurrency" }
+        - { id: metadata, text: "--scale-rule-metadata" }
+        - { id: auth, text: "--scale-rule-auth" }
+answer:
+  values: { transport: tcp, type: tcp, flag: concurrency }
+explanation:
+  correct:
+    en: "A non-HTTP protocol needs TCP ingress, set with `--transport tcp`. The `tcp` scale rule scales on concurrent TCP connections, and `--scale-rule-tcp-concurrency 200` sets its `concurrentConnections` target per replica. Internal TCP ingress lets the other apps of the environment reach the proxy by its name and port."
+    fr: "Un protocole non HTTP exige une entrée TCP, définie avec `--transport tcp`. La règle de mise à l'échelle `tcp` se met à l'échelle selon les connexions TCP simultanées, et `--scale-rule-tcp-concurrency 200` définit sa cible `concurrentConnections` par réplica. L'entrée TCP interne permet aux autres applications de l'environnement de joindre le proxy par son nom et son port."
+  options:
+    http2: { en: "http2 is an HTTP transport; the proxy doesn't speak HTTP.", fr: "http2 est un transport HTTP ; le proxy ne parle pas HTTP." }
+    auto: { en: "auto selects HTTP/1 or HTTP/2; it doesn't enable TCP ingress.", fr: "auto sélectionne HTTP/1 ou HTTP/2 ; il n'active pas l'entrée TCP." }
+    http: { en: "An HTTP rule counts HTTP requests, which a TCP app doesn't receive.", fr: "Une règle HTTP compte des requêtes HTTP, qu'une application TCP ne reçoit pas." }
+    redis: { en: "The redis scaler scales on the length of a Redis list, not on connections to the app.", fr: "Le scaler redis met à l'échelle selon la longueur d'une liste Redis, pas selon les connexions à l'application." }
+    metadata: { en: "--scale-rule-metadata passes key=value pairs to custom scalers.", fr: "--scale-rule-metadata transmet des paires clé=valeur aux scalers personnalisés." }
+    auth: { en: "--scale-rule-auth maps trigger parameters to secrets.", fr: "--scale-rule-auth associe des paramètres de déclencheur à des secrets." }
+references:
+  - title: Scaling in Azure Container Apps
+    url: https://learn.microsoft.com/en-us/azure/container-apps/scale-app
+  - title: Ingress in Azure Container Apps
+    url: https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview

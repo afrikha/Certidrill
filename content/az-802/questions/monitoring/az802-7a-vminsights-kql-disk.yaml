@@ -1,0 +1,67 @@
+id: az802-7a-vminsights-kql-disk
+objective: "7.1.8"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    VM insights is enabled with logs-based metrics for your Azure virtual machines that run Windows Server 2022. The data is sent to a Log Analytics workspace.
+
+    You need a query that returns, for each virtual machine and each logical disk, the average percentage of free space in 15-minute intervals, keeping only the disks below 10%.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    VM insights est activé avec des métriques basées sur les journaux pour vos machines virtuelles Azure qui exécutent Windows Server 2022. Les données sont envoyées vers un espace de travail Log Analytics.
+
+    Vous avez besoin d'une requête qui renvoie, pour chaque machine virtuelle et chaque disque logique, le pourcentage moyen d'espace libre par intervalles de 15 minutes, en ne conservant que les disques sous 10 %.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where Origin == "vm.azm.ms"
+    | where Namespace == "LogicalDisk" and Name == [[metric]]
+    | extend Disk = tostring(todynamic(Tags)["vm.azm.ms/mountId"])
+    | summarize FreePct = [[agg]](Val) by bin(TimeGenerated, 15m), Computer, Disk
+    | where FreePct < 10
+  slots:
+    - id: table
+      options:
+        - { id: perf, text: Perf }
+        - { id: event, text: Event }
+        - { id: im, text: InsightsMetrics }
+        - { id: hb, text: Heartbeat }
+    - id: metric
+      options:
+        - { id: fsp, text: '"FreeSpacePercentage"' }
+        - { id: tps, text: '"TransfersPerSecond"' }
+        - { id: bps, text: '"BytesPerSecond"' }
+    - id: agg
+      options:
+        - { id: count, text: count }
+        - { id: avg, text: avg }
+        - { id: dcount, text: dcount }
+        - { id: sum, text: sum }
+answer:
+  values: { table: im, metric: fsp, agg: avg }
+explanation:
+  correct:
+    en: "Logs-based VM insights stores its performance data in the `InsightsMetrics` table, with `Origin` set to `vm.azm.ms`. Free space of a logical disk is the `LogicalDisk` namespace with the `FreeSpacePercentage` name, and `avg(Val)` computes the average for each 15-minute bin, computer and disk."
+    fr: "VM insights basé sur les journaux stocke ses données de performances dans la table `InsightsMetrics`, avec `Origin` égal à `vm.azm.ms`. L'espace libre d'un disque logique correspond à l'espace de noms `LogicalDisk` et au nom `FreeSpacePercentage`, et `avg(Val)` calcule la moyenne pour chaque intervalle de 15 minutes, ordinateur et disque."
+  options:
+    perf: { en: "Perf holds counters collected by a DCR performance counters data source with their Windows names, not VM insights metrics with Namespace and Name columns.", fr: "Perf contient les compteurs collectés par une source de données de compteurs de performances d'une DCR avec leurs noms Windows, pas les métriques de VM insights avec des colonnes Namespace et Name." }
+    event: { en: "Event holds Windows events, not performance metrics.", fr: "Event contient des événements Windows, pas des métriques de performances." }
+    hb: { en: "Heartbeat holds one agent heartbeat per minute, not disk metrics.", fr: "Heartbeat contient une pulsation de l'agent par minute, pas des métriques de disque." }
+    tps: { en: "TransfersPerSecond measures disk IOPS.", fr: "TransfersPerSecond mesure les IOPS du disque." }
+    bps: { en: "BytesPerSecond measures the disk data rate.", fr: "BytesPerSecond mesure le débit de données du disque." }
+    count: { en: "count returns the number of records, not a percentage.", fr: "count renvoie le nombre d'enregistrements, pas un pourcentage." }
+    sum: { en: "Summing percentages over 15 minutes doesn't give a free space percentage.", fr: "Additionner des pourcentages sur 15 minutes ne donne pas un pourcentage d'espace libre." }
+references:
+  - title: "Monitor virtual machines with Azure Monitor: Alerts"
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/vm/monitor-virtual-machine-alerts

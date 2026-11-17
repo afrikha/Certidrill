@@ -1,0 +1,73 @@
+id: ai200-cs2a-memory-errors
+objective: "4.2.2"
+type: dropdown
+caseStudy: ai200-cs2a-wideworld
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a KQL query in log-wwi that covers the last 24 hours.
+
+    You need to meet the operations requirement. How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez dans log-wwi une requête KQL qui couvre les dernières 24 heures.
+
+    Vous devez satisfaire l'exigence relative à l'exploitation. Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    ContainerLogV2
+    | where TimeGenerated > ago(1d)
+    | where PodNamespace == "docparser"
+    | where [[filter]]
+    | [[agg]]
+    | top 5 by Lines desc
+  slots:
+    - id: filter
+      options:
+        - { id: msg, text: "tostring(LogMessage) contains \"MemoryError\"" }
+        - { id: level, text: "LogLevel == \"MemoryError\"" }
+        - { id: source, text: "LogSource == \"stderr\"" }
+        - { id: container, text: "ContainerName contains \"MemoryError\"" }
+    - id: agg
+      options:
+        - { id: bypod, text: "summarize Lines = count() by PodName" }
+        - { id: bycontainer, text: "summarize Lines = count() by ContainerName" }
+        - { id: dcount, text: "summarize Lines = dcount(PodName) by ContainerName" }
+        - { id: project, text: "project PodName, Lines = LogMessage" }
+answer:
+  values: { filter: msg, agg: bypod }
+explanation:
+  correct:
+    en: |
+      In ContainerLogV2, the text written by the container to stdout or stderr is in the dynamic column `LogMessage`, so the query converts it with `tostring()` and keeps the lines that contain `MemoryError`. `summarize count() by PodName` counts those lines for each pod, and `top 5 by Lines desc` returns the pods that log them the most.
+    fr: |
+      Dans ContainerLogV2, le texte écrit par le conteneur sur stdout ou stderr se trouve dans la colonne dynamique `LogMessage` : la requête le convertit avec `tostring()` et conserve les lignes qui contiennent `MemoryError`. `summarize count() by PodName` compte ces lignes pour chaque pod, et `top 5 by Lines desc` renvoie les pods qui en journalisent le plus.
+  options:
+    level:
+      en: "`LogLevel` holds a severity such as ERROR or WARNING, never an exception name."
+      fr: "`LogLevel` contient une gravité comme ERROR ou WARNING, jamais un nom d'exception."
+    source:
+      en: "`LogSource` only tells whether the line came from stdout or stderr; it keeps every error line, not only the MemoryError lines."
+      fr: "`LogSource` indique seulement si la ligne provient de stdout ou de stderr ; ce filtre conserve toutes les lignes d'erreur, pas seulement les lignes MemoryError."
+    container:
+      en: "`ContainerName` is the name of the container, not the content of the log line."
+      fr: "`ContainerName` est le nom du conteneur, pas le contenu de la ligne de journal."
+    bycontainer:
+      en: All the DocParser pods run the same container name, so grouping by container does not tell which pods are affected.
+      fr: |
+        Tous les pods DocParser exécutent le même nom de conteneur : un regroupement par conteneur n'indique pas quels pods sont concernés.
+    dcount:
+      en: This counts distinct pods per container instead of counting the lines logged by each pod.
+      fr: Cette agrégation compte les pods distincts par conteneur au lieu de compter les lignes journalisées par chaque pod.
+    project:
+      en: "`project` returns individual log lines without counting them, so `top` cannot rank the pods."
+      fr: "`project` renvoie des lignes de journal individuelles sans les compter : `top` ne peut pas classer les pods."
+references:
+  - title: Azure Monitor Logs reference - ContainerLogV2
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/containerlogv2

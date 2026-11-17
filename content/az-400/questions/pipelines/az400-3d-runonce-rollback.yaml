@@ -1,0 +1,84 @@
+id: az400-3d-runonce-rollback
+objective: "3.4.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank deploys an API to Azure App Service from an Azure Pipelines deployment job that targets an environment named **api-prod**. The environment contains no virtual machine or Kubernetes resources.
+
+    The job must meet the following requirements:
+
+    - Deploy the new version once to the whole app.
+    - After the new version receives traffic, run **smoke-test.sh**, which exits with a non-zero code if the API returns errors.
+    - If any step of the job fails, run **redeploy-previous.sh**, which redeploys the last known good artifact.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank déploie une API sur Azure App Service à partir d'un travail de déploiement Azure Pipelines qui cible un environnement nommé **api-prod**. L'environnement ne contient aucune ressource de machine virtuelle ni Kubernetes.
+
+    Le travail doit respecter les exigences suivantes :
+
+    - Déployer la nouvelle version une seule fois sur toute l'application.
+    - Après que la nouvelle version reçoit le trafic, exécuter **smoke-test.sh**, qui se termine avec un code non nul si l'API renvoie des erreurs.
+    - Si une étape du travail échoue, exécuter **redeploy-previous.sh**, qui redéploie le dernier artefact sain connu.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    jobs:
+    - deployment: DeployApi
+      environment: api-prod
+      strategy:
+        [[strategy]]:
+          deploy:
+            steps:
+            - checkout: self
+            - script: ./deploy.sh $(Pipeline.Workspace)/drop/api.zip
+          [[hook]]:
+            steps:
+            - checkout: self
+            - script: ./smoke-test.sh
+          on:
+            [[outcome]]:
+              steps:
+              - checkout: self
+              - script: ./redeploy-previous.sh
+  slots:
+    - id: strategy
+      options:
+        - { id: stRolling, text: rolling }
+        - { id: stCanary, text: canary }
+        - { id: stRunOnce, text: runOnce }
+    - id: hook
+      options:
+        - { id: hPre, text: preDeploy }
+        - { id: hPost, text: postRouteTraffic }
+        - { id: hRoute, text: routeTraffic }
+    - id: outcome
+      options:
+        - { id: oFailure, text: failure }
+        - { id: oSuccess, text: success }
+answer:
+  values: { strategy: stRunOnce, hook: hPost, outcome: oFailure }
+explanation:
+  correct:
+    en: |
+      runOnce runs each lifecycle hook once, which matches a single deployment to the whole app. postRouteTraffic runs after traffic is routed to the new version, which is where health checks belong. The `on: failure` hook runs when a previous hook fails, including a failed smoke test, so it can redeploy the previous artifact.
+    fr: |
+      runOnce exécute chaque hook de cycle de vie une seule fois, ce qui correspond à un déploiement unique sur toute l'application. postRouteTraffic s'exécute après le routage du trafic vers la nouvelle version : c'est là que se placent les contrôles d'intégrité. Le hook `on: failure` s'exécute quand un hook précédent échoue, y compris un test de fumée en échec : il peut donc redéployer l'artefact précédent.
+  options:
+    stRolling: { en: "The rolling strategy is supported only for virtual machine resources.", fr: "La stratégie rolling n'est prise en charge que pour les ressources de machines virtuelles." }
+    stCanary: { en: "canary repeats the deploy and traffic hooks for each increment instead of deploying once.", fr: "canary répète les hooks de déploiement et de trafic pour chaque incrément au lieu de déployer une seule fois." }
+    hPre: { en: "preDeploy runs before the new version is deployed, so there is nothing to test yet.", fr: "preDeploy s'exécute avant le déploiement de la nouvelle version : il n'y a encore rien à tester." }
+    hRoute: { en: "routeTraffic is where traffic is switched to the new version; monitoring after the switch belongs in postRouteTraffic.", fr: "routeTraffic est l'endroit où le trafic bascule vers la nouvelle version ; la surveillance après la bascule se place dans postRouteTraffic." }
+    oSuccess: { en: "`on: success` runs only when every hook succeeded, so the rollback would never run after a failure.", fr: "`on: success` ne s'exécute que si tous les hooks ont réussi : la restauration ne s'exécuterait jamais après un échec." }
+references:
+  - title: Deployment jobs
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/deployment-jobs

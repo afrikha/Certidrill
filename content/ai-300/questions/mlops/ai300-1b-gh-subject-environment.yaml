@@ -1,0 +1,84 @@
+id: ai300-1b-gh-subject-environment
+objective: "1.3.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A Microsoft Entra application named **app-ml-deploy** has one federated identity credential with the subject `repo:contoso/ml-platform:ref:refs/heads/main`. Its issuer and audience are correct.
+
+    A workflow in the repository **contoso/ml-platform** is triggered by pushes to `main`. It contains the following job.
+
+    ```yaml
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+          - uses: azure/login@v2
+            with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    ```
+
+    The workflow has `permissions: id-token: write`. The Azure sign-in step fails. You need the job to sign in by using app-ml-deploy without storing a secret.
+
+    What should you do?
+  fr: |
+    Une application Microsoft Entra nommée **app-ml-deploy** possède une seule information d'identification fédérée, de sujet `repo:contoso/ml-platform:ref:refs/heads/main`. Son émetteur et son audience sont corrects.
+
+    Un workflow du dépôt **contoso/ml-platform** est déclenché par les envois (push) sur `main`. Il contient le travail suivant.
+
+    ```yaml
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+          - uses: azure/login@v2
+            with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    ```
+
+    Le workflow contient `permissions: id-token: write`. L'étape de connexion à Azure échoue. Le travail doit se connecter avec app-ml-deploy sans stocker de secret.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Change the subject of the credential to repo:contoso/ml-platform:ref:refs/heads/*.", fr: "Remplacer le sujet des informations d'identification par repo:contoso/ml-platform:ref:refs/heads/*." }
+    - id: b
+      text: { en: "Add permissions: contents: read to the workflow.", fr: "Ajouter permissions: contents: read au workflow." }
+    - id: c
+      text: { en: "Add a federated credential with the subject repo:contoso/ml-platform:environment:production.", fr: "Ajouter des informations d'identification fédérées de sujet repo:contoso/ml-platform:environment:production." }
+    - id: d
+      text: { en: "Assign app-ml-deploy the Contributor role at the subscription scope.", fr: "Attribuer à app-ml-deploy le rôle Contributor à l'étendue de l'abonnement." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      When a job references an environment, the token issued by GitHub carries the environment subject `repo:<org>/<repo>:environment:<name>`, not the branch subject. The subject must match exactly, so the application needs a federated credential for the production environment. A wrong subject isn't rejected when the credential is created; it only fails at token exchange.
+    fr: |
+      Quand un travail référence un environnement, le jeton émis par GitHub porte le sujet de l'environnement `repo:<org>/<dépôt>:environment:<nom>`, et non celui de la branche. Le sujet doit correspondre exactement : l'application a donc besoin d'informations d'identification fédérées pour l'environnement production. Un sujet erroné n'est pas rejeté à la création des informations d'identification ; l'échec n'apparaît qu'à l'échange du jeton.
+  options:
+    a:
+      en: |
+        Wildcard characters aren't supported in federated identity credential values, and the token carries the environment subject anyway.
+      fr: |
+        Les caractères génériques ne sont pas pris en charge dans les valeurs des informations d'identification fédérées, et le jeton porte de toute façon le sujet de l'environnement.
+    b:
+      en: |
+        contents read lets the workflow check out the repository; it doesn't change the subject of the OIDC token.
+      fr: |
+        contents read permet au workflow d'extraire le dépôt ; cela ne change pas le sujet du jeton OIDC.
+    d:
+      en: |
+        The failure happens at token exchange, before any role is evaluated; a broader role also violates least privilege.
+      fr: |
+        L'échec se produit à l'échange du jeton, avant toute évaluation de rôle ; un rôle plus large enfreint aussi le moindre privilège.
+references:
+  - title: Create a trust relationship between an app and an external identity provider
+    url: https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust

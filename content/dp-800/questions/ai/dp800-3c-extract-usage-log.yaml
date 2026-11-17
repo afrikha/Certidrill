@@ -1,0 +1,65 @@
+id: dp800-3c-extract-usage-log
+objective: "3.3.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database. After each call to a chat completions deployment by using sp_invoke_external_rest_endpoint, a stored procedure must log the reason why the model stopped generating and the number of tokens consumed by the call.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL. Après chaque appel à un déploiement de complétions de conversation avec sp_invoke_external_rest_endpoint, une procédure stockée doit journaliser la raison pour laquelle le modèle a arrêté la génération et le nombre de jetons consommés par l'appel.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    INSERT INTO dbo.ModelCallLog (CalledAt, ReturnValue, FinishReason, TotalTokens)
+    VALUES (
+        SYSUTCDATETIME(),
+        @rc,
+        [[fn]](@response, [[reason]]),
+        CAST(JSON_VALUE(@response, [[tokens]]) AS int)
+    );
+  slots:
+    - id: fn
+      options:
+        - { id: value, text: JSON_VALUE }
+        - { id: query, text: JSON_QUERY }
+        - { id: isjson, text: ISJSON }
+    - id: reason
+      options:
+        - { id: choice, text: "'$.result.choices[0].finish_reason'" }
+        - { id: status, text: "'$.response.status.http.description'" }
+        - { id: noresult, text: "'$.choices[0].finish_reason'" }
+        - { id: flat, text: "'$.result.finish_reason'" }
+    - id: tokens
+      options:
+        - { id: usage, text: "'$.result.usage.total_tokens'" }
+        - { id: perchoice, text: "'$.result.choices[0].usage.total_tokens'" }
+        - { id: headers, text: "'$.response.headers.total_tokens'" }
+        - { id: nousage, text: "'$.usage.total_tokens'" }
+answer:
+  values: { fn: value, reason: choice, tokens: usage }
+explanation:
+  correct:
+    en: "finish_reason is a scalar string of each choice, so JSON_VALUE reads it at $.result.choices[0].finish_reason. The usage object is at the top level of the returned body, next to choices, so the token count is at $.result.usage.total_tokens. Both paths start with result because the procedure wraps the body in an envelope."
+    fr: "finish_reason est une chaîne scalaire de chaque choix : JSON_VALUE la lit dans $.result.choices[0].finish_reason. L'objet usage se trouve au premier niveau du corps renvoyé, à côté de choices : le nombre de jetons est dans $.result.usage.total_tokens. Les deux chemins commencent par result, car la procédure enveloppe le corps."
+  options:
+    query: { en: "JSON_QUERY returns objects or arrays; for a scalar such as finish_reason it returns NULL.", fr: "JSON_QUERY renvoie des objets ou des tableaux ; pour un scalaire comme finish_reason, il renvoie NULL." }
+    isjson: { en: "ISJSON only tests whether a string is valid JSON; it doesn't take a path.", fr: "ISJSON teste seulement si une chaîne est un JSON valide ; il ne prend pas de chemin." }
+    status: { en: "The HTTP description, such as OK, isn't the reason why generation stopped.", fr: "La description HTTP, comme OK, n'est pas la raison de l'arrêt de la génération." }
+    noresult: { en: "Without $.result, the path ignores the envelope and returns NULL.", fr: "Sans $.result, le chemin ignore l'enveloppe et renvoie NULL." }
+    perchoice: { en: "usage isn't inside each choice; it is a property of the body, next to choices.", fr: "usage n'est pas dans chaque choix ; c'est une propriété du corps, à côté de choices." }
+    nousage: { en: "Without $.result, the path ignores the envelope and returns NULL.", fr: "Sans $.result, le chemin ignore l'enveloppe et renvoie NULL." }
+references:
+  - title: Work with chat completion models
+    url: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/chatgpt
+  - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql

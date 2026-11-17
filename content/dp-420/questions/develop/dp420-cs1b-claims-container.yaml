@@ -1,0 +1,69 @@
+id: dp420-cs1b-claims-container
+objective: "1.1.5"
+type: dropdown
+caseStudy: dp420-cs1b-humongous-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Each claim item contains `id`, `tenantId`, `policyId`, `status` and the claim details. ClaimDesk sets the `ttl` property of a draft claim to 2592000 each time the draft is saved, and removes the `ttl` property when the claim is submitted.
+
+    You need to create the claims-v2 container in the claimdesk database to meet the requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Chaque élément de sinistre contient `id`, `tenantId`, `policyId`, `status` et les détails du sinistre. ClaimDesk définit la propriété `ttl` d'un brouillon de sinistre sur 2592000 à chaque enregistrement du brouillon, et supprime la propriété `ttl` quand le sinistre est soumis.
+
+    Vous devez créer le conteneur claims-v2 dans la base de données claimdesk pour satisfaire les exigences.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.cosmos import PartitionKey
+
+    claims = database.create_container_if_not_exists(
+        id="claims-v2",
+        partition_key=PartitionKey(path=[[path]], kind=[[kind]]),
+        default_ttl=[[ttl]],
+    )
+  slots:
+    - id: path
+      options:
+        - { id: tenantpolicy, text: "[\"/tenantId\", \"/policyId\"]" }
+        - { id: policytenant, text: "[\"/policyId\", \"/tenantId\"]" }
+        - { id: tenant, text: "\"/tenantId\"" }
+        - { id: tenantstatus, text: "[\"/tenantId\", \"/status\"]" }
+    - id: kind
+      options:
+        - { id: hash, text: "\"Hash\"" }
+        - { id: multihash, text: "\"MultiHash\"" }
+        - { id: range, text: "\"Range\"" }
+    - id: ttl
+      options:
+        - { id: none, text: None }
+        - { id: minus1, text: "-1" }
+        - { id: days30, text: "2592000" }
+answer:
+  values: { path: tenantpolicy, kind: multihash, ttl: minus1 }
+explanation:
+  correct:
+    en: "A hierarchical partition key `[\"/tenantId\", \"/policyId\"]` of kind `MultiHash` lets a tenant prefix exceed 20 GB while each tenant + policy value stays a logical partition. A query on the tenant, or on the tenant and the policy, is routed only to the physical partitions that hold that prefix. With `default_ttl=-1`, time to live is enabled but items never expire by default, so only the drafts, which carry `ttl` = 2592000 (30 days), expire after their last modification, and a submitted claim without `ttl` is kept."
+    fr: "Une clé de partition hiérarchique `[\"/tenantId\", \"/policyId\"]` de type `MultiHash` permet à un préfixe de locataire de dépasser 20 Go, tandis que chaque valeur locataire + police reste une partition logique. Une requête sur le locataire, ou sur le locataire et la police, n'est envoyée qu'aux partitions physiques qui contiennent ce préfixe. Avec `default_ttl=-1`, la durée de vie est activée mais les éléments n'expirent jamais par défaut : seuls les brouillons, qui portent `ttl` = 2592000 (30 jours), expirent après leur dernière modification, et un sinistre soumis sans `ttl` est conservé."
+  options:
+    policytenant: { en: "With policyId first, a dashboard query that filters only on the tenant does not include the first level of the key and fans out to every physical partition.", fr: "Avec policyId en premier, une requête de tableau de bord filtrée uniquement sur le locataire n'inclut pas le premier niveau de la clé et est envoyée à toutes les partitions physiques." }
+    tenant: { en: "A single /tenantId key keeps each tenant in one logical partition, which is limited to 20 GB.", fr: "Une clé unique /tenantId garde chaque locataire dans une seule partition logique, limitée à 20 Go." }
+    tenantstatus: { en: "status has very few values, so all the submitted claims of a large tenant would share one logical partition, which is still limited to 20 GB.", fr: "status a très peu de valeurs : tous les sinistres soumis d'un grand locataire partageraient une seule partition logique, toujours limitée à 20 Go." }
+    hash: { en: "Hash is the kind of a single-path partition key; a list of paths requires MultiHash.", fr: "Hash est le type d'une clé de partition à chemin unique ; une liste de chemins nécessite MultiHash." }
+    none: { en: "When the container has no default time to live, the ttl property of the items is ignored and the drafts never expire.", fr: "Quand le conteneur n'a pas de durée de vie par défaut, la propriété ttl des éléments est ignorée et les brouillons n'expirent jamais." }
+    days30: { en: "A container default of 2592000 would also delete the submitted claims, which have no ttl property, 30 days after their last modification.", fr: "Une valeur par défaut de 2592000 sur le conteneur supprimerait aussi les sinistres soumis, qui n'ont pas de propriété ttl, 30 jours après leur dernière modification." }
+references:
+  - title: Hierarchical partition keys in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/hierarchical-partition-keys
+  - title: Time to live in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/time-to-live

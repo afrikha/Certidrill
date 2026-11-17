@@ -1,0 +1,71 @@
+id: az802-4a-hybrid-forwarders
+objective: "4.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure virtual network named VNet1 that is connected to your on-premises network by a site-to-site VPN. VNet1 is linked to a private DNS zone named azure.contoso.com and contains:
+
+    - A domain controller named DC-AZ1 that runs the DNS Server role. A company policy requires DC-AZ1 to resolve every name that it doesn't host through the Azure-provided DNS only.
+    - An Azure DNS Private Resolver named dnspr1 that has an inbound endpoint with the IP address 10.10.0.4 and an outbound endpoint in the subnet 10.10.1.0/28.
+
+    An on-premises DNS server named DNS1 hosts the zone corp.contoso.com. You need to meet the following requirements:
+
+    - DC-AZ1 must resolve the records of azure.contoso.com and internet names.
+    - The on-premises clients that use DNS1 must resolve the records of azure.contoso.com.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un réseau virtuel Azure nommé VNet1 connecté à votre réseau local par un VPN site à site. VNet1 est lié à une zone DNS privée nommée azure.contoso.com et contient :
+
+    - Un contrôleur de domaine nommé DC-AZ1 qui exécute le rôle Serveur DNS. Une règle de l'entreprise impose que DC-AZ1 résolve tous les noms qu'il n'héberge pas uniquement par le DNS fourni par Azure.
+    - Un Azure DNS Private Resolver nommé dnspr1 qui dispose d'un point de terminaison entrant d'adresse IP 10.10.0.4 et d'un point de terminaison sortant dans le sous-réseau 10.10.1.0/28.
+
+    Un serveur DNS local nommé DNS1 héberge la zone corp.contoso.com. Vous devez satisfaire les exigences suivantes :
+
+    - DC-AZ1 doit résoudre les enregistrements d'azure.contoso.com et les noms internet.
+    - Les clients locaux qui utilisent DNS1 doivent résoudre les enregistrements d'azure.contoso.com.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    # On DC-AZ1
+    [[cmd]] -IPAddress 168.63.129.16
+    # On DNS1
+    Add-DnsServerConditionalForwarderZone -Name "azure.contoso.com" -MasterServers [[target]]
+  slots:
+    - id: cmd
+      options:
+        - { id: setfwd, text: Set-DnsServerForwarder }
+        - { id: roothint, text: Add-DnsServerRootHint }
+        - { id: deleg, text: Add-DnsServerZoneDelegation }
+    - id: target
+      options:
+        - { id: inbound, text: 10.10.0.4 }
+        - { id: azdns, text: 168.63.129.16 }
+        - { id: outsub, text: 10.10.1.4 }
+answer:
+  values: { cmd: setfwd, target: inbound }
+explanation:
+  correct:
+    en: |
+      A DNS server in Azure should forward the queries it can't answer to 168.63.129.16, which resolves both the private DNS zones linked to the virtual network and internet names; Set-DnsServerForwarder configures that server-level forwarder. On-premises, DNS1 can't reach 168.63.129.16, so its conditional forwarder targets the inbound endpoint of dnspr1, whose IP address is in VNet1.
+    fr: |
+      Un serveur DNS dans Azure doit transférer les requêtes auxquelles il ne peut pas répondre vers 168.63.129.16, qui résout à la fois les zones DNS privées liées au réseau virtuel et les noms internet ; Set-DnsServerForwarder configure ce redirecteur de niveau serveur. En local, DNS1 ne peut pas joindre 168.63.129.16 : son redirecteur conditionnel cible donc le point de terminaison entrant de dnspr1, dont l'adresse IP se trouve dans VNet1.
+  options:
+    roothint: { en: "Root hints make DC-AZ1 query the internet root servers itself, which breaks the policy, and those servers don't know the private zone.", fr: "Les indications de racine font interroger directement les serveurs racine d'Internet par DC-AZ1, ce qui enfreint la règle, et ces serveurs ne connaissent pas la zone privée." }
+    deleg: { en: "A delegation is created in a parent zone for a child zone; it doesn't forward other names.", fr: "Une délégation se crée dans une zone parente pour une zone enfant ; elle ne transfère pas les autres noms." }
+    azdns: { en: "168.63.129.16 answers only queries that originate in Azure.", fr: "168.63.129.16 ne répond qu'aux requêtes émises depuis Azure." }
+    outsub: { en: "The outbound endpoint sends queries from Azure to other DNS servers; it doesn't receive queries from on-premises.", fr: "Le point de terminaison sortant envoie des requêtes depuis Azure vers d'autres serveurs DNS ; il ne reçoit pas de requêtes du réseau local." }
+references:
+  - title: Azure Virtual Network Name Resolution Guide
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-name-resolution-for-vms-and-role-instances
+  - title: Azure DNS Private Resolver Overview
+    url: https://learn.microsoft.com/en-us/azure/dns/dns-private-resolver-overview

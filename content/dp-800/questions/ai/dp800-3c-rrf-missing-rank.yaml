@@ -1,0 +1,62 @@
+id: dp800-3c-rrf-missing-rank
+objective: "3.2.9"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL Managed Instance database that contains a table named dbo.Policies. A hybrid search query ends with the following statement.
+
+    ```sql
+    DECLARE @k int = 60;
+
+    SELECT TOP (10)
+           COALESCE(ks.PolicyId, vs.PolicyId) AS PolicyId,
+           1.0 / (@k + ks.keyword_rank)
+         + 1.0 / (@k + vs.vector_rank) AS rrf_score
+    FROM keyword_search AS ks
+    FULL OUTER JOIN vector_search AS vs
+        ON vs.PolicyId = ks.PolicyId
+    ORDER BY rrf_score DESC;
+    ```
+
+    Policies that are found by only one of the two searches are returned with a NULL rrf_score, after all the other policies. These policies must receive the RRF contribution of the list in which they appear.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL Managed Instance qui contient une table nommée dbo.Policies. Une requête de recherche hybride se termine par l'instruction suivante.
+
+    ```sql
+    DECLARE @k int = 60;
+
+    SELECT TOP (10)
+           COALESCE(ks.PolicyId, vs.PolicyId) AS PolicyId,
+           1.0 / (@k + ks.keyword_rank)
+         + 1.0 / (@k + vs.vector_rank) AS rrf_score
+    FROM keyword_search AS ks
+    FULL OUTER JOIN vector_search AS vs
+        ON vs.PolicyId = ks.PolicyId
+    ORDER BY rrf_score DESC;
+    ```
+
+    Les stratégies trouvées par une seule des deux recherches sont renvoyées avec un rrf_score NULL, après toutes les autres stratégies. Ces stratégies doivent recevoir la contribution RRF de la liste dans laquelle elles apparaissent.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Wrap each term in COALESCE(..., 0.0).", fr: "Encadrer chaque terme par COALESCE(..., 0.0)." } }
+    - { id: b, text: { en: "Replace each rank with ISNULL(rank, 0).", fr: "Remplacer chaque rang par ISNULL(rang, 0)." } }
+    - { id: c, text: { en: "Add the filter WHERE rrf_score IS NOT NULL.", fr: "Ajouter le filtre WHERE rrf_score IS NOT NULL." } }
+    - { id: d, text: { en: "Replace the FULL OUTER JOIN with a LEFT OUTER JOIN.", fr: "Remplacer le FULL OUTER JOIN par un LEFT OUTER JOIN." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "A row found by one search only has a NULL rank for the other list, and adding NULL to a number returns NULL. COALESCE(1.0 / (@k + rank), 0.0) turns the missing term into 0, so the row keeps the contribution of the list in which it appears."
+    fr: "Une ligne trouvée par une seule recherche a un rang NULL pour l'autre liste, et ajouter NULL à un nombre renvoie NULL. COALESCE(1.0 / (@k + rang), 0.0) transforme le terme manquant en 0 : la ligne conserve la contribution de la liste dans laquelle elle apparaît."
+  options:
+    b: { en: "A rank of 0 gives 1/60, more than the first position (1/61): the missing list would add the largest possible contribution.", fr: "Un rang 0 donne 1/60, plus que la première position (1/61) : la liste manquante ajouterait la plus forte contribution possible." }
+    c: { en: "The filter removes the policies found by one search only instead of scoring them, and rrf_score is an alias that WHERE can't reference.", fr: "Le filtre supprime les stratégies trouvées par une seule recherche au lieu de les noter, et rrf_score est un alias que WHERE ne peut pas référencer." }
+    d: { en: "A LEFT OUTER JOIN drops the policies found by the vector search only, and the full-text-only rows still get a NULL score.", fr: "Un LEFT OUTER JOIN supprime les stratégies trouvées par la seule recherche vectorielle, et les lignes trouvées par le seul texte intégral gardent un score NULL." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking

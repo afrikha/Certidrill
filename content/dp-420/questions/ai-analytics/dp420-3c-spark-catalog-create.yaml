@@ -1,0 +1,71 @@
+id: dp420-3c-spark-catalog-create
+objective: "3.3.4"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Northwind Traders computes daily store totals in a Spark notebook in Microsoft Fabric. The totals must be served from a new container named dailyTotals in the sales database of an Azure Cosmos DB for NoSQL account. The notebook authenticates with an account key.
+
+    You need to create the container from the notebook with the partition key `/storeId` and a maximum autoscale throughput of 4,000 RU/s.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders calcule les totaux quotidiens des magasins dans un notebook Spark dans Microsoft Fabric. Les totaux doivent être servis à partir d'un nouveau conteneur nommé dailyTotals dans la base de données sales d'un compte Azure Cosmos DB for NoSQL. Le notebook s'authentifie avec une clé de compte.
+
+    Vous devez créer le conteneur depuis le notebook avec la clé de partition `/storeId` et un débit autoscale maximal de 4 000 RU/s.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    spark.conf.set("spark.sql.catalog.cosmosCatalog", "[[catalogClass]]")
+    spark.conf.set("spark.sql.catalog.cosmosCatalog.spark.cosmos.accountEndpoint", endpoint)
+    spark.conf.set("spark.sql.catalog.cosmosCatalog.spark.cosmos.accountKey", key)
+
+    spark.sql("CREATE TABLE IF NOT EXISTS cosmosCatalog.sales.dailyTotals "
+              "USING [[provider]] "
+              "TBLPROPERTIES(partitionKeyPath = '/storeId', [[throughputProp]] = '4000')")
+  slots:
+    - id: catalogClass
+      options:
+        - { id: cosmos, text: com.azure.cosmos.spark.CosmosCatalog }
+        - { id: resolver, text: com.azure.cosmos.spark.fabric.FabricAccountDataResolver }
+        - { id: delta, text: org.apache.spark.sql.delta.catalog.DeltaCatalog }
+    - id: provider
+      options:
+        - { id: oltp, text: cosmos.oltp }
+        - { id: changefeed, text: cosmos.oltp.changeFeed }
+        - { id: deltafmt, text: delta }
+    - id: throughputProp
+      options:
+        - { id: autoscale, text: autoScaleMaxThroughput }
+        - { id: manual, text: manualThroughput }
+        - { id: target, text: targetThroughput }
+answer:
+  values: { catalogClass: cosmos, provider: oltp, throughputProp: autoscale }
+explanation:
+  correct:
+    en: "The connector's Catalog API is registered by setting `spark.sql.catalog.cosmosCatalog` to `com.azure.cosmos.spark.CosmosCatalog`, with the account settings under the same prefix. `CREATE TABLE ... USING cosmos.oltp` then creates a container, and `TBLPROPERTIES` sets the partition key path and `autoScaleMaxThroughput` for autoscale."
+    fr: "L'API Catalog du connecteur s'enregistre en définissant `spark.sql.catalog.cosmosCatalog` sur `com.azure.cosmos.spark.CosmosCatalog`, avec les paramètres du compte sous le même préfixe. `CREATE TABLE ... USING cosmos.oltp` crée alors un conteneur, et `TBLPROPERTIES` définit le chemin de la clé de partition et `autoScaleMaxThroughput` pour l'autoscale."
+  options:
+    resolver:
+      en: "`FabricAccountDataResolver` supplies Microsoft Entra tokens for Cosmos DB in Fabric; it isn't a catalog implementation."
+      fr: "`FabricAccountDataResolver` fournit des jetons Microsoft Entra pour Cosmos DB dans Fabric ; ce n'est pas une implémentation de catalogue."
+    deltafmt:
+      en: "`delta` would create a Delta table in a lakehouse, not an Azure Cosmos DB container."
+      fr: "`delta` créerait une table Delta dans un lakehouse, pas un conteneur Azure Cosmos DB."
+    manual:
+      en: "`manualThroughput` provisions standard (manual) throughput instead of autoscale."
+      fr: "`manualThroughput` provisionne un débit standard (manuel) au lieu de l'autoscale."
+    target:
+      en: "`targetThroughput` is a throughput control setting of a Spark job, not a container property."
+      fr: "`targetThroughput` est un paramètre de contrôle du débit d'un travail Spark, pas une propriété de conteneur."
+references:
+  - title: "Tutorial: Connect to Azure Cosmos DB for NoSQL by using Spark"
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/tutorial-spark-connector

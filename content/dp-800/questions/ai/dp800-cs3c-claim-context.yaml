@@ -1,0 +1,72 @@
+id: dp800-cs3c-claim-context
+objective: "3.3.3"
+type: dropdown
+caseStudy: dp800-cs3c-litware-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to build the user message of the claims assistant. The solution must meet the claims assistant requirements.
+
+    How should you complete the Transact-SQL code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez construire le message utilisateur de l'assistant des sinistres. La solution doit satisfaire les exigences de l'assistant des sinistres.
+
+    Comment devez-vous compléter le code Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    DECLARE @context nvarchar(max), @message nvarchar(max);
+
+    SET @context = (
+        SELECT c.ClaimNumber   AS [claim.number],
+               c.LossDate      AS [claim.lossDate],
+               c.Status        AS [claim.status],
+               c.SettledAmount AS [claim.settledAmount],
+               p.PolicyNumber  AS [policy.number],
+               p.CoverageLevel AS [policy.coverage]
+        FROM Claims.AutoClaim AS c
+        JOIN Claims.Policy AS p ON p.PolicyId = c.PolicyId
+        WHERE c.ClaimNumber = @ClaimNumber
+        FOR JSON PATH, [[options]]
+    );
+
+    SET @message = [[message]];
+  slots:
+    - id: options
+      options:
+        - { id: wrapper, text: "WITHOUT_ARRAY_WRAPPER" }
+        - { id: nullsroot, text: "INCLUDE_NULL_VALUES, ROOT('claim')" }
+        - { id: both, text: "INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER" }
+        - { id: root, text: "ROOT('claim')" }
+    - id: message
+      options:
+        - { id: concat, text: "N'{\"role\":\"user\",\"content\":\"Summarize this claim: ' + @context + N'\"}'" }
+        - { id: object, text: "JSON_OBJECT('role':'user', 'content':N'Summarize this claim: ' + @context)" }
+        - { id: array, text: "JSON_ARRAY(N'user', N'Summarize this claim: ' + @context)" }
+        - { id: userkey, text: "JSON_OBJECT('user':N'Summarize this claim: ' + @context)" }
+answer:
+  values: { options: both, message: object }
+explanation:
+  correct:
+    en: |
+      FOR JSON omits the properties whose value is NULL unless INCLUDE_NULL_VALUES is specified, and WITHOUT_ARRAY_WRAPPER removes the square brackets so that the one-row result is a single object; the dotted aliases of PATH mode create the nested claim and policy objects. JSON_OBJECT builds the message with the role and content keys and escapes the special characters of the content, including the quotation marks of @context.
+    fr: |
+      FOR JSON omet les propriétés dont la valeur est NULL, sauf si INCLUDE_NULL_VALUES est spécifié, et WITHOUT_ARRAY_WRAPPER supprime les crochets pour que le résultat d'une ligne soit un seul objet ; les alias avec des points du mode PATH créent les objets claim et policy imbriqués. JSON_OBJECT construit le message avec les clés role et content et échappe les caractères spéciaux du contenu, y compris les guillemets de @context.
+  options:
+    wrapper: { en: "Without INCLUDE_NULL_VALUES, settledAmount is omitted for an open claim instead of appearing with null.", fr: "Sans INCLUDE_NULL_VALUES, settledAmount est omis pour un sinistre ouvert au lieu d'apparaître avec null." }
+    nullsroot: { en: "ROOT adds a top-level property but keeps the array wrapper, so the result isn't a single object of claim data.", fr: "ROOT ajoute une propriété de premier niveau mais conserve le tableau, si bien que le résultat n'est pas un seul objet de données de sinistre." }
+    root: { en: "ROOT keeps the array wrapper, and NULL values are still omitted.", fr: "ROOT conserve le tableau, et les valeurs NULL sont toujours omises." }
+    concat: { en: "Concatenation doesn't escape anything: the quotation marks inside @context end the content string and the message is invalid JSON.", fr: "La concaténation n'échappe rien : les guillemets contenus dans @context terminent la chaîne content et le message n'est pas un JSON valide." }
+    array: { en: "JSON_ARRAY returns an array of values without the role and content keys.", fr: "JSON_ARRAY renvoie un tableau de valeurs sans les clés role et content." }
+    userkey: { en: "This object has a single key named user instead of the role and content properties.", fr: "Cet objet a une seule clé nommée user au lieu des propriétés role et content." }
+references:
+  - title: Format query results as JSON with FOR JSON
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/json/format-query-results-as-json-with-for-json-sql-server
+  - title: JSON_OBJECT (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/json-object-transact-sql

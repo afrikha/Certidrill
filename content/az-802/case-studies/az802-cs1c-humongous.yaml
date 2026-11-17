@@ -1,0 +1,78 @@
+id: az802-cs1c-humongous
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is an insurance company with its head office in Lille and a branch office in Arras. Humongous recently acquired an insurance broker named Litware Brokers, which keeps its own Active Directory forest for now.
+
+        Humongous also runs part of its claims platform on Azure virtual machines.
+      fr: |
+        Humongous Insurance est une compagnie d'assurance dont le siège se trouve à Lille, avec une agence à Arras. Humongous a récemment racheté un courtier en assurances nommé Litware Brokers, qui conserve pour l'instant sa propre forêt Active Directory.
+
+        Humongous exécute aussi une partie de sa plateforme de gestion des sinistres sur des machines virtuelles Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Humongous forest.** The Active Directory Domain Services (AD DS) forest **humongousinsurance.com** contains two domains: the forest root domain **humongousinsurance.com** and its child domain **claims.humongousinsurance.com**. The forest and domain functional levels are Windows Server 2016. SYSVOL replicates by using DFS Replication.
+
+        | Server | Domain | Role |
+        | --- | --- | --- |
+        | DC1, DC2 | humongousinsurance.com | Writable domain controllers, DNS servers |
+        | CDC1, CDC2 | claims.humongousinsurance.com | Writable domain controllers, DNS servers |
+        | RODC-ARR | humongousinsurance.com | Read-only domain controller (RODC) in the Arras branch office |
+        | CLM1, CLM2 | claims.humongousinsurance.com | Member servers that run the claims application |
+
+        All the servers run Windows Server 2025. CLM1 and CLM2 meet the hardware requirements of Credential Guard, and no administrator has ever configured Credential Guard on them.
+
+        **Litware forest.** The forest **litwarebrokers.com** contains a single domain. It has a one-way forest trust in which **litwarebrokers.com** trusts **fabrikam.com**, the forest of a reinsurance partner, so that Fabrikam users can access a pricing application at Litware. DNS conditional forwarders are already configured between humongousinsurance.com and litwarebrokers.com.
+
+        **Azure.** An Azure subscription named **Sub-HI** contains a virtual network named **VNet-Claims** with Windows Server virtual machines that have no public IP addresses. VNet-Claims doesn't contain Azure Bastion.
+      fr: |
+        **Forêt Humongous.** La forêt Active Directory Domain Services (AD DS) **humongousinsurance.com** contient deux domaines : le domaine racine de forêt **humongousinsurance.com** et son domaine enfant **claims.humongousinsurance.com**. Les niveaux fonctionnels de la forêt et des domaines sont Windows Server 2016. SYSVOL est répliqué avec la réplication DFS.
+
+        | Serveur | Domaine | Rôle |
+        | --- | --- | --- |
+        | DC1, DC2 | humongousinsurance.com | Contrôleurs de domaine accessibles en écriture, serveurs DNS |
+        | CDC1, CDC2 | claims.humongousinsurance.com | Contrôleurs de domaine accessibles en écriture, serveurs DNS |
+        | RODC-ARR | humongousinsurance.com | Contrôleur de domaine en lecture seule (RODC) de l'agence d'Arras |
+        | CLM1, CLM2 | claims.humongousinsurance.com | Serveurs membres qui exécutent l'application de gestion des sinistres |
+
+        Tous les serveurs exécutent Windows Server 2025. CLM1 et CLM2 respectent la configuration matérielle requise par Credential Guard, et aucun administrateur n'a jamais configuré Credential Guard sur ces serveurs.
+
+        **Forêt Litware.** La forêt **litwarebrokers.com** contient un seul domaine. Elle possède une approbation de forêt unidirectionnelle dans laquelle **litwarebrokers.com** approuve **fabrikam.com**, la forêt d'un partenaire de réassurance, afin que les utilisateurs de Fabrikam puissent accéder à une application de tarification chez Litware. Des redirecteurs conditionnels DNS sont déjà configurés entre humongousinsurance.com et litwarebrokers.com.
+
+        **Azure.** Un abonnement Azure nommé **Sub-HI** contient un réseau virtuel nommé **VNet-Claims** avec des machines virtuelles Windows Server sans adresse IP publique. VNet-Claims ne contient pas Azure Bastion.
+  - key: problems
+    title: { en: "Problem statements", fr: "Problèmes" }
+    body:
+      en: |
+        Changes made on CDC1 don't appear on CDC2, and the administrators don't know which other replication partners are affected. They want to review the replication status of all the domain controllers of the forest in one sortable and filterable table.
+      fr: |
+        Les modifications effectuées sur CDC1 n'apparaissent pas sur CDC2, et les administrateurs ne savent pas quels autres partenaires de réplication sont concernés. Ils veulent examiner l'état de la réplication de tous les contrôleurs de domaine de la forêt dans un seul tableau triable et filtrable.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Humongous identifies the following requirements:
+
+        1. **Litware access.** Litware users must be able to access resources on servers in both domains of the humongousinsurance.com forest. Humongous users must not gain access to Litware resources through the new trust. Fabrikam users must not gain access to Humongous resources, and they must keep their access to the Litware pricing application.
+        2. **Credentials.** On CLM1 and CLM2, NTLM password hashes and Kerberos ticket-granting tickets (TGTs) must be protected by virtualization-based security.
+        3. **SSH.** The administrators of the claims team, who are members of a group named **CL-Ops**, must manage CLM1 by using SSH from their Linux workstations. No other user may sign in to CLM1 by using SSH.
+        4. **Replication.** The administrators must identify the replication failures of all the domain controllers by using the built-in tools of Windows Server.
+        5. **Azure access.** The administrators must connect to the virtual machines in VNet-Claims through Azure Bastion, and every session must be recorded. Costs must be minimized.
+        6. Administrative effort must be minimized.
+      fr: |
+        Humongous a défini les exigences suivantes :
+
+        1. **Accès de Litware.** Les utilisateurs de Litware doivent pouvoir accéder aux ressources des serveurs des deux domaines de la forêt humongousinsurance.com. Les utilisateurs de Humongous ne doivent pas obtenir d'accès aux ressources de Litware par la nouvelle approbation. Les utilisateurs de Fabrikam ne doivent pas obtenir d'accès aux ressources de Humongous et doivent conserver leur accès à l'application de tarification de Litware.
+        2. **Informations d'identification.** Sur CLM1 et CLM2, les hachages de mots de passe NTLM et les tickets TGT (ticket-granting tickets) Kerberos doivent être protégés par la sécurité basée sur la virtualisation.
+        3. **SSH.** Les administrateurs de l'équipe sinistres, membres d'un groupe nommé **CL-Ops**, doivent gérer CLM1 en SSH depuis leurs stations de travail Linux. Aucun autre utilisateur ne doit pouvoir se connecter à CLM1 en SSH.
+        4. **Réplication.** Les administrateurs doivent identifier les échecs de réplication de tous les contrôleurs de domaine à l'aide des outils intégrés de Windows Server.
+        5. **Accès Azure.** Les administrateurs doivent se connecter aux machines virtuelles de VNet-Claims par Azure Bastion, et chaque session doit être enregistrée. Les coûts doivent être réduits au minimum.
+        6. L'effort d'administration doit être réduit au minimum.

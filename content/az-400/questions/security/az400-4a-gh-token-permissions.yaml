@@ -1,0 +1,109 @@
+id: az400-4a-gh-token-permissions
+objective: "4.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The GitHub repository **contoso/support** contains the following workflow. When an issue is opened, the job checks out the repository to run a script that chooses a label, and then adds the label to the issue.
+
+    You need to complete the workflow. The solution must meet the following requirements:
+
+    - The job must not use any credential that is stored in the repository or the organization.
+    - The token used by the job must have only the permissions that the job needs.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le dépôt GitHub **contoso/support** contient le workflow suivant. Lorsqu'un problème est ouvert, le job extrait le dépôt pour exécuter un script qui choisit une étiquette, puis ajoute l'étiquette au problème.
+
+    Vous devez compléter le workflow. La solution doit répondre aux exigences suivantes :
+
+    - Le job ne doit utiliser aucune information d'identification stockée dans le dépôt ou dans l'organisation.
+    - Le jeton utilisé par le job ne doit avoir que les autorisations dont le job a besoin.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: triage
+    on:
+      issues:
+        types: [opened]
+
+    jobs:
+      label:
+        runs-on: ubuntu-latest
+        permissions:
+          contents: [[contents]]
+          [[scope]]: write
+        steps:
+          - uses: actions/checkout@v4
+          - run: gh issue edit "$NUMBER" --add-label "$(./scripts/pick-label.sh)"
+            env:
+              GH_TOKEN: [[token]]
+              NUMBER: ${{ github.event.issue.number }}
+  slots:
+    - id: contents
+      options:
+        - { id: read, text: read }
+        - { id: write, text: write }
+        - { id: none, text: none }
+    - id: scope
+      options:
+        - { id: issues, text: issues }
+        - { id: prs, text: pull-requests }
+        - { id: checks, text: checks }
+        - { id: statuses, text: statuses }
+    - id: token
+      options:
+        - { id: ght, text: "${{ secrets.GITHUB_TOKEN }}" }
+        - { id: pat, text: "${{ secrets.GH_PAT }}" }
+        - { id: vars, text: "${{ vars.GITHUB_TOKEN }}" }
+        - { id: env, text: "${{ env.GITHUB_TOKEN }}" }
+answer:
+  values: { contents: read, scope: issues, token: ght }
+explanation:
+  correct:
+    en: |
+      The checkout needs `contents: read` and adding a label to an issue needs `issues: write`. When a job lists permissions, every permission that isn't listed is set to none, which gives least privilege. GITHUB_TOKEN is created automatically for each job and referenced as `secrets.GITHUB_TOKEN`; nobody stores it.
+    fr: |
+      L'extraction nécessite `contents: read` et l'ajout d'une étiquette à un problème nécessite `issues: write`. Quand un job liste des autorisations, toutes celles qui ne sont pas listées passent à none, ce qui applique le privilège minimum. GITHUB_TOKEN est créé automatiquement pour chaque job et référencé par `secrets.GITHUB_TOKEN` ; personne ne le stocke.
+  options:
+    write:
+      en: |
+        The job only reads the repository; `contents: write` would let it push code.
+      fr: |
+        Le job ne fait que lire le dépôt ; `contents: write` lui permettrait de pousser du code.
+    none:
+      en: |
+        Without `contents: read`, the checkout of the private repository fails.
+      fr: |
+        Sans `contents: read`, l'extraction du dépôt privé échoue.
+    prs:
+      en: |
+        The job edits an issue, not a pull request.
+      fr: |
+        Le job modifie un problème, pas une pull request.
+    pat:
+      en: |
+        A personal access token is a credential stored as a secret, which the requirements forbid.
+      fr: |
+        Un jeton d'accès personnel est une information d'identification stockée comme secret, ce que les exigences interdisent.
+    vars:
+      en: |
+        The vars context holds configuration variables that someone created; GITHUB_TOKEN isn't exposed there.
+      fr: |
+        Le contexte vars contient des variables de configuration créées par quelqu'un ; GITHUB_TOKEN n'y est pas exposé.
+    env:
+      en: |
+        No GITHUB_TOKEN variable is defined in the env context of this workflow, so the expression is empty.
+      fr: |
+        Aucune variable GITHUB_TOKEN n'est définie dans le contexte env de ce workflow : l'expression est vide.
+references:
+  - title: Identify supported Access Tokens
+    url: https://learn.microsoft.com/en-us/training/modules/automate-devops-github-apps/manage-tokens

@@ -1,0 +1,67 @@
+id: dp420-cs2b-wide-world-importers
+status: draft
+title:
+  en: Wide World Importers
+  fr: Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers is a freight forwarder that ships goods by sea and air from 60 countries. Customers follow their shipments on a tracking portal.
+
+        About 80 percent of the shipments leave from three countries. Wide World Importers wants to fix the performance problems of its tracking platform, secure it, and give its customs brokers an AI assistant.
+      fr: |
+        Wide World Importers est un transitaire qui expédie des marchandises par voie maritime et aérienne depuis 60 pays. Les clients suivent leurs expéditions sur un portail de suivi.
+
+        Environ 80 % des expéditions partent de trois pays. Wide World Importers souhaite corriger les problèmes de performances de sa plateforme de suivi, la sécuriser et fournir un assistant IA à ses commissionnaires en douane.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Wide World Importers has an Azure Cosmos DB for NoSQL account named **cosmos-wwi** in the resource group **rg-wwi**. The account contains a database named **logistics** with the following containers:
+
+        | Container | Content | Partition key | Time to live |
+        | --- | --- | --- | --- |
+        | shipments | One item per shipment, with `originCountry`, `shipmentId` and `customerId` | Hierarchical: `/originCountry`, then `/shipmentId` | Off |
+        | trackingEvents | One item per scan event, with `trackingNumber`, `eventDate` (for example `2026-11-17`) and `status`. About 40 million events per day | `/eventDate` | Off |
+        | rulings | About 200,000 customs tariff rulings, one item per ruling, with `rulingId`, `hsCode` and `text` | `/rulingId` | Off |
+
+        During peak hours, writes to shipments and trackingEvents are throttled (HTTP status code 429) although the provisioned throughput of each container is mostly unused.
+
+        A Python job named **carrier-sync** runs on an Azure virtual machine that has a system-assigned managed identity. The job connects to cosmos-wwi by using the primary key of the account. All the other applications already use Microsoft Entra ID.
+
+        No feature is enabled on the **Features** page of cosmos-wwi. Wide World Importers has deployed an embedding model and a chat model in Microsoft Foundry.
+      fr: |
+        Wide World Importers dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-wwi** dans le groupe de ressources **rg-wwi**. Le compte contient une base de données nommée **logistics** avec les conteneurs suivants :
+
+        | Conteneur | Contenu | Clé de partition | Durée de vie |
+        | --- | --- | --- | --- |
+        | shipments | Un élément par expédition, avec `originCountry`, `shipmentId` et `customerId` | Hiérarchique : `/originCountry`, puis `/shipmentId` | Désactivée |
+        | trackingEvents | Un élément par événement de scan, avec `trackingNumber`, `eventDate` (par exemple `2026-11-17`) et `status`. Environ 40 millions d'événements par jour | `/eventDate` | Désactivée |
+        | rulings | Environ 200 000 décisions tarifaires douanières, un élément par décision, avec `rulingId`, `hsCode` et `text` | `/rulingId` | Désactivée |
+
+        Aux heures de pointe, les écritures dans shipments et trackingEvents sont limitées (code d'état HTTP 429), alors que le débit approvisionné de chaque conteneur est en grande partie inutilisé.
+
+        Un job Python nommé **carrier-sync** s'exécute sur une machine virtuelle Azure qui a une identité managée affectée par le système. Le job se connecte à cosmos-wwi avec la clé primaire du compte. Toutes les autres applications utilisent déjà Microsoft Entra ID.
+
+        Aucune fonctionnalité n'est activée dans la page **Fonctionnalités** de cosmos-wwi. Wide World Importers a déployé un modèle d'incorporation et un modèle de conversation dans Microsoft Foundry.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Wide World Importers identifies the following requirements:
+
+        1. **Partitioning review.** Explain the throttling of shipments before its partition key is redesigned.
+        2. **Tracking events.** A new trackingEvents container must spread the writes of a day across many logical partitions. The portal must still be able to read the events of one tracking number for a given date without a cross-partition query.
+        3. **Retention.** Tracking events must be deleted automatically 90 days after their last modification. The events of a disputed shipment must be kept while the dispute is open, then deleted automatically 30 days after the dispute is closed. The applications must not issue delete operations for this purpose.
+        4. **Authentication.** Key-based authentication must be disabled on cosmos-wwi without interrupting carrier-sync. No secret may be stored on the virtual machine.
+        5. **Customs assistant.** The assistant must answer the questions of brokers by grounding the chat model on the most relevant rulings. The embeddings must be stored and searched in Azure Cosmos DB together with the rulings, without copying the data to another store.
+      fr: |
+        Wide World Importers a défini les exigences suivantes :
+
+        1. **Revue du partitionnement.** Expliquer la limitation des requêtes de shipments avant de reconcevoir sa clé de partition.
+        2. **Événements de suivi.** Un nouveau conteneur trackingEvents doit répartir les écritures d'une journée entre de nombreuses partitions logiques. Le portail doit toujours pouvoir lire les événements d'un numéro de suivi pour une date donnée sans requête entre partitions.
+        3. **Rétention.** Les événements de suivi doivent être supprimés automatiquement 90 jours après leur dernière modification. Les événements d'une expédition en litige doivent être conservés tant que le litige est ouvert, puis supprimés automatiquement 30 jours après la clôture du litige. Les applications ne doivent pas émettre d'opérations de suppression à cette fin.
+        4. **Authentification.** L'authentification par clé doit être désactivée sur cosmos-wwi sans interrompre carrier-sync. Aucun secret ne doit être stocké sur la machine virtuelle.
+        5. **Assistant douanier.** L'assistant doit répondre aux questions des commissionnaires en ancrant le modèle de conversation sur les décisions les plus pertinentes. Les incorporations doivent être stockées et recherchées dans Azure Cosmos DB avec les décisions, sans copier les données dans un autre magasin.

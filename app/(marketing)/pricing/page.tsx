@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { readSwitches } from "@/lib/settings";
 import { freeExamQuota } from "@/lib/access";
 import { getOffers, type Offer } from "@/lib/access/offers";
-import { canBuyOnline } from "@/lib/billing/checkout";
+import { passPricing } from "@/lib/billing/checkout";
 import { stripeApi } from "@/lib/billing/stripe";
 import { BuyPass } from "@/components/billing/buy-pass";
 import { buttonClasses } from "@/components/ui/button";
@@ -34,16 +34,20 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
   const tOffer = await getTranslations("offer");
   const format = await getFormatter();
   const session = await auth();
-  const [offers, quota, { signupOpen }, certifications] = await Promise.all([
-    getOffers(prisma),
-    freeExamQuota(prisma),
-    readSwitches(prisma),
-    prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { code: true, title: true } }),
-  ]);
+  const [offers, quota, { signupOpen }] = await Promise.all([getOffers(prisma), freeExamQuota(prisma), readSwitches(prisma)]);
   const pass = offers.find((o) => o.kind === "pass");
   const others = offers.filter((o) => o.kind !== "pass");
-  const buyable = pass ? await canBuyOnline(prisma, pass.code, stripeApi()) : false;
-  const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
+  const pricing = pass ? await passPricing(prisma, pass.code, stripeApi()) : null;
+  const buyable = (pricing?.buyable.length ?? 0) > 0;
+  const money = (cents: number, currency: string) => format.number(cents / 100, { style: "currency", currency: currency.toUpperCase() });
+  const range = pricing?.range;
+  // The Pass is priced per certification: "from X" when the prices differ, and the list below.
+  const perCertification = !!range && range.min !== range.max;
+  const price = (o: Offer) => {
+    if (o.kind !== "pass" || !range) return money(o.amountCents, o.currency);
+    return perCertification ? tOffer("priceFrom", { price: money(range.min, range.currency) }) : money(range.min, range.currency);
+  };
+  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, price: money(c.amountCents, c.currency) }));
   const tax = (o: Offer) => tOffer(o.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded");
   const freeExams = quota === null ? null : tHome("freeExams", { count: quota });
   const signIn = signupOpen ? { href: "/signup", label: t("signUpToBuy") } : { href: "/login", label: t("signInToBuy") };
@@ -85,6 +89,21 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
               {buyable && !session && <Link href={signIn.href} className={buttonClasses("primary", "w-full py-2.5")}>{signIn.label}</Link>}
               {buyable && <p className="mt-3 text-center text-xs text-muted-foreground">{t("extendHint")}</p>}
             </div>
+            {perCertification && pricing && (
+              <details className="mt-6 text-sm" data-testid="pass-prices">
+                <summary className="cursor-pointer font-medium">{t("pricesTitle")}</summary>
+                <table className="mt-3 w-full text-left">
+                  <tbody>
+                    {pricing.prices.map((c) => (
+                      <tr key={c.code} className="border-b border-border">
+                        <th scope="row" className="py-1.5 pr-3 font-normal"><span className="font-mono uppercase">{c.code}</span> <span className="text-muted-foreground">{c.title}</span></th>
+                        <td className="py-1.5 text-right font-semibold tabular-nums">{money(c.amountCents, c.currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
+            )}
           </li>
         )}
       </ul>

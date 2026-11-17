@@ -1,0 +1,78 @@
+id: az700-3b-settings-cli-https
+objective: "3.2.8"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An Application Gateway Standard_v2 named **agw-web** has a backend pool that contains two App Service apps addressed by their default `azurewebsites.net` FQDNs. No custom domain is mapped to the apps.
+
+    You need to create backend settings named **bs-app** that meet the following requirements:
+
+    - The traffic from agw-web to the apps is encrypted.
+    - Each app receives the Host header that it expects.
+    - When an app is removed from the pool, its in-flight requests can complete during up to 60 seconds.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un Application Gateway Standard_v2 nommé **agw-web** possède un pool principal qui contient deux applications App Service adressées par leur FQDN `azurewebsites.net` par défaut. Aucun domaine personnalisé n'est mappé aux applications.
+
+    Vous devez créer des paramètres de back-end nommés **bs-app** qui répondent aux exigences suivantes :
+
+    - Le trafic d'agw-web vers les applications est chiffré.
+    - Chaque application reçoit l'en-tête Host qu'elle attend.
+    - Quand une application est retirée du pool, ses requêtes en cours peuvent se terminer pendant 60 secondes au maximum.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network application-gateway http-settings create --resource-group RG-Web \
+      --gateway-name agw-web --name bs-app --port 443 --protocol [[proto]] \
+      [[host]] [[drain]] \
+      --cookie-based-affinity Disabled
+  slots:
+    - id: proto
+      options:
+        - { id: http, text: Http }
+        - { id: https, text: Https }
+        - { id: tls, text: Tls }
+        - { id: tcp, text: Tcp }
+    - id: host
+      options:
+        - { id: frompool, text: "--host-name-from-backend-pool true" }
+        - { id: hostcontoso, text: "--host-name www.contoso.com" }
+        - { id: path, text: "--path /" }
+        - { id: notfrompool, text: "--host-name-from-backend-pool false" }
+    - id: drain
+      options:
+        - { id: draining, text: "--connection-draining-timeout 60" }
+        - { id: timeout, text: "--timeout 60" }
+        - { id: drain0, text: "--connection-draining-timeout 0" }
+        - { id: dedicated, text: "--dedicated-backend-connection true" }
+answer:
+  values: { proto: https, host: frompool, drain: draining }
+explanation:
+  correct:
+    en: The HTTPS protocol in the backend settings encrypts the gateway-to-backend leg. App Service is multitenant and answers only for its own host names, so the gateway must set the Host header to the FQDN of each pool member with `--host-name-from-backend-pool true`. `--connection-draining-timeout 60` keeps the existing requests of a deregistered server for up to 60 seconds (0 disables draining).
+    fr: "Le protocole HTTPS dans les paramètres de back-end chiffre le tronçon de la passerelle vers le back-end. App Service est multilocataire et ne répond que pour ses propres noms d'hôte : la passerelle doit donc définir l'en-tête Host sur le FQDN de chaque membre du pool avec `--host-name-from-backend-pool true`. `--connection-draining-timeout 60` conserve jusqu'à 60 secondes les requêtes existantes d'un serveur désinscrit (0 désactive le drainage)."
+  options:
+    http: { en: "HTTP leaves the backend leg unencrypted.", fr: "HTTP laisse le tronçon vers le back-end non chiffré." }
+    tls: { en: "Tls is for the layer 4 TLS proxy, not for HTTP routing rules.", fr: "Tls est destiné au proxy TLS de couche 4, pas aux règles de routage HTTP." }
+    tcp: { en: "Tcp is for the layer 4 proxy and is not encrypted.", fr: "Tcp est destiné au proxy de couche 4 et n'est pas chiffré." }
+    hostcontoso: { en: "No custom domain is mapped, so the apps do not answer for www.contoso.com.", fr: "Aucun domaine personnalisé n'est mappé : les applications ne répondent pas pour www.contoso.com." }
+    path: { en: "--path prefixes the forwarded path; it does not set the Host header.", fr: "--path préfixe le chemin transféré ; il ne définit pas l'en-tête Host." }
+    notfrompool: { en: "The original host name would be forwarded, which App Service rejects.", fr: "Le nom d'hôte d'origine serait transféré, ce qu'App Service rejette." }
+    timeout: { en: "--timeout is the request timeout, not connection draining.", fr: "--timeout est le délai d'expiration de la requête, pas le drainage de connexion." }
+    drain0: { en: "A value of 0 disables connection draining.", fr: "La valeur 0 désactive le drainage de connexion." }
+    dedicated: { en: "A dedicated backend connection maps each client connection to one backend connection; it does not drain servers.", fr: "Une connexion de back-end dédiée associe chaque connexion cliente à une connexion de back-end ; elle ne draine pas les serveurs." }
+references:
+  - title: az network application-gateway http-settings
+    url: https://learn.microsoft.com/en-us/cli/azure/network/application-gateway/http-settings?view=azure-cli-latest
+  - title: Azure Application Gateway Backend Settings configuration
+    url: https://learn.microsoft.com/en-us/azure/application-gateway/configuration-http-settings

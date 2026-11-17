@@ -1,0 +1,78 @@
+id: dp600-cs2c-incremental-refresh
+objective: "3.2.5"
+type: dropdown
+caseStudy: dp600-cs2c-blue-yonder-airlines
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are configuring incremental refresh for the FactFlightLeg table of SM-FlightOps in Power BI Desktop.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous configurez l'actualisation incrémentielle de la table FactFlightLeg de SM-FlightOps dans Power BI Desktop.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: text
+  template: |
+    // Power Query parameters RangeStart and RangeEnd - type: [[ptype]]
+    let
+        Source = Sql.Database("byaops.datawarehouse.fabric.microsoft.com", "WH-Ops"),
+        FlightLegs = Source{[Schema = "dbo", Item = "FactFlightLeg"]}[Data],
+        Filtered = Table.SelectRows(FlightLegs,
+            each [DepartureUtc] >= RangeStart and [DepartureUtc] [[op]] RangeEnd)
+    in
+        Filtered
+
+    // Incremental refresh policy of FactFlightLeg
+    // Archive data starting:               [[archive]] before refresh date
+    // Incrementally refresh data starting: [[incr]] before refresh date
+  slots:
+    - id: ptype
+      options:
+        - { id: date, text: "Date" }
+        - { id: datetime, text: "Date/Time" }
+        - { id: textt, text: "Text" }
+    - id: op
+      options:
+        - { id: lt, text: "<" }
+        - { id: le, text: "<=" }
+        - { id: gt, text: ">" }
+    - id: archive
+      options:
+        - { id: a7d, text: "7 Days" }
+        - { id: a2y, text: "2 Years" }
+        - { id: a10y, text: "10 Years" }
+    - id: incr
+      options:
+        - { id: i7d, text: "7 Days" }
+        - { id: i3m, text: "3 Months" }
+        - { id: i10y, text: "10 Years" }
+answer:
+  values: { ptype: datetime, op: lt, archive: a10y, incr: i7d }
+explanation:
+  correct:
+    en: "Incremental refresh requires two parameters named RangeStart and RangeEnd of type Date/Time. Only one of the two comparisons may include equality: with `>= RangeStart`, the upper bound must be `< RangeEnd`, or a row on a boundary would belong to two partitions and be loaded twice. The archive period is the history the model keeps (10 years), and the incremental period is the window reloaded at each refresh (the last 7 days, which covers the late corrections)."
+    fr: "L'actualisation incrémentielle nécessite deux paramètres nommés RangeStart et RangeEnd de type Date/Time. Une seule des deux comparaisons peut inclure l'égalité : avec `>= RangeStart`, la borne supérieure doit être `< RangeEnd`, sinon une ligne située sur une limite appartiendrait à deux partitions et serait chargée deux fois. La période d'archivage est l'historique conservé par le modèle (10 ans), et la période incrémentielle est la fenêtre rechargée à chaque actualisation (les 7 derniers jours, qui couvrent les corrections tardives)."
+  options:
+    date:
+      en: "The parameters must be of type Date/Time; a Date parameter is not accepted for the incremental refresh policy."
+      fr: "Les paramètres doivent être de type Date/Time ; un paramètre de type Date n'est pas accepté pour la stratégie d'actualisation incrémentielle."
+    le:
+      en: "With `>=` on RangeStart and `<=` on RangeEnd, a flight leg that departs exactly on a partition boundary is loaded into two partitions."
+      fr: "Avec `>=` sur RangeStart et `<=` sur RangeEnd, un tronçon de vol qui part exactement sur une limite de partition est chargé dans deux partitions."
+    a7d:
+      en: "An archive period of 7 days keeps only one week of history instead of 10 years."
+      fr: "Une période d'archivage de 7 jours ne conserve qu'une semaine d'historique au lieu de 10 ans."
+    i10y:
+      en: "An incremental period of 10 years reloads the whole history at every refresh."
+      fr: "Une période incrémentielle de 10 ans recharge tout l'historique à chaque actualisation."
+references:
+  - title: Configure incremental refresh for Power BI semantic models
+    url: https://learn.microsoft.com/en-us/power-bi/connect-data/incremental-refresh-configure

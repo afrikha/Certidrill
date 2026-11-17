@@ -1,0 +1,95 @@
+id: dp750-3c-agg-filter-clause
+objective: "3.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip Toys stores sales in **wingtip.silver.sales**, with one row per order line and the columns **store_id**, **customer_id**, **channel**, **amount** and **order_date**. You are writing the query that creates **wingtip.gold.store_kpis**.
+
+    The query must return one row per store for 2026, with the following columns:
+
+    - **customers**: the number of different customers who bought in the store.
+    - **online_revenue**: the revenue of the order lines whose channel is online.
+    - **revenue**: the revenue of all channels.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys stocke les ventes dans **wingtip.silver.sales**, avec une ligne par ligne de commande et les colonnes **store_id**, **customer_id**, **channel**, **amount** et **order_date**. Vous écrivez la requête qui crée **wingtip.gold.store_kpis**.
+
+    La requête doit renvoyer une ligne par magasin pour 2026, avec les colonnes suivantes :
+
+    - **customers** : le nombre de clients différents qui ont acheté dans le magasin.
+    - **online_revenue** : le chiffre d'affaires des lignes de commande dont le canal est online.
+    - **revenue** : le chiffre d'affaires de tous les canaux.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT store_id,
+           count([[cnt]])                  AS customers,
+           sum(amount) [[flt]]             AS online_revenue,
+           sum(amount)                     AS revenue
+    FROM wingtip.silver.sales
+    WHERE order_date BETWEEN '2026-01-01' AND '2026-12-31'
+    GROUP BY [[grp]];
+  slots:
+    - id: cnt
+      options:
+        - { id: star, text: "*" }
+        - { id: distinct, text: DISTINCT customer_id }
+        - { id: plain, text: customer_id }
+    - id: flt
+      options:
+        - { id: filter, text: "FILTER (WHERE channel = 'online')" }
+        - { id: over, text: "OVER (PARTITION BY channel)" }
+        - { id: having, text: "HAVING channel = 'online'" }
+    - id: grp
+      options:
+        - { id: storechan, text: "store_id, channel" }
+        - { id: rollup, text: ROLLUP (store_id) }
+        - { id: store, text: store_id }
+answer:
+  values: { cnt: distinct, flt: filter, grp: store }
+explanation:
+  correct:
+    en: |
+      `count(DISTINCT customer_id)` counts each customer once per store. An aggregate `FILTER (WHERE ...)` clause passes only the matching rows to that one aggregate, so online revenue and total revenue come from the same pass over the data. Grouping by `store_id` alone returns one row per store.
+    fr: |
+      `count(DISTINCT customer_id)` compte chaque client une seule fois par magasin. Une clause d'agrégat `FILTER (WHERE ...)` ne transmet que les lignes correspondantes à cet agrégat : le chiffre d'affaires en ligne et le chiffre d'affaires total proviennent donc du même passage sur les données. Le regroupement sur `store_id` seul renvoie une ligne par magasin.
+  options:
+    star:
+      en: "`count(*)` counts order lines, not customers."
+      fr: "`count(*)` compte les lignes de commande, pas les clients."
+    plain:
+      en: "`count(customer_id)` counts every non-null value, so a customer who bought several times is counted several times."
+      fr: "`count(customer_id)` compte chaque valeur non null : un client qui a acheté plusieurs fois est compté plusieurs fois."
+    over:
+      en: |
+        A window function returns a value for every row instead of aggregating, and it cannot be mixed with the grouped columns this way.
+      fr: |
+        Une fonction de fenêtrage renvoie une valeur pour chaque ligne au lieu d'agréger, et elle ne peut pas être combinée ainsi avec les colonnes regroupées.
+    having:
+      en: |
+        HAVING is a clause of the whole query that filters groups; it cannot follow an aggregate in the SELECT list.
+      fr: |
+        HAVING est une clause de la requête entière qui filtre des groupes ; il ne peut pas suivre un agrégat dans la liste SELECT.
+    storechan:
+      en: |
+        Grouping by channel as well returns one row per store and channel.
+      fr: |
+        Regrouper également par canal renvoie une ligne par magasin et par canal.
+    rollup:
+      en: |
+        ROLLUP adds a grand total row to the rows of the stores.
+      fr: |
+        ROLLUP ajoute une ligne de total général aux lignes des magasins.
+references:
+  - title: GROUP BY clause
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-qry-select-groupby

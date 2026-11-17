@@ -1,0 +1,99 @@
+id: dp300-cs3b-weekend-schedule
+objective: "4.1.1"
+type: dropdown
+caseStudy: dp300-cs3b-bellows-college
+difficulty: 2
+status: draft
+shuffle: false
+stem:
+  en: |
+    You need to meet the maintenance requirements for IndexMaint. You will run the same script on SIS-VM1 and SIS-VM2.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez satisfaire les exigences de maintenance concernant IndexMaint. Vous exécuterez le même script sur SIS-VM1 et SIS-VM2.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template:
+    en: |
+      USE msdb;
+      EXECUTE sp_add_schedule
+          @schedule_name = N'Weekend-2330',
+          @freq_type = [[type]],
+          @freq_interval = [[days]],
+          @freq_recurrence_factor = 1,
+          @active_start_time = [[time]];
+      EXECUTE sp_attach_schedule
+          @job_name = N'IndexMaint',
+          @schedule_name = N'Weekend-2330';
+
+      -- First statement of the IndexMaint job step
+      IF [[check]] <> 1
+          RETURN;
+    fr: |
+      USE msdb;
+      EXECUTE sp_add_schedule
+          @schedule_name = N'Weekend-2330',
+          @freq_type = [[type]],
+          @freq_interval = [[days]],
+          @freq_recurrence_factor = 1,
+          @active_start_time = [[time]];
+      EXECUTE sp_attach_schedule
+          @job_name = N'IndexMaint',
+          @schedule_name = N'Weekend-2330';
+
+      -- Première instruction de l'étape du travail IndexMaint
+      IF [[check]] <> 1
+          RETURN;
+  slots:
+    - id: type
+      options:
+        - { id: t4, text: "4" }
+        - { id: t8, text: "8" }
+        - { id: t16, text: "16" }
+    - id: days
+      options:
+        - { id: d1, text: "1" }
+        - { id: d64, text: "64" }
+        - { id: d65, text: "65" }
+        - { id: d127, text: "127" }
+    - id: time
+      options:
+        - { id: hm, text: "2330" }
+        - { id: pm, text: "113000" }
+        - { id: hms, text: "233000" }
+    - id: check
+      options:
+        - { id: access, text: "HAS_DBACCESS(N'SIS')" }
+        - { id: backup, text: "sys.fn_hadr_backup_is_preferred_replica(N'SIS')" }
+        - { id: primary, text: "sys.fn_hadr_is_primary_replica(N'SIS')" }
+answer:
+  values: { type: t8, days: d65, time: hms, check: primary }
+explanation:
+  correct:
+    en: |
+      `@freq_type = 8` defines a weekly schedule, and for a weekly schedule `@freq_interval` is a bitmask of days: Sunday = 1 and Saturday = 64, so both days give 65. `@active_start_time` is an integer in the HHmmss form, so 23:30 is 233000. SQL Server Agent jobs are not part of the availability group, so the job runs on both servers; `sys.fn_hadr_is_primary_replica` returns 1 only on the current primary replica of SIS, and the step exits on the other server.
+    fr: |
+      `@freq_type = 8` définit une planification hebdomadaire, et pour une planification hebdomadaire `@freq_interval` est un masque de bits des jours : dimanche = 1 et samedi = 64, soit 65 pour les deux jours. `@active_start_time` est un entier de la forme HHmmss : 23 h 30 s'écrit 233000. Les travaux SQL Server Agent ne font pas partie du groupe de disponibilité : le travail s'exécute sur les deux serveurs ; `sys.fn_hadr_is_primary_replica` renvoie 1 uniquement sur le réplica principal actuel de SIS, et l'étape s'arrête sur l'autre serveur.
+  options:
+    t4: { en: "4 is a daily schedule, which would also run from Monday to Friday.", fr: "4 correspond à une planification quotidienne, qui s'exécuterait aussi du lundi au vendredi." }
+    t16: { en: "16 is a monthly schedule.", fr: "16 correspond à une planification mensuelle." }
+    d1: { en: "1 is Sunday only.", fr: "1 correspond au dimanche seulement." }
+    d64: { en: "64 is Saturday only.", fr: "64 correspond au samedi seulement." }
+    d127: { en: "127 is every day of the week.", fr: "127 correspond à tous les jours de la semaine." }
+    hm: { en: "In the HHmmss form, 2330 means 00:23:30.", fr: "Au format HHmmss, 2330 signifie 00 h 23 min 30 s." }
+    pm: { en: "The time uses a 24-hour clock, so 113000 means 11:30 in the morning.", fr: "L'heure utilise le format 24 heures : 113000 signifie 11 h 30 du matin." }
+    access: { en: "HAS_DBACCESS returns 1 on a readable secondary too, so the step would also run on SIS-VM2.", fr: "HAS_DBACCESS renvoie 1 aussi sur un secondaire accessible en lecture : l'étape s'exécuterait également sur SIS-VM2." }
+    backup: { en: "This function returns whether the replica is the preferred backup replica, which depends on the backup preference, not on the primary role.", fr: "Cette fonction indique si le réplica est le réplica de sauvegarde préféré, ce qui dépend de la préférence de sauvegarde, pas du rôle principal." }
+references:
+  - title: sp_add_schedule (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-add-schedule-transact-sql
+  - title: sys.fn_hadr_is_primary_replica (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-functions/sys-fn-hadr-is-primary-replica-transact-sql

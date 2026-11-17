@@ -1,0 +1,61 @@
+id: dp750-cs2c-loyalty-merge
+objective: "3.3.7"
+type: dropdown
+caseStudy: dp750-cs2c-fourth-coffee
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the statement that the load_loyalty task runs after it loads the extract.
+
+    How should you complete the statement to meet the loyalty data requirement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez l'instruction que la tâche load_loyalty exécute après avoir chargé l'extrait.
+
+    Comment devez-vous compléter l'instruction pour respecter l'exigence relative aux données de fidélité ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    MERGE INTO fc_prod.silver.loyalty_members AS t
+    USING fc_prod.staging.loyalty_extract AS s
+    ON t.member_id = s.member_id
+    WHEN MATCHED THEN [[matched]]
+    WHEN NOT MATCHED THEN [[notmatched]]
+    WHEN [[bysource]] THEN DELETE;
+  slots:
+    - id: matched
+      options:
+        - { id: delete, text: "DELETE" }
+        - { id: update, text: "UPDATE SET *" }
+        - { id: insert, text: "INSERT *" }
+    - id: notmatched
+      options:
+        - { id: insert, text: "INSERT *" }
+        - { id: update, text: "UPDATE SET *" }
+        - { id: delete, text: "DELETE" }
+    - id: bysource
+      options:
+        - { id: bytarget, text: "NOT MATCHED BY TARGET" }
+        - { id: matchednull, text: "MATCHED AND s.member_id IS NULL" }
+        - { id: bysource, text: "NOT MATCHED BY SOURCE" }
+answer:
+  values: { matched: update, notmatched: insert, bysource: bysource }
+explanation:
+  correct:
+    en: "`WHEN MATCHED THEN UPDATE SET *` updates the members present in both tables, and `WHEN NOT MATCHED THEN INSERT *` inserts the members that exist only in the extract. `WHEN NOT MATCHED BY SOURCE THEN DELETE` acts on the target rows that have no matching row in the extract, so the members that left the program are deleted."
+    fr: "`WHEN MATCHED THEN UPDATE SET *` met à jour les membres présents dans les deux tables, et `WHEN NOT MATCHED THEN INSERT *` insère les membres qui n'existent que dans l'extrait. `WHEN NOT MATCHED BY SOURCE THEN DELETE` agit sur les lignes cibles sans ligne correspondante dans l'extrait : les membres qui ont quitté le programme sont donc supprimés."
+  options:
+    bytarget:
+      en: "`NOT MATCHED BY TARGET` is an alias of `NOT MATCHED`: it concerns source rows missing from the target, and DELETE is not a valid action for it."
+      fr: "`NOT MATCHED BY TARGET` est un alias de `NOT MATCHED` : il concerne les lignes sources absentes de la cible, et DELETE n'est pas une action valide pour cette clause."
+    matchednull:
+      en: A matched row always has a source row, so `s.member_id` is never NULL there and the clause deletes nothing.
+      fr: "Une ligne mise en correspondance a toujours une ligne source : `s.member_id` n'y est jamais NULL et la clause ne supprime rien."
+references:
+  - title: MERGE INTO
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/delta-merge-into

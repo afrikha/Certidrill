@@ -1,0 +1,85 @@
+id: dp700-3d-pyspark-prune-broadcast
+objective: "3.3.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric lakehouse that contains two Delta tables:
+
+    - FactSales: 4 billion rows and 60 columns, including OrderDate, StoreId and Amount
+    - DimStore: 2,000 rows
+
+    A notebook joins the two tables to compute the 2026 sales per store. The Spark UI shows that the job reads every column of FactSales and shuffles FactSales for a sort-merge join.
+
+    You need to reduce the data read from FactSales and avoid shuffling FactSales during the join.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse Fabric qui contient deux tables Delta :
+
+    - FactSales : 4 milliards de lignes et 60 colonnes, dont OrderDate, StoreId et Amount
+    - DimStore : 2 000 lignes
+
+    Un notebook joint les deux tables pour calculer les ventes 2026 par magasin. L'interface utilisateur Spark montre que le travail lit toutes les colonnes de FactSales et redistribue (shuffle) FactSales pour une jointure de type sort-merge.
+
+    Vous devez réduire les données lues dans FactSales et éviter de redistribuer FactSales pendant la jointure.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql.functions import col, broadcast
+
+    sales = (spark.read.table("FactSales")
+             .[[proj]]("OrderDate", "StoreId", "Amount")
+             .[[filt]](col("OrderDate") >= "2026-01-01"))
+
+    stores = spark.read.table("DimStore")
+
+    result = (sales.join([[right]], "StoreId")
+              .groupBy("StoreName")
+              .sum("Amount"))
+  slots:
+    - id: proj
+      options:
+        - { id: select, text: select }
+        - { id: drop, text: drop }
+        - { id: groupby, text: groupBy }
+        - { id: withcol, text: withColumn }
+    - id: filt
+      options:
+        - { id: where, text: where }
+        - { id: sort, text: sort }
+        - { id: limit, text: limit }
+        - { id: dropdup, text: dropDuplicates }
+    - id: right
+      options:
+        - { id: bstores, text: broadcast(stores) }
+        - { id: bsales, text: broadcast(sales) }
+        - { id: repart, text: stores.repartition(200) }
+        - { id: cache, text: stores.cache() }
+answer:
+  values: { proj: select, filt: where, right: bstores }
+explanation:
+  correct:
+    en: "Selecting only the needed columns and filtering early let Spark read fewer columns from the Parquet files and skip the files that hold no 2026 rows. A broadcast join sends the small DimStore table to every executor, so the large FactSales table is joined where it is, without the shuffle of a sort-merge join."
+    fr: "Sélectionner seulement les colonnes nécessaires et filtrer tôt permettent à Spark de lire moins de colonnes dans les fichiers Parquet et d'ignorer les fichiers qui ne contiennent aucune ligne de 2026. Une jointure par diffusion (broadcast) envoie la petite table DimStore à chaque exécuteur : la grande table FactSales est jointe sur place, sans la redistribution d'une jointure sort-merge."
+  options:
+    drop: { en: "drop removes the listed columns and keeps the other 57.", fr: "drop supprime les colonnes listées et conserve les 57 autres." }
+    groupby: { en: "groupBy starts an aggregation; it does not project columns before the join.", fr: "groupBy démarre une agrégation ; il ne projette pas de colonnes avant la jointure." }
+    withcol: { en: "withColumn adds or replaces one column and expects a column expression.", fr: "withColumn ajoute ou remplace une colonne et attend une expression de colonne." }
+    sort: { en: "sort orders rows and adds a shuffle; it does not filter them.", fr: "sort trie les lignes et ajoute une redistribution ; il ne les filtre pas." }
+    limit: { en: "limit takes a number of rows, not a condition.", fr: "limit prend un nombre de lignes, pas une condition." }
+    dropdup: { en: "dropDuplicates removes duplicate rows; it does not apply a condition.", fr: "dropDuplicates supprime les lignes en double ; il n'applique pas de condition." }
+    bsales: { en: "Broadcasting the 4-billion-row table would copy the large side to every executor.", fr: "Diffuser la table de 4 milliards de lignes copierait le côté volumineux sur chaque exécuteur." }
+    repart: { en: "Repartitioning DimStore adds a shuffle and does not change the join strategy for FactSales.", fr: "Repartitionner DimStore ajoute une redistribution et ne change pas la stratégie de jointure pour FactSales." }
+    cache: { en: "Caching DimStore keeps it in memory but the sort-merge join still shuffles FactSales.", fr: "Mettre DimStore en cache le garde en mémoire, mais la jointure sort-merge redistribue toujours FactSales." }
+references:
+  - title: Optimize Apache Spark jobs in Azure Synapse Analytics
+    url: https://learn.microsoft.com/en-us/azure/synapse-analytics/spark/apache-spark-performance

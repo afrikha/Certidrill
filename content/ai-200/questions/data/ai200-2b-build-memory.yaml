@@ -1,0 +1,69 @@
+id: ai200-2b-build-memory
+objective: "2.2.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam must build a DiskANN index on a 20-million-row table named **catalog_items** on Azure Database for PostgreSQL. You temporarily scaled up the server for the build, and the server parameters `max_worker_processes`, `max_parallel_workers` and `max_parallel_maintenance_workers` already allow eight workers.
+
+    The build must use more memory than the default and run with eight parallel workers.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam doit construire un index DiskANN sur une table de 20 millions de lignes nommée **catalog_items** dans Azure Database for PostgreSQL. Vous avez temporairement augmenté la taille du serveur pour la construction, et les paramètres de serveur `max_worker_processes`, `max_parallel_workers` et `max_parallel_maintenance_workers` autorisent déjà huit workers.
+
+    La construction doit utiliser plus de mémoire que la valeur par défaut et s'exécuter avec huit workers parallèles.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SET [[mem]] = '8GB';
+    ALTER TABLE catalog_items SET ([[opt]] = 8);
+
+    CREATE INDEX idx_items_diskann ON catalog_items
+    USING diskann (embedding vector_cosine_ops)
+    WITH (product_quantized = true);
+  slots:
+    - id: mem
+      options:
+        - { id: maint, text: maintenance_work_mem }
+        - { id: work, text: work_mem }
+        - { id: shared, text: shared_buffers }
+        - { id: cache, text: effective_cache_size }
+    - id: opt
+      options:
+        - { id: pw, text: parallel_workers }
+        - { id: fill, text: fillfactor }
+        - { id: gather, text: max_parallel_workers_per_gather }
+answer:
+  values: { mem: maint, opt: pw }
+explanation:
+  correct:
+    en: "Index builds use `maintenance_work_mem`, which Learn advises raising for a DiskANN build while the server is scaled up, then scaling back down. The `parallel_workers` storage parameter of the table sets how many workers can build the index in parallel, within the limits of the server parameters; without enough resources PostgreSQL falls back to a nonparallel build."
+    fr: "Les constructions d'index utilisent `maintenance_work_mem`, que Learn conseille d'augmenter pour une construction DiskANN pendant que la taille du serveur est augmentée, avant de la réduire de nouveau. Le paramètre de stockage `parallel_workers` de la table définit le nombre de workers qui peuvent construire l'index en parallèle, dans les limites des paramètres de serveur ; sans ressources suffisantes, PostgreSQL revient à une construction non parallèle."
+  options:
+    work:
+      en: "work_mem is the memory of query operations such as sorts and hashes, not of index builds."
+      fr: "work_mem est la mémoire des opérations de requête comme les tris et les hachages, pas des constructions d'index."
+    shared:
+      en: "shared_buffers is the shared cache set at server level and cannot be changed with SET in a session."
+      fr: "shared_buffers est le cache partagé défini au niveau du serveur et ne peut pas être modifié avec SET dans une session."
+    cache:
+      en: "effective_cache_size is only a planner estimate; it allocates no memory."
+      fr: "effective_cache_size n'est qu'une estimation du planificateur ; il n'alloue aucune mémoire."
+    fill:
+      en: "fillfactor controls how full table pages are packed, not parallelism."
+      fr: "fillfactor contrôle le remplissage des pages de la table, pas le parallélisme."
+    gather:
+      en: "max_parallel_workers_per_gather is a server or session parameter for queries, not a table storage parameter."
+      fr: "max_parallel_workers_per_gather est un paramètre de serveur ou de session pour les requêtes, pas un paramètre de stockage de table."
+references:
+  - title: Enable and Use DiskANN in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-use-pgdiskann

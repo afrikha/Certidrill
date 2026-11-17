@@ -1,0 +1,73 @@
+id: az802-5a-sync-endpoint-ps
+objective: "5.1.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You add a new branch server named **FS2** to an existing sync group named **Projects** in the Storage Sync Service **sss-contoso**. FS2 is already registered. The Azure file share of the sync group holds 4 TiB, and volume E: on FS2 is 1 TiB.
+
+    The server endpoint on FS2 must meet the following requirements:
+
+    - Keep at least 25 percent of volume E: free.
+    - Tier the files that have not been accessed for 60 days.
+    - During the initial download, bring only the folder and file structure to FS2; the content of a file is downloaded only when a user opens it.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous ajoutez un nouveau serveur de succursale nommé **FS2** à un groupe de synchronisation existant nommé **Projects** du service de synchronisation de stockage **sss-contoso**. FS2 est déjà inscrit. Le partage de fichiers Azure du groupe de synchronisation contient 4 Tio, et le volume E: de FS2 fait 1 Tio.
+
+    Le point de terminaison de serveur de FS2 doit répondre aux exigences suivantes :
+
+    - Conserver au moins 25 % d'espace libre sur le volume E:.
+    - Hiérarchiser les fichiers qui n'ont pas été consultés depuis 60 jours.
+    - Pendant le téléchargement initial, n'amener sur FS2 que la structure des dossiers et des fichiers ; le contenu d'un fichier n'est téléchargé que lorsqu'un utilisateur l'ouvre.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $group = Get-AzStorageSyncGroup -ResourceGroupName RG-Files -StorageSyncServiceName sss-contoso -Name Projects
+    $server = Get-AzStorageSyncServer -ResourceGroupName RG-Files -StorageSyncServiceName sss-contoso |
+      Where-Object FriendlyName -like "FS2*"
+    New-AzStorageSyncServerEndpoint -ParentObject $group -Name FS2 -ServerResourceId $server.ResourceId `
+      -ServerLocalPath "E:\Projects" -CloudTiering [[free]] 25 [[days]] 60 `
+      -InitialDownloadPolicy [[download]]
+  slots:
+    - id: free
+      options:
+        - { id: vfs, text: -VolumeFreeSpacePercent }
+        - { id: tier, text: -TierFilesOlderThanDays }
+        - { id: cache, text: -LocalCacheMode }
+    - id: days
+      options:
+        - { id: tier, text: -TierFilesOlderThanDays }
+        - { id: vfs, text: -VolumeFreeSpacePercent }
+        - { id: cache, text: -LocalCacheMode }
+    - id: download
+      options:
+        - { id: nsthen, text: NamespaceThenModifiedFiles }
+        - { id: nsonly, text: NamespaceOnly }
+        - { id: avoid, text: AvoidTieredFiles }
+        - { id: serverauth, text: ServerAuthoritative }
+answer:
+  values: { free: vfs, days: tier, download: nsonly }
+explanation:
+  correct:
+    en: "-VolumeFreeSpacePercent sets the volume free space policy and -TierFilesOlderThanDays sets the date policy, which tiers files last accessed more than the given number of days ago. The NamespaceOnly initial download policy downloads only the namespace and brings no file content to the server; content is recalled when a file is opened. It is the default when cloud tiering is enabled, but the requirement makes it explicit."
+    fr: "-VolumeFreeSpacePercent définit la stratégie d'espace libre sur le volume et -TierFilesOlderThanDays la stratégie de délai, qui hiérarchise les fichiers dont le dernier accès remonte à plus du nombre de jours indiqué. La stratégie de téléchargement initial NamespaceOnly ne télécharge que l'espace de noms et n'apporte aucun contenu de fichier sur le serveur ; le contenu est rappelé à l'ouverture d'un fichier. C'est la valeur par défaut quand la hiérarchisation cloud est activée, mais l'exigence la rend explicite."
+  options:
+    cache: { en: "-LocalCacheMode controls proactive recall of files changed in the Azure file share, not the tiering policies.", fr: "-LocalCacheMode contrôle le rappel proactif des fichiers modifiés dans le partage de fichiers Azure, pas les stratégies de hiérarchisation." }
+    nsthen: { en: "NamespaceThenModifiedFiles downloads the namespace and then recalls file content in the background, which the requirement forbids.", fr: "NamespaceThenModifiedFiles télécharge l'espace de noms puis rappelle le contenu des fichiers en arrière-plan, ce que l'exigence interdit." }
+    avoid: { en: "AvoidTieredFiles downloads each file completely and is available only when cloud tiering is disabled.", fr: "AvoidTieredFiles télécharge chaque fichier en entier et n'est disponible que lorsque la hiérarchisation cloud est désactivée." }
+    serverauth: { en: "ServerAuthoritative is a value of -InitialUploadPolicy for the first server endpoint of a sync group, not an initial download policy.", fr: "ServerAuthoritative est une valeur de -InitialUploadPolicy pour le premier point de terminaison de serveur d'un groupe de synchronisation, pas une stratégie de téléchargement initial." }
+references:
+  - title: Create an Azure File Sync Server Endpoint
+    url: https://learn.microsoft.com/en-us/azure/storage/file-sync/file-sync-server-endpoint-create
+  - title: Azure File Sync cloud tiering policies
+    url: https://learn.microsoft.com/en-us/azure/storage/file-sync/file-sync-cloud-tiering-policy

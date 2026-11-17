@@ -1,0 +1,70 @@
+id: ai200-2c-pg-distance-threshold
+objective: "2.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware is developing a contract assistant that uses Azure Database for PostgreSQL flexible server and psycopg. The `qvec` variable contains the embedding of the user question, and the `since` variable contains a date.
+
+    The retrieval query must meet the following requirements:
+
+    - Return only chunks of contracts signed on or after `since`.
+    - Exclude every chunk whose cosine distance to the question is 0.4 or more.
+    - Return at most eight chunks, the most similar first.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware développe un assistant de contrats qui utilise Azure Database for PostgreSQL serveur flexible et psycopg. La variable `qvec` contient l'incorporation de la question de l'utilisateur, et la variable `since` contient une date.
+
+    La requête de récupération doit respecter les exigences suivantes :
+
+    - Renvoyer uniquement les segments des contrats signés à la date `since` ou après.
+    - Exclure tout segment dont la distance cosinus à la question est de 0,4 ou plus.
+    - Renvoyer au plus huit segments, les plus similaires en premier.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    sql = """
+    SELECT c.content, d.title
+    FROM contract_chunks AS c
+    JOIN contracts AS d ON d.id = c.contract_id
+    WHERE d.signed_on >= %(since)s
+      AND [[thr]]
+    ORDER BY [[order]]
+    LIMIT 8
+    """
+    rows = conn.execute(sql, {"q": str(qvec), "since": since}).fetchall()
+  slots:
+    - id: thr
+      options:
+        - { id: lt, text: "c.embedding <=> %(q)s::vector < 0.4" }
+        - { id: gt, text: "c.embedding <=> %(q)s::vector > 0.4" }
+        - { id: l2, text: "c.embedding <-> %(q)s::vector < 0.4" }
+    - id: order
+      options:
+        - { id: desc, text: "c.embedding <=> %(q)s::vector DESC" }
+        - { id: date, text: "d.signed_on DESC" }
+        - { id: asc, text: "c.embedding <=> %(q)s::vector" }
+answer:
+  values: { thr: lt, order: asc }
+explanation:
+  correct:
+    en: |
+      The `<=>` operator returns the cosine distance, so the condition `< 0.4` keeps only the chunks that are close enough and drops those at a distance of 0.4 or more. Sorting by the same distance in ascending order (the default) puts the most similar chunks first, and `LIMIT 8` keeps eight of them.
+    fr: "L'opérateur `<=>` renvoie la distance cosinus : la condition `< 0.4` ne conserve que les segments suffisamment proches et écarte ceux situés à une distance de 0,4 ou plus. Le tri par cette même distance dans l'ordre croissant (par défaut) place les segments les plus similaires en premier, et `LIMIT 8` en conserve huit."
+  options:
+    gt: { en: "This keeps only the weak matches and drops the relevant chunks.", fr: "Cette condition ne conserve que les correspondances faibles et écarte les segments pertinents." }
+    l2: { en: "`<->` is the Euclidean distance; the threshold is defined on the cosine distance.", fr: "`<->` est la distance euclidienne ; le seuil est défini sur la distance cosinus." }
+    desc: { en: "A descending distance puts the least similar chunks first.", fr: "Une distance décroissante place les segments les moins similaires en premier." }
+    date: { en: "Sorting by date returns the most recent contracts, not the most similar chunks.", fr: "Le tri par date renvoie les contrats les plus récents, pas les segments les plus similaires." }
+references:
+  - title: Vector Search in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector

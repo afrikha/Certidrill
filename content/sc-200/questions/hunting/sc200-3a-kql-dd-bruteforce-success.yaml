@@ -1,0 +1,70 @@
+id: sc200-3a-kql-dd-bruteforce-success
+objective: "3.1.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank uses Microsoft Defender for Endpoint on all its servers.
+
+    You need an advanced hunting query that detects a successful brute-force attack: an account that had more than 10 failed sign-ins from the same remote IP address during the last 24 hours, followed by a successful sign-in from that IP address within one hour after the **last** failure. The result must show the number of failures.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank utilise Microsoft Defender for Endpoint sur tous ses serveurs.
+
+    Vous avez besoin d'une requête de repérage avancé qui détecte une attaque par force brute réussie : un compte qui a eu plus de 10 échecs de connexion depuis la même adresse IP distante au cours des dernières 24 heures, suivis d'une connexion réussie depuis cette adresse IP dans l'heure qui suit le **dernier** échec. Le résultat doit indiquer le nombre d'échecs.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let failures = DeviceLogonEvents
+    | where Timestamp > ago(1d) and ActionType == "LogonFailed"
+    | summarize FailedCount = count(), LastFailure = [[agg]](Timestamp) by AccountName, RemoteIP
+    | where FailedCount > 10;
+    DeviceLogonEvents
+    | where Timestamp > ago(1d) and ActionType == "LogonSuccess"
+    | join kind=[[kind]] failures on AccountName, RemoteIP
+    | where Timestamp between (LastFailure .. [[window]])
+    | project Timestamp, DeviceName, AccountName, RemoteIP, FailedCount
+  slots:
+    - id: agg
+      options:
+        - { id: max, text: max }
+        - { id: min, text: min }
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+    - id: kind
+      options:
+        - { id: inner, text: inner }
+        - { id: leftsemi, text: leftsemi }
+        - { id: leftanti, text: leftanti }
+        - { id: rightanti, text: rightanti }
+    - id: window
+      options:
+        - { id: plus, text: "(LastFailure + 1h)" }
+        - { id: minus, text: "(LastFailure - 1h)" }
+        - { id: ago, text: ago(1h) }
+answer:
+  values: { agg: max, kind: inner, window: plus }
+explanation:
+  correct:
+    en: max(Timestamp) gives the time of the last failure of each account and IP pair. An inner join keeps the successful sign-ins that match a pair of the failures table and brings its columns, LastFailure and FailedCount. The between range from LastFailure to LastFailure + 1h keeps the successes within one hour after the last failure.
+    fr: max(Timestamp) donne l'heure du dernier échec de chaque couple compte et adresse IP. Une jointure inner conserve les connexions réussies qui correspondent à un couple de la table failures et apporte ses colonnes, LastFailure et FailedCount. La plage between de LastFailure à LastFailure + 1h conserve les réussites survenues dans l'heure qui suit le dernier échec.
+  options:
+    min: { en: "min returns the first failure, so the window would start at the beginning of the attack instead of after the last failure.", fr: "min renvoie le premier échec : la fenêtre commencerait au début de l'attaque au lieu de suivre le dernier échec." }
+    leftsemi: { en: "leftsemi returns only the columns of the left table, so LastFailure and FailedCount wouldn't exist.", fr: "leftsemi ne renvoie que les colonnes de la table de gauche : LastFailure et FailedCount n'existeraient pas." }
+    leftanti: { en: "leftanti returns the successes that have no matching failures, the opposite of the requirement.", fr: "leftanti renvoie les réussites sans échecs correspondants, soit l'inverse de l'exigence." }
+    minus: { en: "A range ending before LastFailure is empty, because its end is earlier than its start.", fr: "Une plage qui se termine avant LastFailure est vide, car sa fin est antérieure à son début." }
+    ago: { en: "ago(1h) is one hour before now, unrelated to the time of the last failure.", fr: "ago(1h) correspond à une heure avant maintenant, sans rapport avec l'heure du dernier échec." }
+references:
+  - title: join operator
+    url: https://learn.microsoft.com/en-us/kusto/query/join-operator
+  - title: Advanced hunting query best practices
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-best-practices

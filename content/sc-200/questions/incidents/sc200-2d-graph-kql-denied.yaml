@@ -1,0 +1,68 @@
+id: sc200-2d-graph-kql-denied
+objective: "2.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum Corporation streams the Microsoft Graph activity logs to a Microsoft Sentinel workspace. You suspect that a stolen token is being used to enumerate group memberships.
+
+    You need a query that returns the 20 callers that received the most distinct HTTP 401 or 403 responses for requests whose URI contains /groups during the last three days.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum Corporation diffuse les journaux d'activité Microsoft Graph vers un espace de travail Microsoft Sentinel. Vous soupçonnez qu'un jeton volé est utilisé pour énumérer les appartenances aux groupes.
+
+    Vous avez besoin d'une requête qui renvoie les 20 appelants ayant reçu le plus de réponses HTTP 401 ou 403 distinctes pour des requêtes dont l'URI contient /groups au cours des trois derniers jours.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    MicrosoftGraphActivityLogs
+    | where TimeGenerated >= ago(3d)
+    | where ResponseStatusCode [[op]] (401, 403)
+    | where RequestUri [[match]] "/groups"
+    | summarize UniqueRequests = [[agg]](RequestId) by AppId, ServicePrincipalId, UserId
+    | top 20 by UniqueRequests desc
+  slots:
+    - id: op
+      options:
+        - { id: in, text: in }
+        - { id: eq, text: "==" }
+        - { id: between, text: between }
+        - { id: has, text: has_any }
+    - id: match
+      options:
+        - { id: contains, text: contains }
+        - { id: startswith, text: startswith }
+        - { id: equals, text: "==" }
+        - { id: endswith, text: endswith }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: sum, text: sum }
+        - { id: makeset, text: make_set }
+        - { id: max, text: max }
+answer:
+  values: { op: in, match: contains, agg: dcount }
+explanation:
+  correct:
+    en: |
+      The in operator matches a value against a list, here the status codes 401 and 403. RequestUri holds the full URL, such as https://graph.microsoft.com/v1.0/groups/..., so contains finds /groups anywhere in it. dcount(RequestId) counts the distinct requests of each caller, and top 20 keeps the callers with the highest counts.
+    fr: |
+      L'opérateur in compare une valeur à une liste, ici les codes d'état 401 et 403. RequestUri contient l'URL complète, comme https://graph.microsoft.com/v1.0/groups/..., donc contains trouve /groups n'importe où dans la chaîne. dcount(RequestId) compte les requêtes distinctes de chaque appelant, et top 20 garde les appelants qui ont les nombres les plus élevés.
+  options:
+    eq: { en: "== compares with a single value, not with a list.", fr: "== compare à une seule valeur, pas à une liste." }
+    between: { en: "between expects a range written as (401 .. 403), which would also include 402.", fr: "between attend une plage écrite (401 .. 403), qui inclurait aussi 402." }
+    startswith: { en: "The URI starts with https://graph.microsoft.com, not with /groups.", fr: "L'URI commence par https://graph.microsoft.com, pas par /groups." }
+    makeset: { en: "make_set returns an array of request IDs, which cannot be used to rank the callers.", fr: "make_set renvoie un tableau d'ID de requêtes, qui ne permet pas de classer les appelants." }
+    sum: { en: "sum adds numeric values; RequestId is a string identifier.", fr: "sum additionne des valeurs numériques ; RequestId est un identifiant de type chaîne." }
+references:
+  - title: Access Microsoft Graph activity logs for tenant monitoring
+    url: https://learn.microsoft.com/en-us/graph/microsoft-graph-activity-logs-overview

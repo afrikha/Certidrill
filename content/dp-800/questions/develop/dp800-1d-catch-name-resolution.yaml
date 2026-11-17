@@ -1,0 +1,64 @@
+id: dp800-1d-catch-name-resolution
+objective: "1.3.8"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A nightly job on SQL Server 2025 runs the following batch.
+
+    ```sql
+    BEGIN TRY
+        INSERT INTO Archive.Orders2026 (OrderID, OrderDate)
+        SELECT OrderID, OrderDate FROM Sales.Orders WHERE OrderDate < '20260101';
+    END TRY
+    BEGIN CATCH
+        INSERT INTO dbo.ErrorLog (ErrorNumber, ErrorMessage)
+        VALUES (ERROR_NUMBER(), ERROR_MESSAGE());
+    END CATCH;
+    ```
+
+    On nights when the table Archive.Orders2026 hasn't been created yet, the job fails with error 208 (Invalid object name) and no row is written to dbo.ErrorLog.
+
+    You need the CATCH block of this batch to log the error. The archive table must not be created by the batch.
+
+    What should you do?
+  fr: |
+    Un travail nocturne sur SQL Server 2025 exécute le lot suivant.
+
+    ```sql
+    BEGIN TRY
+        INSERT INTO Archive.Orders2026 (OrderID, OrderDate)
+        SELECT OrderID, OrderDate FROM Sales.Orders WHERE OrderDate < '20260101';
+    END TRY
+    BEGIN CATCH
+        INSERT INTO dbo.ErrorLog (ErrorNumber, ErrorMessage)
+        VALUES (ERROR_NUMBER(), ERROR_MESSAGE());
+    END CATCH;
+    ```
+
+    Les nuits où la table Archive.Orders2026 n'a pas encore été créée, le travail échoue avec l'erreur 208 (Invalid object name) et aucune ligne n'est écrite dans dbo.ErrorLog.
+
+    Le bloc CATCH de ce lot doit journaliser l'erreur. La table d'archive ne doit pas être créée par le lot.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add SET XACT_ABORT ON before BEGIN TRY.", fr: "Ajouter SET XACT_ABORT ON avant BEGIN TRY." } }
+    - { id: b, text: { en: "Put the INSERT...SELECT statement inside a nested TRY...CATCH in the TRY block.", fr: "Placer l'instruction INSERT...SELECT dans un TRY...CATCH imbriqué dans le bloc TRY." } }
+    - { id: c, text: { en: "Enclose the INSERT...SELECT statement in BEGIN TRANSACTION and COMMIT TRANSACTION.", fr: "Encadrer l'instruction INSERT...SELECT par BEGIN TRANSACTION et COMMIT TRANSACTION." } }
+    - { id: d, text: { en: "Run the INSERT...SELECT statement through sp_executesql in the TRY block.", fr: "Exécuter l'instruction INSERT...SELECT au moyen de sp_executesql dans le bloc TRY." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      An object name resolution error that occurs at the same execution level as the TRY...CATCH construct isn't caught: it goes back to the level that ran the batch. When the statement runs at a lower level, through sp_executesql or a stored procedure called from the TRY block, the same error is caught by the CATCH block.
+    fr: |
+      Une erreur de résolution de nom d'objet qui se produit au même niveau d'exécution que la construction TRY...CATCH n'est pas interceptée : elle est renvoyée au niveau qui a exécuté le lot. Quand l'instruction s'exécute à un niveau inférieur, avec sp_executesql ou une procédure stockée appelée depuis le bloc TRY, la même erreur est interceptée par le bloc CATCH.
+  options:
+    a: { en: "XACT_ABORT controls transaction rollback; it doesn't make name resolution errors catchable at the same level.", fr: "XACT_ABORT contrôle l'annulation des transactions ; il ne rend pas les erreurs de résolution de nom interceptables au même niveau." }
+    b: { en: "A nested TRY...CATCH runs at the same execution level, so the name resolution error still isn't caught.", fr: "Un TRY...CATCH imbriqué s'exécute au même niveau d'exécution : l'erreur de résolution de nom n'est toujours pas interceptée." }
+    c: { en: "An explicit transaction doesn't change the execution level at which the error is raised.", fr: "Une transaction explicite ne change pas le niveau d'exécution auquel l'erreur est levée." }
+references:
+  - title: TRY...CATCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql

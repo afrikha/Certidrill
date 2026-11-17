@@ -1,0 +1,85 @@
+id: sc500-3c-apim-entra-backend
+objective: "3.3.9"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove publishes an API named **Payroll** through an Azure API Management instance named **apim-wg** that has a system-assigned managed identity. Two Microsoft Entra app registrations exist:
+
+    | App registration | Application ID URI | Represents |
+    | --- | --- | --- |
+    | Payroll-Front | api://payroll | The Payroll API that clients call through apim-wg |
+    | Payroll-Backend | api://payroll-backend | The App Service back end, protected by App Service authentication |
+
+    You need to complete the inbound policy of Payroll to meet the following requirements:
+
+    - Client requests must carry a Microsoft Entra token issued by the Woodgrove tenant for Payroll-Front.
+    - apim-wg must authenticate to the back end by using its managed identity, without any stored secret.
+
+    How should you complete the policy? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove publie une API nommée **Payroll** via une instance Azure API Management nommée **apim-wg** qui possède une identité managée affectée par le système. Deux inscriptions d'application Microsoft Entra existent :
+
+    | Inscription d'application | URI d'ID d'application | Représente |
+    | --- | --- | --- |
+    | Payroll-Front | api://payroll | L'API Payroll que les clients appellent via apim-wg |
+    | Payroll-Backend | api://payroll-backend | Le back-end App Service, protégé par l'authentification App Service |
+
+    Vous devez compléter la stratégie inbound de Payroll pour répondre aux exigences suivantes :
+
+    - Les requêtes des clients doivent porter un jeton Microsoft Entra émis par le locataire Woodgrove pour Payroll-Front.
+    - apim-wg doit s'authentifier auprès du back-end avec son identité managée, sans aucun secret stocké.
+
+    Comment devez-vous compléter la stratégie ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: text
+  template: |
+    <inbound>
+      <base />
+      <validate-azure-ad-token tenant-id="woodgrove.onmicrosoft.com">
+        <audiences>
+          <audience>[[aud]]</audience>
+        </audiences>
+      </validate-azure-ad-token>
+      <[[auth]] resource="[[res]]" />
+    </inbound>
+  slots:
+    - id: aud
+      options:
+        - { id: front, text: "api://payroll" }
+        - { id: back, text: "api://payroll-backend" }
+        - { id: arm, text: "https://management.azure.com" }
+    - id: auth
+      options:
+        - { id: mi, text: authentication-managed-identity }
+        - { id: cert, text: authentication-certificate }
+        - { id: basic, text: authentication-basic }
+    - id: res
+      options:
+        - { id: rfront, text: "api://payroll" }
+        - { id: rback, text: "api://payroll-backend" }
+        - { id: vault, text: "https://vault.azure.net" }
+answer:
+  values: { aud: front, auth: mi, res: rback }
+explanation:
+  correct:
+    en: "Clients request tokens for the API they call, so `validate-azure-ad-token` must accept the audience of Payroll-Front. `authentication-managed-identity` uses the instance's managed identity to obtain a Microsoft Entra token for the `resource` you specify and sets it in the `Authorization` header; the resource is the back end's application, api://payroll-backend."
+    fr: "Les clients demandent des jetons pour l'API qu'ils appellent : `validate-azure-ad-token` doit donc accepter l'audience de Payroll-Front. `authentication-managed-identity` utilise l'identité managée de l'instance pour obtenir un jeton Microsoft Entra destiné à la ressource (`resource`) indiquée et le place dans l'en-tête `Authorization` ; la ressource est l'application du back-end, api://payroll-backend."
+  options:
+    back: { en: "api://payroll-backend is the audience of the tokens that apim-wg sends to the back end, not of client tokens.", fr: "api://payroll-backend est l'audience des jetons qu'apim-wg envoie au back-end, pas celle des jetons des clients." }
+    arm: { en: "Azure Resource Manager tokens are for management operations, not for this API.", fr: "Les jetons Azure Resource Manager servent aux opérations de gestion, pas à cette API." }
+    cert: { en: "authentication-certificate presents a client certificate, which must be stored in API Management.", fr: "authentication-certificate présente un certificat client, qui doit être stocké dans API Management." }
+    basic: { en: "authentication-basic sends a user name and password, which are stored secrets.", fr: "authentication-basic envoie un nom d'utilisateur et un mot de passe, qui sont des secrets stockés." }
+    rfront: { en: "A token for api://payroll would be rejected by the back end, which expects its own audience.", fr: "Un jeton pour api://payroll serait rejeté par le back-end, qui attend sa propre audience." }
+    vault: { en: "https://vault.azure.net is the resource for Azure Key Vault, not for the back end.", fr: "https://vault.azure.net est la ressource d'Azure Key Vault, pas celle du back-end." }
+references:
+  - title: Validate Microsoft Entra token
+    url: https://learn.microsoft.com/en-us/azure/api-management/validate-azure-ad-token-policy
+  - title: Authenticate with managed identity
+    url: https://learn.microsoft.com/en-us/azure/api-management/authentication-managed-identity-policy

@@ -1,0 +1,111 @@
+id: ai300-cs3c-fourth-coffee
+status: draft
+title:
+  en: Fourth Coffee
+  fr: Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee is a chain of 1,200 coffee shops in Portugal, Spain and France. The head office is in Lisbon.
+
+        Fourth Coffee runs two AI projects:
+
+        - **Demand forecasting**: forecast the daily sales of each product in each shop to reduce waste.
+        - **Barista Assist**: a fine-tuned language model that answers the questions of shop staff about store procedures, in the brand's friendly tone.
+      fr: |
+        Fourth Coffee est une chaîne de 1 200 cafés au Portugal, en Espagne et en France. Le siège est à Lisbonne.
+
+        Fourth Coffee mène deux projets d'IA :
+
+        - **Prévision de la demande** : prévoir les ventes quotidiennes de chaque produit dans chaque café pour réduire le gaspillage.
+        - **Barista Assist** : un modèle de langage ajusté qui répond aux questions du personnel des cafés sur les procédures du magasin, dans le ton chaleureux de la marque.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Fourth Coffee has the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-fc-forecast | Azure Machine Learning workspace | West Europe |
+        | adlsfcsales | Azure Data Lake Storage Gen2 account | Container **sales** with one Parquet file of sales per day |
+        | store-sales-train | Data asset (`mltable`) in mlw-fc-forecast | Columns sale_date, store_id, product_id, promo_flag, units_sold |
+        | sales | Datastore in mlw-fc-forecast | Points to the sales container; credential-based, uses the account key of adlsfcsales |
+        | cpu-cluster | Compute cluster in mlw-fc-forecast | System-assigned managed identity; 0 to 8 nodes |
+        | forecast-batch | Batch endpoint in mlw-fc-forecast | Default deployment forecast-v3: MLflow model, `output_action: append_row`, `output_file_name: forecast.csv` |
+        | fdy-fourthcoffee | Microsoft Foundry resource | Project **proj-barista**; an administrator deployed a generator model for synthetic data generation |
+        | ft-barista-sft | Fine-tuned model in proj-barista | gpt-4.1-mini fine-tuned with supervised fine-tuning, `n_epochs` set to 6 |
+
+        A scheduled script scores the forecasts every night by running the following command:
+
+        ```bash
+        az ml batch-endpoint invoke --name forecast-batch \
+          --input azureml://datastores/sales/paths/daily/ --input-type uri_folder \
+          --output-path azureml://datastores/workspaceblobstore/paths/forecasts/
+        ```
+
+        The job of the first night succeeded. The job of the second night failed, although its input files were valid.
+
+        The Store Operations Handbook is stored as three PDF files of 8 MB, 6 MB and 5 MB. The members of the AI team have the Foundry User role on fdy-fourthcoffee.
+
+        In the training metrics of ft-barista-sft, `train_loss` decreases at every epoch, and `full_valid_loss` increases from epoch 3 onward.
+      fr: |
+        Fourth Coffee dispose des ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-fc-forecast | Espace de travail Azure Machine Learning | West Europe |
+        | adlsfcsales | Compte Azure Data Lake Storage Gen2 | Conteneur **sales** avec un fichier Parquet de ventes par jour |
+        | store-sales-train | Ressource de données (`mltable`) dans mlw-fc-forecast | Colonnes sale_date, store_id, product_id, promo_flag, units_sold |
+        | sales | Magasin de données dans mlw-fc-forecast | Pointe vers le conteneur sales ; basé sur des informations d'identification, utilise la clé de compte d'adlsfcsales |
+        | cpu-cluster | Cluster de calcul dans mlw-fc-forecast | Identité managée affectée par le système ; 0 à 8 nœuds |
+        | forecast-batch | Point de terminaison de traitement par lots dans mlw-fc-forecast | Déploiement par défaut forecast-v3 : modèle MLflow, `output_action: append_row`, `output_file_name: forecast.csv` |
+        | fdy-fourthcoffee | Ressource Microsoft Foundry | Projet **proj-barista** ; un administrateur a déployé un modèle générateur pour la génération de données synthétiques |
+        | ft-barista-sft | Modèle ajusté dans proj-barista | gpt-4.1-mini ajusté par réglage précis supervisé, `n_epochs` réglé sur 6 |
+
+        Un script planifié calcule les prévisions chaque nuit en exécutant la commande suivante :
+
+        ```bash
+        az ml batch-endpoint invoke --name forecast-batch \
+          --input azureml://datastores/sales/paths/daily/ --input-type uri_folder \
+          --output-path azureml://datastores/workspaceblobstore/paths/forecasts/
+        ```
+
+        Le travail de la première nuit a réussi. Le travail de la deuxième nuit a échoué, alors que ses fichiers d'entrée étaient valides.
+
+        Le manuel des opérations en magasin (Store Operations Handbook) est stocké sous forme de trois fichiers PDF de 8 Mo, 6 Mo et 5 Mo. Les membres de l'équipe IA disposent du rôle Foundry User sur fdy-fourthcoffee.
+
+        Dans les métriques d'entraînement de ft-barista-sft, `train_loss` diminue à chaque époque, et `full_valid_loss` augmente à partir de l'époque 3.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Fourth Coffee identifies the following requirements.
+
+        **Demand forecasting**
+
+        1. The model must forecast units_sold for the next 14 days for each combination of store and product. The series must be identified explicitly by store_id and product_id.
+        2. You plan to re-create the **sales** datastore. Training jobs must read the container without any secret stored in the workspace, and data scientists must not receive any role on adlsfcsales.
+        3. Nightly scoring must produce one merged CSV file per night, and the files of previous nights must be kept.
+
+        **Barista Assist**
+
+        4. The AI team will generate question-and-answer pairs with short factual answers from the Store Operations Handbook by using the synthetic data generation feature of Microsoft Foundry, with separate training and validation data.
+        5. Barista Assist must also calculate ingredient quantities when a recipe is scaled to a different number of cups. The AI team has 1,500 recipe-scaling questions without reference answers, and a Python grader that scores the answer that a model generates. ft-barista-sft answers about half of these questions correctly.
+        6. The next supervised fine-tuning job must reduce the overfitting observed in ft-barista-sft.
+      fr: |
+        Fourth Coffee a défini les exigences suivantes.
+
+        **Prévision de la demande**
+
+        1. Le modèle doit prévoir units_sold pour les 14 prochains jours pour chaque combinaison de café et de produit. Les séries doivent être identifiées explicitement par store_id et product_id.
+        2. Vous prévoyez de recréer le magasin de données **sales**. Les travaux d'entraînement doivent lire le conteneur sans qu'aucun secret ne soit stocké dans l'espace de travail, et les data scientists ne doivent recevoir aucun rôle sur adlsfcsales.
+        3. Le scoring nocturne doit produire un fichier CSV fusionné par nuit, et les fichiers des nuits précédentes doivent être conservés.
+
+        **Barista Assist**
+
+        4. L'équipe IA générera des paires de questions-réponses avec des réponses factuelles courtes à partir du Store Operations Handbook, à l'aide de la fonctionnalité de génération de données synthétiques de Microsoft Foundry, avec des données d'entraînement et de validation distinctes.
+        5. Barista Assist doit aussi calculer les quantités d'ingrédients quand une recette est adaptée à un autre nombre de tasses. L'équipe IA dispose de 1 500 questions d'adaptation de recettes sans réponses de référence, et d'un correcteur (grader) Python qui note la réponse générée par un modèle. ft-barista-sft répond correctement à environ la moitié de ces questions.
+        6. Le prochain travail de réglage précis supervisé doit réduire le surajustement observé dans ft-barista-sft.

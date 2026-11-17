@@ -1,0 +1,70 @@
+id: dp700-2c-hourly-zero-fill
+objective: "2.2.8"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an eventhouse that contains a table named Orders. Orders has the following columns: Timestamp, Region, and OrderId.
+
+    You need to build a line chart that shows the number of orders per region for each hour of the last 24 hours. Hours without any order must appear with a value of 0 so that the chart does not skip them.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse qui contient une table nommée Orders. Orders comporte les colonnes suivantes : Timestamp, Region et OrderId.
+
+    Vous devez créer un graphique en courbes qui affiche le nombre de commandes par région pour chaque heure des 24 dernières heures. Les heures sans aucune commande doivent apparaître avec la valeur 0 pour que le graphique ne les saute pas.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    Orders
+    | where Timestamp > ago(24h)
+    | [[op]] OrderCount = count() default = [[def]]
+        on Timestamp from ago(24h) to now() step 1h by Region
+    | render timechart
+  slots:
+    - id: op
+      options:
+        - { id: makeseries, text: make-series }
+        - { id: summarize, text: summarize }
+        - { id: extend, text: extend }
+        - { id: topnested, text: top-nested }
+    - id: def
+      options:
+        - { id: zero, text: "0" }
+        - { id: nullval, text: double(null) }
+        - { id: minus, text: "-1" }
+answer:
+  values: { op: makeseries, def: zero }
+explanation:
+  correct:
+    en: |
+      `make-series` builds, for each region, an array with one element per 1-hour step between the from and to bounds, so every hour of the range is present. A step without rows receives the value of `default`, here 0, which is also the default when `default` is omitted. A `summarize ... by bin(Timestamp, 1h)` query returns only the hours that contain rows.
+    fr: |
+      `make-series` construit, pour chaque région, un tableau avec un élément par pas d'une heure entre les bornes from et to : chaque heure de la plage est présente. Un pas sans lignes reçoit la valeur de `default`, ici 0, qui est aussi la valeur par défaut quand `default` est omis. Une requête `summarize ... by bin(Timestamp, 1h)` ne renvoie que les heures qui contiennent des lignes.
+  options:
+    summarize:
+      en: "summarize has no from, to, step or default syntax and returns no row for an hour without orders."
+      fr: "summarize n'a pas de syntaxe from, to, step ou default et ne renvoie aucune ligne pour une heure sans commande."
+    extend:
+      en: "extend adds a column to each row; it does not aggregate."
+      fr: "extend ajoute une colonne à chaque ligne ; il n'agrège pas."
+    topnested:
+      en: "top-nested returns the top values of a hierarchy; it does not create a value for each time step."
+      fr: "top-nested renvoie les premières valeurs d'une hiérarchie ; il ne crée pas de valeur pour chaque pas de temps."
+    nullval:
+      en: "double(null) leaves the empty hours as null values (useful before an interpolation function), not 0."
+      fr: "double(null) laisse les heures vides à null (utile avant une fonction d'interpolation), pas à 0."
+    minus:
+      en: "-1 would plot a negative number of orders for the empty hours."
+      fr: "-1 afficherait un nombre de commandes négatif pour les heures vides."
+references:
+  - title: make-series operator
+    url: https://learn.microsoft.com/en-us/kusto/query/make-series-operator?view=microsoft-fabric

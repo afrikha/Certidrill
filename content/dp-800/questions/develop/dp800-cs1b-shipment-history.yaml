@@ -1,0 +1,77 @@
+id: dp800-cs1b-shipment-history
+objective: "1.1.2"
+type: single
+caseStudy: dp800-cs1b-wide-world-importers
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to modify dbo.Shipments to meet the history requirements. You are evaluating the statements shown in the Statements exhibit.
+
+    Which statements should you run?
+  fr: |
+    Vous devez modifier dbo.Shipments pour respecter les exigences d'historique. Vous évaluez les instructions présentées dans la pièce Instructions.
+
+    Quelles instructions devez-vous exécuter ?
+exhibits:
+  - id: statements
+    title: { en: "Statements", fr: "Instructions" }
+    body: |
+      ```sql
+      -- Statements 1
+      ALTER TABLE dbo.Shipments ADD
+          ValidFrom datetime2 GENERATED ALWAYS AS ROW START NOT NULL
+              CONSTRAINT DF_Shipments_ValidFrom DEFAULT SYSUTCDATETIME(),
+          ValidTo datetime2 GENERATED ALWAYS AS ROW END NOT NULL
+              CONSTRAINT DF_Shipments_ValidTo DEFAULT CONVERT(datetime2, '9999-12-31 23:59:59.9999999'),
+          PERIOD FOR SYSTEM_TIME (ValidFrom, ValidTo);
+      ALTER TABLE dbo.Shipments SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.ShipmentsHistory));
+
+      -- Statements 2
+      ALTER TABLE dbo.Shipments ADD
+          ValidFrom datetime2 GENERATED ALWAYS AS ROW START HIDDEN NOT NULL
+              CONSTRAINT DF_Shipments_ValidFrom DEFAULT SYSUTCDATETIME(),
+          ValidTo datetime2 GENERATED ALWAYS AS ROW END HIDDEN NOT NULL
+              CONSTRAINT DF_Shipments_ValidTo DEFAULT CONVERT(datetime2, '9999-12-31 23:59:59.9999999'),
+          PERIOD FOR SYSTEM_TIME (ValidFrom, ValidTo);
+      ALTER TABLE dbo.Shipments SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.ShipmentsHistory,
+          HISTORY_RETENTION_PERIOD = 6 MONTHS));
+
+      -- Statements 3
+      ALTER TABLE dbo.Shipments ADD
+          ValidFrom datetime2 GENERATED ALWAYS AS ROW START HIDDEN NOT NULL
+              CONSTRAINT DF_Shipments_ValidFrom DEFAULT SYSUTCDATETIME(),
+          ValidTo datetime2 GENERATED ALWAYS AS ROW END HIDDEN NOT NULL
+              CONSTRAINT DF_Shipments_ValidTo DEFAULT CONVERT(datetime2, '9999-12-31 23:59:59.9999999'),
+          PERIOD FOR SYSTEM_TIME (ValidFrom, ValidTo);
+      ALTER TABLE dbo.Shipments SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.ShipmentsHistory));
+
+      -- Statements 4
+      ALTER TABLE dbo.Shipments ADD
+          ValidFrom datetime2 HIDDEN NOT NULL
+              CONSTRAINT DF_Shipments_ValidFrom DEFAULT SYSUTCDATETIME(),
+          ValidTo datetime2 HIDDEN NOT NULL
+              CONSTRAINT DF_Shipments_ValidTo DEFAULT CONVERT(datetime2, '9999-12-31 23:59:59.9999999');
+      ALTER TABLE dbo.Shipments SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.ShipmentsHistory));
+      ```
+body:
+  options:
+    - { id: a, text: { en: "Statements 1", fr: "Instructions 1" } }
+    - { id: b, text: { en: "Statements 2", fr: "Instructions 2" } }
+    - { id: c, text: { en: "Statements 3", fr: "Instructions 3" } }
+    - { id: d, text: { en: "Statements 4", fr: "Instructions 4" } }
+shuffle: false
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A system-versioned temporal table keeps every previous row version in its history table, and FOR SYSTEM_TIME AS OF returns the state at any past point in time. HIDDEN period columns are not returned by SELECT * and are filled automatically, so INSERT statements without a column list keep working. Without HISTORY_RETENTION_PERIOD, the history is kept indefinitely.
+    fr: |
+      Une table temporelle versionnée par le système conserve chaque version précédente des lignes dans sa table d'historique, et FOR SYSTEM_TIME AS OF renvoie l'état à n'importe quel moment passé. Les colonnes de période HIDDEN ne sont pas renvoyées par SELECT * et sont remplies automatiquement : les instructions INSERT sans liste de colonnes continuent de fonctionner. Sans HISTORY_RETENTION_PERIOD, l'historique est conservé indéfiniment.
+  options:
+    a: { en: "Visible period columns appear in SELECT * results and make INSERT ... VALUES statements without a column list fail, which breaks the shipping application.", fr: "Des colonnes de période visibles apparaissent dans les résultats de SELECT * et font échouer les instructions INSERT ... VALUES sans liste de colonnes, ce qui casse l'application d'expédition." }
+    b: { en: "A six-month retention period removes older history, but the history must be kept indefinitely.", fr: "Une période de rétention de six mois supprime l'historique plus ancien, alors que l'historique doit être conservé indéfiniment." }
+    d: { en: "HIDDEN applies only to GENERATED ALWAYS period columns, and system versioning requires ROW START and ROW END columns with a PERIOD FOR SYSTEM_TIME definition, so these statements fail.", fr: "HIDDEN ne s'applique qu'aux colonnes de période GENERATED ALWAYS, et la gestion des versions système exige des colonnes ROW START et ROW END avec une définition PERIOD FOR SYSTEM_TIME : ces instructions échouent." }
+references:
+  - title: Temporal tables
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/tables/temporal-tables

@@ -1,0 +1,85 @@
+id: dp750-4c-cons-serverless-dbus
+objective: "4.4.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam wants to review the cost of its jobs that run on serverless compute. You are writing a query on the `system.billing.usage` system table.
+
+    The query must meet the following requirements:
+
+    - Include only usage of serverless compute.
+    - Return one row per job and per SKU name, for the last seven days.
+    - Exclude the groups whose usage sums to zero after billing corrections (retraction and restatement records).
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam souhaite examiner le coût de ses jobs qui s'exécutent sur le calcul serverless. Vous écrivez une requête sur la table système `system.billing.usage`.
+
+    La requête doit répondre aux exigences suivantes :
+
+    - Inclure uniquement l'utilisation du calcul serverless.
+    - Renvoyer une ligne par job et par nom de SKU, pour les sept derniers jours.
+    - Exclure les groupes dont l'utilisation totale est nulle après les corrections de facturation (enregistrements de rétractation et de reformulation).
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT usage_metadata.job_id AS job_id,
+           [[sku]],
+           SUM(usage_quantity) AS dbus
+    FROM system.billing.usage
+    WHERE product_features.[[flag]] = true
+      AND usage_metadata.job_id IS NOT NULL
+      AND usage_date >= [[since]]
+    GROUP BY ALL
+    HAVING [[having]]
+    ORDER BY dbus DESC;
+  slots:
+    - id: sku
+      options:
+        - { id: skuname, text: sku_name }
+        - { id: usagetype, text: usage_type }
+        - { id: recordtype, text: record_type }
+        - { id: origin, text: billing_origin_product }
+    - id: flag
+      options:
+        - { id: serverless, text: is_serverless }
+        - { id: photon, text: is_photon }
+        - { id: jobstier, text: jobs_tier }
+    - id: since
+      options:
+        - { id: minus7, text: "current_date() - INTERVAL 7 DAYS" }
+        - { id: plus7, text: "current_date() + INTERVAL 7 DAYS" }
+        - { id: ingest, text: "ingestion_date" }
+    - id: having
+      options:
+        - { id: nonzero, text: "dbus != 0" }
+        - { id: count, text: "COUNT(*) > 0" }
+        - { id: max, text: "MAX(usage_quantity) > 0" }
+answer:
+  values: { sku: skuname, flag: serverless, since: minus7, having: nonzero }
+explanation:
+  correct:
+    en: "`sku_name` identifies the SKU of each record, and `product_features.is_serverless` is true for serverless usage when the workload could run on either serverless or classic compute. `usage_date` filtered on `current_date() - INTERVAL 7 DAYS` keeps the last seven days. A correction adds a RETRACTION record with a negated quantity, so you sum the quantities and keep only the groups with `HAVING dbus != 0`."
+    fr: "`sku_name` identifie le SKU de chaque enregistrement, et `product_features.is_serverless` vaut true pour l'utilisation serverless quand la charge de travail pouvait s'exécuter sur le calcul serverless ou classique. Filtrer `usage_date` sur `current_date() - INTERVAL 7 DAYS` conserve les sept derniers jours. Une correction ajoute un enregistrement RETRACTION de quantité négative : vous additionnez les quantités et ne gardez que les groupes avec `HAVING dbus != 0`."
+  options:
+    usagetype: { en: "usage_type describes the kind of usage, such as COMPUTE_TIME, not the SKU.", fr: "usage_type décrit la nature de l'utilisation, comme COMPUTE_TIME, pas le SKU." }
+    recordtype: { en: "record_type is ORIGINAL, RETRACTION or RESTATEMENT; grouping by it would split each job's corrections into separate rows.", fr: "record_type vaut ORIGINAL, RETRACTION ou RESTATEMENT ; grouper par cette colonne séparerait les corrections de chaque job en lignes distinctes." }
+    origin: { en: "billing_origin_product is the originating product, such as JOBS, not the SKU name.", fr: "billing_origin_product est le produit d'origine, comme JOBS, pas le nom du SKU." }
+    photon: { en: "is_photon indicates Photon usage, not serverless compute.", fr: "is_photon indique l'utilisation de Photon, pas le calcul serverless." }
+    jobstier: { en: "jobs_tier is a string (LIGHT, CLASSIC), not a serverless flag.", fr: "jobs_tier est une chaîne (LIGHT, CLASSIC), pas un indicateur serverless." }
+    plus7: { en: "This date is in the future, so no row would match.", fr: "Cette date est dans le futur : aucune ligne ne correspondrait." }
+    ingest: { en: "Comparing usage_date to ingestion_date doesn't limit the rows to the last seven days.", fr: "Comparer usage_date à ingestion_date ne limite pas les lignes aux sept derniers jours." }
+    count: { en: "Groups made of an original record and its retraction still have rows, so they would be kept.", fr: "Les groupes composés d'un enregistrement d'origine et de sa rétractation ont toujours des lignes : ils seraient conservés." }
+    max: { en: "The original record of a retracted group is positive, so the group would be kept.", fr: "L'enregistrement d'origine d'un groupe rétracté est positif : le groupe serait conservé." }
+references:
+  - title: Billable usage system table reference
+    url: https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/billing

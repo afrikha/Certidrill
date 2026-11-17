@@ -1,0 +1,67 @@
+id: sc200-1c-cef-transform
+objective: "1.3.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A Linux log forwarder named **LNX-FWD2** runs the Syslog via AMA and Common Event Format (CEF) via AMA connectors. A legacy appliance sends CEF messages on the **local4** facility, which the Syslog data collection rule (DCR) also collects, and the facility of the appliance can't be changed. Its CEF messages are ingested into both `Syslog` and `CommonSecurityLog`.
+
+    You need to edit the Syslog DCR so that CEF messages are no longer ingested into `Syslog`, while the other local4 messages still are.
+
+    How should you complete the data flow of the Syslog DCR? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un redirecteur de journaux Linux nommé **LNX-FWD2** exécute les connecteurs Syslog via AMA et Common Event Format (CEF) via AMA. Une appliance ancienne envoie des messages CEF sur la facility **local4**, que la règle de collecte de données (DCR) Syslog collecte aussi, et la facility de l'appliance ne peut pas être modifiée. Ses messages CEF sont ingérés à la fois dans `Syslog` et dans `CommonSecurityLog`.
+
+    Vous devez modifier la DCR Syslog pour que les messages CEF ne soient plus ingérés dans `Syslog`, alors que les autres messages local4 le sont toujours.
+
+    Comment devez-vous compléter le flux de données de la DCR Syslog ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    "dataFlows": [
+      {
+        "streams": [ "Microsoft-Syslog" ],
+        "destinations": [ "sentinelWorkspace" ],
+        "transformKql": "source | [[op]] ProcessName [[cmp]] \"CEF\" and [[field]] !contains \"CEF:0\""
+      }
+    ]
+  slots:
+    - id: op
+      options:
+        - { id: where, text: where }
+        - { id: project, text: project }
+        - { id: extend, text: extend }
+        - { id: summarize, text: summarize }
+    - id: cmp
+      options:
+        - { id: notcontains, text: "!contains" }
+        - { id: contains, text: contains }
+        - { id: eq, text: "==" }
+    - id: field
+      options:
+        - { id: msg, text: SyslogMessage }
+        - { id: vendor, text: DeviceVendor }
+        - { id: activity, text: Activity }
+        - { id: facility, text: Facility }
+answer:
+  values: { op: where, cmp: notcontains, field: msg }
+explanation:
+  correct:
+    en: When the facility can't be changed, Microsoft recommends an ingestion-time transformation that filters CEF messages out of the Syslog stream. The `where` filter keeps only the records whose `ProcessName` doesn't contain "CEF" and whose `SyslogMessage` doesn't contain "CEF:0"; both columns are checked because, from AMA 1.41, `ProcessName` might not reliably contain "CEF" for vendors with nonstandard headers.
+    fr: Lorsque la facility ne peut pas être modifiée, Microsoft recommande une transformation au moment de l'ingestion qui filtre les messages CEF du flux Syslog. Le filtre `where` ne conserve que les enregistrements dont `ProcessName` ne contient pas « CEF » et dont `SyslogMessage` ne contient pas « CEF:0 » ; les deux colonnes sont vérifiées, car à partir d'AMA 1.41, `ProcessName` peut ne pas contenir « CEF » de façon fiable pour les fournisseurs aux en-têtes non standard.
+  options:
+    project: { en: "project selects columns; it doesn't remove records.", fr: "project sélectionne des colonnes ; il ne supprime pas d'enregistrements." }
+    contains: { en: "contains would keep only the CEF messages, the opposite of the goal.", fr: "contains ne conserverait que les messages CEF, l'inverse de l'objectif." }
+    eq: { en: "ProcessName isn't exactly \"CEF\" in every message; an equality test would miss them.", fr: "ProcessName ne vaut pas exactement « CEF » dans tous les messages ; un test d'égalité les manquerait." }
+    vendor: { en: "DeviceVendor is a CommonSecurityLog column; the Syslog stream doesn't have it.", fr: "DeviceVendor est une colonne de CommonSecurityLog ; le flux Syslog ne la contient pas." }
+    activity: { en: "Activity is a CommonSecurityLog column.", fr: "Activity est une colonne de CommonSecurityLog." }
+    facility: { en: "Filtering on the facility would also drop the other local4 messages.", fr: "Filtrer sur la facility supprimerait aussi les autres messages local4." }
+references:
+  - title: Syslog and Common Event Format (CEF) via AMA connectors for Microsoft Sentinel
+    url: https://learn.microsoft.com/en-us/azure/sentinel/cef-syslog-ama-overview

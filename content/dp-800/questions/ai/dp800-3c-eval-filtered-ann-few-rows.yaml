@@ -1,0 +1,76 @@
+id: dp800-3c-eval-filtered-ann-few-rows
+objective: "3.2.10"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Tickets. A vector index was created on the Embedding column in 2025. The following query returns a value lower than 3.
+
+    ```sql
+    SELECT JSON_VALUE(v.build_parameters, '$.Version')
+    FROM sys.vector_indexes AS v
+    WHERE v.object_id = OBJECT_ID('dbo.Tickets');
+    ```
+
+    The support portal runs the following query.
+
+    ```sql
+    SELECT t.TicketId, s.distance
+    FROM VECTOR_SEARCH(TABLE = dbo.Tickets AS t, COLUMN = Embedding,
+                       SIMILAR_TO = @q, METRIC = 'cosine', TOP_N = 10) AS s
+    WHERE t.ProductLine = 'Routers'
+    ORDER BY s.distance;
+    ```
+
+    The query often returns fewer than 10 rows, and sometimes none, although thousands of router tickets exist. The query must return the 10 closest router tickets by using approximate search.
+
+    Which two actions should you perform? Each correct answer presents part of the solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Tickets. Un index vectoriel a été créé sur la colonne Embedding en 2025. La requête suivante renvoie une valeur inférieure à 3.
+
+    ```sql
+    SELECT JSON_VALUE(v.build_parameters, '$.Version')
+    FROM sys.vector_indexes AS v
+    WHERE v.object_id = OBJECT_ID('dbo.Tickets');
+    ```
+
+    Le portail de support exécute la requête suivante.
+
+    ```sql
+    SELECT t.TicketId, s.distance
+    FROM VECTOR_SEARCH(TABLE = dbo.Tickets AS t, COLUMN = Embedding,
+                       SIMILAR_TO = @q, METRIC = 'cosine', TOP_N = 10) AS s
+    WHERE t.ProductLine = 'Routers'
+    ORDER BY s.distance;
+    ```
+
+    La requête renvoie souvent moins de 10 lignes, parfois aucune, alors que des milliers de tickets concernent des routeurs. La requête doit renvoyer les 10 tickets de routeurs les plus proches en utilisant la recherche approximative.
+
+    Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "Enable ALLOW_STALE_VECTOR_INDEX on the table.", fr: "Activer ALLOW_STALE_VECTOR_INDEX sur la table." } }
+    - { id: b, text: { en: "Drop the vector index and create it again.", fr: "Supprimer l'index vectoriel, puis le créer de nouveau." } }
+    - { id: c, text: { en: "Move the WHERE clause to an outer query around VECTOR_SEARCH.", fr: "Déplacer la clause WHERE dans une requête externe autour de VECTOR_SEARCH." } }
+    - { id: d, text: { en: "Remove TOP_N and use SELECT TOP (10) WITH APPROXIMATE.", fr: "Supprimer TOP_N et utiliser SELECT TOP (10) WITH APPROXIMATE." } }
+    - { id: e, text: { en: "Recreate the vector index with METRIC = 'dot'.", fr: "Recréer l'index vectoriel avec METRIC = 'dot'." } }
+answer: { optionIds: [ b, d ] }
+explanation:
+  correct:
+    en: "Earlier-version vector indexes only post-filter: the WHERE clause is applied after the TOP_N neighbors are retrieved, so a selective filter returns fewer rows. An earlier-version index can't be upgraded in place: you drop it and create it again to get version 3, which applies WHERE predicates during the search. With a version 3 index, TOP_N fails with Msg 42274, so the query must use SELECT TOP (10) WITH APPROXIMATE ... ORDER BY s.distance."
+    fr: "Les index vectoriels d'une version antérieure ne font que du post-filtrage : la clause WHERE s'applique après la récupération des TOP_N voisins, si bien qu'un filtre sélectif renvoie moins de lignes. Un index d'une version antérieure ne peut pas être mis à niveau sur place : vous le supprimez et le recréez pour obtenir la version 3, qui applique les prédicats WHERE pendant la recherche. Avec un index de version 3, TOP_N échoue avec le Msg 42274 : la requête doit utiliser SELECT TOP (10) WITH APPROXIMATE ... ORDER BY s.distance."
+  options:
+    a: { en: "ALLOW_STALE_VECTOR_INDEX lets an earlier-version index accept DML with possibly stale results; it doesn't change post-filtering.", fr: "ALLOW_STALE_VECTOR_INDEX permet à un index de version antérieure d'accepter le DML avec des résultats éventuellement obsolètes ; il ne change pas le post-filtrage." }
+    c: { en: "An outer query still filters after the 10 neighbors are retrieved, which is the cause of the problem.", fr: "Une requête externe filtre toujours après la récupération des 10 voisins, ce qui est la cause du problème." }
+    e: { en: "A dot-product index wouldn't be used by a cosine query, and the metric isn't the cause of the missing rows.", fr: "Un index en produit scalaire ne serait pas utilisé par une requête cosinus, et la métrique n'est pas la cause des lignes manquantes." }
+references:
+  - title: CREATE VECTOR INDEX (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-index-transact-sql
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

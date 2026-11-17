@@ -1,0 +1,67 @@
+id: sc500-4c-audit-cloudappevents-kql
+objective: "4.2.10"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank uses Microsoft Defender XDR. The Microsoft 365 app connector of Microsoft Defender for Cloud Apps is connected with **Microsoft 365 activities** selected.
+
+    You need an advanced hunting query that returns, for the last 7 days, the administrative operations performed in Microsoft 365 apps and, for each account, the number of different IP addresses used for those operations.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank utilise Microsoft Defender XDR. Le connecteur d'application Microsoft 365 de Microsoft Defender for Cloud Apps est connecté avec **Microsoft 365 activities** sélectionné.
+
+    Vous avez besoin d'une requête de repérage avancé qui renvoie, pour les 7 derniers jours, les opérations d'administration effectuées dans les applications Microsoft 365 et, pour chaque compte, le nombre d'adresses IP différentes utilisées pour ces opérations.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[tbl]]
+    | where Timestamp > ago(7d)
+    | where [[flag]] == true
+    | summarize Operations = count(), IPs = [[agg]] by AccountDisplayName
+    | order by IPs desc
+  slots:
+    - id: tbl
+      options:
+        - { id: cae, text: CloudAppEvents }
+        - { id: dev, text: DeviceEvents }
+        - { id: idl, text: IdentityLogonEvents }
+        - { id: email, text: EmailEvents }
+    - id: flag
+      options:
+        - { id: admin, text: IsAdminOperation }
+        - { id: ext, text: IsExternalUser }
+        - { id: act, text: ActivityType }
+    - id: agg
+      options:
+        - { id: cnt, text: count(IPAddress) }
+        - { id: dcnt, text: dcount(IPAddress) }
+        - { id: set, text: make_set(IPAddress) }
+answer:
+  values: { tbl: cae, flag: admin, agg: dcnt }
+explanation:
+  correct:
+    en: |
+      CloudAppEvents holds the activity of Office 365 and other cloud apps collected by Defender for Cloud Apps, once Microsoft 365 activities are selected in the app connector. Its IsAdminOperation column flags administrative operations, and dcount(IPAddress) returns the number of distinct IP addresses per account.
+    fr: |
+      CloudAppEvents contient l'activité d'Office 365 et d'autres applications cloud collectée par Defender for Cloud Apps, une fois Microsoft 365 activities sélectionné dans le connecteur d'application. Sa colonne IsAdminOperation signale les opérations d'administration, et dcount(IPAddress) renvoie le nombre d'adresses IP distinctes par compte.
+  options:
+    dev: { en: "DeviceEvents holds endpoint events from Defender for Endpoint, not Microsoft 365 app activity.", fr: "DeviceEvents contient des événements de points de terminaison de Defender for Endpoint, pas l'activité des applications Microsoft 365." }
+    idl: { en: "IdentityLogonEvents holds authentication events, not administrative operations in Microsoft 365 apps.", fr: "IdentityLogonEvents contient des événements d'authentification, pas les opérations d'administration dans les applications Microsoft 365." }
+    email: { en: "EmailEvents describes email messages processed by Defender for Office 365.", fr: "EmailEvents décrit les e-mails traités par Defender for Office 365." }
+    ext: { en: "IsExternalUser identifies users outside the organization, not administrative operations.", fr: "IsExternalUser identifie les utilisateurs externes à l'organisation, pas les opérations d'administration." }
+    act: { en: "ActivityType is a string describing the activity, not a Boolean flag.", fr: "ActivityType est une chaîne qui décrit l'activité, pas un indicateur booléen." }
+    cnt: { en: "count(IPAddress) counts every record with an IP address, not the different addresses.", fr: "count(IPAddress) compte chaque enregistrement qui a une adresse IP, pas les adresses différentes." }
+    set: { en: "make_set returns the list of addresses, not their number.", fr: "make_set renvoie la liste des adresses, pas leur nombre." }
+references:
+  - title: CloudAppEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table

@@ -1,0 +1,68 @@
+id: dp700-3d-kql-query-tuning
+objective: "3.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a KQL database in a Fabric eventhouse. The database contains the following tables:
+
+    - Telemetry: 20 billion rows with the columns Timestamp, DeviceId, DeviceType and Temperature
+    - Devices: 5,000 rows with the columns DeviceId and Site
+
+    You need a query that returns the five-minute average temperature per site for the pump devices over the last hour. DeviceType contains values such as `pump`, `valve` and `sensor`. The query must use the fewest resources and must keep the Telemetry rows that have no matching device.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données KQL dans un eventhouse Fabric. La base contient les tables suivantes :
+
+    - Telemetry : 20 milliards de lignes avec les colonnes Timestamp, DeviceId, DeviceType et Temperature
+    - Devices : 5 000 lignes avec les colonnes DeviceId et Site
+
+    Vous avez besoin d'une requête qui renvoie la température moyenne par site et par tranche de cinq minutes pour les appareils de type pompe sur la dernière heure. DeviceType contient des valeurs comme `pump`, `valve` et `sensor`. La requête doit utiliser le moins de ressources possible et doit conserver les lignes de Telemetry sans appareil correspondant.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    Telemetry
+    | where [[first]]
+    | where [[second]]
+    | [[op]] kind=leftouter Devices on DeviceId
+    | summarize avg(Temperature) by Site, bin(Timestamp, 5m)
+  slots:
+    - id: first
+      options:
+        - { id: f_time, text: Timestamp > ago(1h) }
+        - { id: f_has, text: DeviceType has "pump" }
+        - { id: f_contains, text: DeviceType contains "pump" }
+    - id: second
+      options:
+        - { id: s_time, text: Timestamp > ago(1h) }
+        - { id: s_has, text: DeviceType has "pump" }
+        - { id: s_contains, text: DeviceType contains "pump" }
+    - id: op
+      options:
+        - { id: lookup, text: lookup }
+        - { id: join, text: join }
+        - { id: union, text: union }
+answer:
+  values: { first: f_time, second: s_has, op: lookup }
+explanation:
+  correct:
+    en: "Apply the datetime predicate first, because the time filter eliminates most data shards before any other evaluation. Then filter the string column with has, which uses the term index instead of scanning substrings. When the right side is a small dimension and the left side is large, the lookup operator is recommended instead of join; kind=leftouter keeps the Telemetry rows without a match."
+    fr: "Appliquez d'abord le prédicat datetime, car le filtre temporel élimine la plupart des partitions de données (shards) avant toute autre évaluation. Filtrez ensuite la colonne de chaîne avec has, qui utilise l'index de termes au lieu de rechercher des sous-chaînes. Quand le côté droit est une petite dimension et le côté gauche une grande table, l'opérateur lookup est recommandé à la place de join ; kind=leftouter conserve les lignes de Telemetry sans correspondance."
+  options:
+    f_has: { en: "String predicates come after the datetime predicate.", fr: "Les prédicats de chaîne viennent après le prédicat datetime." }
+    f_contains: { en: "contains scans substrings and should not be the first filter.", fr: "contains recherche des sous-chaînes et ne doit pas être le premier filtre." }
+    s_contains: { en: "contains scans substrings; has uses the term index for whole terms such as pump.", fr: "contains recherche des sous-chaînes ; has utilise l'index de termes pour des termes entiers comme pump." }
+    join: { en: "join works, but lookup is recommended when the right side is small and the left side is large.", fr: "join fonctionne, mais lookup est recommandé quand le côté droit est petit et le côté gauche volumineux." }
+    union: { en: "union appends rows of tables; it does not add the Site column to each telemetry row.", fr: "union ajoute les lignes des tables les unes aux autres ; il n'ajoute pas la colonne Site à chaque ligne de télémétrie." }
+references:
+  - title: Best practices for Kusto Query Language queries
+    url: https://learn.microsoft.com/en-us/kusto/query/best-practices?view=microsoft-fabric

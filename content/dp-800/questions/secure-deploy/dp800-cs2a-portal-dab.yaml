@@ -1,0 +1,90 @@
+id: dp800-cs2a-portal-dab
+objective: "2.4.2"
+type: dropdown
+caseStudy: dp800-cs2a-lamna-healthcare
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are editing the DAB configuration file of the patient portal.
+
+    You need to configure the Appointment entity. The solution must meet the patient portal requirements.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous modifiez le fichier de configuration DAB du portail patient.
+
+    Vous devez configurer l'entité Appointment. La solution doit satisfaire les exigences du portail patient.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "runtime": {
+        "cache": { "enabled": true, "ttl-seconds": 5 }
+      },
+      "entities": {
+        "Appointment": {
+          "source": { "object": "dbo.vw_PatientAppointments", "type": [[stype]] },
+          "fields": [ { "name": "AppointmentId", [[pk]] } ],
+          "rest": { "enabled": true },
+          "graphql": { "enabled": false },
+          "cache": { "enabled": true, "ttl-seconds": 30 },
+          "permissions": [
+            {
+              "role": "patient",
+              "actions": [
+                {
+                  "action": "read",
+                  "policy": { "database": [[pol]] }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  slots:
+    - id: stype
+      options:
+        - { id: view, text: "\"view\"" }
+        - { id: table, text: "\"table\"" }
+        - { id: sproc, text: "\"stored-procedure\"" }
+    - id: pk
+      options:
+        - { id: primarykey, text: "\"primary-key\": true" }
+        - { id: alias, text: "\"alias\": \"id\"" }
+        - { id: description, text: "\"description\": \"key\"" }
+    - id: pol
+      options:
+        - { id: itemclaim, text: "\"@item.PatientId eq @claims.patient_id\"" }
+        - { id: claimitem, text: "\"@claims.PatientId eq @item.patient_id\"" }
+        - { id: nofield, text: "\"PatientId eq @claims.patient_id\"" }
+        - { id: sub, text: "\"@item.PatientId eq @claims.sub\"" }
+answer:
+  values: { stype: view, pk: primarykey, pol: itemclaim }
+explanation:
+  correct:
+    en: |
+      dbo.vw_PatientAppointments is a view, so the source type is view. DAB cannot read a primary key from a view, so a key field must be declared with "primary-key": true in fields (this replaces the deprecated key-fields property). The database policy adds a WHERE predicate that compares the PatientId field of each row (@item) with the patient_id claim of the caller's token (@claims), so each patient reads only his or her own appointments with the read action.
+    fr: |
+      dbo.vw_PatientAppointments est une vue : le type de source est view. DAB ne peut pas lire de clé primaire dans une vue : un champ clé doit donc être déclaré avec "primary-key": true dans fields (cela remplace la propriété dépréciée key-fields). La stratégie de base de données ajoute un prédicat WHERE qui compare le champ PatientId de chaque ligne (@item) à la revendication patient_id du jeton de l'appelant (@claims) : chaque patient ne lit que ses propres rendez-vous avec l'action read.
+  options:
+    table: { en: "The source object is a view, not a table.", fr: "L'objet source est une vue, pas une table." }
+    sproc: { en: "The source object is a view; a stored-procedure entity uses the execute action, which does not support database policies.", fr: "L'objet source est une vue ; une entité stored-procedure utilise l'action execute, qui ne prend pas en charge les stratégies de base de données." }
+    alias: { en: "alias only renames the field in the API; it does not identify the key of the view.", fr: "alias renomme seulement le champ dans l'API ; il n'identifie pas la clé de la vue." }
+    description: { en: "description only documents the field; it does not declare a key.", fr: "description documente seulement le champ ; elle ne déclare pas de clé." }
+    claimitem: { en: "The prefixes are inverted: PatientId is a field of the entity (@item) and patient_id is the claim (@claims), and claim names are case-sensitive.", fr: "Les préfixes sont inversés : PatientId est un champ de l'entité (@item) et patient_id est la revendication (@claims), dont le nom respecte la casse." }
+    nofield: { en: "Entity fields must be referenced with the @item prefix in a database policy.", fr: "Dans une stratégie de base de données, les champs de l'entité doivent être référencés avec le préfixe @item." }
+    sub: { en: "The sub claim holds an identifier that is not stored in ClinicalDb, so no row would match.", fr: "La revendication sub contient un identifiant qui n'est pas stocké dans ClinicalDb : aucune ligne ne correspondrait." }
+references:
+  - title: Configuration schema - Entities section
+    url: https://learn.microsoft.com/en-us/azure/data-api-builder/configuration/entities
+  - title: Configure database policies for row-level filtering
+    url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/database-policies

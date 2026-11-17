@@ -1,0 +1,113 @@
+id: dp750-cs2a-wide-world-importers
+status: draft
+title:
+  en: Wide World Importers
+  fr: Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers is a cold-chain logistics company. Its head office is in Rotterdam, and it operates 1,800 refrigerated trucks across Europe. A data platform team of four data engineers builds a cargo monitoring platform on Azure Databricks.
+
+        Wide World Importers wants to ingest truck telemetry in near real time, load partner reference files automatically, and give its dispatchers dashboards on shipment events.
+      fr: |
+        Wide World Importers est une entreprise de logistique sous température dirigée. Son siège est à Rotterdam et elle exploite 1 800 camions frigorifiques dans toute l'Europe. Une équipe plateforme de données de quatre ingénieurs données construit une plateforme de suivi des marchandises sur Azure Databricks.
+
+        Wide World Importers souhaite ingérer la télémétrie des camions en quasi temps réel, charger automatiquement les fichiers de référence de ses partenaires et fournir à ses répartiteurs des tableaux de bord sur les événements d'expédition.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Wide World Importers has the following resources in the West Europe region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-wwi-prod | Azure Databricks workspace | Premium plan; enabled for Unity Catalog and serverless compute |
+        | evhns-wwi-telemetry | Event Hubs namespace | Standard tier; event hub **truck-telemetry** with a retention of 7 days |
+        | wwi-eh-cred | Unity Catalog service credential | Its access connector has the permissions required to read truck-telemetry |
+        | stwwiraw | Storage account | ADLS Gen2; container **bronze** registered as a Unity Catalog external location |
+
+        The Unity Catalog catalog **wwi_prod** contains the following objects:
+
+        | Object | Type | Description |
+        | --- | --- | --- |
+        | wwi_prod.telemetry.bronze_readings | External Delta table in the bronze container | Raw truck readings; also read by a legacy reporting tool outside Azure Databricks |
+        | wwi_prod.telemetry.checkpoints | Managed volume | Streaming checkpoints of the telemetry workloads |
+        | wwi_prod.reference.landing | Managed volume | Partners drop port schedule CSV files, with a header row, in the subfolder **port_schedules/** |
+        | wwi_prod.reference.checkpoints | Managed volume | Checkpoints and schema locations of the reference workloads |
+        | wwi_prod.analytics.shipment_events | Managed Delta table | Shipment events used by the dispatchers |
+
+        Each truck sends a reading every 10 seconds to truck-telemetry.
+      fr: |
+        Wide World Importers dispose des ressources suivantes dans la région West Europe.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-wwi-prod | Espace de travail Azure Databricks | Plan Premium ; activé pour Unity Catalog et le calcul serverless |
+        | evhns-wwi-telemetry | Espace de noms Event Hubs | Niveau Standard ; hub d'événements **truck-telemetry** avec une rétention de 7 jours |
+        | wwi-eh-cred | Informations d'identification de service Unity Catalog | Son connecteur d'accès dispose des autorisations nécessaires pour lire truck-telemetry |
+        | stwwiraw | Compte de stockage | ADLS Gen2 ; conteneur **bronze** inscrit comme emplacement externe Unity Catalog |
+
+        Le catalogue Unity Catalog **wwi_prod** contient les objets suivants :
+
+        | Objet | Type | Description |
+        | --- | --- | --- |
+        | wwi_prod.telemetry.bronze_readings | Table Delta externe dans le conteneur bronze | Relevés bruts des camions ; également lue par un ancien outil de reporting extérieur à Azure Databricks |
+        | wwi_prod.telemetry.checkpoints | Volume managé | Points de contrôle de streaming des charges de travail de télémétrie |
+        | wwi_prod.reference.landing | Volume managé | Les partenaires déposent des fichiers CSV de calendriers portuaires, avec une ligne d'en-tête, dans le sous-dossier **port_schedules/** |
+        | wwi_prod.reference.checkpoints | Volume managé | Points de contrôle et emplacements de schéma des charges de travail de référence |
+        | wwi_prod.analytics.shipment_events | Table Delta managée | Événements d'expédition utilisés par les répartiteurs |
+
+        Chaque camion envoie un relevé toutes les 10 secondes à truck-telemetry.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Telemetry ingestion**
+
+        - A notebook named **ingest_telemetry** must read truck-telemetry by using Spark Structured Streaming and write to wwi_prod.telemetry.bronze_readings. It runs 24/7 in a continuous job and processes a micro-batch every 30 seconds by using `trigger(processingTime="30 seconds")`.
+        - The first time the stream starts, it must process all the events that truck-telemetry still retains.
+        - Authentication to Event Hubs must use wwi-eh-cred. No secret can appear in the code.
+
+        **Reference files**
+
+        - Port schedule files arrive at unpredictable times, usually in bursts of several files over about two minutes. A job must start automatically after each burst, ingest the new files into **wwi_prod.reference.port_schedules** by using Auto Loader on serverless compute, and then stop.
+        - Column types such as dates and integers must be inferred from the files instead of loading every column as a string.
+        - The data steward approved the schema of wwi_prod.reference.port_schedules: it must not change automatically. Columns that partners add to the files must be kept for review, and a new column must not make the ingestion fail.
+
+        **Table maintenance**
+
+        - Queries on wwi_prod.telemetry.bronze_readings are slowing down because of many small files, and storage costs grow because of files that the table no longer references. Users must still be able to query any version of the table from the last 7 days.
+
+        **Analytics**
+
+        - The dispatchers use AI/BI dashboards on wwi_prod.analytics.shipment_events during office hours. The compute that serves the dashboards must start in a few seconds and must not incur costs when nobody uses it.
+
+        **General**
+
+        - Compute costs and administrative effort must be minimized.
+      fr: |
+        **Ingestion de la télémétrie**
+
+        - Un notebook nommé **ingest_telemetry** doit lire truck-telemetry à l'aide de Spark Structured Streaming et écrire dans wwi_prod.telemetry.bronze_readings. Il s'exécute en permanence dans un job continu et traite un micro-lot toutes les 30 secondes à l'aide de `trigger(processingTime="30 seconds")`.
+        - Au premier démarrage du flux, celui-ci doit traiter tous les événements que truck-telemetry conserve encore.
+        - L'authentification auprès d'Event Hubs doit utiliser wwi-eh-cred. Aucun secret ne doit apparaître dans le code.
+
+        **Fichiers de référence**
+
+        - Les fichiers de calendriers portuaires arrivent à des moments imprévisibles, généralement par rafales de plusieurs fichiers sur environ deux minutes. Un job doit démarrer automatiquement après chaque rafale, ingérer les nouveaux fichiers dans **wwi_prod.reference.port_schedules** à l'aide d'Auto Loader sur un calcul serverless, puis s'arrêter.
+        - Les types de colonnes tels que les dates et les entiers doivent être déduits des fichiers au lieu de charger chaque colonne comme une chaîne.
+        - Le responsable des données a approuvé le schéma de wwi_prod.reference.port_schedules : il ne doit pas changer automatiquement. Les colonnes que les partenaires ajoutent aux fichiers doivent être conservées pour examen, et une nouvelle colonne ne doit pas faire échouer l'ingestion.
+
+        **Maintenance des tables**
+
+        - Les requêtes sur wwi_prod.telemetry.bronze_readings ralentissent à cause de nombreux petits fichiers, et les coûts de stockage augmentent à cause des fichiers que la table ne référence plus. Les utilisateurs doivent toujours pouvoir interroger n'importe quelle version de la table des 7 derniers jours.
+
+        **Analytique**
+
+        - Les répartiteurs utilisent des tableaux de bord AI/BI sur wwi_prod.analytics.shipment_events pendant les heures de bureau. Le calcul qui sert les tableaux de bord doit démarrer en quelques secondes et ne doit engendrer aucun coût quand personne ne l'utilise.
+
+        **Général**
+
+        - Les coûts de calcul et l'effort d'administration doivent être réduits au minimum.

@@ -1,0 +1,79 @@
+id: dp800-1b-trg-ddl-block
+objective: "1.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You manage an Azure SQL database for Litware. Developers have permissions to create, alter and drop tables in the database.
+
+    You need to prevent anyone from dropping tables in the database. Creating and altering tables must remain possible. The message returned to the user must include the text of the blocked statement.
+
+    How should you complete the trigger? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous gérez une base de données Azure SQL pour Litware. Les développeurs ont les autorisations de créer, modifier et supprimer des tables dans la base.
+
+    Vous devez empêcher quiconque de supprimer des tables dans la base de données. La création et la modification de tables doivent rester possibles. Le message renvoyé à l'utilisateur doit inclure le texte de l'instruction bloquée.
+
+    Comment devez-vous compléter le déclencheur ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR ALTER TRIGGER trg_BlockDropTable
+    ON [[scope]]
+    FOR [[evt]]
+    AS
+    BEGIN
+        DECLARE @cmd nvarchar(max) =
+            [[data]].value('(/EVENT_INSTANCE/TSQLCommand/CommandText)[1]', 'nvarchar(max)');
+        PRINT N'Dropping tables is not allowed: ' + @cmd;
+        [[action]];
+    END;
+  slots:
+    - id: scope
+      options:
+        - { id: database, text: DATABASE }
+        - { id: allserver, text: ALL SERVER }
+        - { id: table, text: dbo.Orders }
+    - id: evt
+      options:
+        - { id: droptable, text: DROP_TABLE }
+        - { id: group, text: DDL_TABLE_EVENTS }
+        - { id: delete, text: DELETE }
+    - id: data
+      options:
+        - { id: eventdata, text: "EVENTDATA()" }
+        - { id: deleted, text: deleted }
+        - { id: procid, text: "OBJECT_NAME(@@PROCID)" }
+    - id: action
+      options:
+        - { id: rollback, text: ROLLBACK }
+        - { id: return, text: RETURN }
+        - { id: commit, text: COMMIT }
+answer:
+  values: { scope: database, evt: droptable, data: eventdata, action: rollback }
+explanation:
+  correct:
+    en: |
+      A database-scoped DDL trigger is created ON DATABASE, and Azure SQL Database supports only this scope. FOR DROP_TABLE fires only for DROP TABLE statements, so CREATE TABLE and ALTER TABLE are not affected. EVENTDATA() returns an xml document that describes the event, including the statement text in TSQLCommand/CommandText, and ROLLBACK cancels the DROP TABLE statement.
+    fr: |
+      Un déclencheur DDL délimité à la base de données est créé avec ON DATABASE, et Azure SQL Database ne prend en charge que cette étendue. FOR DROP_TABLE ne se déclenche que pour les instructions DROP TABLE : CREATE TABLE et ALTER TABLE ne sont pas affectées. EVENTDATA() renvoie un document xml qui décrit l'événement, y compris le texte de l'instruction dans TSQLCommand/CommandText, et ROLLBACK annule l'instruction DROP TABLE.
+  options:
+    allserver: { en: "Server-scoped DDL triggers (ON ALL SERVER) are not available in Azure SQL Database, and the requirement concerns one database.", fr: "Les déclencheurs DDL délimités au serveur (ON ALL SERVER) ne sont pas disponibles dans Azure SQL Database, et l'exigence concerne une seule base." }
+    table: { en: "A trigger on a table is a DML trigger; it cannot react to DROP TABLE statements on other tables.", fr: "Un déclencheur sur une table est un déclencheur DML ; il ne peut pas réagir aux instructions DROP TABLE sur d'autres tables." }
+    group: { en: "DDL_TABLE_EVENTS also covers CREATE_TABLE and ALTER_TABLE, which must remain possible.", fr: "DDL_TABLE_EVENTS couvre aussi CREATE_TABLE et ALTER_TABLE, qui doivent rester possibles." }
+    delete: { en: "DELETE is a DML event that removes rows; it does not fire when a table is dropped.", fr: "DELETE est un événement DML qui supprime des lignes ; il ne se déclenche pas quand une table est supprimée." }
+    deleted: { en: "The deleted table exists only in DML triggers and is not an xml value.", fr: "La table deleted n'existe que dans les déclencheurs DML et n'est pas une valeur xml." }
+    procid: { en: "OBJECT_NAME(@@PROCID) returns the name of the trigger as a string, not the event description.", fr: "OBJECT_NAME(@@PROCID) renvoie le nom du déclencheur sous forme de chaîne, pas la description de l'événement." }
+    return: { en: "RETURN exits the trigger but lets the DROP TABLE statement complete.", fr: "RETURN quitte le déclencheur mais laisse l'instruction DROP TABLE se terminer." }
+    commit: { en: "COMMIT would confirm the DROP TABLE statement instead of cancelling it.", fr: "COMMIT confirmerait l'instruction DROP TABLE au lieu de l'annuler." }
+references:
+  - title: CREATE TRIGGER (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-trigger-transact-sql
+  - title: EVENTDATA (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/eventdata-transact-sql

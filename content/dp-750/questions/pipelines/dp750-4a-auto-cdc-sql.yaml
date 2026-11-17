@@ -1,0 +1,99 @@
+id: dp750-4a-auto-cdc-sql
+objective: "4.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank captures the changes of its policy system in the Delta table **woodgrove.bronze.policy_changes**. Each row contains **policy_id**, the policy attributes including **agent_email**, an operation code **op** and a sequence number **change_seq**. Change rows can arrive out of order.
+
+    You are adding a SQL source file to a Lakeflow Spark Declarative Pipelines pipeline to build **policies_history**. The solution must meet the following requirements:
+
+    - Keep every version of each policy, ordered by change_seq rather than by arrival time.
+    - A change that affects only agent_email must update the current version instead of creating a new one.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank capture les modifications de son système de contrats dans la table Delta **woodgrove.bronze.policy_changes**. Chaque ligne contient **policy_id**, les attributs du contrat dont **agent_email**, un code d'opération **op** et un numéro de séquence **change_seq**. Les lignes de modification peuvent arriver dans le désordre.
+
+    Vous ajoutez un fichier source SQL à un pipeline des pipelines déclaratifs Lakeflow Spark pour créer **policies_history**. La solution doit répondre aux exigences suivantes :
+
+    - Conserver chaque version de chaque contrat, ordonnée par change_seq plutôt que par heure d'arrivée.
+    - Une modification qui ne concerne que agent_email doit mettre à jour la version actuelle au lieu d'en créer une nouvelle.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH [[obj]] policies_history;
+
+    CREATE FLOW policies_cdc AS AUTO CDC INTO
+      policies_history
+    FROM
+      stream(woodgrove.bronze.policy_changes)
+    KEYS
+      (policy_id)
+    APPLY AS DELETE WHEN
+      op = 'DELETE'
+    [[seq]]
+      change_seq
+    COLUMNS * EXCEPT
+      (op, change_seq)
+    STORED AS
+      SCD TYPE 2
+    [[track]]
+      (agent_email);
+  slots:
+    - id: obj
+      options:
+        - { id: st, text: STREAMING TABLE }
+        - { id: mv, text: MATERIALIZED VIEW }
+        - { id: tv, text: TEMPORARY VIEW }
+    - id: seq
+      options:
+        - { id: seqby, text: SEQUENCE BY }
+        - { id: orderby, text: ORDER BY }
+        - { id: clusterby, text: CLUSTER BY }
+        - { id: partby, text: PARTITIONED BY }
+    - id: track
+      options:
+        - { id: trackexcept, text: TRACK HISTORY ON * EXCEPT }
+        - { id: colsexcept, text: COLUMNS * EXCEPT }
+        - { id: keys, text: KEYS }
+answer:
+  values: { obj: st, seq: seqby, track: trackexcept }
+explanation:
+  correct:
+    en: |
+      The target of an AUTO CDC flow is a streaming table that you create first. SEQUENCE BY sets the column that orders the change events, so late rows are applied in the right order. With SCD type 2, every column change creates a new version by default; TRACK HISTORY ON * EXCEPT excludes agent_email from history tracking, so a change to it updates the current row in place.
+    fr: |
+      La cible d'un flux AUTO CDC est une table de diffusion en continu que vous créez au préalable. SEQUENCE BY définit la colonne qui ordonne les événements de modification : les lignes en retard sont appliquées dans le bon ordre. En SCD de type 2, toute modification de colonne crée par défaut une nouvelle version ; TRACK HISTORY ON * EXCEPT exclut agent_email du suivi de l'historique, si bien qu'une modification de cette colonne met à jour la ligne actuelle sur place.
+  options:
+    mv:
+      en: |
+        An AUTO CDC flow writes to a streaming table, not to a materialized view.
+      fr: |
+        Un flux AUTO CDC écrit dans une table de diffusion en continu, pas dans une vue matérialisée.
+    orderby:
+      en: |
+        AUTO CDC orders the events with SEQUENCE BY; ORDER BY isn't a clause of the flow.
+      fr: |
+        AUTO CDC ordonne les événements avec SEQUENCE BY ; ORDER BY n'est pas une clause du flux.
+    clusterby:
+      en: |
+        CLUSTER BY defines liquid clustering keys of a table; it doesn't order change events.
+      fr: |
+        CLUSTER BY définit les clés de clustering liquide d'une table ; il n'ordonne pas les événements de modification.
+    colsexcept:
+      en: |
+        COLUMNS * EXCEPT removes columns from the target; agent_email would no longer be stored.
+      fr: |
+        COLUMNS * EXCEPT retire des colonnes de la cible ; agent_email ne serait plus stockée.
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

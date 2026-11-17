@@ -1,0 +1,49 @@
+id: dp800-cs2a-embedding-refresh
+objective: "3.1.3"
+type: single
+caseStudy: dp800-cs2a-lamna-healthcare
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to recommend a method to keep dbo.NoteChunks up to date when consultation notes change. The solution must meet the semantic search requirements.
+
+    What should you recommend?
+  fr: |
+    Vous devez recommander une méthode pour maintenir dbo.NoteChunks à jour quand les notes de consultation changent. La solution doit satisfaire les exigences de recherche sémantique.
+
+    Que devez-vous recommander ?
+body:
+  options:
+    - id: a
+      text:
+        en: Enable change tracking on ClinicalDb and dbo.ConsultationNotes, and then deploy an Azure function that uses an Azure SQL trigger binding to rewrite the chunks of the changed notes.
+        fr: Activer le suivi des modifications sur ClinicalDb et dbo.ConsultationNotes, puis déployer une fonction Azure qui utilise une liaison de déclencheur Azure SQL pour réécrire les blocs des notes modifiées.
+    - id: b
+      text:
+        en: Create an INSTEAD OF INSERT, UPDATE trigger on dbo.ConsultationNotes that calls AI_GENERATE_CHUNKS and AI_GENERATE_EMBEDDINGS and rewrites the chunks of the changed notes.
+        fr: Créer un déclencheur INSTEAD OF INSERT, UPDATE sur dbo.ConsultationNotes qui appelle AI_GENERATE_CHUNKS et AI_GENERATE_EMBEDDINGS et réécrit les blocs des notes modifiées.
+    - id: c
+      text:
+        en: Configure change event streaming on ClinicalDb for dbo.ConsultationNotes, and then deploy a consumer that rewrites the chunks of the changed notes.
+        fr: Configurer le streaming d'événements de modification sur ClinicalDb pour dbo.ConsultationNotes, puis déployer un consommateur qui réécrit les blocs des notes modifiées.
+    - id: d
+      text:
+        en: Create an AFTER INSERT, UPDATE trigger on dbo.ConsultationNotes that calls AI_GENERATE_CHUNKS and AI_GENERATE_EMBEDDINGS and rewrites the chunks of the changed notes.
+        fr: Créer un déclencheur AFTER INSERT, UPDATE sur dbo.ConsultationNotes qui appelle AI_GENERATE_CHUNKS et AI_GENERATE_EMBEDDINGS et réécrit les blocs des notes modifiées.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      An AFTER trigger fires once the INSERT or UPDATE statement has succeeded and runs inside the same transaction. The chunks are rewritten from the inserted table before the note is committed, so the search never sees stale chunks of a saved note, and an error from aoai-lamna rolls back the save. This method adds work to every write, which the requirements accept, and it needs no component outside ClinicalDb.
+    fr: |
+      Un déclencheur AFTER s'exécute une fois l'instruction INSERT ou UPDATE réussie, dans la même transaction. Les blocs sont réécrits à partir de la table inserted avant la validation de la note : la recherche ne voit jamais de blocs obsolètes d'une note enregistrée, et une erreur d'aoai-lamna annule l'enregistrement. Cette méthode ajoute du travail à chaque écriture, ce que les exigences acceptent, et elle n'exige aucun composant hors de ClinicalDb.
+  options:
+    a: { en: "The Azure SQL trigger binding polls change tracking after the commit, outside the transaction, so stale chunks remain visible for a short time, and it adds an Azure Functions component.", fr: "La liaison de déclencheur Azure SQL interroge le suivi des modifications après la validation, hors de la transaction : des blocs obsolètes restent visibles un court instant, et elle ajoute un composant Azure Functions." }
+    b: { en: "An INSTEAD OF trigger replaces the triggering statement, so the note itself would not be saved unless the trigger also performed the insert or update.", fr: "Un déclencheur INSTEAD OF remplace l'instruction déclenchante : la note elle-même ne serait pas enregistrée, sauf si le déclencheur effectuait aussi l'insertion ou la mise à jour." }
+    c: { en: "Change event streaming publishes the changes to Azure Event Hubs or Fabric Eventstream after the commit and requires a consumer outside ClinicalDb.", fr: "Le streaming d'événements de modification publie les modifications vers Azure Event Hubs ou Fabric Eventstream après la validation et exige un consommateur hors de ClinicalDb." }
+references:
+  - title: Generate and maintain embeddings for SQL database workloads
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-models-embeddings-with-sql/05-generate-maintain-embeddings-sql-database-workloads
+  - title: CREATE TRIGGER (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-trigger-transact-sql

@@ -1,0 +1,69 @@
+id: dp300-1b-partition-function-script
+objective: "1.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+shuffle: false
+stem:
+  en: |
+    You have an Azure SQL database named **TelemetryDb**. You need to create a table named dbo.Readings that is partitioned by month on the ReadingTime column (datetime2). Each partition must contain the rows of one calendar month, including the rows recorded at midnight on the first day of the month.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée **TelemetryDb**. Vous devez créer une table nommée dbo.Readings partitionnée par mois sur la colonne ReadingTime (datetime2). Chaque partition doit contenir les lignes d'un mois civil, y compris les lignes enregistrées à minuit le premier jour du mois.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE PARTITION FUNCTION pfMonth (datetime2)
+        AS RANGE [[range]] FOR VALUES ('2026-10-01', '2026-11-01', '2026-12-01');
+
+    CREATE PARTITION SCHEME psMonth
+        AS PARTITION pfMonth [[map]];
+
+    CREATE TABLE dbo.Readings (
+        DeviceId int NOT NULL,
+        ReadingTime datetime2 NOT NULL,
+        Value float NOT NULL,
+        CONSTRAINT PK_Readings PRIMARY KEY CLUSTERED (ReadingTime, DeviceId)
+    ) ON [[target]];
+  slots:
+    - id: range
+      options:
+        - { id: left, text: LEFT }
+        - { id: right, text: RIGHT }
+    - id: map
+      options:
+        - { id: allfg, text: "ALL TO ([fgReadings])" }
+        - { id: allprimary, text: "ALL TO ([PRIMARY])" }
+        - { id: oneprimary, text: "TO ([PRIMARY])" }
+    - id: target
+      options:
+        - { id: pf, text: pfMonth (ReadingTime) }
+        - { id: primary, text: "[PRIMARY]" }
+        - { id: ps, text: psMonth (ReadingTime) }
+answer:
+  values: { range: right, map: allprimary, target: ps }
+explanation:
+  correct:
+    en: |
+      With RANGE RIGHT, each boundary value is the lower bound of its partition, so 2026-11-01 00:00 belongs to the November partition; this is the recommended layout for date and time columns. In Azure SQL Database every partition must be on the PRIMARY filegroup, which `ALL TO ([PRIMARY])` maps in one clause. The table is then created on the partition scheme, not on the function, with the partitioning column as argument.
+    fr: |
+      Avec RANGE RIGHT, chaque valeur limite est la borne inférieure de sa partition : 2026-11-01 00:00 appartient donc à la partition de novembre ; c'est la disposition recommandée pour les colonnes de date et d'heure. Dans Azure SQL Database, toutes les partitions doivent se trouver sur le groupe de fichiers PRIMARY, ce que `ALL TO ([PRIMARY])` déclare en une seule clause. La table est ensuite créée sur le schéma de partition, et non sur la fonction, avec la colonne de partitionnement comme argument.
+  options:
+    left: { en: "With RANGE LEFT, a boundary value is the upper bound of its partition: midnight on 1 November would fall in the October partition.", fr: "Avec RANGE LEFT, une valeur limite est la borne supérieure de sa partition : minuit le 1er novembre tomberait dans la partition d'octobre." }
+    allfg: { en: "Azure SQL Database doesn't support user-defined filegroups; all partitions must be on PRIMARY.", fr: "Azure SQL Database ne prend pas en charge les groupes de fichiers définis par l'utilisateur ; toutes les partitions doivent être sur PRIMARY." }
+    oneprimary: { en: "Without ALL, the scheme needs one filegroup per partition; three boundaries create four partitions.", fr: "Sans ALL, le schéma exige un groupe de fichiers par partition ; trois limites créent quatre partitions." }
+    pf: { en: "A table is placed on a partition scheme; the function only maps values to partition numbers.", fr: "Une table se place sur un schéma de partition ; la fonction ne fait qu'associer des valeurs à des numéros de partition." }
+    primary: { en: "Creating the table on PRIMARY would create a non-partitioned table.", fr: "Créer la table sur PRIMARY créerait une table non partitionnée." }
+references:
+  - title: Partitioned tables and indexes
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/partitions/partitioned-tables-and-indexes
+  - title: CREATE PARTITION FUNCTION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-partition-function-transact-sql

@@ -1,0 +1,92 @@
+id: ai300-cs1a-pipeline-bindings
+objective: "2.1.7"
+type: dropdown
+caseStudy: ai300-cs1a-relecloud-bank
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the YAML definition of the fraud-training pipeline job.
+
+    How should you complete the YAML to meet the training requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la définition YAML du travail de pipeline fraud-training.
+
+    Comment devez-vous compléter le YAML pour respecter les exigences d'entraînement ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
+    type: pipeline
+    display_name: fraud-training
+    inputs:
+      observations:
+        type: uri_folder
+        path: azureml:card-observations@latest
+    outputs:
+      fraud_model:
+        type: mlflow_model
+    settings:
+      default_compute: azureml:cpu-cluster
+      [[failure]]
+    jobs:
+      prep:
+        type: command
+        component: azureml:prep_transactions@latest
+        inputs:
+          raw: [[prepin]]
+      train:
+        type: command
+        component: azureml:train_fraud_lgbm@latest
+        inputs:
+          training_data: [[trainin]]
+        outputs:
+          model_output: [[trainout]]
+  slots:
+    - id: failure
+      options:
+        - { id: cont-false, text: "continue_on_step_failure: false" }
+        - { id: cont-true, text: "continue_on_step_failure: true" }
+        - { id: rerun-true, text: "force_rerun: true" }
+        - { id: rerun-false, text: "force_rerun: false" }
+    - id: prepin
+      options:
+        - { id: own-input, text: "${{inputs.observations}}" }
+        - { id: parent-input, text: "${{parent.inputs.observations}}" }
+        - { id: parent-output, text: "${{parent.outputs.observations}}" }
+    - id: trainin
+      options:
+        - { id: pipeline-input, text: "${{parent.inputs.clean_data}}" }
+        - { id: no-parent, text: "${{jobs.prep.outputs.clean_data}}" }
+        - { id: prep-output, text: "${{parent.jobs.prep.outputs.clean_data}}" }
+        - { id: prep-input, text: "${{parent.jobs.prep.inputs.raw}}" }
+    - id: trainout
+      options:
+        - { id: step-output, text: "${{outputs.fraud_model}}" }
+        - { id: self-output, text: "${{parent.jobs.train.outputs.model_output}}" }
+        - { id: pipe-output, text: "${{parent.outputs.fraud_model}}" }
+answer:
+  values: { failure: cont-false, prepin: parent-input, trainin: prep-output, trainout: pipe-output }
+explanation:
+  correct:
+    en: "`continue_on_step_failure` defaults to `True`, which lets steps that don't depend on the failed step keep running; set to `False`, it stops the pipeline and cancels the running steps. Inside a pipeline, a step reads a pipeline-level input with `${{parent.inputs.<name>}}`, consumes the output of another step with `${{parent.jobs.<step>.outputs.<name>}}`, which also makes train wait for prep, and promotes its output to a pipeline output with `${{parent.outputs.<name>}}`."
+    fr: "`continue_on_step_failure` vaut `True` par défaut, ce qui laisse s'exécuter les étapes qui ne dépendent pas de l'étape en échec ; défini sur `False`, il arrête le pipeline et annule les étapes en cours. Dans un pipeline, une étape lit une entrée de niveau pipeline avec `${{parent.inputs.<nom>}}`, consomme la sortie d'une autre étape avec `${{parent.jobs.<étape>.outputs.<nom>}}`, ce qui fait aussi attendre train jusqu'à la fin de prep, et promeut sa sortie en sortie de pipeline avec `${{parent.outputs.<nom>}}`."
+  options:
+    cont-true: { en: "`True` is the default behavior: the other independent steps keep running after a failure.", fr: "`True` est le comportement par défaut : les autres étapes indépendantes continuent après un échec." }
+    rerun-true: { en: "`force_rerun` controls the reuse of previous outputs, not what happens when a step fails.", fr: "`force_rerun` contrôle la réutilisation des sorties précédentes, pas ce qui se passe quand une étape échoue." }
+    rerun-false: { en: "`force_rerun: false` is the default reuse behavior and doesn't stop the pipeline on failure.", fr: "`force_rerun: false` est le comportement de réutilisation par défaut et n'arrête pas le pipeline en cas d'échec." }
+    own-input: { en: "`${{inputs.<name>}}` is used inside a component's command to read the component's own input, not to bind a step to the pipeline input.", fr: "`${{inputs.<nom>}}` s'utilise dans la commande d'un composant pour lire sa propre entrée, pas pour relier une étape à l'entrée du pipeline." }
+    parent-output: { en: "observations is a pipeline input, not a pipeline output.", fr: "observations est une entrée du pipeline, pas une sortie du pipeline." }
+    pipeline-input: { en: "clean_data is an output of the prep step, not an input of the pipeline.", fr: "clean_data est une sortie de l'étape prep, pas une entrée du pipeline." }
+    no-parent: { en: "Step-to-step bindings start with `parent.`: `${{parent.jobs.<step>.outputs.<name>}}`.", fr: "Les liaisons entre étapes commencent par `parent.` : `${{parent.jobs.<étape>.outputs.<nom>}}`." }
+    prep-input: { en: "This would pass the raw data that prep received, not the prepared data that prep produced.", fr: "Cela transmettrait les données brutes reçues par prep, pas les données préparées produites par prep." }
+    step-output: { en: "`${{outputs.<name>}}` is the syntax of a component command; a step output is promoted with `${{parent.outputs.<name>}}`.", fr: "`${{outputs.<nom>}}` est la syntaxe d'une commande de composant ; une sortie d'étape est promue avec `${{parent.outputs.<nom>}}`." }
+    self-output: { en: "A step can't bind its own output to itself; the requirement is a pipeline-level output.", fr: "Une étape ne peut pas relier sa propre sortie à elle-même ; l'exigence porte sur une sortie de niveau pipeline." }
+references:
+  - title: CLI (v2) pipeline job YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-job-pipeline

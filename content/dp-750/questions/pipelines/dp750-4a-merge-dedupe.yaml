@@ -1,0 +1,58 @@
+id: dp750-4a-merge-dedupe
+objective: "4.1.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin Toys has a Lakeflow job that runs a notebook task each night. The task merges the change records of **tailspin.silver.booking_changes** into **tailspin.gold.bookings** by using `MERGE INTO ... ON t.booking_id = s.booking_id`.
+
+    A booking can change several times during a day, so the nightly batch can contain several change records for the same booking_id. Each record has a **change_ts** column. Last night, the task failed because several source rows matched the same target row.
+
+    You need tailspin.gold.bookings to reflect the latest change of each booking.
+
+    What should you do?
+  fr: |
+    Tailspin Toys dispose d'un job Lakeflow qui exécute chaque nuit une tâche notebook. La tâche fusionne les enregistrements de modification de **tailspin.silver.booking_changes** dans **tailspin.gold.bookings** avec `MERGE INTO ... ON t.booking_id = s.booking_id`.
+
+    Une réservation peut changer plusieurs fois dans la journée : le lot nocturne peut donc contenir plusieurs enregistrements de modification pour le même booking_id. Chaque enregistrement possède une colonne **change_ts**. La nuit dernière, la tâche a échoué parce que plusieurs lignes sources correspondaient à la même ligne cible.
+
+    Vous devez faire en sorte que tailspin.gold.bookings reflète la dernière modification de chaque réservation.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Add a WHEN NOT MATCHED BY SOURCE THEN DELETE clause to the MERGE statement.", fr: "Ajouter une clause WHEN NOT MATCHED BY SOURCE THEN DELETE à l'instruction MERGE." }
+    - id: b
+      text: { en: "Run OPTIMIZE on tailspin.gold.bookings before the MERGE statement runs.", fr: "Exécuter OPTIMIZE sur tailspin.gold.bookings avant l'exécution de l'instruction MERGE." }
+    - id: c
+      text: { en: "Before the MERGE, keep only the row with the latest change_ts for each booking_id.", fr: "Avant le MERGE, ne conserver que la ligne dont change_ts est le plus récent pour chaque booking_id." }
+    - id: d
+      text: { en: "Replace the MERGE with an append of the change records to tailspin.gold.bookings.", fr: "Remplacer le MERGE par un ajout des enregistrements de modification à tailspin.gold.bookings." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A MERGE can fail when several source rows match the same target row, because the update is ambiguous. Deduplicating the source first, for example with `row_number()` over a window partitioned by booking_id and ordered by change_ts descending, leaves one row per key, and that row is the latest change.
+    fr: |
+      Un MERGE peut échouer quand plusieurs lignes sources correspondent à la même ligne cible, car la mise à jour est ambiguë. Dédoublonner d'abord la source, par exemple avec `row_number()` sur une fenêtre partitionnée par booking_id et triée par change_ts décroissant, laisse une seule ligne par clé, et cette ligne est la dernière modification.
+  options:
+    a:
+      en: |
+        This clause deletes target rows that have no match in the source; it doesn't resolve several source rows matching one target row.
+      fr: |
+        Cette clause supprime les lignes cibles sans correspondance dans la source ; elle ne résout pas le cas de plusieurs lignes sources correspondant à une même ligne cible.
+    b:
+      en: |
+        OPTIMIZE compacts the files of the target; it doesn't change which source rows match.
+      fr: |
+        OPTIMIZE compacte les fichiers de la cible ; il ne change pas les lignes sources qui correspondent.
+    d:
+      en: |
+        Appending would add a new row for every change, so the table would no longer hold one current row per booking.
+      fr: |
+        Un ajout créerait une nouvelle ligne à chaque modification : la table ne contiendrait plus une seule ligne actuelle par réservation.
+references:
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

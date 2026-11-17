@@ -1,0 +1,101 @@
+id: dp700-cs1c-trey-research
+status: draft
+title:
+  en: |-
+    Trey Research
+  fr: |-
+    Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a contract research organization that runs laboratory assays for pharmaceutical companies. It has laboratories in Strasbourg and Basel. A team of five data engineers and three data scientists works on the data platform.
+
+        Trey Research is building a lakehouse in Microsoft Fabric to process the results of its laboratory instruments and to share the results with its clients.
+      fr: |
+        Trey Research est une société de recherche sous contrat qui réalise des analyses de laboratoire pour des entreprises pharmaceutiques. Elle possède des laboratoires à Strasbourg et à Bâle. Une équipe de cinq ingénieurs données et de trois scientifiques des données travaille sur la plateforme de données.
+
+        Trey Research construit un lakehouse dans Microsoft Fabric pour traiter les résultats de ses instruments de laboratoire et partager ces résultats avec ses clients.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Fabric.** Trey Research has a Fabric capacity (F64) and a workspace named **TR-Lab** that has a workspace identity. The data engineers and the data scientists have the Contributor role in TR-Lab. TR-Lab contains the following items.
+
+        | Item | Type | Details |
+        | --- | --- | --- |
+        | LH_Assays | Lakehouse | Schema-enabled, OneLake security enabled. Tables **bronze.results_raw**, **silver.results**, **gold.dim_assay** and **gold.assay_summary**. The SQL analytics endpoint uses the user's identity access mode. |
+        | NB_Bronze | Notebook | Appends the new files of one instrument to bronze.results_raw by using `df.write.format("delta").mode("append").saveAsTable("bronze.results_raw")` |
+        | NB_Gold | Notebook | Builds gold.assay_summary from silver.results |
+        | PL_Nightly | Pipeline | A Lookup activity named **Get instruments** returns one row per active instrument, with a column named InstrumentId. A ForEach activity then runs NB_Bronze once per instrument. |
+
+        **Instrument exports.** The plate readers export Parquet files to the folder **plate-readers** of the container **exports** in an Azure Data Lake Storage Gen2 account named **sttrinstruments**. The storage account firewall allows access only from selected networks. The storage administrators can add role assignments and resource instance rules.
+
+        **Data.** silver.results contains the columns SampleId, ClientId, AssayCode, InstrumentId, MeasuredAt and Value. Value is null when an instrument could not read a well. New assays are added to gold.dim_assay (AssayCode, AssayType) once a week, so some AssayCode values of silver.results are not yet in gold.dim_assay.
+
+        **Libraries.** All the notebooks and Spark job definitions of TR-Lab use an internal Python library named **trey_assaykit**. Today, each notebook installs it in its first cell.
+
+        **Incident.** Last night, NB_Bronze failed for one instrument after a firmware update added a column named **Wavelength** to the exported files. The run failed with an AnalysisException that reports a schema mismatch when writing to the Delta table.
+      fr: |
+        **Fabric.** Trey Research dispose d'une capacité Fabric (F64) et d'un espace de travail nommé **TR-Lab** doté d'une identité d'espace de travail. Les ingénieurs données et les scientifiques des données ont le rôle Contributor dans TR-Lab. TR-Lab contient les éléments suivants.
+
+        | Élément | Type | Détails |
+        | --- | --- | --- |
+        | LH_Assays | Lakehouse | Schémas activés, sécurité OneLake activée. Tables **bronze.results_raw**, **silver.results**, **gold.dim_assay** et **gold.assay_summary**. Le point de terminaison d'analytique SQL utilise le mode d'accès avec l'identité de l'utilisateur. |
+        | NB_Bronze | Notebook | Ajoute les nouveaux fichiers d'un instrument à bronze.results_raw à l'aide de `df.write.format("delta").mode("append").saveAsTable("bronze.results_raw")` |
+        | NB_Gold | Notebook | Construit gold.assay_summary à partir de silver.results |
+        | PL_Nightly | Pipeline | Une activité Lookup nommée **Get instruments** retourne une ligne par instrument actif, avec une colonne nommée InstrumentId. Une activité ForEach exécute ensuite NB_Bronze une fois par instrument. |
+
+        **Exports des instruments.** Les lecteurs de plaques exportent des fichiers Parquet dans le dossier **plate-readers** du conteneur **exports** d'un compte Azure Data Lake Storage Gen2 nommé **sttrinstruments**. Le pare-feu du compte de stockage n'autorise l'accès qu'à partir de réseaux sélectionnés. Les administrateurs du stockage peuvent ajouter des attributions de rôles et des règles d'instance de ressource.
+
+        **Données.** silver.results contient les colonnes SampleId, ClientId, AssayCode, InstrumentId, MeasuredAt et Value. Value est null quand un instrument n'a pas pu lire un puits. Les nouvelles analyses sont ajoutées à gold.dim_assay (AssayCode, AssayType) une fois par semaine ; certaines valeurs AssayCode de silver.results ne figurent donc pas encore dans gold.dim_assay.
+
+        **Bibliothèques.** Tous les notebooks et toutes les définitions de travail Spark de TR-Lab utilisent une bibliothèque Python interne nommée **trey_assaykit**. Aujourd'hui, chaque notebook l'installe dans sa première cellule.
+
+        **Incident.** La nuit dernière, NB_Bronze a échoué pour un instrument après une mise à jour du microprogramme qui a ajouté une colonne nommée **Wavelength** aux fichiers exportés. L'exécution a échoué avec une AnalysisException qui signale une incompatibilité de schéma lors de l'écriture dans la table Delta.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Trey Research identifies the following requirements.
+
+        **Ingestion**
+
+        1. LH_Assays must read the plate-reader files in place, without copying them. The firewall of sttrinstruments must remain enabled. The connection must not use a user account or a secret that must be rotated.
+        2. When new columns appear in the exported files, they must be added automatically to bronze.results_raw. Existing columns must never be removed.
+        3. Each run of NB_Bronze must receive the InstrumentId of the instrument that it processes from PL_Nightly.
+
+        **Transformation**
+
+        4. gold.assay_summary must contain one row per ClientId, AssayType and run date, with the number of distinct samples and the average Value. Readings that have a null Value must be excluded. Readings whose AssayCode is not yet in gold.dim_assay must still be included, with a null AssayType.
+
+        **Spark**
+
+        5. trey_assaykit must be available to every notebook and Spark job definition of TR-Lab without changing each item.
+        6. The data engineers and the data scientists must not be able to change the driver or executor sizes of individual items.
+
+        **Client access**
+
+        7. Analysts of a client named Litware are members of a Microsoft Entra group named **SG-Litware**. They must be able to read only the rows of gold.assay_summary whose ClientId is `LIT`, from notebooks in their own workspace and through the SQL analytics endpoint. They must not get access to the other tables of LH_Assays or to the other items of TR-Lab. The principle of least privilege must be followed.
+      fr: |
+        Trey Research a défini les exigences suivantes.
+
+        **Ingestion**
+
+        1. LH_Assays doit lire les fichiers des lecteurs de plaques sur place, sans les copier. Le pare-feu de sttrinstruments doit rester activé. La connexion ne doit utiliser ni compte d'utilisateur ni secret à renouveler.
+        2. Quand de nouvelles colonnes apparaissent dans les fichiers exportés, elles doivent être ajoutées automatiquement à bronze.results_raw. Les colonnes existantes ne doivent jamais être supprimées.
+        3. Chaque exécution de NB_Bronze doit recevoir de PL_Nightly l'InstrumentId de l'instrument qu'elle traite.
+
+        **Transformation**
+
+        4. gold.assay_summary doit contenir une ligne par ClientId, AssayType et date d'exécution, avec le nombre d'échantillons distincts et la moyenne de Value. Les mesures dont Value est null doivent être exclues. Les mesures dont l'AssayCode ne figure pas encore dans gold.dim_assay doivent quand même être incluses, avec un AssayType null.
+
+        **Spark**
+
+        5. trey_assaykit doit être disponible pour tous les notebooks et toutes les définitions de travail Spark de TR-Lab sans modifier chaque élément.
+        6. Les ingénieurs données et les scientifiques des données ne doivent pas pouvoir modifier la taille du pilote ou des exécuteurs pour des éléments individuels.
+
+        **Accès des clients**
+
+        7. Les analystes d'un client nommé Litware sont membres d'un groupe Microsoft Entra nommé **SG-Litware**. Ils doivent pouvoir lire uniquement les lignes de gold.assay_summary dont ClientId est `LIT`, à partir de notebooks de leur propre espace de travail et via le point de terminaison d'analytique SQL. Ils ne doivent avoir accès ni aux autres tables de LH_Assays ni aux autres éléments de TR-Lab. Le principe des privilèges minimum doit être respecté.

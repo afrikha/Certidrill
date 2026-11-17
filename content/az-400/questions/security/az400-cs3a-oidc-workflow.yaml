@@ -1,0 +1,95 @@
+id: az400-cs3a-oidc-workflow
+objective: "4.2.2"
+type: dropdown
+caseStudy: az400-cs3a-wingtip-shipping
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You create an identity for the deploy job, grant it access to RG-PortCall-Prod, and add a federated credential to it. You store the client ID, tenant ID, and subscription ID as variables of the production environment.
+
+    You need to complete the federated credential and the deploy job to meet the deployment requirements. How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous créez une identité pour le travail deploy, vous lui accordez l'accès à RG-PortCall-Prod et vous lui ajoutez une information d'identification fédérée. Vous stockez l'ID client, l'ID de locataire et l'ID d'abonnement comme variables de l'environnement production.
+
+    Vous devez compléter l'information d'identification fédérée et le travail deploy pour satisfaire les exigences de déploiement. Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    # Federated credential
+    #   issuer:   https://token.actions.githubusercontent.com
+    #   subject:  [[subject]]
+    #   audience: api://AzureADTokenExchange
+
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: production
+        permissions:
+          [[perm]]
+          contents: read
+        steps:
+          - uses: actions/checkout@v4
+          - uses: azure/login@v2
+            with:
+              [[input]]: ${{ vars.AZURE_CLIENT_ID }}
+              tenant-id: ${{ vars.AZURE_TENANT_ID }}
+              subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  slots:
+    - id: subject
+      options:
+        - { id: env, text: "repo:wingtip/portcall:environment:production" }
+        - { id: branch, text: "repo:wingtip/portcall:ref:refs/heads/main" }
+        - { id: wild, text: "repo:wingtip/portcall:*" }
+        - { id: org, text: "repo:wingtip/*:environment:production" }
+    - id: perm
+      options:
+        - { id: idtoken, text: "id-token: write" }
+        - { id: actions, text: "actions: write" }
+        - { id: deployments, text: "deployments: write" }
+        - { id: secrets, text: "secrets: read" }
+    - id: input
+      options:
+        - { id: clientid, text: "client-id" }
+        - { id: creds, text: "creds" }
+        - { id: authtype, text: "auth-type" }
+        - { id: appid, text: "app-id" }
+answer:
+  values: { subject: env, perm: idtoken, input: clientid }
+explanation:
+  correct:
+    en: |
+      When a job declares an environment, the subject claim of its GitHub OIDC token has the form `repo:<owner>/<repo>:environment:<name>`, so a credential with the subject `repo:wingtip/portcall:environment:production` lets only the production jobs of the repository sign in. The job needs `id-token: write` to request the OIDC token, and `azure/login@v2` exchanges it when it receives `client-id`, `tenant-id`, and `subscription-id` without any secret.
+    fr: |
+      Quand un travail déclare un environnement, la revendication subject de son jeton OIDC GitHub a la forme `repo:<owner>/<repo>:environment:<name>` : une information d'identification ayant le sujet `repo:wingtip/portcall:environment:production` ne laisse donc se connecter que les travaux production du dépôt. Le travail a besoin de `id-token: write` pour demander le jeton OIDC, et `azure/login@v2` l'échange quand il reçoit `client-id`, `tenant-id` et `subscription-id`, sans aucun secret.
+  options:
+    branch:
+      en: |
+        A job that declares an environment gets an environment subject, so a branch subject would not match the deploy job; it would also accept jobs on main that do not use the production environment.
+      fr: |
+        Un travail qui déclare un environnement reçoit un sujet d'environnement : un sujet de branche ne correspondrait pas au travail deploy, et il accepterait aussi des travaux de main qui n'utilisent pas l'environnement production.
+    wild:
+      en: |
+        Federated identity credentials do not support wildcards; the subject must match the token exactly.
+      fr: |
+        Les informations d'identification fédérées ne prennent pas en charge les caractères génériques ; le sujet doit correspondre exactement au jeton.
+    org:
+      en: |
+        Wildcards are not supported, and a credential for every repository of the organization would break requirement 2.
+      fr: |
+        Les caractères génériques ne sont pas pris en charge, et une information d'identification valable pour tous les dépôts de l'organisation enfreindrait l'exigence 2.
+    creds:
+      en: |
+        The `creds` input takes a JSON object that contains a client secret, which requirement 1 forbids.
+      fr: |
+        L'entrée `creds` attend un objet JSON qui contient un secret client, ce que l'exigence 1 interdit.
+references:
+  - title: Authenticate to Azure from GitHub Actions by OpenID Connect
+    url: https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect
+  - title: Create a trust relationship between an app and an external identity provider
+    url: https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import type { ContentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type { CertificationContent } from "./loader";
@@ -83,6 +84,24 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
  * their id across versions; a question removed from the repository is retired,
  * never deleted, because past attempts reference it.
  */
+/**
+ * Whether a stored row already holds `data`: every field written is compared
+ * by value (key order of JSON columns aside), so that an unchanged file costs
+ * no write. A field left undefined is not written, hence not compared.
+ */
+/**
+ * A value as a JSON column gives it back: undefined keys dropped, dates as
+ * strings. structuredClone would keep both, so an unchanged row would look
+ * changed.
+ */
+function asStored(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value)); // NOSONAR: the JSON round trip is the point, see above
+}
+
+export function sameRow(before: Record<string, unknown>, data: Record<string, unknown>): boolean {
+  return Object.entries(data).every(([key, value]) => value === undefined || isDeepStrictEqual(before[key] ?? null, asStored(value)));
+}
+
 export async function seedBank(db: PrismaClient, content: CertificationContent, bank: QuestionBank) {
   const code = content.blueprint.certification.code;
   const version = content.blueprint.blueprint.version;
@@ -94,12 +113,26 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
     });
     const objectiveIds = new Map(blueprint.domains.flatMap((d) => d.objectives.map((o) => [o.code, o.id] as const)));
 
+    // Rows already as in the files are not written again (a seed of an unchanged repository writes nothing).
+    const [storedCases, storedSeries] = await Promise.all([
+      tx.caseStudy.findMany({ where: { certificationId: certification.id } }),
+      tx.questionSeries.findMany({ where: { certificationId: certification.id } }),
+    ]);
+    const casesById = new Map(storedCases.map((c) => [c.id, c]));
+    const seriesById = new Map(storedSeries.map((x) => [x.id, x]));
+    let written = 0;
     for (const cs of bank.caseStudies) {
       const data = { title: cs.title, tabs: cs.tabs as Prisma.InputJsonValue, status: cs.status, version: cs.version };
+      const stored = casesById.get(cs.id);
+      if (stored && sameRow(stored, data)) continue;
+      written += 1;
       await tx.caseStudy.upsert({ where: { id: cs.id }, create: { id: cs.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     for (const s of bank.series) {
       const data = { stem: s.stem, status: s.status, version: s.version };
+      const stored = seriesById.get(s.id);
+      if (stored && sameRow(stored, data)) continue;
+      written += 1;
       await tx.questionSeries.upsert({ where: { id: s.id }, create: { id: s.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     // A question sent back to review by user reports (needs_review) keeps that
@@ -107,7 +140,7 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
     // only with a new `version` (the fix after review) or an explicit YAML status
     // other than published.
     const existing = new Map(
-      (await tx.question.findMany({ where: { certificationId: certification.id }, select: { id: true, status: true, version: true } })).map((q) => [q.id, q]),
+      (await tx.question.findMany({ where: { certificationId: certification.id } })).map((q) => [q.id, q]),
     );
     for (const q of bank.questions) {
       const before = existing.get(q.id);
@@ -130,6 +163,8 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
         version: q.version,
         blueprintVersion: version,
       };
+      if (before && sameRow(before, data)) continue;
+      written += 1;
       await tx.question.upsert({ where: { id: q.id }, create: { id: q.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     const keep = bank.questions.map((q) => q.id);
@@ -146,7 +181,7 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
       where: { certificationId: certification.id, id: { notIn: bank.series.map((x) => x.id) }, status: { not: "retired" } },
       data: { status: "retired" },
     });
-    return { questions: bank.questions.length, caseStudies: bank.caseStudies.length, series: bank.series.length, retired: retired.count };
+    return { questions: bank.questions.length, caseStudies: bank.caseStudies.length, series: bank.series.length, retired: retired.count, written };
   }, { timeout: 120_000 });
 }
 

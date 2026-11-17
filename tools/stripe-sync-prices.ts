@@ -1,6 +1,7 @@
 /**
  * Creates or finds the Stripe price of each active plan (lookup key = plan
- * code) and stores its id in the plan table. Safe to run again.
+ * code) and of each certification price of those plans (plan_price), and
+ * stores its id. Safe to run again.
  *   npm run stripe:sync-prices [-- --dry-run]
  * Needs STRIPE_SECRET_KEY (test or live key: the prices are created in that mode).
  */
@@ -18,7 +19,10 @@ async function main() {
   try {
     const lines = await syncPrices(db, stripe, { dryRun: values["dry-run"] });
     console.log(`Stripe ${mode} mode${values["dry-run"] ? " (dry run: nothing changed)" : ""}`);
-    for (const l of lines) console.log(`${l.action.padEnd(13)} ${l.code.padEnd(14)} ${l.priceId ?? ""}${l.detail ? `  (${l.detail})` : ""}`);
+    for (const l of lines) {
+      const detail = l.detail ? `  (${l.detail})` : "";
+      console.log(`${l.action.padEnd(13)} ${l.code.padEnd(22)} ${l.priceId ?? ""}${detail}`);
+    }
     if (lines.some((l) => l.action === "mismatch")) {
       console.error("Some Stripe prices differ from their plan: archive them in Stripe, or give the plan a new code (a new price is a new plan).");
       process.exitCode = 1;

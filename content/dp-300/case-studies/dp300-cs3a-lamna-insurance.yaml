@@ -1,0 +1,117 @@
+id: dp300-cs3a-lamna-insurance
+status: draft
+title:
+  en: Lamna Insurance
+  fr: Lamna Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lamna Insurance is a property and casualty insurer that works with 1,200 brokers in Canada. The head office and the only datacenter are in Montréal.
+
+        Lamna plans to move its policy platform to Azure SQL Database. A team of five database administrators (DBAs) manages the databases.
+      fr: |
+        Lamna Insurance est un assureur de dommages qui travaille avec 1 200 courtiers au Canada. Le siège et l'unique centre de données se trouvent à Montréal.
+
+        Lamna prévoit de déplacer sa plateforme de contrats vers Azure SQL Database. Une équipe de cinq administrateurs de bases de données (DBA) gère les bases de données.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **On-premises environment**
+
+        An on-premises server named **SQLLI01** runs SQL Server 2019 Enterprise. SQLLI01 hosts a database named **PolicyDB** (450 GB) that stores the policies and the quotes. PolicyDB uses compatibility level 150 and contains the following objects.
+
+        | Object | Description |
+        | --- | --- |
+        | dbo.Policies | System-versioned temporal table |
+        | dbo.PolicyHistory | Table with a clustered columnstore index |
+        | dbo.QuoteSessions | Memory-optimized table (DURABILITY = SCHEMA_AND_DATA) |
+        | RatingEngine | CLR assembly (PERMISSION_SET = SAFE) called by the rating functions |
+        | BrokerFilter | Row-level security policy that filters dbo.Policies by broker |
+
+        PolicyDB is used by a quoting application bought from a vendor. The quoting application cannot be modified. It sends parameterized statements to PolicyDB by using `sp_executesql`.
+
+        **Azure environment**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | sql-li-cac | Logical server in the Canada Central region. Microsoft Entra admin: a group named **SG-SQL-DBA**. Public network access: **Selected networks**. One server-level IP firewall rule allows the public IP range of the Montréal datacenter. |
+        | BrokerDB, BillingDB | Single databases on sql-li-cac. |
+        | sql-li-cae | Logical server in the Canada East region. It has no databases. |
+        | app-quote-api | Quoting API that runs in Azure App Service and uses a user-assigned managed identity named **mi-quote-api**. |
+
+        The Active Directory Domain Services (AD DS) domain is synchronized to a Microsoft Entra tenant.
+
+        **Planned environment**
+
+        PolicyDB will be migrated to sql-li-cac as a single database in the General Purpose service tier, provisioned compute, standard-series (Gen5) hardware, 8 vCores. After the migration, the compatibility level of PolicyDB will be raised to 160. Query Store will keep its default settings.
+      fr: |
+        **Environnement local**
+
+        Un serveur local nommé **SQLLI01** exécute SQL Server 2019 Enterprise. SQLLI01 héberge une base de données nommée **PolicyDB** (450 Go) qui stocke les contrats et les devis. PolicyDB utilise le niveau de compatibilité 150 et contient les objets suivants.
+
+        | Objet | Description |
+        | --- | --- |
+        | dbo.Policies | Table temporelle avec version système |
+        | dbo.PolicyHistory | Table avec un index columnstore cluster |
+        | dbo.QuoteSessions | Table optimisée en mémoire (DURABILITY = SCHEMA_AND_DATA) |
+        | RatingEngine | Assembly CLR (PERMISSION_SET = SAFE) appelé par les fonctions de tarification |
+        | BrokerFilter | Stratégie de sécurité au niveau des lignes qui filtre dbo.Policies par courtier |
+
+        PolicyDB est utilisée par une application de devis achetée à un éditeur. L'application de devis ne peut pas être modifiée. Elle envoie des instructions paramétrables à PolicyDB à l'aide de `sp_executesql`.
+
+        **Environnement Azure**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | sql-li-cac | Serveur logique dans la région Canada Central. Administrateur Microsoft Entra : un groupe nommé **SG-SQL-DBA**. Accès réseau public : **Selected networks**. Une règle de pare-feu IP au niveau du serveur autorise la plage d'adresses IP publiques du centre de données de Montréal. |
+        | BrokerDB, BillingDB | Bases de données uniques sur sql-li-cac. |
+        | sql-li-cae | Serveur logique dans la région Canada East. Il ne contient aucune base de données. |
+        | app-quote-api | API de devis qui s'exécute dans Azure App Service et utilise une identité managée affectée par l'utilisateur nommée **mi-quote-api**. |
+
+        Le domaine Active Directory Domain Services (AD DS) est synchronisé avec un locataire Microsoft Entra.
+
+        **Environnement prévu**
+
+        PolicyDB sera migrée vers sql-li-cac en tant que base de données unique au niveau de service General Purpose, calcul provisionné, matériel de série Standard (Gen5), 8 vCores. Après la migration, le niveau de compatibilité de PolicyDB sera porté à 160. Le Magasin des requêtes conservera ses paramètres par défaut.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Migration requirements**
+
+        1. Before the migration, the DBAs must identify the objects of PolicyDB that must be redesigned because the planned target does not support them. The target service tier must not change.
+
+        **Security requirements**
+
+        2. An external auditing firm will connect to PolicyDB from the public IP address 203.0.113.40 by using a contained database user. Connections from this address must be accepted by PolicyDB only, not by BrokerDB or BillingDB.
+        3. mi-quote-api must be able to run every stored procedure of the **Quote** schema of PolicyDB, including the procedures that the developers will add later. mi-quote-api must not be able to read the tables of PolicyDB directly. No login must be created in the master database for mi-quote-api.
+
+        **Performance requirements**
+
+        4. After the compatibility level is raised to 160, one parameterized statement of the quoting application runs ten times slower. Tests show that the statement recovers its previous performance when it is compiled with the legacy cardinality estimator. Only this statement must be affected.
+
+        **Business continuity requirements**
+
+        5. A readable copy of PolicyDB must be maintained on sql-li-cae by asynchronous replication. The DBAs must be able to fail over to this copy manually. The copy must use the same service tier and compute size as PolicyDB.
+        6. A monitoring script must alert the DBAs when the copy of PolicyDB in Canada East is more than 60 seconds behind the primary database.
+      fr: |
+        **Exigences de migration**
+
+        1. Avant la migration, les DBA doivent identifier les objets de PolicyDB à reconcevoir parce que la cible prévue ne les prend pas en charge. Le niveau de service cible ne doit pas changer.
+
+        **Exigences de sécurité**
+
+        2. Un cabinet d'audit externe se connectera à PolicyDB depuis l'adresse IP publique 203.0.113.40 à l'aide d'un utilisateur de base de données contenu. Les connexions provenant de cette adresse doivent être acceptées par PolicyDB uniquement, pas par BrokerDB ni par BillingDB.
+        3. mi-quote-api doit pouvoir exécuter toutes les procédures stockées du schéma **Quote** de PolicyDB, y compris celles que les développeurs ajouteront plus tard. mi-quote-api ne doit pas pouvoir lire directement les tables de PolicyDB. Aucune connexion ne doit être créée dans la base de données master pour mi-quote-api.
+
+        **Exigences de performances**
+
+        4. Après le passage au niveau de compatibilité 160, une instruction paramétrable de l'application de devis s'exécute dix fois plus lentement. Les tests montrent que l'instruction retrouve ses performances précédentes quand elle est compilée avec l'estimateur de cardinalité hérité. Seule cette instruction doit être affectée.
+
+        **Exigences de continuité d'activité**
+
+        5. Une copie accessible en lecture de PolicyDB doit être maintenue sur sql-li-cae par réplication asynchrone. Les DBA doivent pouvoir basculer manuellement vers cette copie. La copie doit utiliser le même niveau de service et la même taille de calcul que PolicyDB.
+        6. Un script de supervision doit alerter les DBA quand la copie de PolicyDB dans la région Canada East a plus de 60 secondes de retard sur la base de données primaire.

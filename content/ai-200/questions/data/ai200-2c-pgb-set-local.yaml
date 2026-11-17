@@ -1,0 +1,80 @@
+id: ai200-2c-pgb-set-local
+objective: "2.2.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Relecloud's search API uses psycopg and connects to Azure Database for PostgreSQL flexible server through the built-in PgBouncer on port 6432, with the default pool mode. A vector query must use a larger HNSW candidate list. The current code is the following.
+
+    ```python
+    conn.execute("SET hnsw.ef_search = 100")
+    conn.commit()
+    rows = conn.execute(vector_query, params).fetchall()
+    ```
+
+    Some queries still run with the default candidate list, and other clients occasionally run with `ef_search = 100`.
+
+    You need `ef_search = 100` to apply to the vector query only. PgBouncer must keep its current pool mode.
+
+    What should you do?
+  fr: |
+    L'API de recherche de Relecloud utilise psycopg et se connecte à Azure Database for PostgreSQL serveur flexible par le PgBouncer intégré sur le port 6432, avec le mode de pool par défaut. Une requête vectorielle doit utiliser une liste de candidats HNSW plus grande. Le code actuel est le suivant.
+
+    ```python
+    conn.execute("SET hnsw.ef_search = 100")
+    conn.commit()
+    rows = conn.execute(vector_query, params).fetchall()
+    ```
+
+    Certaines requêtes s'exécutent encore avec la liste de candidats par défaut, et d'autres clients s'exécutent parfois avec `ef_search = 100`.
+
+    `ef_search = 100` doit s'appliquer uniquement à la requête vectorielle. PgBouncer doit conserver son mode de pool actuel.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Set `pgbouncer.pool_mode` to `statement` on the server."
+        fr: "Définir `pgbouncer.pool_mode` sur `statement` sur le serveur."
+    - id: b
+      text:
+        en: "Increase `pgbouncer.default_pool_size` to 100 on the server."
+        fr: "Augmenter `pgbouncer.default_pool_size` à 100 sur le serveur."
+    - id: c
+      text:
+        en: "Enable autocommit on the connection, and keep the `SET` statement."
+        fr: "Activer la validation automatique sur la connexion, et conserver l'instruction `SET`."
+    - id: d
+      text:
+        en: "Run `SET LOCAL hnsw.ef_search = 100` and the query in the same transaction."
+        fr: "Exécuter `SET LOCAL hnsw.ef_search = 100` et la requête dans la même transaction."
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      In transaction mode, the default of the built-in PgBouncer, a client keeps a server connection only for one transaction. A session-level `SET` stays on the server connection that ran it, which another client can then receive, while the next transaction may run elsewhere. `SET LOCAL` inside the query's transaction applies the setting to that transaction only.
+    fr: |
+      En mode transaction, le mode par défaut du PgBouncer intégré, un client ne conserve une connexion au serveur que pendant une transaction. Un `SET` de session reste sur la connexion au serveur qui l'a exécuté, qu'un autre client peut ensuite recevoir, tandis que la transaction suivante peut s'exécuter ailleurs. `SET LOCAL` dans la transaction de la requête applique le paramètre à cette transaction uniquement.
+  options:
+    a:
+      en: |
+        Statement mode releases the server connection after every statement, so the setting and the query would be even more likely to run on different connections; it also changes the pool mode.
+      fr: |
+        Le mode instruction libère la connexion au serveur après chaque instruction : le paramètre et la requête auraient encore plus de chances de s'exécuter sur des connexions différentes ; ce choix change aussi le mode de pool.
+    b:
+      en: |
+        More server connections don't bind the `SET` and the query to the same connection.
+      fr: |
+        Davantage de connexions au serveur ne lient pas le `SET` et la requête à la même connexion.
+    c:
+      en: |
+        With autocommit, each statement is its own transaction, so the `SET` and the query can still use different server connections.
+      fr: |
+        Avec la validation automatique, chaque instruction forme sa propre transaction : le `SET` et la requête peuvent toujours utiliser des connexions au serveur différentes.
+references:
+  - title: PgBouncer in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-pgbouncer
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-optimize-performance-pgvector

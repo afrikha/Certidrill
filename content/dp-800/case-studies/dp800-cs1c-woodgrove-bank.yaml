@@ -1,0 +1,103 @@
+id: dp800-cs1c-woodgrove-bank
+status: draft
+title:
+  en: Woodgrove Bank
+  fr: Woodgrove Bank
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Woodgrove Bank is a retail bank with 120 branches and 1.8 million customers. Its core banking database runs on premises in its own datacenter.
+
+        Woodgrove Bank wants to strengthen the protection of customer data before an external security audit, and to give its financial advisors an assistant that answers questions about the terms of the bank's products.
+      fr: |
+        Woodgrove Bank est une banque de détail qui compte 120 agences et 1,8 million de clients. Sa base de données bancaire centrale s'exécute en local, dans son propre centre de données.
+
+        Woodgrove Bank souhaite renforcer la protection des données clients avant un audit de sécurité externe, et fournir à ses conseillers financiers un assistant qui répond aux questions sur les conditions des produits de la banque.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Database server**
+
+        The database **WoodgroveCore** is hosted on an instance of SQL Server 2025 Enterprise edition named SQL-CORE1. SQL-CORE1 is connected to Azure Arc, and its primary managed identity is enabled. The managed identity has the Cognitive Services OpenAI User role on a Microsoft Foundry resource named **fdy-woodgrove** (endpoint https://fdy-woodgrove.openai.azure.com). fdy-woodgrove has a chat model deployment named **chat-advisor** and an embedding model deployment. No secure enclave is configured on SQL-CORE1.
+
+        Three database administrators are members of the sysadmin fixed server role. An Azure key vault named **kv-woodgrove-keys** can store encryption keys; only the identity of the advisor portal has access to its keys.
+
+        **Tables**
+
+        | Table | Description |
+        | --- | --- |
+        | dbo.Customers | CustomerID, AdvisorID (int), FullName, NationalID (char(11)), Phone, Email |
+        | dbo.ProductTermChunks | ChunkID, ProductCode, ChunkText (nvarchar(2000)), Embedding (vector(1536)); about 9,000 chunks of product terms |
+
+        The Embedding values were loaded from a Python notebook. Woodgrove Bank plans to create an external model named **TermsEmbeddings** for the embedding deployment. SQL-CORE1 doesn't make any outbound REST call yet. WoodgroveCore has a database master key.
+
+        **Applications**
+
+        - The advisor portal connects with a single SQL login named WgPortalApp and uses connection pooling. After it authenticates an advisor, it runs sp_set_session_context to store the advisor's ID under the key **AdvisorId**, with @read_only = 1. The portal looks up customers by CustomerID. It displays NationalID but never filters, joins, groups or sorts on it.
+        - Call-center agents use a call-center application that connects with their own Windows accounts. Their database users are members of the database role **CallCenter**. They cannot run ad hoc queries.
+      fr: |
+        **Serveur de base de données**
+
+        La base de données **WoodgroveCore** est hébergée sur une instance SQL Server 2025 Enterprise nommée SQL-CORE1. SQL-CORE1 est connectée à Azure Arc, et son identité managée principale est activée. L'identité managée a le rôle Cognitive Services OpenAI User sur une ressource Microsoft Foundry nommée **fdy-woodgrove** (point de terminaison https://fdy-woodgrove.openai.azure.com). fdy-woodgrove a un déploiement de modèle de conversation nommé **chat-advisor** et un déploiement de modèle d'incorporation. Aucune enclave sécurisée n'est configurée sur SQL-CORE1.
+
+        Trois administrateurs de bases de données sont membres du rôle serveur fixe sysadmin. Un coffre de clés Azure nommé **kv-woodgrove-keys** peut stocker des clés de chiffrement ; seule l'identité du portail des conseillers a accès à ses clés.
+
+        **Tables**
+
+        | Table | Description |
+        | --- | --- |
+        | dbo.Customers | CustomerID, AdvisorID (int), FullName, NationalID (char(11)), Phone, Email |
+        | dbo.ProductTermChunks | ChunkID, ProductCode, ChunkText (nvarchar(2000)), Embedding (vector(1536)) ; environ 9 000 blocs de conditions de produits |
+
+        Les valeurs d'Embedding ont été chargées depuis un notebook Python. Woodgrove Bank prévoit de créer un modèle externe nommé **TermsEmbeddings** pour le déploiement d'incorporation. SQL-CORE1 n'effectue encore aucun appel REST sortant. WoodgroveCore a une clé principale de base de données.
+
+        **Applications**
+
+        - Le portail des conseillers se connecte avec une seule connexion SQL nommée WgPortalApp et utilise le regroupement de connexions. Après avoir authentifié un conseiller, il exécute sp_set_session_context pour stocker l'ID du conseiller sous la clé **AdvisorId**, avec @read_only = 1. Le portail recherche les clients par CustomerID. Il affiche NationalID mais ne filtre, ne joint, ne regroupe et ne trie jamais sur cette colonne.
+        - Les agents du centre d'appels utilisent une application de centre d'appels qui se connecte avec leurs propres comptes Windows. Leurs utilisateurs de base de données sont membres du rôle de base de données **CallCenter**. Ils ne peuvent pas exécuter de requêtes ad hoc.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Customer data protection**
+
+        - The database administrators must never be able to read NationalID values in clear text, even with sysadmin permissions. NationalID must use the most secure encryption that the portal's use of the column allows.
+        - Call-center agents must see only the last four digits of Phone. The advisor portal must still display the full phone number.
+        - Advisors must see only the customers whose AdvisorID matches the AdvisorId value of their session. The portal must not be able to insert a customer for another advisor.
+
+        **Auditing**
+
+        - Every SELECT statement that a member of CallCenter runs on dbo.Customers must be recorded in an audit file. To limit the volume, no other access may be recorded by this audit.
+
+        **Card transactions**
+
+        - A new table named dbo.CardTransactions will store card payments. Its rows must never be updated or deleted, and any attempt to tamper with its data, even by a sysadmin, must be detectable.
+
+        **Advisor assistant**
+
+        - A stored procedure named dbo.usp_AskTerms must retrieve the five chunks of dbo.ProductTermChunks that are closest to the advisor's question, send them with the question to chat-advisor, and return only the text of the generated answer. Answers are limited to 300 tokens.
+        - All calls from SQL-CORE1 to fdy-woodgrove must authenticate with the managed identity of SQL-CORE1. No key may be stored in SQL Server.
+        - The database permissions required to call the endpoint are already granted to the callers.
+      fr: |
+        **Protection des données clients**
+
+        - Les administrateurs de bases de données ne doivent jamais pouvoir lire les valeurs de NationalID en clair, même avec les autorisations sysadmin. NationalID doit utiliser le chiffrement le plus sûr que permet l'usage de la colonne par le portail.
+        - Les agents du centre d'appels ne doivent voir que les quatre derniers chiffres de Phone. Le portail des conseillers doit toujours afficher le numéro de téléphone complet.
+        - Les conseillers ne doivent voir que les clients dont l'AdvisorID correspond à la valeur AdvisorId de leur session. Le portail ne doit pas pouvoir insérer un client pour un autre conseiller.
+
+        **Audit**
+
+        - Chaque instruction SELECT qu'un membre de CallCenter exécute sur dbo.Customers doit être enregistrée dans un fichier d'audit. Pour limiter le volume, aucun autre accès ne doit être enregistré par cet audit.
+
+        **Transactions par carte**
+
+        - Une nouvelle table nommée dbo.CardTransactions stockera les paiements par carte. Ses lignes ne doivent jamais être mises à jour ni supprimées, et toute tentative de falsification de ses données, même par un sysadmin, doit pouvoir être détectée.
+
+        **Assistant des conseillers**
+
+        - Une procédure stockée nommée dbo.usp_AskTerms doit récupérer les cinq blocs de dbo.ProductTermChunks les plus proches de la question du conseiller, les envoyer avec la question à chat-advisor et renvoyer uniquement le texte de la réponse générée. Les réponses sont limitées à 300 jetons.
+        - Tous les appels de SQL-CORE1 vers fdy-woodgrove doivent s'authentifier avec l'identité managée de SQL-CORE1. Aucune clé ne doit être stockée dans SQL Server.
+        - Les autorisations de base de données nécessaires pour appeler le point de terminaison sont déjà accordées aux appelants.

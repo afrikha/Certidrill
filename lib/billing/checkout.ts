@@ -1,7 +1,8 @@
 /**
  * Starting a purchase (POST /api/billing/checkout): a Stripe Checkout session
  * in payment mode for one Pass. The browser only names the plan and the
- * certification; the price is the plan's, read here. Nothing is granted here:
+ * certification; the price is read here: the certification's own price for
+ * the plan, or the plan's (./prices.ts). Nothing is granted here:
  * the right comes with the verified webhook (./webhook.ts).
  */
 import { randomUUID } from "node:crypto";
@@ -11,6 +12,7 @@ import { AccessError } from "@/lib/access";
 import { getOffers } from "@/lib/access/offers";
 import { logError } from "@/lib/log";
 import { readSwitches } from "@/lib/settings";
+import { priceFor, priceRange, pricesByCertification, type CertificationPrice } from "./prices";
 import type { StripeApi } from "./stripe";
 
 export type BillingErrorCode = "sales_closed" | "unavailable" | "not_found" | "rate_limited";
@@ -34,11 +36,30 @@ export const checkoutSchema = z.object({
 /** A Checkout session stays payable this long (Stripe accepts 30 minutes to 24 hours). */
 export const CHECKOUT_MINUTES = 60;
 
-/** Whether the Pass can be bought online now: payment open, Stripe configured, a Stripe price for the plan. */
-export async function canBuyOnline(db: PrismaClient, planCode: string, stripe: StripeApi | null): Promise<boolean> {
-  if (!stripe || !process.env.AUTH_URL) return false;
-  const [switches, plan] = await Promise.all([readSwitches(db), db.plan.findUnique({ where: { code: planCode }, select: { stripePriceId: true } })]);
-  return switches.checkoutOpen && !!plan?.stripePriceId;
+/**
+ * The active certifications whose Pass can be bought online now, with their
+ * price: payment open, Stripe configured, and a Stripe price for the
+ * certification's price. Empty when nothing can be bought.
+ */
+export async function buyableCertifications(db: PrismaClient, planCode: string, stripe: StripeApi | null): Promise<CertificationPrice[]> {
+  if (!stripe || !process.env.AUTH_URL) return [];
+  const [switches, prices] = await Promise.all([readSwitches(db), pricesByCertification(db, planCode)]);
+  return switches.checkoutOpen ? prices.filter((p) => p.stripePriceId) : [];
+}
+
+export interface PassPricing {
+  /** The Pass price of every active certification. */
+  prices: CertificationPrice[];
+  /** Those that can be bought online now (see buyableCertifications). */
+  buyable: CertificationPrice[];
+  /** The lowest and highest prices, for a "from X" label; null without price or with mixed currencies. */
+  range: { min: number; max: number; currency: string } | null;
+}
+
+/** The Pass prices shown on the landing, pricing and offer pages. */
+export async function passPricing(db: PrismaClient, planCode: string, stripe: StripeApi | null): Promise<PassPricing> {
+  const [prices, buyable] = await Promise.all([pricesByCertification(db, planCode), buyableCertifications(db, planCode, stripe)]);
+  return { prices, buyable, range: priceRange(prices) };
 }
 
 /** The user's Stripe customer, created on their first purchase. */
@@ -105,11 +126,13 @@ export async function startCheckout(
   // Only a Pass on sale can be bought here (subscriptions come with lot D).
   if (!plan || plan.kind !== "pass" || !offers.some((o) => o.code === plan.code)) throw new BillingError("not_found");
   if (!certification) throw new BillingError("not_found");
-  if (!stripe || !base || !plan.stripePriceId || !plan.durationDays) throw new BillingError("unavailable");
+  // The certification's own price for the plan, or the plan's.
+  const price = await priceFor(db, plan, certification.id);
+  if (!stripe || !base || !price.stripePriceId || !plan.durationDays) throw new BillingError("unavailable");
 
   const customer = await ensureCustomer(db, stripe, user);
   const payment = await db.payment.create({
-    data: { billingCustomerId: customer.id, planId: plan.id, certificationId: certification.id, amountCents: plan.amountCents, currency: plan.currency },
+    data: { billingCustomerId: customer.id, planId: plan.id, certificationId: certification.id, amountCents: price.amountCents, currency: price.currency },
   });
   let session;
   try {
@@ -118,7 +141,7 @@ export async function startCheckout(
         mode: "payment",
         customer: customer.stripeCustomerId,
         client_reference_id: payment.id,
-        line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+        line_items: [{ price: price.stripePriceId, quantity: 1 }],
         metadata: { paymentId: payment.id, planCode: plan.code, certificationCode: certification.code },
         payment_intent_data: { metadata: { paymentId: payment.id }, description: `Pass ${certification.code.toUpperCase()} — ${plan.durationDays} days` },
         custom_text: { submit: { message: `${certification.code.toUpperCase()} — ${certification.title}` } },

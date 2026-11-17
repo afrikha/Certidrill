@@ -1,0 +1,107 @@
+id: dp750-4a-driver-exit-status
+objective: "4.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso is building a notebook pipeline that is run by a single notebook task. The driver notebook runs **./01_bronze_orders** and then **./02_silver_orders**.
+
+    The solution must meet the following requirements:
+
+    - 01_bronze_orders must report a status and a row count to the driver.
+    - 02_silver_orders must run only when 01_bronze_orders reports the status OK.
+    - Otherwise, the notebook task must fail.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso crée un pipeline de notebooks exécuté par une seule tâche notebook. Le notebook pilote exécute **./01_bronze_orders**, puis **./02_silver_orders**.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - 01_bronze_orders doit indiquer un état et un nombre de lignes au pilote.
+    - 02_silver_orders ne doit s'exécuter que si 01_bronze_orders indique l'état OK.
+    - Sinon, la tâche notebook doit échouer.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    # Last cell of 01_bronze_orders
+    [[ret]](json.dumps({"status": "OK", "rows": n}))
+
+    # Driver notebook
+    import json
+
+    result = [[call]]
+    if json.loads(result)["status"] != "OK":
+        [[stop]]
+
+    dbutils.notebook.run("./02_silver_orders", 1800, {"run_date": run_date})
+  slots:
+    - id: ret
+      options:
+        - { id: exit, text: dbutils.notebook.exit }
+        - { id: tvset, text: dbutils.jobs.taskValues.set }
+        - { id: print, text: print }
+        - { id: widget, text: dbutils.widgets.text }
+    - id: call
+      options:
+        - { id: run, text: 'dbutils.notebook.run("./01_bronze_orders", 1800, {"run_date": run_date})' }
+        - { id: tvget, text: 'dbutils.jobs.taskValues.get(taskKey="01_bronze_orders", key="status")' }
+        - { id: widgetget, text: 'dbutils.widgets.get("01_bronze_orders")' }
+    - id: stop
+      options:
+        - { id: raise, text: 'raise RuntimeError(f"Bronze load failed: {result}")' }
+        - { id: printerr, text: 'print(f"Bronze load failed: {result}")' }
+        - { id: exitfail, text: 'dbutils.notebook.exit("FAILED")' }
+answer:
+  values: { ret: exit, call: run, stop: raise }
+explanation:
+  correct:
+    en: "`dbutils.notebook.exit()` returns one string to the caller, so the child serializes the status and row count as JSON. `dbutils.notebook.run()` runs the child with its arguments and returns that string. Raising an exception when the status isn't OK stops the driver before 02_silver_orders and makes the notebook task fail."
+    fr: "`dbutils.notebook.exit()` renvoie une seule chaîne à l'appelant : l'enfant sérialise donc l'état et le nombre de lignes en JSON. `dbutils.notebook.run()` exécute l'enfant avec ses arguments et renvoie cette chaîne. Lever une exception quand l'état n'est pas OK arrête le pilote avant 02_silver_orders et fait échouer la tâche notebook."
+  options:
+    tvset:
+      en: |
+        Task values pass data between the tasks of a job, and the child isn't an upstream task of the job; run() returns only the string passed to exit().
+      fr: |
+        Les valeurs de tâche transmettent des données entre les tâches d'un job, et l'enfant n'est pas une tâche en amont du job ; run() ne renvoie que la chaîne passée à exit().
+    print:
+      en: |
+        Printed output isn't returned to the caller; run() returns only the string passed to exit().
+      fr: |
+        La sortie affichée n'est pas renvoyée à l'appelant ; run() ne renvoie que la chaîne passée à exit().
+    widget:
+      en: |
+        A widget receives input parameters; it doesn't return a value to the caller.
+      fr: |
+        Un widget reçoit des paramètres d'entrée ; il ne renvoie pas de valeur à l'appelant.
+    tvget:
+      en: |
+        Task values are read from upstream tasks of a job; this call doesn't run the child notebook.
+      fr: |
+        Les valeurs de tâche se lisent depuis des tâches en amont d'un job ; cet appel n'exécute pas le notebook enfant.
+    widgetget:
+      en: |
+        widgets.get() reads a widget of the current notebook; it doesn't run another notebook.
+      fr: |
+        widgets.get() lit un widget du notebook courant ; il n'exécute pas un autre notebook.
+    printerr:
+      en: |
+        Printing the error lets the driver continue, so 02_silver_orders runs and the task succeeds.
+      fr: |
+        Afficher l'erreur laisse le pilote continuer : 02_silver_orders s'exécute et la tâche réussit.
+    exitfail:
+      en: |
+        exit() ends the driver successfully, so the task doesn't fail.
+      fr: |
+        exit() termine le pilote avec succès : la tâche n'échoue pas.
+references:
+  - title: Orchestrate Databricks notebooks and modularize code
+    url: https://learn.microsoft.com/en-us/azure/databricks/notebooks/notebook-workflows

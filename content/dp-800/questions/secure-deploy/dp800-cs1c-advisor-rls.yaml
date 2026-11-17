@@ -1,0 +1,75 @@
+id: dp800-cs1c-advisor-rls
+objective: "2.1.3"
+type: dropdown
+caseStudy: dp800-cs1c-woodgrove-bank
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to restrict the customers that each advisor can access through the advisor portal. The solution must meet the customer data protection requirements.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez restreindre les clients auxquels chaque conseiller peut accéder via le portail des conseillers. La solution doit respecter les exigences de protection des données clients.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION Security.fn_AdvisorPredicate (@AdvisorID int)
+        RETURNS TABLE
+        [[binding]]
+    AS
+        RETURN SELECT 1 AS fn_result
+        WHERE @AdvisorID = [[context]];
+    GO
+
+    CREATE SECURITY POLICY Security.AdvisorPolicy
+        ADD FILTER PREDICATE Security.fn_AdvisorPredicate(AdvisorID) ON dbo.Customers,
+        ADD BLOCK PREDICATE Security.fn_AdvisorPredicate(AdvisorID) ON dbo.Customers [[operation]]
+        WITH (STATE = ON);
+  slots:
+    - id: binding
+      options:
+        - { id: schemabinding, text: "WITH SCHEMABINDING" }
+        - { id: encryption, text: "WITH ENCRYPTION" }
+        - { id: recompile, text: "WITH RECOMPILE" }
+        - { id: caller, text: "WITH EXECUTE AS CALLER" }
+    - id: context
+      options:
+        - { id: user-id, text: "USER_ID()" }
+        - { id: principal, text: "DATABASE_PRINCIPAL_ID('WgPortalApp')" }
+        - { id: session, text: "CAST(SESSION_CONTEXT(N'AdvisorId') AS int)" }
+        - { id: context-info, text: "CAST(CONTEXT_INFO() AS int)" }
+    - id: operation
+      options:
+        - { id: before-delete, text: "BEFORE DELETE" }
+        - { id: before-update, text: "BEFORE UPDATE" }
+        - { id: after-insert, text: "AFTER INSERT" }
+        - { id: after-update, text: "AFTER UPDATE" }
+answer:
+  values: { binding: schemabinding, context: session, operation: after-insert }
+explanation:
+  correct:
+    en: |
+      The predicate of a security policy is an inline table-valued function created WITH SCHEMABINDING. Because every advisor uses the shared WgPortalApp login, the advisor is identified by the AdvisorId value that the portal stores with sp_set_session_context, read with SESSION_CONTEXT and cast to int. The filter predicate hides the other advisors' rows, and an AFTER INSERT block predicate rejects inserted rows whose AdvisorID does not match the session.
+    fr: |
+      Le prédicat d'une stratégie de sécurité est une fonction table inline créée WITH SCHEMABINDING. Comme tous les conseillers utilisent la connexion partagée WgPortalApp, le conseiller est identifié par la valeur AdvisorId que le portail stocke avec sp_set_session_context, lue avec SESSION_CONTEXT et convertie en int. Le prédicat de filtre masque les lignes des autres conseillers, et un prédicat de blocage AFTER INSERT rejette les lignes insérées dont l'AdvisorID ne correspond pas à la session.
+  options:
+    encryption: { en: "WITH ENCRYPTION hides the function definition; the predicate function of a schema-bound security policy must be created WITH SCHEMABINDING.", fr: "WITH ENCRYPTION masque la définition de la fonction ; la fonction de prédicat d'une stratégie de sécurité liée au schéma doit être créée WITH SCHEMABINDING." }
+    recompile: { en: "WITH RECOMPILE is an option of stored procedures, not of inline table-valued functions.", fr: "WITH RECOMPILE est une option des procédures stockées, pas des fonctions table inline." }
+    caller: { en: "EXECUTE AS does not apply to inline table-valued functions and would not make the function schema-bound.", fr: "EXECUTE AS ne s'applique pas aux fonctions table inline et ne rendrait pas la fonction liée au schéma." }
+    user-id: { en: "All advisors connect as the same database user, so USER_ID() is the same for every advisor and is not an AdvisorID.", fr: "Tous les conseillers se connectent avec le même utilisateur de base de données : USER_ID() est identique pour tous et n'est pas un AdvisorID." }
+    principal: { en: "This returns the principal ID of the shared WgPortalApp user, not the ID of the advisor.", fr: "Cette expression renvoie l'ID de principal de l'utilisateur partagé WgPortalApp, pas l'ID du conseiller." }
+    context-info: { en: "The portal stores the advisor in SESSION_CONTEXT, not in CONTEXT_INFO.", fr: "Le portail stocke le conseiller dans SESSION_CONTEXT, pas dans CONTEXT_INFO." }
+    before-delete: { en: "BEFORE DELETE blocks deletes of rows that violate the predicate; filtered rows already cannot be deleted, and inserts stay allowed.", fr: "BEFORE DELETE bloque la suppression des lignes qui violent le prédicat ; les lignes filtrées ne peuvent déjà pas être supprimées, et les insertions restent autorisées." }
+    after-update: { en: "AFTER UPDATE prevents updating a row to values that violate the predicate; it does not check inserted rows.", fr: "AFTER UPDATE empêche de mettre à jour une ligne avec des valeurs qui violent le prédicat ; il ne vérifie pas les lignes insérées." }
+    before-update: { en: "BEFORE UPDATE blocks updates of rows that currently violate the predicate; it does not check inserted rows.", fr: "BEFORE UPDATE bloque la mise à jour des lignes qui violent actuellement le prédicat ; il ne vérifie pas les lignes insérées." }
+references:
+  - title: Row-level security
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/row-level-security

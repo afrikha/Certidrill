@@ -1,0 +1,93 @@
+id: dp750-3d-deltatable-upsert
+objective: "3.3.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders has a Unity Catalog managed Delta table named **northwind.silver.products**. A Python notebook builds a DataFrame named `updates_df` that contains the latest version of the changed and new products, with one row per `product_id` and the same columns as the table.
+
+    You need to write the notebook code that updates every column of the existing products and inserts the new products. Products that are absent from `updates_df` must stay unchanged.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders dispose d'une table Delta managée du catalogue Unity nommée **northwind.silver.products**. Un notebook Python construit un DataFrame nommé `updates_df` qui contient la dernière version des produits modifiés et nouveaux, avec une ligne par `product_id` et les mêmes colonnes que la table.
+
+    Vous devez écrire le code du notebook qui met à jour toutes les colonnes des produits existants et insère les nouveaux produits. Les produits absents de `updates_df` doivent rester inchangés.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from delta.tables import DeltaTable
+
+    target = DeltaTable.[[open]](spark, "northwind.silver.products")
+
+    (target.alias("t")
+        .merge(updates_df.alias("s"), "t.product_id = s.product_id")
+        .[[matched]]()
+        .whenNotMatchedInsertAll()
+        .[[run]]())
+  slots:
+    - id: open
+      options:
+        - { id: forname, text: forName }
+        - { id: forpath, text: forPath }
+        - { id: convert, text: convertToDelta }
+    - id: matched
+      options:
+        - { id: updateall, text: whenMatchedUpdateAll }
+        - { id: delete, text: whenMatchedDelete }
+        - { id: bysource, text: whenNotMatchedBySourceDelete }
+    - id: run
+      options:
+        - { id: save, text: save }
+        - { id: execute, text: execute }
+        - { id: start, text: start }
+answer:
+  values: { open: forname, matched: updateall, run: execute }
+explanation:
+  correct:
+    en: |
+      `DeltaTable.forName` opens a table from its Unity Catalog name. `whenMatchedUpdateAll()` sets every target column from the source column of the same name, and `whenNotMatchedInsertAll()` inserts the source rows that have no match. Nothing happens until `execute()` runs the merge as one transaction.
+    fr: |
+      `DeltaTable.forName` ouvre une table à partir de son nom dans le catalogue Unity. `whenMatchedUpdateAll()` définit chaque colonne cible à partir de la colonne source de même nom, et `whenNotMatchedInsertAll()` insère les lignes sources sans correspondance. Rien ne se passe tant que `execute()` n'exécute pas la fusion en une seule transaction.
+  options:
+    forpath:
+      en: |
+        `forPath` expects a storage path, not a three-level table name.
+      fr: |
+        `forPath` attend un chemin de stockage, pas un nom de table à trois niveaux.
+    convert:
+      en: |
+        `convertToDelta` converts a Parquet table in place to Delta; it doesn't open an existing Delta table for a merge.
+      fr: |
+        `convertToDelta` convertit sur place une table Parquet en Delta ; il n'ouvre pas une table Delta existante pour une fusion.
+    delete:
+      en: |
+        `whenMatchedDelete` would delete the existing products instead of updating them.
+      fr: |
+        `whenMatchedDelete` supprimerait les produits existants au lieu de les mettre à jour.
+    bysource:
+      en: |
+        `whenNotMatchedBySourceDelete` deletes the products absent from `updates_df`, which must stay unchanged, and doesn't update matched products.
+      fr: |
+        `whenNotMatchedBySourceDelete` supprime les produits absents de `updates_df`, qui doivent rester inchangés, et ne met pas à jour les produits correspondants.
+    save:
+      en: |
+        `save` is a method of the DataFrame writer, not of the merge builder.
+      fr: |
+        `save` est une méthode du writer de DataFrame, pas du générateur de fusion.
+    start:
+      en: |
+        `start` starts a Structured Streaming query; it isn't a method of the merge builder.
+      fr: |
+        `start` démarre une requête Structured Streaming ; ce n'est pas une méthode du générateur de fusion.
+references:
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

@@ -1,0 +1,87 @@
+id: dp800-cs4a-tutor-call
+objective: "3.3.2"
+type: dropdown
+caseStudy: dp800-cs4a-proseware
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are completing Api.AskTutor. The variable @context contains the closest chunks as JSON, and @question contains the learner's question. The database user of the Tutor API is named app-proseware-tutor.
+
+    You need to complete the permission script and the procedure code. The solution must meet the Tutor requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous terminez Api.AskTutor. La variable @context contient les blocs les plus proches au format JSON, et @question contient la question de l'apprenant. L'utilisateur de base de données de l'API Tutor est nommé app-proseware-tutor.
+
+    Vous devez compléter le script d'autorisations et le code de la procédure. La solution doit satisfaire les exigences de Tutor.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    -- Permission script
+    GRANT [[perm]] TO [app-proseware-tutor];
+    GRANT REFERENCES ON DATABASE SCOPED CREDENTIAL::[https://aoai-proseware.openai.azure.com] TO [app-proseware-tutor];
+
+    -- In Api.AskTutor
+    DECLARE @payload nvarchar(max) = JSON_OBJECT(
+        'messages': JSON_ARRAY(
+            JSON_OBJECT('role': '[[role]]',
+                        'content': N'Answer only from the excerpts. If they do not contain the answer, say so.'),
+            JSON_OBJECT('role': 'user',
+                        'content': CONCAT(N'Excerpts: ', @context, N' Question: ', @question))),
+        'temperature': 0.2);
+
+    EXECUTE @rc = sys.sp_invoke_external_rest_endpoint
+        @url = N'https://aoai-proseware.openai.azure.com/openai/deployments/tutor-chat/chat/completions?api-version=2024-10-21',
+        @method = 'POST',
+        @payload = @payload,
+        @credential = [https://aoai-proseware.openai.azure.com],
+        @response = @response OUTPUT;
+
+    IF [[cond]]
+        SELECT @Answer = content
+        FROM OPENJSON(@response, '$.result.choices')
+             WITH (content nvarchar(max) '$.message.content');
+    ELSE
+        THROW 50001, N'The Tutor model call failed.', 1;
+  slots:
+    - id: perm
+      options:
+        - { id: endpoint, text: "EXECUTE ANY EXTERNAL ENDPOINT" }
+        - { id: model, text: "EXECUTE ON EXTERNAL MODEL::TranscriptEmbeddings" }
+        - { id: control, text: "CONTROL" }
+    - id: role
+      options:
+        - { id: system, text: system }
+        - { id: assistant, text: assistant }
+        - { id: user, text: user }
+    - id: cond
+      options:
+        - { id: rc0, text: "@rc = 0" }
+        - { id: rc200, text: "@rc = 200" }
+        - { id: error, text: "@@ERROR = 0" }
+answer:
+  values: { perm: endpoint, role: system, cond: rc0 }
+explanation:
+  correct:
+    en: |
+      Calling sp_invoke_external_rest_endpoint requires the EXECUTE ANY EXTERNAL ENDPOINT database permission, plus REFERENCES on the credential that the call uses. Rules that apply to the whole conversation go in a message with the system role, separate from the user message that carries the excerpts and the question. The procedure returns 0 when the HTTP status is 2xx and the HTTP status code otherwise, so any other value must lead to the error.
+    fr: |
+      L'appel de sp_invoke_external_rest_endpoint exige l'autorisation de base de données EXECUTE ANY EXTERNAL ENDPOINT, plus REFERENCES sur les informations d'identification utilisées par l'appel. Les règles qui s'appliquent à toute la conversation vont dans un message de rôle system, distinct du message user qui contient les extraits et la question. La procédure renvoie 0 quand le statut HTTP est 2xx et le code de statut HTTP sinon : toute autre valeur doit donc mener à l'erreur.
+  options:
+    model: { en: "EXECUTE on an external model lets a user call AI_GENERATE_EMBEDDINGS with that model; it does not allow sp_invoke_external_rest_endpoint, and TranscriptEmbeddings is not the chat deployment.", fr: "EXECUTE sur un modèle externe permet d'appeler AI_GENERATE_EMBEDDINGS avec ce modèle ; il ne permet pas sp_invoke_external_rest_endpoint, et TranscriptEmbeddings n'est pas le déploiement de conversation." }
+    control: { en: "CONTROL on the database grants every permission in it, which breaks the least privilege requirement.", fr: "CONTROL sur la base de données accorde toutes les autorisations qu'elle contient, ce qui enfreint l'exigence de moindre privilège." }
+    assistant: { en: "The assistant role holds earlier answers of the model in a multi-turn conversation, not instructions.", fr: "Le rôle assistant contient les réponses précédentes du modèle dans une conversation à plusieurs tours, pas des instructions." }
+    user: { en: "A second user message mixes the rules with the learner's input instead of sending them as instructions for the whole conversation.", fr: "Un second message user mélange les règles avec la saisie de l'apprenant au lieu de les envoyer comme instructions pour toute la conversation." }
+    rc200: { en: "A successful call returns 0, not 200, so this test would raise the error for every successful answer.", fr: "Un appel réussi renvoie 0, pas 200 : ce test lèverait l'erreur pour chaque réponse réussie." }
+    error: { en: "A non-2xx response such as 429 doesn't raise an exception, so @@ERROR stays 0 and the failure would be treated as a success.", fr: "Une réponse non 2xx comme 429 ne lève pas d'exception : @@ERROR reste à 0 et l'échec serait traité comme un succès." }
+references:
+  - title: sp_invoke_external_rest_endpoint (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql

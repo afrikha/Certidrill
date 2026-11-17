@@ -1,0 +1,85 @@
+id: dp750-cs3b-margies-travel
+status: draft
+title:
+  en: Margie's Travel
+  fr: Margie's Travel
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Margie's Travel is an online travel agency based in Lisbon. It sells hotel stays from 3,000 partner hotels to customers in Europe and South America.
+
+        Margie's Travel is moving its booking analytics from an on-premises data warehouse to Azure Databricks. Three data engineers build the pipelines, and a team of 20 analysts explores the data in notebooks during business hours.
+      fr: |
+        Margie's Travel est une agence de voyages en ligne basée à Lisbonne. Elle vend des séjours dans 3 000 hôtels partenaires à des clients en Europe et en Amérique du Sud.
+
+        Margie's Travel migre l'analyse de ses réservations d'un entrepôt de données local vers Azure Databricks. Trois ingénieurs de données construisent les pipelines, et une équipe de 20 analystes explore les données dans des notebooks pendant les heures ouvrées.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure Databricks.** Margie's Travel has a Premium workspace named **adb-mt-prod** that is enabled for Unity Catalog. The catalog **mt_prod** contains the schemas **bronze** and **silver**.
+
+        **Partner data.** A booking platform named HotelHub sends two kinds of data:
+
+        | Data | Delivery | Details |
+        | --- | --- | --- |
+        | Booking changes | Loaded every night into the Delta table **mt_prod.bronze.partner_changes**, which is overwritten at each load | Same columns as the bookings table. A booking can appear several times in one load when it changed several times during the day; change_ts identifies the latest change. A cancelled booking has the status CANCELLED. |
+        | Hotel occupancy | Loaded every month into the Delta table **mt_prod.bronze.occupancy** | Columns hotel_id, year, q1, q2, q3 and q4. Each quarter column contains the occupancy rate of the hotel, or NULL when the hotel did not report it. |
+
+        **Jobs.** A Lakeflow job named **job-nightly-bookings** runs every night on job compute. Its first task, **ingest_partner**, calls the HotelHub API. The HotelHub API sometimes returns temporary errors that disappear after a few minutes. A normal run of job-nightly-bookings takes about 40 minutes.
+
+        **Analyst compute.** The analysts share an all-purpose compute resource named **cl-analysts** in standard access mode, with autoscaling between 2 and 8 workers. The analysts complain that cl-analysts takes several minutes to start every morning.
+      fr: |
+        **Azure Databricks.** Margie's Travel dispose d'un espace de travail Premium nommé **adb-mt-prod**, activé pour Unity Catalog. Le catalogue **mt_prod** contient les schémas **bronze** et **silver**.
+
+        **Données des partenaires.** Une plateforme de réservation nommée HotelHub envoie deux types de données :
+
+        | Données | Livraison | Détails |
+        | --- | --- | --- |
+        | Modifications de réservations | Chargées chaque nuit dans la table Delta **mt_prod.bronze.partner_changes**, remplacée à chaque chargement | Mêmes colonnes que la table des réservations. Une réservation peut apparaître plusieurs fois dans un même chargement quand elle a été modifiée plusieurs fois dans la journée ; change_ts identifie la dernière modification. Une réservation annulée a le statut CANCELLED. |
+        | Taux d'occupation des hôtels | Chargés chaque mois dans la table Delta **mt_prod.bronze.occupancy** | Colonnes hotel_id, year, q1, q2, q3 et q4. Chaque colonne de trimestre contient le taux d'occupation de l'hôtel, ou NULL quand l'hôtel ne l'a pas communiqué. |
+
+        **Jobs.** Un job Lakeflow nommé **job-nightly-bookings** s'exécute chaque nuit sur un calcul de jobs. Sa première tâche, **ingest_partner**, appelle l'API HotelHub. L'API HotelHub renvoie parfois des erreurs temporaires qui disparaissent au bout de quelques minutes. Une exécution normale de job-nightly-bookings dure environ 40 minutes.
+
+        **Calcul des analystes.** Les analystes partagent une ressource de calcul polyvalent nommée **cl-analysts** en mode d'accès standard, avec une mise à l'échelle automatique entre 2 et 8 workers. Les analystes se plaignent que cl-analysts met plusieurs minutes à démarrer chaque matin.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Margie's Travel identifies the following requirements.
+
+        **Bookings table**
+
+        1. The table **mt_prod.silver.bookings** must store the booking amount without any rounding error, with two decimal places.
+        2. The check-in date and time must be stored exactly as printed on the hotel voucher, in the local time of the hotel. The stored value must not depend on the time zone of the session that reads or writes it.
+        3. A booking must be for 1 to 60 nights. Any write that contains a booking outside this range must fail.
+        4. Every night, the changes of partner_changes must be applied to silver.bookings: each booking must reflect its latest change, cancelled bookings must not appear in silver.bookings, and bookings that are not in the load must stay unchanged.
+
+        **Occupancy**
+
+        5. The analysts need one row per hotel, year and quarter. A quarter that the hotel did not report must appear as a row with a NULL occupancy rate.
+
+        **Operations**
+
+        6. When ingest_partner fails, it must be retried automatically up to three times. Each attempt must stop after 20 minutes.
+        7. The on-call engineer must be notified when a run of job-nightly-bookings lasts more than 90 minutes. The run must continue.
+      fr: |
+        Margie's Travel a défini les exigences suivantes.
+
+        **Table des réservations**
+
+        1. La table **mt_prod.silver.bookings** doit stocker le montant de la réservation sans aucune erreur d'arrondi, avec deux décimales.
+        2. La date et l'heure d'arrivée doivent être stockées exactement telles qu'elles sont imprimées sur le bon d'échange de l'hôtel, à l'heure locale de l'hôtel. La valeur stockée ne doit pas dépendre du fuseau horaire de la session qui la lit ou l'écrit.
+        3. Une réservation doit porter sur 1 à 60 nuits. Toute écriture qui contient une réservation hors de cette plage doit échouer.
+        4. Chaque nuit, les modifications de partner_changes doivent être appliquées à silver.bookings : chaque réservation doit refléter sa dernière modification, les réservations annulées ne doivent pas figurer dans silver.bookings, et les réservations absentes du chargement doivent rester inchangées.
+
+        **Occupation**
+
+        5. Les analystes ont besoin d'une ligne par hôtel, année et trimestre. Un trimestre que l'hôtel n'a pas communiqué doit apparaître sous forme de ligne avec un taux d'occupation NULL.
+
+        **Exploitation**
+
+        6. Quand ingest_partner échoue, la tâche doit être relancée automatiquement jusqu'à trois fois. Chaque tentative doit s'arrêter au bout de 20 minutes.
+        7. L'ingénieur d'astreinte doit être prévenu quand une exécution de job-nightly-bookings dure plus de 90 minutes. L'exécution doit continuer.

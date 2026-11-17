@@ -1,0 +1,71 @@
+id: dp420-1a-cfg-bicep-account
+objective: "1.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank deploys an Azure Cosmos DB for NoSQL account by using Bicep. The account has a write region in West Europe and a read region in North Europe. The deployment must meet the following requirements:
+
+    - **R1**: if West Europe has an outage, the service must promote North Europe to the write region without manual action;
+    - **R2**: data-plane requests must authenticate with Microsoft Entra ID only, never with account keys.
+
+    How should you complete the Bicep code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank déploie un compte Azure Cosmos DB for NoSQL au moyen de Bicep. Le compte possède une région d'écriture dans West Europe et une région de lecture dans North Europe. Le déploiement doit respecter les exigences suivantes :
+
+    - **R1** : en cas de panne de West Europe, le service doit promouvoir North Europe comme région d'écriture sans action manuelle ;
+    - **R2** : les requêtes du plan de données doivent s'authentifier uniquement avec Microsoft Entra ID, jamais avec les clés du compte.
+
+    Comment devez-vous compléter le code Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource account 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
+      name: 'cosmos-woodgrove-pay'
+      location: 'westeurope'
+      properties: {
+        databaseAccountOfferType: 'Standard'
+        locations: [
+          { locationName: 'westeurope', failoverPriority: 0, isZoneRedundant: true }
+          { locationName: 'northeurope', failoverPriority: 1, isZoneRedundant: true }
+        ]
+        consistencyPolicy: { defaultConsistencyLevel: 'Session' }
+        // R1
+        [[r1]]: true
+        // R2
+        [[r2]]: true
+      }
+    }
+  slots:
+    - id: r1
+      options:
+        - { id: freetier1, text: enableFreeTier }
+        - { id: autofail, text: enableAutomaticFailover }
+        - { id: multiwrite, text: enableMultipleWriteLocations }
+    - id: r2
+      options:
+        - { id: localauth, text: disableLocalAuth }
+        - { id: metadata, text: disableKeyBasedMetadataWriteAccess }
+        - { id: freetier2, text: enableFreeTier }
+answer:
+  values: { r1: autofail, r2: localauth }
+explanation:
+  correct:
+    en: |
+      `enableAutomaticFailover` turns on service-managed failover, which promotes the read region with the next failover priority when the write region becomes unavailable. `disableLocalAuth` disables key-based authorization, so only Microsoft Entra ID authentication remains.
+    fr: |
+      `enableAutomaticFailover` active le basculement géré par le service, qui promeut la région de lecture ayant la priorité de basculement suivante lorsque la région d'écriture devient indisponible. `disableLocalAuth` désactive l'autorisation par clé : seule l'authentification Microsoft Entra ID reste possible.
+  options:
+    multiwrite: { en: "Multi-region writes make every region writable; R1 asks for automatic promotion of a read region in a single-write-region account.", fr: "Les écritures multirégions rendent toutes les régions accessibles en écriture ; R1 demande la promotion automatique d'une région de lecture dans un compte à une seule région d'écriture." }
+    metadata: { en: "disableKeyBasedMetadataWriteAccess blocks changes to resources such as containers through keys, but data-plane requests can still use keys.", fr: "disableKeyBasedMetadataWriteAccess bloque les modifications de ressources comme les conteneurs au moyen des clés, mais les requêtes du plan de données peuvent toujours utiliser les clés." }
+references:
+  - title: Connect using role-based access control and Microsoft Entra ID - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-connect-role-based-access-control
+  - title: Manage Azure Cosmos DB for NoSQL resources using Azure CLI
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/manage-with-cli

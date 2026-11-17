@@ -1,0 +1,75 @@
+id: dp300-cs1a-job-notification
+objective: "4.1.2"
+type: dropdown
+caseStudy: dp300-cs1a-lucerne-logistics
+difficulty: 3
+status: draft
+shuffle: false
+stem:
+  en: |
+    The FreightPurge job and the DBA-Team operator have been re-created on MI1. A Database Mail account named **AgentMail** that uses an authenticated SMTP relay already exists on MI1, and the network security group of the MI1 subnet allows the relay port.
+
+    You need to meet the operations requirements. How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le travail FreightPurge et l'opérateur DBA-Team ont été recréés sur MI1. Un compte Database Mail nommé **AgentMail** qui utilise un relais SMTP authentifié existe déjà sur MI1, et le groupe de sécurité réseau du sous-réseau de MI1 autorise le port du relais.
+
+    Vous devez satisfaire les exigences d'exploitation. Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    EXEC sp_configure 'show advanced options', 1;
+    RECONFIGURE;
+    EXEC sp_configure [[xp]], 1;
+    RECONFIGURE;
+    GO
+    DECLARE @p sysname = [[profile]];
+    EXEC msdb.dbo.sysmail_add_profile_sp
+        @profile_name = @p;
+    EXEC msdb.dbo.sysmail_add_profileaccount_sp
+        @profile_name = @p,
+        @account_name = 'AgentMail',
+        @sequence_number = 1;
+    GO
+    EXEC msdb.dbo.sp_update_job
+        @job_name = N'FreightPurge',
+        @notify_level_email = [[level]],
+        @notify_email_operator_name = N'DBA-Team';
+  slots:
+    - id: xp
+      options:
+        - { id: agentxp, text: "'Agent XPs'" }
+        - { id: mailxp, text: "'Database Mail XPs'" }
+        - { id: cmdshell, text: "'xp_cmdshell'" }
+    - id: profile
+      options:
+        - { id: dba, text: "'DBA-Team'" }
+        - { id: agentmail, text: "'AgentMail'" }
+        - { id: mi, text: "'AzureManagedInstance_dbmail_profile'" }
+    - id: level
+      options:
+        - { id: l1, text: "1" }
+        - { id: l2, text: "2" }
+        - { id: l3, text: "3" }
+answer:
+  values: { xp: mailxp, profile: mi, level: l2 }
+explanation:
+  correct:
+    en: |
+      Database Mail must be enabled with the `Database Mail XPs` option. On SQL Managed Instance, SQL Server Agent sends notifications only through a Database Mail profile named exactly `AzureManagedInstance_dbmail_profile`, so the profile must have that name and the AgentMail account must be added to it. In `sp_update_job`, `@notify_level_email = 2` sends the email on failure only (1 = on success, 3 = on completion).
+    fr: |
+      Database Mail doit être activé avec l'option `Database Mail XPs`. Sur SQL Managed Instance, SQL Server Agent n'envoie des notifications que par un profil Database Mail nommé exactement `AzureManagedInstance_dbmail_profile` : le profil doit porter ce nom et le compte AgentMail doit y être ajouté. Dans `sp_update_job`, `@notify_level_email = 2` envoie l'e-mail uniquement en cas d'échec (1 = en cas de réussite, 3 = à la fin de l'exécution).
+  options:
+    agentxp: { en: "SQL Server Agent always runs on a managed instance and cannot be enabled or disabled; Agent XPs does not enable Database Mail.", fr: "SQL Server Agent s'exécute toujours sur une instance managée et ne peut être ni activé ni désactivé ; Agent XPs n'active pas Database Mail." }
+    cmdshell: { en: "xp_cmdshell runs operating system commands; it has nothing to do with email.", fr: "xp_cmdshell exécute des commandes du système d'exploitation ; il n'a aucun rapport avec l'e-mail." }
+    dba: { en: "DBA-Team is the operator name; SQL Server Agent on a managed instance ignores a profile with any name other than AzureManagedInstance_dbmail_profile.", fr: "DBA-Team est le nom de l'opérateur ; SQL Server Agent sur une instance managée ignore un profil portant un autre nom que AzureManagedInstance_dbmail_profile." }
+    agentmail: { en: "AgentMail is the account name; the profile that SQL Server Agent uses must be named AzureManagedInstance_dbmail_profile.", fr: "AgentMail est le nom du compte ; le profil utilisé par SQL Server Agent doit s'appeler AzureManagedInstance_dbmail_profile." }
+    l1: { en: "Level 1 sends the email when the job succeeds.", fr: "Le niveau 1 envoie l'e-mail quand le travail réussit." }
+    l3: { en: "Level 3 sends the email every time the job completes, which violates \"and only then\".", fr: "Le niveau 3 envoie l'e-mail à chaque fin d'exécution, ce qui contredit « et uniquement dans ce cas »." }
+references:
+  - title: Automate management tasks using SQL Agent jobs in Azure SQL Managed Instance
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/job-automation-managed-instance

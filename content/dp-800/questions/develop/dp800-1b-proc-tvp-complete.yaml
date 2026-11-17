@@ -1,0 +1,78 @@
+id: dp800-1b-proc-tvp-complete
+objective: "1.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Wingtip Toys. The ordering application currently calls a procedure once per order line. You need to send all the lines of an order to a procedure named Sales.usp_AddLines in a single call by using a table-valued parameter.
+
+    How should you complete the Transact-SQL code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Wingtip Toys. L'application de commande appelle actuellement une procédure une fois par ligne de commande. Vous devez envoyer toutes les lignes d'une commande à une procédure nommée Sales.usp_AddLines en un seul appel à l'aide d'un paramètre table.
+
+    Comment devez-vous compléter le code Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TYPE Sales.OrderLineType AS TABLE
+    (
+        ProductID int NOT NULL,
+        Quantity  int NOT NULL
+    );
+    GO
+
+    CREATE OR ALTER PROCEDURE Sales.usp_AddLines
+        @OrderID int,
+        @Lines   Sales.OrderLineType [[mode]]
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        INSERT INTO Sales.OrderLine (OrderID, ProductID, Quantity)
+        SELECT @OrderID, ProductID, Quantity
+        FROM [[src]];
+    END;
+    GO
+
+    DECLARE @l [[decl]];
+    INSERT INTO @l (ProductID, Quantity) VALUES (12, 3), (40, 1);
+    EXECUTE Sales.usp_AddLines @OrderID = 5001, @Lines = @l;
+  slots:
+    - id: mode
+      options:
+        - { id: readonly, text: READONLY }
+        - { id: output, text: OUTPUT }
+        - { id: defnull, text: "= NULL" }
+    - id: src
+      options:
+        - { id: param, text: "@Lines" }
+        - { id: type, text: Sales.OrderLineType }
+        - { id: temp, text: "#Lines" }
+    - id: decl
+      options:
+        - { id: typed, text: Sales.OrderLineType }
+        - { id: anon, text: "TABLE (ProductID int NOT NULL, Quantity int NOT NULL)" }
+        - { id: cursor, text: CURSOR }
+answer:
+  values: { mode: readonly, src: param, decl: typed }
+explanation:
+  correct:
+    en: |
+      A table-valued parameter is declared with a user-defined table type and must be READONLY: the procedure reads it like a table in a FROM clause but cannot modify it. The caller declares a variable of the same table type, inserts the rows into it, and passes the variable to the procedure.
+    fr: |
+      Un paramètre table est déclaré avec un type de table défini par l'utilisateur et doit être READONLY : la procédure le lit comme une table dans une clause FROM mais ne peut pas le modifier. L'appelant déclare une variable du même type de table, y insère les lignes et passe la variable à la procédure.
+  options:
+    output: { en: "Table-valued parameters can only be input parameters; they cannot be declared OUTPUT.", fr: "Les paramètres table ne peuvent être que des paramètres d'entrée ; ils ne peuvent pas être déclarés OUTPUT." }
+    defnull: { en: "READONLY is required for a table-valued parameter; when the caller omits it, an empty table is passed.", fr: "READONLY est obligatoire pour un paramètre table ; quand l'appelant l'omet, une table vide est passée." }
+    type: { en: "The table type is a definition, not data; the rows are in the parameter @Lines.", fr: "Le type de table est une définition, pas des données ; les lignes se trouvent dans le paramètre @Lines." }
+    temp: { en: "No temporary table exists; the procedure receives the rows in the parameter.", fr: "Aucune table temporaire n'existe ; la procédure reçoit les lignes dans le paramètre." }
+    anon: { en: "The argument must be of the user-defined table type of the parameter; a table variable with an inline definition has a different type.", fr: "L'argument doit être du type de table défini par l'utilisateur du paramètre ; une variable de table avec une définition inline a un type différent." }
+    cursor: { en: "A cursor variable cannot receive rows with INSERT and is not a table-valued parameter.", fr: "Une variable curseur ne peut pas recevoir de lignes avec INSERT et n'est pas un paramètre table." }
+references:
+  - title: Use table-valued parameters (Database Engine)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/tables/use-table-valued-parameters-database-engine

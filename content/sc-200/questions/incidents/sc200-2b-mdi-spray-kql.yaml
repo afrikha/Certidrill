@@ -1,0 +1,69 @@
+id: sc200-2b-mdi-spray-kql
+objective: "2.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware uses Microsoft Defender for Identity sensors on its domain controllers and Microsoft Defender XDR advanced hunting. A Defender for Identity alert suggests a password spray against on-premises Active Directory.
+
+    You need an advanced hunting query that finds each source IP address that failed to authenticate against more than 30 different accounts during the last day, as seen by the domain controllers.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware utilise des capteurs Microsoft Defender pour Identity sur ses contrôleurs de domaine et le repérage avancé de Microsoft Defender XDR. Une alerte Defender pour Identity suggère une pulvérisation de mots de passe contre Active Directory local.
+
+    Vous avez besoin d'une requête de repérage avancé qui trouve chaque adresse IP source dont l'authentification a échoué sur plus de 30 comptes différents au cours de la dernière journée, telle que vue par les contrôleurs de domaine.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where Timestamp > ago(1d)
+    | where ActionType == "LogonFailed"
+    | summarize TargetedAccounts = [[agg]](AccountUpn), Attempts = count() by [[key]]
+    | where TargetedAccounts > 30
+  slots:
+    - id: table
+      options:
+        - { id: idlogon, text: IdentityLogonEvents }
+        - { id: devlogon, text: DeviceLogonEvents }
+        - { id: iddir, text: IdentityDirectoryEvents }
+        - { id: alertev, text: AlertEvidence }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+        - { id: set, text: make_set }
+        - { id: argmax, text: arg_max }
+    - id: key
+      options:
+        - { id: ip, text: IPAddress }
+        - { id: upn, text: AccountUpn }
+        - { id: dest, text: DestinationDeviceName }
+        - { id: proto, text: Protocol }
+answer:
+  values: { table: idlogon, agg: dcount, key: ip }
+explanation:
+  correct:
+    en: |
+      `IdentityLogonEvents` contains the Active Directory authentications captured by Defender for Identity, with the source `IPAddress` and the `AccountUpn`. A password spray is one source trying many accounts, so you group by `IPAddress` and count the distinct accounts with `dcount(AccountUpn)`.
+    fr: |
+      `IdentityLogonEvents` contient les authentifications Active Directory capturées par Defender pour Identity, avec l'adresse IP source `IPAddress` et `AccountUpn`. Une pulvérisation de mots de passe est une source qui essaie de nombreux comptes : vous regroupez par `IPAddress` et comptez les comptes distincts avec `dcount(AccountUpn)`.
+  options:
+    devlogon: { en: "DeviceLogonEvents comes from Defender for Endpoint on devices and has no IPAddress column; it isn't the domain controller authentication data from Defender for Identity.", fr: "DeviceLogonEvents provient de Defender for Endpoint sur les appareils et n'a pas de colonne IPAddress ; ce ne sont pas les données d'authentification des contrôleurs de domaine de Defender pour Identity." }
+    iddir: { en: "IdentityDirectoryEvents records directory changes such as group membership changes, not logon failures.", fr: "IdentityDirectoryEvents enregistre des modifications de l'annuaire, comme les changements d'appartenance aux groupes, pas des échecs d'ouverture de session." }
+    alertev: { en: "AlertEvidence stores the entities of alerts, not every authentication attempt.", fr: "AlertEvidence stocke les entités des alertes, pas chaque tentative d'authentification." }
+    count: { en: "count() counts all failed attempts, including repeated attempts on the same account.", fr: "count() compte toutes les tentatives échouées, y compris celles répétées sur le même compte." }
+    set: { en: "make_set() returns an array, which can't be compared with 30.", fr: "make_set() renvoie un tableau, qui ne peut pas être comparé à 30." }
+    upn: { en: "Grouping by account finds brute force against one account, not one source spraying many accounts.", fr: "Regrouper par compte trouve une attaque par force brute contre un compte, pas une source qui vise de nombreux comptes." }
+    dest: { en: "Grouping by domain controller mixes all sources together.", fr: "Regrouper par contrôleur de domaine mélange toutes les sources." }
+references:
+  - title: IdentityLogonEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitylogonevents-table

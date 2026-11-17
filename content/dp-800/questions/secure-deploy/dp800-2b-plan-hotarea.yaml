@@ -1,0 +1,75 @@
+id: dp800-2b-plan-hotarea
+objective: "2.2.3"
+type: hotarea
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind has the following query in a database in Azure SQL Database. The `Email` column of `dbo.Customer` is `varchar(320)` and is indexed by `IX_Customer_Email`. The application passes `@Email` as `nvarchar(320)`.
+
+    ```sql
+    SELECT o.OrderID, o.OrderDate, o.TotalDue
+    FROM dbo.Customer AS c
+    JOIN dbo.Orders AS o ON o.CustomerID = c.CustomerID
+    WHERE c.Email = @Email;
+    ```
+
+    The actual execution plan contains the operators shown in the following table.
+
+    Answer each prompt by selecting the appropriate operator.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind dispose de la requête suivante dans une base de données Azure SQL Database. La colonne `Email` de `dbo.Customer` est de type `varchar(320)` et est indexée par `IX_Customer_Email`. L'application transmet `@Email` en `nvarchar(320)`.
+
+    ```sql
+    SELECT o.OrderID, o.OrderDate, o.TotalDue
+    FROM dbo.Customer AS c
+    JOIN dbo.Orders AS o ON o.CustomerID = c.CustomerID
+    WHERE c.Email = @Email;
+    ```
+
+    Le plan d'exécution réel contient les opérateurs indiqués dans le tableau suivant.
+
+    Répondez à chaque consigne en sélectionnant l'opérateur approprié.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text:
+        en: |
+          The operator that would no longer appear if OrderDate and TotalDue were added as included columns of IX_Orders_CustomerID
+        fr: |
+          L'opérateur qui n'apparaîtrait plus si OrderDate et TotalDue étaient ajoutées comme colonnes incluses de IX_Orders_CustomerID
+    - id: p2
+      text:
+        en: |
+          The operator that reads every row of its index because of a data type mismatch
+        fr: |
+          L'opérateur qui lit toutes les lignes de son index à cause d'une incompatibilité de types de données
+  grid:
+    header:
+      - { en: Node, fr: Nœud }
+      - { en: Operator, fr: Opérateur }
+      - { en: Object, fr: Objet }
+      - { en: Predicate or seek predicate, fr: Prédicat ou prédicat de recherche }
+      - { en: Actual rows, fr: Lignes réelles }
+    rows:
+      - [{ text: "1" }, { text: "Nested Loops (Inner Join)", area: n1 }, { text: "-" }, { text: "-" }, { text: "14" }]
+      - [{ text: "2" }, { text: "Index Scan", area: n2 }, { text: "IX_Customer_Email" }, { text: "CONVERT_IMPLICIT(nvarchar(320),[c].[Email],0)=[@Email]" }, { text: "1" }]
+      - [{ text: "3" }, { text: "Index Seek", area: n3 }, { text: "IX_Orders_CustomerID" }, { text: "[o].[CustomerID]=[c].[CustomerID]" }, { text: "14" }]
+      - [{ text: "4" }, { text: "Key Lookup (Clustered)", area: n4 }, { text: "PK_Orders" }, { text: "[PK_Orders].[OrderID]=[o].[OrderID]" }, { text: "14" }]
+answer:
+  values: { p1: n4, p2: n2 }
+explanation:
+  correct:
+    en: |
+      The Key Lookup fetches OrderDate and TotalDue from the clustered index because IX_Orders_CustomerID doesn't cover them; adding them with INCLUDE makes the nonclustered index covering and removes the lookup. On IX_Customer_Email, the engine converts every varchar Email value to nvarchar to compare it with the parameter (CONVERT_IMPLICIT on the column), so it can't seek and scans the whole index; passing @Email as varchar restores the seek.
+    fr: |
+      Key Lookup récupère OrderDate et TotalDue dans l'index cluster, car IX_Orders_CustomerID ne les couvre pas ; les ajouter avec INCLUDE rend l'index non cluster couvrant et supprime la recherche de clé. Sur IX_Customer_Email, le moteur convertit chaque valeur varchar de Email en nvarchar pour la comparer au paramètre (CONVERT_IMPLICIT sur la colonne) : il ne peut pas effectuer de recherche et analyse tout l'index ; transmettre @Email en varchar rétablit la recherche.
+references:
+  - title: Create indexes with included columns
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/indexes/create-indexes-with-included-columns
+  - title: Data type precedence (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/data-types/data-type-precedence-transact-sql

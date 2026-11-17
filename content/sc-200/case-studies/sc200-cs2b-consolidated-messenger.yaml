@@ -1,0 +1,90 @@
+id: sc200-cs2b-consolidated-messenger
+status: draft
+title:
+  en: "Consolidated Messenger"
+  fr: "Consolidated Messenger"
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Consolidated Messenger is a parcel delivery company with 9,000 couriers. Its parcel tracking platform runs entirely in Azure.
+
+        A cloud security team of five analysts monitors the platform. The team works in the Microsoft Defender portal.
+      fr: |
+        Consolidated Messenger est une entreprise de livraison de colis qui emploie 9 000 coursiers. Sa plateforme de suivi des colis s'exécute entièrement dans Azure.
+
+        Une équipe de sécurité cloud de cinq analystes surveille la plateforme. L'équipe travaille dans le portail Microsoft Defender.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure**
+
+        The platform uses 18 Azure subscriptions under a management group named **MG-CM-Prod**. The platform team adds two or three subscriptions every month. The workloads include Azure Kubernetes Service (AKS) clusters, Azure SQL databases, storage accounts, key vaults and virtual machines. Azure Firewall Premium inspects all outbound traffic.
+
+        Microsoft Defender for Cloud is enabled on all subscriptions with the Defender for Servers Plan 2, Defender for Containers, Defender for Key Vault and Defender for Storage plans. The virtual machines are onboarded to Microsoft Defender for Endpoint.
+
+        An authorized vulnerability scanner named SCAN-VM1 scans the key vaults every night from the IP address 10.20.4.15. Each scan raises a Defender for Key Vault alert.
+
+        **Microsoft Sentinel**
+
+        A Microsoft Sentinel workspace named **law-cm-sec** is onboarded to the Defender portal, and the Microsoft Sentinel data lake is enabled for the tenant. The current configuration includes:
+
+        | Item | Configuration |
+        | --- | --- |
+        | AZFWNetworkRule, AZFWApplicationRule | Azure Firewall resource-specific tables, about 600 GB per day, Analytics tier with 90 days of retention. No analytics rule uses them. |
+        | DeviceProcessEvents | Defender XDR table, default advanced hunting retention only |
+        | Analytics rules | 40 scheduled rules and 12 near-real-time (NRT) rules |
+        | pb-teams-notify | Playbook that uses the Microsoft Sentinel incident trigger and posts a message to a Microsoft Teams channel. It is stored in a resource group named **rg-soc-playbooks**. |
+        | FwMonthly | Scheduled KQL job that runs on the first day of each month. It reads the previous month of AZFWNetworkRule data and writes the results to a new table named **FwMonthly_KQL_CL**. |
+      fr: |
+        **Azure**
+
+        La plateforme utilise 18 abonnements Azure sous un groupe d'administration nommé **MG-CM-Prod**. L'équipe plateforme ajoute deux ou trois abonnements chaque mois. Les charges de travail comprennent des clusters Azure Kubernetes Service (AKS), des bases de données Azure SQL, des comptes de stockage, des coffres de clés et des machines virtuelles. Pare-feu Azure Premium inspecte tout le trafic sortant.
+
+        Microsoft Defender pour le cloud est activé sur tous les abonnements avec les plans Defender pour serveurs Plan 2, Defender pour conteneurs, Defender pour Key Vault et Defender pour le stockage. Les machines virtuelles sont intégrées à Microsoft Defender pour point de terminaison.
+
+        Un scanner de vulnérabilités autorisé nommé SCAN-VM1 analyse les coffres de clés chaque nuit depuis l'adresse IP 10.20.4.15. Chaque analyse déclenche une alerte Defender pour Key Vault.
+
+        **Microsoft Sentinel**
+
+        Un espace de travail Microsoft Sentinel nommé **law-cm-sec** est intégré au portail Defender, et le data lake Microsoft Sentinel est activé pour le locataire. La configuration actuelle comprend :
+
+        | Élément | Configuration |
+        | --- | --- |
+        | AZFWNetworkRule, AZFWApplicationRule | Tables spécifiques aux ressources de Pare-feu Azure, environ 600 Go par jour, niveau Analytics avec 90 jours de rétention. Aucune règle d'analytique ne les utilise. |
+        | DeviceProcessEvents | Table Defender XDR, rétention par défaut du repérage avancé uniquement |
+        | Règles d'analytique | 40 règles planifiées et 12 règles quasi en temps réel (NRT) |
+        | pb-teams-notify | Playbook qui utilise le déclencheur d'incident Microsoft Sentinel et publie un message dans un canal Microsoft Teams. Il est stocké dans un groupe de ressources nommé **rg-soc-playbooks**. |
+        | FwMonthly | Tâche KQL planifiée qui s'exécute le premier jour de chaque mois. Elle lit le mois précédent de données AZFWNetworkRule et écrit les résultats dans une nouvelle table nommée **FwMonthly_KQL_CL**. |
+  - key: problems
+    title: { en: "Problem statements", fr: "Problèmes" }
+    body:
+      en: |
+        - In FwMonthly_KQL_CL, the TimeGenerated value of most rows is the time of the job run instead of the time of the firewall event.
+        - An automation rule that a security engineer created to run pb-teams-notify fails each time it tries to run the playbook.
+      fr: |
+        - Dans FwMonthly_KQL_CL, la valeur TimeGenerated de la plupart des lignes est l'heure d'exécution de la tâche au lieu de l'heure de l'événement du pare-feu.
+        - Une règle d'automatisation créée par un ingénieur sécurité pour exécuter pb-teams-notify échoue chaque fois qu'elle tente d'exécuter le playbook.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        1. The Azure activity logs of all the current and future subscriptions in MG-CM-Prod must be collected in law-cm-sec.
+        2. The Azure Firewall logs must be kept for one year for compliance at the lowest possible cost. They are queried only by KQL jobs.
+        3. DeviceProcessEvents data from the last 180 days must be available to Microsoft Sentinel scheduled analytics rules.
+        4. FwMonthly_KQL_CL must contain the original time of each firewall event.
+        5. When an Owner role assignment is created at a subscription scope, a Microsoft Sentinel analytics rule must raise an alert within about one minute after the AzureActivity record is ingested.
+        6. pb-teams-notify must run automatically for every new high-severity incident.
+        7. The alerts raised by the nightly scans of SCAN-VM1 must be dismissed automatically. The alerts for any other source of activity on the key vaults must remain active.
+        8. Administrative effort must be minimized.
+      fr: |
+        1. Les journaux d'activité Azure de tous les abonnements actuels et futurs de MG-CM-Prod doivent être collectés dans law-cm-sec.
+        2. Les journaux de Pare-feu Azure doivent être conservés un an pour la conformité, au coût le plus bas possible. Ils ne sont interrogés que par des tâches KQL.
+        3. Les données DeviceProcessEvents des 180 derniers jours doivent être disponibles pour les règles d'analytique planifiées Microsoft Sentinel.
+        4. FwMonthly_KQL_CL doit contenir l'heure d'origine de chaque événement du pare-feu.
+        5. Quand une attribution du rôle Owner est créée à l'étendue d'un abonnement, une règle d'analytique Microsoft Sentinel doit déclencher une alerte environ une minute après l'ingestion de l'enregistrement AzureActivity.
+        6. pb-teams-notify doit s'exécuter automatiquement pour chaque nouvel incident de gravité élevée.
+        7. Les alertes déclenchées par les analyses nocturnes de SCAN-VM1 doivent être ignorées automatiquement. Les alertes pour toute autre source d'activité sur les coffres de clés doivent rester actives.
+        8. L'effort d'administration doit être réduit au minimum.

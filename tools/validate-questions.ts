@@ -1,15 +1,20 @@
 /**
  * Validates individual content files (questions, case studies, series) and
  * reports EVERY problem, without needing the rest of the bank to be valid.
+ *   npm run content:validate -- --cert az-900                (every file and the course of AZ-900)
+ *   npm run content:validate -- --cert all                   (every certification)
+ *   npm run content:validate -- --cert az-104 --prefix s1-   (files whose id starts with s1-)
  *   npm run content:validate -- content/az-104/questions/storage/s1-*.yaml
- *   npm run content:validate -- --prefix s1-        (all files whose id starts with s1-)
- *   npm run content:validate                        (the courses only)
- *   npm run content:validate -- --course            (the courses, with files or --prefix too)
+ *   npm run content:validate -- --prefix s1-                 (that prefix, in every certification)
+ *   npm run content:validate                                 (the courses only, every certification)
+ *   npm run content:validate -- --cert dp-900 --course --chapters 10-core-data,11-relational
  * Checks: YAML syntax, Zod schema, answer/body consistency, file name = id,
  * known objective in the right domain folder, existing case study / series.
- * Without file nor --prefix, or with --course, it checks the course of each
- * certification (lib/content/course.ts: files, EN/FR parity, objectives,
- * Markdown, references); a run on given questions checks those questions only.
+ * The course of a certification (lib/content/course.ts: files, EN/FR parity,
+ * objectives, Markdown, references) is checked with --cert alone, without
+ * any argument (every course), or with --course; `--chapters` keeps the
+ * problems of those chapters only. Given files or --prefix check those files
+ * only, unless --course is added.
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -18,8 +23,7 @@ import { listCertificationDirs, loadCertification } from "../lib/content/loader"
 import { formatProblem, validateCourse } from "../lib/content/course";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
 import { compareCodeUnits } from "../lib/sort";
-
-const root = path.resolve("content/az-104");
+import { certOfFile, parseCertArgs } from "./cert-args";
 
 async function listYaml(dir: string): Promise<string[]> {
   try {
@@ -36,7 +40,7 @@ function schemaFor(folder: string | undefined) {
   return questionFileSchema;
 }
 
-type Context = { objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string> };
+type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string> };
 type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string };
 
 /** Problems of a question that passed its schema: objective, folder, case study, series. */
@@ -58,7 +62,7 @@ function validateFile(file: string, text: string, ctx: Context): { problems: str
   } catch (e) {
     return { problems: [`YAML: ${(e as Error).message.split("\n")[0]}`] };
   }
-  const rel = path.relative(root, file).split(path.sep);
+  const rel = path.relative(ctx.root, file).split(path.sep);
   const r = schemaFor(rel[0]).safeParse(raw);
   if (!r.success) return { problems: r.error.issues.map((i) => `${i.path.map(String).join(".") || "(root)"}: ${i.message}`) };
   const data = r.data as FileData;
@@ -67,26 +71,61 @@ function validateFile(file: string, text: string, ctx: Context): { problems: str
   return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], type: data.type };
 }
 
-async function main() {
-  const given = process.argv.slice(2);
-  const args = given.filter((a) => a !== "--course");
-  const checkCourses = args.length === 0 || args.length < given.length;
-  const prefixIdx = args.indexOf("--prefix");
+interface Options {
+  /** Certification folders to look at. */
+  dirs: string[];
+  /** Given files (absolute), or null. */
+  files: string[] | null;
+  prefix: string | null;
+  checkCourses: boolean;
+  chapters: string[];
+}
+
+async function parseOptions(argv: string[]): Promise<Options> {
+  const { dirs, rest } = await parseCertArgs(argv);
+  let prefix: string | null = null;
+  let chapters: string[] = [];
+  let course = false;
+  const files: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i]!;
+    if (a === "--course") course = true;
+    else if (a === "--prefix") prefix = rest[++i] ?? "";
+    else if (a === "--chapters") chapters = (rest[++i] ?? "").split(",").filter(Boolean);
+    else if (a.startsWith("--")) throw new Error(`unknown option ${a}`);
+    else files.push(path.resolve(a));
+  }
+  const all = await listCertificationDirs();
+  // Given files say which certifications they belong to.
+  const ofFiles = new Set(files.map((f) => certOfFile(f)).filter(Boolean));
+  const chosen = dirs ?? (files.length > 0 ? all.filter((d) => ofFiles.has(path.basename(d))) : all);
+  const onlyQuestions = files.length > 0 || prefix !== null;
+  return {
+    dirs: chosen,
+    files: files.length > 0 ? files : null,
+    prefix,
+    // Without --cert nor files: the courses only (the questions are checked by content:check).
+    checkCourses: course || !onlyQuestions,
+    chapters,
+  };
+}
+
+/** Validates the question files of one certification that the options select; returns the number of problems, or null when none was selected. */
+async function validateQuestions(root: string, opts: Options, wholeBank: boolean): Promise<number | null> {
   const [questions, caseStudies, series] = await Promise.all(["questions", "case-studies", "series"].map((d) => listYaml(path.join(root, d))));
   const all = [...questions!, ...caseStudies!, ...series!];
   let files: string[];
-  if (prefixIdx >= 0) {
-    const prefix = args[prefixIdx + 1] ?? "";
-    files = all.filter((f) => path.basename(f).startsWith(prefix));
-  } else {
-    files = args.map((f) => path.resolve(f));
-  }
-  if (files.length === 0 && args.length > 0) throw new Error("no file to validate");
+  if (opts.files) files = opts.files.filter((f) => !path.relative(root, f).startsWith(".."));
+  else if (opts.prefix !== null) files = all.filter((f) => path.basename(f).startsWith(opts.prefix!));
+  else if (wholeBank) files = all;
+  else return null;
+  if (files.length === 0) return null;
 
   const content = await loadCertification(root);
   const objectiveDomain = new Map<string, string>();
   for (const [domain, groups] of Object.entries(content.objectives)) for (const g of groups) for (const o of g.objectives) objectiveDomain.set(o.code, domain);
   const ctx: Context = {
+    root,
     objectiveDomain,
     caseIds: new Set(caseStudies!.map((f) => path.basename(f, ".yaml"))),
     seriesIds: new Set(series!.map((f) => path.basename(f, ".yaml"))),
@@ -104,32 +143,52 @@ async function main() {
     if (type) byType.set(type, (byType.get(type) ?? 0) + 1);
   });
   const types = [...byType].map(([k, v]) => k + "=" + v).join(" ");
-  if (files.length > 0) console.log(`${files.length} files, ${errors} problem(s). Types: ${types}`);
-  const courseErrors = checkCourses ? await validateCourses() : 0;
-  process.exit(errors + courseErrors ? 1 : 0);
+  console.log(`${content.blueprint.certification.code}: ${files.length} files, ${errors} problem(s). Types: ${types}`);
+  return errors;
 }
 
-/** Checks the course of every certification that has one; returns the number of problems. */
-async function validateCourses(): Promise<number> {
+/** Checks the course of each certification that has one; returns the number of problems. */
+async function validateCourses(dirs: string[], chapters: string[]): Promise<number> {
   // Certifications are independent: check them all at once, report in order.
   const reports = await Promise.all(
-    (await listCertificationDirs()).map(async (dir) => {
+    dirs.map(async (dir) => {
       const content = await loadCertification(dir);
       return { code: content.blueprint.certification.code, objectives: Object.values(content.objectives).flat().flatMap((g) => g.objectives).length, report: await validateCourse(content) };
     }),
   );
+  const mine = (file: string) => chapters.length === 0 || chapters.some((id) => path.basename(file).startsWith(`${id}.`));
   let problems = 0;
   for (const { code, objectives, report } of reports) {
     if (!report) continue;
-    for (const p of report.problems) console.log(`✘ ${formatProblem(p)}`);
-    problems += report.problems.length;
-    const chapters = report.course?.chapters ?? [];
-    const sections = chapters.flatMap((c) => c.sections);
+    const shown = report.problems.filter((p) => mine(p.file));
+    for (const p of shown) console.log(`✘ ${formatProblem(p)}`);
+    problems += shown.length;
+    const all = report.course?.chapters ?? [];
+    const sections = all.flatMap((c) => c.sections);
     const covered = new Set(sections.flatMap((s) => s.objectives)).size;
-    const summary = report.course ? `${chapters.length} chapters, ${sections.length} sections, ${covered}/${objectives} objectives covered, ` : "";
-    console.log(`Course ${code}: ${summary}${report.problems.length} problem(s).`);
+    const summary = report.course ? `${all.length} chapters, ${sections.length} sections, ${covered}/${objectives} objectives covered, ` : "";
+    const scope = chapters.length > 0 ? ` in ${chapters.join(", ")} (all chapters: ${report.problems.length})` : "";
+    console.log(`Course ${code}: ${summary}${shown.length} problem(s)${scope}.`);
   }
   return problems;
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const opts = await parseOptions(argv);
+  // --cert alone: the whole bank of each certification asked for.
+  const wholeBank = argv.some((a) => a === "--cert" || a.startsWith("--cert=")) && !opts.files && opts.prefix === null;
+  let errors = 0;
+  let selected = 0;
+  // One certification after the other, so that the output stays grouped.
+  for (const dir of opts.dirs) {
+    const n = await validateQuestions(dir, opts, wholeBank); // NOSONAR: sequential on purpose (readable output)
+    if (n !== null) selected += 1;
+    errors += n ?? 0;
+  }
+  if (selected === 0 && (opts.files || opts.prefix !== null)) throw new Error("no file to validate");
+  const courseErrors = opts.checkCourses ? await validateCourses(opts.dirs, opts.chapters) : 0;
+  process.exit(errors + courseErrors ? 1 : 0);
 }
 
 try {

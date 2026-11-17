@@ -1,6 +1,6 @@
 /**
  * Chapter statuses of a course manifest (course.yaml), changed by
- * `npm run content:status -- <status> <chapter-prefix|all> --course`.
+ * `npm run content:status -- --cert <code|all> <status> <chapter-prefix|all> --course`.
  * The file is edited line by line so that its layout and comments stay as
  * they are; the caller checks the result against the schema before writing.
  */

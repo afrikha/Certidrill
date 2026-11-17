@@ -1,0 +1,80 @@
+id: ai103-1b-retry-python
+objective: "1.3.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum has a Python application that calls a Standard deployment named **chat-prod** through the `openai` package. During bursts, some requests return HTTP 429.
+
+    You need to update the application to meet the following requirements:
+
+    - Throttled requests must be retried automatically with exponential back-off, up to five times, without a custom retry library.
+    - The application must read how many tokens remain in the current rate-limit window so that it can slow down before it's throttled.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum dispose d'une application Python qui appelle un déploiement Standard nommé **chat-prod** au moyen du package `openai`. Lors des rafales, certaines requêtes renvoient HTTP 429.
+
+    Vous devez mettre à jour l'application pour répondre aux exigences suivantes :
+
+    - Les requêtes limitées doivent être relancées automatiquement avec une temporisation exponentielle, jusqu'à cinq fois, sans bibliothèque de nouvelle tentative personnalisée.
+    - L'application doit lire le nombre de jetons restants dans la fenêtre de limite de débit actuelle afin de ralentir avant d'être limitée.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+    from openai import AzureOpenAI
+
+    token_provider = get_bearer_token_provider(
+        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+    )
+
+    client = AzureOpenAI(
+        azure_endpoint="https://adatum-ai.openai.azure.com/",
+        azure_ad_token_provider=token_provider,
+        api_version="2024-10-21",
+        [[retry]]=5,
+    )
+
+    raw = client.chat.completions.with_raw_response.create(
+        model="chat-prod",
+        messages=[{"role": "user", "content": "Summarize ticket 8812."}],
+    )
+    remaining = int(raw.headers.get([[hdr]]))
+  slots:
+    - id: retry
+      options:
+        - { id: maxr, text: max_retries }
+        - { id: timeout, text: timeout }
+        - { id: maxtok, text: max_tokens }
+    - id: hdr
+      options:
+        - { id: remtok, text: "\"x-ratelimit-remaining-tokens\"" }
+        - { id: limtok, text: "\"x-ratelimit-limit-tokens\"" }
+        - { id: retryms, text: "\"retry-after-ms\"" }
+        - { id: spill, text: "\"x-ms-spillover-deployment\"" }
+answer:
+  values: { retry: maxr, hdr: remtok }
+explanation:
+  correct:
+    en: |
+      The `max_retries` parameter of the client enables the SDK's built-in exponential back-off on 429 and transient errors. Every response includes `x-ratelimit-remaining-tokens` and `x-ratelimit-remaining-requests`, which tell how much of the limit is left, so the application can throttle itself before it receives a 429.
+    fr: |
+      Le paramètre `max_retries` du client active la temporisation exponentielle intégrée du SDK pour les erreurs 429 et transitoires. Chaque réponse contient `x-ratelimit-remaining-tokens` et `x-ratelimit-remaining-requests`, qui indiquent la part restante de la limite : l'application peut ainsi se limiter avant de recevoir une erreur 429.
+  options:
+    timeout: { en: "timeout sets how long the client waits for a response; it doesn't retry.", fr: "timeout définit la durée d'attente d'une réponse ; il ne relance pas." }
+    maxtok: { en: "max_tokens is a request parameter that caps the output; it isn't a client setting for retries.", fr: "max_tokens est un paramètre de requête qui plafonne la sortie ; ce n'est pas un réglage de nouvelle tentative du client." }
+    limtok: { en: "x-ratelimit-limit-tokens is the limit of the deployment, not what remains.", fr: "x-ratelimit-limit-tokens est la limite du déploiement, pas ce qui reste." }
+    retryms: { en: "retry-after-ms is returned with a 429 to say how long to wait; it doesn't report the remaining tokens.", fr: "retry-after-ms est renvoyé avec une erreur 429 pour indiquer le délai d'attente ; il n'indique pas les jetons restants." }
+    spill: { en: "x-ms-spillover-deployment is a request header for spillover of provisioned deployments.", fr: "x-ms-spillover-deployment est un en-tête de requête pour le débordement des déploiements provisionnés." }
+references:
+  - title: Manage Azure OpenAI in Microsoft Foundry Models quota (classic)
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/quota

@@ -1,0 +1,107 @@
+id: dp800-cs4a-proseware
+status: draft
+title:
+  en: "Proseware, Inc."
+  fr: "Proseware, Inc."
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Proseware, Inc. runs an online learning platform that sells video courses to adult learners in Europe and North America. The development team is building **Tutor**, an assistant that answers learners' questions from the transcripts of the lessons, and is tightening the security and the release process of the learning database.
+      fr: |
+        Proseware, Inc. exploite une plateforme d'apprentissage en ligne qui vend des cours vidéo à des apprenants adultes en Europe et en Amérique du Nord. L'équipe de développement crée **Tutor**, un assistant qui répond aux questions des apprenants à partir des transcriptions des leçons, et renforce la sécurité et le processus de mise en production de la base de données d'apprentissage.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Database**
+
+        - An Azure SQL Database logical server named **sql-proseware** hosts a database named **LearningDb** (compatibility level 170). A Microsoft Entra group is the Microsoft Entra admin of the server. The system-assigned managed identity of sql-proseware has the Cognitive Services OpenAI User role on an Azure OpenAI resource named **aoai-proseware**, which has a chat deployment named **tutor-chat**.
+        - LearningDb contains a database scoped credential named `[https://aoai-proseware.openai.azure.com]` that uses `IDENTITY = 'Managed Identity'`, and an external model named **TranscriptEmbeddings** that returns 1,536 dimensions.
+        - **dbo.Lessons** contains LessonId (int, primary key), CourseId, Title and Transcript (nvarchar(max)). A transcript contains about 60,000 characters.
+        - **dbo.LessonChunks** is empty. Its columns are ChunkId (int IDENTITY, primary key), LessonId (int, foreign key to dbo.Lessons), ChunkOrder (bigint), ChunkText (nvarchar(max)) and Embedding (vector(1536), NULL).
+        - **dbo.Learners** contains LearnerId, FullName, Email (nvarchar(320)), Phone (varchar(20)) and CountryCode. The Email column is masked with the `email()` function. No other column is masked.
+        - **dbo.QuizAttempts** contains AttemptId (int IDENTITY, primary key), LearnerId, QuizId, Score (decimal(5,2)) and SubmittedAt (datetime2(0)).
+        - The database users **sg-support** and **sg-billing** are created from Microsoft Entra groups. Both have SELECT permission on dbo.Learners and no other permission.
+
+        **Tutor API**
+
+        - An Azure App Service web app named **app-proseware-tutor** hosts the Tutor API and has a system-assigned managed identity. The API currently connects to LearningDb with a SQL login whose password is stored in an app setting.
+        - The API runs only the stored procedures of the **Api** schema. A developer is writing a stored procedure named **Api.AskTutor** that retrieves the closest chunks, builds the prompt and calls tutor-chat.
+
+        **Development**
+
+        - An Azure Repos Git repository named **proseware-data** contains an SDK-style SQL database project in the **/LearningDb/** folder.
+        - A YAML pipeline in Azure Pipelines builds the project and deploys the .dacpac file. Its deployment job targets an environment named **production** and uses an Azure Resource Manager service connection named **sc-learningdb-prod**.
+      fr: |
+        **Base de données**
+
+        - Un serveur logique Azure SQL Database nommé **sql-proseware** héberge une base de données nommée **LearningDb** (niveau de compatibilité 170). Un groupe Microsoft Entra est l'administrateur Microsoft Entra du serveur. L'identité managée affectée par le système de sql-proseware dispose du rôle Cognitive Services OpenAI User sur une ressource Azure OpenAI nommée **aoai-proseware**, qui contient un déploiement de conversation nommé **tutor-chat**.
+        - LearningDb contient des informations d'identification délimitées à la base de données nommées `[https://aoai-proseware.openai.azure.com]` qui utilisent `IDENTITY = 'Managed Identity'`, ainsi qu'un modèle externe nommé **TranscriptEmbeddings** qui renvoie 1 536 dimensions.
+        - **dbo.Lessons** contient LessonId (int, clé primaire), CourseId, Title et Transcript (nvarchar(max)). Une transcription contient environ 60 000 caractères.
+        - **dbo.LessonChunks** est vide. Ses colonnes sont ChunkId (int IDENTITY, clé primaire), LessonId (int, clé étrangère vers dbo.Lessons), ChunkOrder (bigint), ChunkText (nvarchar(max)) et Embedding (vector(1536), NULL).
+        - **dbo.Learners** contient LearnerId, FullName, Email (nvarchar(320)), Phone (varchar(20)) et CountryCode. La colonne Email est masquée avec la fonction `email()`. Aucune autre colonne n'est masquée.
+        - **dbo.QuizAttempts** contient AttemptId (int IDENTITY, clé primaire), LearnerId, QuizId, Score (decimal(5,2)) et SubmittedAt (datetime2(0)).
+        - Les utilisateurs de base de données **sg-support** et **sg-billing** sont créés à partir de groupes Microsoft Entra. Tous deux disposent de l'autorisation SELECT sur dbo.Learners et d'aucune autre autorisation.
+
+        **API Tutor**
+
+        - Une application web Azure App Service nommée **app-proseware-tutor** héberge l'API Tutor et dispose d'une identité managée affectée par le système. L'API se connecte actuellement à LearningDb avec une connexion SQL dont le mot de passe est stocké dans un paramètre d'application.
+        - L'API n'exécute que les procédures stockées du schéma **Api**. Un développeur écrit une procédure stockée nommée **Api.AskTutor** qui récupère les blocs les plus proches, construit le prompt et appelle tutor-chat.
+
+        **Développement**
+
+        - Un dépôt Git Azure Repos nommé **proseware-data** contient un projet de base de données SQL de style SDK dans le dossier **/LearningDb/**.
+        - Un pipeline YAML dans Azure Pipelines génère le projet et déploie le fichier .dacpac. Son travail de déploiement cible un environnement nommé **production** et utilise une connexion de service Azure Resource Manager nommée **sc-learningdb-prod**.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Tutor requirements**
+
+        1. Each transcript must be split into chunks of 2,000 characters. Two consecutive chunks of the same lesson must share 200 characters. Each chunk must keep its lesson and its position in the lesson.
+        2. In Api.AskTutor, the grounding rules (answer only from the excerpts, say so when the excerpts do not contain the answer) must be sent as instructions for the whole conversation, separately from the excerpts and the learner's question.
+        3. The database user of the Tutor API must be able to call tutor-chat from Api.AskTutor by using the least privilege.
+        4. Api.AskTutor must raise an error for every response whose HTTP status is not 2xx.
+
+        **Security requirements**
+
+        5. The Tutor API must connect to LearningDb by using the system-assigned managed identity of app-proseware-tutor. No password or other secret for LearningDb can be stored in the app, in its settings or in Azure Key Vault.
+        6. Support agents (sg-support) must see only the last four digits of a learner's phone number.
+        7. The billing team (sg-billing) must see the real email addresses, but no other masked value. Email must remain masked for every other user who is not an administrator.
+
+        **Reporting requirements**
+
+        8. A learner dashboard must return one row per learner and quiz, even when two attempts have the same SubmittedAt value. The row shows the score of the latest attempt and the difference from the previous attempt, or NULL when there is no previous attempt.
+
+        **Release requirements**
+
+        9. A pull request that changes a file in /LearningDb/ must not complete until a member of the DBA group approves it.
+        10. A pull request into main must not complete unless the SQL project builds successfully.
+        11. A deployment to production must wait for the sign-off of a release manager.
+        12. sc-learningdb-prod must be usable only by pipeline runs from the main branch, even if someone edits the pipeline YAML file.
+      fr: |
+        **Exigences de Tutor**
+
+        1. Chaque transcription doit être découpée en blocs de 2 000 caractères. Deux blocs consécutifs d'une même leçon doivent partager 200 caractères. Chaque bloc doit conserver sa leçon et sa position dans la leçon.
+        2. Dans Api.AskTutor, les règles d'ancrage (répondre uniquement à partir des extraits, le signaler quand les extraits ne contiennent pas la réponse) doivent être envoyées comme instructions pour toute la conversation, séparément des extraits et de la question de l'apprenant.
+        3. L'utilisateur de base de données de l'API Tutor doit pouvoir appeler tutor-chat depuis Api.AskTutor avec le moindre privilège.
+        4. Api.AskTutor doit lever une erreur pour chaque réponse dont le statut HTTP n'est pas 2xx.
+
+        **Exigences de sécurité**
+
+        5. L'API Tutor doit se connecter à LearningDb à l'aide de l'identité managée affectée par le système d'app-proseware-tutor. Aucun mot de passe ni autre secret pour LearningDb ne peut être stocké dans l'application, dans ses paramètres ou dans Azure Key Vault.
+        6. Les agents du support (sg-support) ne doivent voir que les quatre derniers chiffres du numéro de téléphone d'un apprenant.
+        7. L'équipe de facturation (sg-billing) doit voir les vraies adresses e-mail, mais aucune autre valeur masquée. Email doit rester masquée pour tout autre utilisateur qui n'est pas administrateur.
+
+        **Exigences de création de rapports**
+
+        8. Un tableau de bord des apprenants doit renvoyer une ligne par apprenant et par questionnaire, même quand deux tentatives ont la même valeur SubmittedAt. La ligne affiche le score de la dernière tentative et l'écart avec la tentative précédente, ou NULL quand il n'y a pas de tentative précédente.
+
+        **Exigences de mise en production**
+
+        9. Une pull request qui modifie un fichier de /LearningDb/ ne doit pas pouvoir être terminée avant qu'un membre du groupe DBA l'approuve.
+        10. Une pull request vers main ne doit pas pouvoir être terminée si le projet SQL ne se génère pas correctement.
+        11. Un déploiement vers production doit attendre la validation d'un responsable des mises en production.
+        12. sc-learningdb-prod ne doit être utilisable que par les exécutions de pipeline issues de la branche main, même si quelqu'un modifie le fichier YAML du pipeline.

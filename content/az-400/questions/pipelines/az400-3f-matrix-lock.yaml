@@ -1,0 +1,94 @@
+id: az400-3f-matrix-lock
+objective: "3.6.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip Toys has a YAML pipeline that runs UI tests on four browsers and then deploys to an environment named **qa-shared**, which has an Exclusive lock check. The organization has six self-hosted parallel jobs that are shared by several teams.
+
+    You need to modify the pipeline to meet the following requirements:
+
+    - A run must never execute more than two browser test jobs at the same time.
+    - Every run must deploy to qa-shared, one run at a time, in the order in which the runs reach the stage.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys dispose d'un pipeline YAML qui exécute des tests d'interface utilisateur sur quatre navigateurs, puis effectue un déploiement sur un environnement nommé **qa-shared**, doté d'une vérification Exclusive lock. L'organisation dispose de six travaux parallèles auto-hébergés partagés par plusieurs équipes.
+
+    Vous devez modifier le pipeline pour satisfaire les exigences suivantes :
+
+    - Une exécution ne doit jamais lancer plus de deux travaux de test de navigateur en même temps.
+    - Chaque exécution doit effectuer son déploiement sur qa-shared, une exécution à la fois, dans l'ordre dans lequel les exécutions atteignent la phase.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    stages:
+    - stage: Test
+      jobs:
+      - job: Browser
+        strategy:
+          matrix:
+            Chrome:
+              BROWSER: chrome
+            Edge:
+              BROWSER: edge
+            Firefox:
+              BROWSER: firefox
+            Safari:
+              BROWSER: safari
+          [[limit]]: 2
+        steps:
+        - script: ./run-ui-tests.sh $(BROWSER)
+    - stage: DeployQA
+      dependsOn: Test
+      [[lockkey]]: [[lockvalue]]
+      jobs:
+      - deployment: DeployQA
+        environment: qa-shared
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - script: ./deploy.sh
+  slots:
+    - id: limit
+      options:
+        - { id: parallel, text: parallel }
+        - { id: maxparallel, text: maxParallel }
+        - { id: timeout, text: timeoutInMinutes }
+    - id: lockkey
+      options:
+        - { id: condition, text: condition }
+        - { id: pool, text: pool }
+        - { id: lockbehavior, text: lockBehavior }
+    - id: lockvalue
+      options:
+        - { id: runlatest, text: runLatest }
+        - { id: sequential, text: sequential }
+answer:
+  values: { limit: maxparallel, lockkey: lockbehavior, lockvalue: sequential }
+explanation:
+  correct:
+    en: |
+      maxParallel sets the maximum number of matrix legs that run at once; without it, all four legs can start. With an Exclusive lock check on the environment, lockBehavior set to sequential on the stage makes all runs acquire the lock one after the other, whereas the default runLatest lets only the latest run proceed.
+    fr: |
+      maxParallel définit le nombre maximal de branches de la matrice exécutées en même temps ; sans lui, les quatre branches peuvent démarrer. Avec une vérification Exclusive lock sur l'environnement, lockBehavior défini sur sequential sur la phase fait obtenir le verrou à toutes les exécutions l'une après l'autre, alors que la valeur par défaut runLatest ne laisse avancer que la dernière exécution.
+  options:
+    parallel: { en: "parallel runs the same job N times for test slicing; it does not limit matrix legs.", fr: "parallel exécute N fois le même travail pour découper les tests ; il ne limite pas les branches d'une matrice." }
+    timeout: { en: "timeoutInMinutes is a job property, not a strategy setting, and it does not limit concurrency.", fr: "timeoutInMinutes est une propriété de travail, pas un paramètre de stratégie, et il ne limite pas la concurrence." }
+    condition: { en: "A condition decides whether the stage runs; it does not control the lock.", fr: "Une condition décide si la phase s'exécute ; elle ne contrôle pas le verrou." }
+    pool: { en: "The pool selects agents; it does not set how runs acquire the lock.", fr: "Le pool sélectionne les agents ; il ne définit pas la façon dont les exécutions obtiennent le verrou." }
+    runlatest: { en: "runLatest lets only the latest run deploy, so some runs would never deploy to qa-shared.", fr: "runLatest ne laisse déployer que la dernière exécution : certaines exécutions ne déploieraient jamais sur qa-shared." }
+references:
+  - title: jobs.job.strategy definition
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/yaml-schema/jobs-job-strategy
+  - title: Define approvals and checks
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/approvals

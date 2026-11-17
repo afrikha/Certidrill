@@ -1,0 +1,127 @@
+id: az305-cs2b-wide-world-importers
+status: draft
+title:
+  en: Wide World Importers
+  fr: Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers is a freight and logistics company. Its head office is in Rotterdam, and it operates hubs in Europe, North America and Asia.
+
+        Its shipment tracking platform, **TrackHub**, runs in Azure in three regions: West Europe, East US and Southeast Asia. Customers follow their shipments in a web application and through a Tracking API. Carriers call a partner API that is published by Azure API Management.
+      fr: |
+        Wide World Importers est une entreprise de transport de fret et de logistique. Son siège est à Rotterdam, et elle exploite des plateformes logistiques en Europe, en Amérique du Nord et en Asie.
+
+        Sa plateforme de suivi des expéditions, **TrackHub**, s'exécute dans Azure dans trois régions : West Europe, East US et Southeast Asia. Les clients suivent leurs expéditions dans une application web et par une API nommée Tracking API. Les transporteurs appellent une API partenaire publiée par Azure API Management.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Wide World Importers has one Microsoft Entra tenant and an Azure subscription named **Sub-TrackHub**.
+
+        **Applications.** The web application and the Tracking API run in Azure App Service in each region, behind Azure Front Door. Every instance of the Tracking API reads shipment statuses directly from the database, and user sessions are lost when an instance is replaced.
+
+        An integration team of three people must build about 20 workflows that exchange booking data between TrackHub and the software as a service (SaaS) systems of the carriers. The team has little development capacity.
+
+        **Data.** An Azure Cosmos DB for NoSQL account named **cosmos-trackhub** is replicated to the three regions. Public network access to the account is disabled: clients connect through private endpoints. A container named **shipment-events** receives one item for each scan of a shipment:
+
+        | Property | Content |
+        | --- | --- |
+        | shipmentId | Identifier of the shipment; several hundred million distinct values |
+        | hubId | One of the 85 hubs; five hubs handle half of the scans |
+        | status | One of six values |
+        | timestamp | Date and time of the scan |
+
+        Almost all the queries read the events of one shipment. The load on the container varies between 8,000 and 60,000 request units per second (RU/s), and the peaks can't be predicted.
+
+        **Deployment.** The shared infrastructure of each region is created by scripts, and engineers then change resources in the Azure portal.
+
+        **Operations.** Fabrikam, Inc. is a managed service provider that operates TrackHub. Fabrikam has its own Microsoft Entra tenant. Wide World Importers has created a guest account for each of the 30 Fabrikam engineers and updates these accounts whenever the Fabrikam team changes.
+      fr: |
+        Wide World Importers dispose d'un locataire Microsoft Entra et d'un abonnement Azure nommé **Sub-TrackHub**.
+
+        **Applications.** L'application web et Tracking API s'exécutent dans Azure App Service dans chaque région, derrière Azure Front Door. Chaque instance de Tracking API lit les états des expéditions directement dans la base de données, et les sessions des utilisateurs sont perdues quand une instance est remplacée.
+
+        Une équipe d'intégration de trois personnes doit construire une vingtaine de workflows qui échangent des données de réservation entre TrackHub et les systèmes SaaS (logiciel en tant que service) des transporteurs. L'équipe a peu de capacité de développement.
+
+        **Données.** Un compte Azure Cosmos DB for NoSQL nommé **cosmos-trackhub** est répliqué dans les trois régions. L'accès réseau public au compte est désactivé : les clients se connectent par des points de terminaison privés. Un conteneur nommé **shipment-events** reçoit un élément pour chaque lecture du code d'une expédition :
+
+        | Propriété | Contenu |
+        | --- | --- |
+        | shipmentId | Identifiant de l'expédition ; plusieurs centaines de millions de valeurs distinctes |
+        | hubId | L'une des 85 plateformes logistiques ; cinq plateformes traitent la moitié des lectures |
+        | status | L'une de six valeurs |
+        | timestamp | Date et heure de la lecture |
+
+        Presque toutes les requêtes lisent les événements d'une seule expédition. La charge du conteneur varie entre 8 000 et 60 000 unités de requête par seconde (RU/s), et les pics sont imprévisibles.
+
+        **Déploiement.** L'infrastructure partagée de chaque région est créée par des scripts, puis des ingénieurs modifient les ressources dans le portail Azure.
+
+        **Exploitation.** Fabrikam, Inc. est un fournisseur de services managés qui exploite TrackHub. Fabrikam possède son propre locataire Microsoft Entra. Wide World Importers a créé un compte invité pour chacun des 30 ingénieurs de Fabrikam et met ces comptes à jour chaque fois que l'équipe de Fabrikam change.
+  - key: requirements
+    title: { en: "Technical requirements", fr: "Exigences techniques" }
+    body:
+      en: |
+        **Carrier workflows**
+
+        - The workflows must be built in a visual designer with prebuilt connectors, with as little code as possible.
+        - The workflows must read cosmos-trackhub through a private endpoint.
+        - All the workflows must be deployed and managed in a single Azure resource.
+
+        **Caching**
+
+        - The instances of the Tracking API must share an in-memory copy of the most requested shipment statuses, and the sessions of the users.
+        - The images and scripts of the web application must be served from locations that are close to the users.
+        - Identical requests that carriers send to the partner API within 60 seconds must be answered without calling the backend.
+
+        **Deployment**
+
+        - The shared infrastructure of a region is described in one Bicep file, which a pipeline must deploy and manage as a single unit. A resource that is removed from the Bicep file must be deleted from Azure by the next deployment.
+        - No user, including the users who have the Owner role on Sub-TrackHub, may change or delete these resources outside the pipeline.
+
+        **Data**
+
+        - The throughput of shipment-events must follow the load automatically, without throttling requests during the peaks, and its cost must be minimized during quiet periods.
+        - The partition key of shipment-events must spread the data and the requests evenly, and the most frequent query must be served by a single partition.
+
+        **Operations**
+
+        - The Fabrikam engineers must manage the resource groups of TrackHub from their own tenant, with their Fabrikam accounts. Wide World Importers must not create or maintain any account for them.
+        - The activity log of Sub-TrackHub must show which Fabrikam user performed each operation, and Wide World Importers must be able to remove the access of Fabrikam at any time.
+
+        **General**
+
+        - Costs and administrative effort must be minimized whenever the other requirements are met.
+      fr: |
+        **Workflows des transporteurs**
+
+        - Les workflows doivent être construits dans un concepteur visuel avec des connecteurs prédéfinis, avec le moins de code possible.
+        - Les workflows doivent lire cosmos-trackhub par un point de terminaison privé.
+        - Tous les workflows doivent être déployés et gérés dans une seule ressource Azure.
+
+        **Mise en cache**
+
+        - Les instances de Tracking API doivent partager une copie en mémoire des états d'expédition les plus demandés, ainsi que les sessions des utilisateurs.
+        - Les images et les scripts de l'application web doivent être servis depuis des emplacements proches des utilisateurs.
+        - Les requêtes identiques que les transporteurs envoient à l'API partenaire en moins de 60 secondes doivent recevoir une réponse sans appel au service principal.
+
+        **Déploiement**
+
+        - L'infrastructure partagée d'une région est décrite dans un seul fichier Bicep, qu'un pipeline doit déployer et gérer comme une seule unité. Une ressource retirée du fichier Bicep doit être supprimée d'Azure par le déploiement suivant.
+        - Aucun utilisateur, y compris ceux qui ont le rôle Owner sur Sub-TrackHub, ne doit pouvoir modifier ni supprimer ces ressources en dehors du pipeline.
+
+        **Données**
+
+        - Le débit de shipment-events doit suivre la charge automatiquement, sans limitation des requêtes pendant les pics, et son coût doit être réduit au minimum pendant les périodes calmes.
+        - La clé de partition de shipment-events doit répartir uniformément les données et les requêtes, et la requête la plus fréquente doit être servie par une seule partition.
+
+        **Exploitation**
+
+        - Les ingénieurs de Fabrikam doivent gérer les groupes de ressources de TrackHub depuis leur propre locataire, avec leurs comptes Fabrikam. Wide World Importers ne doit créer ni maintenir aucun compte pour eux.
+        - Le journal d'activité de Sub-TrackHub doit montrer quel utilisateur de Fabrikam a effectué chaque opération, et Wide World Importers doit pouvoir retirer l'accès de Fabrikam à tout moment.
+
+        **Général**
+
+        - Les coûts et l'effort d'administration doivent être réduits au minimum dès lors que les autres exigences sont respectées.

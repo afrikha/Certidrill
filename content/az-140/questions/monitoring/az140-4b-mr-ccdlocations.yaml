@@ -1,0 +1,72 @@
+id: az140-4b-mr-ccdlocations
+objective: "4.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware has two Azure Virtual Desktop pooled host pools that store FSLogix profile containers on Azure Files:
+
+    | Host pool | Region | Profile storage account |
+    | --- | --- | --- |
+    | HP-WEU | West Europe | stprofweu |
+    | HP-NEU | North Europe | stprofneu |
+
+    Each storage account contains a file share named **profiles**. You need to configure FSLogix Cloud Cache on the session hosts of **HP-NEU** so that the profiles are replicated to both storage accounts and the session hosts use the storage account in their own region first.
+
+    How should you complete the PowerShell command? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose de deux pools d'hôtes Azure Virtual Desktop regroupés qui stockent les conteneurs de profils FSLogix sur Azure Files :
+
+    | Pool d'hôtes | Région | Compte de stockage des profils |
+    | --- | --- | --- |
+    | HP-WEU | West Europe | stprofweu |
+    | HP-NEU | North Europe | stprofneu |
+
+    Chaque compte de stockage contient un partage de fichiers nommé **profiles**. Vous devez configurer FSLogix Cloud Cache sur les hôtes de session de **HP-NEU** pour que les profils soient répliqués vers les deux comptes de stockage et que les hôtes de session utilisent d'abord le compte de stockage de leur propre région.
+
+    Comment devez-vous compléter la commande PowerShell ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    New-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name [[name]] -PropertyType MultiString -Force `
+      -Value "type=smb,connectionString=[[first]];type=smb,connectionString=[[second]]"
+  slots:
+    - id: name
+      options:
+        - { id: ccd, text: CCDLocations }
+        - { id: vhd, text: VHDLocations }
+        - { id: cache, text: CacheDirectory }
+    - id: first
+      options:
+        - { id: neu1, text: '\\stprofneu.file.core.windows.net\profiles' }
+        - { id: weu1, text: '\\stprofweu.file.core.windows.net\profiles' }
+        - { id: loc1, text: 'C:\ProgramData\FSLogix\Cache' }
+    - id: second
+      options:
+        - { id: neu2, text: '\\stprofneu.file.core.windows.net\profiles' }
+        - { id: weu2, text: '\\stprofweu.file.core.windows.net\profiles' }
+        - { id: loc2, text: 'C:\ProgramData\FSLogix\Cache' }
+answer:
+  values: { name: ccd, first: neu1, second: weu2 }
+explanation:
+  correct:
+    en: |
+      Cloud Cache reads its storage providers from the CCDLocations value, in the order of the entries; Microsoft recommends listing them by proximity, so the HP-NEU hosts list stprofneu first and stprofweu second. Writes go to the local cache and are flushed to every provider, so both accounts hold the profiles. The HP-WEU hosts use the same value with the order reversed.
+    fr: |
+      Cloud Cache lit ses fournisseurs de stockage dans la valeur CCDLocations, dans l'ordre des entrées ; Microsoft recommande de les classer par proximité : les hôtes de HP-NEU indiquent donc stprofneu en premier et stprofweu en second. Les écritures vont dans le cache local et sont vidées vers chaque fournisseur : les deux comptes contiennent les profils. Les hôtes de HP-WEU utilisent la même valeur dans l'ordre inverse.
+  options:
+    vhd: { en: "VHDLocations configures a profile container without Cloud Cache, which doesn't replicate the profile to several locations.", fr: "VHDLocations configure un conteneur de profil sans Cloud Cache, qui ne réplique pas le profil vers plusieurs emplacements." }
+    cache: { en: "CacheDirectory sets the folder of the local cache, not the remote storage providers.", fr: "CacheDirectory définit le dossier du cache local, pas les fournisseurs de stockage distants." }
+    weu1: { en: "Listing the West Europe account first would make the HP-NEU hosts hydrate profiles across regions.", fr: "Placer le compte de West Europe en premier ferait charger les profils d'une autre région par les hôtes de HP-NEU." }
+    loc1: { en: "The local cache isn't a storage provider; CCDLocations lists remote SMB or Azure page blob locations.", fr: "Le cache local n'est pas un fournisseur de stockage ; CCDLocations répertorie des emplacements distants SMB ou d'objets blob de pages Azure." }
+references:
+  - title: Cloud Cache Overview
+    url: https://learn.microsoft.com/en-us/fslogix/concepts-fslogix-cloud-cache
+  - title: Multiregion BCDR for Azure Virtual Desktop
+    url: https://learn.microsoft.com/en-us/azure/architecture/example-scenario/azure-virtual-desktop/azure-virtual-desktop-multi-region-bcdr

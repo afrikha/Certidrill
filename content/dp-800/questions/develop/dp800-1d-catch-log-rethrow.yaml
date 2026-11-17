@@ -1,0 +1,92 @@
+id: dp800-1d-catch-log-rethrow
+objective: "1.3.8"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing a stored procedure named Billing.usp_PostInvoice in an Azure SQL database. The procedure runs with `SET XACT_ABORT ON` and changes two tables in one explicit transaction.
+
+    The CATCH block must meet the following requirements:
+
+    - Every error is written to dbo.ErrorLog, and the log row must persist.
+    - The caller receives the original error number and message.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez une procédure stockée nommée Billing.usp_PostInvoice dans une base de données Azure SQL. La procédure s'exécute avec `SET XACT_ABORT ON` et modifie deux tables dans une transaction explicite.
+
+    Le bloc CATCH doit satisfaire les exigences suivantes :
+
+    - Chaque erreur est écrite dans dbo.ErrorLog, et la ligne de journal doit être conservée.
+    - L'appelant reçoit le numéro et le message de l'erreur d'origine.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR ALTER PROCEDURE Billing.usp_PostInvoice
+        @InvoiceID int
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        SET XACT_ABORT ON;
+        BEGIN TRY
+            BEGIN TRANSACTION;
+                UPDATE Billing.Invoice SET StatusCode = 'POSTED' WHERE InvoiceID = @InvoiceID;
+                INSERT INTO Billing.Ledger (InvoiceID, PostedAt) VALUES (@InvoiceID, SYSUTCDATETIME());
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            IF [[cond]]
+                ROLLBACK TRANSACTION;
+
+            INSERT INTO dbo.ErrorLog (ErrorNumber, ErrorMessage, LoggedAt)
+            VALUES ([[num]], ERROR_MESSAGE(), SYSUTCDATETIME());
+
+            [[raise]];
+        END CATCH;
+    END;
+  slots:
+    - id: cond
+      options:
+        - { id: ne0, text: "XACT_STATE() <> 0" }
+        - { id: eq1, text: "XACT_STATE() = 1" }
+        - { id: eq0, text: "XACT_STATE() = 0" }
+    - id: num
+      options:
+        - { id: errnum, text: "ERROR_NUMBER()" }
+        - { id: atat, text: "@@ERROR" }
+        - { id: state, text: "ERROR_STATE()" }
+        - { id: xact, text: "XACT_STATE()" }
+    - id: raise
+      options:
+        - { id: raiserror, text: "RAISERROR(N'Invoice posting failed.', 16, 1)" }
+        - { id: throw, text: "THROW" }
+        - { id: ret, text: "RETURN 1" }
+        - { id: print, text: "PRINT ERROR_MESSAGE()" }
+answer:
+  values: { cond: ne0, num: errnum, raise: throw }
+explanation:
+  correct:
+    en: |
+      The transaction must be rolled back before the log row is written, otherwise the INSERT is undone with the transaction or fails; `XACT_STATE() <> 0` covers both the committable (1) and the uncommittable (-1) states. ERROR_NUMBER() returns the number of the error that started the CATCH block. THROW without arguments re-raises the original error, with its number and message, to the caller.
+    fr: |
+      La transaction doit être annulée avant l'écriture de la ligne de journal, sinon l'INSERT est annulé avec la transaction ou échoue ; `XACT_STATE() <> 0` couvre l'état validable (1) et l'état non validable (-1). ERROR_NUMBER() renvoie le numéro de l'erreur qui a déclenché le bloc CATCH. THROW sans argument lève de nouveau l'erreur d'origine, avec son numéro et son message, vers l'appelant.
+  options:
+    eq1: { en: "With XACT_ABORT ON, the error makes the transaction uncommittable (-1): the condition is false, the transaction stays open and the INSERT into dbo.ErrorLog fails.", fr: "Avec XACT_ABORT ON, l'erreur rend la transaction non validable (-1) : la condition est fausse, la transaction reste ouverte et l'INSERT dans dbo.ErrorLog échoue." }
+    eq0: { en: "0 means that no transaction is active, so an open transaction would never be rolled back.", fr: "0 signifie qu'aucune transaction n'est active : une transaction ouverte ne serait jamais annulée." }
+    atat: { en: "@@ERROR only reflects the previous statement (the rollback), so it returns 0 here.", fr: "@@ERROR ne reflète que l'instruction précédente (l'annulation) : il renvoie 0 ici." }
+    raiserror: { en: "RAISERROR with a message string raises error 50000, not the original error number.", fr: "RAISERROR avec une chaîne de message lève l'erreur 50000, pas le numéro de l'erreur d'origine." }
+    ret: { en: "RETURN ends the procedure without an error, so the call looks successful to the application.", fr: "RETURN termine la procédure sans erreur : l'appel semble réussi pour l'application." }
+    print: { en: "PRINT returns an informational message, not an error.", fr: "PRINT renvoie un message d'information, pas une erreur." }
+references:
+  - title: TRY...CATCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql
+  - title: XACT_STATE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/xact-state-transact-sql

@@ -1,0 +1,69 @@
+id: sc200-2c-timeline-kql-process
+objective: "2.2.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    In the timeline of a device named **ws-pay-07.contoso.com**, you see that PowerShell started several child processes at about 09:41 UTC on November 12, 2026.
+
+    You need an advanced hunting query that lists, in chronological order, the processes that powershell.exe created on ws-pay-07.contoso.com from 10 minutes before to 10 minutes after 09:41 UTC.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Dans la chronologie d'un appareil nommé **ws-pay-07.contoso.com**, vous constatez que PowerShell a lancé plusieurs processus enfants vers 09:41 UTC le 12 novembre 2026.
+
+    Vous avez besoin d'une requête de repérage avancé qui liste, dans l'ordre chronologique, les processus créés par powershell.exe sur ws-pay-07.contoso.com de 10 minutes avant à 10 minutes après 09:41 UTC.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let t = [[fn]](2026-11-12T09:41:00Z);
+    [[tbl]]
+    | where DeviceName == "ws-pay-07.contoso.com"
+    | where Timestamp [[op]] ((t - 10m) .. (t + 10m))
+    | where InitiatingProcessFileName =~ "powershell.exe"
+    | project Timestamp, FileName, ProcessCommandLine, InitiatingProcessCommandLine
+    | order by Timestamp asc
+  slots:
+    - id: fn
+      options:
+        - { id: datetime, text: datetime }
+        - { id: timespan, text: timespan }
+        - { id: ago, text: ago }
+        - { id: now, text: now }
+    - id: tbl
+      options:
+        - { id: proc, text: DeviceProcessEvents }
+        - { id: events, text: DeviceEvents }
+        - { id: file, text: DeviceFileEvents }
+        - { id: image, text: DeviceImageLoadEvents }
+    - id: op
+      options:
+        - { id: between, text: between }
+        - { id: in, text: in }
+        - { id: has, text: has }
+        - { id: eq, text: "==" }
+answer:
+  values: { fn: datetime, tbl: proc, op: between }
+explanation:
+  correct:
+    en: "`datetime()` turns the literal into a datetime value. Process creations are in `DeviceProcessEvents`, where `InitiatingProcessFileName` is the parent (powershell.exe) and `FileName` the created process. `between ((t - 10m) .. (t + 10m))` keeps the events of the 20-minute window."
+    fr: "`datetime()` transforme le littéral en valeur de date. Les créations de processus se trouvent dans `DeviceProcessEvents`, où `InitiatingProcessFileName` est le parent (powershell.exe) et `FileName` le processus créé. `between ((t - 10m) .. (t + 10m))` conserve les événements de la fenêtre de 20 minutes."
+  options:
+    timespan: { en: "timespan() creates a duration, not a point in time.", fr: "timespan() crée une durée, pas un instant." }
+    ago: { en: "ago() takes a duration and subtracts it from the current time; it doesn't accept a date literal.", fr: "ago() prend une durée et la soustrait de l'heure actuelle ; il n'accepte pas de littéral de date." }
+    events: { en: "DeviceEvents holds miscellaneous events such as security control events, not process creation.", fr: "DeviceEvents contient des événements divers, comme ceux des contrôles de sécurité, pas les créations de processus." }
+    image: { en: "DeviceImageLoadEvents records DLL loads, not process creation.", fr: "DeviceImageLoadEvents enregistre les chargements de DLL, pas les créations de processus." }
+    in: { en: "in compares a value with a list of values, not with a range.", fr: "in compare une valeur à une liste de valeurs, pas à une plage." }
+references:
+  - title: Data tables in the Microsoft Defender advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-schema-tables
+  - title: Investigate devices in Microsoft Defender for Endpoint
+    url: https://learn.microsoft.com/en-us/defender-endpoint/device-timeline-event-flag

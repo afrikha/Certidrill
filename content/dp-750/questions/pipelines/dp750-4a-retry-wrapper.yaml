@@ -1,0 +1,106 @@
+id: dp750-4a-retry-wrapper
+objective: "4.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware has a driver notebook that calls the notebook **./02_enrich_geo**, which sometimes fails because of a transient error in a partner service.
+
+    You need to write a function that meets the following requirements:
+
+    - Make up to three attempts in total.
+    - Stop each attempt that runs for more than 10 minutes.
+    - If the last attempt fails, the task that runs the driver notebook must fail.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'un notebook pilote qui appelle le notebook **./02_enrich_geo**, lequel échoue parfois à cause d'une erreur transitoire dans le service d'un partenaire.
+
+    Vous devez écrire une fonction qui répond aux exigences suivantes :
+
+    - Effectuer au plus trois tentatives au total.
+    - Arrêter chaque tentative qui dure plus de 10 minutes.
+    - Si la dernière tentative échoue, la tâche qui exécute le notebook pilote doit échouer.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    def run_with_retry(path, args, max_attempts=3):
+        attempt = 1
+        while True:
+            try:
+                return dbutils.notebook.run(path, [[timeout]], args)
+            except [[exc]] as e:
+                if attempt >= max_attempts:
+                    [[final]]
+                print(f"Attempt {attempt} failed: {e}")
+                attempt += 1
+
+    run_with_retry("./02_enrich_geo", {"run_date": run_date})
+  slots:
+    - id: timeout
+      options:
+        - { id: s600, text: "600" }
+        - { id: s10, text: "10" }
+        - { id: s0, text: "0" }
+        - { id: str10m, text: '"10m"' }
+    - id: exc
+      options:
+        - { id: exception, text: Exception }
+        - { id: timeouterr, text: TimeoutError }
+        - { id: valueerr, text: ValueError }
+    - id: final
+      options:
+        - { id: raise, text: raise }
+        - { id: exit, text: 'dbutils.notebook.exit("FAILED")' }
+        - { id: retnone, text: return None }
+        - { id: brk, text: break }
+answer:
+  values: { timeout: s600, exc: exception, final: raise }
+explanation:
+  correct:
+    en: |
+      The second argument of `dbutils.notebook.run()` is `timeout_seconds`, so 10 minutes is 600. The call raises an exception when the child fails or times out, and in Python you catch it as `Exception`. A bare `raise` in the except block re-raises the last error, so the driver task fails after the third attempt.
+    fr: |
+      Le deuxième argument de `dbutils.notebook.run()` est `timeout_seconds` : 10 minutes valent donc 600. L'appel lève une exception quand le notebook enfant échoue ou dépasse le délai, et en Python on l'intercepte avec `Exception`. Un `raise` seul dans le bloc except relève la dernière erreur : la tâche du notebook pilote échoue après la troisième tentative.
+  options:
+    s10:
+      en: |
+        The timeout is in seconds; 10 would stop each attempt after 10 seconds.
+      fr: |
+        Le délai est exprimé en secondes ; 10 arrêterait chaque tentative au bout de 10 secondes.
+    s0:
+      en: |
+        A timeout of 0 means no timeout.
+      fr: |
+        Un délai de 0 signifie aucun délai d'expiration.
+    str10m:
+      en: |
+        timeout_seconds is an integer number of seconds, not a duration string.
+      fr: |
+        timeout_seconds est un nombre entier de secondes, pas une chaîne de durée.
+    timeouterr:
+      en: |
+        A failure of the child notebook isn't a TimeoutError, so failed attempts wouldn't be retried.
+      fr: |
+        L'échec du notebook enfant n'est pas une TimeoutError : les tentatives en échec ne seraient pas relancées.
+    exit:
+      en: |
+        exit() ends the driver notebook successfully, so the task wouldn't fail.
+      fr: |
+        exit() termine le notebook pilote avec succès : la tâche n'échouerait pas.
+    retnone:
+      en: |
+        Returning None hides the failure, and the task succeeds.
+      fr: |
+        Renvoyer None masque l'échec, et la tâche réussit.
+references:
+  - title: Orchestrate Databricks notebooks and modularize code
+    url: https://learn.microsoft.com/en-us/azure/databricks/notebooks/notebook-workflows

@@ -1,0 +1,65 @@
+id: ai200-cs2c-blue-yonder
+status: draft
+title:
+  en: Blue Yonder Airlines
+  fr: Blue Yonder Airlines
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Blue Yonder Airlines is a regional airline that operates 80 aircraft. Its maintenance technicians often search long maintenance manuals while an aircraft waits on the ground.
+
+        Blue Yonder is building **TechAssist**, a web portal written in Python that answers the questions of the technicians from the maintenance manuals, and a defect intake service that notifies the maintenance planners of each new defect.
+      fr: |
+        Blue Yonder Airlines est une compagnie aérienne régionale qui exploite 80 avions. Ses techniciens de maintenance consultent souvent de longs manuels de maintenance pendant qu'un avion attend au sol.
+
+        Blue Yonder développe **TechAssist**, un portail web écrit en Python qui répond aux questions des techniciens à partir des manuels de maintenance, ainsi qu'un service de saisie des défauts qui avertit les planificateurs de maintenance de chaque nouveau défaut.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Blue Yonder has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | crbyair | Azure Container Registry | Contains the image **techassist**; authentication with ARM audience tokens enabled |
+        | app-byair-portal | App Service web app | Linux custom container from crbyair; the Flask application listens on port 8000; user-assigned managed identity **id-byair-pull** with the AcrPull role on crbyair; no system-assigned identity |
+        | redis-byair | Azure Managed Redis | Balanced tier; OSS clustering policy; no modules; Microsoft Entra authentication |
+        | egt-maintenance | Event Grid custom topic | CloudEvents v1.0 input schema |
+        | func-byair-defects | Function app | Python; receives the defects from the mobile app of the technicians over HTTP; system-assigned managed identity |
+        | appi-byair | Application Insights | Its connection string is in the `APPLICATIONINSIGHTS_CONNECTION_STRING` app setting of app-byair-portal |
+
+        The portal already sends its requests and logs to appi-byair by calling `configure_azure_monitor()` from the azure-monitor-opentelemetry package at startup.
+      fr: |
+        Blue Yonder dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | crbyair | Azure Container Registry | Contient l'image **techassist** ; authentification avec des jetons d'audience ARM activée |
+        | app-byair-portal | Application web App Service | Conteneur personnalisé Linux provenant de crbyair ; l'application Flask écoute sur le port 8000 ; identité managée affectée par l'utilisateur **id-byair-pull** avec le rôle AcrPull sur crbyair ; aucune identité affectée par le système |
+        | redis-byair | Azure Managed Redis | Niveau Balanced ; stratégie de clustering OSS ; aucun module ; authentification Microsoft Entra |
+        | egt-maintenance | Rubrique personnalisée Event Grid | Schéma d'entrée CloudEvents v1.0 |
+        | func-byair-defects | Application de fonction | Python ; reçoit en HTTP les défauts envoyés par l'application mobile des techniciens ; identité managée affectée par le système |
+        | appi-byair | Application Insights | Sa chaîne de connexion se trouve dans le paramètre d'application `APPLICATIONINSIGHTS_CONNECTION_STRING` d'app-byair-portal |
+
+        Le portail envoie déjà ses requêtes et ses journaux vers appi-byair en appelant `configure_azure_monitor()` du package azure-monitor-opentelemetry au démarrage.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Blue Yonder identifies the following requirements:
+
+        1. **Portal hosting**: app-byair-portal must send the HTTP requests to the port of the Flask application, pull its image from crbyair by using id-byair-pull without any registry credential, and keep the files that the portal writes under `/home/uploads` across restarts.
+        2. **Answer cache**: the portal caches each generated answer in redis-byair under the key `answer:<question_id>`. An entry must be removed automatically 30 minutes after it was last read. An answer that is never read must also be removed 30 minutes after it was written.
+        3. **Manual search**: the team has created a second Azure Managed Redis cache named **redis-byair-search** with the RediSearch module and the Enterprise clustering policy. It will store about 6,000 excerpts of the manuals as hashes whose keys start with `excerpt:`, each with a 1,536-dimension FLOAT32 embedding in the field `embedding`. The embedding model is designed for cosine similarity. Safety rules require the search to be exhaustive: it must return exactly the nearest excerpts, not an approximation.
+        4. **Defect events**: func-byair-defects must publish a `BlueYonder.Defect.Reported` event to egt-maintenance for each new defect. No access key may be used.
+        5. **Tracing**: each cache lookup of the portal must appear in the end-to-end transaction view of appi-byair as a dependency named `cache-lookup`, with a custom property `cache.hit` that tells whether the answer was found in the cache.
+      fr: |
+        Blue Yonder a défini les exigences suivantes :
+
+        1. **Hébergement du portail** : app-byair-portal doit envoyer les requêtes HTTP vers le port de l'application Flask, tirer son image de crbyair à l'aide d'id-byair-pull sans aucune information d'identification du registre, et conserver après les redémarrages les fichiers que le portail écrit sous `/home/uploads`.
+        2. **Cache des réponses** : le portail met en cache chaque réponse générée dans redis-byair sous la clé `answer:<question_id>`. Une entrée doit être supprimée automatiquement 30 minutes après sa dernière lecture. Une réponse qui n'est jamais lue doit aussi être supprimée 30 minutes après son écriture.
+        3. **Recherche dans les manuels** : l'équipe a créé un second cache Azure Managed Redis nommé **redis-byair-search** avec le module RediSearch et la stratégie de clustering Enterprise. Il stockera environ 6 000 extraits des manuels sous forme de hachages dont les clés commencent par `excerpt:`, chacun avec une incorporation FLOAT32 de 1 536 dimensions dans le champ `embedding`. Le modèle d'incorporation est conçu pour la similarité cosinus. Les règles de sécurité exigent une recherche exhaustive : elle doit renvoyer exactement les extraits les plus proches, pas une approximation.
+        4. **Événements de défaut** : func-byair-defects doit publier un événement `BlueYonder.Defect.Reported` dans egt-maintenance pour chaque nouveau défaut. Aucune clé d'accès ne doit être utilisée.
+        5. **Traçage** : chaque recherche dans le cache effectuée par le portail doit apparaître dans la vue des transactions de bout en bout d'appi-byair comme une dépendance nommée `cache-lookup`, avec une propriété personnalisée `cache.hit` qui indique si la réponse a été trouvée dans le cache.

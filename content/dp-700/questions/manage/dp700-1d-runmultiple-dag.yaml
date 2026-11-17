@@ -1,0 +1,76 @@
+id: dp700-1d-runmultiple-dag
+objective: "1.4.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric workspace that contains notebooks named NB_Main, NB_Extract, NB_Transform and NB_Customers.
+
+    You are writing code in NB_Main to run the three other notebooks on the Spark session of NB_Main. NB_Transform must start only after NB_Extract succeeds, at most two notebooks can run at the same time, and the structure of the DAG must be checked before any notebook starts.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Fabric qui contient des notebooks nommés NB_Main, NB_Extract, NB_Transform et NB_Customers.
+
+    Vous écrivez du code dans NB_Main pour exécuter les trois autres notebooks sur la session Spark de NB_Main. NB_Transform ne doit démarrer qu'après la réussite de NB_Extract, au plus deux notebooks peuvent s'exécuter en même temps, et la structure du DAG doit être vérifiée avant le démarrage de tout notebook.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    DAG = {
+        "activities": [
+            {"name": "Extract", "path": "NB_Extract", "args": {"load_date": "2026-11-16"}},
+            {"name": "Transform", "path": "NB_Transform", [[dep]]: ["Extract"],
+             "retry": 1, "retryIntervalInSeconds": 30},
+            {"name": "Customers", "path": "NB_Customers"}
+        ],
+        "timeoutInSeconds": 7200,
+        [[conc]]: 2
+    }
+    notebookutils.notebook.[[check]](DAG)
+    results = notebookutils.notebook.[[run]](DAG)
+  slots:
+    - id: dep
+      options:
+        - { id: args, text: "\"args\"" }
+        - { id: dependencies, text: "\"dependencies\"" }
+        - { id: dependson, text: "\"dependsOn\"" }
+    - id: conc
+      options:
+        - { id: concurrency, text: "\"concurrency\"" }
+        - { id: retry, text: "\"retry\"" }
+        - { id: percell, text: "\"timeoutPerCellInSeconds\"" }
+    - id: check
+      options:
+        - { id: help, text: help }
+        - { id: exit, text: exit }
+        - { id: validate, text: validateDAG }
+    - id: run
+      options:
+        - { id: runmultiple, text: runMultiple }
+        - { id: runone, text: run }
+        - { id: validate2, text: validateDAG }
+answer:
+  values: { dep: dependencies, conc: concurrency, check: validate, run: runmultiple }
+explanation:
+  correct:
+    en: |
+      runMultiple runs a DAG of notebooks on the caller's Spark session. The dependencies key of an activity lists the activities that must complete first, and the root concurrency key caps the number of notebooks that run at the same time (by default three times the number of CPU cores). validateDAG checks the structure, such as duplicate names, missing dependencies and circular references, and raises an exception when the DAG is invalid.
+    fr: |
+      runMultiple exécute un DAG de notebooks sur la session Spark de l'appelant. La clé dependencies d'une activité liste les activités qui doivent se terminer avant elle, et la clé racine concurrency plafonne le nombre de notebooks exécutés en même temps (par défaut trois fois le nombre de cœurs de processeur). validateDAG vérifie la structure, comme les noms en double, les dépendances manquantes et les références circulaires, et lève une exception quand le DAG n'est pas valide.
+  options:
+    dependson: { en: "dependsOn is not a key of a runMultiple DAG: an activity lists its prerequisites in dependencies.", fr: "dependsOn n'est pas une clé d'un DAG runMultiple : une activité liste ses prérequis dans dependencies." }
+    args: { en: "args passes parameter values to the notebook; it does not define the order of the activities.", fr: "args transmet des valeurs de paramètres au notebook ; il ne définit pas l'ordre des activités." }
+    retry: { en: "retry sets the number of retries of an activity, not the parallelism of the DAG.", fr: "retry définit le nombre de nouvelles tentatives d'une activité, pas le parallélisme du DAG." }
+    percell: { en: "timeoutPerCellInSeconds is an activity-level timeout for each cell.", fr: "timeoutPerCellInSeconds est un délai d'expiration par cellule, au niveau de l'activité." }
+    runone: { en: "run executes a single notebook given by its name; it does not accept a DAG.", fr: "run exécute un seul notebook désigné par son nom ; il n'accepte pas de DAG." }
+references:
+  - title: NotebookUtils notebook run and orchestration for Fabric
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/notebookutils/notebookutils-notebook-run

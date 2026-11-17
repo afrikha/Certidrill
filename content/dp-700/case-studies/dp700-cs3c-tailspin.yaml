@@ -1,0 +1,95 @@
+id: dp700-cs3c-tailspin
+status: draft
+title:
+  en: Tailspin Toys
+  fr: Tailspin Toys
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Tailspin Toys is an online toy retailer that sells in 12 countries. It also sells products from marketplace partners on its website.
+
+        Tailspin is building a medallion architecture (bronze, silver and gold layers) in Microsoft Fabric for its sales data.
+      fr: |
+        Tailspin Toys est un détaillant de jouets en ligne qui vend dans 12 pays. Il vend aussi sur son site web les produits de partenaires de sa place de marché.
+
+        Tailspin construit une architecture en médaillon (couches bronze, silver et gold) dans Microsoft Fabric pour ses données de ventes.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Fabric.** A workspace named **WS-Sales** on an F64 capacity contains the following items.
+
+        | Item | Type | Details |
+        | --- | --- | --- |
+        | LH-Bronze | Lakehouse | Files folder contains a OneLake shortcut named **partner_catalog** |
+        | LH-Silver | Lakehouse | Delta table **orders** (key: OrderId) |
+        | LH-Gold | Lakehouse | Delta table **fact_sales** |
+        | NB-SilverOrders | Notebook | Loads an order file into the orders table |
+        | PL-Daily | Pipeline | Runs NB-SilverOrders (Notebook activity named **Load silver**), then the gold notebooks |
+
+        Finance analysts work in a separate workspace named **WS-Finance** and have no role in WS-Sales.
+
+        **Orders.** The e-commerce platform writes CSV order files to the **landing** container of an Azure Storage account (general-purpose v2) named **sttailspin**. Files arrive at irregular times, 5 to 20 times a day. No shortcut points to this container. An order can appear in several files, each time with a new ModifiedAt value, and some updates arrive days after the order.
+
+        **Partner catalog.** A partner named Fabrikam publishes its product catalog as Parquet files (each under 200 MB) in an Amazon S3 bucket. partner_catalog points to this bucket. Several notebooks read the catalog many times a day, and the AWS data egress charges are high.
+
+        **Gold table.** fact_sales receives small appends every hour and now contains many small Parquet files. Queries on fact_sales are getting slower.
+      fr: |
+        **Fabric.** Un espace de travail nommé **WS-Sales**, sur une capacité F64, contient les éléments suivants.
+
+        | Élément | Type | Détails |
+        | --- | --- | --- |
+        | LH-Bronze | Lakehouse | Le dossier Files contient un raccourci OneLake nommé **partner_catalog** |
+        | LH-Silver | Lakehouse | Table Delta **orders** (clé : OrderId) |
+        | LH-Gold | Lakehouse | Table Delta **fact_sales** |
+        | NB-SilverOrders | Notebook | Charge un fichier de commandes dans la table orders |
+        | PL-Daily | Pipeline | Exécute NB-SilverOrders (activité Notebook nommée **Load silver**), puis les notebooks gold |
+
+        Les analystes financiers travaillent dans un espace de travail distinct nommé **WS-Finance** et n'ont aucun rôle dans WS-Sales.
+
+        **Commandes.** La plateforme d'e-commerce écrit des fichiers de commandes CSV dans le conteneur **landing** d'un compte de stockage Azure (usage général v2) nommé **sttailspin**. Les fichiers arrivent à des heures irrégulières, 5 à 20 fois par jour. Aucun raccourci ne pointe vers ce conteneur. Une commande peut figurer dans plusieurs fichiers, chaque fois avec une nouvelle valeur ModifiedAt, et certaines mises à jour arrivent plusieurs jours après la commande.
+
+        **Catalogue partenaire.** Un partenaire nommé Fabrikam publie son catalogue de produits sous forme de fichiers Parquet (chacun de moins de 200 Mo) dans un compartiment Amazon S3. partner_catalog pointe vers ce compartiment. Plusieurs notebooks lisent le catalogue de nombreuses fois par jour, et les frais de sortie de données AWS sont élevés.
+
+        **Table gold.** fact_sales reçoit de petits ajouts toutes les heures et contient désormais de nombreux petits fichiers Parquet. Les requêtes sur fact_sales sont de plus en plus lentes.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Orchestration**
+
+        1. PL-Daily must start as soon as a new file is created in the landing container, and the name of that file must be passed to NB-SilverOrders.
+        2. NB-SilverOrders must return the number of rows it processed to PL-Daily. When it processed no rows, PL-Daily must skip the gold notebooks.
+
+        **Transformation**
+
+        3. The orders table must contain one row per OrderId, with the most recent version of the order. An existing row must be updated only when the incoming version is more recent. New orders must be inserted.
+
+        **Cost and performance**
+
+        4. The AWS egress charges for partner_catalog must be reduced without building a process that copies the catalog.
+        5. Read performance of fact_sales must be improved. The data engineers also want to reduce the VACUUM retention of fact_sales to two days to save storage.
+
+        **Security**
+
+        6. The finance analysts must be able to read the tables of LH-Gold from notebooks in WS-Finance. They must not get access to any other item of WS-Sales. The principle of least privilege must be followed.
+      fr: |
+        **Orchestration**
+
+        1. PL-Daily doit démarrer dès qu'un nouveau fichier est créé dans le conteneur landing, et le nom de ce fichier doit être transmis à NB-SilverOrders.
+        2. NB-SilverOrders doit renvoyer à PL-Daily le nombre de lignes qu'il a traitées. Quand il n'a traité aucune ligne, PL-Daily doit ignorer les notebooks gold.
+
+        **Transformation**
+
+        3. La table orders doit contenir une ligne par OrderId, avec la version la plus récente de la commande. Une ligne existante ne doit être mise à jour que si la version entrante est plus récente. Les nouvelles commandes doivent être insérées.
+
+        **Coûts et performances**
+
+        4. Les frais de sortie AWS liés à partner_catalog doivent être réduits sans créer de processus qui copie le catalogue.
+        5. Les performances de lecture de fact_sales doivent être améliorées. Les ingénieurs données veulent aussi réduire la rétention VACUUM de fact_sales à deux jours pour économiser du stockage.
+
+        **Sécurité**
+
+        6. Les analystes financiers doivent pouvoir lire les tables de LH-Gold depuis des notebooks de WS-Finance. Ils ne doivent obtenir l'accès à aucun autre élément de WS-Sales. Le principe du moindre privilège doit être respecté.

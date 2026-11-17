@@ -1,0 +1,82 @@
+id: az400-3d-gh-webapp-deploy
+objective: "3.4.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum uses GitHub Actions to deploy a .NET web app to an Azure App Service app named **app-orders**. The workflow publishes the app to the **./publish** folder. A Microsoft Entra application has a federated credential for the repository, and its IDs are stored as repository secrets.
+
+    The workflow must sign in to Azure without any stored client secret or publish profile, and it must deploy the published files to the **staging** slot of app-orders.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum utilise GitHub Actions pour déployer une application web .NET sur une application Azure App Service nommée **app-orders**. Le workflow publie l'application dans le dossier **./publish**. Une application Microsoft Entra possède des informations d'identification fédérées pour le dépôt, et ses ID sont stockés comme secrets du dépôt.
+
+    Le workflow doit se connecter à Azure sans aucun secret client ni profil de publication stocké, et il doit déployer les fichiers publiés dans l'emplacement **staging** d'app-orders.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    permissions:
+      id-token: [[perm]]
+      contents: read
+
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/download-artifact@v4
+            with:
+              name: publish
+              path: ./publish
+          - uses: azure/login@v2
+            with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          - uses: azure/webapps-deploy@v3
+            with:
+              app-name: app-orders
+              [[slotInput]]: staging
+              [[pathInput]]: ./publish
+  slots:
+    - id: perm
+      options:
+        - { id: pRead, text: read }
+        - { id: pWrite, text: write }
+        - { id: pNone, text: none }
+    - id: slotInput
+      options:
+        - { id: sSlotName, text: slot-name }
+        - { id: sImages, text: images }
+        - { id: sProfile, text: publish-profile }
+    - id: pathInput
+      options:
+        - { id: kImages, text: images }
+        - { id: kStartup, text: startup-command }
+        - { id: kPackage, text: package }
+answer:
+  values: { perm: pWrite, slotInput: sSlotName, pathInput: kPackage }
+explanation:
+  correct:
+    en: |
+      `id-token: write` lets the job request the OpenID Connect token that azure/login exchanges for an access token with the federated credential, so no secret is stored. azure/webapps-deploy then deploys the folder given in `package` to the slot given in `slot-name`.
+    fr: |
+      `id-token: write` permet au travail de demander le jeton OpenID Connect qu'azure/login échange contre un jeton d'accès grâce aux informations d'identification fédérées : aucun secret n'est stocké. azure/webapps-deploy déploie ensuite le dossier indiqué dans `package` vers l'emplacement indiqué dans `slot-name`.
+  options:
+    pRead: { en: "The id-token permission must be write for the job to request an OIDC token.", fr: "L'autorisation id-token doit valoir write pour que le travail puisse demander un jeton OIDC." }
+    pNone: { en: "Without the id-token permission, azure/login can't get an OIDC token.", fr: "Sans l'autorisation id-token, azure/login ne peut pas obtenir de jeton OIDC." }
+    sImages: { en: "images names container images to deploy, not a slot.", fr: "images nomme des images conteneur à déployer, pas un emplacement." }
+    sProfile: { en: "publish-profile is a stored credential, which the requirements exclude.", fr: "publish-profile est une information d'identification stockée, ce que les exigences excluent." }
+    kImages: { en: "The app is published as files, not as a container image.", fr: "L'application est publiée sous forme de fichiers, pas d'image conteneur." }
+    kStartup: { en: "startup-command sets the command that starts the app, not the files to deploy.", fr: "startup-command définit la commande qui démarre l'application, pas les fichiers à déployer." }
+references:
+  - title: Deploy to Azure App Service by using GitHub Actions
+    url: https://learn.microsoft.com/en-us/azure/app-service/deploy-github-actions

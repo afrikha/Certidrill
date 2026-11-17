@@ -1,0 +1,96 @@
+id: dp750-3c-ldp-read-files-options
+objective: "3.2.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum receives CSV order files in the Unity Catalog volume **/Volumes/adatum/landing/raw/orders/**. The volume already contains three years of files that were loaded by another process. You are writing the SQL source of a Lakeflow Spark Declarative Pipeline that creates the streaming table **adatum.bronze.orders**.
+
+    The solution must meet the following requirements:
+
+    - Load only the files that arrive after the streaming table is created.
+    - Store **order_id** as BIGINT and **amount** as DECIMAL(12,2), and infer the other columns.
+    - Never fail the stream because of new columns; keep unexpected data in the `_rescued_data` column.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum reçoit des fichiers de commandes CSV dans le volume Unity Catalog **/Volumes/adatum/landing/raw/orders/**. Le volume contient déjà trois ans de fichiers chargés par un autre processus. Vous écrivez le code source SQL d'un pipeline Lakeflow Spark Declarative Pipelines qui crée la table de streaming **adatum.bronze.orders**.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - Charger uniquement les fichiers qui arrivent après la création de la table de streaming.
+    - Stocker **order_id** en BIGINT et **amount** en DECIMAL(12,2), et inférer les autres colonnes.
+    - Ne jamais faire échouer le flux à cause de nouvelles colonnes ; conserver les données inattendues dans la colonne `_rescued_data`.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH STREAMING TABLE adatum.bronze.orders
+    AS SELECT *, _metadata.file_path AS source_file
+    FROM STREAM read_files(
+      '/Volumes/adatum/landing/raw/orders/',
+      format              => 'csv',
+      header              => true,
+      [[existing]]        => false,
+      [[types]]           => 'order_id BIGINT, amount DECIMAL(12,2)',
+      schemaEvolutionMode => [[mode]]
+    );
+  slots:
+    - id: existing
+      options:
+        - { id: overwrites, text: allowOverwrites }
+        - { id: include, text: includeExistingFiles }
+        - { id: infer, text: inferColumnTypes }
+    - id: types
+      options:
+        - { id: schema, text: schema }
+        - { id: partcols, text: partitionColumns }
+        - { id: hints, text: schemaHints }
+    - id: mode
+      options:
+        - { id: rescue, text: "'rescue'" }
+        - { id: addnew, text: "'addNewColumns'" }
+        - { id: failnew, text: "'failOnNewColumns'" }
+        - { id: none, text: "'none'" }
+answer:
+  values: { existing: include, types: hints, mode: rescue }
+explanation:
+  correct:
+    en: |
+      `includeExistingFiles => false` makes the stream ignore the files already in the volume when it first starts. `schemaHints` forces the types of the named columns while the other columns are still inferred. In `rescue` mode the schema never evolves and the stream never fails because of schema changes; data that does not match goes to `_rescued_data`.
+    fr: |
+      `includeExistingFiles => false` fait ignorer au flux les fichiers déjà présents dans le volume lors de son premier démarrage. `schemaHints` impose le type des colonnes nommées tandis que les autres colonnes restent inférées. En mode `rescue`, le schéma n'évolue jamais et le flux n'échoue jamais à cause d'un changement de schéma ; les données non conformes vont dans `_rescued_data`.
+  options:
+    overwrites:
+      en: "`allowOverwrites` controls whether modified files are processed again; its default is already `false`, and it does not skip existing files."
+      fr: "`allowOverwrites` détermine si les fichiers modifiés sont retraités ; sa valeur par défaut est déjà `false`, et il n'ignore pas les fichiers existants."
+    infer:
+      en: "`inferColumnTypes => false` would infer every column as a string; it does not skip existing files."
+      fr: "`inferColumnTypes => false` inférerait toutes les colonnes en chaînes ; il n'ignore pas les fichiers existants."
+    schema:
+      en: "`schema` defines the complete schema, so the other columns would not be inferred."
+      fr: "`schema` définit le schéma complet : les autres colonnes ne seraient pas inférées."
+    partcols:
+      en: "`partitionColumns` lists Hive-style partition columns of the directory structure; it does not set column types."
+      fr: "`partitionColumns` liste les colonnes de partition de style Hive de l'arborescence ; il ne définit pas le type des colonnes."
+    addnew:
+      en: "`addNewColumns` fails the stream when it adds a new column to the schema."
+      fr: "`addNewColumns` fait échouer le flux lorsqu'il ajoute une nouvelle colonne au schéma."
+    failnew:
+      en: "`failOnNewColumns` fails the stream until the schema is updated or the file is removed."
+      fr: "`failOnNewColumns` fait échouer le flux jusqu'à ce que le schéma soit mis à jour ou le fichier retiré."
+    none:
+      en: "`none` ignores new columns and does not rescue their data unless a rescued data column is set."
+      fr: "`none` ignore les nouvelles colonnes et ne récupère leurs données que si une colonne de données récupérées est définie."
+references:
+  - title: read_files table-valued function
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/functions/read_files
+  - title: Configure schema inference and evolution in Auto Loader
+    url: https://learn.microsoft.com/en-us/azure/databricks/ingestion/cloud-object-storage/auto-loader/schema

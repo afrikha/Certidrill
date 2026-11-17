@@ -1,0 +1,82 @@
+id: dp420-cs3a-index-metrics
+objective: "2.3.3"
+type: dropdown
+caseStudy: dp420-cs3a-alpine-ski-house
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A developer runs the customer service query against scans in a test console to address the requirement about its RU charge.
+
+    You need to complete the code so that the output lists the single and composite indexes that the query used and those that could lower its RU charge.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un développeur exécute la requête du service client sur scans dans une console de test pour traiter l'exigence relative à son coût en RU.
+
+    Vous devez compléter le code pour que la sortie liste les index simples et composites utilisés par la requête, ainsi que ceux qui pourraient réduire son coût en RU.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    QueryDefinition query = new QueryDefinition(
+        "SELECT * FROM c WHERE c.passId = @passId AND c.resortId = @resortId ORDER BY c.scannedAt DESC")
+        .WithParameter("@passId", passId)
+        .WithParameter("@resortId", resortId);
+
+    FeedIterator<GateScan> iterator = scans.GetItemQueryIterator<GateScan>(
+        query,
+        requestOptions: new QueryRequestOptions
+        {
+            PartitionKey = new PartitionKey(passId),
+            [[option]] = true
+        });
+
+    while (iterator.HasMoreResults)
+    {
+        FeedResponse<GateScan> page = await iterator.ReadNextAsync();
+        Console.WriteLine(page.[[property]]);
+    }
+  slots:
+    - id: option
+      options:
+        - { id: scan, text: EnableScanInQuery }
+        - { id: lowprec, text: EnableLowPrecisionOrderBy }
+        - { id: metrics, text: PopulateIndexMetrics }
+    - id: property
+      options:
+        - { id: charge, text: RequestCharge }
+        - { id: index, text: IndexMetrics }
+        - { id: diag, text: Diagnostics }
+        - { id: token, text: ContinuationToken }
+answer:
+  values: { option: metrics, property: index }
+explanation:
+  correct:
+    en: "Setting `PopulateIndexMetrics` to `true` in `QueryRequestOptions` asks the service to return indexing metrics, which the `IndexMetrics` property of `FeedResponse<T>` exposes. The output lists utilized and potential single and composite indexes, each with an impact score. Index metrics should be enabled only while troubleshooting."
+    fr: "Définir `PopulateIndexMetrics` sur `true` dans `QueryRequestOptions` demande au service de renvoyer les métriques d'indexation, exposées par la propriété `IndexMetrics` de `FeedResponse<T>`. La sortie liste les index simples et composites utilisés et potentiels, chacun avec un score d'impact. Les métriques d'index ne doivent être activées que pendant le dépannage."
+  options:
+    scan:
+      en: "`EnableScanInQuery` allows a query to scan when the required index path is excluded; it does not report index usage."
+      fr: "`EnableScanInQuery` autorise une requête à effectuer une analyse complète quand le chemin d'index requis est exclu ; il ne rend pas compte de l'utilisation des index."
+    lowprec:
+      en: "`EnableLowPrecisionOrderBy` changes how ORDER BY is evaluated; it returns no index information."
+      fr: "`EnableLowPrecisionOrderBy` modifie l'évaluation d'ORDER BY ; il ne renvoie aucune information sur les index."
+    charge:
+      en: "`RequestCharge` returns the RU cost of the page, not the indexes used or recommended."
+      fr: "`RequestCharge` renvoie le coût en RU de la page, pas les index utilisés ou recommandés."
+    diag:
+      en: "`Diagnostics` describes the request execution (latency, retries, contacted endpoints); it does not list potential indexes."
+      fr: "`Diagnostics` décrit l'exécution de la requête (latence, nouvelles tentatives, points de terminaison contactés) ; il ne liste pas les index potentiels."
+    token:
+      en: "`ContinuationToken` is used to resume paging; it contains no index metrics."
+      fr: "`ContinuationToken` sert à reprendre la pagination ; il ne contient aucune métrique d'index."
+references:
+  - title: Indexing Metrics - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/index-metrics

@@ -1,0 +1,79 @@
+id: dp750-cs4a-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is a property and casualty insurer that sells home and car policies in Belgium and France. The company has 1.2 million active policies. A data platform team of five engineers builds the pipelines, and two teams of actuaries analyze the data.
+
+        Humongous Insurance is building a lakehouse in Azure Databricks to replace a set of nightly SQL exports.
+      fr: |
+        Humongous Insurance est un assureur de dommages qui vend des contrats habitation et automobile en Belgique et en France. La société compte 1,2 million de contrats actifs. Une équipe plateforme de données de cinq ingénieurs construit les pipelines, et deux équipes d'actuaires analysent les données.
+
+        Humongous Insurance construit un lakehouse dans Azure Databricks pour remplacer un ensemble d'exports SQL nocturnes.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure Databricks.** Humongous Insurance has three Premium workspaces in the West Europe region, all attached to the same Unity Catalog metastore:
+
+        | Workspace | Use |
+        | --- | --- |
+        | adb-hi-dev | Development by the data engineers |
+        | adb-hi-prod | Production jobs and pipelines, actuarial analysis |
+        | adb-hi-sandbox | Experiments by any employee who requests access |
+
+        The catalogs **hi_dev** and **hi_prod** each contain the schemas **landing**, **bronze**, **silver** and **gold**. Every catalog currently uses the default setting: all workspaces have access.
+
+        **Sources.**
+
+        - An Azure SQL Database named **sqldb-policy** contains the policy administration tables. The table **dbo.policies** has the primary key policy_id, **dbo.coverages** has the primary key coverage_id, and **dbo.policy_events** has no primary key.
+        - A claims management SaaS application named ClaimFlow writes change files (JSON) every five minutes to an external volume named **hi_prod.landing.claimflow**. Each change record contains the claim columns plus **operation** (INSERT, UPDATE or DELETE) and **change_seq**, a number that increases with every change. A pipeline already loads these records into the streaming table **hi_prod.bronze.claims_cdc_raw**. Files can arrive out of order.
+
+        **Identities.** The account groups **actuaries-be**, **actuaries-fr** and **claims-managers** are provisioned from Microsoft Entra ID. A Microsoft Entra ID service principal named **sp-hi-deploy** is added to the account and to adb-hi-prod.
+
+        **Development.** The pipelines and jobs are defined in a Declarative Automation Bundles project (formerly Databricks Asset Bundles) stored in an Azure DevOps Git repository. Today, engineers deploy to production from their own computers with their personal identity.
+      fr: |
+        **Azure Databricks.** Humongous Insurance dispose de trois espaces de travail Premium dans la région West Europe, tous attachés au même metastore Unity Catalog :
+
+        | Espace de travail | Usage |
+        | --- | --- |
+        | adb-hi-dev | Développement par les ingénieurs de données |
+        | adb-hi-prod | Jobs et pipelines de production, analyse actuarielle |
+        | adb-hi-sandbox | Expérimentations de tout employé qui en demande l'accès |
+
+        Les catalogues **hi_dev** et **hi_prod** contiennent chacun les schémas **landing**, **bronze**, **silver** et **gold**. Tous les catalogues utilisent actuellement le paramètre par défaut : tous les espaces de travail y ont accès.
+
+        **Sources.**
+
+        - Une base de données Azure SQL Database nommée **sqldb-policy** contient les tables de gestion des contrats. La table **dbo.policies** a la clé primaire policy_id, **dbo.coverages** a la clé primaire coverage_id, et **dbo.policy_events** n'a pas de clé primaire.
+        - Une application SaaS de gestion des sinistres nommée ClaimFlow écrit toutes les cinq minutes des fichiers de modifications (JSON) dans un volume externe nommé **hi_prod.landing.claimflow**. Chaque enregistrement de modification contient les colonnes du sinistre ainsi que **operation** (INSERT, UPDATE ou DELETE) et **change_seq**, un nombre qui augmente à chaque modification. Un pipeline charge déjà ces enregistrements dans la table de streaming **hi_prod.bronze.claims_cdc_raw**. Les fichiers peuvent arriver dans le désordre.
+
+        **Identités.** Les groupes de compte **actuaries-be**, **actuaries-fr** et **claims-managers** sont provisionnés depuis Microsoft Entra ID. Un principal de service Microsoft Entra ID nommé **sp-hi-deploy** est ajouté au compte et à adb-hi-prod.
+
+        **Développement.** Les pipelines et les jobs sont définis dans un projet Declarative Automation Bundles (anciennement Databricks Asset Bundles) stocké dans un dépôt Git Azure DevOps. Aujourd'hui, les ingénieurs déploient en production depuis leur propre ordinateur avec leur identité personnelle.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Humongous Insurance identifies the following requirements:
+
+        1. **Policy ingestion.** The three tables of sqldb-policy must be ingested incrementally into hi_prod.bronze by using a managed connector. The load on sqldb-policy must be minimized. No custom ingestion code must be written.
+        2. **Claim history.** A silver table named **claims_history** must keep every version of each claim with the period during which the version was valid. Deletes in ClaimFlow must be applied. Changes that arrive out of order must be applied in the right order.
+        3. **Row-level security.** In **hi_prod.silver.claims**, members of actuaries-be must see only the rows where country is BE, members of actuaries-fr only the rows where country is FR, and members of claims-managers all the rows. The rule must be attached to the table itself; no view must be created.
+        4. **Reinsurance.** A reinsurer named Lucerne Re must be able to query **hi_prod.gold.loss_summary**. Lucerne Re has its own Azure Databricks account with a Unity Catalog metastore in the North Europe region. Lucerne Re must see only the current version of the table and must not be able to query earlier versions. Humongous Insurance must not have to manage access tokens for Lucerne Re. Sharing uses OpenSharing, the Azure Databricks implementation of the Delta Sharing protocol.
+        5. **Deployment.** Production deployments must be done only from the main branch by an Azure DevOps pipeline, and the production jobs must run as sp-hi-deploy instead of a personal identity.
+        6. **Environment isolation.** Engineers working in adb-hi-dev must be able to read hi_prod to compare results, but no write to hi_prod must be possible from adb-hi-dev. hi_prod must not be accessible from adb-hi-sandbox.
+      fr: |
+        Humongous Insurance a défini les exigences suivantes :
+
+        1. **Ingestion des contrats.** Les trois tables de sqldb-policy doivent être ingérées de façon incrémentielle dans hi_prod.bronze au moyen d'un connecteur managé. La charge sur sqldb-policy doit être réduite au minimum. Aucun code d'ingestion personnalisé ne doit être écrit.
+        2. **Historique des sinistres.** Une table silver nommée **claims_history** doit conserver chaque version de chaque sinistre avec la période pendant laquelle cette version était valide. Les suppressions effectuées dans ClaimFlow doivent être appliquées. Les modifications qui arrivent dans le désordre doivent être appliquées dans le bon ordre.
+        3. **Sécurité au niveau des lignes.** Dans **hi_prod.silver.claims**, les membres d'actuaries-be ne doivent voir que les lignes dont country vaut BE, les membres d'actuaries-fr uniquement celles dont country vaut FR, et les membres de claims-managers toutes les lignes. La règle doit être attachée à la table elle-même ; aucune vue ne doit être créée.
+        4. **Réassurance.** Un réassureur nommé Lucerne Re doit pouvoir interroger **hi_prod.gold.loss_summary**. Lucerne Re possède son propre compte Azure Databricks avec un metastore Unity Catalog dans la région North Europe. Lucerne Re ne doit voir que la version actuelle de la table et ne doit pas pouvoir interroger les versions antérieures. Humongous Insurance ne doit pas avoir à gérer de jetons d'accès pour Lucerne Re. Le partage utilise OpenSharing, l'implémentation Azure Databricks du protocole Delta Sharing.
+        5. **Déploiement.** Les déploiements en production doivent être effectués uniquement depuis la branche main par un pipeline Azure DevOps, et les jobs de production doivent s'exécuter en tant que sp-hi-deploy au lieu d'une identité personnelle.
+        6. **Isolation des environnements.** Les ingénieurs qui travaillent dans adb-hi-dev doivent pouvoir lire hi_prod pour comparer les résultats, mais aucune écriture dans hi_prod ne doit être possible depuis adb-hi-dev. hi_prod ne doit pas être accessible depuis adb-hi-sandbox.

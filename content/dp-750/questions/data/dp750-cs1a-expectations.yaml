@@ -1,0 +1,59 @@
+id: dp750-cs1a-expectations
+objective: "3.4.4"
+type: dropdown
+caseStudy: dp750-cs1a-lamna-healthcare
+difficulty: 1
+status: draft
+shuffle: false
+stem:
+  en: |
+    You are writing the SQL source file that defines clinical.silver.admissions in the Lakeflow pipeline.
+
+    How should you complete the definition to meet the data quality requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le fichier source SQL qui définit clinical.silver.admissions dans le pipeline Lakeflow.
+
+    Comment devez-vous compléter la définition pour respecter les exigences de qualité des données ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH STREAMING TABLE clinical.silver.admissions (
+      CONSTRAINT has_patient EXPECT (patient_id IS NOT NULL) [[r1]],
+      CONSTRAINT valid_stay EXPECT (discharge_ts IS NULL OR discharge_ts >= admit_ts) [[r2]],
+      CONSTRAINT plausible_age EXPECT (age BETWEEN 0 AND 120) [[r3]]
+    )
+    AS SELECT * FROM STREAM(clinical.bronze.admissions);
+  slots:
+    - id: r1
+      options:
+        - { id: none, text: { en: "(no ON VIOLATION clause)", fr: "(pas de clause ON VIOLATION)" } }
+        - { id: drop, text: "ON VIOLATION DROP ROW" }
+        - { id: fail, text: "ON VIOLATION FAIL UPDATE" }
+    - id: r2
+      options:
+        - { id: none, text: { en: "(no ON VIOLATION clause)", fr: "(pas de clause ON VIOLATION)" } }
+        - { id: drop, text: "ON VIOLATION DROP ROW" }
+        - { id: fail, text: "ON VIOLATION FAIL UPDATE" }
+    - id: r3
+      options:
+        - { id: none, text: { en: "(no ON VIOLATION clause)", fr: "(pas de clause ON VIOLATION)" } }
+        - { id: drop, text: "ON VIOLATION DROP ROW" }
+        - { id: fail, text: "ON VIOLATION FAIL UPDATE" }
+answer:
+  values: { r1: drop, r2: fail, r3: none }
+explanation:
+  correct:
+    en: "`ON VIOLATION DROP ROW` removes the invalid records before they are written and counts them in the dataset metrics. `ON VIOLATION FAIL UPDATE` fails the update on the first invalid record and rolls the table update back atomically. Without an ON VIOLATION clause the expectation only warns: invalid records are kept and the pass/fail counts appear in the data quality metrics."
+    fr: "`ON VIOLATION DROP ROW` supprime les enregistrements non valides avant leur écriture et les compte dans les métriques du jeu de données. `ON VIOLATION FAIL UPDATE` fait échouer la mise à jour dès le premier enregistrement non valide et annule atomiquement la mise à jour de la table. Sans clause ON VIOLATION, l'attente ne fait qu'avertir : les enregistrements non valides sont conservés et les nombres de réussites et d'échecs apparaissent dans les métriques de qualité des données."
+  options:
+    none: { en: "Without a clause, the invalid records would be written to the table (rule 1) or the update would continue (rule 2).", fr: "Sans clause, les enregistrements non valides seraient écrits dans la table (règle 1) ou la mise à jour continuerait (règle 2)." }
+    drop: { en: "DROP ROW would remove the records that must be kept (age) or let the update continue despite a source defect (stay dates).", fr: "DROP ROW supprimerait des enregistrements à conserver (âge) ou laisserait la mise à jour continuer malgré un défaut source (dates de séjour)." }
+    fail: { en: "FAIL UPDATE would stop the whole update instead of excluding a record or keeping it; metrics are not recorded for this action.", fr: "FAIL UPDATE arrêterait toute la mise à jour au lieu d'exclure ou de conserver un enregistrement ; aucune métrique n'est enregistrée pour cette action." }
+references:
+  - title: Manage data quality with pipeline expectations
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/expectations

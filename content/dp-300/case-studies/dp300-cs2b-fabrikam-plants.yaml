@@ -1,0 +1,109 @@
+id: dp300-cs2b-fabrikam-plants
+status: draft
+title:
+  en: Fabrikam Components
+  fr: Fabrikam Components
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fabrikam Components manufactures braking systems for car makers in nine plants in Germany, Poland and Czechia. A manufacturing execution system (MES) tracks every part from raw material to shipment.
+
+        Fabrikam is moving the MES database from its on-premises cluster to SQL Server on Azure virtual machines. A team of three database administrators (DBAs) manages SQL Server. The DBAs are members of the sysadmin fixed server role.
+      fr: |
+        Fabrikam Components fabrique des systèmes de freinage pour des constructeurs automobiles dans neuf usines en Allemagne, en Pologne et en Tchéquie. Un système d'exécution de la fabrication (MES) suit chaque pièce, de la matière première à l'expédition.
+
+        Fabrikam déplace la base de données du MES de son cluster local vers SQL Server sur des machines virtuelles Azure. Une équipe de trois administrateurs de bases de données (DBA) gère SQL Server. Les DBA sont membres du rôle serveur fixe sysadmin.
+  - key: existing
+    title: { en: "Planned environment", fr: "Environnement prévu" }
+    body:
+      en: |
+        **Production**
+
+        - A SQL Server 2022 Enterprise failover cluster instance (FCI) named **MESFCI** will run on two virtual machines named **SQLN1** and **SQLN2** (Windows Server 2022). SQLN1 is in availability zone 1 and SQLN2 in availability zone 2 of the West Europe region. Both virtual machines are in a subnet named **snet-sql**.
+        - MESFCI hosts the **MES** database (6 TB, full recovery model). MES uses FILESTREAM to store the inspection photos of the parts. The applications read and write the photos only through Transact-SQL, never through file system APIs.
+        - The MES application server connects with the application name **MesServer** and calls stored procedures only.
+
+        **Disaster recovery**
+
+        A virtual machine named **SQLDR1** in the North Europe region runs SQL Server 2022 Enterprise at the same cumulative update as MESFCI. The virtual networks of both regions are peered.
+
+        **Data**
+
+        The **dbo.MachineEvents** table of MES has a clustered columnstore index and is partitioned by month. It contains 36 partitions: partition 1 holds the oldest month and partition 36 the current month.
+
+        **Jobs**
+
+        A SQL Server Agent job named **ExportQualityFiles** is owned by the Windows login **FABRIKAM\qa-lead**, which is not a member of sysadmin. Its only step is a PowerShell step that writes CSV files to the share `\\fs-quality\exports`. The domain account **FABRIKAM\svc-qexport** has write permission on the share. In a test, the job failed; the job history states that non-sysadmin owners are denied permission to run PowerShell job steps without a proxy account.
+      fr: |
+        **Production**
+
+        - Une instance de cluster de basculement (FCI) SQL Server 2022 Enterprise nommée **MESFCI** s'exécutera sur deux machines virtuelles nommées **SQLN1** et **SQLN2** (Windows Server 2022). SQLN1 se trouve dans la zone de disponibilité 1 et SQLN2 dans la zone de disponibilité 2 de la région West Europe. Les deux machines virtuelles se trouvent dans un sous-réseau nommé **snet-sql**.
+        - MESFCI héberge la base de données **MES** (6 To, mode de récupération complet). MES utilise FILESTREAM pour stocker les photos d'inspection des pièces. Les applications lisent et écrivent les photos uniquement en Transact-SQL, jamais par les API du système de fichiers.
+        - Le serveur d'applications du MES se connecte avec le nom d'application **MesServer** et appelle uniquement des procédures stockées.
+
+        **Reprise d'activité**
+
+        Une machine virtuelle nommée **SQLDR1** dans la région North Europe exécute SQL Server 2022 Enterprise avec la même mise à jour cumulative que MESFCI. Les réseaux virtuels des deux régions sont reliés par un peering.
+
+        **Données**
+
+        La table **dbo.MachineEvents** de MES a un index columnstore cluster et est partitionnée par mois. Elle compte 36 partitions : la partition 1 contient le mois le plus ancien et la partition 36 le mois en cours.
+
+        **Travaux**
+
+        Un travail SQL Server Agent nommé **ExportQualityFiles** appartient à la connexion Windows **FABRIKAM\qa-lead**, qui n'est pas membre de sysadmin. Son unique étape est une étape PowerShell qui écrit des fichiers CSV dans le partage `\\fs-quality\exports`. Le compte de domaine **FABRIKAM\svc-qexport** dispose de l'autorisation d'écriture sur le partage. Lors d'un test, le travail a échoué ; l'historique du travail indique que les propriétaires non sysadmin n'ont pas l'autorisation d'exécuter des étapes de travail PowerShell sans compte proxy.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Availability requirements**
+
+        1. MESFCI must remain available if an availability zone fails.
+        2. SQLN1 and SQLN2 must stay in snet-sql. Client connections must be redirected as quickly as possible after a failover, and no load balancer must be deployed or managed for MESFCI.
+
+        **Patching requirements**
+
+        3. Windows updates and SQL Server cumulative updates must be installed automatically every month on SQLN1 and SQLN2, never on both nodes at the same time.
+        4. No feature that Microsoft has announced for retirement must be used for new deployments.
+
+        **Disaster recovery requirements**
+
+        5. MES must be protected on SQLDR1 by using log shipping.
+        6. Quality analysts must be able to query the copy of MES on SQLDR1 between log restores. The log restores must never wait for analyst sessions to end.
+        7. The copy of MES on SQLDR1 must always be at least 60 minutes behind each log backup, so that the DBAs can stop the restores before a mistaken mass deletion reaches SQLDR1.
+
+        **Data and monitoring requirements**
+
+        8. The storage used by the months older than 12 months in dbo.MachineEvents must be minimized. These months are queried a few times a year. The 12 most recent months must keep standard columnstore performance.
+        9. Every completed stored procedure call sent by MesServer must be captured, with its duration, CPU time and logical reads. The captured data must be kept on disk, and the capture must restart automatically when SQL Server starts.
+
+        **Job requirements**
+
+        10. The step of ExportQualityFiles must run under FABRIKAM\svc-qexport. FABRIKAM\qa-lead must remain the owner of the job and must not be added to sysadmin.
+      fr: |
+        **Exigences de disponibilité**
+
+        1. MESFCI doit rester disponible en cas de défaillance d'une zone de disponibilité.
+        2. SQLN1 et SQLN2 doivent rester dans snet-sql. Les connexions clientes doivent être redirigées le plus rapidement possible après un basculement, et aucun équilibreur de charge ne doit être déployé ni géré pour MESFCI.
+
+        **Exigences de mise à jour**
+
+        3. Les mises à jour Windows et les mises à jour cumulatives SQL Server doivent être installées automatiquement chaque mois sur SQLN1 et SQLN2, jamais sur les deux nœuds en même temps.
+        4. Aucune fonctionnalité dont Microsoft a annoncé la mise hors service ne doit être utilisée pour de nouveaux déploiements.
+
+        **Exigences de reprise d'activité**
+
+        5. MES doit être protégée sur SQLDR1 à l'aide de la copie des journaux de transaction.
+        6. Les analystes qualité doivent pouvoir interroger la copie de MES sur SQLDR1 entre les restaurations de journaux. Les restaurations de journaux ne doivent jamais attendre la fin des sessions des analystes.
+        7. La copie de MES sur SQLDR1 doit toujours avoir au moins 60 minutes de retard sur chaque sauvegarde de journal, afin que les DBA puissent arrêter les restaurations avant qu'une suppression massive par erreur n'atteigne SQLDR1.
+
+        **Exigences de données et de surveillance**
+
+        8. Le stockage utilisé par les mois de plus de 12 mois dans dbo.MachineEvents doit être réduit au minimum. Ces mois sont interrogés quelques fois par an. Les 12 mois les plus récents doivent conserver les performances columnstore standard.
+        9. Chaque appel de procédure stockée terminé envoyé par MesServer doit être capturé, avec sa durée, son temps processeur et ses lectures logiques. Les données capturées doivent être conservées sur disque, et la capture doit redémarrer automatiquement au démarrage de SQL Server.
+
+        **Exigences relatives aux travaux**
+
+        10. L'étape d'ExportQualityFiles doit s'exécuter sous FABRIKAM\svc-qexport. FABRIKAM\qa-lead doit rester propriétaire du travail et ne doit pas être ajouté à sysadmin.

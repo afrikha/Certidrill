@@ -1,0 +1,69 @@
+id: dp420-1d-lease-code
+objective: "1.4.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are deploying a .NET change feed processor to four virtual machines. The processor synchronizes the **orders** container of an Azure Cosmos DB for NoSQL account with a reporting store.
+
+    The four instances must share the work so that each change is processed by only one instance, and the code must create the lease container if it does not exist.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous déployez un processeur de flux de modification .NET sur quatre machines virtuelles. Le processeur synchronise le conteneur **orders** d'un compte Azure Cosmos DB for NoSQL avec un magasin de reporting.
+
+    Les quatre instances doivent se répartir le travail pour que chaque modification ne soit traitée que par une seule instance, et le code doit créer le conteneur de bail s'il n'existe pas.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    Container leaseContainer = await database.CreateContainerIfNotExistsAsync(
+        new ContainerProperties(id: "leases", partitionKeyPath: [[pk]]),
+        throughput: 400);
+
+    ChangeFeedProcessor processor = ordersContainer
+        .GetChangeFeedProcessorBuilder<Order>(processorName: [[name]], onChangesDelegate: HandleChangesAsync)
+        .WithInstanceName([[instance]])
+        .WithLeaseContainer(leaseContainer)
+        .Build();
+  slots:
+    - id: pk
+      options:
+        - { id: pkid, text: "\"/id\"" }
+        - { id: pkcust, text: "\"/customerId\"" }
+        - { id: pkpk, text: "\"/partitionKey\"" }
+    - id: name
+      options:
+        - { id: nconst, text: "\"orderReporting\"" }
+        - { id: nmachine, text: Environment.MachineName }
+        - { id: nguid, text: Guid.NewGuid().ToString() }
+    - id: instance
+      options:
+        - { id: imachine, text: Environment.MachineName }
+        - { id: iconst, text: "\"orderReporting\"" }
+        - { id: ilease, text: leaseContainer.Id }
+answer:
+  values: { pk: pkid, name: nconst, instance: imachine }
+explanation:
+  correct:
+    en: |
+      A partitioned lease container must use the /id partition key. The instances of one deployment unit share the work only when they use the same processorName and lease container, so the name must be a constant. Each instance needs a different instance name, which the machine name provides.
+    fr: |
+      Un conteneur de bail partitionné doit utiliser la clé de partition /id. Les instances d'une unité de déploiement ne se répartissent le travail que si elles utilisent le même processorName et le même conteneur de bail : le nom doit donc être une constante. Chaque instance doit avoir un nom d'instance différent, ce que fournit le nom de la machine.
+  options:
+    pkcust: { en: "The lease container does not use the partition key of the monitored container.", fr: "Le conteneur de bail n'utilise pas la clé de partition du conteneur surveillé." }
+    nmachine: { en: "A different processorName on each machine creates four deployment units, and each one processes every change.", fr: "Un processorName différent sur chaque machine crée quatre unités de déploiement, et chacune traite chaque modification." }
+    nguid: { en: "A new processorName at each start creates a new deployment unit with no saved state.", fr: "Un nouveau processorName à chaque démarrage crée une nouvelle unité de déploiement sans état enregistré." }
+    iconst: { en: "The four instances would have the same instance name, but each instance needs a unique one.", fr: "Les quatre instances auraient le même nom d'instance, alors que chaque instance doit avoir un nom unique." }
+references:
+  - title: Change Feed Processor - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-processor
+  - title: Use Change Feed With Azure Functions - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-functions

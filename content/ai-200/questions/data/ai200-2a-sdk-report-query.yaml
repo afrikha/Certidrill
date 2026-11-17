@@ -1,0 +1,61 @@
+id: ai200-2a-sdk-report-query
+objective: "2.1.1"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Contoso stores the documents of its retrieval-augmented generation (RAG) application in an Azure Cosmos DB for NoSQL container partitioned on `/tenantId`. A nightly Python job uses the synchronous `azure-cosmos` client.
+
+    The job must list the documents whose ingestion failed for **all** tenants. To reduce the number of round trips, each page of results must contain up to 500 items instead of the default page size.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso stocke les documents de son application de génération augmentée de récupération (RAG) dans un conteneur Azure Cosmos DB for NoSQL partitionné sur `/tenantId`. Un travail Python nocturne utilise le client synchrone `azure-cosmos`.
+
+    Le travail doit lister les documents dont l'ingestion a échoué pour **tous** les locataires. Pour réduire le nombre d'allers-retours, chaque page de résultats doit contenir jusqu'à 500 éléments au lieu de la taille de page par défaut.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    rows = container.query_items(
+        query="SELECT c.id, c.tenantId FROM c WHERE c.status = @status",
+        parameters=[{"name": "@status", "value": "failed"}],
+        [[scope]],
+        [[page]])
+
+    for row in rows:
+        report.add(row["tenantId"], row["id"])
+  slots:
+    - id: scope
+      options:
+        - { id: cross, text: 'enable_cross_partition_query=True' }
+        - { id: pkname, text: 'partition_key="tenantId"' }
+        - { id: metrics, text: 'populate_query_metrics=True' }
+    - id: page
+      options:
+        - { id: maxcount, text: 'max_item_count=500' }
+        - { id: tokenlimit, text: 'continuation_token_limit=500' }
+        - { id: priority, text: 'priority="Low"' }
+answer:
+  values: { scope: cross, page: maxcount }
+explanation:
+  correct:
+    en: "The query isn't scoped to one tenant, so the synchronous client needs `enable_cross_partition_query=True` to fan out to every partition. `max_item_count` sets the maximum number of items per page; the default page holds 100 items, so 500 means fewer round trips."
+    fr: "La requête n'est pas limitée à un locataire : le client synchrone a besoin de `enable_cross_partition_query=True` pour l'envoyer à toutes les partitions. `max_item_count` définit le nombre maximal d'éléments par page ; la page par défaut contient 100 éléments, donc 500 réduit les allers-retours."
+  options:
+    pkname: { en: "`partition_key` expects a partition key value, not the property name, and it would limit the query to a single partition.", fr: "`partition_key` attend une valeur de clé de partition, pas le nom de la propriété, et limiterait la requête à une seule partition." }
+    metrics: { en: "Query metrics are diagnostic information; they don't allow a cross-partition query.", fr: "Les métriques de requête sont des informations de diagnostic ; elles n'autorisent pas une requête entre partitions." }
+    tokenlimit: { en: "`continuation_token_limit` caps the size of the continuation token in KB, not the number of items per page.", fr: "`continuation_token_limit` limite la taille du jeton de continuation en Ko, pas le nombre d'éléments par page." }
+    priority: { en: "Low priority makes the requests throttled first when throughput is exhausted; it doesn't change the page size.", fr: "La priorité basse fait limiter ces requêtes en premier quand le débit est épuisé ; elle ne change pas la taille de page." }
+references:
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy?view=azure-python
+  - title: Best practices for Python SDK - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/best-practice-python

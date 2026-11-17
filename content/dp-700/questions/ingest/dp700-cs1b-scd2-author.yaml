@@ -1,0 +1,85 @@
+id: dp700-cs1b-scd2-author
+objective: "2.1.2"
+type: dropdown
+caseStudy: dp700-cs1b-lucerne-publishing
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the stored procedure that loads dbo.DimAuthor from stg.Author to meet the dimensional model requirement. The @LoadDate variable contains the load date. How should you complete the T-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la procédure stockée qui charge dbo.DimAuthor à partir de stg.Author pour satisfaire l'exigence relative au modèle dimensionnel. La variable @LoadDate contient la date de chargement. Comment devez-vous compléter les instructions T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    UPDATE dbo.DimAuthor
+    SET IsCurrent = 0, ValidTo = @LoadDate
+    WHERE IsCurrent = 1
+      AND EXISTS (SELECT 1 FROM stg.Author AS s
+                  WHERE s.AuthorID = dbo.DimAuthor.AuthorID
+                    AND [[changed]]);
+
+    INSERT INTO dbo.DimAuthor (AuthorID, Country, RoyaltyTier, ValidFrom, ValidTo, IsCurrent)
+    SELECT s.AuthorID, s.Country, s.RoyaltyTier, [[from]], NULL, 1
+    FROM stg.Author AS s
+    LEFT JOIN dbo.DimAuthor AS d
+      ON d.AuthorID = s.AuthorID AND d.IsCurrent = 1
+    WHERE [[missing]];
+  slots:
+    - id: changed
+      options:
+        - { id: cdiff, text: "(s.Country <> dbo.DimAuthor.Country OR s.RoyaltyTier <> dbo.DimAuthor.RoyaltyTier)" }
+        - { id: cnull, text: "dbo.DimAuthor.ValidTo IS NULL" }
+        - { id: csame, text: "(s.Country = dbo.DimAuthor.Country AND s.RoyaltyTier = dbo.DimAuthor.RoyaltyTier)" }
+    - id: from
+      options:
+        - { id: fnull, text: "NULL" }
+        - { id: fload, text: "@LoadDate" }
+        - { id: fmax, text: "'9999-12-31'" }
+    - id: missing
+      options:
+        - { id: mcur, text: "d.IsCurrent = 0" }
+        - { id: mto, text: "d.ValidTo = @LoadDate" }
+        - { id: mnull, text: "d.AuthorID IS NULL" }
+answer:
+  values: { changed: cdiff, from: fload, missing: mnull }
+explanation:
+  correct:
+    en: |-
+      For a type 2 change, the UPDATE first expires the current version of each author whose Country or RoyaltyTier changed, by setting ValidTo and clearing IsCurrent. After this step, a changed author has no current row any more, so the LEFT JOIN on IsCurrent = 1 finds no match for both changed and new authors; `d.AuthorID IS NULL` therefore inserts exactly the new versions and the new authors. The new version is valid from the load date, which is also the ValidTo of the expired version.
+    fr: |-
+      Pour une modification de type 2, l'UPDATE expire d'abord la version actuelle de chaque auteur dont Country ou RoyaltyTier a changé, en définissant ValidTo et en remettant IsCurrent à 0. Après cette étape, un auteur modifié n'a plus de ligne actuelle ; la jointure LEFT JOIN sur IsCurrent = 1 ne trouve donc aucune correspondance, ni pour les auteurs modifiés ni pour les nouveaux auteurs, et `d.AuthorID IS NULL` insère exactement les nouvelles versions et les nouveaux auteurs. La nouvelle version est valide à partir de la date de chargement, qui est aussi la valeur ValidTo de la version expirée.
+  options:
+    cnull:
+      en: |-
+        Every current row has a NULL ValidTo, so this condition would expire all the authors, including the unchanged ones.
+      fr: |-
+        Toutes les lignes actuelles ont un ValidTo NULL ; cette condition expirerait donc tous les auteurs, y compris ceux qui n'ont pas changé.
+    csame:
+      en: |-
+        This condition expires the authors that did not change and keeps the changed ones current.
+      fr: |-
+        Cette condition expire les auteurs qui n'ont pas changé et laisse actuels ceux qui ont changé.
+    fnull:
+      en: |-
+        ValidFrom must hold the start of the validity period; a NULL start date would break the point-in-time lookups.
+      fr: |-
+        ValidFrom doit contenir le début de la période de validité ; une date de début NULL empêcherait les recherches à une date donnée.
+    mcur:
+      en: |-
+        The join keeps only rows with IsCurrent = 1, so d.IsCurrent is never 0; it is NULL when no current row matches.
+      fr: |-
+        La jointure ne retient que les lignes où IsCurrent = 1 ; d.IsCurrent ne vaut donc jamais 0, il est NULL quand aucune ligne actuelle ne correspond.
+    mto:
+      en: |-
+        The joined rows are current rows with a NULL ValidTo, so this condition never matches and no row would be inserted.
+      fr: |-
+        Les lignes jointes sont des lignes actuelles dont ValidTo est NULL ; cette condition n'est donc jamais vraie et aucune ligne ne serait insérée.
+references:
+  - title: "Dimensional modeling in Microsoft Fabric Warehouse: Load tables"
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables

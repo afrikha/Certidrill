@@ -1,0 +1,77 @@
+id: dp750-4c-spark-bottleneck-fixes
+objective: "4.4.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are troubleshooting three slow notebooks at Litware. Each runs on its own all-purpose compute resource, and none of the compute resources shows errors in its event log.
+
+    You need to choose the fix for each finding. The solution must not increase the number of workers.
+
+    How should you complete the troubleshooting notes? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous dépannez trois notebooks lents chez Litware. Chacun s'exécute sur sa propre ressource de calcul polyvalent, et aucune de ces ressources de calcul ne présente d'erreur dans son journal des événements.
+
+    Vous devez choisir la correction de chaque constat. La solution ne doit pas augmenter le nombre de workers.
+
+    Comment devez-vous compléter les notes de dépannage ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Notebook 1: a stage runs for 20 minutes with a single task while the other cores are idle. The query computes ROW_NUMBER() OVER (ORDER BY event_time) on 900 million rows. Fix: [[f1]]
+
+      Notebook 2: in the Server load distribution chart of the Metrics tab, the driver is red and every worker is blue. The notebook starts 40 streaming queries in parallel threads. Fix: [[f2]]
+
+      Notebook 3: the jobs timeline shows gaps of several minutes between Spark jobs. The code adds 300 columns by calling withColumn() in a loop. Fix: [[f3]]
+    fr: |
+      Notebook 1 : une étape dure 20 minutes avec une seule tâche pendant que les autres cœurs sont inactifs. La requête calcule ROW_NUMBER() OVER (ORDER BY event_time) sur 900 millions de lignes. Correction : [[f1]]
+
+      Notebook 2 : dans le graphique Server load distribution de l'onglet Metrics, le pilote est rouge et tous les workers sont bleus. Le notebook démarre 40 requêtes de streaming dans des threads parallèles. Correction : [[f2]]
+
+      Notebook 3 : la chronologie des jobs montre des écarts de plusieurs minutes entre les jobs Spark. Le code ajoute 300 colonnes en appelant withColumn() dans une boucle. Correction : [[f3]]
+  slots:
+    - id: f1
+      options:
+        - { id: partition, text: { en: "Add a PARTITION BY clause to the window if the logic allows it", fr: "Ajouter une clause PARTITION BY à la fenêtre si la logique le permet" } }
+        - { id: driver1, text: { en: "Select a driver type twice as large", fr: "Sélectionner un type de pilote deux fois plus grand" } }
+        - { id: optimize1, text: { en: "Run OPTIMIZE on the source table", fr: "Exécuter OPTIMIZE sur la table source" } }
+        - { id: restart1, text: { en: "Restart the compute", fr: "Redémarrer le calcul" } }
+    - id: f2
+      options:
+        - { id: driver2, text: { en: "Select a driver type twice as large", fr: "Sélectionner un type de pilote deux fois plus grand" } }
+        - { id: repartition2, text: { en: "Repartition the input DataFrames", fr: "Repartitionner les DataFrames d'entrée" } }
+        - { id: optimize2, text: { en: "Run OPTIMIZE on the source table", fr: "Exécuter OPTIMIZE sur la table source" } }
+        - { id: partition2, text: { en: "Add a PARTITION BY clause to the window if the logic allows it", fr: "Ajouter une clause PARTITION BY à la fenêtre si la logique le permet" } }
+    - id: f3
+      options:
+        - { id: selectexpr, text: { en: "Combine the column expressions in a single selectExpr() call", fr: "Combiner les expressions de colonnes dans un seul appel à selectExpr()" } }
+        - { id: restart3, text: { en: "Restart the compute", fr: "Redémarrer le calcul" } }
+        - { id: repartition3, text: { en: "Repartition the input DataFrames", fr: "Repartitionner les DataFrames d'entrée" } }
+        - { id: optimize3, text: { en: "Run OPTIMIZE on the source table", fr: "Exécuter OPTIMIZE sur la table source" } }
+answer:
+  values: { f1: partition, f2: driver2, f3: selectexpr }
+explanation:
+  correct:
+    en: "A window function without PARTITION BY spans the whole dataset, so one task processes every row and adding workers doesn't help. A red driver with blue workers is an overloaded driver, most often from too many concurrent operations; Microsoft recommends starting by doubling the driver size, or reducing or spreading the concurrency. Calling withColumn() in a loop builds a large plan that the driver spends time processing between jobs; a single selectExpr() simplifies the plan."
+    fr: "Une fonction de fenêtre sans PARTITION BY couvre tout le jeu de données : une seule tâche traite toutes les lignes, et ajouter des workers n'aide pas. Un pilote rouge avec des workers bleus est un pilote surchargé, le plus souvent par trop d'opérations simultanées ; Microsoft recommande de commencer par doubler la taille du pilote, ou de réduire ou répartir la simultanéité. Appeler withColumn() dans une boucle construit un plan volumineux que le pilote met du temps à traiter entre les jobs ; un seul selectExpr() simplifie le plan."
+  options:
+    driver1: { en: "The driver isn't the bottleneck; one task on a worker does all the work.", fr: "Le pilote n'est pas le goulet d'étranglement ; une seule tâche sur un worker fait tout le travail." }
+    optimize1: { en: "Compacting files doesn't add parallelism to a window that has no partitioning.", fr: "Compacter les fichiers n'ajoute pas de parallélisme à une fenêtre sans partitionnement." }
+    restart1: { en: "A restart doesn't change the single-task plan.", fr: "Un redémarrage ne modifie pas le plan à tâche unique." }
+    repartition2: { en: "The workers are idle; repartitioning doesn't relieve the driver.", fr: "Les workers sont inactifs ; repartitionner ne soulage pas le pilote." }
+    optimize2: { en: "File layout isn't the cause of an overloaded driver.", fr: "La disposition des fichiers n'est pas la cause d'un pilote surchargé." }
+    partition2: { en: "There is no window function issue in this notebook.", fr: "Ce notebook n'a pas de problème de fonction de fenêtre." }
+    restart3: { en: "A restart doesn't simplify the execution plan built by the code.", fr: "Un redémarrage ne simplifie pas le plan d'exécution construit par le code." }
+    repartition3: { en: "The gaps come from plan processing on the driver, not from partitioning.", fr: "Les écarts viennent du traitement du plan sur le pilote, pas du partitionnement." }
+    optimize3: { en: "The gaps aren't caused by reading files.", fr: "Les écarts ne sont pas dus à la lecture des fichiers." }
+references:
+  - title: Long Spark stage with one task
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/one-spark-task
+  - title: Spark driver overloaded
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/spark-driver-overloaded

@@ -1,0 +1,125 @@
+id: dp700-cs4b-fourth-coffee
+status: draft
+title:
+  en: Fourth Coffee
+  fr: Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee roasts coffee and sells it in 140 company cafés and through four grocery chains. The head office is in Seattle. A data engineering team of four people maintains the sales platform in Microsoft Fabric.
+
+        Fourth Coffee wants to automate the loading of the grocery sales, industrialize the deployment of its Fabric items, and secure and govern the sales warehouse.
+      fr: |
+        Fourth Coffee torréfie du café et le vend dans 140 cafés de l'entreprise et par l'intermédiaire de quatre chaînes de supermarchés. Le siège est à Seattle. Une équipe d'ingénierie des données de quatre personnes maintient la plateforme des ventes dans Microsoft Fabric.
+
+        Fourth Coffee souhaite automatiser le chargement des ventes des supermarchés, industrialiser le déploiement de ses éléments Fabric, et sécuriser et gouverner l'entrepôt des ventes.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Workspaces.** Fourth Coffee has the following Fabric workspaces.
+
+        | Workspace | Contents |
+        | --- | --- |
+        | FC-Eng-Dev, FC-Eng-Test, FC-Eng-Prod | The notebook **NB_CleanPOS** and the pipelines **PL_LoadPOS**, **PL_LoadProducts** and **PL_LoadPrices**. The three workspaces are assigned, in this order, to the Development, Test and Production stages of a deployment pipeline named **DP-Eng**. |
+        | FC-Data-Dev, FC-Data-Test, FC-Data-Prod | Each workspace contains a lakehouse named **LH_Sales** and a warehouse named **WH_Sales**. These workspaces are not part of DP-Eng. |
+
+        In FC-Eng-Dev, the default lakehouse of NB_CleanPOS is LH_Sales in FC-Data-Dev. You are the owner of all the items.
+
+        **Point-of-sale files.** Every night, each grocery chain uploads one CSV file per store to the container **pos-drop** of an Azure Storage general-purpose v2 account named **stfcpos**, which allows public network access. The files of each day are stored in a folder named after the date, for example `pos-drop/2026/11/16/`. Each file has a header row. PL_LoadPOS loads the files into the staging table **stg.POS** of WH_Sales, and then into dbo.FactSales. The identity that PL_LoadPOS uses to connect to WH_Sales has the Storage Blob Data Reader role on stfcpos.
+
+        **WH_Sales.** In FC-Data-Prod, WH_Sales contains the following tables.
+
+        | Table | Details |
+        | --- | --- |
+        | dbo.FactSales | DateKey, StoreKey, ProductKey, Region, Quantity, Amount |
+        | dbo.DimProduct | ProductKey (surrogate key), ProductSKU, BlendName, RoastLevel, PriceCategory, ValidFrom, ValidTo, IsCurrent, IsInferredMember. Changes of PriceCategory are tracked as a type 2 slowly changing dimension. |
+        | dbo.DimDistributor | DistributorKey, DistributorName, BankAccount, TaxId. BankAccount is masked with `partial(0,"XXXXXXXXXX",4)` and TaxId with `default()`. |
+
+        The product information system publishes the details of new seasonal blends up to three days after the blends go on sale. The point-of-sale files can therefore contain ProductSKU values that are not yet in DimProduct. These ProductSKU values are always valid.
+
+        **Product loads.** PL_LoadProducts and PL_LoadPrices both start at 02:00. PL_LoadProducts runs UPDATE statements on dbo.DimProduct. PL_LoadPrices runs UPDATE and INSERT statements on dbo.DimProduct for the type 2 changes of PriceCategory. Each pipeline runs for about 40 minutes, and the two pipelines never modify the same rows. About once a week, one of them fails with error 24556, Snapshot isolation transaction aborted due to update conflict.
+
+        **Access to FC-Data-Prod.** The workspace roles are assigned as follows:
+
+        - **DataEngineers**: Contributor
+        - **FinanceAnalysts** and **CreditControl**: Viewer
+
+        **Governance.** The Fabric administrator has not enabled certification or master data endorsement. The **DataGovernance** group reviews the quality of the shared data sets. Its members have write permission on WH_Sales in FC-Data-Prod.
+      fr: |
+        **Espaces de travail.** Fourth Coffee dispose des espaces de travail Fabric suivants.
+
+        | Espace de travail | Contenu |
+        | --- | --- |
+        | FC-Eng-Dev, FC-Eng-Test, FC-Eng-Prod | Le notebook **NB_CleanPOS** et les pipelines **PL_LoadPOS**, **PL_LoadProducts** et **PL_LoadPrices**. Les trois espaces de travail sont affectés, dans cet ordre, aux phases Development, Test et Production d'un pipeline de déploiement nommé **DP-Eng**. |
+        | FC-Data-Dev, FC-Data-Test, FC-Data-Prod | Chaque espace de travail contient un lakehouse nommé **LH_Sales** et un entrepôt nommé **WH_Sales**. Ces espaces de travail ne font pas partie de DP-Eng. |
+
+        Dans FC-Eng-Dev, le lakehouse par défaut de NB_CleanPOS est LH_Sales dans FC-Data-Dev. Vous êtes le propriétaire de tous les éléments.
+
+        **Fichiers des points de vente.** Chaque nuit, chaque chaîne de supermarchés dépose un fichier CSV par magasin dans le conteneur **pos-drop** d'un compte Stockage Azure v2 à usage général nommé **stfcpos**, qui autorise l'accès réseau public. Les fichiers de chaque jour sont stockés dans un dossier nommé d'après la date, par exemple `pos-drop/2026/11/16/`. Chaque fichier a une ligne d'en-tête. PL_LoadPOS charge les fichiers dans la table de préparation **stg.POS** de WH_Sales, puis dans dbo.FactSales. L'identité utilisée par PL_LoadPOS pour se connecter à WH_Sales dispose du rôle Storage Blob Data Reader sur stfcpos.
+
+        **WH_Sales.** Dans FC-Data-Prod, WH_Sales contient les tables suivantes.
+
+        | Table | Détails |
+        | --- | --- |
+        | dbo.FactSales | DateKey, StoreKey, ProductKey, Region, Quantity, Amount |
+        | dbo.DimProduct | ProductKey (clé de substitution), ProductSKU, BlendName, RoastLevel, PriceCategory, ValidFrom, ValidTo, IsCurrent, IsInferredMember. Les changements de PriceCategory sont suivis comme une dimension à variation lente de type 2. |
+        | dbo.DimDistributor | DistributorKey, DistributorName, BankAccount, TaxId. BankAccount est masquée avec `partial(0,"XXXXXXXXXX",4)` et TaxId avec `default()`. |
+
+        Le système d'information produit publie les détails des nouveaux mélanges saisonniers jusqu'à trois jours après leur mise en vente. Les fichiers des points de vente peuvent donc contenir des valeurs ProductSKU qui ne sont pas encore dans DimProduct. Ces valeurs ProductSKU sont toujours valides.
+
+        **Chargements des produits.** PL_LoadProducts et PL_LoadPrices démarrent tous deux à 02:00. PL_LoadProducts exécute des instructions UPDATE sur dbo.DimProduct. PL_LoadPrices exécute des instructions UPDATE et INSERT sur dbo.DimProduct pour les changements de type 2 de PriceCategory. Chaque pipeline s'exécute pendant environ 40 minutes, et les deux pipelines ne modifient jamais les mêmes lignes. Environ une fois par semaine, l'un d'eux échoue avec l'erreur 24556, Snapshot isolation transaction aborted due to update conflict.
+
+        **Accès à FC-Data-Prod.** Les rôles d'espace de travail sont attribués comme suit :
+
+        - **DataEngineers** : Contributor
+        - **FinanceAnalysts** et **CreditControl** : Viewer
+
+        **Gouvernance.** L'administrateur Fabric n'a activé ni la certification ni l'approbation des données de référence. Le groupe **DataGovernance** vérifie la qualité des jeux de données partagés. Ses membres disposent de l'autorisation d'écriture sur WH_Sales dans FC-Data-Prod.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Fourth Coffee identifies the following requirements.
+
+        **Lifecycle**
+
+        1. After each deployment by DP-Eng, NB_CleanPOS must use LH_Sales in FC-Data-Test when it runs in FC-Eng-Test, and LH_Sales in FC-Data-Prod when it runs in FC-Eng-Prod.
+
+        **Ingestion**
+
+        2. Each night, PL_LoadPOS must load only the files of the previous day into stg.POS by using a T-SQL statement. Up to 50 malformed rows for each load must be rejected and kept in the container **pos-rejects** of stfcpos for review, without failing the load. A load that contains more than 50 malformed rows must fail.
+        3. The sales of a new blend must appear in the reports on the day they are loaded. When the details of the blend arrive, they must apply to the sales already loaded without updating any row of dbo.FactSales.
+
+        **Security and governance**
+
+        4. In the OneLake catalog, WH_Sales of FC-Data-Prod must display a badge that shows that it was reviewed against the company's data quality standards. Only the members of DataGovernance must be able to apply this badge.
+        5. FinanceAnalysts must see only the last four characters of BankAccount. CreditControl must see the full BankAccount values, but the TaxId values must stay masked for CreditControl.
+
+        **Operations**
+
+        6. PL_LoadProducts and PL_LoadPrices must stop failing with update conflicts, and both must complete before 06:00.
+        7. Development and administrative effort must be minimized.
+      fr: |
+        Fourth Coffee a défini les exigences suivantes.
+
+        **Cycle de vie**
+
+        1. Après chaque déploiement par DP-Eng, NB_CleanPOS doit utiliser LH_Sales dans FC-Data-Test quand il s'exécute dans FC-Eng-Test, et LH_Sales dans FC-Data-Prod quand il s'exécute dans FC-Eng-Prod.
+
+        **Ingestion**
+
+        2. Chaque nuit, PL_LoadPOS ne doit charger dans stg.POS que les fichiers de la veille, à l'aide d'une instruction T-SQL. Jusqu'à 50 lignes mal formées par chargement doivent être rejetées et conservées dans le conteneur **pos-rejects** de stfcpos pour examen, sans faire échouer le chargement. Un chargement qui contient plus de 50 lignes mal formées doit échouer.
+        3. Les ventes d'un nouveau mélange doivent apparaître dans les rapports le jour de leur chargement. Quand les détails du mélange arrivent, ils doivent s'appliquer aux ventes déjà chargées sans mettre à jour aucune ligne de dbo.FactSales.
+
+        **Sécurité et gouvernance**
+
+        4. Dans le catalogue OneLake, WH_Sales de FC-Data-Prod doit afficher un badge qui indique qu'il a été vérifié selon les normes de qualité des données de l'entreprise. Seuls les membres de DataGovernance doivent pouvoir appliquer ce badge.
+        5. FinanceAnalysts ne doit voir que les quatre derniers caractères de BankAccount. CreditControl doit voir les valeurs complètes de BankAccount, mais les valeurs de TaxId doivent rester masquées pour CreditControl.
+
+        **Exploitation**
+
+        6. PL_LoadProducts et PL_LoadPrices ne doivent plus échouer à cause de conflits de mise à jour, et tous deux doivent se terminer avant 06:00.
+        7. L'effort de développement et d'administration doit être réduit au minimum.

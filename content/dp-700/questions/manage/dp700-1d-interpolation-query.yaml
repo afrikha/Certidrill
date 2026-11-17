@@ -1,0 +1,67 @@
+id: dp700-1d-interpolation-query
+objective: "1.4.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric pipeline named PL_Sales that has a String parameter named Region and no variables. PL_Sales runs every morning and contains a Copy data activity named Copy sales.
+
+    Copy sales must read the rows of the previous day, relative to the time the trigger fired, from an Azure SQL database table named dbo.Sales, and write them to a lakehouse table whose name is sales_ followed by the value of Region, for example sales_emea.
+
+    How should you complete the dynamic content? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un pipeline Fabric nommé PL_Sales qui a un paramètre String nommé Region et aucune variable. PL_Sales s'exécute chaque matin et contient une activité Copy data nommée Copy sales.
+
+    Copy sales doit lire les lignes de la veille, par rapport à l'heure de déclenchement, dans une table de base de données Azure SQL nommée dbo.Sales, et les écrire dans une table de lakehouse dont le nom est sales_ suivi de la valeur de Region, par exemple sales_emea.
+
+    Comment devez-vous compléter le contenu dynamique ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: text
+  template:
+    en: |
+      Copy data activity "Copy sales"
+        Source > Query:
+          SELECT * FROM dbo.Sales WHERE SaleDate = [[q]]
+        Destination > Table name:
+          [[tbl]]
+    fr: |
+      Activité Copy data "Copy sales"
+        Source > Requête :
+          SELECT * FROM dbo.Sales WHERE SaleDate = [[q]]
+        Destination > Nom de la table :
+          [[tbl]]
+  slots:
+    - id: q
+      options:
+        - { id: atonly, text: "'@formatDateTime(addDays(pipeline().TriggerTime, -1), 'yyyy-MM-dd')'" }
+        - { id: escaped, text: "'@@{formatDateTime(addDays(pipeline().TriggerTime, -1), 'yyyy-MM-dd')}'" }
+        - { id: interp, text: "'@{formatDateTime(addDays(pipeline().TriggerTime, -1), 'yyyy-MM-dd')}'" }
+    - id: tbl
+      options:
+        - { id: concatparam, text: "@concat('sales_', pipeline().parameters.Region)" }
+        - { id: inline, text: "sales_@pipeline().parameters.Region" }
+        - { id: concatvar, text: "@concat('sales_', variables('Region'))" }
+        - { id: escapedtbl, text: "@@concat('sales_', pipeline().parameters.Region)" }
+answer:
+  values: { q: interp, tbl: concatparam }
+explanation:
+  correct:
+    en: |
+      A value is evaluated as an expression only when it starts with @. In the middle of the query text, the expression must be wrapped in @{...} (string interpolation), which inserts the formatted date of the day before the trigger time. The table name is a whole value that starts with @, so concat builds sales_ followed by the Region parameter, read with pipeline().parameters.
+    fr: |
+      Une valeur n'est évaluée comme une expression que si elle commence par @. Au milieu du texte de la requête, l'expression doit être entourée de @{...} (interpolation de chaîne), qui insère la date mise en forme de la veille de l'heure de déclenchement. Le nom de la table est une valeur entière qui commence par @ : concat construit donc sales_ suivi du paramètre Region, lu avec pipeline().parameters.
+  options:
+    atonly: { en: "Without braces, an @ in the middle of the text is not evaluated: the query would contain the expression as literal text.", fr: "Sans accolades, un @ au milieu du texte n'est pas évalué : la requête contiendrait l'expression comme texte littéral." }
+    escaped: { en: "@@ escapes the @ character, so the expression is sent to the database as literal text.", fr: "@@ échappe le caractère @ : l'expression est envoyée à la base de données comme texte littéral." }
+    inline: { en: "The value does not start with @, so the whole string is a literal table name.", fr: "La valeur ne commence pas par @ : toute la chaîne est un nom de table littéral." }
+    concatvar: { en: "Region is a pipeline parameter, not a variable, and the pipeline has no variables.", fr: "Region est un paramètre de pipeline, pas une variable, et le pipeline n'a aucune variable." }
+    escapedtbl: { en: "@@ turns the value into a literal string that starts with @.", fr: "@@ transforme la valeur en chaîne littérale qui commence par @." }
+references:
+  - title: Expressions and functions for Data Factory in Microsoft Fabric
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/expression-language

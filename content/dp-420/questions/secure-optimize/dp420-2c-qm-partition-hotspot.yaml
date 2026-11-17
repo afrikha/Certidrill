@@ -1,0 +1,66 @@
+id: dp420-2c-qm-partition-hotspot
+objective: "2.3.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A container named **telemetry** has 12 physical partitions. A cross-partition query that runs every minute is sometimes much slower than usual. For every page of the query, your code adds the result of `feedResponse.Diagnostics.GetQueryMetrics()` to a list named `metrics` of type `List<ServerSideCumulativeMetrics>`.
+
+    You need to identify the physical partition that consumed the most request units across all the round trips of the query.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un conteneur nommé **telemetry** compte 12 partitions physiques. Une requête entre partitions exécutée chaque minute est parfois beaucoup plus lente que d'habitude. Pour chaque page de la requête, votre code ajoute le résultat de `feedResponse.Diagnostics.GetQueryMetrics()` à une liste nommée `metrics` de type `List<ServerSideCumulativeMetrics>`.
+
+    Vous devez identifier la partition physique qui a consommé le plus d'unités de requête sur l'ensemble des allers-retours de la requête.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    var hottest = metrics
+        .SelectMany(m => m.[[list]])
+        .GroupBy(p => p.[[key]])
+        .Select(g => new { Range = g.Key, Charge = g.Sum(p => p.[[ru]]) })
+        .OrderByDescending(x => x.Charge)
+        .First();
+
+    logger.LogWarning("Partition key range {Range} consumed {Charge} RU",
+        hottest.Range, hottest.Charge);
+  slots:
+    - id: list
+      options:
+        - { id: partitioned, text: PartitionedMetrics }
+        - { id: cumulative, text: CumulativeMetrics }
+        - { id: total, text: TotalRequestCharge }
+    - id: key
+      options:
+        - { id: pkrange, text: PartitionKeyRangeId }
+        - { id: output, text: ServerSideMetrics.OutputDocumentCount }
+        - { id: charge, text: RequestCharge }
+    - id: ru
+      options:
+        - { id: rc, text: RequestCharge }
+        - { id: size, text: ServerSideMetrics.RetrievedDocumentSize }
+        - { id: ratio, text: ServerSideMetrics.IndexHitRatio }
+        - { id: time, text: ServerSideMetrics.TotalTime.TotalMilliseconds }
+answer:
+  values: { list: partitioned, key: pkrange, ru: rc }
+explanation:
+  correct:
+    en: "`PartitionedMetrics` lists one `ServerSidePartitionedMetrics` entry for each physical partition reached during a round trip. Flattening the lists of all pages and grouping them by `PartitionKeyRangeId` gathers the entries of the same physical partition, and summing their `RequestCharge` gives the request units each partition consumed. Comparing the groups shows whether one partition causes the slowdown."
+    fr: "`PartitionedMetrics` contient une entrée `ServerSidePartitionedMetrics` pour chaque partition physique atteinte pendant un aller-retour. Aplatir les listes de toutes les pages puis les regrouper par `PartitionKeyRangeId` rassemble les entrées d'une même partition physique, et la somme de leur `RequestCharge` donne les unités de requête consommées par chaque partition. La comparaison des groupes montre si une partition est à l'origine du ralentissement."
+  options:
+    cumulative: { en: "CumulativeMetrics aggregates all partitions of a round trip into a single object, so the per-partition detail is lost.", fr: "CumulativeMetrics agrège toutes les partitions d'un aller-retour en un seul objet : le détail par partition est perdu." }
+    output: { en: "Grouping by the number of output items would mix different partitions together.", fr: "Regrouper par nombre d'éléments renvoyés mélangerait des partitions différentes." }
+    time: { en: "TotalTime measures execution time, not request units; the requirement is the RU consumption.", fr: "TotalTime mesure le temps d'exécution, pas les unités de requête ; l'exigence porte sur la consommation de RU." }
+    size: { en: "RetrievedDocumentSize is a number of bytes, not a request charge.", fr: "RetrievedDocumentSize est un nombre d'octets, pas des frais de requête." }
+references:
+  - title: Get SQL query execution metrics and analyze query performance using .NET SDK
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/query-metrics-performance

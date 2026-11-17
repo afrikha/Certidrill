@@ -1,0 +1,59 @@
+id: sc200-3a-kql-dd-union-hash
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso, Ltd. uses Microsoft Defender for Endpoint. A threat intelligence feed reports a malicious file by its SHA1 hash.
+
+    You need an advanced hunting query that searches DeviceFileEvents, DeviceProcessEvents and DeviceEvents for the hash during the last 30 days, and returns for each table the first time the hash was seen and the number of distinct devices.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso, Ltd. utilise Microsoft Defender for Endpoint. Un flux de renseignement sur les menaces signale un fichier malveillant par son hachage SHA1.
+
+    Vous avez besoin d'une requête de repérage avancé qui recherche le hachage dans DeviceFileEvents, DeviceProcessEvents et DeviceEvents au cours des 30 derniers jours, et renvoie pour chaque table la première fois où le hachage a été vu et le nombre d'appareils distincts.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let badHash = "8f14e45fceea167a5a36dedd4bea2543b7c1e0d2";
+    [[op]] withsource=SourceTable DeviceFileEvents, DeviceProcessEvents, DeviceEvents
+    | where Timestamp > ago(30d)
+    | where SHA1 == badHash
+    | summarize FirstSeen = [[first]](Timestamp), Devices = dcount(DeviceId) by SourceTable
+  slots:
+    - id: op
+      options:
+        - { id: union, text: union }
+        - { id: join, text: join }
+        - { id: lookup, text: lookup }
+        - { id: mvexpand, text: mv-expand }
+    - id: first
+      options:
+        - { id: min, text: min }
+        - { id: max, text: max }
+        - { id: count, text: count }
+        - { id: any, text: take_any }
+answer:
+  values: { op: union, first: min }
+explanation:
+  correct:
+    en: union stacks the rows of several tables, and withsource adds a column (here SourceTable) with the name of the table each row comes from. min(Timestamp) returns the earliest time the hash appears in each table.
+    fr: union empile les lignes de plusieurs tables, et withsource ajoute une colonne (ici SourceTable) avec le nom de la table d'origine de chaque ligne. min(Timestamp) renvoie l'heure la plus ancienne à laquelle le hachage apparaît dans chaque table.
+  options:
+    join: { en: "join correlates two tables on a key; it doesn't stack three tables nor accept withsource.", fr: "join corrèle deux tables sur une clé ; il n'empile pas trois tables et n'accepte pas withsource." }
+    lookup: { en: "lookup enriches a table with columns of a dimension table; it doesn't stack tables.", fr: "lookup enrichit une table avec les colonnes d'une table de dimension ; il n'empile pas de tables." }
+    mvexpand: { en: "mv-expand expands dynamic arrays into rows; it doesn't read several tables.", fr: "mv-expand développe des tableaux dynamiques en lignes ; il ne lit pas plusieurs tables." }
+    max: { en: "max returns the most recent time the hash was seen, not the first.", fr: "max renvoie la dernière fois où le hachage a été vu, pas la première." }
+    any: { en: "take_any returns an arbitrary time, not necessarily the earliest.", fr: "take_any renvoie une heure arbitraire, pas forcément la plus ancienne." }
+references:
+  - title: Advanced hunting query best practices
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-best-practices

@@ -1,0 +1,98 @@
+id: az400-3d-stage-fan-in
+objective: "3.4.2"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Tailspin Toys has a multi-stage YAML pipeline in Azure Pipelines that deploys an order processing solution. The stages are defined in the order shown in the answer area.
+
+    The pipeline must meet the following requirements:
+
+    - The schema changes in DeployDb must be applied before any service is deployed.
+    - DeployApi and DeployWorker must run at the same time, as soon as DeployDb succeeds.
+    - SmokeTest must start only after both services are deployed successfully.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys dispose d'un pipeline YAML multiphase dans Azure Pipelines qui déploie une solution de traitement des commandes. Les phases sont définies dans l'ordre indiqué dans la zone de réponse.
+
+    Le pipeline doit respecter les exigences suivantes :
+
+    - Les modifications de schéma de DeployDb doivent être appliquées avant le déploiement de tout service.
+    - DeployApi et DeployWorker doivent s'exécuter en même temps, dès que DeployDb réussit.
+    - SmokeTest ne doit démarrer qu'après le déploiement réussi des deux services.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    stages:
+    - stage: Build
+      jobs:
+      - job: Compile
+        steps:
+        - script: ./build.sh
+    - stage: DeployDb
+      dependsOn: Build
+      jobs:
+      - job: Migrate
+        steps:
+        - script: ./migrate.sh
+    - stage: DeployApi
+      dependsOn: [[api]]
+      jobs:
+      - job: Api
+        steps:
+        - script: ./deploy-api.sh
+    - stage: DeployWorker
+      dependsOn: [[worker]]
+      jobs:
+      - job: Worker
+        steps:
+        - script: ./deploy-worker.sh
+    - stage: SmokeTest
+      dependsOn: [[smoke]]
+      jobs:
+      - job: Smoke
+        steps:
+        - script: ./smoke.sh
+  slots:
+    - id: api
+      options:
+        - { id: apiDb, text: DeployDb }
+        - { id: apiBuild, text: Build }
+        - { id: apiEmpty, text: "[]" }
+    - id: worker
+      options:
+        - { id: wDb, text: DeployDb }
+        - { id: wApi, text: DeployApi }
+        - { id: wEmpty, text: "[]" }
+    - id: smoke
+      options:
+        - { id: sWorker, text: DeployWorker }
+        - { id: sBoth, text: "[DeployApi, DeployWorker]" }
+        - { id: sDb, text: DeployDb }
+answer:
+  values: { api: apiDb, worker: wDb, smoke: sBoth }
+explanation:
+  correct:
+    en: |
+      Two stages that both declare `dependsOn: DeployDb` fan out: they start in parallel as soon as DeployDb succeeds. SmokeTest fans in by listing both stages, and by default a stage runs only when all the stages it depends on have succeeded.
+    fr: |
+      Deux phases qui déclarent toutes deux `dependsOn: DeployDb` se déploient en éventail : elles démarrent en parallèle dès que DeployDb réussit. SmokeTest regroupe les deux branches en listant les deux phases et, par défaut, une phase ne s'exécute que lorsque toutes les phases dont elle dépend ont réussi.
+  options:
+    apiBuild: { en: "Depending only on Build lets DeployApi start before the schema changes are applied.", fr: "Dépendre uniquement de Build permet à DeployApi de démarrer avant l'application des modifications de schéma." }
+    apiEmpty: { en: "`dependsOn: []` removes every dependency, so the stage starts with the first stage of the run.", fr: "`dependsOn: []` supprime toute dépendance : la phase démarre avec la première phase de l'exécution." }
+    wApi: { en: "Depending on DeployApi makes the two services run one after the other instead of at the same time.", fr: "Dépendre de DeployApi fait s'exécuter les deux services l'un après l'autre au lieu d'en même temps." }
+    wEmpty: { en: "`dependsOn: []` lets DeployWorker start before DeployDb has run.", fr: "`dependsOn: []` permet à DeployWorker de démarrer avant l'exécution de DeployDb." }
+    sWorker: { en: "SmokeTest could start while DeployApi is still running or after it failed.", fr: "SmokeTest pourrait démarrer alors que DeployApi est encore en cours ou après son échec." }
+    sDb: { en: "SmokeTest would run in parallel with the two service deployments.", fr: "SmokeTest s'exécuterait en parallèle des deux déploiements de services." }
+references:
+  - title: Add stages, dependencies, and conditions
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/stages

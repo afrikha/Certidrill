@@ -1,0 +1,107 @@
+id: dp750-cs1b-city-power-light
+status: draft
+title:
+  en: City Power & Light
+  fr: City Power & Light
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        City Power & Light is an electricity distribution company that serves 2.4 million customers. Every customer has a smart meter that sends a reading every 15 minutes. The grid also sends outage events when a feeder or a substation loses power.
+
+        A data engineering team of four people builds a streaming platform on Azure Databricks. An operations team monitors all the Azure resources from Azure Monitor.
+      fr: |
+        City Power & Light est un distributeur d'électricité qui dessert 2,4 millions de clients. Chaque client dispose d'un compteur intelligent qui envoie un relevé toutes les 15 minutes. Le réseau envoie aussi des événements de panne quand un départ ou un poste électrique perd l'alimentation.
+
+        Une équipe d'ingénierie des données de quatre personnes construit une plateforme de streaming sur Azure Databricks. Une équipe d'exploitation surveille toutes les ressources Azure depuis Azure Monitor.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        City Power & Light has the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | evh-cpl-grid | Azure Event Hubs namespace | Standard tier; event hubs **meter-readings** and **outage-events** |
+        | adb-cpl-prod | Azure Databricks workspace | Premium plan, enabled for Unity Catalog and serverless compute |
+        | grid | Unity Catalog catalog | Schemas **bronze**, **silver**, **gold** and **landing** |
+        | sc_evh | Unity Catalog service credential | Uses an Access Connector for Azure Databricks that has the Azure Event Hubs Data Receiver role on evh-cpl-grid |
+        | law-cpl-ops | Log Analytics workspace | Used by the operations team |
+        | ag-cpl-ops | Action group | Sends an email to the operations team |
+
+        The table **grid.silver.readings** is an unpartitioned Delta table that contains 40 billion rows and grows by about 230 million rows per day. Most queries filter on **meter_id** (2.4 million distinct values) and **reading_date**.
+
+        The finance department uploads new tariff files to the volume **/Volumes/grid/landing/tariffs** at irregular times. Each upload is a batch of three to eight CSV files copied within about 30 seconds.
+
+        The job **daily-feeder-load** aggregates the readings of the previous day by **substation_id**. It has become much slower over the last month.
+      fr: |
+        City Power & Light dispose des ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | evh-cpl-grid | Espace de noms Azure Event Hubs | Niveau Standard ; hubs d'événements **meter-readings** et **outage-events** |
+        | adb-cpl-prod | Espace de travail Azure Databricks | Plan Premium, activé pour Unity Catalog et le calcul serverless |
+        | grid | Catalogue Unity Catalog | Schémas **bronze**, **silver**, **gold** et **landing** |
+        | sc_evh | Informations d'identification de service Unity Catalog | Utilisent un Access Connector for Azure Databricks qui dispose du rôle Azure Event Hubs Data Receiver sur evh-cpl-grid |
+        | law-cpl-ops | Espace de travail Log Analytics | Utilisé par l'équipe d'exploitation |
+        | ag-cpl-ops | Groupe d'actions | Envoie un e-mail à l'équipe d'exploitation |
+
+        La table **grid.silver.readings** est une table Delta non partitionnée qui contient 40 milliards de lignes et augmente d'environ 230 millions de lignes par jour. La plupart des requêtes filtrent sur **meter_id** (2,4 millions de valeurs distinctes) et **reading_date**.
+
+        Le service financier dépose de nouveaux fichiers de tarifs dans le volume **/Volumes/grid/landing/tariffs** à des moments irréguliers. Chaque dépôt est un lot de trois à huit fichiers CSV copiés en 30 secondes environ.
+
+        Le job **daily-feeder-load** agrège les relevés de la veille par **substation_id**. Il est devenu beaucoup plus lent au cours du dernier mois.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Meter readings**
+
+        - A notebook job must ingest meter-readings into **grid.bronze.meter_readings** every 15 minutes. Each run must process all the events available when it starts and then stop, so that no compute runs between two runs.
+        - The notebook must authenticate to Event Hubs by using sc_evh.
+
+        **Outage detection**
+
+        - A Python notebook must process outage-events 24 hours a day with a latency of a few seconds. It uses a Structured Streaming query with a processing-time trigger of 10 seconds.
+        - The compute of the outage detection job must be used only by that job: no other job and no interactive user can attach to it.
+
+        **Table layout**
+
+        - Queries on grid.silver.readings that filter on meter_id or reading_date must read as few files as possible.
+        - The analysts plan to filter on **feeder_id** in the future. Changing the layout columns must not require rewriting the existing data.
+
+        **Tariffs**
+
+        - A job must process the tariff files within a few minutes of their upload, with one run per upload batch.
+        - No job run must start when no new file is uploaded.
+
+        **Operations**
+
+        - The operations team must receive an email through ag-cpl-ops when any run of a job in adb-cpl-prod fails.
+        - The alerts must be managed in Azure Monitor from the data in law-cpl-ops.
+      fr: |
+        **Relevés de compteurs**
+
+        - Un job de notebook doit ingérer meter-readings dans **grid.bronze.meter_readings** toutes les 15 minutes. Chaque exécution doit traiter tous les événements disponibles au moment de son démarrage puis s'arrêter, pour qu'aucun calcul ne s'exécute entre deux exécutions.
+        - Le notebook doit s'authentifier auprès d'Event Hubs en utilisant sc_evh.
+
+        **Détection des pannes**
+
+        - Un notebook Python doit traiter outage-events 24 heures sur 24 avec une latence de quelques secondes. Il utilise une requête Structured Streaming avec un déclencheur de temps de traitement (processing time) de 10 secondes.
+        - Le calcul du job de détection des pannes ne doit être utilisé que par ce job : aucun autre job ni aucun utilisateur interactif ne peut s'y attacher.
+
+        **Disposition des tables**
+
+        - Les requêtes sur grid.silver.readings qui filtrent sur meter_id ou reading_date doivent lire le moins de fichiers possible.
+        - Les analystes prévoient de filtrer sur **feeder_id** à l'avenir. Changer les colonnes de disposition ne doit pas imposer de réécrire les données existantes.
+
+        **Tarifs**
+
+        - Un job doit traiter les fichiers de tarifs dans les minutes qui suivent leur dépôt, avec une seule exécution par lot déposé.
+        - Aucune exécution ne doit démarrer quand aucun nouveau fichier n'est déposé.
+
+        **Exploitation**
+
+        - L'équipe d'exploitation doit recevoir un e-mail via ag-cpl-ops quand une exécution d'un job d'adb-cpl-prod échoue.
+        - Les alertes doivent être gérées dans Azure Monitor à partir des données de law-cpl-ops.

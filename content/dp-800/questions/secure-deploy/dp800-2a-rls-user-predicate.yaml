@@ -1,0 +1,73 @@
+id: dp800-2a-rls-user-predicate
+objective: "2.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL Database that contains a table named **dbo.Opportunity**. The **SalesRep** column stores the database user name of the sales representative who owns each row.
+
+    Each sales representative connects with their own Microsoft Entra account. The application doesn't set a session context.
+
+    Sales representatives must see, update and delete only their own rows. Statements that target the rows of other representatives must not return an error.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL Database qui contient une table nommée **dbo.Opportunity**. La colonne **SalesRep** stocke le nom d'utilisateur de base de données du commercial propriétaire de chaque ligne.
+
+    Chaque commercial se connecte avec son propre compte Microsoft Entra. L'application ne définit pas de contexte de session.
+
+    Les commerciaux doivent voir, mettre à jour et supprimer uniquement leurs propres lignes. Les instructions qui ciblent les lignes des autres commerciaux ne doivent pas renvoyer d'erreur.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION Security.fn_RepPredicate (@SalesRep sysname)
+        RETURNS [[ret]]
+        WITH SCHEMABINDING
+    AS
+        RETURN SELECT 1 AS fn_result
+        WHERE @SalesRep = [[who]];
+    GO
+
+    CREATE SECURITY POLICY Security.RepPolicy
+        ADD [[pred]] PREDICATE Security.fn_RepPredicate(SalesRep) ON dbo.Opportunity
+        WITH (STATE = ON);
+  slots:
+    - id: ret
+      options:
+        - { id: table, text: TABLE }
+        - { id: int, text: int }
+        - { id: bit, text: bit }
+    - id: who
+      options:
+        - { id: username, text: "USER_NAME()" }
+        - { id: appname, text: "APP_NAME()" }
+        - { id: hostname, text: "HOST_NAME()" }
+        - { id: session, text: "CAST(SESSION_CONTEXT(N'SalesRep') AS sysname)" }
+    - id: pred
+      options:
+        - { id: filter, text: FILTER }
+        - { id: block, text: BLOCK }
+answer:
+  values: { ret: table, who: username, pred: filter }
+explanation:
+  correct:
+    en: |
+      An RLS predicate must be an inline table-valued function, so it returns TABLE. Because each representative connects with their own identity, USER_NAME() returns the database user name to compare with SalesRep. A filter predicate silently excludes the other rows from SELECT, UPDATE and DELETE, so these statements don't fail.
+    fr: |
+      Un prédicat de RLS doit être une fonction table inline : elle renvoie donc TABLE. Comme chaque commercial se connecte avec sa propre identité, USER_NAME() renvoie le nom d'utilisateur de base de données à comparer à SalesRep. Un prédicat de filtre exclut sans erreur les autres lignes de SELECT, UPDATE et DELETE : ces instructions n'échouent pas.
+  options:
+    int: { en: "A scalar function cannot be used as a security predicate.", fr: "Une fonction scalaire ne peut pas servir de prédicat de sécurité." }
+    session: { en: "The application doesn't set a session context, so SESSION_CONTEXT returns NULL and no row would be visible.", fr: "L'application ne définit pas de contexte de session : SESSION_CONTEXT renvoie NULL et aucune ligne ne serait visible." }
+    appname: { en: "APP_NAME() returns the application name from the connection string, which the client controls.", fr: "APP_NAME() renvoie le nom de l'application issu de la chaîne de connexion, que le client contrôle." }
+    block: { en: "Block predicates raise errors on writes and don't filter the rows returned by SELECT.", fr: "Les prédicats de blocage lèvent des erreurs sur les écritures et ne filtrent pas les lignes renvoyées par SELECT." }
+references:
+  - title: Row-level security
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/row-level-security

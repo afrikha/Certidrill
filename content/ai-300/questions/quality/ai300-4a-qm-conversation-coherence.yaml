@@ -1,0 +1,81 @@
+id: ai300-4a-qm-conversation-coherence
+objective: "4.1.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank uploaded a JSONL dataset in which each row contains a `messages` array with a complete multi-turn conversation between a customer and its support assistant.
+
+    You need an evaluation run that assesses the logical flow of each conversation as a whole, rather than each turn separately, by using a built-in evaluator.
+
+    How should you complete the Python code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank a chargé un jeu de données JSONL dont chaque ligne contient un tableau `messages` avec une conversation multitour complète entre un client et son assistant de support.
+
+    Vous avez besoin d'une exécution d'évaluation qui évalue l'enchaînement logique de chaque conversation dans son ensemble, plutôt que chaque tour séparément, à l'aide d'un évaluateur intégré.
+
+    Comment devez-vous compléter le code Python ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    testing_criteria = [
+        {
+            "type": "azure_ai_evaluator",
+            "name": "conversation_flow",
+            "evaluator_name": [[ev]],
+            "initialization_parameters": {"deployment_name": judge_deployment},
+            "data_mapping": {[[field]]: "{{item.messages}}"},
+        },
+    ]
+
+    eval_object = openai_client.evals.create(
+        name="support-conversations",
+        data_source_config=data_source_config,
+        testing_criteria=testing_criteria,
+    )
+
+    eval_run = openai_client.evals.runs.create(
+        eval_id=eval_object.id,
+        name="conversation-flow-run",
+        data_source=data_source,
+        [[extra]],
+    )
+  slots:
+    - id: ev
+      options:
+        - { id: coh, text: "\"builtin.coherence\"" }
+        - { id: flu, text: "\"builtin.fluency\"" }
+        - { id: rel, text: "\"builtin.relevance\"" }
+    - id: field
+      options:
+        - { id: msg, text: "\"messages\"" }
+        - { id: q, text: "\"query\"" }
+        - { id: ctx, text: "\"context\"" }
+    - id: extra
+      options:
+        - { id: conv, text: "extra_body={\"evaluation_level\": \"conversation\"}" }
+        - { id: turn, text: "extra_body={\"evaluation_level\": \"turn\"}" }
+        - { id: sample, text: "extra_body={\"include_sample_schema\": True}" }
+answer:
+  values: { ev: coh, field: msg, extra: conv }
+explanation:
+  correct:
+    en: "Coherence measures the logical, orderly presentation of ideas, and setting `evaluation_level` to `conversation` makes it assess the logical flow across the full conversation. Conversation-level evaluation requires a `messages` field in the data mapping that contains the whole conversation in OpenAI message format."
+    fr: "Coherence mesure la présentation logique et ordonnée des idées, et définir `evaluation_level` sur `conversation` lui fait évaluer l'enchaînement logique de toute la conversation. L'évaluation au niveau de la conversation nécessite un champ `messages` dans le mappage de données, qui contient toute la conversation au format de messages OpenAI."
+  options:
+    flu: { en: "Fluency judges grammar and readability, not the logical flow of ideas.", fr: "Fluency juge la grammaire et la lisibilité, pas l'enchaînement logique des idées." }
+    rel: { en: "Relevance judges whether a response addresses the query, not the logical flow.", fr: "Relevance juge si une réponse traite la requête, pas l'enchaînement logique." }
+    q: { en: "Mapping the conversation to query does not provide the messages input that conversation-level evaluation needs.", fr: "Mapper la conversation à query ne fournit pas l'entrée messages nécessaire à l'évaluation au niveau de la conversation." }
+    turn: { en: "Turn-level evaluation scores each turn separately, which the requirement excludes.", fr: "L'évaluation au niveau du tour note chaque tour séparément, ce que l'exigence exclut." }
+    sample: { en: "include_sample_schema is a data source configuration setting that exposes target output; it does not change the evaluation level.", fr: "include_sample_schema est un paramètre de configuration de la source de données qui expose la sortie d'une cible ; il ne change pas le niveau d'évaluation." }
+references:
+  - title: General purpose evaluators
+    url: https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/general-purpose-evaluators
+  - title: Simulate conversations with the Microsoft Foundry SDK
+    url: https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/cloud-evaluation-simulate-conversations

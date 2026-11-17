@@ -1,0 +1,56 @@
+id: dp800-3c-send-sensitive-column
+objective: "3.3.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database. A RAG procedure answers questions about a customer's orders. It builds the context with the following query and sends it to an Azure OpenAI chat deployment by using sp_invoke_external_rest_endpoint.
+
+    ```sql
+    SET @context = (SELECT o.OrderNumber, o.Status, l.ProductName, l.Quantity,
+                           c.Email, c.Phone
+                    FROM dbo.Orders AS o
+                    JOIN dbo.OrderLines AS l ON l.OrderId = o.OrderId
+                    JOIN dbo.Customers AS c ON c.CustomerId = o.CustomerId
+                    WHERE o.CustomerId = @customerId
+                    FOR JSON PATH);
+    ```
+
+    A new compliance rule states that customer contact data must never leave the database. The answers need only the order and order line data.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL. Une procédure RAG répond aux questions sur les commandes d'un client. Elle construit le contexte avec la requête suivante et l'envoie à un déploiement de conversation Azure OpenAI avec sp_invoke_external_rest_endpoint.
+
+    ```sql
+    SET @context = (SELECT o.OrderNumber, o.Status, l.ProductName, l.Quantity,
+                           c.Email, c.Phone
+                    FROM dbo.Orders AS o
+                    JOIN dbo.OrderLines AS l ON l.OrderId = o.OrderId
+                    JOIN dbo.Customers AS c ON c.CustomerId = o.CustomerId
+                    WHERE o.CustomerId = @customerId
+                    FOR JSON PATH);
+    ```
+
+    Une nouvelle règle de conformité impose que les coordonnées des clients ne quittent jamais la base de données. Les réponses n'ont besoin que des données des commandes et des lignes de commande.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add a system message that tells the model never to reveal email addresses or phone numbers.", fr: "Ajouter un message système qui demande au modèle de ne jamais révéler d'adresse e-mail ni de numéro de téléphone." } }
+    - { id: b, text: { en: "Lower max_tokens so that the answers are too short to contain the contact data.", fr: "Réduire max_tokens pour que les réponses soient trop courtes pour contenir les coordonnées." } }
+    - { id: c, text: { en: "Set temperature to 0 so that the model only repeats the data it needs.", fr: "Affecter 0 à temperature pour que le modèle ne répète que les données dont il a besoin." } }
+    - { id: d, text: { en: "Remove c.Email and c.Phone from the query that builds @context.", fr: "Supprimer c.Email et c.Phone de la requête qui construit @context." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Everything that the retrieval query puts in @context is sent outside the database with sp_invoke_external_rest_endpoint. Removing the contact columns from the query is the only way to make sure that they never reach the model, and they aren't needed for the answers."
+    fr: "Tout ce que la requête de récupération place dans @context est envoyé hors de la base de données avec sp_invoke_external_rest_endpoint. Supprimer les colonnes de coordonnées de la requête est le seul moyen de garantir qu'elles n'atteignent jamais le modèle, et elles ne sont pas utiles aux réponses."
+  options:
+    a: { en: "The instruction may limit what the model writes, but the contact data is still sent to the model.", fr: "L'instruction peut limiter ce que le modèle écrit, mais les coordonnées sont toujours envoyées au modèle." }
+    b: { en: "max_tokens limits the answer, not the prompt: the data still leaves the database.", fr: "max_tokens limite la réponse, pas l'invite : les données quittent toujours la base de données." }
+    c: { en: "Temperature only controls how varied the answers are; the contact data is still in the payload.", fr: "La température ne contrôle que la variété des réponses ; les coordonnées restent dans la charge utile." }
+references:
+  - title: Prepare retrieval context for augmentation
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-rag-with-sql/3-prepare-retrieval-context-augmentation

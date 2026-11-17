@@ -1,0 +1,119 @@
+id: dp800-cs2b-munsons-pickles
+status: draft
+title:
+  en: "Munson's Pickles and Preserves Farm"
+  fr: "Munson's Pickles and Preserves Farm"
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Munson's Pickles and Preserves Farm produces pickles, jams and sauces in three plants and sells them to retail chains. Its supply chain application manages suppliers, ingredient lots, recipes, product specifications, inventory and purchase prices.
+
+        All the data must stay in the company's datacenter. A team of five developers maintains the database; two DBA leads review every schema change.
+      fr: |
+        Munson's Pickles and Preserves Farm fabrique des cornichons, des confitures et des sauces dans trois usines et les vend à des chaînes de distribution. Son application de chaîne d'approvisionnement gère les fournisseurs, les lots d'ingrédients, les recettes, les spécifications des produits, les stocks et les prix d'achat.
+
+        Toutes les données doivent rester dans le centre de données de l'entreprise. Une équipe de cinq développeurs maintient la base de données ; deux responsables DBA examinent chaque modification de schéma.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Database server**
+
+        - An on-premises server named **SQL-ERP1** runs SQL Server 2025 Enterprise with the Full-Text Search feature installed. SQL Server Agent is running.
+        - SQL-ERP1 hosts a database named **SupplyDb** (compatibility level 170, collation Latin1_General_100_CI_AS). No database scoped configuration has been changed from its default value, and READ_COMMITTED_SNAPSHOT is OFF.
+
+        **Tables of SupplyDb**
+
+        | Table | Description |
+        | --- | --- |
+        | dbo.Suppliers | SupplierId (int, primary key), SupplierName (nvarchar(200)), Country. The table contains duplicates entered with typos, such as *Northwind Vinegar Co* and *Nortwind Vinegar Co.* |
+        | dbo.Lots | LotId (int, primary key), LotCode (varchar(13)), for example `CUC-261104-07` |
+        | dbo.Recipes | RecipeId (int, primary key), IngredientList (nvarchar(1000)), where ingredients are separated by `;` or `,` with optional spaces |
+        | dbo.ProductSpecs | Primary key PK_ProductSpecs on (ProductCode, Revision); SpecId (int IDENTITY, NOT NULL, no index); SpecText (nvarchar(max)) |
+        | dbo.Inventory | Updated continuously by the warehouse scanner application |
+        | dbo.PriceList | ItemId (int, primary key), UnitPrice, Currency, UpdatedBy. Buyers can change a price several times a day |
+
+        A default full-text catalog named **ftSupply** exists in SupplyDb. No full-text index exists yet.
+
+        **Applications and tools**
+
+        - The inventory reports run long SELECT statements at the default isolation level while the scanner application updates dbo.Inventory. The reports are often blocked.
+        - The nightly ETL process of the data warehouse runs on SQL-ERP1 and reads SupplyDb with Transact-SQL.
+        - The schema is maintained in an SDK-style SQL project named **SupplyDb.sqlproj** in a GitHub repository. The workflows run on a self-hosted Windows runner in the datacenter, where the .NET SDK and SqlPackage are installed. The SQL project is in the **SupplyDb** folder of the repository. The two DBA leads are the members of the GitHub team **munsons/dba-leads**. No branch protection rule or ruleset exists yet.
+      fr: |
+        **Serveur de base de données**
+
+        - Un serveur local nommé **SQL-ERP1** exécute SQL Server 2025 Enterprise avec la fonctionnalité de recherche en texte intégral installée. SQL Server Agent est en cours d'exécution.
+        - SQL-ERP1 héberge une base de données nommée **SupplyDb** (niveau de compatibilité 170, classement Latin1_General_100_CI_AS). Aucune configuration délimitée à la base de données n'a été modifiée par rapport à sa valeur par défaut, et READ_COMMITTED_SNAPSHOT a la valeur OFF.
+
+        **Tables de SupplyDb**
+
+        | Table | Description |
+        | --- | --- |
+        | dbo.Suppliers | SupplierId (int, clé primaire), SupplierName (nvarchar(200)), Country. La table contient des doublons saisis avec des fautes de frappe, comme *Northwind Vinegar Co* et *Nortwind Vinegar Co.* |
+        | dbo.Lots | LotId (int, clé primaire), LotCode (varchar(13)), par exemple `CUC-261104-07` |
+        | dbo.Recipes | RecipeId (int, clé primaire), IngredientList (nvarchar(1000)), où les ingrédients sont séparés par `;` ou `,` avec des espaces facultatifs |
+        | dbo.ProductSpecs | Clé primaire PK_ProductSpecs sur (ProductCode, Revision) ; SpecId (int IDENTITY, NOT NULL, sans index) ; SpecText (nvarchar(max)) |
+        | dbo.Inventory | Mise à jour en continu par l'application des scanners de l'entrepôt |
+        | dbo.PriceList | ItemId (int, clé primaire), UnitPrice, Currency, UpdatedBy. Les acheteurs peuvent modifier un prix plusieurs fois par jour |
+
+        Un catalogue de texte intégral par défaut nommé **ftSupply** existe dans SupplyDb. Aucun index de recherche en texte intégral n'existe encore.
+
+        **Applications et outils**
+
+        - Les rapports de stock exécutent de longues instructions SELECT au niveau d'isolation par défaut pendant que l'application des scanners met à jour dbo.Inventory. Les rapports sont souvent bloqués.
+        - Le processus ETL nocturne de l'entrepôt de données s'exécute sur SQL-ERP1 et lit SupplyDb en Transact-SQL.
+        - Le schéma est maintenu dans un projet SQL de style SDK nommé **SupplyDb.sqlproj** dans un dépôt GitHub. Les workflows s'exécutent sur un exécuteur Windows auto-hébergé du centre de données, sur lequel le SDK .NET et SqlPackage sont installés. Le projet SQL se trouve dans le dossier **SupplyDb** du dépôt. Les deux responsables DBA sont les membres de l'équipe GitHub **munsons/dba-leads**. Aucune règle de protection de branche ni aucun ensemble de règles n'existe encore.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Data quality requirements**
+
+        1. A query must list the pairs of suppliers whose names are probably the same supplier entered with typos. It must use a similarity score from 0 to 100 with a threshold of 85, so that the same threshold works for short and long names.
+        2. Any LotCode that does not have the format of three uppercase letters, a hyphen, six digits, a hyphen and two digits must be rejected when a row is inserted or updated.
+        3. The ingredients of each recipe must be returned as one row per ingredient, in their original order.
+
+        **Search requirements**
+
+        4. Quality staff must search the specification sheets for a word and its inflected forms, for example *seal*, *sealed* and *sealing*. No data may be sent to a service outside the datacenter.
+
+        **Performance requirements**
+
+        5. The inventory reports must no longer be blocked by the scanner updates and must read only committed data. No application code or connection string may be changed.
+
+        **Integration requirements**
+
+        6. The nightly ETL must load every change made to dbo.PriceList since the previous load, including the intermediate prices when a price changes several times in a day, with the values before and after each update.
+        7. The schema of dbo.PriceList must not change, no additional service may be deployed, and the solution must minimize the impact on the buyers' transactions.
+
+        **Source control requirements**
+
+        8. A pull request that targets the main branch can be merged only after SupplyDb.sqlproj builds successfully with the proposed changes.
+        9. A pull request that changes files in the SupplyDb folder can be merged only after a member of munsons/dba-leads approves it.
+      fr: |
+        **Exigences de qualité des données**
+
+        1. Une requête doit lister les paires de fournisseurs dont les noms correspondent probablement au même fournisseur saisi avec des fautes de frappe. Elle doit utiliser un score de similarité de 0 à 100 avec un seuil de 85, afin que le même seuil fonctionne pour les noms courts et longs.
+        2. Tout LotCode qui n'a pas le format trois lettres majuscules, un trait d'union, six chiffres, un trait d'union et deux chiffres doit être rejeté lors de l'insertion ou de la mise à jour d'une ligne.
+        3. Les ingrédients de chaque recette doivent être renvoyés à raison d'une ligne par ingrédient, dans leur ordre d'origine.
+
+        **Exigences de recherche**
+
+        4. Le personnel qualité doit rechercher dans les fiches de spécifications un mot et ses formes fléchies, par exemple *seal*, *sealed* et *sealing*. Aucune donnée ne peut être envoyée à un service situé hors du centre de données.
+
+        **Exigences de performances**
+
+        5. Les rapports de stock ne doivent plus être bloqués par les mises à jour des scanners et doivent lire uniquement des données validées. Aucun code d'application ni aucune chaîne de connexion ne peut être modifié.
+
+        **Exigences d'intégration**
+
+        6. L'ETL nocturne doit charger chaque modification apportée à dbo.PriceList depuis le chargement précédent, y compris les prix intermédiaires quand un prix change plusieurs fois dans la journée, avec les valeurs avant et après chaque mise à jour.
+        7. Le schéma de dbo.PriceList ne doit pas changer, aucun service supplémentaire ne peut être déployé, et la solution doit réduire au minimum l'impact sur les transactions des acheteurs.
+
+        **Exigences de contrôle de code source**
+
+        8. Une demande de tirage (pull request) qui cible la branche main ne peut être fusionnée qu'après la génération réussie de SupplyDb.sqlproj avec les modifications proposées.
+        9. Une demande de tirage qui modifie des fichiers du dossier SupplyDb ne peut être fusionnée qu'après l'approbation d'un membre de munsons/dba-leads.

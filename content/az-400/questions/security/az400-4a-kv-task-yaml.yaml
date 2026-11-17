@@ -1,0 +1,94 @@
+id: az400-4a-kv-task-yaml
+objective: "4.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove has an Azure key vault named **kv-woodgrove-prod** and an Azure Resource Manager service connection named **sc-woodgrove-prod** whose identity can read the vault's secrets. The vault contains about 40 secrets.
+
+    A YAML pipeline must download only the secrets **DbPassword** and **ReportingKey** from the vault, and then pass DbPassword to a script as the environment variable DB_PASSWORD.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove dispose d'un coffre de clés Azure nommé **kv-woodgrove-prod** et d'une connexion de service Azure Resource Manager nommée **sc-woodgrove-prod** dont l'identité peut lire les secrets du coffre. Le coffre contient une quarantaine de secrets.
+
+    Un pipeline YAML doit télécharger uniquement les secrets **DbPassword** et **ReportingKey** du coffre, puis transmettre DbPassword à un script sous forme de variable d'environnement DB_PASSWORD.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    steps:
+      - task: [[task]]
+        inputs:
+          azureSubscription: 'sc-woodgrove-prod'
+          KeyVaultName: 'kv-woodgrove-prod'
+          SecretsFilter: [[filter]]
+          RunAsPreJob: false
+      - bash: ./migrate-db.sh
+        env:
+          DB_PASSWORD: [[ref]]
+  slots:
+    - id: task
+      options:
+        - { id: kv, text: AzureKeyVault@2 }
+        - { id: cli, text: AzureCLI@2 }
+        - { id: dsf, text: DownloadSecureFile@1 }
+    - id: filter
+      options:
+        - { id: comma, text: "'DbPassword,ReportingKey'" }
+        - { id: star, text: "'*'" }
+        - { id: semi, text: "'DbPassword;ReportingKey'" }
+    - id: ref
+      options:
+        - { id: macro, text: $(DbPassword) }
+        - { id: tmpl, text: "${{ variables.DbPassword }}" }
+        - { id: envv, text: $env:DbPassword }
+answer:
+  values: { task: kv, filter: comma, ref: macro }
+explanation:
+  correct:
+    en: |
+      The AzureKeyVault@2 task downloads secrets from a vault through an Azure Resource Manager service connection; `SecretsFilter` takes a comma-separated list of secret names, or `*` for all secrets. Each downloaded secret becomes a secret pipeline variable that later steps reference with the macro syntax `$(DbPassword)`. Secret variables aren't decrypted into environment variables automatically, so you map them explicitly with `env:`.
+    fr: |
+      La tâche AzureKeyVault@2 télécharge les secrets d'un coffre via une connexion de service Azure Resource Manager ; `SecretsFilter` accepte une liste de noms de secrets séparés par des virgules, ou `*` pour tous les secrets. Chaque secret téléchargé devient une variable secrète du pipeline que les étapes suivantes référencent avec la syntaxe de macro `$(DbPassword)`. Les variables secrètes ne sont pas déchiffrées automatiquement en variables d'environnement : vous les mappez explicitement avec `env:`.
+  options:
+    cli:
+      en: |
+        AzureCLI@2 runs Azure CLI scripts; it doesn't publish vault secrets as pipeline variables.
+      fr: |
+        AzureCLI@2 exécute des scripts Azure CLI ; il ne publie pas les secrets du coffre comme variables de pipeline.
+    dsf:
+      en: |
+        DownloadSecureFile@1 downloads a secure file from the Library, not secrets from Key Vault.
+      fr: |
+        DownloadSecureFile@1 télécharge un fichier sécurisé de la bibliothèque, pas des secrets de Key Vault.
+    star:
+      en: "`*` downloads every secret of the vault, but only two secrets may be downloaded."
+      fr: "`*` télécharge tous les secrets du coffre, alors que seuls deux secrets peuvent être téléchargés."
+    semi:
+      en: |
+        The secret names are separated by commas, not semicolons.
+      fr: |
+        Les noms des secrets sont séparés par des virgules, pas par des points-virgules.
+    tmpl:
+      en: |
+        Template expressions are evaluated when the pipeline is compiled, before the task has downloaded the secret, so the value is empty.
+      fr: |
+        Les expressions de modèle sont évaluées à la compilation du pipeline, avant que la tâche ait téléchargé le secret : la valeur est vide.
+    envv:
+      en: |
+        The secret isn't an environment variable of the agent, and `$env:` is PowerShell syntax, not a pipeline variable reference.
+      fr: |
+        Le secret n'est pas une variable d'environnement de l'agent, et `$env:` est une syntaxe PowerShell, pas une référence de variable de pipeline.
+references:
+  - title: Use Azure Key Vault secrets in Azure Pipelines
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/release/azure-key-vault
+  - title: Set secret variables
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/set-secret-variables

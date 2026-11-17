@@ -1,0 +1,52 @@
+id: az700-cs2a-bastion-nsg
+objective: "5.1.9"
+type: hotarea
+caseStudy: az700-cs2a-alpine-ski-house
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The following table shows the security rules of NSG-Bastion. The default rules of the network security group aren't shown.
+
+    Answer each prompt by selecting the appropriate rule.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le tableau suivant présente les règles de sécurité de NSG-Bastion. Les règles par défaut du groupe de sécurité réseau ne sont pas affichées.
+
+    Répondez à chaque consigne en sélectionnant la règle appropriée.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text: { en: "The rule that you must modify to meet the administration requirement for VM-BOOK1 and VM-BOOK2", fr: "La règle que vous devez modifier pour respecter l'exigence d'administration relative à VM-BOOK1 et VM-BOOK2" }
+    - id: p2
+      text: { en: "The rule that lets the Azure control plane manage bas-hub", fr: "La règle qui permet au plan de contrôle Azure de gérer bas-hub" }
+  grid:
+    header: [{ en: Direction, fr: Direction }, { en: Priority, fr: Priorité }, { en: Name, fr: Nom }, Source, Destination, Ports, Action]
+    rows:
+      - [{ text: { en: Inbound, fr: Entrant } }, { text: "100" }, { text: AllowHttpsInbound, area: in100 }, { text: Internet }, { text: Any }, { text: TCP 443 }, { text: Allow }]
+      - [{ text: { en: Inbound, fr: Entrant } }, { text: "110" }, { text: AllowGatewayManagerInbound, area: in110 }, { text: GatewayManager }, { text: Any }, { text: TCP 443 }, { text: Allow }]
+      - [{ text: { en: Inbound, fr: Entrant } }, { text: "120" }, { text: AllowAzureLoadBalancerInbound, area: in120 }, { text: AzureLoadBalancer }, { text: Any }, { text: TCP 443 }, { text: Allow }]
+      - [{ text: { en: Inbound, fr: Entrant } }, { text: "130" }, { text: AllowBastionHostCommunication, area: in130 }, { text: VirtualNetwork }, { text: VirtualNetwork }, { text: "8080, 5701" }, { text: Allow }]
+      - [{ text: { en: Outbound, fr: Sortant } }, { text: "100" }, { text: AllowSshRdpOutbound, area: out100 }, { text: Any }, { text: 10.10.3.0/24 }, { text: "22, 3389" }, { text: Allow }]
+      - [{ text: { en: Outbound, fr: Sortant } }, { text: "110" }, { text: AllowAzureCloudOutbound, area: out110 }, { text: Any }, { text: AzureCloud }, { text: TCP 443 }, { text: Allow }]
+      - [{ text: { en: Outbound, fr: Sortant } }, { text: "120" }, { text: AllowBastionCommunication, area: out120 }, { text: VirtualNetwork }, { text: VirtualNetwork }, { text: "8080, 5701" }, { text: Allow }]
+      - [{ text: { en: Outbound, fr: Sortant } }, { text: "130" }, { text: AllowHttpOutbound, area: out130 }, { text: Any }, { text: Internet }, { text: "80" }, { text: Allow }]
+      - [{ text: { en: Outbound, fr: Sortant } }, { text: "4096" }, { text: DenyAllOutbound, area: out4096 }, { text: Any }, { text: Any }, { text: Any }, { text: Deny }]
+answer:
+  values: { p1: out100, p2: in110 }
+explanation:
+  correct:
+    en: |
+      Bastion reaches the target virtual machines over their private IP addresses on ports 22 and 3389, so the outbound rule from AzureBastionSubnet must allow these ports to the VirtualNetwork service tag (which includes the peered VNet-Booking) instead of snet-mgmt only; today the RDP flow to 10.20.1.4 falls through to DenyAllOutbound. The inbound rule from the GatewayManager service tag on TCP 443 carries the control plane communication with Bastion and must stay in place.
+    fr: |
+      Bastion atteint les machines virtuelles cibles par leurs adresses IP privées sur les ports 22 et 3389 ; la règle sortante depuis AzureBastionSubnet doit donc autoriser ces ports vers la balise de service VirtualNetwork (qui inclut VNet-Booking, connecté par peering) au lieu de snet-mgmt seulement. Aujourd'hui, le flux RDP vers 10.20.1.4 aboutit à DenyAllOutbound. La règle entrante depuis la balise de service GatewayManager sur TCP 443 assure la communication du plan de contrôle avec Bastion et doit être conservée.
+  options:
+    out4096: { en: "Removing the deny rule would rely on the default outbound rules and doesn't fix the scope of the RDP rule; the documented configuration allows 22 and 3389 to VirtualNetwork.", fr: "Supprimer la règle de refus reviendrait à dépendre des règles sortantes par défaut et ne corrige pas l'étendue de la règle RDP ; la configuration documentée autorise 22 et 3389 vers VirtualNetwork." }
+    in100: { en: "AllowHttpsInbound lets users reach Bastion over HTTPS from the internet; it isn't the control plane rule.", fr: "AllowHttpsInbound permet aux utilisateurs d'atteindre Bastion en HTTPS depuis Internet ; ce n'est pas la règle du plan de contrôle." }
+    in120: { en: "AllowAzureLoadBalancerInbound carries the health probes.", fr: "AllowAzureLoadBalancerInbound transporte les sondes d'intégrité." }
+references:
+  - title: Configure NSG rules for Azure Bastion
+    url: https://learn.microsoft.com/en-us/azure/bastion/bastion-nsg

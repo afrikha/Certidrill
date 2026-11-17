@@ -1,0 +1,69 @@
+id: ai200-2c-redis-sliding-session
+objective: "2.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Relecloud's chat API stores each conversation session in Azure Managed Redis as a hash under the key `session:<session ID>`. A session must be removed 30 minutes after the last request that used it.
+
+    You need to read the session and renew its expiration in a single network round trip.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'API de conversation de Relecloud stocke chaque session de conversation dans Azure Managed Redis sous forme de hachage sous la clé `session:<ID de session>`. Une session doit être supprimée 30 minutes après la dernière requête qui l'a utilisée.
+
+    Vous devez lire la session et renouveler son expiration en un seul aller-retour réseau.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    SESSION_TTL = [[ttl]]
+
+    def load_session(session_id: str) -> dict:
+        key = f"session:{session_id}"
+        pipe = r.pipeline()
+        pipe.[[read]](key)
+        pipe.[[renew]](key, SESSION_TTL)
+        data, _ = pipe.execute()
+        return data
+  slots:
+    - id: ttl
+      options:
+        - { id: t30, text: "30" }
+        - { id: t1800, text: "1800" }
+        - { id: t3600, text: "3600" }
+    - id: read
+      options:
+        - { id: get, text: get }
+        - { id: hkeys, text: hkeys }
+        - { id: hgetall, text: hgetall }
+    - id: renew
+      options:
+        - { id: expire, text: expire }
+        - { id: expireat, text: expireat }
+        - { id: pexpire, text: pexpire }
+answer:
+  values: { ttl: t1800, read: hgetall, renew: expire }
+explanation:
+  correct:
+    en: |
+      A pipeline sends both commands in one round trip. HGETALL returns all the fields and values of the session hash. EXPIRE sets the time to live of the whole key in seconds, so calling it with 1,800 on every request gives a sliding expiration of 30 minutes after the last use.
+    fr: |
+      Un pipeline envoie les deux commandes en un seul aller-retour. HGETALL renvoie tous les champs et valeurs du hachage de session. EXPIRE définit la durée de vie de toute la clé en secondes : l'appeler avec 1 800 à chaque requête donne une expiration glissante de 30 minutes après la dernière utilisation.
+  options:
+    t30: { en: "EXPIRE takes seconds, so 30 would remove the session after 30 seconds.", fr: "EXPIRE prend des secondes : 30 supprimerait la session au bout de 30 secondes." }
+    t3600: { en: "3,600 seconds is one hour, not 30 minutes.", fr: "3 600 secondes correspondent à une heure, pas à 30 minutes." }
+    get: { en: "GET works on string keys; on a hash it fails with a WRONGTYPE error.", fr: "GET fonctionne sur les clés de type chaîne ; sur un hachage, il échoue avec une erreur WRONGTYPE." }
+    hkeys: { en: "HKEYS returns only the field names, not their values.", fr: "HKEYS ne renvoie que les noms des champs, pas leurs valeurs." }
+    expireat: { en: "EXPIREAT expects an absolute Unix timestamp; 1,800 is in 1970, so the key would be deleted at once.", fr: "EXPIREAT attend un horodatage Unix absolu ; 1 800 correspond à 1970 : la clé serait supprimée immédiatement." }
+    pexpire: { en: "PEXPIRE takes milliseconds, so the session would expire after 1.8 seconds.", fr: "PEXPIRE prend des millisecondes : la session expirerait au bout de 1,8 seconde." }
+references:
+  - title: Best practices for development for Azure Managed Redis
+    url: https://learn.microsoft.com/en-us/azure/redis/best-practices-development

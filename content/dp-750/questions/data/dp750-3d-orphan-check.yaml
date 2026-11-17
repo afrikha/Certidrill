@@ -1,0 +1,69 @@
+id: dp750-3d-orphan-check
+objective: "3.4.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso has a Lakeflow job with two tasks. The load_orders task appends orders to the Delta table **contoso.silver.orders**, and the refresh_gold task then rebuilds the gold tables. contoso.silver.orders declares `FOREIGN KEY (customer_id) REFERENCES contoso.silver.customers`.
+
+    Some orders arrive before their customer is created. The requirements are:
+
+    - load_orders must load every order, including orders whose customer doesn't exist yet in contoso.silver.customers.
+    - refresh_gold must not run while contoso.silver.orders contains an order whose `customer_id` doesn't exist in contoso.silver.customers.
+
+    What should you do?
+  fr: |
+    Contoso dispose d'un job Lakeflow à deux tâches. La tâche load_orders ajoute des commandes à la table Delta **contoso.silver.orders**, puis la tâche refresh_gold reconstruit les tables gold. contoso.silver.orders déclare `FOREIGN KEY (customer_id) REFERENCES contoso.silver.customers`.
+
+    Certaines commandes arrivent avant la création de leur client. Les exigences sont les suivantes :
+
+    - load_orders doit charger toutes les commandes, y compris celles dont le client n'existe pas encore dans contoso.silver.customers.
+    - refresh_gold ne doit pas s'exécuter tant que contoso.silver.orders contient une commande dont le `customer_id` n'existe pas dans contoso.silver.customers.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Add a task between the two tasks that counts the orders returned by a left semi join to the customers and raises an error when the count is greater than 0."
+        fr: "Ajouter entre les deux tâches une tâche qui compte les commandes renvoyées par une semi-jointure gauche vers les clients et lève une erreur quand le nombre est supérieur à 0."
+    - id: b
+      text:
+        en: "Add a `CHECK (customer_id IN (SELECT customer_id FROM contoso.silver.customers))` constraint to contoso.silver.orders."
+        fr: "Ajouter une contrainte `CHECK (customer_id IN (SELECT customer_id FROM contoso.silver.customers))` à contoso.silver.orders."
+    - id: c
+      text:
+        en: "Add a task between the two tasks that counts the orders returned by a left anti join to the customers and raises an error when the count is greater than 0."
+        fr: "Ajouter entre les deux tâches une tâche qui compte les commandes renvoyées par une anti-jointure gauche vers les clients et lève une erreur quand le nombre est supérieur à 0."
+    - id: d
+      text:
+        en: "Keep the current job, because the foreign key makes load_orders fail when an order references an unknown customer."
+        fr: "Conserver le job actuel, car la clé étrangère fait échouer load_orders quand une commande référence un client inconnu."
+answer:
+  optionId: c
+explanation:
+  correct:
+    en: |
+      A left anti join returns the orders that have no matching customer, so its count is the number of orphan orders. Running it in a separate task after load_orders lets every order load, and raising an error makes the job fail before refresh_gold. Foreign keys in Unity Catalog are informational and never reject a write.
+    fr: |
+      Une anti-jointure gauche renvoie les commandes sans client correspondant : son nombre de lignes est le nombre de commandes orphelines. L'exécuter dans une tâche distincte après load_orders laisse toutes les commandes se charger, et lever une erreur fait échouer le job avant refresh_gold. Les clés étrangères du catalogue Unity sont informatives et ne rejettent jamais une écriture.
+  options:
+    a:
+      en: |
+        A left semi join returns the orders that do have a customer, so the task would fail on valid data and miss the orphans.
+      fr: |
+        Une semi-jointure gauche renvoie les commandes qui ont un client : la tâche échouerait sur des données valides et ne détecterait pas les orphelins.
+    b:
+      en: |
+        A `CHECK` expression can't contain a subquery, and even a valid constraint would reject the early orders that load_orders must load.
+      fr: |
+        Une expression `CHECK` ne peut pas contenir de sous-requête, et même une contrainte valide rejetterait les commandes anticipées que load_orders doit charger.
+    d:
+      en: |
+        Foreign keys are informational constraints; they don't make a write fail.
+      fr: |
+        Les clés étrangères sont des contraintes informatives ; elles ne font pas échouer une écriture.
+references:
+  - title: Constraints on Azure Databricks
+    url: https://learn.microsoft.com/en-us/azure/databricks/tables/constraints

@@ -1,0 +1,86 @@
+id: dp750-cs4a-claims-history
+objective: "3.2.4"
+type: dropdown
+caseStudy: dp750-cs4a-humongous-insurance
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the SQL source of a Lakeflow Spark Declarative Pipelines pipeline to meet the claim history requirement. The pipeline publishes to the hi_prod.silver schema.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le code source SQL d'un pipeline Lakeflow Spark Declarative Pipelines pour satisfaire l'exigence d'historique des sinistres. Le pipeline publie dans le schéma hi_prod.silver.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH STREAMING TABLE claims_history;
+
+    CREATE FLOW claims_history_flow AS [[flow]] claims_history
+    FROM stream(hi_prod.bronze.claims_cdc_raw)
+    KEYS (claim_id)
+    [[del]] operation = 'DELETE'
+    SEQUENCE BY [[seq]]
+    COLUMNS * EXCEPT (operation, change_seq)
+    STORED AS [[scd]];
+  slots:
+    - id: flow
+      options:
+        - { id: insert, text: INSERT INTO }
+        - { id: autocdc, text: AUTO CDC INTO }
+        - { id: merge, text: MERGE INTO }
+    - id: del
+      options:
+        - { id: truncate, text: APPLY AS TRUNCATE WHEN }
+        - { id: where, text: WHERE }
+        - { id: delete, text: APPLY AS DELETE WHEN }
+    - id: seq
+      options:
+        - { id: claimid, text: claim_id }
+        - { id: changeseq, text: change_seq }
+        - { id: now, text: current_timestamp() }
+    - id: scd
+      options:
+        - { id: scd1, text: SCD TYPE 1 }
+        - { id: scd2, text: SCD TYPE 2 }
+answer:
+  values: { flow: autocdc, del: delete, seq: changeseq, scd: scd2 }
+explanation:
+  correct:
+    en: |
+      An AUTO CDC INTO flow applies the change records of claims_cdc_raw to the target streaming table, and APPLY AS DELETE WHEN turns the DELETE records into deletes. SEQUENCE BY change_seq orders the events, so changes that arrive out of order are applied in the right order. STORED AS SCD TYPE 2 keeps every version with the __START_AT and __END_AT columns, which give the period during which each version was valid.
+    fr: |
+      Un flux AUTO CDC INTO applique les enregistrements de modification de claims_cdc_raw à la table de streaming cible, et APPLY AS DELETE WHEN transforme les enregistrements DELETE en suppressions. SEQUENCE BY change_seq ordonne les événements : les modifications arrivées dans le désordre sont appliquées dans le bon ordre. STORED AS SCD TYPE 2 conserve chaque version avec les colonnes __START_AT et __END_AT, qui donnent la période de validité de chaque version.
+  options:
+    flow:
+      en: |
+        INSERT INTO would append the change records without applying updates and deletes; MERGE INTO is not the flow syntax for change data capture in a pipeline and does not order out-of-order events.
+      fr: |
+        INSERT INTO ajouterait les enregistrements de modification sans appliquer les mises à jour ni les suppressions ; MERGE INTO n'est pas la syntaxe de flux de capture des changements dans un pipeline et n'ordonne pas les événements arrivés dans le désordre.
+    del:
+      en: |
+        APPLY AS TRUNCATE WHEN empties the whole table and is only supported for SCD type 1; WHERE filters the source records instead of applying deletes.
+      fr: |
+        APPLY AS TRUNCATE WHEN vide toute la table et n'est pris en charge que pour le SCD de type 1 ; WHERE filtre les enregistrements source au lieu d'appliquer des suppressions.
+    seq:
+      en: |
+        claim_id is the key, not an ordering column, and current_timestamp() reflects processing time, not the order of the changes in ClaimFlow.
+      fr: |
+        claim_id est la clé, pas une colonne d'ordre, et current_timestamp() reflète l'heure de traitement, pas l'ordre des modifications dans ClaimFlow.
+    scd:
+      en: |
+        SCD type 1 overwrites each claim with its latest version and keeps no history.
+      fr: |
+        Le SCD de type 1 remplace chaque sinistre par sa dernière version et ne conserve aucun historique.
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc
+  - title: AUTO CDC INTO (pipelines)
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/developer/ldp-sql-ref-apply-changes-into

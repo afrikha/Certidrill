@@ -1,0 +1,75 @@
+id: sc500-cs1b-proseware
+status: draft
+title:
+  en: |-
+    Proseware
+  fr: |-
+    Proseware
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Proseware is an online retailer of garden furniture based in Lille. It sells to customers in France, Belgium and Switzerland, and works with 30 suppliers that update their stock and prices through an API.
+
+        The e-commerce platform runs entirely on Azure platform as a service (PaaS) resources. Proseware wants to harden the platform before the spring sales season.
+      fr: |
+        Proseware est un détaillant en ligne de mobilier de jardin basé à Lille. Il vend à des clients en France, en Belgique et en Suisse, et travaille avec 30 fournisseurs qui mettent à jour leurs stocks et leurs prix par une API.
+
+        La plateforme de commerce en ligne s'exécute entièrement sur des ressources PaaS (platform as a service) Azure. Proseware veut renforcer la sécurité de la plateforme avant la saison des soldes de printemps.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Proseware has a Microsoft Entra tenant and an Azure subscription named **Sub-Shop** in the France Central region. The subscription contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | agw-pw-shop | Application Gateway WAF_v2 | Public HTTPS listener whose certificate is stored in kv-pw-shop; uses the user-assigned managed identity **id-agw-pw**; WAF policy **wafpol-shop** in Detection mode with the default managed rule set |
+        | app-pw-shop | App Service web app | Back end of agw-pw-shop; system-assigned managed identity enabled |
+        | func-pw-orders | Function app | Processes the files that suppliers upload; system-assigned managed identity enabled |
+        | apim-pw-partners | API Management, Standard v2 tier | Publishes the **Orders** API to the suppliers |
+        | sql-pw-orders | Azure SQL Database logical server | SQL authentication administrator **pwadmin**; Microsoft Entra admin set to the **SQL-Admins** group; public network access set to selected networks, with a firewall rule for the office IP address; private endpoint **pe-sql** in VNet-Shop, approved |
+        | stpwmedia | Storage account | Product images displayed by app-pw-shop |
+        | stpwuploads | Storage account | Price lists and images uploaded by suppliers |
+        | kv-pw-shop | Key vault | Azure RBAC permission model, purge protection disabled |
+
+        Each supplier application has an app registration in the Proseware tenant and obtains tokens by using the client credentials flow. The Orders API does not require a subscription key. The supplier applications run on shared hosting platforms whose outbound IP addresses change without notice.
+      fr: |
+        Proseware dispose d'un locataire Microsoft Entra et d'un abonnement Azure nommé **Sub-Shop** dans la région France Central. L'abonnement contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | agw-pw-shop | Application Gateway WAF_v2 | Écouteur HTTPS public dont le certificat est stocké dans kv-pw-shop ; utilise l'identité managée affectée par l'utilisateur **id-agw-pw** ; stratégie WAF **wafpol-shop** en mode Detection avec l'ensemble de règles managé par défaut |
+        | app-pw-shop | Application web App Service | Back-end de agw-pw-shop ; identité managée affectée par le système activée |
+        | func-pw-orders | Application de fonction | Traite les fichiers déposés par les fournisseurs ; identité managée affectée par le système activée |
+        | apim-pw-partners | API Management, niveau Standard v2 | Publie l'API **Orders** pour les fournisseurs |
+        | sql-pw-orders | Serveur logique Azure SQL Database | Administrateur d'authentification SQL **pwadmin** ; administrateur Microsoft Entra défini sur le groupe **SQL-Admins** ; accès réseau public limité aux réseaux sélectionnés, avec une règle de pare-feu pour l'adresse IP du bureau ; point de terminaison privé **pe-sql** dans VNet-Shop, approuvé |
+        | stpwmedia | Compte de stockage | Images des produits affichées par app-pw-shop |
+        | stpwuploads | Compte de stockage | Listes de prix et images déposées par les fournisseurs |
+        | kv-pw-shop | Coffre de clés | Modèle d'autorisation RBAC Azure, protection contre le vidage désactivée |
+
+        Chaque application de fournisseur dispose d'une inscription d'application dans le locataire Proseware et obtient des jetons par le flux d'informations d'identification du client. L'API Orders n'exige pas de clé d'abonnement. Les applications des fournisseurs s'exécutent sur des plateformes d'hébergement partagées dont les adresses IP sortantes changent sans préavis.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Proseware identifies the following requirements:
+
+        1. **Database**: sql-pw-orders must accept only Microsoft Entra identities, and only connections that come through pe-sql.
+        2. **Identities**: No application may store keys, passwords or connection strings. id-agw-pw must read the listener certificate in kv-pw-shop. app-pw-shop must read the images in stpwmedia. func-pw-orders must read, move and delete the uploaded files in stpwuploads. Each identity must receive the least privileged built-in role.
+        3. **Secrets**: A new key vault named **kv-pw-suppliers** will store the supplier secrets. A deleted secret must remain recoverable for 30 days and then be purged automatically. Nobody, including the subscription owners, may purge a deleted secret before the 30 days have elapsed.
+        4. **Web application firewall**: agw-pw-shop must block requests from IP addresses located outside France, Belgium and Switzerland. Requests from IP addresses that are not mapped to any country must not be blocked by this rule. All the requests that are not blocked must still be inspected by the managed rule set, and detected attacks must be blocked.
+        5. **Orders API**: Only the approved supplier applications may call the Orders API, with a valid Microsoft Entra token. Each supplier application is limited to 100 calls per minute.
+        6. **Uploads**: Every file uploaded to stpwuploads must be scanned for malware when it is uploaded, without deploying any agent or custom scanning code.
+        7. Administrative effort must be minimized.
+      fr: |
+        Proseware a défini les exigences suivantes :
+
+        1. **Base de données** : sql-pw-orders ne doit accepter que des identités Microsoft Entra, et uniquement les connexions qui passent par pe-sql.
+        2. **Identités** : aucune application ne doit stocker de clés, de mots de passe ni de chaînes de connexion. id-agw-pw doit lire le certificat de l'écouteur dans kv-pw-shop. app-pw-shop doit lire les images dans stpwmedia. func-pw-orders doit lire, déplacer et supprimer les fichiers déposés dans stpwuploads. Chaque identité doit recevoir le rôle intégré le moins privilégié.
+        3. **Secrets** : un nouveau coffre de clés nommé **kv-pw-suppliers** stockera les secrets des fournisseurs. Un secret supprimé doit rester récupérable pendant 30 jours, puis être vidé automatiquement. Personne, y compris les propriétaires de l'abonnement, ne doit pouvoir vider un secret supprimé avant la fin des 30 jours.
+        4. **Pare-feu d'applications web** : agw-pw-shop doit bloquer les requêtes provenant d'adresses IP situées hors de France, de Belgique et de Suisse. Les requêtes provenant d'adresses IP qui ne sont associées à aucun pays ne doivent pas être bloquées par cette règle. Toutes les requêtes qui ne sont pas bloquées doivent encore être inspectées par l'ensemble de règles managé, et les attaques détectées doivent être bloquées.
+        5. **API Orders** : seules les applications de fournisseurs approuvées peuvent appeler l'API Orders, avec un jeton Microsoft Entra valide. Chaque application de fournisseur est limitée à 100 appels par minute.
+        6. **Dépôts** : chaque fichier déposé dans stpwuploads doit être analysé à la recherche de programmes malveillants au moment de son dépôt, sans déployer d'agent ni de code d'analyse personnalisé.
+        7. L'effort d'administration doit être réduit au minimum.

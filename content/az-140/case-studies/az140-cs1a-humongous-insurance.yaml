@@ -1,0 +1,69 @@
+id: az140-cs1a-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is a car and home insurer. Its head office is in Paris, and it runs three claims contact centers in Lille, Nantes and Toulouse. About 1,200 claims agents work in two shifts between 07:00 and 22:00.
+
+        The agents already use Azure Virtual Desktop. Humongous wants to replace local user profiles with FSLogix, improve the connection quality from the contact centers, and reduce compute costs outside business hours.
+      fr: |
+        Humongous Insurance est un assureur automobile et habitation. Son siège est à Paris et il exploite trois centres de contact de gestion des sinistres à Lille, Nantes et Toulouse. Environ 1 200 gestionnaires de sinistres travaillent en deux équipes entre 07:00 et 22:00.
+
+        Les gestionnaires utilisent déjà Azure Virtual Desktop. Humongous veut remplacer les profils utilisateur locaux par FSLogix, améliorer la qualité des connexions depuis les centres de contact et réduire les coûts de calcul en dehors des heures ouvrées.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Humongous has an on-premises Active Directory Domain Services (AD DS) domain named **humongousinsurance.com**, synchronized to Microsoft Entra ID by Microsoft Entra Connect. Every agent has a Microsoft 365 E3 license and is a member of the group **AVD-Claims**. The three contact centers connect to a hub virtual network in France Central through ExpressRoute private peering.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | HP-Claims | Host pool | Pooled, breadth-first, max session limit 16, host pool metadata in West Europe. The RDP Shortpath settings of the host pool have their default values. |
+        | 40 session hosts | Virtual machines | Windows 11 Enterprise multi-session, Microsoft Entra hybrid joined, France Central, subnet **snet-hosts** of VNet-AVD (peered with the hub) |
+        | NSG-Hosts | Network security group | Associated with snet-hosts. A custom inbound rule with priority 4000 denies all traffic from any source. |
+        | WS-Claims | Workspace | Contains the desktop application group of HP-Claims, assigned to AVD-Claims |
+        | LAW-AVD | Log Analytics workspace | The diagnostic settings of HP-Claims and WS-Claims send all log categories to LAW-AVD. |
+        | stappattach | Storage account | Premium file share **appattach**, AD DS authentication enabled. It stores the disk image of the ClaimsDesk application. |
+
+        User profiles are currently stored locally on each session host.
+      fr: |
+        Humongous dispose d'un domaine Active Directory Domain Services (AD DS) local nommé **humongousinsurance.com**, synchronisé avec Microsoft Entra ID par Microsoft Entra Connect. Chaque gestionnaire dispose d'une licence Microsoft 365 E3 et est membre du groupe **AVD-Claims**. Les trois centres de contact sont connectés à un réseau virtuel hub dans la région France Central par le peering privé ExpressRoute.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | HP-Claims | Pool d'hôtes | Regroupé (pooled), largeur d'abord (breadth-first), limite de sessions de 16, métadonnées du pool d'hôtes dans la région West Europe. Les paramètres RDP Shortpath du pool d'hôtes ont leurs valeurs par défaut. |
+        | 40 hôtes de session | Machines virtuelles | Windows 11 Entreprise multisession, joints hybrides Microsoft Entra, France Central, sous-réseau **snet-hosts** de VNet-AVD (en peering avec le hub) |
+        | NSG-Hosts | Groupe de sécurité réseau | Associé à snet-hosts. Une règle de trafic entrant personnalisée de priorité 4000 refuse tout le trafic de toute source. |
+        | WS-Claims | Espace de travail | Contient le groupe d'applications de bureau de HP-Claims, attribué à AVD-Claims |
+        | LAW-AVD | Espace de travail Log Analytics | Les paramètres de diagnostic de HP-Claims et de WS-Claims envoient toutes les catégories de journaux vers LAW-AVD. |
+        | stappattach | Compte de stockage | Partage de fichiers Premium **appattach**, authentification AD DS activée. Il contient l'image disque de l'application ClaimsDesk. |
+
+        Les profils utilisateur sont actuellement stockés localement sur chaque hôte de session.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Humongous identifies the following requirements:
+
+        1. **Profiles.** Store FSLogix profile containers on a new Azure Files premium share that uses AD DS authentication. Each agent must be able to create and use only their own profile folder.
+        2. **Profile behavior.** If an agent already has a local profile on a session host, the local profile must be deleted when the FSLogix profile applies. For the help desk, the name of each profile folder on the share must start with the user name.
+        3. **Transport.** Sessions from the contact centers must use a direct UDP connection over ExpressRoute that does not depend on any STUN or TURN server. The RDP Shortpath settings of HP-Claims must keep their default values. The security team manages the Windows Firewall rules of the session hosts; they are out of scope.
+        4. **Reporting.** Each week, the operations team needs the list of agents whose connections used TCP instead of UDP.
+        5. **Costs.** Create a scaling plan named **SP-Claims** for HP-Claims. During the ramp-up phase, the capacity threshold must be 75 percent.
+        6. **Applications.** Deliver ClaimsDesk to the session hosts by using App attach. Grant only the permissions that are required.
+        7. Administrative effort must be minimized.
+      fr: |
+        Humongous a défini les exigences suivantes :
+
+        1. **Profils.** Stocker les conteneurs de profil FSLogix sur un nouveau partage Premium Azure Files qui utilise l'authentification AD DS. Chaque gestionnaire ne doit pouvoir créer et utiliser que son propre dossier de profil.
+        2. **Comportement des profils.** Si un gestionnaire possède déjà un profil local sur un hôte de session, ce profil local doit être supprimé quand le profil FSLogix s'applique. Pour le support, le nom de chaque dossier de profil sur le partage doit commencer par le nom d'utilisateur.
+        3. **Transport.** Les sessions ouvertes depuis les centres de contact doivent utiliser une connexion UDP directe par ExpressRoute qui ne dépend d'aucun serveur STUN ou TURN. Les paramètres RDP Shortpath de HP-Claims doivent conserver leurs valeurs par défaut. L'équipe sécurité gère les règles du Pare-feu Windows des hôtes de session ; elles sont hors périmètre.
+        4. **Rapports.** Chaque semaine, l'équipe d'exploitation a besoin de la liste des gestionnaires dont les connexions ont utilisé TCP au lieu d'UDP.
+        5. **Coûts.** Créer un plan de mise à l'échelle nommé **SP-Claims** pour HP-Claims. Pendant la phase de montée en charge (ramp-up), le seuil de capacité doit être de 75 %.
+        6. **Applications.** Distribuer ClaimsDesk aux hôtes de session à l'aide d'App attach. N'accorder que les autorisations nécessaires.
+        7. L'effort d'administration doit être réduit au minimum.

@@ -1,0 +1,73 @@
+id: az400-3f-odata-run-duration
+objective: "3.6.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware has an Azure DevOps project named **Web** that contains a pipeline named **web-ci**. You are building a Power BI report from the Analytics service.
+
+    The report must show, for each day since September 1, 2026, the 80th percentile of the time that successful runs of web-ci took to execute. The time that runs spent waiting in the queue for an agent must be excluded.
+
+    How should you complete the OData query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'un projet Azure DevOps nommé **Web** qui contient un pipeline nommé **web-ci**. Vous créez un rapport Power BI à partir du service Analytics.
+
+    Le rapport doit afficher, pour chaque jour depuis le 1er septembre 2026, le 80e centile du temps d'exécution des exécutions réussies de web-ci. Le temps passé par les exécutions en file d'attente à attendre un agent doit être exclu.
+
+    Comment devez-vous compléter la requête OData ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: text
+  template: |
+    https://analytics.dev.azure.com/litware/Web/_odata/v3.0-preview/[[entity]]?
+      $apply=filter(
+        Pipeline/PipelineName eq 'web-ci'
+        and CompletedDate ge 2026-09-01Z
+        and [[outcome]] eq 1
+      )
+      /compute(
+        percentile_cont([[duration]], 0.8, CompletedDateSK) as Duration80thPercentileInSeconds)
+      /groupby(
+        (Duration80thPercentileInSeconds, CompletedOn/Date))
+      &$orderby=CompletedOn/Date asc
+  slots:
+    - id: entity
+      options:
+        - { id: runs, text: PipelineRuns }
+        - { id: activities, text: PipelineRunActivityResults }
+        - { id: requests, text: TaskAgentRequestSnapshots }
+    - id: outcome
+      options:
+        - { id: failed, text: FailedCount }
+        - { id: succeeded, text: SucceededCount }
+        - { id: canceled, text: CanceledCount }
+    - id: duration
+      options:
+        - { id: total, text: TotalDurationSeconds }
+        - { id: queue, text: QueueDurationSeconds }
+        - { id: run, text: RunDurationSeconds }
+answer:
+  values: { entity: runs, outcome: succeeded, duration: run }
+explanation:
+  correct:
+    en: |
+      The PipelineRuns entity set has one row per run, with SucceededCount equal to 1 for a successful run. Its RunDurationSeconds property is the time the run took to complete, whereas TotalDurationSeconds adds the queue time and QueueDurationSeconds is the queue time alone. percentile_cont with 0.8 then computes the 80th percentile per completion date.
+    fr: |
+      L'ensemble d'entités PipelineRuns contient une ligne par exécution, avec SucceededCount égal à 1 pour une exécution réussie. Sa propriété RunDurationSeconds est le temps pris par l'exécution, tandis que TotalDurationSeconds ajoute le temps d'attente en file et que QueueDurationSeconds correspond au seul temps d'attente. percentile_cont avec 0.8 calcule ensuite le 80e centile par date de fin.
+  options:
+    activities: { en: "PipelineRunActivityResults describes individual activities such as tasks, approvals and agent waits, not whole runs.", fr: "PipelineRunActivityResults décrit des activités individuelles comme les tâches, les approbations et l'attente d'agent, pas des exécutions entières." }
+    requests: { en: "TaskAgentRequestSnapshots describes agent requests in pools, not pipeline run durations.", fr: "TaskAgentRequestSnapshots décrit les demandes d'agents dans les pools, pas la durée des exécutions de pipeline." }
+    failed: { en: "Filtering on FailedCount keeps the failed runs instead of the successful ones.", fr: "Filtrer sur FailedCount conserve les exécutions en échec au lieu des exécutions réussies." }
+    canceled: { en: "Filtering on CanceledCount keeps the canceled runs.", fr: "Filtrer sur CanceledCount conserve les exécutions annulées." }
+    total: { en: "TotalDurationSeconds includes the time spent in the queue, which must be excluded.", fr: "TotalDurationSeconds inclut le temps passé en file d'attente, qui doit être exclu." }
+    queue: { en: "QueueDurationSeconds measures only the wait for an agent.", fr: "QueueDurationSeconds mesure seulement l'attente d'un agent." }
+references:
+  - title: Pipeline duration trend sample report
+    url: https://learn.microsoft.com/en-us/azure/devops/report/powerbi/sample-pipelines-duration-trend
+  - title: Metadata reference for Azure Pipelines Analytics
+    url: https://learn.microsoft.com/en-us/azure/devops/report/analytics/entity-reference-pipelines

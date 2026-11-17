@@ -1,0 +1,83 @@
+id: ai103-2c-tool-approval-code
+objective: "2.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip Toys is building a support workflow in Python by using Microsoft Agent Framework. An agent in the workflow can call a local function named issue_store_credit.
+
+    You need to make sure that issue_store_credit never runs until a supervisor approves the call. The application must detect the pending approval and send back the supervisor's decision.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys crée un workflow de support en Python à l'aide de Microsoft Agent Framework. Un agent du workflow peut appeler une fonction locale nommée issue_store_credit.
+
+    Vous devez vous assurer qu'issue_store_credit ne s'exécute jamais avant qu'un superviseur ait approuvé l'appel. L'application doit détecter l'approbation en attente et renvoyer la décision du superviseur.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    @tool(approval_mode="[[mode]]")
+    def issue_store_credit(order_number: Annotated[str, "Order number"], amount: float) -> str:
+        """Issue store credit for an order."""
+        return credit_api.issue(order_number, amount)
+
+    responses = {}
+    async for event in workflow.run(customer_message, stream=True):
+        if event.type == "request_info" and event.data.type == "[[ctype]]":
+            decision = ask_supervisor(event.data)
+            responses[event.request_id] = event.data.[[method]](approved=decision)
+
+    events = [e async for e in workflow.run(responses=responses, stream=True)]
+  slots:
+    - id: mode
+      options:
+        - { id: always, text: always }
+        - { id: alwaysreq, text: always_require }
+        - { id: never, text: never }
+    - id: ctype
+      options:
+        - { id: mcpreq, text: mcp_approval_request }
+        - { id: funcreq, text: function_approval_request }
+        - { id: funccall, text: function_call }
+    - id: method
+      options:
+        - { id: toresponse, text: to_function_approval_response }
+        - { id: create, text: create_response }
+        - { id: approve, text: approve }
+answer:
+  values: { mode: alwaysreq, ctype: funcreq, method: toresponse }
+explanation:
+  correct:
+    en: |
+      A tool declared with `approval_mode="always_require"` pauses the workflow when the agent calls it. The workflow emits a `request_info` event whose data is content of type `function_approval_request`. You answer with `to_function_approval_response(approved=...)`, keyed by the request ID, and resume the workflow with the `responses` argument.
+    fr: |
+      Un outil déclaré avec `approval_mode="always_require"` suspend le workflow quand l'agent l'appelle. Le workflow émet un événement `request_info` dont les données sont un contenu de type `function_approval_request`. Vous répondez avec `to_function_approval_response(approved=...)`, indexé par l'ID de la demande, et reprenez le workflow avec l'argument `responses`.
+  options:
+    always:
+      en: "`always` is a value of the MCP tool's `require_approval` setting in Foundry, not of the Agent Framework `approval_mode`."
+      fr: "`always` est une valeur du paramètre `require_approval` de l'outil MCP de Foundry, pas de l'`approval_mode` d'Agent Framework."
+    mcpreq:
+      en: "`mcp_approval_request` is the output item of a Foundry agent's MCP tool, not the content of a workflow approval request."
+      fr: "`mcp_approval_request` est l'élément de sortie de l'outil MCP d'un agent Foundry, pas le contenu d'une demande d'approbation de workflow."
+    funccall:
+      en: "A `function_call` is a request to run the function, not a request for approval."
+      fr: "Un `function_call` est une demande d'exécution de la fonction, pas une demande d'approbation."
+    create:
+      en: "`create_response` answers a `HandoffAgentUserRequest` with user text, not an approval request."
+      fr: "`create_response` répond à un `HandoffAgentUserRequest` par un texte utilisateur, pas à une demande d'approbation."
+    approve:
+      en: "`approve()` answers a Magentic plan review request."
+      fr: "`approve()` répond à une demande de revue du plan Magentic."
+references:
+  - title: Microsoft Agent Framework Workflows Orchestrations - Handoff
+    url: https://learn.microsoft.com/en-us/agent-framework/user-guide/workflows/orchestrations/handoff
+  - title: Microsoft Agent Framework Workflows - Human-in-the-loop (HITL)
+    url: https://learn.microsoft.com/en-us/agent-framework/workflows/human-in-the-loop

@@ -1,0 +1,74 @@
+id: ai300-2a-dist-tensorflow-ps
+objective: "2.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are moving a TensorFlow training script to Azure Machine Learning. The script uses the parameter server strategy and reads the cluster description that Azure Machine Learning provides to each worker. The job must use two workers and one parameter server.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous déplacez un script d'entraînement TensorFlow vers Azure Machine Learning. Le script utilise la stratégie de serveur de paramètres et lit la description du cluster qu'Azure Machine Learning fournit à chaque worker. Le travail doit utiliser deux workers et un serveur de paramètres.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    # Job definition (Python SDK v2)
+    from azure.ai.ml import command
+
+    job = command(
+        code="./src",
+        command="python main.py --epochs ${{inputs.epochs}}",
+        inputs={"epochs": 5},
+        environment="AzureML-tensorflow-2.16-cuda12@latest",
+        compute="gpu-cluster",
+        instance_count=2,
+        distribution={
+            "type": "[[dtype]]",
+            "[[pskey]]": 1,
+            "worker_count": 2,
+        },
+    )
+
+    # main.py
+    import json, os
+    cluster_spec = json.loads(os.environ["[[envvar]]"])
+  slots:
+    - id: dtype
+      options:
+        - { id: t-mpi, text: mpi }
+        - { id: t-tf, text: tensorflow }
+        - { id: t-pt, text: pytorch }
+    - id: pskey
+      options:
+        - { id: k-ps, text: parameter_server_count }
+        - { id: k-ppi, text: process_count_per_instance }
+        - { id: k-ic, text: instance_count }
+    - id: envvar
+      options:
+        - { id: e-master, text: MASTER_ADDR }
+        - { id: e-world, text: WORLD_SIZE }
+        - { id: e-tf, text: TF_CONFIG }
+answer:
+  values: { dtype: t-tf, pskey: k-ps, envvar: e-tf }
+explanation:
+  correct:
+    en: "Native distributed TensorFlow uses the tensorflow distribution. A script that uses the parameter server strategy also needs `parameter_server_count` next to `worker_count`. Azure Machine Learning sets the `TF_CONFIG` variable (a JSON description of the cluster and of the current task) for each worker before the script runs."
+    fr: "TensorFlow distribué natif utilise la distribution tensorflow. Un script qui utilise la stratégie de serveur de paramètres a aussi besoin de `parameter_server_count` à côté de `worker_count`. Azure Machine Learning définit la variable `TF_CONFIG` (une description JSON du cluster et de la tâche en cours) pour chaque worker avant l'exécution du script."
+  options:
+    t-mpi: { en: "mpi launches MPI processes and doesn't set TF_CONFIG.", fr: "mpi lance des processus MPI et ne définit pas TF_CONFIG." }
+    t-pt: { en: "pytorch sets torch.distributed variables for PyTorch.", fr: "pytorch définit les variables de torch.distributed pour PyTorch." }
+    k-ppi: { en: "process_count_per_instance is a key of the pytorch and mpi distributions.", fr: "process_count_per_instance est une clé des distributions pytorch et mpi." }
+    k-ic: { en: "instance_count is a resource setting (number of nodes), not a distribution key.", fr: "instance_count est un paramètre de ressources (nombre de nœuds), pas une clé de distribution." }
+    e-master: { en: "MASTER_ADDR is set for PyTorch distributed jobs.", fr: "MASTER_ADDR est défini pour les travaux PyTorch distribués." }
+    e-world: { en: "WORLD_SIZE is a PyTorch variable with the total number of processes.", fr: "WORLD_SIZE est une variable PyTorch qui contient le nombre total de processus." }
+references:
+  - title: Distributed GPU training guide (SDK v2)
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-train-distributed-gpu

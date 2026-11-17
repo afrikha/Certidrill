@@ -1,0 +1,61 @@
+id: dp800-cs2a-embedding-text
+objective: "3.1.4"
+type: single
+caseStudy: dp800-cs2a-lamna-healthcare
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You are writing the statement that rebuilds the chunks of a note.
+
+    ```sql
+    INSERT INTO dbo.NoteChunks (NoteId, ChunkOrder, ChunkText, Embedding)
+    SELECT n.NoteId, c.chunk_order, c.chunk,
+           AI_GENERATE_EMBEDDINGS(c.chunk USE MODEL NotesEmbedding)
+    FROM dbo.ConsultationNotes AS n
+    INNER JOIN dbo.Patients AS p ON p.PatientId = n.PatientId
+    CROSS APPLY AI_GENERATE_CHUNKS(SOURCE = /* text to embed */,
+                                   CHUNK_TYPE = FIXED, CHUNK_SIZE = 1000) AS c
+    WHERE n.NoteId = @NoteId;
+    ```
+
+    You need to choose the text to embed. The solution must meet the semantic search requirements.
+
+    Which expression should you use as the source?
+  fr: |
+    Vous écrivez l'instruction qui reconstruit les blocs d'une note.
+
+    ```sql
+    INSERT INTO dbo.NoteChunks (NoteId, ChunkOrder, ChunkText, Embedding)
+    SELECT n.NoteId, c.chunk_order, c.chunk,
+           AI_GENERATE_EMBEDDINGS(c.chunk USE MODEL NotesEmbedding)
+    FROM dbo.ConsultationNotes AS n
+    INNER JOIN dbo.Patients AS p ON p.PatientId = n.PatientId
+    CROSS APPLY AI_GENERATE_CHUNKS(SOURCE = /* text to embed */,
+                                   CHUNK_TYPE = FIXED, CHUNK_SIZE = 1000) AS c
+    WHERE n.NoteId = @NoteId;
+    ```
+
+    Vous devez choisir le texte à incorporer. La solution doit satisfaire les exigences de recherche sémantique.
+
+    Quelle expression devez-vous utiliser comme source ?
+body:
+  options:
+    - { id: a, text: "`CONCAT(p.LastName, N' ', p.FirstName, N': ', n.NoteText)`" }
+    - { id: b, text: "`n.NoteText`" }
+    - { id: c, text: "`CONCAT(n.ClinicId, N' ', CONVERT(nchar(10), n.NoteDate, 23), N' ', n.NoteText)`" }
+    - { id: d, text: "`CONCAT(n.PatientId, N' ', n.NoteText)`" }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      Embeddings work best on free-form text that carries semantic meaning. Identifiers, numbers and operational metadata such as the clinic or the date add no semantic value, dilute the similarity results and consume tokens; the clinic and date filters are applied with WHERE clauses on the columns instead. Embedding only NoteText also keeps patient identifiers out of the embedded text.
+    fr: |
+      Les incorporations donnent les meilleurs résultats sur du texte libre porteur de sens. Les identifiants, les nombres et les métadonnées opérationnelles comme la clinique ou la date n'apportent aucune valeur sémantique, diluent les résultats de similarité et consomment des jetons ; les filtres par clinique et par date sont appliqués par des clauses WHERE sur les colonnes. N'incorporer que NoteText tient aussi les identifiants des patients hors du texte incorporé.
+  options:
+    a: { en: "The patient's name is a direct identifier, which the requirements forbid in the embedded text, and it adds no clinical meaning.", fr: "Le nom du patient est un identifiant direct, interdit par les exigences dans le texte incorporé, et il n'apporte aucun sens clinique." }
+    c: { en: "The clinic ID and the date are metadata used as filters; adding them to the text dilutes the semantic content instead of filtering the results.", fr: "L'ID de clinique et la date sont des métadonnées utilisées comme filtres ; les ajouter au texte dilue le contenu sémantique au lieu de filtrer les résultats." }
+    d: { en: "PatientId identifies the patient and has no semantic value.", fr: "PatientId identifie le patient et n'a aucune valeur sémantique." }
+references:
+  - title: Design embeddings for SQL database workloads
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-models-embeddings-with-sql/04-design-embeddings-sql-database-workloads

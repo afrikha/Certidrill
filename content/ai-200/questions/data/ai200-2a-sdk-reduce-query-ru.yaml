@@ -1,0 +1,74 @@
+id: ai200-2a-sdk-reduce-query-ru
+objective: "2.1.1"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a product assistant that calls the following Python functions. The products container in Azure Cosmos DB for NoSQL is partitioned on `/category`, and both functions always receive the category of the products.
+
+    ```python
+    def get_product(product_id, category):
+        items = container.query_items(
+            query="SELECT * FROM c WHERE c.id = @id",
+            parameters=[{"name": "@id", "value": product_id}],
+            enable_cross_partition_query=True)
+        return next(iter(items), None)
+
+    def list_category(category):
+        return list(container.query_items(
+            query="SELECT c.id, c.name FROM c WHERE c.category = @cat",
+            parameters=[{"name": "@cat", "value": category}],
+            enable_cross_partition_query=True))
+    ```
+
+    You need to reduce the RU consumption of both functions without changing their results.
+
+    Which two changes should you make? Each correct answer presents part of the solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un assistant produits qui appelle les fonctions Python suivantes. Le conteneur products d'Azure Cosmos DB for NoSQL est partitionné sur `/category`, et les deux fonctions reçoivent toujours la catégorie des produits.
+
+    ```python
+    def get_product(product_id, category):
+        items = container.query_items(
+            query="SELECT * FROM c WHERE c.id = @id",
+            parameters=[{"name": "@id", "value": product_id}],
+            enable_cross_partition_query=True)
+        return next(iter(items), None)
+
+    def list_category(category):
+        return list(container.query_items(
+            query="SELECT c.id, c.name FROM c WHERE c.category = @cat",
+            parameters=[{"name": "@cat", "value": category}],
+            enable_cross_partition_query=True))
+    ```
+
+    Vous devez réduire la consommation de RU des deux fonctions sans modifier leurs résultats.
+
+    Quelles sont les deux modifications à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "In both functions, add populate_query_metrics=True to the query_items() call.", fr: "Dans les deux fonctions, ajouter populate_query_metrics=True à l'appel de query_items()." } }
+    - { id: b, text: { en: "In get_product, replace the query with container.read_item(item=product_id, partition_key=category).", fr: "Dans get_product, remplacer la requête par container.read_item(item=product_id, partition_key=category)." } }
+    - { id: c, text: { en: "In get_product, add max_item_count=1 to the query_items() call.", fr: "Dans get_product, ajouter max_item_count=1 à l'appel de query_items()." } }
+    - { id: d, text: { en: "In list_category, replace enable_cross_partition_query=True with partition_key=category.", fr: "Dans list_category, remplacer enable_cross_partition_query=True par partition_key=category." } }
+    - { id: e, text: { en: "Create the CosmosClient with consistency_level=\"Strong\".", fr: "Créer le CosmosClient avec consistency_level=\"Strong\"." } }
+answer: { optionIds: [ b, d ] }
+explanation:
+  correct:
+    en: "When the ID and the partition key value are known, a point read with `read_item()` is the cheapest way to get one item (about 1 RU for 1 KB), cheaper than any query. Passing `partition_key=category` keeps the category query in one logical partition instead of sending it to every partition."
+    fr: "Quand l'ID et la valeur de la clé de partition sont connus, une lecture ponctuelle avec `read_item()` est la façon la moins coûteuse d'obtenir un élément (environ 1 RU pour 1 Ko), moins chère que toute requête. Passer `partition_key=category` maintient la requête de catégorie dans une seule partition logique au lieu de l'envoyer à toutes les partitions."
+  options:
+    a: { en: "Query metrics are diagnostic data and add overhead; they don't lower the charge.", fr: "Les métriques de requête sont des données de diagnostic et ajoutent une surcharge ; elles ne réduisent pas le coût." }
+    c: { en: "The page size doesn't stop the fan-out to every partition; the query still costs more than a point read.", fr: "La taille de page n'empêche pas l'envoi à toutes les partitions ; la requête coûte toujours plus qu'une lecture ponctuelle." }
+    e: { en: "A client can't go stronger than the account default with this setting, and Strong reads would cost twice the RUs anyway.", fr: "Avec ce paramètre, un client ne peut pas aller au-delà de la valeur par défaut du compte, et des lectures Strong coûteraient de toute façon deux fois plus de RU." }
+references:
+  - title: Request Units as a throughput and performance currency - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/request-units
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy?view=azure-python

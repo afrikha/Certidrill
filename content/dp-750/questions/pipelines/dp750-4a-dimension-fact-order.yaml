@@ -1,0 +1,79 @@
+id: dp750-4a-dimension-fact-order
+objective: "4.1.1"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum receives a daily extract of sales lines in **/Volumes/adatum/landing/sales/**. Each line contains the sale details and the attributes of the customer who made the purchase. The extract can contain the same line more than once.
+
+    You are designing the daily load of a star schema in **adatum.gold**:
+
+    - **dim_customer** is a type 1 dimension with the surrogate key **customer_sk**.
+    - **fact_sales** stores the sales lines and references **customer_sk**.
+    - **sales_summary** aggregates fact_sales for the reports.
+
+    The solution must meet the following requirements:
+
+    - No row of fact_sales may reference an unknown customer.
+    - The reports must only see complete data for the day.
+    - Each step must be safe to rerun.
+
+    Which five actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Adatum reçoit chaque jour un extrait de lignes de vente dans **/Volumes/adatum/landing/sales/**. Chaque ligne contient le détail de la vente et les attributs du client qui a effectué l'achat. L'extrait peut contenir plusieurs fois la même ligne.
+
+    Vous concevez le chargement quotidien d'un schéma en étoile dans **adatum.gold** :
+
+    - **dim_customer** est une dimension de type 1 dont la clé de substitution est **customer_sk**.
+    - **fact_sales** stocke les lignes de vente et référence **customer_sk**.
+    - **sales_summary** agrège fact_sales pour les rapports.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - Aucune ligne de fact_sales ne doit référencer un client inconnu.
+    - Les rapports ne doivent voir que des données complètes pour la journée.
+    - Chaque étape doit pouvoir être réexécutée sans risque.
+
+    Quelles sont les cinq actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 5
+  actions:
+    - id: bronze
+      text: { en: "Ingest the extract into adatum.bronze.sales_lines.", fr: "Ingérer l'extrait dans adatum.bronze.sales_lines." }
+    - id: silver
+      text: { en: "Remove the duplicate lines, cast the types and load adatum.silver.sales_lines.", fr: "Supprimer les lignes en double, convertir les types et charger adatum.silver.sales_lines." }
+    - id: dim
+      text: { en: "Merge the distinct new and changed customers of adatum.silver.sales_lines into dim_customer.", fr: "Fusionner (MERGE) dans dim_customer les clients nouveaux et modifiés distincts de adatum.silver.sales_lines." }
+    - id: fact
+      text: { en: "Merge the lines of adatum.silver.sales_lines into fact_sales, looking up customer_sk in dim_customer.", fr: "Fusionner (MERGE) les lignes de adatum.silver.sales_lines dans fact_sales en recherchant customer_sk dans dim_customer." }
+    - id: summary
+      text: { en: "Refresh sales_summary from fact_sales.", fr: "Actualiser sales_summary à partir de fact_sales." }
+    - id: unknown
+      text: { en: "Insert the lines into fact_sales with customer_sk set to -1, and update the keys after the dimension load.", fr: "Insérer les lignes dans fact_sales avec customer_sk à -1, puis mettre à jour les clés après le chargement de la dimension." }
+    - id: dimbronze
+      text: { en: "Merge the customers of adatum.bronze.sales_lines into dim_customer before the duplicates are removed.", fr: "Fusionner (MERGE) dans dim_customer les clients de adatum.bronze.sales_lines avant la suppression des doublons." }
+answer:
+  sequence: [ bronze, silver, dim, fact, summary ]
+explanation:
+  correct:
+    en: |
+      The extract is ingested as is into bronze, then deduplicated and typed in silver. The dimension is loaded from the distinct customers of silver before the fact table, so every fact row finds its customer_sk. The summary is refreshed last, from a complete fact table. MERGE-based loads make each step safe to rerun.
+    fr: |
+      L'extrait est ingéré tel quel dans la couche bronze, puis dédoublonné et typé dans la couche silver. La dimension est chargée à partir des clients distincts de la couche silver avant la table de faits, si bien que chaque ligne de faits trouve sa customer_sk. Le résumé est actualisé en dernier, à partir d'une table de faits complète. Des chargements par MERGE rendent chaque étape réexécutable sans risque.
+  options:
+    unknown:
+      en: |
+        Loading facts with a placeholder key breaks the requirement that no fact row references an unknown customer, even temporarily, and adds a correction step.
+      fr: |
+        Charger des faits avec une clé fictive enfreint l'exigence selon laquelle aucune ligne de faits ne doit référencer un client inconnu, même temporairement, et ajoute une étape de correction.
+    dimbronze:
+      en: |
+        Bronze still contains duplicate lines, so several source rows would match the same customer and the MERGE would fail.
+      fr: |
+        La couche bronze contient encore des lignes en double : plusieurs lignes sources correspondraient au même client et le MERGE échouerait.
+references:
+  - title: What is the medallion lakehouse architecture?
+    url: https://learn.microsoft.com/en-us/azure/databricks/lakehouse/medallion
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

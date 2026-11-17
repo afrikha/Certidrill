@@ -1,0 +1,97 @@
+id: dp700-cs1a-alpine-ski-house
+status: draft
+title:
+  en: |-
+    Alpine Ski House
+  fr: |-
+    Alpine Ski House
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Alpine Ski House operates nine ski resorts in the French and Swiss Alps. The head office is in Annecy. A platform team of four data engineers builds the data solutions.
+
+        Alpine Ski House is building a real-time operations platform in Microsoft Fabric for its ski lifts and its snowmaking equipment.
+      fr: |
+        Alpine Ski House exploite neuf stations de ski dans les Alpes françaises et suisses. Le siège est à Annecy. Une équipe plateforme de quatre ingénieurs données construit les solutions de données.
+
+        Alpine Ski House construit dans Microsoft Fabric une plateforme d'exploitation en temps réel pour ses remontées mécaniques et ses équipements de production de neige.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Fabric.** Alpine Ski House has a Fabric capacity (F64) and the following workspaces. No Fabric domain exists yet.
+
+        | Workspace | Items |
+        | --- | --- |
+        | ASH-Ops | Eventhouse **EH_Ops** that contains the KQL database **KDB_Ops**; eventstream **ES_Gates** |
+        | ASH-Snow | Lakehouse **LH_Snow**; notebook **NB_ScoreStream** |
+        | ASH-Archive | Lakehouse **LH_Archive** |
+
+        **Lift gates.** The 420 lift gates send one JSON event for each scanned ski pass to the event hub **scans** of the Azure Event Hubs namespace **ash-gates**. Each event contains the fields GateId, LiftId, ResortId, PassId and ScanTime.
+
+        ES_Gates reads the scans event hub and ingests every event, by direct ingestion, into the table **RawScans** of KDB_Ops. RawScans has a single column named **Payload** of type dynamic. KDB_Ops also contains an empty table named **Scans** with typed columns, and a stored function named **ParseScans()** that reads RawScans and returns rows that match the schema of Scans.
+
+        **Snowmaking.** The 1,200 snow cannons send telemetry to the event hub **cannons** of the namespace **ash-snow**. The data science team maintains a PySpark library that scores the telemetry with an anomaly detection model. NB_ScoreStream reads the cannons event hub by using Spark structured streaming, scores each event with the library, and appends the results to the Delta table **cannon_scores** of LH_Snow.
+
+        A data engineer starts NB_ScoreStream manually every morning. Last month, the stream stopped twice after an infrastructure maintenance, and nobody noticed for several hours. cannon_scores contains a very large number of small files.
+
+        **People.** Léa Martin is the head of operations. She is not a Fabric administrator.
+      fr: |
+        **Fabric.** Alpine Ski House dispose d'une capacité Fabric (F64) et des espaces de travail suivants. Aucun domaine Fabric n'existe encore.
+
+        | Espace de travail | Éléments |
+        | --- | --- |
+        | ASH-Ops | Eventhouse **EH_Ops** qui contient la base de données KQL **KDB_Ops** ; flux d'événements **ES_Gates** |
+        | ASH-Snow | Lakehouse **LH_Snow** ; notebook **NB_ScoreStream** |
+        | ASH-Archive | Lakehouse **LH_Archive** |
+
+        **Portiques des remontées.** Les 420 portiques des remontées mécaniques envoient un événement JSON pour chaque forfait scanné au hub d'événements **scans** de l'espace de noms Azure Event Hubs **ash-gates**. Chaque événement contient les champs GateId, LiftId, ResortId, PassId et ScanTime.
+
+        ES_Gates lit le hub d'événements scans et ingère chaque événement, par ingestion directe, dans la table **RawScans** de KDB_Ops. RawScans contient une seule colonne nommée **Payload** de type dynamic. KDB_Ops contient aussi une table vide nommée **Scans** dont les colonnes sont typées, et une fonction stockée nommée **ParseScans()** qui lit RawScans et retourne des lignes conformes au schéma de Scans.
+
+        **Production de neige.** Les 1 200 canons à neige envoient leur télémétrie au hub d'événements **cannons** de l'espace de noms **ash-snow**. L'équipe de science des données maintient une bibliothèque PySpark qui évalue la télémétrie avec un modèle de détection d'anomalies. NB_ScoreStream lit le hub d'événements cannons avec le streaming structuré Spark, évalue chaque événement avec la bibliothèque et ajoute les résultats à la table Delta **cannon_scores** de LH_Snow.
+
+        Un ingénieur données démarre NB_ScoreStream manuellement chaque matin. Le mois dernier, le flux s'est arrêté deux fois après une maintenance de l'infrastructure, et personne ne s'en est aperçu pendant plusieurs heures. cannon_scores contient un très grand nombre de petits fichiers.
+
+        **Personnes.** Léa Martin est la responsable de l'exploitation. Elle n'est pas administratrice Fabric.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Alpine Ski House identifies the following requirements.
+
+        **Streaming**
+
+        1. Every gate scan must be sent to KDB_Ops and, in addition, to a Delta table in LH_Archive. No code must be written for this routing.
+        2. Scans must be populated automatically, by using ParseScans(), each time data is ingested into RawScans. If ParseScans() fails for an ingestion, the whole ingestion must fail, so that RawScans never contains events that are missing from Scans.
+        3. A Real-Time Dashboard must show the most recent scan of each gate. Its query must read precomputed results to minimize the query cost.
+        4. The snow-cannon scoring must keep running continuously and must restart automatically after an unexpected stop, without any manual action.
+        5. The scoring stream must write cannon_scores in fewer, larger files, with at most one micro-batch per minute. After a restart, it must resume from where it stopped, without skipping or reprocessing events.
+
+        **Monitoring**
+
+        6. The data engineers must be able to view the input rate, the process rate and the batch duration of the scoring stream.
+
+        **Governance**
+
+        7. A Fabric administrator will create a domain named **Operations** and assign ASH-Ops, ASH-Snow and ASH-Archive to it. Léa Martin must be able to specify the domain contributors of Operations and to override the certification settings for the domain. The principle of least privilege must be followed.
+      fr: |
+        Alpine Ski House a défini les exigences suivantes.
+
+        **Diffusion en continu**
+
+        1. Chaque passage aux portiques doit être envoyé à KDB_Ops et, en plus, à une table Delta de LH_Archive. Aucun code ne doit être écrit pour ce routage.
+        2. Scans doit être alimentée automatiquement, à l'aide de ParseScans(), chaque fois que des données sont ingérées dans RawScans. Si ParseScans() échoue pour une ingestion, toute l'ingestion doit échouer, afin que RawScans ne contienne jamais d'événements absents de Scans.
+        3. Un tableau de bord en temps réel doit afficher le passage le plus récent de chaque portique. Sa requête doit lire des résultats précalculés pour réduire au minimum le coût des requêtes.
+        4. L'évaluation de la télémétrie des canons à neige doit s'exécuter en continu et redémarrer automatiquement après un arrêt inattendu, sans aucune action manuelle.
+        5. Le flux d'évaluation doit écrire cannon_scores en fichiers moins nombreux et plus volumineux, avec au plus un micro-lot par minute. Après un redémarrage, il doit reprendre là où il s'est arrêté, sans ignorer ni retraiter d'événements.
+
+        **Supervision**
+
+        6. Les ingénieurs données doivent pouvoir consulter le taux d'entrée, le taux de traitement et la durée de traitement par lot du flux d'évaluation.
+
+        **Gouvernance**
+
+        7. Un administrateur Fabric va créer un domaine nommé **Operations** et lui attribuer ASH-Ops, ASH-Snow et ASH-Archive. Léa Martin doit pouvoir désigner les contributeurs du domaine Operations et remplacer les paramètres de certification pour ce domaine. Le principe des privilèges minimum doit être respecté.

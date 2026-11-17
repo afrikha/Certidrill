@@ -1,0 +1,71 @@
+id: dp300-4b-ej-target-exclude
+objective: "4.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an elastic job agent that authenticates by using a user-assigned managed identity. A logical server named **srv-saas** hosts a database named **Catalog** and the tenant databases of an application. New tenant databases are added to srv-saas every week, some of them in elastic pools.
+
+    You need a target group that contains every current and future database of srv-saas except Catalog.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un agent de travail élastique qui s'authentifie avec une identité managée affectée par l'utilisateur. Un serveur logique nommé **srv-saas** héberge une base de données nommée **Catalog** et les bases de données de locataire d'une application. De nouvelles bases de données de locataire sont ajoutées à srv-saas chaque semaine, certaines dans des pools élastiques.
+
+    Vous avez besoin d'un groupe cible qui contient toutes les bases de données actuelles et futures de srv-saas, à l'exception de Catalog.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    EXEC jobs.sp_add_target_group @target_group_name = N'Tenants';
+    EXEC jobs.sp_add_target_group_member
+        @target_group_name = N'Tenants',
+        @target_type = N'[[t1]]',
+        @server_name = N'srv-saas.database.windows.net';
+    EXEC jobs.sp_add_target_group_member
+        @target_group_name = N'Tenants',
+        @membership_type = N'[[mt]]',
+        @target_type = N'[[t2]]',
+        @server_name = N'srv-saas.database.windows.net',
+        @database_name = N'Catalog';
+  slots:
+    - id: t1
+      options:
+        - { id: server, text: SqlServer }
+        - { id: pool, text: SqlElasticPool }
+        - { id: db, text: SqlDatabase }
+    - id: mt
+      options:
+        - { id: exclude, text: Exclude }
+        - { id: include, text: Include }
+    - id: t2
+      options:
+        - { id: db2, text: SqlDatabase }
+        - { id: server2, text: SqlServer }
+        - { id: pool2, text: SqlElasticPool }
+answer:
+  values: { t1: server, mt: exclude, t2: db2 }
+explanation:
+  correct:
+    en: |
+      A `SqlServer` member includes every database of the server, inside or outside elastic pools, and it is enumerated again at each job execution, so new tenant databases are picked up automatically. A second member with `@membership_type = N'Exclude'` and `@target_type = N'SqlDatabase'` removes Catalog from the group.
+    fr: |
+      Un membre `SqlServer` inclut toutes les bases de données du serveur, dans des pools élastiques ou non, et il est de nouveau énuméré à chaque exécution du travail : les nouvelles bases de données de locataire sont prises en compte automatiquement. Un second membre avec `@membership_type = N'Exclude'` et `@target_type = N'SqlDatabase'` retire Catalog du groupe.
+  options:
+    pool: { en: "An elastic pool member only covers the databases of one pool, and some tenant databases aren't in a pool.", fr: "Un membre de type pool élastique ne couvre que les bases de données d'un pool, et certaines bases de locataire ne sont pas dans un pool." }
+    db: { en: "A SqlDatabase member targets one named database; databases added later wouldn't be included.", fr: "Un membre SqlDatabase cible une base de données nommée ; les bases ajoutées plus tard ne seraient pas incluses." }
+    include: { en: "Include would add Catalog, which the server member already contains; the requirement is to remove it.", fr: "Include ajouterait Catalog, que le membre serveur contient déjà ; l'exigence est de l'exclure." }
+    server2: { en: "Excluding the server would remove every database of srv-saas from the group.", fr: "Exclure le serveur retirerait du groupe toutes les bases de données de srv-saas." }
+    pool2: { en: "Catalog is a database identified by @database_name, not an elastic pool.", fr: "Catalog est une base de données identifiée par @database_name, pas un pool élastique." }
+references:
+  - title: Create and manage elastic jobs by using T-SQL
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/elastic-jobs-tsql-create-manage
+  - title: Elastic jobs in Azure SQL Database
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/elastic-jobs-overview

@@ -1,0 +1,111 @@
+id: dp700-cs2b-munsons
+status: draft
+title:
+  en: Munson's Pickles and Preserves Farm
+  fr: Munson's Pickles and Preserves Farm
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Munson's Pickles and Preserves Farm produces pickles, jams and sauces under several brands. It sells its products through 30 retail chains and also produces co-packed products for other companies.
+
+        A team of three data engineers maintains the sales analytics platform in Microsoft Fabric. A team of sales analysts prepares the retailer reports. The analysts know Power Query, but they do not write SQL or Python.
+      fr: |
+        Munson's Pickles and Preserves Farm produit des cornichons, des confitures et des sauces sous plusieurs marques. Elle vend ses produits par l'intermédiaire de 30 chaînes de distribution et fabrique aussi des produits sous-traités pour d'autres entreprises.
+
+        Une équipe de trois ingénieurs données maintient la plateforme d'analytique des ventes dans Microsoft Fabric. Une équipe d'analystes commerciaux prépare les rapports des distributeurs. Les analystes connaissent Power Query, mais ils n'écrivent ni SQL ni Python.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Source systems**
+
+        - The order management system uses an on-premises SQL Server database named **MPSALES**, reached through an on-premises data gateway. The table **dbo.OrderLines** contains 250 million rows. Its **LastModified** column (datetime2) is set each time a row is inserted or updated. Rows are never deleted.
+        - Each month, the retail chains upload Excel workbooks with their sell-out figures to a SharePoint Online site. Each chain uses its own layout and column names. The sales analysts currently clean the workbooks by hand.
+
+        **Fabric**
+
+        Munson's has an F32 capacity. The workspace **MP-Analytics** contains the following items.
+
+        | Item | Type | Details |
+        | --- | --- | --- |
+        | WH_Sales | Warehouse | Tables dbo.FactSales (DateKey, ProductKey, RetailerKey, Units, NetRevenue), dbo.DimDate (DateKey, CalendarMonth), dbo.DimProduct (ProductKey, ProductName, BrandKey), dbo.DimBrand (BrandKey, BrandName) and dbo.Watermark (TableName, LastValue). |
+        | PL_Orders | Pipeline | Copies all the rows of dbo.OrderLines to WH_Sales every night. It runs for four hours. |
+        | DF_Prices | Dataflow Gen2 | Loads the supplier price lists into WH_Sales. Its connection to WH_Sales authenticates with a service principal named **sp-dataflows**. |
+        | SM_Sales | Semantic model | Import mode, built on WH_Sales. Scheduled refresh every day at 06:00. |
+
+        Every row of dbo.FactSales has a valid DateKey and ProductKey. BrandKey is NULL for the co-packed products, which belong to no brand.
+
+        **Current issues**
+
+        - Five days ago, a column of dbo.DimProduct used by SM_Sales was renamed. The refresh history of SM_Sales shows four failed scheduled refreshes, and no refresh has run since then.
+        - Yesterday, the security team generated a new client secret for sp-dataflows and deleted the old one. Since then, every refresh of DF_Prices fails. In the refresh history, the activity that writes to WH_Sales shows the error **DestinationQueryChallenge**.
+        - The first dashboard queries that run after the nightly load of WH_Sales are much slower than the same queries later in the day.
+      fr: |
+        **Systèmes sources**
+
+        - Le système de gestion des commandes utilise une base de données SQL Server locale nommée **MPSALES**, accessible via une passerelle de données locale. La table **dbo.OrderLines** contient 250 millions de lignes. Sa colonne **LastModified** (datetime2) est mise à jour chaque fois qu'une ligne est insérée ou modifiée. Les lignes ne sont jamais supprimées.
+        - Chaque mois, les chaînes de distribution déposent des classeurs Excel contenant leurs chiffres de sortie de caisse sur un site SharePoint Online. Chaque chaîne utilise sa propre mise en page et ses propres noms de colonnes. Les analystes commerciaux nettoient actuellement les classeurs à la main.
+
+        **Fabric**
+
+        Munson's dispose d'une capacité F32. L'espace de travail **MP-Analytics** contient les éléments suivants.
+
+        | Élément | Type | Détails |
+        | --- | --- | --- |
+        | WH_Sales | Entrepôt | Tables dbo.FactSales (DateKey, ProductKey, RetailerKey, Units, NetRevenue), dbo.DimDate (DateKey, CalendarMonth), dbo.DimProduct (ProductKey, ProductName, BrandKey), dbo.DimBrand (BrandKey, BrandName) et dbo.Watermark (TableName, LastValue). |
+        | PL_Orders | Pipeline | Copie chaque nuit toutes les lignes de dbo.OrderLines dans WH_Sales. Il s'exécute pendant quatre heures. |
+        | DF_Prices | Dataflow Gen2 | Charge les listes de prix des fournisseurs dans WH_Sales. Sa connexion à WH_Sales s'authentifie avec un principal de service nommé **sp-dataflows**. |
+        | SM_Sales | Modèle sémantique | Mode Import, construit sur WH_Sales. Actualisation planifiée chaque jour à 06:00. |
+
+        Chaque ligne de dbo.FactSales a un DateKey et un ProductKey valides. BrandKey est NULL pour les produits sous-traités, qui n'appartiennent à aucune marque.
+
+        **Problèmes actuels**
+
+        - Il y a cinq jours, une colonne de dbo.DimProduct utilisée par SM_Sales a été renommée. L'historique d'actualisation de SM_Sales montre quatre actualisations planifiées en échec, et aucune actualisation ne s'est exécutée depuis.
+        - Hier, l'équipe de sécurité a généré un nouveau secret client pour sp-dataflows et a supprimé l'ancien. Depuis, chaque actualisation de DF_Prices échoue. Dans l'historique d'actualisation, l'activité qui écrit dans WH_Sales affiche l'erreur **DestinationQueryChallenge**.
+        - Les premières requêtes des tableaux de bord exécutées après le chargement nocturne de WH_Sales sont beaucoup plus lentes que les mêmes requêtes plus tard dans la journée.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Munson's identifies the following requirements.
+
+        **Retailer data**
+
+        1. The sales analysts must clean the retailer workbooks and load them into a WH_Sales table named dbo.RetailerSales themselves, by using a low-code tool.
+
+        **Order data**
+
+        2. PL_Orders must copy only the rows of dbo.OrderLines that were inserted or changed since its previous run. No row must be missed and no row must be copied twice. dbo.Watermark stores the LastModified value reached by the previous run.
+
+        **Reporting**
+
+        3. A table named dbo.SalesByBrandMonth must contain one row per brand and calendar month with the total NetRevenue and Units. The sales of the co-packed products must appear under the name **Unassigned**. Brand-months whose total Units is zero or negative, because of returns, must be excluded.
+        4. The daily refresh of SM_Sales must be restored.
+        5. DF_Prices must run successfully again.
+
+        **Performance**
+
+        6. The data engineers will review how statistics are created and updated in WH_Sales.
+      fr: |
+        Munson's a défini les exigences suivantes.
+
+        **Données des distributeurs**
+
+        1. Les analystes commerciaux doivent nettoyer eux-mêmes les classeurs des distributeurs et les charger dans une table de WH_Sales nommée dbo.RetailerSales, avec un outil low-code.
+
+        **Données de commande**
+
+        2. PL_Orders ne doit copier que les lignes de dbo.OrderLines insérées ou modifiées depuis son exécution précédente. Aucune ligne ne doit être oubliée et aucune ligne ne doit être copiée deux fois. dbo.Watermark stocke la valeur de LastModified atteinte par l'exécution précédente.
+
+        **Reporting**
+
+        3. Une table nommée dbo.SalesByBrandMonth doit contenir une ligne par marque et par mois civil avec le total de NetRevenue et de Units. Les ventes des produits sous-traités doivent apparaître sous le nom **Unassigned**. Les couples marque-mois dont le total de Units est nul ou négatif, à cause des retours, doivent être exclus.
+        4. L'actualisation quotidienne de SM_Sales doit être rétablie.
+        5. DF_Prices doit de nouveau s'exécuter correctement.
+
+        **Performances**
+
+        6. Les ingénieurs données vont examiner la façon dont les statistiques sont créées et mises à jour dans WH_Sales.

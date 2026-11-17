@@ -1,0 +1,85 @@
+id: dp700-cs1c-assay-summary
+objective: "2.2.8"
+type: dropdown
+caseStudy: dp700-cs1c-trey-research
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are updating NB_Gold to meet the transformation requirement. How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous mettez à jour NB_Gold pour satisfaire l'exigence de transformation. Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    results = spark.read.table("silver.results")
+    assays = spark.read.table("gold.dim_assay")
+
+    summary = (results
+        .[[clean]](subset=["Value"])
+        .join(assays, "AssayCode", [[how]])
+        .groupBy("ClientId", "AssayType", F.to_date("MeasuredAt").alias("RunDate"))
+        .agg(F.[[agg]]("SampleId").alias("Samples"),
+             F.avg("Value").alias("AvgValue")))
+
+    summary.write.mode("overwrite").saveAsTable("gold.assay_summary")
+  slots:
+    - id: clean
+      options:
+        - { id: fillna, text: fillna }
+        - { id: dropna, text: dropna }
+        - { id: dropdup, text: dropDuplicates }
+    - id: how
+      options:
+        - { id: inner, text: "\"inner\"" }
+        - { id: anti, text: "\"left_anti\"" }
+        - { id: left, text: "\"left\"" }
+    - id: agg
+      options:
+        - { id: count, text: count }
+        - { id: cdist, text: countDistinct }
+        - { id: sum, text: sum }
+answer:
+  values: { clean: dropna, how: left, agg: cdist }
+explanation:
+  correct:
+    en: "`dropna(subset=[\"Value\"])` removes the readings whose Value is null before the aggregation. A left join keeps every reading, even when its AssayCode has no match in gold.dim_assay, and gives it a null AssayType. `countDistinct(\"SampleId\")` counts each sample once, even when a sample has several readings on the same run date."
+    fr: "`dropna(subset=[\"Value\"])` supprime les mesures dont Value est null avant l'agrégation. Une jointure left conserve toutes les mesures, même quand leur AssayCode n'a pas de correspondance dans gold.dim_assay, et leur attribue un AssayType null. `countDistinct(\"SampleId\")` compte chaque échantillon une seule fois, même quand un échantillon a plusieurs mesures à la même date d'exécution."
+  options:
+    fillna:
+      en: |-
+        fillna replaces the null values instead of removing the rows, so the readings that could not be read would still be counted.
+      fr: |-
+        fillna remplace les valeurs null au lieu de supprimer les lignes ; les mesures illisibles seraient donc toujours comptées.
+    dropdup:
+      en: |-
+        dropDuplicates removes duplicate rows; with the Value subset it keeps one row per Value and does not exclude the null readings.
+      fr: |-
+        dropDuplicates supprime les lignes en double ; avec le sous-ensemble Value, il conserve une ligne par valeur de Value et n'exclut pas les mesures null.
+    inner:
+      en: |-
+        An inner join drops the readings whose AssayCode is not yet in gold.dim_assay, which the requirement forbids.
+      fr: |-
+        Une jointure inner supprime les mesures dont l'AssayCode ne figure pas encore dans gold.dim_assay, ce que l'exigence interdit.
+    anti:
+      en: |-
+        A left anti join keeps only the readings that have no match in gold.dim_assay and returns no AssayType column.
+      fr: |-
+        Une jointure left anti ne conserve que les mesures sans correspondance dans gold.dim_assay et ne retourne pas de colonne AssayType.
+    count:
+      en: |-
+        count counts every reading, so a sample measured several times on the same run date would be counted more than once.
+      fr: |-
+        count compte chaque mesure ; un échantillon mesuré plusieurs fois à la même date d'exécution serait donc compté plusieurs fois.
+references:
+  - title: Shape and clean data
+    url: https://learn.microsoft.com/en-us/training/modules/fabric-transform-data-notebooks/3-shape-clean-data
+  - title: Combine and aggregate data
+    url: https://learn.microsoft.com/en-us/training/modules/fabric-transform-data-notebooks/4-combine-aggregate

@@ -1,0 +1,88 @@
+id: ai103-2c-function-output-code
+objective: "2.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip Toys has a prompt agent named shipping-agent that has a function tool named get_shipment. The function reads a carrier database that only the Wingtip backend can reach, so the backend must run it.
+
+    You are writing the backend code that handles a user question in an existing conversation. The code must run the function that the model requests and return its result so that the agent can produce the final answer.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys dispose d'un agent d'invite nommé shipping-agent doté d'un outil de fonction nommé get_shipment. La fonction lit une base de données de transporteurs que seul le serveur principal de Wingtip peut atteindre : c'est donc le serveur principal qui doit l'exécuter.
+
+    Vous écrivez le code du serveur principal qui traite une question d'utilisateur dans une conversation existante. Le code doit exécuter la fonction demandée par le modèle et renvoyer son résultat pour que l'agent produise la réponse finale.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    response = openai.responses.create(conversation=conversation.id, input=question)
+
+    outputs = []
+    for item in response.output:
+        if item.type == "[[itype]]" and item.name == "get_shipment":
+            result = get_shipment(**json.loads(item.[[args]]))
+            outputs.append(FunctionCallOutput(
+                type="function_call_output",
+                call_id=item.[[cid]],
+                output=json.dumps(result),
+            ))
+
+    response = openai.responses.create(conversation=conversation.id, input=[[next]])
+    print(response.output_text)
+  slots:
+    - id: itype
+      options:
+        - { id: call, text: function_call }
+        - { id: output, text: function_call_output }
+        - { id: mcp, text: mcp_call }
+    - id: args
+      options:
+        - { id: arguments, text: arguments }
+        - { id: content, text: content }
+        - { id: parameters, text: parameters }
+    - id: cid
+      options:
+        - { id: id, text: id }
+        - { id: name, text: name }
+        - { id: callid, text: call_id }
+    - id: next
+      options:
+        - { id: outputs, text: outputs }
+        - { id: question, text: question }
+        - { id: respid, text: response.id }
+answer:
+  values: { itype: call, args: arguments, cid: callid, next: outputs }
+explanation:
+  correct:
+    en: |
+      When the model wants the function, the response contains an output item of type `function_call` with `name`, `call_id` and `arguments`, a JSON string that you parse before calling the function. Each result goes back as a `function_call_output` item with the same `call_id`, sent as the input of a new `responses.create` call in the same conversation.
+    fr: |
+      Quand le modèle veut la fonction, la réponse contient un élément de sortie de type `function_call` avec `name`, `call_id` et `arguments`, une chaîne JSON que vous analysez avant d'appeler la fonction. Chaque résultat est renvoyé sous forme d'élément `function_call_output` avec le même `call_id`, comme entrée d'un nouvel appel `responses.create` dans la même conversation.
+  options:
+    output:
+      en: "`function_call_output` is the item type that your code sends back, not the one that the model returns."
+      fr: "`function_call_output` est le type d'élément que votre code renvoie, pas celui que le modèle retourne."
+    mcp:
+      en: "`mcp_call` items come from MCP tools, which the service runs itself."
+      fr: "Les éléments `mcp_call` proviennent des outils MCP, que le service exécute lui-même."
+    parameters:
+      en: "`parameters` is the JSON Schema in the tool definition; the values chosen by the model are in `arguments`."
+      fr: "`parameters` est le schéma JSON de la définition de l'outil ; les valeurs choisies par le modèle se trouvent dans `arguments`."
+    id:
+      en: "The output must be linked to the call by `call_id`, not by the item ID."
+      fr: "La sortie doit être liée à l'appel par `call_id`, pas par l'ID de l'élément."
+    question:
+      en: "Resending the question doesn't return the function result, so the model would request the function again."
+      fr: "Renvoyer la question ne transmet pas le résultat de la fonction : le modèle redemanderait la fonction."
+references:
+  - title: Use function calling with Microsoft Foundry agents
+    url: https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/function-calling

@@ -1,0 +1,77 @@
+id: ai103-2d-tracing-export-code
+objective: "2.3.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso Insurance has a Python application that calls a Foundry agent. An Application Insights resource is already connected to the Foundry project, and the application authenticates with Microsoft Entra ID.
+
+    You need to add client-side tracing so that:
+
+    - the generative AI spans of the Azure AI Projects SDK are produced;
+    - the spans are sent to the Application Insights resource connected to the project;
+    - the content of user messages isn't recorded.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso Insurance dispose d'une application Python qui appelle un agent Foundry. Une ressource Application Insights est déjà connectée au projet Foundry, et l'application s'authentifie avec Microsoft Entra ID.
+
+    Vous devez ajouter le suivi côté client pour que :
+
+    - les étendues d'IA générative du kit SDK Azure AI Projects soient produites ;
+    - les étendues soient envoyées à la ressource Application Insights connectée au projet ;
+    - le contenu des messages des utilisateurs ne soit pas enregistré.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    [[env]]
+
+    from azure.ai.projects import AIProjectClient
+    from azure.identity import DefaultAzureCredential
+    from azure.monitor.opentelemetry import configure_azure_monitor
+    from opentelemetry import trace
+
+    with (
+        DefaultAzureCredential() as credential,
+        AIProjectClient(endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"], credential=credential) as project,
+    ):
+        connection_string = project.telemetry.get_application_insights_connection_string()
+        [[export]]
+
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span("claim-triage"):
+            run_claim_triage(project)
+  slots:
+    - id: env
+      options:
+        - { id: genai, text: "os.environ[\"AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING\"] = \"true\"" }
+        - { id: content, text: "os.environ[\"OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT\"] = \"true\"" }
+        - { id: responses, text: "os.environ[\"AZURE_TRACING_GEN_AI_INSTRUMENT_RESPONSES_API\"] = \"true\"" }
+    - id: export
+      options:
+        - { id: monitor, text: "configure_azure_monitor(connection_string=connection_string)" }
+        - { id: instr, text: "AIProjectInstrumentor().instrument(enable_content_recording=True)" }
+        - { id: console, text: "tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))" }
+answer:
+  values: { env: genai, export: monitor }
+explanation:
+  correct:
+    en: "AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING must be true before instrumentation, otherwise the generative AI tracing isn't enabled. The project returns the connection string of its Application Insights resource, and configure_azure_monitor exports the spans there. Content recording stays off because its variable defaults to false."
+    fr: "AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING doit valoir true avant l'instrumentation, sinon le suivi de l'IA générative n'est pas activé. Le projet renvoie la chaîne de connexion de sa ressource Application Insights, et configure_azure_monitor y exporte les étendues. L'enregistrement du contenu reste désactivé, car sa variable vaut false par défaut."
+  options:
+    content: { en: "This variable records message content, which the requirements forbid, and it doesn't enable the tracing itself.", fr: "Cette variable enregistre le contenu des messages, ce que les exigences interdisent, et elle n'active pas le suivi lui-même." }
+    responses: { en: "This variable controls the automatic instrumentation of the Responses and Conversations APIs; it doesn't turn on the experimental GenAI tracing.", fr: "Cette variable contrôle l'instrumentation automatique des API Responses et Conversations ; elle n'active pas le suivi GenAI expérimental." }
+    instr: { en: "This call enables content recording and exports nothing to Application Insights.", fr: "Cet appel active l'enregistrement du contenu et n'exporte rien vers Application Insights." }
+    console: { en: "A console exporter prints the spans locally for debugging instead of sending them to Application Insights.", fr: "Un exportateur console affiche les étendues en local pour le débogage au lieu de les envoyer à Application Insights." }
+references:
+  - title: Add client-side tracing to Foundry agents
+    url: https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/trace-agent-client-side

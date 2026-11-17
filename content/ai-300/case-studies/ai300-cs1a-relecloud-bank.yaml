@@ -1,0 +1,115 @@
+id: ai300-cs1a-relecloud-bank
+status: draft
+title:
+  en: Relecloud Bank
+  fr: Relecloud Bank
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Relecloud Bank is a retail bank based in Montreal that issues credit cards to 3.2 million customers. Every card transaction is scored in real time by a fraud detection model before it is authorized.
+
+        A data science team of six people develops the fraud model in Azure Machine Learning. An MLOps team of two engineers runs the training pipeline, the production endpoint and the monitoring. The disputes department also uses a Microsoft Foundry agent that drafts the letters sent to cardholders who contest a transaction.
+      fr: |
+        Relecloud Bank est une banque de détail basée à Montréal qui émet des cartes de crédit pour 3,2 millions de clients. Chaque transaction par carte est évaluée en temps réel par un modèle de détection de fraude avant d'être autorisée.
+
+        Une équipe de six data scientists développe le modèle de fraude dans Azure Machine Learning. Une équipe MLOps de deux ingénieurs exploite le pipeline d'entraînement, le point de terminaison de production et la surveillance. Le service des litiges utilise aussi un agent Microsoft Foundry qui rédige les courriers envoyés aux titulaires de carte qui contestent une transaction.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Relecloud has the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-rc-fraud | Azure Machine Learning workspace | Used by the data scientists and the MLOps team |
+        | fs-rc-cards | Azure Machine Learning managed feature store | Feature sets **transactions** (version 2) and **accounts** (version 1) |
+        | cpu-cluster | Compute cluster in mlw-rc-fraud | 0 to 6 nodes |
+        | fraud-train-env | Environment in mlw-rc-fraud, version 2 | `image` set to a custom base image in which the lightgbm package is installed; `conda_file` set to conda.yml, which lists pandas, mlflow and azureml-mlflow |
+        | prep_transactions, train_fraud_lgbm | Command components in mlw-rc-fraud | prep_transactions has the output **clean_data**; train_fraud_lgbm has the input **training_data** and the output **model_output** |
+        | fraud-lgbm | Model in mlw-rc-fraud | MLflow model; version 5 is in production |
+        | ep-card-fraud | Managed online endpoint in mlw-rc-fraud | Deployment **main** serves fraud-lgbm version 5; data collection is enabled for model_inputs and model_outputs |
+        | fraud_monitoring | Model monitor (schedule) in mlw-rc-fraud | Runs every week on ep-card-fraud; contains one signal named **fraud_drift** of type data_drift |
+        | la-rc-retrain | Azure Logic Apps workflow | Submits the pipeline job fraud-training when it receives an HTTP request |
+        | fdy-rc-ops | Microsoft Foundry resource | Project **disputes** that contains the agent **dispute-writer** |
+
+        The scoring script of the main deployment passes the transaction_id of each request as the correlation ID of the collected model_inputs and model_outputs data. The collected outputs are available as the data asset **ep-card-fraud-main-model_outputs**, in which the prediction column is named **is_fraud_pred**.
+
+        Confirmed fraud cases (chargebacks) are known about 45 days after each transaction. They are registered every day as the mltable data asset **card-chargebacks**, which contains the columns **transaction_id** and **is_fraud**.
+
+        Recent jobs that use fraud-train-env version 2 fail with the following error: `ModuleNotFoundError: No module named 'lightgbm'`.
+
+        Several analysts of the disputes department edit the instructions of dispute-writer directly in the Foundry portal.
+      fr: |
+        Relecloud dispose des ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-rc-fraud | Espace de travail Azure Machine Learning | Utilisé par les data scientists et l'équipe MLOps |
+        | fs-rc-cards | Magasin de caractéristiques managé Azure Machine Learning | Ensembles de caractéristiques **transactions** (version 2) et **accounts** (version 1) |
+        | cpu-cluster | Cluster de calcul dans mlw-rc-fraud | 0 à 6 nœuds |
+        | fraud-train-env | Environnement dans mlw-rc-fraud, version 2 | `image` définie sur une image de base personnalisée dans laquelle le package lightgbm est installé ; `conda_file` défini sur conda.yml, qui liste pandas, mlflow et azureml-mlflow |
+        | prep_transactions, train_fraud_lgbm | Composants de commande dans mlw-rc-fraud | prep_transactions a la sortie **clean_data** ; train_fraud_lgbm a l'entrée **training_data** et la sortie **model_output** |
+        | fraud-lgbm | Modèle dans mlw-rc-fraud | Modèle MLflow ; la version 5 est en production |
+        | ep-card-fraud | Point de terminaison en ligne managé dans mlw-rc-fraud | Le déploiement **main** sert la version 5 de fraud-lgbm ; la collecte de données est activée pour model_inputs et model_outputs |
+        | fraud_monitoring | Moniteur de modèle (planification) dans mlw-rc-fraud | S'exécute chaque semaine sur ep-card-fraud ; contient un signal nommé **fraud_drift** de type data_drift |
+        | la-rc-retrain | Workflow Azure Logic Apps | Soumet le travail de pipeline fraud-training quand il reçoit une requête HTTP |
+        | fdy-rc-ops | Ressource Microsoft Foundry | Projet **disputes** qui contient l'agent **dispute-writer** |
+
+        Le script de scoring du déploiement main transmet le transaction_id de chaque requête comme ID de corrélation des données model_inputs et model_outputs collectées. Les sorties collectées sont disponibles dans la ressource de données **ep-card-fraud-main-model_outputs**, dans laquelle la colonne de prédiction se nomme **is_fraud_pred**.
+
+        Les fraudes confirmées (rétrofacturations) sont connues environ 45 jours après chaque transaction. Elles sont inscrites chaque jour dans la ressource de données mltable **card-chargebacks**, qui contient les colonnes **transaction_id** et **is_fraud**.
+
+        Les travaux récents qui utilisent la version 2 de fraud-train-env échouent avec l'erreur suivante : `ModuleNotFoundError: No module named 'lightgbm'`.
+
+        Plusieurs analystes du service des litiges modifient les instructions de dispute-writer directement dans le portail Foundry.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Training**
+
+        - fraud-training must be a pipeline job with two steps: **prep**, which runs prep_transactions on the pipeline input **observations**, and **train**, which runs train_fraud_lgbm on the output of prep.
+        - The model produced by train must be available as the pipeline output **fraud_model**.
+        - Steps that don't specify a compute must run on cpu-cluster.
+        - If a step fails, the whole pipeline must stop and the steps that are still running must be canceled.
+        - fraud-train-env must keep the same custom base image.
+
+        **Features**
+
+        - The nightly batch scoring pipeline must retrieve exactly the features that each model version was trained on, without the MLOps team maintaining a separate feature list.
+        - The lineage between each version of fraud-lgbm and the feature sets of fs-rc-cards must be tracked in mlw-rc-fraud.
+
+        **Monitoring**
+
+        - fraud_monitoring must measure the precision of the production predictions against the confirmed fraud cases, and alert the MLOps team when precision is below 0.7.
+        - When the precision signal breaches its threshold, fraud-training must start automatically by using la-rc-retrain. A breach of fraud_drift must not start a retraining.
+
+        **Disputes agent**
+
+        - Every change to the instructions of dispute-writer must be reviewed by a second person before it reaches production.
+        - The team must be able to identify the instructions text of each production version of dispute-writer and restore the previous text quickly.
+      fr: |
+        **Entraînement**
+
+        - fraud-training doit être un travail de pipeline à deux étapes : **prep**, qui exécute prep_transactions sur l'entrée de pipeline **observations**, et **train**, qui exécute train_fraud_lgbm sur la sortie de prep.
+        - Le modèle produit par train doit être disponible comme sortie de pipeline **fraud_model**.
+        - Les étapes qui ne précisent pas de calcul doivent s'exécuter sur cpu-cluster.
+        - Si une étape échoue, l'ensemble du pipeline doit s'arrêter et les étapes encore en cours doivent être annulées.
+        - fraud-train-env doit conserver la même image de base personnalisée.
+
+        **Caractéristiques**
+
+        - Le pipeline de scoring par lots nocturne doit récupérer exactement les caractéristiques sur lesquelles chaque version du modèle a été entraînée, sans que l'équipe MLOps tienne à jour une liste de caractéristiques distincte.
+        - La traçabilité entre chaque version de fraud-lgbm et les ensembles de caractéristiques de fs-rc-cards doit être suivie dans mlw-rc-fraud.
+
+        **Surveillance**
+
+        - fraud_monitoring doit mesurer la précision des prédictions de production par rapport aux fraudes confirmées, et alerter l'équipe MLOps quand la précision est inférieure à 0,7.
+        - Quand le signal de précision dépasse son seuil, fraud-training doit démarrer automatiquement au moyen de la-rc-retrain. Un dépassement de fraud_drift ne doit pas lancer de réentraînement.
+
+        **Agent des litiges**
+
+        - Chaque modification des instructions de dispute-writer doit être relue par une deuxième personne avant d'atteindre la production.
+        - L'équipe doit pouvoir identifier le texte des instructions de chaque version de production de dispute-writer et restaurer rapidement le texte précédent.

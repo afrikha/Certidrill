@@ -1,0 +1,117 @@
+id: dp600-cs4b-lamna-healthcare
+status: draft
+title:
+  en: Lamna Healthcare
+  fr: Lamna Healthcare
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lamna Healthcare is a hospital group that operates nine hospitals in the Netherlands and Belgium. Its research unit studies patient outcomes with data provided by the hospitals.
+
+        A BI team of five developers, led by Bram, builds the analytics platform in Microsoft Fabric. The finance controllers of each hospital build their own Power BI reports.
+      fr: |
+        Lamna Healthcare est un groupe hospitalier qui exploite neuf hôpitaux aux Pays-Bas et en Belgique. Son unité de recherche étudie les résultats des patients à partir des données fournies par les hôpitaux.
+
+        Une équipe BI de cinq développeurs, dirigée par Bram, construit la plateforme d'analytique dans Microsoft Fabric. Les contrôleurs financiers de chaque hôpital créent leurs propres rapports Power BI.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Clinical warehouse.** The workspace **Lamna-Clinical** is assigned to an F64 capacity. It contains a warehouse named **WH-Clinical** that a pipeline loads every night from the electronic health record (EHR) system. WH-Clinical contains the following tables.
+
+        | Table | Columns |
+        | --- | --- |
+        | dbo.Patients | PatientId, FullName, NationalId, BirthYear, Sex, PostalCode |
+        | dbo.FactAdmission | AdmissionId, PatientId, HospitalId, DepartmentId, AdmitDate (date), DischargeDate (date), TotalCost. DischargeDate is NULL while the patient is still in hospital. |
+        | dbo.DimHospital | HospitalId, HospitalName, City |
+
+        The researchers are the members of the Microsoft Entra group **SG-Research**. WH-Clinical was shared with SG-Research without selecting any additional permission. The researchers have no role in Lamna-Clinical.
+
+        **Operations semantic model.** The BI team develops a semantic model named **SM-Operations** in Import mode from an Azure SQL database named **sqldb-ehr-reporting**. SM-Operations contains the tables FactAdmission, DimHospital, DimDepartment and DimDate. DimDate is marked as a date table and contains the columns Date and YearMonth (an integer such as 202611). SM-Operations has a row-level security (RLS) role that restricts each hospital manager to his or her hospital. It contains the following measures.
+
+        ```text
+        Admissions = COUNTROWS ( FactAdmission )
+
+        Total Cost = SUM ( FactAdmission[TotalCost] )
+
+        Cost YoY % =
+        IFERROR (
+            ( [Total Cost] - CALCULATE ( [Total Cost], SAMEPERIODLASTYEAR ( DimDate[Date] ) ) )
+                / CALCULATE ( [Total Cost], SAMEPERIODLASTYEAR ( DimDate[Date] ) ),
+            BLANK ()
+        )
+        ```
+
+        **Lifecycle.** The workspace **Lamna-Dev** is connected to the main branch of an Azure DevOps repository named **Lamna-BI**, which contains SM-Operations as a Power BI Desktop project (.pbip). SM-Operations is deployed from Lamna-Dev to the workspace **Lamna-Prod**, where it is endorsed as Certified. The finance controllers have the Build permission on SM-Operations in Lamna-Prod. The tenant settings required for DirectQuery connections to Power BI semantic models are enabled.
+      fr: |
+        **Entrepôt clinique.** L'espace de travail **Lamna-Clinical** est attribué à une capacité F64. Il contient un entrepôt nommé **WH-Clinical** qu'un pipeline charge chaque nuit à partir du système de dossier patient informatisé (EHR). WH-Clinical contient les tables suivantes.
+
+        | Table | Colonnes |
+        | --- | --- |
+        | dbo.Patients | PatientId, FullName, NationalId, BirthYear, Sex, PostalCode |
+        | dbo.FactAdmission | AdmissionId, PatientId, HospitalId, DepartmentId, AdmitDate (date), DischargeDate (date), TotalCost. DischargeDate est NULL tant que le patient est hospitalisé. |
+        | dbo.DimHospital | HospitalId, HospitalName, City |
+
+        Les chercheurs sont les membres du groupe Microsoft Entra **SG-Research**. WH-Clinical a été partagé avec SG-Research sans sélectionner d'autorisation supplémentaire. Les chercheurs n'ont aucun rôle dans Lamna-Clinical.
+
+        **Modèle sémantique des opérations.** L'équipe BI développe un modèle sémantique nommé **SM-Operations** en mode Import à partir d'une base de données Azure SQL nommée **sqldb-ehr-reporting**. SM-Operations contient les tables FactAdmission, DimHospital, DimDepartment et DimDate. DimDate est marquée comme table de dates et contient les colonnes Date et YearMonth (un entier comme 202611). SM-Operations possède un rôle de sécurité au niveau des lignes (RLS) qui limite chaque directeur d'hôpital à son hôpital. Il contient les mesures suivantes.
+
+        ```text
+        Admissions = COUNTROWS ( FactAdmission )
+
+        Total Cost = SUM ( FactAdmission[TotalCost] )
+
+        Cost YoY % =
+        IFERROR (
+            ( [Total Cost] - CALCULATE ( [Total Cost], SAMEPERIODLASTYEAR ( DimDate[Date] ) ) )
+                / CALCULATE ( [Total Cost], SAMEPERIODLASTYEAR ( DimDate[Date] ) ),
+            BLANK ()
+        )
+        ```
+
+        **Cycle de vie.** L'espace de travail **Lamna-Dev** est connecté à la branche main d'un référentiel Azure DevOps nommé **Lamna-BI**, qui contient SM-Operations sous forme de projet Power BI Desktop (.pbip). SM-Operations est déployé de Lamna-Dev vers l'espace de travail **Lamna-Prod**, où il est approuvé avec le badge Certified. Les contrôleurs financiers ont l'autorisation Build sur SM-Operations dans Lamna-Prod. Les paramètres de locataire nécessaires aux connexions DirectQuery aux modèles sémantiques Power BI sont activés.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Lamna Healthcare identifies the following requirements.
+
+        **Research access**
+
+        1. The researchers must be able to query dbo.Patients by using T-SQL from any tool. They must be able to read the PatientId, BirthYear, Sex and PostalCode columns only. Any query of a researcher that references FullName or NationalId must fail.
+
+        **Data preparation**
+
+        2. A function named dbo.fn_LengthOfStay must be created in WH-Clinical. It must take a hospital identifier and return, for that hospital, one row per completed admission with the AdmissionId, the PatientId and the length of stay in days. The admissions of patients who are still in hospital must be excluded. The analysts must be able to use the function in the FROM clause of their queries and join its result to other tables.
+
+        **Semantic models**
+
+        3. A new measure named Admissions 3M Avg must return, for each month of a visual, the average of [Admissions] over that month and the two previous months. Only the months selected by the report filters and slicers must be considered.
+        4. Cost YoY % is slow. It must be rewritten to improve its performance, and it must return a blank when there is no prior-year cost.
+        5. The finance controllers must build a report that combines SM-Operations in Lamna-Prod with their Excel workbook named StaffingBudget.xlsx. SM-Operations must not be copied, and its RLS must keep applying to its data.
+
+        **Lifecycle**
+
+        6. The developers must change SM-Operations in Power BI Desktop on their own computers. A change must reach Lamna-Dev only through a pull request into main that Bram approves.
+      fr: |
+        Lamna Healthcare a défini les exigences suivantes.
+
+        **Accès des chercheurs**
+
+        1. Les chercheurs doivent pouvoir interroger dbo.Patients en T-SQL depuis n'importe quel outil. Ils ne doivent pouvoir lire que les colonnes PatientId, BirthYear, Sex et PostalCode. Toute requête d'un chercheur qui fait référence à FullName ou NationalId doit échouer.
+
+        **Préparation des données**
+
+        2. Une fonction nommée dbo.fn_LengthOfStay doit être créée dans WH-Clinical. Elle doit recevoir un identifiant d'hôpital et renvoyer, pour cet hôpital, une ligne par admission terminée avec l'AdmissionId, le PatientId et la durée du séjour en jours. Les admissions des patients encore hospitalisés doivent être exclues. Les analystes doivent pouvoir utiliser la fonction dans la clause FROM de leurs requêtes et joindre son résultat à d'autres tables.
+
+        **Modèles sémantiques**
+
+        3. Une nouvelle mesure nommée Admissions 3M Avg doit renvoyer, pour chaque mois d'un visuel, la moyenne de [Admissions] sur ce mois et les deux mois précédents. Seuls les mois sélectionnés par les filtres et les segments du rapport doivent être pris en compte.
+        4. Cost YoY % est lente. Elle doit être réécrite pour améliorer ses performances, et elle doit renvoyer une valeur vide quand il n'y a pas de coût pour l'année précédente.
+        5. Les contrôleurs financiers doivent créer un rapport qui combine SM-Operations de Lamna-Prod avec leur classeur Excel nommé StaffingBudget.xlsx. SM-Operations ne doit pas être copié, et sa RLS doit continuer de s'appliquer à ses données.
+
+        **Cycle de vie**
+
+        6. Les développeurs doivent modifier SM-Operations dans Power BI Desktop sur leurs propres ordinateurs. Une modification ne doit atteindre Lamna-Dev que par une demande de tirage (pull request) vers main approuvée par Bram.

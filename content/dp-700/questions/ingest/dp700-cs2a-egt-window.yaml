@@ -1,0 +1,74 @@
+id: dp700-cs2a-egt-window
+objective: "2.3.5"
+type: dropdown
+caseStudy: dp700-cs2a-blue-yonder
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are adding the following code to SJD-Telemetry to meet the requirement for egt_5min.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous ajoutez le code suivant à SJD-Telemetry pour satisfaire l'exigence relative à egt_5min.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql.functions import avg, col, window
+
+    stats = (parsed
+        .withWatermark("SensorTime", [[wm]])
+        .groupBy(window(col("SensorTime"), [[win]]), col("TailNumber"))
+        .agg(avg("EgtC").alias("AvgEgtC")))
+
+    (stats.writeStream
+        .format("delta")
+        .outputMode([[mode]])
+        .option("checkpointLocation", "Files/checkpoints/egt_5min")
+        .trigger(processingTime="1 minute")
+        .toTable("egt_5min"))
+  slots:
+    - id: wm
+      options:
+        - { id: m2, text: "\"2 minutes\"" }
+        - { id: m5, text: "\"5 minutes\"" }
+        - { id: m10, text: "\"10 minutes\"" }
+        - { id: h1, text: "\"1 hour\"" }
+    - id: win
+      options:
+        - { id: tumble5, text: "\"5 minutes\"" }
+        - { id: hop51, text: "\"5 minutes\", \"1 minute\"" }
+        - { id: tumble10, text: "\"10 minutes\"" }
+    - id: mode
+      options:
+        - { id: append, text: "\"append\"" }
+        - { id: update, text: "\"update\"" }
+        - { id: complete, text: "\"complete\"" }
+answer:
+  values: { wm: m10, win: tumble5, mode: append }
+explanation:
+  correct:
+    en: |
+      A watermark of 10 minutes keeps the state of each window long enough to include messages that arrive up to eight minutes late, and it still lets each window be written about 15 minutes after it ends. window() with a single duration of 5 minutes creates non-overlapping (tumbling) windows. In append mode, a watermarked aggregation writes each window once, after the watermark has passed, and never rewrites it.
+    fr: |
+      Un filigrane de 10 minutes conserve l'état de chaque fenêtre assez longtemps pour inclure les messages qui arrivent jusqu'à huit minutes en retard, tout en permettant d'écrire chaque fenêtre environ 15 minutes après sa fin. window() avec une seule durée de 5 minutes crée des fenêtres sans chevauchement (tumbling). En mode append, une agrégation avec filigrane écrit chaque fenêtre une seule fois, une fois le filigrane dépassé, et ne la réécrit jamais.
+  options:
+    m2: { en: "A 2-minute threshold does not guarantee that messages arriving eight minutes late are processed.", fr: "Un seuil de 2 minutes ne garantit pas le traitement des messages qui arrivent avec huit minutes de retard." }
+    m5: { en: "A 5-minute threshold is shorter than the eight minutes of possible delay.", fr: "Un seuil de 5 minutes est plus court que les huit minutes de retard possibles." }
+    h1: { en: "In append mode, writes are delayed by the lateness threshold: with one hour, the windows would be written long after the 15-minute limit.", fr: "En mode append, les écritures sont retardées de la durée du seuil de retard : avec une heure, les fenêtres seraient écrites bien après la limite de 15 minutes." }
+    hop51: { en: "A slide duration of 1 minute creates overlapping five-minute windows.", fr: "Une durée de glissement de 1 minute crée des fenêtres de cinq minutes qui se chevauchent." }
+    tumble10: { en: "The requirement asks for five-minute windows.", fr: "L'exigence demande des fenêtres de cinq minutes." }
+    update: { en: "Update mode writes partial results as they are computed and rewrites them when new data arrives, so a window would be written more than once.", fr: "Le mode update écrit des résultats partiels au fil du calcul et les réécrit à l'arrivée de nouvelles données : une fenêtre serait écrite plusieurs fois." }
+    complete: { en: "Complete mode keeps all the state and rewrites the whole target table at each trigger.", fr: "Le mode complete conserve tout l'état et réécrit toute la table cible à chaque déclencheur." }
+references:
+  - title: Apply watermarks to control data processing thresholds
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/watermarks
+  - title: Data streaming into a lakehouse with Spark
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/lakehouse-streaming-data

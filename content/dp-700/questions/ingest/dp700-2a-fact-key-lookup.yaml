@@ -1,0 +1,84 @@
+id: dp700-2a-fact-key-lookup
+objective: "2.1.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a warehouse named **DW1** that contains the following tables:
+
+    - **dbo.DimCustomer**: an SCD type 2 dimension with the columns CustomerKey, CustomerID and IsCurrent. A special member with CustomerKey = -1 represents unknown customers.
+    - **dbo.DimProduct**: an SCD type 1 dimension with the columns ProductKey and ProductID.
+    - **stg.Sales**: a staging table with the columns OrderDateKey (already in the YYYYMMDD format), CustomerID, ProductID, Quantity and Amount.
+
+    Every ProductID of stg.Sales exists in dbo.DimProduct. Some CustomerID values aren't in dbo.DimCustomer yet.
+
+    You need to load stg.Sales into dbo.FactSales. Each staging row must be loaded exactly once and linked to the current version of its customer, or to the Unknown member when the customer isn't found.
+
+    How should you complete the T-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt nommé **DW1** qui contient les tables suivantes :
+
+    - **dbo.DimCustomer** : une dimension SCD de type 2 avec les colonnes CustomerKey, CustomerID et IsCurrent. Un membre spécial avec CustomerKey = -1 représente les clients inconnus.
+    - **dbo.DimProduct** : une dimension SCD de type 1 avec les colonnes ProductKey et ProductID.
+    - **stg.Sales** : une table de mise en lots avec les colonnes OrderDateKey (déjà au format YYYYMMDD), CustomerID, ProductID, Quantity et Amount.
+
+    Chaque ProductID de stg.Sales existe dans dbo.DimProduct. Certaines valeurs CustomerID ne figurent pas encore dans dbo.DimCustomer.
+
+    Vous devez charger stg.Sales dans dbo.FactSales. Chaque ligne de mise en lots doit être chargée exactement une fois et liée à la version courante de son client, ou au membre Unknown quand le client est introuvable.
+
+    Comment devez-vous compléter l'instruction T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    INSERT INTO dbo.FactSales (OrderDateKey, CustomerKey, ProductKey, Quantity, Amount)
+    SELECT s.OrderDateKey,
+           [[key]],
+           p.ProductKey,
+           s.Quantity,
+           s.Amount
+    FROM stg.Sales AS s
+    [[join]] dbo.DimCustomer AS c
+        ON c.CustomerID = s.CustomerID
+       AND [[cur]]
+    INNER JOIN dbo.DimProduct AS p
+        ON p.ProductID = s.ProductID;
+  slots:
+    - id: key
+      options:
+        - { id: k_isnull, text: "ISNULL(c.CustomerKey, -1)" }
+        - { id: k_plain, text: c.CustomerKey }
+        - { id: k_bk, text: "ISNULL(s.CustomerID, -1)" }
+    - id: join
+      options:
+        - { id: j_left, text: LEFT OUTER JOIN }
+        - { id: j_inner, text: INNER JOIN }
+        - { id: j_right, text: RIGHT OUTER JOIN }
+    - id: cur
+      options:
+        - { id: c_cur, text: c.IsCurrent = 1 }
+        - { id: c_notnull, text: c.CustomerKey IS NOT NULL }
+        - { id: c_notunk, text: c.CustomerKey <> -1 }
+answer:
+  values: { key: k_isnull, join: j_left, cur: c_cur }
+explanation:
+  correct:
+    en: |
+      A LEFT OUTER JOIN keeps every staging row, including those whose customer isn't found, and ISNULL replaces the missing CustomerKey with the key of the Unknown member. The IsCurrent = 1 condition in the ON clause picks only the current version of an SCD type 2 customer, so each sale matches at most one customer row and is loaded once.
+    fr: |
+      Une jointure LEFT OUTER JOIN conserve toutes les lignes de mise en lots, y compris celles dont le client est introuvable, et ISNULL remplace la CustomerKey manquante par la clé du membre Unknown. La condition IsCurrent = 1 dans la clause ON ne retient que la version courante d'un client SCD de type 2 : chaque vente correspond au plus à une ligne client et n'est chargée qu'une fois.
+  options:
+    k_plain: { en: "Without ISNULL, unmatched sales get a NULL key instead of the Unknown member.", fr: "Sans ISNULL, les ventes sans correspondance reçoivent une clé NULL au lieu du membre Unknown." }
+    k_bk: { en: "The fact table stores surrogate keys, not the business key of the source.", fr: "La table de faits stocke des clés de substitution, pas la clé métier de la source." }
+    j_inner: { en: "An inner join drops the sales whose customer isn't found.", fr: "Une jointure interne écarte les ventes dont le client est introuvable." }
+    j_right: { en: "A right outer join keeps customers without sales and drops unmatched sales.", fr: "Une jointure externe droite conserve les clients sans ventes et écarte les ventes sans correspondance." }
+    c_notnull: { en: "Every dimension row has a key, so all versions of the customer would match and duplicate the sale.", fr: "Chaque ligne de dimension a une clé : toutes les versions du client correspondraient et dupliqueraient la vente." }
+    c_notunk: { en: "Excluding the Unknown member doesn't restrict the match to the current version.", fr: "Exclure le membre Unknown ne limite pas la correspondance à la version courante." }
+references:
+  - title: "Dimensional modeling in Microsoft Fabric Warehouse: Load tables"
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables

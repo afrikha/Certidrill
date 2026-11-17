@@ -1,0 +1,85 @@
+id: ai103-cs4b-consolidated
+status: draft
+title:
+  en: Consolidated Messenger
+  fr: Consolidated Messenger
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Consolidated Messenger is a parcel delivery company that operates in the Netherlands, Belgium and Germany. It delivers 400,000 parcels per day and imports parcels from outside the EU.
+
+        Consolidated Messenger is adding generative AI to its customer service, its email processing, its delivery notifications and its customs back office.
+      fr: |
+        Consolidated Messenger est une société de livraison de colis qui opère aux Pays-Bas, en Belgique et en Allemagne. Elle livre 400 000 colis par jour et importe des colis depuis l'extérieur de l'UE.
+
+        Consolidated Messenger ajoute l'IA générative à son service client, au traitement de ses e-mails, à ses notifications de livraison et à son service administratif des douanes.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Consolidated Messenger has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | ai-conmsg | Microsoft Foundry resource | Contains a Foundry project named **ops-prj**; no default model deployments are configured for Content Understanding |
+        | chat-ops | Model deployment in ai-conmsg | Chat model used by all the workloads |
+        | support-agent | Prompt agent in ops-prj | Answers customers in the web chat; uses chat-ops; has an Azure AI Search tool on the index **delivery-policies** and the MCP tools **track_parcel** and **reschedule_delivery**; guardrail **gr-support** assigned |
+        | mail-triage | Azure Functions app (Python) | Reads customer emails and classifies them by calling chat-ops with the Chat Completions API |
+        | notice-flow | Azure Functions app (Python) | Writes delivery notices in English and translates them into Dutch and German by calling chat-ops |
+        | stcmdocs | Storage account | Container **customs** receives scanned customs declarations as PDF files |
+
+        The track_parcel tool returns the full delivery record of a parcel, including the phone number, the email address and the home address of the recipient.
+
+        The following people are involved in the project:
+
+        - **grp-agent-devs**: a Microsoft Entra group of eight developers who build and test agents in ops-prj.
+        - **Ines**: the AI operations lead, who manages ops-prj.
+        - **Marco**: a FinOps analyst.
+      fr: |
+        Consolidated Messenger dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | ai-conmsg | Ressource Microsoft Foundry | Contient un projet Foundry nommé **ops-prj** ; aucun déploiement de modèle par défaut n'est configuré pour Content Understanding |
+        | chat-ops | Déploiement de modèle dans ai-conmsg | Modèle de conversation utilisé par toutes les charges de travail |
+        | support-agent | Agent d'invite (prompt agent) dans ops-prj | Répond aux clients dans la conversation web ; utilise chat-ops ; dispose d'un outil Azure AI Search sur l'index **delivery-policies** et des outils MCP **track_parcel** et **reschedule_delivery** ; garde-fou **gr-support** attribué |
+        | mail-triage | Application Azure Functions (Python) | Lit les e-mails des clients et les classe en appelant chat-ops avec l'API Chat Completions |
+        | notice-flow | Application Azure Functions (Python) | Rédige les avis de livraison en anglais et les traduit en néerlandais et en allemand en appelant chat-ops |
+        | stcmdocs | Compte de stockage | Le conteneur **customs** reçoit les déclarations en douane numérisées sous forme de fichiers PDF |
+
+        L'outil track_parcel renvoie l'enregistrement de livraison complet d'un colis, y compris le numéro de téléphone, l'adresse e-mail et l'adresse personnelle du destinataire.
+
+        Les personnes suivantes participent au projet :
+
+        - **grp-agent-devs** : un groupe Microsoft Entra de huit développeurs qui créent et testent des agents dans ops-prj.
+        - **Ines** : la responsable des opérations IA, qui gère ops-prj.
+        - **Marco** : un analyste FinOps.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Consolidated Messenger identifies the following requirements:
+
+        1. **Personal data**: the responses of support-agent must never show the phone number, the email address or the home address of a recipient.
+        2. **Email triage**: some customer emails contain hidden instructions. mail-triage must make chat-ops treat the content of each email as less trustworthy than the system and user prompts, without changing the classification prompt.
+        3. **Release evaluation**: before each release, the team must run the following checks:
+           - **Check 1**: detect answers of support-agent that contain claims not supported by the delivery-policies passages that it retrieved.
+           - **Check 2**: verify that support-agent selects the right MCP tool and passes correct parameters.
+           - **Check 3**: compare the Dutch and German notices of notice-flow with reference translations approved by the localization team, by measuring n-gram overlap.
+           - **Check 4**: detect responses of support-agent that follow instructions injected into the retrieved passages.
+        4. **Customs extraction**: a custom Content Understanding analyzer named **customsAnalyzer** must return the consignor, the consignee, the HS codes and the declared value of each declaration as structured fields.
+        5. **Access**: the principle of least privilege must be applied. grp-agent-devs must be able to build and test agents in ops-prj. Ines must be able to manage ops-prj and grant the Foundry User role to new developers. Marco must be able to view the model quota usage of the subscription.
+      fr: |
+        Consolidated Messenger a défini les exigences suivantes :
+
+        1. **Données personnelles** : les réponses de support-agent ne doivent jamais afficher le numéro de téléphone, l'adresse e-mail ou l'adresse personnelle d'un destinataire.
+        2. **Tri des e-mails** : certains e-mails de clients contiennent des instructions cachées. mail-triage doit faire en sorte que chat-ops considère le contenu de chaque e-mail comme moins fiable que les invites système et utilisateur, sans modifier l'invite de classification.
+        3. **Évaluation avant mise en production** : avant chaque mise en production, l'équipe doit effectuer les vérifications suivantes :
+           - **Vérification 1** : détecter les réponses de support-agent qui contiennent des affirmations non étayées par les passages de delivery-policies qu'il a récupérés.
+           - **Vérification 2** : vérifier que support-agent sélectionne le bon outil MCP et transmet des paramètres corrects.
+           - **Vérification 3** : comparer les avis en néerlandais et en allemand de notice-flow aux traductions de référence approuvées par l'équipe de localisation, en mesurant le recouvrement des n-grammes.
+           - **Vérification 4** : détecter les réponses de support-agent qui suivent des instructions injectées dans les passages récupérés.
+        4. **Extraction douanière** : un analyseur personnalisé Content Understanding nommé **customsAnalyzer** doit renvoyer l'expéditeur, le destinataire, les codes SH et la valeur déclarée de chaque déclaration sous forme de champs structurés.
+        5. **Accès** : le principe du moindre privilège doit être appliqué. grp-agent-devs doit pouvoir créer et tester des agents dans ops-prj. Ines doit pouvoir gérer ops-prj et attribuer le rôle Foundry User aux nouveaux développeurs. Marco doit pouvoir consulter l'utilisation du quota de modèles de l'abonnement.

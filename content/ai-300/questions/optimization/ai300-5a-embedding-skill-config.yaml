@@ -1,0 +1,103 @@
+id: ai300-5a-embedding-skill-config
+objective: "5.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware indexes product documentation written in 12 languages in an Azure AI Search index. The embedding model must be the Azure OpenAI embedding model with the best average multilingual retrieval performance. To limit storage, each vector must have 1,024 dimensions. The vector search configuration must use the similarity metric that Learn recommends for Azure OpenAI embedding models.
+
+    How should you complete the skill, the vector field and the algorithm definitions? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware indexe une documentation produit rédigée en 12 langues dans un index Azure AI Search. Le modèle d'incorporation doit être le modèle d'incorporation Azure OpenAI qui offre les meilleures performances moyennes de récupération multilingue. Pour limiter le stockage, chaque vecteur doit compter 1 024 dimensions. La configuration de recherche vectorielle doit utiliser la métrique de similarité que Learn recommande pour les modèles d'incorporation Azure OpenAI.
+
+    Comment devez-vous compléter les définitions de la compétence, du champ vectoriel et de l'algorithme ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    // Skill in the skillset
+    {
+      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
+      "context": "/document/pages/*",
+      "resourceUri": "https://aoai-litware.openai.azure.com/",
+      "deploymentId": "embed-docs",
+      "modelName": [[model]],
+      "dimensions": 1024,
+      "inputs": [ { "name": "text", "source": "/document/pages/*" } ],
+      "outputs": [ { "name": "embedding" } ]
+    }
+
+    // Vector field in the index
+    {
+      "name": "contentVector",
+      "type": "Collection(Edm.Single)",
+      "searchable": true,
+      "dimensions": [[dims]],
+      "vectorSearchProfile": "vp-hnsw"
+    }
+
+    // Algorithm in the vectorSearch section
+    {
+      "name": "hnsw-1",
+      "kind": "hnsw",
+      "hnswParameters": { "m": 4, "efConstruction": 400, "efSearch": 500, "metric": [[metric]] }
+    }
+  slots:
+    - id: model
+      options:
+        - { id: ada, text: '"text-embedding-ada-002"' }
+        - { id: small, text: '"text-embedding-3-small"' }
+        - { id: large, text: '"text-embedding-3-large"' }
+    - id: dims
+      options:
+        - { id: d1024, text: "1024" }
+        - { id: d1536, text: "1536" }
+        - { id: d3072, text: "3072" }
+    - id: metric
+      options:
+        - { id: cosine, text: '"cosine"' }
+        - { id: euclidean, text: '"euclidean"' }
+        - { id: hamming, text: '"hamming"' }
+answer:
+  values: { model: large, dims: d1024, metric: cosine }
+explanation:
+  correct:
+    en: "`text-embedding-3-large` has the best MIRACL (multilingual) average of the three Azure OpenAI embedding models, and as a third-generation model it accepts a `dimensions` value from 1 to 3,072. The vector field must declare the same number of dimensions as the skill output, here 1,024. Learn recommends the `cosine` metric because Azure OpenAI embedding models use cosine similarity."
+    fr: "`text-embedding-3-large` a la meilleure moyenne MIRACL (multilingue) des trois modèles d'incorporation Azure OpenAI et, comme modèle de troisième génération, il accepte une valeur `dimensions` de 1 à 3 072. Le champ vectoriel doit déclarer le même nombre de dimensions que la sortie de la compétence, ici 1 024. Learn recommande la métrique `cosine`, car les modèles d'incorporation Azure OpenAI utilisent la similarité cosinus."
+  options:
+    ada:
+      en: "`text-embedding-ada-002` has the lowest multilingual score and a fixed output of 1,536 dimensions."
+      fr: "`text-embedding-ada-002` a le score multilingue le plus faible et une sortie fixe de 1 536 dimensions."
+    small:
+      en: "`text-embedding-3-small` supports 1,024 dimensions, but its multilingual average is lower than that of `text-embedding-3-large`."
+      fr: "`text-embedding-3-small` prend en charge 1 024 dimensions, mais sa moyenne multilingue est inférieure à celle de `text-embedding-3-large`."
+    d1536:
+      en: |
+        The field must match the 1,024 dimensions that the skill returns.
+      fr: |
+        Le champ doit correspondre aux 1 024 dimensions renvoyées par la compétence.
+    d3072:
+      en: |
+        3,072 is the default maximum of the model, but the skill sets `dimensions` to 1024, and the field must match it.
+      fr: |
+        3 072 est le maximum par défaut du modèle, mais la compétence fixe `dimensions` à 1024, et le champ doit lui correspondre.
+    euclidean:
+      en: |
+        Euclidean distance measures absolute distance; Learn recommends cosine for Azure OpenAI embeddings.
+      fr: |
+        La distance euclidienne mesure une distance absolue ; Learn recommande le cosinus pour les incorporations Azure OpenAI.
+    hamming:
+      en: |
+        The hamming metric is meant for binary vectors, not for float embeddings from Azure OpenAI.
+      fr: |
+        La métrique hamming est destinée aux vecteurs binaires, pas aux incorporations flottantes d'Azure OpenAI.
+references:
+  - title: Azure OpenAI Embedding skill
+    url: https://learn.microsoft.com/en-us/azure/search/cognitive-search-skill-azure-openai-embedding
+  - title: Foundry Models sold by Azure
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/models

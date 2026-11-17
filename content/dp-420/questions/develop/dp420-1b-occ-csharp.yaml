@@ -1,0 +1,69 @@
+id: dp420-1b-occ-csharp
+objective: "1.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam's .NET service closes support tickets stored in an Azure Cosmos DB for NoSQL container partitioned by `/tenantId`. The replace must succeed only if no other process changed the ticket since it was read. If another process changed it, the service must reload the ticket and apply the change again.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le service .NET de Fabrikam clôt des tickets de support stockés dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/tenantId`. Le remplacement ne doit réussir que si aucun autre processus n'a modifié le ticket depuis sa lecture. Si un autre processus l'a modifié, le service doit recharger le ticket et appliquer de nouveau la modification.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    ItemResponse<Ticket> read = await container.ReadItemAsync<Ticket>(
+        ticketId, new PartitionKey(tenantId));
+    Ticket closed = read.Resource with { Status = "Closed" };
+
+    try
+    {
+        await container.ReplaceItemAsync(closed, ticketId, new PartitionKey(tenantId),
+            new ItemRequestOptions { [[opt]] = [[val]] });
+    }
+    catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.[[code]])
+    {
+        // Reload the ticket and apply the change again
+    }
+  slots:
+    - id: opt
+      options:
+        - { id: ifmatch, text: IfMatchEtag }
+        - { id: ifnone, text: IfNoneMatchEtag }
+        - { id: session, text: SessionToken }
+    - id: val
+      options:
+        - { id: etag, text: read.ETag }
+        - { id: activity, text: read.ActivityId }
+        - { id: id, text: ticketId }
+    - id: code
+      options:
+        - { id: precond, text: PreconditionFailed }
+        - { id: conflict, text: Conflict }
+        - { id: notmod, text: NotModified }
+        - { id: throttle, text: TooManyRequests }
+answer:
+  values: { opt: ifmatch, val: etag, code: precond }
+explanation:
+  correct:
+    en: "The read returns the item's current ETag. Passing it in `IfMatchEtag` makes the replace conditional: if another process updated the ticket, its `_etag` changed and the service rejects the replace with HTTP 412 Precondition Failed, which the code catches to reload and retry."
+    fr: "La lecture renvoie l'ETag actuel de l'élément. Le passer dans `IfMatchEtag` rend le remplacement conditionnel : si un autre processus a mis à jour le ticket, son `_etag` a changé et le service rejette le remplacement avec le code HTTP 412 Precondition Failed, que le code intercepte pour recharger et réessayer."
+  options:
+    ifnone: { en: "IfNoneMatchEtag is used to decide whether a resource must be fetched again, not to guard a replace.", fr: "IfNoneMatchEtag sert à déterminer s'il faut récupérer de nouveau une ressource, pas à protéger un remplacement." }
+    session: { en: "A session token controls session consistency for reads; it does not detect concurrent updates.", fr: "Un jeton de session contrôle la cohérence de session des lectures ; il ne détecte pas les mises à jour simultanées." }
+    activity: { en: "ActivityId identifies a request for troubleshooting; it is not the item's version.", fr: "ActivityId identifie une requête pour le dépannage ; ce n'est pas la version de l'élément." }
+    id: { en: "The id does not change when the item is updated, so it cannot detect a concurrent change.", fr: "L'id ne change pas quand l'élément est mis à jour : il ne peut pas détecter une modification simultanée." }
+    conflict: { en: "409 Conflict is returned when an item with the same id already exists, for example on create.", fr: "Le code 409 Conflict est renvoyé quand un élément avec le même id existe déjà, par exemple lors d'une création." }
+    notmod: { en: "A failed If-Match condition on a write is reported as 412, not as a not-modified response.", fr: "Une condition If-Match non satisfaite lors d'une écriture est signalée par le code 412, pas par une réponse non modifiée." }
+    throttle: { en: "429 indicates rate limiting, which the SDK retries; it has nothing to do with item versions.", fr: "Le code 429 indique une limitation du débit, que le SDK réessaie ; il n'a aucun rapport avec les versions d'éléments." }
+references:
+  - title: Database Transactions and Optimistic Concurrency Control - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/database-transactions-optimistic-concurrency

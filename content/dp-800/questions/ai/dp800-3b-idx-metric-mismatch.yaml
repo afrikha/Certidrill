@@ -1,0 +1,64 @@
+id: dp800-3b-idx-metric-mismatch
+objective: "3.2.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Parts. The table has 3 million rows and the only vector index on it was created by using the following statement.
+
+    ```sql
+    CREATE VECTOR INDEX vix_Parts_Shape
+    ON dbo.Parts (ShapeVector)
+    WITH (METRIC = 'euclidean', TYPE = 'DiskANN');
+    ```
+
+    A developer runs the following query.
+
+    ```sql
+    SELECT TOP (10) WITH APPROXIMATE p.PartID, r.distance
+    FROM VECTOR_SEARCH(TABLE = dbo.Parts AS p, COLUMN = ShapeVector,
+                       SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+    ORDER BY r.distance;
+    ```
+
+    What happens when the developer runs the query?
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Parts. La table compte 3 millions de lignes, et le seul index vectoriel qu'elle possède a été créé avec l'instruction suivante.
+
+    ```sql
+    CREATE VECTOR INDEX vix_Parts_Shape
+    ON dbo.Parts (ShapeVector)
+    WITH (METRIC = 'euclidean', TYPE = 'DiskANN');
+    ```
+
+    Un développeur exécute la requête suivante.
+
+    ```sql
+    SELECT TOP (10) WITH APPROXIMATE p.PartID, r.distance
+    FROM VECTOR_SEARCH(TABLE = dbo.Parts AS p, COLUMN = ShapeVector,
+                       SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+    ORDER BY r.distance;
+    ```
+
+    Que se passe-t-il lorsque le développeur exécute la requête ?
+body:
+  options:
+    - { id: a, text: { en: "The query uses vix_Parts_Shape and returns euclidean distances in the distance column.", fr: "La requête utilise vix_Parts_Shape et renvoie des distances euclidiennes dans la colonne distance." } }
+    - { id: b, text: { en: "The query raises a warning and runs an exact kNN search with cosine distances.", fr: "La requête émet un avertissement et exécute une recherche kNN exacte avec des distances cosinus." } }
+    - { id: c, text: { en: "The query fails with an error because the metric differs from the metric of the index.", fr: "La requête échoue avec une erreur, car la métrique diffère de celle de l'index." } }
+    - { id: d, text: { en: "The engine rebuilds vix_Parts_Shape with the cosine metric, then runs an ANN search.", fr: "Le moteur reconstruit vix_Parts_Shape avec la métrique cosinus, puis exécute une recherche ANN." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      VECTOR_SEARCH uses an ANN index only if it finds one on the same column with the same metric. When no compatible index exists, it raises a warning and uses the k-nearest neighbor (kNN) algorithm, which scans the 3 million vectors.
+    fr: |-
+      VECTOR_SEARCH n'utilise un index ANN que s'il en trouve un sur la même colonne avec la même métrique. Lorsqu'aucun index compatible n'existe, il émet un avertissement et utilise l'algorithme des k plus proches voisins (kNN), qui analyse les 3 millions de vecteurs.
+  options:
+    a: { en: "An index is used only when its metric matches the metric of the query.", fr: "Un index n'est utilisé que si sa métrique correspond à celle de la requête." }
+    c: { en: "A metric mismatch is not an error; only the FORCE_ANN_ONLY hint would make the query fail without a compatible index.", fr: "Une différence de métrique n'est pas une erreur ; seul l'indicateur FORCE_ANN_ONLY ferait échouer la requête sans index compatible." }
+    d: { en: "The metric of an index is fixed at creation; the engine never rebuilds an index to match a query.", fr: "La métrique d'un index est fixée à sa création ; le moteur ne reconstruit jamais un index pour l'adapter à une requête." }
+references:
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

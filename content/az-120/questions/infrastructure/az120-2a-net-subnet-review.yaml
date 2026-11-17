@@ -1,0 +1,44 @@
+id: az120-2a-net-subnet-review
+objective: "2.2.1"
+type: hotarea
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin prepared the following subnets in a spoke virtual network named **VNet-SAP** (10.30.0.0/16) for an SAP S/4HANA system that uses Azure NetApp Files for many HANA volumes. An NVA with the IP address 10.30.0.4 inspects traffic in the hub-facing subnet.
+
+    Answer each prompt by selecting the appropriate subnet.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin a préparé les sous-réseaux suivants dans un réseau virtuel spoke nommé **VNet-SAP** (10.30.0.0/16) pour un système SAP S/4HANA qui utilise Azure NetApp Files pour de nombreux volumes HANA. Une NVA d'adresse IP 10.30.0.4 inspecte le trafic dans le sous-réseau orienté vers le hub.
+
+    Répondez à chaque consigne en sélectionnant le sous-réseau approprié.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text: { en: "The subnet whose configuration is not supported for SAP on Azure", fr: "Le sous-réseau dont la configuration n'est pas prise en charge pour SAP sur Azure" }
+    - id: p2
+      text: { en: "The subnet to re-create with a larger prefix before the deployment, because its prefix cannot be changed later", fr: "Le sous-réseau à recréer avec un préfixe plus grand avant le déploiement, car son préfixe ne pourra plus être modifié" }
+  grid:
+    header: [{ en: Subnet, fr: Sous-réseau }, { en: Prefix, fr: Préfixe }, { en: Delegation, fr: Délégation }, { en: "Route table entries", fr: "Itinéraires de la table de routage" }]
+    rows:
+      - [{ text: snet-sap-app, area: app }, { text: 10.30.1.0/24 }, { text: { en: None, fr: Aucune } }, { text: { en: "0.0.0.0/0 → Azure Firewall in the hub", fr: "0.0.0.0/0 → Pare-feu Azure dans le hub" } }]
+      - [{ text: snet-sap-db, area: db }, { text: 10.30.2.0/24 }, { text: { en: None, fr: Aucune } }, { text: "10.30.1.0/24 → Virtual appliance 10.30.0.4" }]
+      - [{ text: snet-anf, area: anf }, { text: 10.30.3.0/28 }, { text: Microsoft.NetApp/volumes }, { text: { en: None, fr: Aucun } }]
+      - [{ text: snet-mgmt, area: mgmt }, { text: 10.30.4.0/26 }, { text: { en: None, fr: Aucune } }, { text: { en: "0.0.0.0/0 → Azure Firewall in the hub", fr: "0.0.0.0/0 → Pare-feu Azure dans le hub" } }]
+answer:
+  values: { p1: db, p2: anf }
+explanation:
+  correct:
+    en: |
+      The route on snet-sap-db sends the database traffic bound for the application subnet through an NVA, which places an NVA in the path between the SAP application and DBMS layers; Microsoft does not support this because NVAs can double latency and break Pacemaker clusters. Internet-bound default routes through a firewall do not affect the direct path inside the VNet. The /28 delegated subnet leaves only 11 usable addresses, and the mask of a delegated Azure NetApp Files subnet cannot be changed, so it must be re-created larger (a /23 is suggested for high-volume SAP HANA).
+    fr: |
+      L'itinéraire de snet-sap-db envoie le trafic de la base de données destiné au sous-réseau d'application à travers une NVA, ce qui place une NVA sur le chemin entre les couches application et SGBD SAP ; Microsoft ne le prend pas en charge, car les NVA peuvent doubler la latence et faire échouer les clusters Pacemaker. Les itinéraires par défaut vers Internet via un pare-feu n'affectent pas le chemin direct dans le réseau virtuel. Le sous-réseau délégué /28 ne laisse que 11 adresses utilisables, et le masque d'un sous-réseau délégué Azure NetApp Files ne peut pas être modifié : il faut le recréer plus grand (un /23 est suggéré pour SAP HANA à fort volume).
+references:
+  - title: Plan and implement an SAP deployment on Azure
+    url: https://learn.microsoft.com/en-us/azure/sap/workloads/planning-guide
+  - title: Delegate a subnet to Azure NetApp Files
+    url: https://learn.microsoft.com/en-us/azure/azure-netapp-files/azure-netapp-files-delegate-subnet

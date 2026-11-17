@@ -1,0 +1,68 @@
+id: dp750-cs3b-merge-changes
+objective: "3.3.7"
+type: dropdown
+caseStudy: dp750-cs3b-margies-travel
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to apply the nightly changes to silver.bookings to meet bookings table requirement 4.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez appliquer les modifications nocturnes à silver.bookings pour satisfaire l'exigence 4 de la table des réservations.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    MERGE INTO mt_prod.silver.bookings AS t
+    USING (
+      SELECT * FROM mt_prod.bronze.partner_changes
+      [[dedup]]
+    ) AS s
+    ON t.booking_id = s.booking_id
+    WHEN MATCHED AND s.status = 'CANCELLED' THEN [[act]]
+    WHEN MATCHED THEN UPDATE SET *
+    [[notmatched]];
+  slots:
+    - id: dedup
+      options:
+        - { id: qualify, text: "QUALIFY ROW_NUMBER() OVER (PARTITION BY booking_id ORDER BY change_ts DESC) = 1" }
+        - { id: limit, text: "ORDER BY change_ts DESC LIMIT 1" }
+        - { id: groupby, text: "GROUP BY booking_id" }
+    - id: act
+      options:
+        - { id: delete, text: DELETE }
+        - { id: update, text: "UPDATE SET status = 'CANCELLED'" }
+        - { id: insert, text: "INSERT *" }
+    - id: notmatched
+      options:
+        - { id: insertnc, text: "WHEN NOT MATCHED AND s.status != 'CANCELLED' THEN INSERT *" }
+        - { id: insertall, text: "WHEN NOT MATCHED THEN INSERT *" }
+        - { id: bysource, text: "WHEN NOT MATCHED BY SOURCE THEN DELETE" }
+answer:
+  values: { dedup: qualify, act: delete, notmatched: insertnc }
+explanation:
+  correct:
+    en: |
+      MERGE fails when several source rows match the same target row, so the source must keep only the latest change of each booking: QUALIFY with ROW_NUMBER() partitioned by booking_id and ordered by change_ts DESC does this. WHEN MATCHED clauses are evaluated in order, so a matched booking whose latest change is CANCELLED is deleted and the others are updated. A new booking is inserted only when it is not cancelled, and bookings absent from the load are not touched.
+    fr: |
+      MERGE échoue quand plusieurs lignes sources correspondent à la même ligne cible : la source ne doit garder que la dernière modification de chaque réservation, ce que fait QUALIFY avec ROW_NUMBER() partitionné par booking_id et trié par change_ts DESC. Les clauses WHEN MATCHED sont évaluées dans l'ordre : une réservation correspondante dont la dernière modification est CANCELLED est supprimée, et les autres sont mises à jour. Une nouvelle réservation n'est insérée que si elle n'est pas annulée, et les réservations absentes du chargement ne sont pas modifiées.
+  options:
+    limit: { en: "LIMIT 1 keeps a single row for the whole load instead of one row per booking.", fr: "LIMIT 1 ne garde qu'une ligne pour tout le chargement, au lieu d'une ligne par réservation." }
+    groupby: { en: "SELECT * with GROUP BY booking_id is invalid because the other columns are neither grouped nor aggregated.", fr: "SELECT * avec GROUP BY booking_id n'est pas valide, car les autres colonnes ne sont ni regroupées ni agrégées." }
+    update: { en: "Updating the status keeps cancelled bookings in silver.bookings, which the requirement forbids.", fr: "Mettre à jour le statut conserve les réservations annulées dans silver.bookings, ce que l'exigence interdit." }
+    insert: { en: "INSERT is not a valid action of a WHEN MATCHED clause.", fr: "INSERT n'est pas une action valide d'une clause WHEN MATCHED." }
+    insertall: { en: "Without the condition, a booking created and cancelled on the same day would be inserted as a cancelled booking.", fr: "Sans la condition, une réservation créée et annulée le même jour serait insérée comme réservation annulée." }
+    bysource: { en: "WHEN NOT MATCHED BY SOURCE THEN DELETE would delete every booking that is absent from the load, and new bookings would not be inserted.", fr: "WHEN NOT MATCHED BY SOURCE THEN DELETE supprimerait toutes les réservations absentes du chargement, et les nouvelles réservations ne seraient pas insérées." }
+references:
+  - title: MERGE INTO
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/delta-merge-into
+  - title: QUALIFY clause
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-qry-select-qualify

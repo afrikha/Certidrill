@@ -1,0 +1,109 @@
+id: dp700-3c-conflict-retry
+objective: "3.2.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW_Ops. A stored procedure updates the dbo.Inventory table. Other processes also update dbo.Inventory, and the stored procedure sometimes fails because of write-write conflicts.
+
+    You need to modify the stored procedure to meet the following requirements:
+
+    - Retry the update up to three times when it fails because of a write-write conflict.
+    - Leave no open transaction after a failure.
+    - Return any other error to the caller immediately.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW_Ops. Une procédure stockée met à jour la table dbo.Inventory. D'autres processus mettent aussi à jour dbo.Inventory, et la procédure stockée échoue parfois à cause de conflits d'écriture.
+
+    Vous devez modifier la procédure stockée pour satisfaire les exigences suivantes :
+
+    - Réessayer la mise à jour jusqu'à trois fois quand elle échoue à cause d'un conflit d'écriture.
+    - Ne laisser aucune transaction ouverte après un échec.
+    - Renvoyer immédiatement toute autre erreur à l'appelant.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    DECLARE @attempt int = 1;
+    WHILE @attempt <= 3
+    BEGIN
+        BEGIN TRY
+            BEGIN TRAN;
+            UPDATE dbo.Inventory
+            SET OnHand = OnHand - 5
+            WHERE ItemID = 4711;
+            COMMIT TRAN;
+            BREAK;
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0 [[rb]];
+            IF ERROR_NUMBER() NOT IN ([[codes]]) [[raise]];
+            SET @attempt += 1;
+        END CATCH
+    END
+  slots:
+    - id: rb
+      options:
+        - { id: rb_tran, text: ROLLBACK TRAN }
+        - { id: rb_commit, text: COMMIT TRAN }
+        - { id: rb_save, text: ROLLBACK TRAN sp_before_update }
+    - id: codes
+      options:
+        - { id: c_snap, text: "24556, 24706" }
+        - { id: c_dead, text: "1205, 1222" }
+        - { id: c_bulk, text: "13812" }
+    - id: raise
+      options:
+        - { id: r_throw, text: THROW }
+        - { id: r_break, text: BREAK }
+        - { id: r_continue, text: CONTINUE }
+answer:
+  values: { rb: rb_tran, codes: c_snap, raise: r_throw }
+explanation:
+  correct:
+    en: |
+      ROLLBACK TRAN ends the failed transaction so that no lock or open transaction remains. Fabric Data Warehouse reports write-write conflicts with errors 24556 and 24706, and the documentation recommends retrying the failed transaction. For any other error, THROW without arguments re-raises the original error to the caller; for a conflict, the loop increments the counter and tries again.
+    fr: |
+      ROLLBACK TRAN termine la transaction en échec pour qu'il ne reste ni verrou ni transaction ouverte. Fabric Data Warehouse signale les conflits d'écriture par les erreurs 24556 et 24706, et la documentation recommande de réessayer la transaction en échec. Pour toute autre erreur, THROW sans argument relance l'erreur d'origine vers l'appelant ; pour un conflit, la boucle incrémente le compteur et réessaie.
+  options:
+    rb_commit:
+      en: |
+        A failed transaction must be rolled back; committing it does not undo the partial work.
+      fr: |
+        Une transaction en échec doit être annulée ; la valider n'annule pas le travail partiel.
+    rb_save:
+      en: |
+        Rolling back to a savepoint requires SAVE TRANSACTION, and savepoints are not supported in Fabric Data Warehouse.
+      fr: |
+        Revenir à un point d'enregistrement exige SAVE TRANSACTION, et les points d'enregistrement ne sont pas pris en charge dans Fabric Data Warehouse.
+    c_dead:
+      en: |
+        These SQL Server codes report deadlocks and lock time-outs, not the snapshot isolation update conflicts of the warehouse.
+      fr: |
+        Ces codes SQL Server signalent des interblocages et des dépassements de délai de verrou, pas les conflits de mise à jour en isolement de capture instantanée de l'entrepôt.
+    c_bulk:
+      en: |
+        Error 13812 is a bulk load data conversion error returned by COPY INTO, not an update conflict.
+      fr: |
+        L'erreur 13812 est une erreur de conversion de chargement en bloc renvoyée par COPY INTO, pas un conflit de mise à jour.
+    r_break:
+      en: |
+        BREAK leaves the loop silently, so the caller never learns that the update failed.
+      fr: |
+        BREAK quitte la boucle silencieusement : l'appelant n'apprend jamais que la mise à jour a échoué.
+    r_continue:
+      en: |
+        CONTINUE restarts the loop without incrementing the counter, so a non-conflict error would be retried indefinitely.
+      fr: |
+        CONTINUE relance la boucle sans incrémenter le compteur : une erreur autre qu'un conflit serait réessayée indéfiniment.
+references:
+  - title: Transactions in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/transactions

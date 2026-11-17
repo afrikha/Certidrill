@@ -1,0 +1,78 @@
+id: az400-3d-container-webapp-yaml
+objective: "3.4.7"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Tailspin Toys has a YAML pipeline that builds the container image of a storefront and deploys it to an App Service app named **app-storefront**, which is configured as Web App for Containers. The registry is **crtailspin.azurecr.io**.
+
+    Each deployment must use an image tag that identifies the run that built it, so that any previous version can be redeployed exactly.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys dispose d'un pipeline YAML qui génère l'image conteneur d'une vitrine en ligne et la déploie sur une application App Service nommée **app-storefront**, configurée en tant que Web App for Containers. Le registre est **crtailspin.azurecr.io**.
+
+    Chaque déploiement doit utiliser une balise d'image qui identifie l'exécution qui l'a générée, pour que toute version précédente puisse être redéployée exactement.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    variables:
+      imageTag: [[tag]]
+
+    steps:
+    - task: Docker@2
+      inputs:
+        command: buildAndPush
+        containerRegistry: sc-acr-tailspin
+        repository: web/storefront
+        tags: $(imageTag)
+
+    - task: [[deployTask]]
+      inputs:
+        azureSubscription: sc-prod-wif
+        appName: app-storefront
+        [[imageInput]]: crtailspin.azurecr.io/web/storefront:$(imageTag)
+  slots:
+    - id: tag
+      options:
+        - { id: tLatest, text: latest }
+        - { id: tBuildId, text: "$(Build.BuildId)" }
+        - { id: tBranch, text: "$(Build.SourceBranchName)" }
+    - id: deployTask
+      options:
+        - { id: dWebApp, text: "AzureWebApp@1" }
+        - { id: dContainerApps, text: "AzureContainerApps@1" }
+        - { id: dWebAppContainer, text: "AzureWebAppContainer@1" }
+    - id: imageInput
+      options:
+        - { id: iContainers, text: containers }
+        - { id: iPackage, text: package }
+        - { id: iCommand, text: containerCommand }
+answer:
+  values: { tag: tBuildId, deployTask: dWebAppContainer, imageInput: iContainers }
+explanation:
+  correct:
+    en: |
+      `$(Build.BuildId)` is unique per run and is the default tag of Docker@2, so each image can be traced and redeployed. AzureWebAppContainer@1 deploys a container image to App Service, and its `containers` input (alias `imageName`) takes the fully qualified image name.
+    fr: |
+      `$(Build.BuildId)` est unique pour chaque exécution et c'est la balise par défaut de Docker@2 : chaque image peut être tracée et redéployée. AzureWebAppContainer@1 déploie une image conteneur sur App Service, et son entrée `containers` (alias `imageName`) reçoit le nom complet de l'image.
+  options:
+    tLatest: { en: "latest is overwritten by every build, so it can't identify the run that built an image.", fr: "latest est écrasé à chaque build : il ne permet pas d'identifier l'exécution qui a généré une image." }
+    tBranch: { en: "The branch name is shared by many runs of the same branch.", fr: "Le nom de branche est partagé par de nombreuses exécutions de la même branche." }
+    dWebApp: { en: "AzureWebApp@1 deploys a package or folder of code, not a container image.", fr: "AzureWebApp@1 déploie un package ou un dossier de code, pas une image conteneur." }
+    dContainerApps: { en: "AzureContainerApps@1 deploys to Azure Container Apps, not to App Service.", fr: "AzureContainerApps@1 déploie vers Azure Container Apps, pas vers App Service." }
+    iPackage: { en: "package is an input of the code deployment tasks, not of AzureWebAppContainer@1.", fr: "package est une entrée des tâches de déploiement de code, pas d'AzureWebAppContainer@1." }
+    iCommand: { en: "containerCommand sets the startup command of the container, not the image.", fr: "containerCommand définit la commande de démarrage du conteneur, pas l'image." }
+references:
+  - title: AzureWebAppContainer@1 - Azure Web App for Containers v1 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/azure-web-app-container-v1
+  - title: Docker@2 - Docker v2 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/docker-v2

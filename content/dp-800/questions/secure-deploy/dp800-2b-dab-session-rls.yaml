@@ -1,0 +1,76 @@
+id: dp800-2b-dab-session-rls
+objective: "2.1.8"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind exposes the `dbo.Claims` table of an Azure SQL database through the REST and MCP endpoints of Data API builder (DAB). Users sign in with Microsoft Entra ID, and each token contains a `region` claim.
+
+    You need to ensure that each caller sees only the claims of its region. The solution must meet the following requirements:
+
+    - The row filter must be evaluated by the database engine, so that a later mistake in the DAB entity permissions can't return rows of another region.
+    - The filter must apply to both endpoints without changes to the client applications.
+
+    What should you do?
+  fr: |
+    Northwind expose la table `dbo.Claims` d'une base de données Azure SQL via les points de terminaison REST et MCP de Data API builder (DAB). Les utilisateurs se connectent avec Microsoft Entra ID, et chaque jeton contient une revendication `region`.
+
+    Vous devez faire en sorte que chaque appelant ne voie que les sinistres de sa région. La solution doit satisfaire les exigences suivantes :
+
+    - Le filtre de lignes doit être évalué par le moteur de base de données, afin qu'une erreur ultérieure dans les autorisations d'entité DAB ne puisse pas renvoyer des lignes d'une autre région.
+    - Le filtre doit s'appliquer aux deux points de terminaison sans modification des applications clientes.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: |
+          Add the database policy @item.Region eq @claims.region to the read action of the Claims entity permission.
+        fr: |
+          Ajouter la stratégie de base de données @item.Region eq @claims.region à l'action read de l'autorisation de l'entité Claims.
+    - id: b
+      text:
+        en: |
+          Enable set-session-context and add a security policy that filters Region by using SESSION_CONTEXT(N'region').
+        fr: |
+          Activer set-session-context et ajouter une stratégie de sécurité qui filtre Region à l'aide de SESSION_CONTEXT(N'region').
+    - id: c
+      text:
+        en: |
+          Add a Dynamic Data Masking rule on the Region column and grant UNMASK to the DAB managed identity only.
+        fr: |
+          Ajouter une règle de masquage dynamique des données sur la colonne Region et accorder UNMASK à la seule identité managée de DAB.
+    - id: d
+      text:
+        en: |
+          Create one named role per region and require clients to send the region role in the X-MS-API-ROLE header.
+        fr: |
+          Créer un rôle nommé par région et exiger que les clients envoient le rôle de leur région dans l'en-tête X-MS-API-ROLE.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      With set-session-context enabled, DAB calls sp_set_session_context with the caller's claims before each query, and a Row-Level Security filter predicate reads the region with SESSION_CONTEXT. The database engine applies the filter to every query DAB sends, from REST or MCP, whatever the entity permissions say. Enabling session context disables DAB response caching for that data source.
+    fr: |
+      Avec set-session-context activé, DAB appelle sp_set_session_context avec les revendications de l'appelant avant chaque requête, et un prédicat de filtre Row-Level Security lit la région avec SESSION_CONTEXT. Le moteur de base de données applique le filtre à chaque requête envoyée par DAB, depuis REST ou MCP, quelles que soient les autorisations d'entité. L'activation du contexte de session désactive la mise en cache des réponses DAB pour cette source de données.
+  options:
+    a:
+      en: |
+        A database policy is part of the DAB permissions; DAB adds it to the WHERE clause, so a mistake in the entity configuration removes the protection.
+      fr: |
+        Une stratégie de base de données fait partie des autorisations DAB ; DAB l'ajoute à la clause WHERE : une erreur dans la configuration de l'entité supprime donc la protection.
+    c:
+      en: |
+        Masking hides values in results; it doesn't remove rows of other regions.
+      fr: |
+        Le masquage cache des valeurs dans les résultats ; il ne supprime pas les lignes des autres régions.
+    d:
+      en: |
+        Roles still need a row filter, and sending a new header requires changes to the client applications.
+      fr: |
+        Les rôles ont toujours besoin d'un filtre de lignes, et l'envoi d'un nouvel en-tête exige de modifier les applications clientes.
+references:
+  - title: Implement row-level security with session context in Data API builder
+    url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/row-level-security

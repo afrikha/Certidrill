@@ -1,0 +1,73 @@
+id: ai300-2a-dist-ddp-init-code
+objective: "2.1.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are adapting a PyTorch training script for a multi-node GPU command job in Azure Machine Learning that uses the pytorch distribution. The script must:
+
+    - use the communication backend recommended for the best performance on GPUs;
+    - initialize the process group from the environment variables that Azure Machine Learning sets;
+    - select, on each node, the GPU that matches the process.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous adaptez un script d'entraînement PyTorch pour un travail de commande GPU multinœud dans Azure Machine Learning qui utilise la distribution pytorch. Le script doit :
+
+    - utiliser le backend de communication recommandé pour les meilleures performances sur GPU ;
+    - initialiser le groupe de processus à partir des variables d'environnement qu'Azure Machine Learning définit ;
+    - sélectionner, sur chaque nœud, le GPU qui correspond au processus.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    import torch
+    import torch.distributed as dist
+
+    dist.init_process_group(backend="[[backend]]", init_method="[[init]]")
+
+    local_rank = int(os.environ["[[rank]]"])
+    torch.cuda.set_device(local_rank)
+    model = torch.nn.parallel.DistributedDataParallel(model.cuda(), device_ids=[local_rank])
+  slots:
+    - id: backend
+      options:
+        - { id: b-gloo, text: gloo }
+        - { id: b-mpi, text: mpi }
+        - { id: b-nccl, text: nccl }
+    - id: init
+      options:
+        - { id: i-env, text: "env://" }
+        - { id: i-tcp, text: "tcp://localhost:23456" }
+        - { id: i-file, text: "file:///tmp/initfile" }
+    - id: rank
+      options:
+        - { id: r-rank, text: RANK }
+        - { id: r-local, text: LOCAL_RANK }
+        - { id: r-node, text: NODE_RANK }
+        - { id: r-world, text: WORLD_SIZE }
+answer:
+  values: { backend: b-nccl, init: i-env, rank: r-local }
+explanation:
+  correct:
+    en: "For GPU-based training, Microsoft recommends the `nccl` backend. `init_method=\"env://\"` (the default) reads MASTER_ADDR, MASTER_PORT, WORLD_SIZE and RANK, which Azure Machine Learning sets. LOCAL_RANK is the rank of the process within its node, so it identifies the GPU to use on that node."
+    fr: "Pour l'entraînement sur GPU, Microsoft recommande le backend `nccl`. `init_method=\"env://\"` (valeur par défaut) lit MASTER_ADDR, MASTER_PORT, WORLD_SIZE et RANK, qu'Azure Machine Learning définit. LOCAL_RANK est le rang du processus au sein de son nœud : il identifie le GPU à utiliser sur ce nœud."
+  options:
+    b-gloo: { en: "gloo works but isn't the recommended backend for GPU performance.", fr: "gloo fonctionne mais n'est pas le backend recommandé pour les performances sur GPU." }
+    b-mpi: { en: "mpi is another backend; nccl is recommended for GPUs.", fr: "mpi est un autre backend ; nccl est recommandé pour les GPU." }
+    i-tcp: { en: "localhost points each node to itself, so the nodes can't find the rank 0 process.", fr: "localhost renvoie chaque nœud vers lui-même : les nœuds ne trouvent pas le processus de rang 0." }
+    i-file: { en: "/tmp is local to each node, not a shared file, and it ignores the variables that Azure Machine Learning sets.", fr: "/tmp est local à chaque nœud, ce n'est pas un fichier partagé, et cela ignore les variables qu'Azure Machine Learning définit." }
+    r-rank: { en: "RANK is global (0 to world size - 1) and exceeds the GPU indexes of a node.", fr: "RANK est global (0 à world size - 1) et dépasse les index de GPU d'un nœud." }
+    r-node: { en: "NODE_RANK identifies the node, not the process within it.", fr: "NODE_RANK identifie le nœud, pas le processus au sein du nœud." }
+    r-world: { en: "WORLD_SIZE is the total number of processes.", fr: "WORLD_SIZE est le nombre total de processus." }
+references:
+  - title: Distributed GPU training guide (SDK v2)
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-train-distributed-gpu

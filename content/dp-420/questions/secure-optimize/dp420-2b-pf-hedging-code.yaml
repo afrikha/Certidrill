@@ -1,0 +1,57 @@
+id: dp420-2b-pf-hedging-code
+objective: "2.2.3"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Northwind has an Azure Cosmos DB for NoSQL account replicated to East US, East US 2 and West US. A C# catalog API uses the .NET SDK v3.
+
+    When the first preferred region doesn't answer a read within 500 milliseconds, the SDK must send the same read to the next region and use the fastest response.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind dispose d'un compte Azure Cosmos DB for NoSQL répliqué dans les régions East US, East US 2 et West US. Une API de catalogue C# utilise le SDK .NET v3.
+
+    Quand la première région préférée ne répond pas à une lecture en moins de 500 millisecondes, le SDK doit envoyer la même lecture à la région suivante et utiliser la réponse la plus rapide.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    CosmosClient client = new CosmosClientBuilder(endpoint, new DefaultAzureCredential())
+        .WithApplicationPreferredRegions(
+            new List<string> { "East US", "East US 2", "West US" })
+        .[[method]](
+            AvailabilityStrategy.[[strategy]](
+                threshold: TimeSpan.FromMilliseconds(500),
+                thresholdStep: TimeSpan.FromMilliseconds(100)))
+        .Build();
+  slots:
+    - id: method
+      options:
+        - { id: avail, text: WithAvailabilityStrategy }
+        - { id: retry, text: WithThrottlingRetryOptions }
+        - { id: gw, text: WithConnectionModeGateway }
+    - id: strategy
+      options:
+        - { id: hedge, text: CrossRegionHedgingStrategy }
+        - { id: breaker, text: CircuitBreakerStrategy }
+        - { id: failover, text: PartitionFailoverStrategy }
+answer:
+  values: { method: avail, strategy: hedge }
+explanation:
+  correct:
+    en: "`WithAvailabilityStrategy(AvailabilityStrategy.CrossRegionHedgingStrategy(...))` enables the threshold-based availability strategy. After `threshold` (500 ms) without a response, the SDK sends a parallel request to the next preferred region, then waits `thresholdStep` before each further region, and keeps the first response."
+    fr: "`WithAvailabilityStrategy(AvailabilityStrategy.CrossRegionHedgingStrategy(...))` active la stratégie de disponibilité basée sur un seuil. Après `threshold` (500 ms) sans réponse, le SDK envoie une requête parallèle à la région préférée suivante, puis attend `thresholdStep` avant chaque région supplémentaire, et conserve la première réponse."
+  options:
+    method: { en: "WithThrottlingRetryOptions configures 429 retries, and WithConnectionModeGateway selects the connection mode; neither takes an availability strategy.", fr: "WithThrottlingRetryOptions configure les nouvelles tentatives après des 429, et WithConnectionModeGateway choisit le mode de connexion ; aucune ne reçoit de stratégie de disponibilité." }
+    strategy: { en: "The circuit breaker is configured with environment variables, not as an AvailabilityStrategy, and PartitionFailoverStrategy doesn't exist.", fr: "Le disjoncteur se configure avec des variables d'environnement, pas comme une AvailabilityStrategy, et PartitionFailoverStrategy n'existe pas." }
+references:
+  - title: Performance tips for Azure Cosmos DB and .NET
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/performance-tips-dotnet-sdk-v3

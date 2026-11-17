@@ -1,0 +1,90 @@
+id: ai300-cs1b-foundry-bicep
+objective: "3.1.4"
+type: dropdown
+caseStudy: ai300-cs1b-vanarsdel
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing main.bicep. Private endpoints are defined in a separate module.
+
+    How should you complete the template to meet the platform requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez main.bicep. Les points de terminaison privés sont définis dans un module distinct.
+
+    Comment devez-vous compléter le modèle pour respecter les exigences de la plateforme ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    param location string = resourceGroup().location
+    param foundryName string = 'fdy-vanarsdel-prod'
+
+    resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
+      name: foundryName
+      location: location
+      kind: [[kind]]
+      sku: { name: 'S0' }
+      identity: { type: 'SystemAssigned' }
+      properties: {
+        customSubDomainName: foundryName
+        [[projects]]
+        [[auth]]
+        [[network]]
+      }
+    }
+
+    resource project 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = {
+      parent: foundry
+      name: 'clausecheck'
+      location: location
+      identity: { type: 'SystemAssigned' }
+      properties: {
+        displayName: 'ClauseCheck'
+      }
+    }
+  slots:
+    - id: kind
+      options:
+        - { id: openai, text: "'OpenAI'" }
+        - { id: aiservices, text: "'AIServices'" }
+        - { id: cognitive, text: "'CognitiveServices'" }
+    - id: projects
+      options:
+        - { id: allow-true, text: "allowProjectManagement: true" }
+        - { id: allow-false, text: "allowProjectManagement: false" }
+        - { id: outbound-true, text: "restrictOutboundNetworkAccess: true" }
+    - id: auth
+      options:
+        - { id: local-false, text: "disableLocalAuth: false" }
+        - { id: restrict-out, text: "restrictOutboundNetworkAccess: false" }
+        - { id: local-true, text: "disableLocalAuth: true" }
+    - id: network
+      options:
+        - { id: pna-enabled, text: "publicNetworkAccess: 'Enabled'" }
+        - { id: acl-allow, text: "networkAcls: { defaultAction: 'Allow' }" }
+        - { id: pna-disabled, text: "publicNetworkAccess: 'Disabled'" }
+answer:
+  values: { kind: aiservices, projects: allow-true, auth: local-true, network: pna-disabled }
+explanation:
+  correct:
+    en: "A Foundry resource is a `Microsoft.CognitiveServices/accounts` resource of kind `AIServices`, and `allowProjectManagement: true` lets it hold `accounts/projects` child resources such as clausecheck. `disableLocalAuth: true` turns off API keys so that only Microsoft Entra ID authentication works, and `publicNetworkAccess: 'Disabled'` blocks internet access, leaving the private endpoints of the separate module as the only path."
+    fr: "Une ressource Foundry est une ressource `Microsoft.CognitiveServices/accounts` de type `AIServices`, et `allowProjectManagement: true` lui permet de contenir des ressources enfants `accounts/projects` comme clausecheck. `disableLocalAuth: true` désactive les clés API pour que seule l'authentification Microsoft Entra ID fonctionne, et `publicNetworkAccess: 'Disabled'` bloque l'accès depuis Internet, ce qui laisse les points de terminaison privés du module distinct comme seul chemin."
+  options:
+    openai: { en: "The OpenAI kind creates an Azure OpenAI resource; a Foundry resource uses the AIServices kind.", fr: "Le type OpenAI crée une ressource Azure OpenAI ; une ressource Foundry utilise le type AIServices." }
+    cognitive: { en: "CognitiveServices isn't the kind of a Foundry resource, which uses AIServices.", fr: "CognitiveServices n'est pas le type d'une ressource Foundry, qui utilise AIServices." }
+    allow-false: { en: "Without project management, the resource can't hold the clausecheck project defined in the same template.", fr: "Sans gestion des projets, la ressource ne peut pas contenir le projet clausecheck défini dans le même modèle." }
+    outbound-true: { en: "Restricting outbound access controls what the resource can call; it doesn't enable child projects.", fr: "Restreindre l'accès sortant contrôle ce que la ressource peut appeler ; cela n'active pas les projets enfants." }
+    local-false: { en: "Local authentication stays enabled, so clients can still use API keys.", fr: "L'authentification locale reste activée ; les clients peuvent donc toujours utiliser des clés API." }
+    restrict-out: { en: "This setting is about outbound network access, not about API key authentication.", fr: "Ce paramètre concerne l'accès réseau sortant, pas l'authentification par clé API." }
+    pna-enabled: { en: "Enabled public network access keeps the resource reachable from the internet.", fr: "Un accès au réseau public activé laisse la ressource accessible depuis Internet." }
+    acl-allow: { en: "A default action of Allow accepts traffic from every network.", fr: "Une action par défaut Allow accepte le trafic de tous les réseaux." }
+references:
+  - title: Microsoft.CognitiveServices/accounts - Bicep, ARM template & Terraform AzAPI reference
+    url: https://learn.microsoft.com/en-us/azure/templates/microsoft.cognitiveservices/accounts?pivots=deployment-language-bicep
+  - title: "Quickstart: Deploy a Foundry resource by using Bicep"
+    url: https://learn.microsoft.com/en-us/azure/foundry/how-to/create-resource-template

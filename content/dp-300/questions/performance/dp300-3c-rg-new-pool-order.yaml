@@ -1,0 +1,43 @@
+id: dp300-3c-rg-new-pool-order
+objective: "3.3.6"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure virtual machine named SQLVM6 that runs SQL Server 2022 Enterprise. Resource Governor is enabled, and a classifier function named `dbo.rg_classifier` is registered. The function returns `ReportsGroup` for the sessions of an application named ReportSvc. No workload group named ReportsGroup exists yet, so the ReportSvc sessions run in the default workload group. ReportSvc keeps its connections open for days.
+
+    You need the ReportSvc sessions to be limited by a new resource pool named ReportsPool. The solution must not restart the SQL Server instance.
+
+    Which four actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'une machine virtuelle Azure nommée SQLVM6 qui exécute SQL Server 2022 Enterprise. Resource Governor est activé et une fonction de classification nommée `dbo.rg_classifier` est inscrite. La fonction renvoie `ReportsGroup` pour les sessions d'une application nommée ReportSvc. Aucun groupe de charges de travail nommé ReportsGroup n'existe encore : les sessions de ReportSvc s'exécutent donc dans le groupe de charges de travail default. ReportSvc garde ses connexions ouvertes pendant plusieurs jours.
+
+    Les sessions de ReportSvc doivent être limitées par un nouveau pool de ressources nommé ReportsPool. La solution ne doit pas redémarrer l'instance SQL Server.
+
+    Quelles sont les quatre actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - { id: pool, text: { en: "Run `CREATE RESOURCE POOL ReportsPool WITH (MAX_CPU_PERCENT = 30);`", fr: "Exécuter `CREATE RESOURCE POOL ReportsPool WITH (MAX_CPU_PERCENT = 30);`" } }
+    - { id: group, text: { en: "Run `CREATE WORKLOAD GROUP ReportsGroup USING ReportsPool;`", fr: "Exécuter `CREATE WORKLOAD GROUP ReportsGroup USING ReportsPool;`" } }
+    - { id: reconf, text: { en: "Run `ALTER RESOURCE GOVERNOR RECONFIGURE;`", fr: "Exécuter `ALTER RESOURCE GOVERNOR RECONFIGURE;`" } }
+    - { id: reconnect, text: { en: "Make ReportSvc close its connections and open new ones.", fr: "Faire fermer ses connexions à ReportSvc et en ouvrir de nouvelles." } }
+    - { id: freeproc, text: { en: "Run `DBCC FREEPROCCACHE;`", fr: "Exécuter `DBCC FREEPROCCACHE;`" } }
+    - { id: spconf, text: { en: "Run `EXEC sp_configure 'show advanced options', 1; RECONFIGURE;`", fr: "Exécuter `EXEC sp_configure 'show advanced options', 1; RECONFIGURE;`" } }
+answer:
+  sequence: [ pool, group, reconf, reconnect ]
+explanation:
+  correct:
+    en: |
+      A workload group references its resource pool with `USING`, so the pool must exist first. Configuration changes take effect only after `ALTER RESOURCE GOVERNOR RECONFIGURE`. The classifier function runs only when a session is created, and a session stays in its workload group for its whole lifetime, so the long-lived ReportSvc sessions must reconnect to be classified into ReportsGroup.
+    fr: |
+      Un groupe de charges de travail référence son pool de ressources avec `USING` : le pool doit donc exister d'abord. Les modifications de configuration ne prennent effet qu'après `ALTER RESOURCE GOVERNOR RECONFIGURE`. La fonction de classification ne s'exécute qu'à la création d'une session, et une session reste dans son groupe de charges de travail pendant toute sa durée de vie : les sessions de longue durée de ReportSvc doivent donc se reconnecter pour être classées dans ReportsGroup.
+  options:
+    freeproc: { en: "Clearing the plan cache doesn't reclassify sessions; classification happens only at connection time.", fr: "Vider le cache des plans ne reclasse pas les sessions ; la classification n'a lieu qu'à la connexion." }
+    spconf: { en: "Resource Governor isn't configured with sp_configure; its changes are applied with ALTER RESOURCE GOVERNOR RECONFIGURE.", fr: "Resource Governor ne se configure pas avec sp_configure ; ses modifications s'appliquent avec ALTER RESOURCE GOVERNOR RECONFIGURE." }
+references:
+  - title: Resource governor classifier function
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/resource-governor/resource-governor-classifier-function
+  - title: CREATE WORKLOAD GROUP (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-workload-group-transact-sql

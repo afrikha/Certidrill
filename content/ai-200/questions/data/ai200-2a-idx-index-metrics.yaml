@@ -1,0 +1,58 @@
+id: ai200-2a-idx-index-metrics
+objective: "2.1.2"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Northwind Traders has a Python triage service whose ticket query is slow and expensive. Before changing the indexing policy, you need to find out which indexes the query uses and which composite indexes could help, and log the RU charge of the query.
+
+    How should you complete the diagnostic code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders dispose d'un service Python de tri dont la requête sur les tickets est lente et coûteuse. Avant de modifier la stratégie d'indexation, vous devez savoir quels index la requête utilise et quels index composites pourraient l'aider, et journaliser la consommation de RU de la requête.
+
+    Comment devez-vous compléter le code de diagnostic ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    results = container.query_items(
+        query="SELECT c.id FROM c WHERE c.status = @s AND c.score > @min",
+        parameters=[{"name": "@s", "value": "open"},
+                    {"name": "@min", "value": 0.5}],
+        partition_key="contoso",
+        [[flag]]=True)
+    items = list(results)
+
+    charge = container.client_connection.last_response_headers.get([[header]])
+  slots:
+    - id: flag
+      options:
+        - { id: indexmetrics, text: populate_index_metrics }
+        - { id: scan, text: enable_scan_in_query }
+        - { id: cross, text: enable_cross_partition_query }
+    - id: header
+      options:
+        - { id: charge, text: '"x-ms-request-charge"' }
+        - { id: session, text: '"x-ms-session-token"' }
+        - { id: retry, text: '"x-ms-retry-after-ms"' }
+answer:
+  values: { flag: indexmetrics, header: charge }
+explanation:
+  correct:
+    en: "`populate_index_metrics=True` returns index metrics: the utilized single and composite indexes and the potential indexes that could improve the query. It adds overhead, so use it only for troubleshooting. The RU charge of the last operation is in the `x-ms-request-charge` header."
+    fr: "`populate_index_metrics=True` renvoie les métriques d'index : les index simples et composites utilisés et les index potentiels qui pourraient améliorer la requête. Il ajoute une surcharge : utilisez-le uniquement pour le dépannage. La consommation de RU de la dernière opération figure dans l'en-tête `x-ms-request-charge`."
+  options:
+    scan: { en: "`enable_scan_in_query` allows scans on paths excluded from the index; it reports nothing about index usage.", fr: "`enable_scan_in_query` autorise les analyses sur des chemins exclus de l'index ; il ne fournit aucune information sur l'utilisation des index." }
+    cross: { en: "The query is already scoped to one partition; this flag only allows fan-out.", fr: "La requête est déjà limitée à une partition ; cet indicateur autorise seulement l'envoi à toutes les partitions." }
+    session: { en: "The session token is used for Session consistency, not cost reporting.", fr: "Le jeton de session sert à la cohérence Session, pas à mesurer le coût." }
+    retry: { en: "`x-ms-retry-after-ms` tells how long to wait after a 429 throttling response.", fr: "`x-ms-retry-after-ms` indique le délai d'attente après une réponse de limitation 429." }
+references:
+  - title: Indexing Metrics - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/index-metrics
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy?view=azure-python

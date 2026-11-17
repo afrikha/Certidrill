@@ -1,0 +1,82 @@
+id: ai200-2a-vec-container-policy
+objective: "2.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware is creating a container for a product-support RAG app in an Azure Cosmos DB for NoSQL account where vector search is enabled. The embedding model returns 1,536-dimension `float32` vectors stored in the `embedding` property. Queries filter on `tenantId` and `lang` and rank chunks with `VectorDistance`.
+
+    Vector insertions must have the lowest possible RU charge and latency.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware crée un conteneur pour une application RAG de support produit dans un compte Azure Cosmos DB for NoSQL où la recherche vectorielle est activée. Le modèle d'incorporation renvoie des vecteurs `float32` de 1 536 dimensions stockés dans la propriété `embedding`. Les requêtes filtrent sur `tenantId` et `lang` et classent les segments avec `VectorDistance`.
+
+    Les insertions de vecteurs doivent avoir la consommation de RU et la latence les plus faibles possible.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    vector_embedding_policy = {
+        "vectorEmbeddings": [
+            {"path": "/embedding", "dataType": "float32",
+             "distanceFunction": "cosine", "dimensions": [[dims]]}
+        ]
+    }
+    indexing_policy = {
+        "includedPaths": [{"path": "/*"}],
+        "excludedPaths": [{"path": "/\"_etag\"/?"}, {"path": "[[excluded]]"}],
+        "[[section]]": [{"path": "/embedding", "type": "diskANN"}]
+    }
+    container = database.create_container(
+        id="chunks",
+        partition_key=PartitionKey(path="/tenantId"),
+        indexing_policy=indexing_policy,
+        [[arg]]=vector_embedding_policy)
+  slots:
+    - id: dims
+      options:
+        - { id: d505, text: "505" }
+        - { id: d1536, text: "1536" }
+        - { id: d3072, text: "3072" }
+        - { id: d4096, text: "4096" }
+    - id: excluded
+      options:
+        - { id: emb, text: '/embedding/*' }
+        - { id: tenant, text: '/tenantId/?' }
+        - { id: lang, text: '/lang/?' }
+    - id: section
+      options:
+        - { id: vector, text: vectorIndexes }
+        - { id: composite, text: compositeIndexes }
+        - { id: spatial, text: spatialIndexes }
+    - id: arg
+      options:
+        - { id: vep, text: vector_embedding_policy }
+        - { id: ttl, text: default_ttl }
+        - { id: analytical, text: analytical_storage_ttl }
+answer:
+  values: { dims: d1536, excluded: emb, section: vector, arg: vep }
+explanation:
+  correct:
+    en: "`dimensions` must match the length of the vectors produced by the model (1,536). Learn recommends excluding the vector path from the range index, otherwise vector insertions cost more RUs and take longer. The vector index goes in `vectorIndexes` with the same path as the embedding policy, which is passed to `create_container()` as `vector_embedding_policy`."
+    fr: "`dimensions` doit correspondre à la longueur des vecteurs produits par le modèle (1 536). Learn recommande d'exclure le chemin vectoriel de l'index de plage, sinon les insertions de vecteurs coûtent plus de RU et prennent plus de temps. L'index vectoriel se place dans `vectorIndexes` avec le même chemin que la stratégie d'incorporation, qui est passée à `create_container()` comme `vector_embedding_policy`."
+  options:
+    d505: { en: "505 is the dimension limit of the flat index, not the size of these vectors.", fr: "505 est la limite de dimensions de l'index flat, pas la taille de ces vecteurs." }
+    d4096: { en: "4,096 is the maximum supported by diskANN; the policy must state the actual vector length.", fr: "4 096 est le maximum pris en charge par diskANN ; la stratégie doit indiquer la longueur réelle des vecteurs." }
+    tenant: { en: "Every query filters on tenantId; excluding it would force scans.", fr: "Chaque requête filtre sur tenantId ; l'exclure forcerait des analyses complètes." }
+    lang: { en: "Queries filter on lang, so it must stay indexed.", fr: "Les requêtes filtrent sur lang : la propriété doit rester indexée." }
+    ttl: { en: "default_ttl sets item expiration; it doesn't define the vectors.", fr: "default_ttl définit l'expiration des éléments ; il ne définit pas les vecteurs." }
+    analytical: { en: "analytical_storage_ttl configures the analytical store.", fr: "analytical_storage_ttl configure le magasin analytique." }
+references:
+  - title: Index and Query Vector Data in Python - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-python-vector-index-query
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search

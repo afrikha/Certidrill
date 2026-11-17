@@ -1,0 +1,68 @@
+id: az400-3d-rollback-stage
+objective: "3.4.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware has a YAML pipeline with two stages named **Build** and **Deploy**. The Deploy stage deploys a web app to production and then runs integration tests against production. The repository contains a script named **rollback.sh** that redeploys the last known good package of the app.
+
+    You need to add a stage named **Rollback** that runs rollback.sh only when the Deploy stage fails. When Deploy succeeds, Rollback must be skipped.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware dispose d'un pipeline YAML avec deux phases nommées **Build** et **Deploy**. La phase Deploy déploie une application web en production, puis exécute des tests d'intégration sur la production. Le dépôt contient un script nommé **rollback.sh** qui redéploie le dernier package sain connu de l'application.
+
+    Vous devez ajouter une phase nommée **Rollback** qui exécute rollback.sh uniquement quand la phase Deploy échoue. Quand Deploy réussit, Rollback doit être ignorée.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    - stage: Rollback
+      dependsOn: [[dep]]
+      condition: [[cond]]
+      jobs:
+      - job: RedeployPrevious
+        steps:
+        - checkout: self
+        - task: AzureCLI@2
+          inputs:
+            azureSubscription: sc-web-prod
+            scriptType: bash
+            scriptLocation: scriptPath
+            scriptPath: ./rollback.sh
+  slots:
+    - id: dep
+      options:
+        - { id: dEmpty, text: "[]" }
+        - { id: dDeploy, text: Deploy }
+        - { id: dBuild, text: Build }
+    - id: cond
+      options:
+        - { id: cAlways, text: "always()" }
+        - { id: cSucceeded, text: "succeeded()" }
+        - { id: cFailed, text: "failed()" }
+        - { id: cCanceled, text: "canceled()" }
+answer:
+  values: { dep: dDeploy, cond: cFailed }
+explanation:
+  correct:
+    en: |
+      The Rollback stage depends on Deploy, and `failed()` makes it run only when a stage it depends on has failed; otherwise it is skipped. The stage then redeploys the last known good package.
+    fr: |
+      La phase Rollback dépend de Deploy, et `failed()` la fait s'exécuter uniquement quand une phase dont elle dépend a échoué ; sinon, elle est ignorée. La phase redéploie alors le dernier package sain connu.
+  options:
+    dEmpty: { en: "With no dependency, Rollback would start at the beginning of the run, before Deploy has a result.", fr: "Sans dépendance, Rollback démarrerait au début de l'exécution, avant que Deploy ait un résultat." }
+    dBuild: { en: "Depending on Build evaluates the result of Build, not of Deploy.", fr: "Dépendre de Build évalue le résultat de Build, pas celui de Deploy." }
+    cAlways: { en: "always() would also roll back after a successful deployment.", fr: "always() restaurerait aussi la version précédente après un déploiement réussi." }
+    cSucceeded: { en: "succeeded() runs the stage only when Deploy succeeds, which is the opposite of the requirement.", fr: "succeeded() n'exécute la phase que si Deploy réussit, ce qui est l'inverse de l'exigence." }
+    cCanceled: { en: "canceled() runs only when the run is canceled, not when Deploy fails.", fr: "canceled() ne s'exécute que si l'exécution est annulée, pas quand Deploy échoue." }
+references:
+  - title: Add stages, dependencies, and conditions
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/stages

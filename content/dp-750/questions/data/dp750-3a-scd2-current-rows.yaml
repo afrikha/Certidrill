@@ -1,0 +1,62 @@
+id: dp750-3a-scd2-current-rows
+objective: "3.1.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware maintains **litware.gold.dim_customer** as an SCD Type 2 streaming table with the AUTO CDC API in a Lakeflow Spark Declarative Pipelines pipeline. The flow uses `SEQUENCE BY change_ts`, where `change_ts` is a timestamp, and it does not define a custom target schema.
+
+    You need a query that returns only the current version of each customer, together with the moment when that version became effective.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware gère **litware.gold.dim_customer** sous forme de table de streaming SCD Type 2 avec l'API AUTO CDC dans un pipeline Lakeflow Spark Declarative Pipelines. Le flux utilise `SEQUENCE BY change_ts`, où `change_ts` est un horodatage, et il ne définit pas de schéma cible personnalisé.
+
+    Vous avez besoin d'une requête qui renvoie uniquement la version actuelle de chaque client, avec le moment où cette version est entrée en vigueur.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT customer_id, city, segment, [[col]] AS effective_from
+    FROM litware.gold.dim_customer
+    WHERE [[cond]];
+  slots:
+    - id: col
+      options:
+        - { id: endat, text: __END_AT }
+        - { id: startat, text: __START_AT }
+        - { id: validfrom, text: valid_from }
+        - { id: commit, text: _commit_timestamp }
+    - id: cond
+      options:
+        - { id: iscurrent, text: "is_current = true" }
+        - { id: startnull, text: "__START_AT IS NULL" }
+        - { id: endnull, text: "__END_AT IS NULL" }
+        - { id: endnow, text: "__END_AT = current_timestamp()" }
+answer:
+  values: { col: startat, cond: endnull }
+explanation:
+  correct:
+    en: |
+      SCD Type 2 targets created by AUTO CDC get `__START_AT` and `__END_AT` columns, with the same data type as the `SEQUENCE BY` column. `__START_AT` holds the sequence value at which a version became effective, and the current version is the row whose `__END_AT` is null.
+    fr: |
+      Les cibles SCD Type 2 créées par AUTO CDC reçoivent des colonnes `__START_AT` et `__END_AT`, du même type de données que la colonne `SEQUENCE BY`. `__START_AT` contient la valeur de séquence à laquelle une version est entrée en vigueur, et la version actuelle est la ligne dont `__END_AT` est null.
+  options:
+    col:
+      en: "`__END_AT` is the end of a version, and `valid_from` and `_commit_timestamp` are not columns that AUTO CDC adds to the target."
+      fr: "`__END_AT` marque la fin d'une version, et `valid_from` et `_commit_timestamp` ne sont pas des colonnes ajoutées à la cible par AUTO CDC."
+    cond:
+      en: |
+        AUTO CDC adds no `is_current` flag, `__START_AT` is never null, and a closed version ends at a sequence value, not at the current time.
+      fr: |
+        AUTO CDC n'ajoute pas d'indicateur `is_current`, `__START_AT` n'est jamais null, et une version clôturée se termine à une valeur de séquence, pas à l'heure actuelle.
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

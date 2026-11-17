@@ -1,0 +1,67 @@
+id: dp420-2d-fa-spark-adls
+objective: "2.4.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware sends the fleet analytics of its Azure Cosmos DB fleet to a container named **fleetdata** in an Azure Data Lake Storage Gen2 account named **stproseware**. Each fleet analytics table is written to a folder named after the table.
+
+    You need a Spark notebook that registers the tables so that you can query them with Spark SQL. The tables must return the current version of the data.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware envoie l'analytique de la flotte de sa flotte Azure Cosmos DB vers un conteneur nommé **fleetdata** d'un compte Azure Data Lake Storage Gen2 nommé **stproseware**. Chaque table de l'analytique de la flotte est écrite dans un dossier qui porte le nom de la table.
+
+    Vous avez besoin d'un notebook Spark qui inscrit les tables afin de pouvoir les interroger avec Spark SQL. Les tables doivent renvoyer la version actuelle des données.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    container_name = "fleetdata"
+    account_name = "stproseware"
+    base_url = f"[[scheme]]://{container_name}@{account_name}.[[endpoint]].core.windows.net"
+
+    for table in ["DimResource", "FactRequestHourly", "FactResourceUsageHourly"]:
+        spark.sql(f"DROP TABLE IF EXISTS {table}")
+        spark.sql(f"CREATE TABLE {table} USING [[fmt]] LOCATION '{base_url}/{table}'")
+  slots:
+    - id: scheme
+      options:
+        - { id: sabfss, text: abfss }
+        - { id: swasbs, text: wasbs }
+        - { id: shttps, text: https }
+    - id: endpoint
+      options:
+        - { id: edfs, text: dfs }
+        - { id: eblob, text: blob }
+        - { id: efile, text: file }
+    - id: fmt
+      options:
+        - { id: fdelta, text: delta }
+        - { id: fparquet, text: parquet }
+        - { id: fcsv, text: csv }
+answer:
+  values: { scheme: sabfss, endpoint: edfs, fmt: fdelta }
+explanation:
+  correct:
+    en: |
+      Spark reaches ADLS Gen2 through the ABFS driver, with abfss:// URIs on the dfs endpoint of the account. Fleet analytics writes open-source Delta Lake tables, so the tables are registered with USING delta, which reads the Delta transaction log and returns the current version.
+    fr: |
+      Spark accède à ADLS Gen2 via le pilote ABFS, avec des URI abfss:// sur le point de terminaison dfs du compte. L'analytique de la flotte écrit des tables Delta Lake open source : les tables s'inscrivent donc avec USING delta, qui lit le journal des transactions Delta et renvoie la version actuelle.
+  options:
+    swasbs: { en: "wasbs is the legacy Blob storage driver, which works with the blob endpoint, not the Data Lake endpoint.", fr: "wasbs est l'ancien pilote du Stockage Blob, qui fonctionne avec le point de terminaison blob et non avec le point de terminaison Data Lake." }
+    eblob: { en: "The abfss scheme targets the dfs endpoint of an ADLS Gen2 account.", fr: "Le schéma abfss cible le point de terminaison dfs d'un compte ADLS Gen2." }
+    fparquet: { en: "The data files are Parquet, but reading them as plain Parquet ignores the Delta transaction log and can return files that are no longer part of the current version.", fr: "Les fichiers de données sont au format Parquet, mais les lire comme du Parquet brut ignore le journal des transactions Delta et peut renvoyer des fichiers qui ne font plus partie de la version actuelle." }
+    fcsv: { en: "Fleet analytics doesn't write CSV files.", fr: "L'analytique de la flotte n'écrit pas de fichiers CSV." }
+references:
+  - title: Enable Fleet Analytics (Preview) - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-enable-fleet-analytics
+  - title: Fleet Analytics (Preview) - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/fleet-analytics

@@ -1,0 +1,74 @@
+id: az802-2b-um-maintenance-ps
+objective: "2.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware, Inc. uses Azure Update Manager to patch Azure Arc-enabled test servers every night. You need to create the maintenance configuration by using Azure PowerShell. The configuration must meet the following requirements:
+
+    - Install guest operating system updates of the Critical and Security classifications.
+    - Never install the update KB5034439.
+    - Restart a server only when an installed update needs it.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware, Inc. utilise le Gestionnaire de mise à jour Azure pour mettre à jour chaque nuit des serveurs de test activés pour Azure Arc. Vous devez créer la configuration de maintenance à l'aide d'Azure PowerShell. La configuration doit répondre aux exigences suivantes :
+
+    - Installer les mises à jour du système d'exploitation invité des classifications Critical et Security.
+    - Ne jamais installer la mise à jour KB5034439.
+    - Redémarrer un serveur uniquement quand une mise à jour installée l'exige.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    New-AzMaintenanceConfiguration -ResourceGroupName "RG-Patch" -Name "MC-Test" -Location "westeurope" `
+        -MaintenanceScope "[[scope]]" -ExtensionProperty @{inGuestPatchMode="User"} `
+        -StartDateTime "2026-12-01 23:00" -Timezone "UTC" -Duration "3:00" -RecurEvery "Day" `
+        -WindowParameterClassificationToInclude @('Critical', 'Security') `
+        [[kb]] @('5034439') `
+        -InstallPatchRebootSetting "[[reboot]]"
+  slots:
+    - id: scope
+      options:
+        - { id: host, text: Host }
+        - { id: guest, text: InGuestPatch }
+        - { id: osimage, text: OSImage }
+        - { id: extension, text: Extension }
+    - id: kb
+      options:
+        - { id: kbinc, text: -WindowParameterKbNumberToInclude }
+        - { id: kbexc, text: -WindowParameterKbNumberToExclude }
+        - { id: linexc, text: -LinuxParameterPackageNameMaskToExclude }
+    - id: reboot
+      options:
+        - { id: always, text: Always }
+        - { id: ifreq, text: IfRequired }
+        - { id: never, text: Never }
+answer:
+  values: { scope: guest, kb: kbexc, reboot: ifreq }
+explanation:
+  correct:
+    en: |
+      Update Manager schedules are maintenance configurations with the `InGuestPatch` scope, which patches the guest operating system, with `inGuestPatchMode` set to `User`. `-WindowParameterKbNumberToExclude` keeps a KB out of every run. `-InstallPatchRebootSetting IfRequired` restarts a machine only when an update requires it.
+    fr: |
+      Les planifications du Gestionnaire de mise à jour sont des configurations de maintenance d'étendue `InGuestPatch`, qui met à jour le système d'exploitation invité, avec `inGuestPatchMode` défini sur `User`. `-WindowParameterKbNumberToExclude` exclut un KB de chaque exécution. `-InstallPatchRebootSetting IfRequired` ne redémarre une machine que lorsqu'une mise à jour l'exige.
+  options:
+    host: { en: "The Host scope controls platform maintenance of Azure hosts, such as dedicated hosts, not guest OS updates.", fr: "L'étendue Host contrôle la maintenance de la plateforme des hôtes Azure, comme les hôtes dédiés, pas les mises à jour du système d'exploitation invité." }
+    osimage: { en: "The OSImage scope applies to OS image upgrades of virtual machine scale sets.", fr: "L'étendue OSImage s'applique aux mises à niveau d'image du système d'exploitation des groupes de machines virtuelles identiques." }
+    extension: { en: "The Extension scope controls the upgrade of VM extensions, not OS updates.", fr: "L'étendue Extension contrôle la mise à niveau des extensions de machine virtuelle, pas les mises à jour du système d'exploitation." }
+    kbinc: { en: "The include list would force the KB to be installed.", fr: "La liste d'inclusion forcerait l'installation du KB." }
+    linexc: { en: "This parameter excludes Linux packages, not Windows KBs.", fr: "Ce paramètre exclut des packages Linux, pas des KB Windows." }
+    always: { en: "Always restarts the machine after every run, even when no update needs it.", fr: "Always redémarre la machine après chaque exécution, même si aucune mise à jour ne l'exige." }
+    never: { en: "Never doesn't restart the machine, so updates that need a restart remain pending.", fr: "Never ne redémarre pas la machine : les mises à jour qui exigent un redémarrage restent en attente." }
+references:
+  - title: New-AzMaintenanceConfiguration (Az.Maintenance)
+    url: https://learn.microsoft.com/en-us/powershell/module/az.maintenance/new-azmaintenanceconfiguration
+  - title: Scheduling Recurring Updates in Azure Update Manager
+    url: https://learn.microsoft.com/en-us/azure/update-manager/scheduled-patching

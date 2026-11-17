@@ -1,0 +1,91 @@
+id: dp420-cs4b-hold-expiry
+objective: "1.4.4"
+type: dropdown
+caseStudy: dp420-cs4b-relecloud-tickets
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the background worker that monitors the inventory container. A container named **leases** stores the processor state. `ReleaseSeatAsync` derives the seat from the hold `id` and the partition key, and returns the seat to the available state.
+
+    You need to complete the code to meet the hold requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le processus d'arrière-plan qui surveille le conteneur inventory. Un conteneur nommé **leases** stocke l'état du processeur. `ReleaseSeatAsync` déduit la place à partir de l'`id` de la réservation temporaire et de la clé de partition, et remet la place à l'état disponible.
+
+    Vous devez compléter le code pour satisfaire les exigences relatives aux réservations temporaires.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    ChangeFeedProcessor processor = inventory
+        .[[builder]]<SeatHold>(
+            processorName: "release-expired-holds",
+            onChangesDelegate: HandleChangesAsync)
+        .WithInstanceName(Environment.MachineName)
+        .WithLeaseContainer(leases)
+        .Build();
+
+    static async Task HandleChangesAsync(
+        ChangeFeedProcessorContext context,
+        IReadOnlyCollection<ChangeFeedItem<SeatHold>> changes,
+        CancellationToken cancellationToken)
+    {
+        foreach (ChangeFeedItem<SeatHold> change in changes)
+        {
+            if (change.Metadata.OperationType == ChangeFeedOperationType.[[op]]
+                && [[flag]])
+            {
+                string holdId = [[source]];
+                await ReleaseSeatAsync(holdId, change.Metadata.PartitionKey);
+            }
+        }
+    }
+  slots:
+    - id: builder
+      options:
+        - { id: latest, text: GetChangeFeedProcessorBuilder }
+        - { id: avad, text: GetChangeFeedProcessorBuilderWithAllVersionsAndDeletes }
+        - { id: estimator, text: GetChangeFeedEstimatorBuilder }
+    - id: op
+      options:
+        - { id: create, text: Create }
+        - { id: replace, text: Replace }
+        - { id: delete, text: Delete }
+    - id: flag
+      options:
+        - { id: idnotnull, text: "change.Metadata.Id != null" }
+        - { id: ttl, text: "change.Metadata.IsTimeToLiveExpired" }
+        - { id: prevlsn, text: "change.Metadata.PreviousLsn > 0" }
+    - id: source
+      options:
+        - { id: current, text: change.Current.id }
+        - { id: lease, text: context.LeaseToken }
+        - { id: metaid, text: change.Metadata.Id }
+answer:
+  values: { builder: avad, op: delete, flag: ttl, source: metaid }
+explanation:
+  correct:
+    en: "Latest version mode does not capture deletes, so the worker uses `GetChangeFeedProcessorBuilderWithAllVersionsAndDeletes`, which the account supports because continuous backup is enabled. This mode records TTL expirations as `Delete` operations, and `IsTimeToLiveExpired` separates them from the explicit deletes made at purchase. A delete record carries no item body: the `id` and partition key of the deleted item are in `Metadata`."
+    fr: "Le mode dernière version ne capture pas les suppressions : le processus utilise donc `GetChangeFeedProcessorBuilderWithAllVersionsAndDeletes`, que le compte prend en charge car la sauvegarde continue est activée. Ce mode enregistre les expirations TTL comme des opérations `Delete`, et `IsTimeToLiveExpired` les distingue des suppressions explicites effectuées lors d'un achat. Un enregistrement de suppression ne contient pas le corps de l'élément : l'`id` et la clé de partition de l'élément supprimé se trouvent dans `Metadata`."
+  options:
+    latest: { en: "Latest version mode does not capture deletes, including TTL expirations.", fr: "Le mode dernière version ne capture pas les suppressions, y compris les expirations TTL." }
+    estimator: { en: "The estimator measures the processor's lag; it does not deliver changes.", fr: "L'estimateur mesure le retard du processeur ; il ne transmet pas les modifications." }
+    create: { en: "An expired hold is reported as a delete, not a create.", fr: "Une réservation temporaire expirée est signalée comme une suppression, pas comme une création." }
+    replace: { en: "An expired hold is reported as a delete, not a replace.", fr: "Une réservation temporaire expirée est signalée comme une suppression, pas comme un remplacement." }
+    idnotnull: { en: "Metadata.Id is set for every delete, so explicit deletes at purchase would also release the seat.", fr: "Metadata.Id est renseigné pour toute suppression : les suppressions explicites lors d'un achat libéreraient aussi la place." }
+    prevlsn: { en: "PreviousLsn identifies the prior change; it does not tell why the item was deleted.", fr: "PreviousLsn identifie la modification précédente ; il n'indique pas pourquoi l'élément a été supprimé." }
+    current: { en: "Delete records have no current version of the item.", fr: "Les enregistrements de suppression ne contiennent pas de version actuelle de l'élément." }
+    lease: { en: "LeaseToken identifies the lease (range of partition key values) being processed, not the deleted item.", fr: "LeaseToken identifie le bail (plage de valeurs de clé de partition) en cours de traitement, pas l'élément supprimé." }
+references:
+  - title: Change Feed Modes - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-modes
+  - title: ChangeFeedMetadata Class (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.changefeedmetadata

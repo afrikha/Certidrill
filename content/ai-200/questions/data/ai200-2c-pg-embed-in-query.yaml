@@ -1,0 +1,50 @@
+id: ai200-2c-pg-embed-in-query
+objective: "2.2.5"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Lucerne Publishing stores article chunks and their embeddings in the `article_embeddings` table of an Azure Database for PostgreSQL flexible server database. The `azure_ai` extension is configured for an Azure OpenAI resource where the `text-embedding-3-small` model was used to embed the chunks. The model is deployed with the deployment name `emb-3s`.
+
+    The search API passes the text of the user question as the only query parameter. You need the question to be embedded inside the same SQL statement that ranks the chunks, without a separate call from the API to Azure OpenAI.
+
+    Which `ORDER BY` clause should you use?
+  fr: |
+    Lucerne Publishing stocke des segments d'articles et leurs incorporations dans la table `article_embeddings` d'une base de données Azure Database for PostgreSQL serveur flexible. L'extension `azure_ai` est configurée pour une ressource Azure OpenAI où le modèle `text-embedding-3-small` a servi à incorporer les segments. Le modèle est déployé avec le nom de déploiement `emb-3s`.
+
+    L'API de recherche passe le texte de la question de l'utilisateur comme unique paramètre de requête. La question doit être incorporée dans la même instruction SQL que celle qui classe les segments, sans appel distinct de l'API à Azure OpenAI.
+
+    Quelle clause `ORDER BY` devez-vous utiliser ?
+body:
+  options:
+    - { id: a, text: "ORDER BY e.embedding <=> %s::vector" }
+    - { id: b, text: "ORDER BY azure_openai.create_embeddings('emb-3s', e.content)::vector <=> %s::vector" }
+    - { id: c, text: "ORDER BY e.embedding <=> azure_openai.create_embeddings('text-embedding-3-small', %s)::vector" }
+    - { id: d, text: "ORDER BY e.embedding <=> azure_openai.create_embeddings('emb-3s', %s)::vector" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      `azure_openai.create_embeddings` takes the deployment name and the input text, and returns a `real[]` that is cast to `vector`. Calling it on the question parameter embeds the question once, and the `<=>` operator ranks the stored embeddings by cosine distance to it.
+    fr: |
+      `azure_openai.create_embeddings` prend le nom du déploiement et le texte d'entrée, et renvoie un `real[]` converti en `vector`. L'appeler sur le paramètre de la question incorpore la question une seule fois, et l'opérateur `<=>` classe les incorporations stockées selon leur distance cosinus à celle-ci.
+  options:
+    a:
+      en: |
+        The parameter is the question text, which can't be cast to a vector without being embedded.
+      fr: |
+        Le paramètre est le texte de la question, qui ne peut pas être converti en vecteur sans être incorporé.
+    b:
+      en: |
+        This re-embeds every stored chunk on each query and casts the question text to a vector, which fails.
+      fr: |
+        Cette clause réincorpore chaque segment stocké à chaque requête et convertit le texte de la question en vecteur, ce qui échoue.
+    c:
+      en: |
+        The function expects the deployment name, `emb-3s`, not the model name.
+      fr: |
+        La fonction attend le nom du déploiement, `emb-3s`, pas le nom du modèle.
+references:
+  - title: Generate Vector Embeddings with Azure OpenAI
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/generative-ai-azure-openai

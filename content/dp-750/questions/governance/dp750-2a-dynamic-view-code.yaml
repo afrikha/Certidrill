@@ -1,0 +1,72 @@
+id: dp750-2a-dynamic-view-code
+objective: "2.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware has a Unity Catalog table named **proseware.crm.contacts_raw** with the columns contact_id, email, country and lifetime_value. You are creating a view named **proseware.crm.contacts_secure** that must meet the following requirements:
+
+    - Members of the account group **privacy-officers** see the real email address; other users see the literal REDACTED.
+    - Existing reports reference the column by the name email.
+    - Members of the account group **global-sales** see all rows; other users see only the rows where country is FR.
+
+    How should you complete the view definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware dispose d'une table Unity Catalog nommée **proseware.crm.contacts_raw** avec les colonnes contact_id, email, country et lifetime_value. Vous créez une vue nommée **proseware.crm.contacts_secure** qui doit répondre aux exigences suivantes :
+
+    - Les membres du groupe de compte **privacy-officers** voient l'adresse e-mail réelle ; les autres utilisateurs voient le littéral REDACTED.
+    - Des rapports existants référencent la colonne sous le nom email.
+    - Les membres du groupe de compte **global-sales** voient toutes les lignes ; les autres utilisateurs ne voient que les lignes où country vaut FR.
+
+    Comment devez-vous compléter la définition de la vue ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE VIEW proseware.crm.contacts_secure AS
+    SELECT
+      contact_id,
+      CASE WHEN [[fn]]('privacy-officers') THEN email
+           ELSE 'REDACTED'
+      END AS [[alias]],
+      country,
+      lifetime_value
+    FROM proseware.crm.contacts_raw
+    WHERE [[filter]];
+  slots:
+    - id: fn
+      options:
+        - { id: member, text: is_member }
+        - { id: session, text: session_user }
+        - { id: acct, text: is_account_group_member }
+    - id: alias
+      options:
+        - { id: masked, text: masked_email }
+        - { id: redacted, text: email_redacted }
+        - { id: email, text: email }
+    - id: filter
+      options:
+        - { id: and, text: "is_account_group_member('global-sales') AND country = 'FR'" }
+        - { id: ok, text: "CASE WHEN is_account_group_member('global-sales') THEN TRUE ELSE country = 'FR' END" }
+        - { id: inverted, text: "CASE WHEN is_account_group_member('global-sales') THEN country = 'FR' ELSE TRUE END" }
+answer:
+  values: { fn: acct, alias: email, filter: ok }
+explanation:
+  correct:
+    en: is_account_group_member() tests membership in an account-level group, which is the recommended function for Unity Catalog dynamic views. Aliasing the CASE expression to email keeps the original column name, so the permission logic does not appear in the result and reports keep working. The WHERE clause returns TRUE for global-sales members and applies the country filter to everyone else.
+    fr: is_account_group_member() teste l'appartenance à un groupe de niveau compte ; c'est la fonction recommandée pour les vues dynamiques Unity Catalog. Donner l'alias email à l'expression CASE conserve le nom de colonne d'origine, de sorte que la logique d'autorisation n'apparaît pas dans le résultat et que les rapports continuent de fonctionner. La clause WHERE renvoie TRUE pour les membres de global-sales et applique le filtre sur le pays à tous les autres.
+  options:
+    member: { en: "is_member() evaluates workspace-level groups only.", fr: "is_member() n'évalue que les groupes de niveau espace de travail." }
+    session: { en: "session_user() takes no argument and returns an email address, not a membership test.", fr: "session_user() ne prend pas d'argument et renvoie une adresse e-mail, pas un test d'appartenance." }
+    masked: { en: "A new column name would break the reports that reference email.", fr: "Un nouveau nom de colonne casserait les rapports qui référencent email." }
+    redacted: { en: "A new column name would break the reports that reference email.", fr: "Un nouveau nom de colonne casserait les rapports qui référencent email." }
+    inverted: { en: "This restricts global-sales members to FR rows and shows all rows to everyone else.", fr: "Cette expression limite les membres de global-sales aux lignes FR et montre toutes les lignes aux autres." }
+    and: { en: "This returns only FR rows, and only to global-sales members; other users see nothing.", fr: "Cette expression ne renvoie que les lignes FR, et seulement aux membres de global-sales ; les autres ne voient rien." }
+references:
+  - title: Create a dynamic view
+    url: https://learn.microsoft.com/en-us/azure/databricks/views/dynamic

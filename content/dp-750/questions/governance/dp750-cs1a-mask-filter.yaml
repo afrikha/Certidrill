@@ -1,0 +1,74 @@
+id: dp750-cs1a-mask-filter
+objective: "2.2.3"
+type: dropdown
+caseStudy: dp750-cs1a-lamna-healthcare
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to protect clinical.silver.admissions. The solution must meet the requirements for the protection of patient data.
+
+    How should you complete the SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez protéger clinical.silver.admissions. La solution doit respecter les exigences de protection des données patients.
+
+    Comment devez-vous compléter les instructions SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION clinical.governance.nid_mask(nid STRING)
+      RETURN CASE WHEN is_account_group_member('privacy-officers') THEN nid ELSE '***********' END;
+
+    CREATE FUNCTION clinical.governance.site_filter(site STRING)
+      RETURN [[expr]];
+
+    ALTER TABLE clinical.silver.admissions
+      [[maskclause]] clinical.governance.nid_mask;
+
+    ALTER TABLE clinical.silver.admissions
+      [[filterclause]] clinical.governance.site_filter ON (hospital_code);
+  slots:
+    - id: expr
+      options:
+        - { id: if-true, text: "IF(is_account_group_member('network-analysts'), true, site = 'LIE')" }
+        - { id: if-inverted, text: "IF(is_account_group_member('network-analysts'), site = 'LIE', true)" }
+        - { id: and, text: "is_account_group_member('network-analysts') AND site = 'LIE'" }
+        - { id: case-null, text: "CASE WHEN is_account_group_member('network-analysts') THEN site ELSE NULL END" }
+    - id: maskclause
+      options:
+        - { id: col-mask, text: "ALTER COLUMN national_id SET MASK" }
+        - { id: row-filter, text: "SET ROW FILTER" }
+        - { id: col-tags, text: "ALTER COLUMN national_id SET TAGS" }
+        - { id: tblprops, text: "SET TBLPROPERTIES" }
+    - id: filterclause
+      options:
+        - { id: set-filter, text: "SET ROW FILTER" }
+        - { id: hc-mask, text: "ALTER COLUMN hospital_code SET MASK" }
+        - { id: drop-filter, text: "DROP ROW FILTER" }
+        - { id: add-constraint, text: "ADD CONSTRAINT" }
+answer:
+  values: { expr: if-true, maskclause: col-mask, filterclause: set-filter }
+explanation:
+  correct:
+    en: "A row filter is a SQL UDF that returns a BOOLEAN: `IF(is_account_group_member('network-analysts'), true, site = 'LIE')` returns every row to network-analysts and only the LIE rows to everyone else. A column mask is bound with `ALTER TABLE ... ALTER COLUMN ... SET MASK`, and a row filter with `ALTER TABLE ... SET ROW FILTER <function> ON (<columns>)`."
+    fr: "Un filtre de lignes est une UDF SQL qui renvoie un BOOLEAN : `IF(is_account_group_member('network-analysts'), true, site = 'LIE')` renvoie toutes les lignes à network-analysts et seulement les lignes LIE aux autres utilisateurs. Un masque de colonne s'attache avec `ALTER TABLE ... ALTER COLUMN ... SET MASK`, et un filtre de lignes avec `ALTER TABLE ... SET ROW FILTER <fonction> ON (<colonnes>)`."
+  options:
+    if-inverted: { en: "This expression inverts the logic: the analysts would see only LIE rows and everyone else would see all rows.", fr: "Cette expression inverse la logique : les analystes ne verraient que les lignes LIE et tous les autres verraient toutes les lignes." }
+    and: { en: "Users outside network-analysts would see no rows, and the analysts would see only LIE rows.", fr: "Les utilisateurs hors de network-analysts ne verraient aucune ligne, et les analystes ne verraient que les lignes LIE." }
+    case-null: { en: "A row filter must return a BOOLEAN; this expression returns the hospital code or NULL.", fr: "Un filtre de lignes doit renvoyer un BOOLEAN ; cette expression renvoie le code d'hôpital ou NULL." }
+    row-filter: { en: "nid_mask returns a STRING value for one column; it is a column mask, not a row filter.", fr: "nid_mask renvoie une valeur STRING pour une colonne ; c'est un masque de colonne, pas un filtre de lignes." }
+    col-tags: { en: "SET TAGS attaches governed tags to the column; it does not bind a mask function.", fr: "SET TAGS attache des étiquettes gouvernées (governed tags) à la colonne ; il n'attache pas de fonction de masquage." }
+    tblprops: { en: "Table properties don't apply a mask function to a column.", fr: "Les propriétés de table n'appliquent pas de fonction de masquage à une colonne." }
+    hc-mask: { en: "A mask on hospital_code would change the displayed code but would still return every row.", fr: "Un masque sur hospital_code changerait le code affiché mais renverrait toujours toutes les lignes." }
+    drop-filter: { en: "DROP ROW FILTER removes a row filter from a table.", fr: "DROP ROW FILTER supprime le filtre de lignes d'une table." }
+    add-constraint: { en: "ADD CONSTRAINT adds a CHECK constraint that validates written data; it does not filter what users read.", fr: "ADD CONSTRAINT ajoute une contrainte CHECK qui valide les données écrites ; elle ne filtre pas ce que lisent les utilisateurs." }
+references:
+  - title: Manually apply row filters and column masks
+    url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/manually-apply
+  - title: Row filters and column masks
+    url: https://learn.microsoft.com/en-us/azure/databricks/tables/row-and-column-filters

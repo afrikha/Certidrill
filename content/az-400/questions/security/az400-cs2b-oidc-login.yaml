@@ -1,0 +1,90 @@
+id: az400-cs2b-oidc-login
+objective: "4.2.2"
+type: dropdown
+caseStudy: az400-cs2b-relecloud
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You create a Microsoft Entra application registration for the catalog-api deployments, assign it the required Azure roles, and store its client ID, tenant ID and subscription ID as secrets of the production environment. You add a federated credential to the application and update the deployment workflow of catalog-api.
+
+    You need to complete the configuration to meet the sign-in requirement.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous créez une inscription d'application Microsoft Entra pour les déploiements de catalog-api, vous lui attribuez les rôles Azure nécessaires et vous stockez son ID client, son ID de locataire et son ID d'abonnement comme secrets de l'environnement production. Vous ajoutez des informations d'identification fédérées à l'application et vous mettez à jour le workflow de déploiement de catalog-api.
+
+    Vous devez compléter la configuration pour respecter l'exigence de connexion.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    # Federated credential
+    #   Issuer:   https://token.actions.githubusercontent.com
+    #   Subject:  [[subj]]
+    #   Audience: api://AzureADTokenExchange
+
+    name: deploy-catalog-api
+    on:
+      push:
+        branches: [ main ]
+    permissions:
+      [[perm]]
+      contents: read
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+          - uses: actions/checkout@v4
+          - uses: [[login]]
+            with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  slots:
+    - id: subj
+      options:
+        - { id: ref, text: "repo:relecloud/catalog-api:ref:refs/heads/main" }
+        - { id: env, text: "repo:relecloud/catalog-api:environment:production" }
+        - { id: pr, text: "repo:relecloud/catalog-api:pull-request" }
+        - { id: wild, text: "repo:relecloud/*:environment:production" }
+    - id: perm
+      options:
+        - { id: actw, text: "actions: write" }
+        - { id: depw, text: "deployments: write" }
+        - { id: idw, text: "id-token: write" }
+        - { id: prw, text: "pull-requests: write" }
+    - id: login
+      options:
+        - { id: cli, text: azure/cli@v2 }
+        - { id: login, text: azure/login@v2 }
+        - { id: ps, text: azure/powershell@v2 }
+answer:
+  values: { subj: env, perm: idw, login: login }
+explanation:
+  correct:
+    en: |
+      Because the job references the production environment, the subject of its OIDC token is repo:relecloud/catalog-api:environment:production, and a federated credential with that exact subject trusts only the jobs that deploy to production. The id-token: write permission lets the job request the OIDC token from GitHub. The azure/login@v2 action exchanges that token for a Microsoft Entra access token by using only the client, tenant and subscription IDs, without any client secret.
+    fr: |
+      Comme le travail référence l'environnement production, le sujet de son jeton OIDC est repo:relecloud/catalog-api:environment:production, et des informations d'identification fédérées avec exactement ce sujet n'approuvent que les travaux qui déploient vers production. L'autorisation id-token: write permet au travail de demander le jeton OIDC à GitHub. L'action azure/login@v2 échange ce jeton contre un jeton d'accès Microsoft Entra en utilisant uniquement les ID de client, de locataire et d'abonnement, sans secret client.
+  options:
+    ref: { en: "A branch subject trusts any job that runs on main, and it doesn't match the token of a job that references an environment.", fr: "Un sujet de branche approuve tout travail exécuté sur main, et il ne correspond pas au jeton d'un travail qui référence un environnement." }
+    pr: { en: "The pull request subject matches workflows triggered by pull requests, not deployments to production.", fr: "Le sujet pull request correspond aux workflows déclenchés par des pull requests, pas aux déploiements vers production." }
+    wild: { en: "The subject must exactly match the token's subject, so this value never matches; it also aims at other repositories instead of catalog-api only.", fr: "Le sujet doit correspondre exactement à celui du jeton : cette valeur ne correspond jamais ; elle vise en outre d'autres dépôts au lieu de catalog-api seul." }
+    actw: { en: "actions: write manages workflow runs; it doesn't allow the job to request an OIDC token.", fr: "actions: write gère les exécutions de workflow ; il ne permet pas au travail de demander un jeton OIDC." }
+    depw: { en: "deployments: write manages GitHub deployment objects; it doesn't allow the job to request an OIDC token.", fr: "deployments: write gère les objets de déploiement GitHub ; il ne permet pas au travail de demander un jeton OIDC." }
+    prw: { en: "pull-requests: write lets the job comment on or update pull requests; it has no role in OIDC.", fr: "pull-requests: write permet au travail de commenter ou de modifier des pull requests ; il ne joue aucun rôle dans OIDC." }
+    cli: { en: "azure/cli runs Azure CLI scripts after the sign-in; it doesn't perform the OIDC sign-in itself.", fr: "azure/cli exécute des scripts Azure CLI après la connexion ; il n'effectue pas lui-même la connexion OIDC." }
+    ps: { en: "azure/powershell runs Azure PowerShell scripts after the sign-in; it doesn't perform the OIDC sign-in itself.", fr: "azure/powershell exécute des scripts Azure PowerShell après la connexion ; il n'effectue pas lui-même la connexion OIDC." }
+references:
+  - title: Authenticate to Azure from GitHub Actions by OpenID Connect
+    url: https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect
+  - title: Create a trust relationship between an app and an external identity provider
+    url: https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust

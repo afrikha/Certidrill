@@ -1,0 +1,75 @@
+id: dp750-cs1b-eventhubs-read
+objective: "3.2.6"
+type: dropdown
+caseStudy: dp750-cs1b-city-power-light
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the notebook that ingests meter-readings.
+
+    How should you complete the code to meet the meter readings requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le notebook qui ingère meter-readings.
+
+    Comment devez-vous compléter le code pour respecter les exigences relatives aux relevés de compteurs ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    kafka_options = {
+      "kafka.bootstrap.servers": "evh-cpl-grid.servicebus.windows.net:9093",
+      "subscribe": "meter-readings",
+      [[auth]]: "sc_evh",
+    }
+
+    (spark.readStream
+      .format([[fmt]])
+      .options(**kafka_options)
+      .load()
+      .writeStream
+      .option("checkpointLocation", "/Volumes/grid/bronze/checkpoints/meter_readings")
+      .trigger([[trig]])
+      .toTable("grid.bronze.meter_readings"))
+  slots:
+    - id: auth
+      options:
+        - { id: svc, text: "\"databricks.serviceCredential\"" }
+        - { id: jaas, text: "\"kafka.sasl.jaas.config\"" }
+        - { id: mech, text: "\"kafka.sasl.mechanism\"" }
+        - { id: conn, text: "\"eventhubs.connectionString\"" }
+    - id: fmt
+      options:
+        - { id: kafka, text: "\"kafka\"" }
+        - { id: eventhubs, text: "\"eventhubs\"" }
+        - { id: cloudfiles, text: "\"cloudFiles\"" }
+        - { id: delta, text: "\"delta\"" }
+    - id: trig
+      options:
+        - { id: available, text: "availableNow=True" }
+        - { id: proc15, text: "processingTime=\"15 minutes\"" }
+        - { id: continuous, text: "continuous=\"15 minutes\"" }
+answer:
+  values: { auth: svc, fmt: kafka, trig: available }
+explanation:
+  correct:
+    en: "Azure Databricks reads Event Hubs through its Kafka-compatible endpoint on port 9093 with the `kafka` source. The `databricks.serviceCredential` option authenticates with a Unity Catalog service credential, so no secret appears in the code. `availableNow=True` processes all the available events as an incremental batch and then stops the query, which suits a job scheduled every 15 minutes."
+    fr: "Azure Databricks lit Event Hubs via son point de terminaison compatible Kafka sur le port 9093 avec la source `kafka`. L'option `databricks.serviceCredential` s'authentifie avec des informations d'identification de service Unity Catalog : aucun secret n'apparaît dans le code. `availableNow=True` traite tous les événements disponibles en un lot incrémentiel puis arrête la requête, ce qui convient à un job planifié toutes les 15 minutes."
+  options:
+    jaas: { en: "The JAAS configuration carries a user name and password (SASL/PLAIN), not the name of a service credential.", fr: "La configuration JAAS contient un nom d'utilisateur et un mot de passe (SASL/PLAIN), pas le nom d'informations d'identification de service." }
+    mech: { en: "kafka.sasl.mechanism selects a SASL mechanism such as PLAIN; it doesn't reference a service credential.", fr: "kafka.sasl.mechanism sélectionne un mécanisme SASL comme PLAIN ; il ne référence pas d'informations d'identification de service." }
+    conn: { en: "This option belongs to the separate Event Hubs Spark connector and expects a connection string, not the Kafka source.", fr: "Cette option appartient au connecteur Spark Event Hubs distinct et attend une chaîne de connexion, pas la source Kafka." }
+    eventhubs: { en: "The eventhubs format requires the separate Event Hubs Spark connector library; the options in the code are Kafka options.", fr: "Le format eventhubs exige la bibliothèque distincte du connecteur Spark Event Hubs ; les options du code sont des options Kafka." }
+    cloudfiles: { en: "cloudFiles is Auto Loader, which reads files from cloud storage, not events from a message bus.", fr: "cloudFiles correspond à Auto Loader, qui lit des fichiers dans un stockage cloud, pas des événements d'un bus de messages." }
+    delta: { en: "The delta source reads a Delta table, not an event hub.", fr: "La source delta lit une table Delta, pas un hub d'événements." }
+    proc15: { en: "A processing-time trigger keeps the query and its compute running between micro-batches.", fr: "Un déclencheur de temps de traitement maintient la requête et son calcul actifs entre les micro-lots." }
+    continuous: { en: "Continuous processing is an experimental Spark mode that Azure Databricks doesn't support, and it never stops.", fr: "Le traitement continu est un mode Spark expérimental qu'Azure Databricks ne prend pas en charge, et il ne s'arrête jamais." }
+references:
+  - title: Authentication
+    url: https://learn.microsoft.com/en-us/azure/databricks/connect/streaming/kafka/authentication
+  - title: Configure Structured Streaming trigger intervals
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/triggers

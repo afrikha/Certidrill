@@ -1,0 +1,69 @@
+id: dp420-3c-spark-etag-overwrite
+objective: "3.3.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam runs a nightly Spark notebook in Microsoft Fabric that recalculates the `tier` property of customer items in an Azure Cosmos DB for NoSQL container. The notebook reads the container with the Spark connector, computes the new tier, and writes the full items back. The authentication settings are in `cfg`.
+
+    While the notebook runs, the application can change some customers. The notebook must not overwrite an item that the application modified after the notebook read it; such items must be skipped.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam exécute chaque nuit un notebook Spark dans Microsoft Fabric qui recalcule la propriété `tier` des éléments clients d'un conteneur Azure Cosmos DB for NoSQL. Le notebook lit le conteneur avec le connecteur Spark, calcule le nouveau niveau, puis réécrit les éléments complets. Les paramètres d'authentification se trouvent dans `cfg`.
+
+    Pendant l'exécution du notebook, l'application peut modifier certains clients. Le notebook ne doit pas remplacer un élément que l'application a modifié après sa lecture par le notebook ; ces éléments doivent être ignorés.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    customers = (spark.read.format("cosmos.oltp").options(**cfg)
+        .option("spark.cosmos.read.inferSchema.[[schemaOption]]", "true")
+        .load())
+
+    updated = customers.withColumn("tier", compute_tier(col("totalSpend")))
+
+    write_cfg = dict(cfg)
+    write_cfg["spark.cosmos.write.strategy"] = "[[strategy]]"
+    updated.write.format("cosmos.oltp").options(**write_cfg).mode("APPEND").save()
+  slots:
+    - id: schemaOption
+      options:
+        - { id: sysprops, text: includeSystemProperties }
+        - { id: timestamp, text: includeTimestamp }
+        - { id: nullable, text: forceNullableProperties }
+    - id: strategy
+      options:
+        - { id: overwrite, text: ItemOverwrite }
+        - { id: ifnotmodified, text: ItemOverwriteIfNotModified }
+        - { id: append, text: ItemAppend }
+        - { id: patch, text: ItemPatch }
+answer:
+  values: { schemaOption: sysprops, strategy: ifnotmodified }
+explanation:
+  correct:
+    en: "`ItemOverwriteIfNotModified` replaces each item with an ETag precondition and skips the item when its ETag changed since the read. The ETag must therefore travel with each row: by default the inferred schema leaves out the system properties, and `includeSystemProperties` adds them, including `_etag`."
+    fr: "`ItemOverwriteIfNotModified` remplace chaque élément avec une condition préalable d'ETag et ignore l'élément quand son ETag a changé depuis la lecture. L'ETag doit donc accompagner chaque ligne : par défaut, le schéma déduit exclut les propriétés système, et `includeSystemProperties` les ajoute, `_etag` compris."
+  options:
+    timestamp:
+      en: "`includeTimestamp` adds only the `_ts` property, which the connector doesn't use as a precondition."
+      fr: "`includeTimestamp` n'ajoute que la propriété `_ts`, que le connecteur n'utilise pas comme condition préalable."
+    overwrite:
+      en: "`ItemOverwrite` upserts every row and would overwrite the application's changes."
+      fr: "`ItemOverwrite` effectue un upsert de chaque ligne et écraserait les modifications de l'application."
+    append:
+      en: "`ItemAppend` only creates items and ignores those that exist, so no tier would be updated."
+      fr: "`ItemAppend` crée seulement des éléments et ignore ceux qui existent : aucun niveau ne serait mis à jour."
+    patch:
+      en: "`ItemPatch` applies the configured patch operations to each item without checking whether it changed since the read, so concurrent changes aren't detected."
+      fr: "`ItemPatch` applique les opérations de patch configurées à chaque élément sans vérifier s'il a changé depuis la lecture : les modifications concurrentes ne sont pas détectées."
+references:
+  - title: "Tutorial: Connect to Azure Cosmos DB for NoSQL by using Spark"
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/tutorial-spark-connector

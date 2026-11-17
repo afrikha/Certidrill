@@ -1,0 +1,66 @@
+id: dp800-1a-temporal-asof
+objective: "1.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware needs to keep the full history of employee job titles in an Azure SQL database. Previous row versions must be stored in a table named **HR.EmployeeHistory**. A report must return each employee's job title as it was at 00:00 UTC on March 1, 2026.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware doit conserver l'historique complet des intitulés de poste des employés dans une base de données Azure SQL. Les versions précédentes des lignes doivent être stockées dans une table nommée **HR.EmployeeHistory**. Un rapport doit renvoyer l'intitulé de poste de chaque employé tel qu'il était le 1er mars 2026 à 00:00 UTC.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE HR.Employee
+    (
+        EmployeeID int NOT NULL PRIMARY KEY CLUSTERED,
+        JobTitle   nvarchar(100) NOT NULL,
+        ValidFrom  datetime2 GENERATED ALWAYS AS ROW START NOT NULL,
+        ValidTo    datetime2 GENERATED ALWAYS AS ROW END NOT NULL,
+        PERIOD FOR SYSTEM_TIME (ValidFrom, ValidTo)
+    )
+    WITH (SYSTEM_VERSIONING = ON ([[hist]] = HR.EmployeeHistory));
+
+    SELECT EmployeeID, JobTitle
+    FROM HR.Employee
+        FOR SYSTEM_TIME [[clause]] '2026-03-01T00:00:00';
+  slots:
+    - id: hist
+      options:
+        - { id: ht, text: HISTORY_TABLE }
+        - { id: lv, text: LEDGER_VIEW }
+        - { id: dcc, text: DATA_CONSISTENCY_CHECK }
+        - { id: hrp, text: HISTORY_RETENTION_PERIOD }
+    - id: clause
+      options:
+        - { id: asof, text: AS OF }
+        - { id: from, text: FROM }
+        - { id: cont, text: CONTAINED IN }
+        - { id: all, text: ALL }
+answer:
+  values: { hist: ht, clause: asof }
+explanation:
+  correct:
+    en: |
+      HISTORY_TABLE names the table in which the engine stores previous row versions; without it, the engine creates a default history table. FOR SYSTEM_TIME AS OF returns the row versions that were valid at the given point in time (ValidFrom before or at the time, ValidTo after it). Period values are recorded in UTC, so the literal is compared to UTC times.
+    fr: |
+      HISTORY_TABLE indique la table dans laquelle le moteur stocke les versions précédentes des lignes ; sans cette option, le moteur crée une table d'historique par défaut. FOR SYSTEM_TIME AS OF renvoie les versions de lignes valides à l'instant donné (ValidFrom antérieur ou égal à cet instant, ValidTo postérieur). Les valeurs de période sont enregistrées en UTC : le littéral est comparé à des heures UTC.
+  options:
+    lv: { en: "LEDGER_VIEW names the view of a ledger table, not a history table.", fr: "LEDGER_VIEW nomme la vue d'une table de registre, pas une table d'historique." }
+    dcc: { en: "DATA_CONSISTENCY_CHECK is an ON/OFF option, not the name of the history table.", fr: "DATA_CONSISTENCY_CHECK est une option ON/OFF, pas le nom de la table d'historique." }
+    hrp: { en: "HISTORY_RETENTION_PERIOD takes a retention period, not a table name.", fr: "HISTORY_RETENTION_PERIOD prend une durée de rétention, pas un nom de table." }
+    from: { en: "FROM ... TO returns the versions active during an interval and needs two values.", fr: "FROM ... TO renvoie les versions actives pendant un intervalle et nécessite deux valeurs." }
+    cont: { en: "CONTAINED IN returns versions opened and closed within an interval of two values.", fr: "CONTAINED IN renvoie les versions ouvertes et fermées dans un intervalle de deux valeurs." }
+    all: { en: "ALL returns every current and historical version, not the state at one point in time.", fr: "ALL renvoie toutes les versions actuelles et historiques, pas l'état à un instant donné." }
+references:
+  - title: Temporal tables
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/tables/temporal-tables

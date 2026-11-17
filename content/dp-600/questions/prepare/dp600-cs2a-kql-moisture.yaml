@@ -1,0 +1,74 @@
+id: dp600-cs2a-kql-moisture
+objective: "2.3.3"
+type: dropdown
+caseStudy: dp600-cs2a-coho-vineyard
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You are writing the KQL query for the irrigation monitoring requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la requête KQL pour l'exigence de surveillance de l'irrigation.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    SoilReadings
+    | where Timestamp >= [[time]]
+    | [[op]] AvgMoisture = avg(Moisture) by BlockId, [[grain]]
+    | where AvgMoisture < 18
+    | order by BlockId asc, Timestamp asc
+  slots:
+    - id: time
+      options:
+        - { id: ago, text: "ago(24h)" }
+        - { id: startofday, text: "startofday(now())" }
+        - { id: future, text: "now(24h)" }
+    - id: op
+      options:
+        - { id: extend, text: "extend" }
+        - { id: project, text: "project" }
+        - { id: summarize, text: "summarize" }
+    - id: grain
+      options:
+        - { id: day, text: "bin(Timestamp, 1d)" }
+        - { id: hour, text: "bin(Timestamp, 1h)" }
+        - { id: sensor, text: "SensorId" }
+answer:
+  values: { time: ago, op: summarize, grain: hour }
+explanation:
+  correct:
+    en: "`ago(24h)` returns the time 24 hours before now, so the filter keeps the last 24 hours. `summarize ... by` groups the rows and computes one average per group. `bin(Timestamp, 1h)` rounds each timestamp down to the hour, so each group is one block and one one-hour interval; the bin column keeps the name Timestamp, which the `order by` clause uses."
+    fr: "`ago(24h)` retourne l'heure située 24 heures avant maintenant : le filtre conserve donc les dernières 24 heures. `summarize ... by` regroupe les lignes et calcule une moyenne par groupe. `bin(Timestamp, 1h)` arrondit chaque horodatage à l'heure inférieure : chaque groupe correspond donc à une parcelle et à un intervalle d'une heure ; la colonne d'intervalle garde le nom Timestamp, que la clause `order by` utilise."
+  options:
+    startofday:
+      en: "`startofday(now())` keeps only the readings since midnight today, not the last 24 hours."
+      fr: "`startofday(now())` ne conserve que les relevés depuis minuit aujourd'hui, pas les dernières 24 heures."
+    future:
+      en: "`now(24h)` returns a time 24 hours in the future, so the filter would return no rows."
+      fr: "`now(24h)` retourne une heure située 24 heures dans le futur : le filtre ne retournerait aucune ligne."
+    extend:
+      en: "`extend` adds a column to each row and does not support a `by` clause; it cannot aggregate."
+      fr: "`extend` ajoute une colonne à chaque ligne et ne prend pas en charge de clause `by` : il ne peut pas agréger."
+    project:
+      en: "`project` selects or computes columns row by row; it does not aggregate."
+      fr: "`project` sélectionne ou calcule des colonnes ligne par ligne ; il n'agrège pas."
+    day:
+      en: "A one-day bin produces daily averages, not one-hour intervals."
+      fr: "Un intervalle d'un jour produit des moyennes quotidiennes, pas des intervalles d'une heure."
+    sensor:
+      en: "Grouping by SensorId produces one average per sensor for the whole period, with no hourly intervals and no Timestamp column for the `order by` clause."
+      fr: "Le regroupement par SensorId produit une moyenne par capteur pour toute la période, sans intervalles horaires ni colonne Timestamp pour la clause `order by`."
+references:
+  - title: summarize operator
+    url: https://learn.microsoft.com/en-us/kusto/query/summarize-operator
+  - title: bin()
+    url: https://learn.microsoft.com/en-us/kusto/query/bin-function

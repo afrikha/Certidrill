@@ -1,0 +1,91 @@
+id: az400-cs3c-litware-energy
+status: draft
+title:
+  en: Litware Energy
+  fr: Litware Energy
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Litware Energy is an electricity distribution company that serves 1.2 million customers. Its **MeterHub** platform receives the readings of the smart meters and exposes them to the customer portal and to the billing system through a REST API.
+
+        A DevOps team of 12 engineers maintains MeterHub. The meter readings arrive around the clock, so the API cannot be stopped for maintenance.
+      fr: |
+        Litware Energy est un distributeur d'électricité qui dessert 1,2 million de clients. Sa plateforme **MeterHub** reçoit les relevés des compteurs communicants et les expose au portail client et au système de facturation au moyen d'une API REST.
+
+        Une équipe DevOps de 12 ingénieurs gère MeterHub. Les relevés des compteurs arrivent en continu : l'API ne peut pas être arrêtée pour maintenance.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure DevOps**
+
+        - Litware has an Azure DevOps Services project named **MeterHub**. A YAML pipeline named **meterhub-ci** builds the API and publishes two pipeline artifacts: **drop**, which contains a .zip package of the API, and **db**, which contains the .dacpac file of the database project.
+        - An Azure Resource Manager service connection named **sc-meterhub-prod** uses workload identity federation and has access to the resource group **RG-MeterHub-Prod**.
+        - A YAML environment named **meterhub-prod** has an approval check assigned to the Operations group.
+        - Fourteen YAML pipelines use a variable group named **vg-meterhub-secrets** that is linked to an Azure key vault named **kv-meterhub-prod**. The key vault uses the Azure role-based access control permission model.
+
+        **Azure**
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | app-meterhub | App Service web app | Windows, Premium v3 plan, deployment slot **staging**, custom domain api.meterhub.litware.example |
+        | sqldb-meterhub | Azure SQL database | Logical server sql-meterhub-prod |
+        | appi-meterhub | Application Insights | Workspace-based, stores its data in the Log Analytics workspace **log-meterhub** |
+      fr: |
+        **Azure DevOps**
+
+        - Litware dispose d'un projet Azure DevOps Services nommé **MeterHub**. Un pipeline YAML nommé **meterhub-ci** génère l'API et publie deux artefacts de pipeline : **drop**, qui contient un package .zip de l'API, et **db**, qui contient le fichier .dacpac du projet de base de données.
+        - Une connexion de service Azure Resource Manager nommée **sc-meterhub-prod** utilise la fédération d'identité de charge de travail et a accès au groupe de ressources **RG-MeterHub-Prod**.
+        - Un environnement YAML nommé **meterhub-prod** a une vérification d'approbation attribuée au groupe Operations.
+        - Quatorze pipelines YAML utilisent un groupe de variables nommé **vg-meterhub-secrets** lié à un coffre de clés Azure nommé **kv-meterhub-prod**. Le coffre de clés utilise le modèle d'autorisation du contrôle d'accès en fonction du rôle Azure.
+
+        **Azure**
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | app-meterhub | Application web App Service | Windows, plan Premium v3, emplacement de déploiement **staging**, domaine personnalisé api.meterhub.litware.example |
+        | sqldb-meterhub | Base de données Azure SQL | Serveur logique sql-meterhub-prod |
+        | appi-meterhub | Application Insights | Basé sur un espace de travail, stocke ses données dans l'espace de travail Log Analytics **log-meterhub** |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Release 4.2**
+
+        Release 4.2 of the API adds a column to a table of sqldb-meterhub. The schema change is backward compatible with release 4.1, but release 4.2 fails at startup if the column does not exist. app-meterhub and its staging slot use the same database.
+
+        **Deployment**
+
+        1. Production deployments must cause no downtime.
+        2. Each new release must be deployed and smoke-tested in the staging slot before it receives production traffic.
+        3. A production deployment must start only after the Operations group approves it.
+        4. If a problem appears after a release reaches production, the previous release must be restored within minutes.
+
+        **Secrets**
+
+        5. The security team rotates the secret **sql-meterhub-pwd** in kv-meterhub-prod every 30 days. The pipelines must use the current value without any change to a pipeline or to the variable group.
+
+        **Monitoring**
+
+        6. The DevOps team must identify, for each hour of the last 24 hours, the API operations whose 95th percentile response time exceeds two seconds.
+      fr: |
+        **Version 4.2**
+
+        La version 4.2 de l'API ajoute une colonne à une table de sqldb-meterhub. La modification du schéma est rétrocompatible avec la version 4.1, mais la version 4.2 échoue au démarrage si la colonne n'existe pas. app-meterhub et son emplacement staging utilisent la même base de données.
+
+        **Déploiement**
+
+        1. Les déploiements en production ne doivent entraîner aucun temps d'arrêt.
+        2. Chaque nouvelle version doit être déployée et faire l'objet de tests de fumée dans l'emplacement staging avant de recevoir le trafic de production.
+        3. Un déploiement en production ne doit commencer qu'après l'approbation du groupe Operations.
+        4. Si un problème apparaît après l'arrivée d'une version en production, la version précédente doit être rétablie en quelques minutes.
+
+        **Secrets**
+
+        5. L'équipe de sécurité fait la rotation du secret **sql-meterhub-pwd** dans kv-meterhub-prod tous les 30 jours. Les pipelines doivent utiliser la valeur actuelle sans aucune modification d'un pipeline ni du groupe de variables.
+
+        **Supervision**
+
+        6. L'équipe DevOps doit identifier, pour chaque heure des dernières 24 heures, les opérations de l'API dont le 95e centile du temps de réponse dépasse deux secondes.

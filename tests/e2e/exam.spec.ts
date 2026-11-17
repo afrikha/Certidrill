@@ -244,7 +244,8 @@ test("results: report, correction with filters and language, question report, da
   const first = page.getByTestId("correction-item").first();
   await first.getByText(/Signaler cette question|Report this question/).click();
   await first.getByRole("button", { name: /Envoyer|Send/ }).click();
-  await expect(first.getByRole("status")).toHaveText(/Thank you|Merci/);
+  // Not getByRole("status"): a drag-and-drop question has its own live region with that role.
+  await expect(first.locator("output")).toHaveText(/Thank you|Merci/);
 
   await page.goto("/dashboard");
   await expect(page.getByTestId("last-score")).toBeVisible();

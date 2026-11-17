@@ -1,0 +1,65 @@
+id: ai200-1b-keda-queue-identity
+objective: "1.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware runs a document OCR worker named **ca-ocr-worker** in Azure Container Apps. The worker reads the Azure Queue Storage queue `ocr-jobs` in the storage account **stproseocr**. The app has the user-assigned managed identity **id-ocr**, whose resource ID is stored in `$ID_OCR`; id-ocr already has the data role required to read the queue.
+
+    You need to add one replica for every 5 messages in the queue, without storing any connection string.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware exécute un worker d'OCR de documents nommé **ca-ocr-worker** dans Azure Container Apps. Le worker lit la file d'attente Stockage File d'attente Azure `ocr-jobs` du compte de stockage **stproseocr**. L'application possède l'identité managée affectée par l'utilisateur **id-ocr**, dont l'ID de ressource est stocké dans `$ID_OCR` ; id-ocr dispose déjà du rôle de données requis pour lire la file d'attente.
+
+    Vous devez ajouter un réplica pour 5 messages dans la file d'attente, sans stocker de chaîne de connexion.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az containerapp update --name ca-ocr-worker --resource-group rg-ocr \
+      --min-replicas 0 --max-replicas 15 \
+      --scale-rule-name ocr-queue --scale-rule-type [[type]] \
+      --scale-rule-metadata "accountName=stproseocr" "queueName=ocr-jobs" "[[metric]]=5" \
+      [[auth]] "$ID_OCR"
+  slots:
+    - id: type
+      options:
+        - { id: queue, text: azure-queue }
+        - { id: servicebus, text: azure-servicebus }
+        - { id: blob, text: azure-blob }
+    - id: metric
+      options:
+        - { id: queuelength, text: queueLength }
+        - { id: messagecount, text: messageCount }
+        - { id: concurrent, text: concurrentRequests }
+    - id: auth
+      options:
+        - { id: identity, text: "--scale-rule-identity" }
+        - { id: ruleauth, text: "--scale-rule-auth" }
+        - { id: registry, text: "--registry-identity" }
+answer:
+  values: { type: queue, metric: queuelength, auth: identity }
+explanation:
+  correct:
+    en: "The `azure-queue` scaler targets Azure Queue Storage, and its `queueLength` metadata sets the number of messages per replica. `--scale-rule-identity` takes the resource ID of a user-assigned identity (or `system`), so the scaler authenticates without a secret."
+    fr: "Le scaler `azure-queue` cible Stockage File d'attente Azure, et sa métadonnée `queueLength` définit le nombre de messages par réplica. `--scale-rule-identity` prend l'ID de ressource d'une identité affectée par l'utilisateur (ou `system`) : le scaler s'authentifie sans secret."
+  options:
+    servicebus: { en: "azure-servicebus reads Service Bus queues and topics, not Queue Storage.", fr: "azure-servicebus lit les files d'attente et rubriques Service Bus, pas Stockage File d'attente." }
+    blob: { en: "azure-blob scales on blobs in a container, not on queue messages.", fr: "azure-blob met à l'échelle selon les objets blob d'un conteneur, pas selon les messages d'une file d'attente." }
+    messagecount: { en: "messageCount is the metadata of the Service Bus scaler.", fr: "messageCount est la métadonnée du scaler Service Bus." }
+    concurrent: { en: "concurrentRequests belongs to the HTTP scale rule.", fr: "concurrentRequests appartient à la règle de mise à l'échelle HTTP." }
+    ruleauth: { en: "--scale-rule-auth maps trigger parameters to app secrets, such as a connection string.", fr: "--scale-rule-auth associe des paramètres de déclencheur à des secrets de l'application, comme une chaîne de connexion." }
+    registry: { en: "--registry-identity sets the identity used to pull images.", fr: "--registry-identity définit l'identité utilisée pour tirer les images." }
+references:
+  - title: Scaling in Azure Container Apps
+    url: https://learn.microsoft.com/en-us/azure/container-apps/scale-app
+  - title: az containerapp
+    url: https://learn.microsoft.com/en-us/cli/azure/containerapp

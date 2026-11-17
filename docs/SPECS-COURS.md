@@ -77,7 +77,7 @@ Règles, toutes vérifiées sur le contenu livré :
 - Markdown GFM uniquement : paragraphes, listes, tableaux, blocs de code, citations. Pas d'image, pas de HTML (le rendu actuel `lib/markdown.ts` les retire).
 - Langages des blocs de code : `bash`, `powershell`, `json`, `bicep`, `kusto`, `yaml`, `text`. Les blocs de code sont strictement identiques en anglais et en français (commentaires compris).
 - Encadrés : une citation qui commence par un libellé en gras. Deux libellés seulement : `**Exam trap.**` / `**Piège d'examen.**` et `**Exam tip.**` / `**Conseil d'examen.**`.
-- Français : terminologie de `glossary.yaml` ; noms de services, de rôles, de SKU, commandes et valeurs techniques en anglais ; niveaux de stockage écrits « niveau froid (Cool) », « niveau froid (Cold) » comme dans la banque.
+- Français : terminologie du glossaire partagé `content/glossary.yaml` (et de `content/<code>/glossary.yaml`) ; noms de services, de rôles, de SKU, commandes et valeurs techniques en anglais ; niveaux de stockage écrits « niveau froid (Cool) », « niveau froid (Cold) » comme dans la banque.
 
 ## 4. Chargement, validation et seed
 

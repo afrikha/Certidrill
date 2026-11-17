@@ -1,0 +1,46 @@
+id: dp750-4d-stage-list-hotarea
+objective: "4.4.4"
+type: hotarea
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A notebook task that loads **adatum.web.silver.sessions** runs much longer than expected. The task reads gzip-compressed JSON click files, joins them with a small session table, and aggregates the result by `user_id`.
+
+    You open the Spark UI for the slowest job of the run. The completed stages of the job are shown in the following table.
+
+    Answer each prompt by selecting the appropriate stage.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Une tâche de notebook qui charge **adatum.web.silver.sessions** dure bien plus longtemps que prévu. La tâche lit des fichiers JSON de clics compressés en gzip, les joint à une petite table de sessions et agrège le résultat par `user_id`.
+
+    Vous ouvrez l'interface utilisateur Spark pour le job le plus lent de l'exécution. Les étapes terminées du job figurent dans le tableau suivant.
+
+    Répondez à chaque consigne en sélectionnant l'étape appropriée.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text: { en: "The stage whose duration comes from a lack of parallelism", fr: "L'étape dont la durée vient d'un manque de parallélisme" }
+    - id: p2
+      text: { en: "The stage you should open next to check its Summary Metrics for skew and spill", fr: "L'étape que vous devez ouvrir ensuite pour vérifier le déséquilibrage et le déversement dans ses Summary Metrics" }
+  grid:
+    header: [Stage Id, Description, Duration, "Tasks: Succeeded/Total", Input, Shuffle Read, Shuffle Write]
+    rows:
+      - [{ text: "51" }, { text: { en: "Read the gzip click files", fr: "Lecture des fichiers de clics gzip" }, area: st51 }, { text: 18 min }, { text: 1/1 }, { text: 9.8 GiB }, { text: "-" }, { text: 9.6 GiB }]
+      - [{ text: "52" }, { text: { en: "Read the session table", fr: "Lecture de la table de sessions" }, area: st52 }, { text: 35 s }, { text: 1/1 }, { text: 2.1 MiB }, { text: "-" }, { text: 1.9 MiB }]
+      - [{ text: "53" }, { text: { en: "Join clicks and sessions", fr: "Jointure des clics et des sessions" }, area: st53 }, { text: 9.4 min }, { text: 400/400 }, { text: "-" }, { text: 9.6 GiB }, { text: 7.2 GiB }]
+      - [{ text: "54" }, { text: { en: "Aggregate by user_id", fr: "Agrégation par user_id" }, area: st54 }, { text: 2.1 min }, { text: 200/200 }, { text: "-" }, { text: 7.2 GiB }, { text: 0.3 GiB }]
+answer:
+  values: { p1: st51, p2: st53 }
+explanation:
+  correct:
+    en: Stage 51 ran for 18 minutes with a single task, so one core did all the work while the rest of the cluster was idle; gzip files cannot be split, so each file is read by one task. Ingesting the files once into a Delta table fixes it. Stage 52 also has one task, but it is short and reads little data. Among the stages with many tasks, stage 53 is the longest, so it is the one whose stage page you open to compare the Max task duration with the 75th percentile and look for spill.
+    fr: "L'étape 51 a duré 18 minutes avec une seule tâche : un seul cœur a fait tout le travail pendant que le reste du cluster était inactif ; les fichiers gzip ne sont pas fractionnables, chaque fichier est donc lu par une seule tâche. Ingérer une fois les fichiers dans une table Delta résout le problème. L'étape 52 n'a aussi qu'une tâche, mais elle est courte et lit peu de données. Parmi les étapes à plusieurs tâches, l'étape 53 est la plus longue : c'est sa page que vous ouvrez pour comparer la durée Max au 75th percentile et rechercher du déversement."
+references:
+  - title: Long Spark stage with one task
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/one-spark-task
+  - title: Diagnose cost and performance issues using the Spark UI
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/

@@ -1,0 +1,69 @@
+id: dp750-cs4a-row-filter
+objective: "2.2.3"
+type: dropdown
+caseStudy: dp750-cs4a-humongous-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to meet the row-level security requirement for hi_prod.silver.claims. You create a schema named hi_prod.security to store the function.
+
+    How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez satisfaire l'exigence de sécurité au niveau des lignes pour hi_prod.silver.claims. Vous créez un schéma nommé hi_prod.security pour stocker la fonction.
+
+    Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION hi_prod.security.claims_country_filter(country STRING)
+    RETURNS BOOLEAN
+    RETURN [[fn]]('claims-managers')
+      OR (is_account_group_member('actuaries-be') AND country = 'BE')
+      OR (is_account_group_member('actuaries-fr') AND country = 'FR');
+
+    ALTER TABLE hi_prod.silver.claims
+      [[apply]] hi_prod.security.claims_country_filter [[kw]] (country);
+  slots:
+    - id: fn
+      options:
+        - { id: current_user, text: current_user }
+        - { id: is_account_group_member, text: is_account_group_member }
+        - { id: current_recipient, text: current_recipient }
+    - id: apply
+      options:
+        - { id: rowfilter, text: SET ROW FILTER }
+        - { id: mask, text: ALTER COLUMN country SET MASK }
+        - { id: constraint, text: ADD CONSTRAINT }
+    - id: kw
+      options:
+        - { id: kwusing, text: USING }
+        - { id: kwfor, text: FOR }
+        - { id: kwon, text: "ON" }
+answer:
+  values: { fn: is_account_group_member, apply: rowfilter, kw: kwon }
+explanation:
+  correct:
+    en: |
+      The function returns TRUE for the rows a user may see; is_account_group_member checks membership in the account groups provisioned from Microsoft Entra ID, so claims-managers see every row. ALTER TABLE … SET ROW FILTER … ON (country) attaches the function to the table and passes the country column as its argument, so no view is needed.
+    fr: |
+      La fonction renvoie TRUE pour les lignes qu'un utilisateur peut voir ; is_account_group_member vérifie l'appartenance aux groupes de compte provisionnés depuis Microsoft Entra ID, si bien que claims-managers voit toutes les lignes. ALTER TABLE … SET ROW FILTER … ON (country) attache la fonction à la table et lui passe la colonne country en argument : aucune vue n'est nécessaire.
+  options:
+    fn:
+      en: |
+        current_user returns the user name and takes no group name; current_recipient reads properties of an OpenSharing recipient, not group membership.
+      fr: |
+        current_user renvoie le nom de l'utilisateur et n'accepte pas de nom de groupe ; current_recipient lit les propriétés d'un destinataire OpenSharing, pas l'appartenance à un groupe.
+    apply:
+      en: |
+        A column mask changes the value shown in a column but keeps every row; a CHECK constraint validates written data and does not filter reads.
+      fr: |
+        Un masque de colonne modifie la valeur affichée dans une colonne mais conserve toutes les lignes ; une contrainte CHECK valide les données écrites et ne filtre pas les lectures.
+references:
+  - title: Row filters and column masks
+    url: https://learn.microsoft.com/en-us/azure/databricks/tables/row-and-column-filters

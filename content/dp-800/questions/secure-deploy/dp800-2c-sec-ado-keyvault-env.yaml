@@ -1,0 +1,70 @@
+id: dp800-2c-sec-ado-keyvault-env
+objective: "2.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware deploys an SDK-style SQL database project with an Azure Pipelines YAML pipeline that runs on a Linux agent. The connection string of the production database is stored as the secret **SalesDbConnection** in an Azure key vault named **kv-litware-prod**. The Azure Resource Manager service connection **sc-litware-prod** has Get and List permissions on the vault's secrets.
+
+    You need to complete the deployment steps so that the pipeline retrieves the secret at run time and passes it to SqlPackage without writing it in the YAML file.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware déploie un projet de base de données SQL de style SDK avec un pipeline YAML Azure Pipelines qui s'exécute sur un agent Linux. La chaîne de connexion de la base de données de production est stockée comme secret **SalesDbConnection** dans un coffre de clés Azure nommé **kv-litware-prod**. La connexion de service Azure Resource Manager **sc-litware-prod** dispose des autorisations Get et List sur les secrets du coffre.
+
+    Vous devez compléter les étapes de déploiement pour que le pipeline récupère le secret au moment de l'exécution et le transmette à SqlPackage sans l'écrire dans le fichier YAML.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    steps:
+      - task: [[task]]
+        inputs:
+          azureSubscription: sc-litware-prod
+          KeyVaultName: kv-litware-prod
+          SecretsFilter: 'SalesDbConnection'
+      - bash: |
+          sqlpackage /Action:Publish \
+            /SourceFile:$(Pipeline.Workspace)/dacpac/SalesDb.dacpac \
+            /TargetConnectionString:"$SQL_CONN"
+        [[map]]
+  slots:
+    - id: task
+      options:
+        - { id: kv, text: "AzureKeyVault@2" }
+        - { id: cli, text: "AzureCLI@2" }
+        - { id: securefile, text: "DownloadSecureFile@1" }
+        - { id: ps, text: "AzurePowerShell@5" }
+    - id: map
+      options:
+        - { id: env, text: "env: { SQL_CONN: $(SalesDbConnection) }" }
+        - { id: nothing, text: "displayName: Publish SalesDb" }
+        - { id: ghsyntax, text: "env: { SQL_CONN: ${{ secrets.SalesDbConnection }} }" }
+        - { id: upper, text: "env: { SQL_CONN: $SALESDBCONNECTION }" }
+answer:
+  values: { task: kv, map: env }
+explanation:
+  correct:
+    en: |
+      The Azure Key Vault task (AzureKeyVault@2) uses the service connection to download the secrets that match SecretsFilter and exposes each one as a secret pipeline variable named after the secret. Secret variables are not decrypted into environment variables automatically, so the bash step must map the variable explicitly with env, here as SQL_CONN.
+    fr: |
+      La tâche Azure Key Vault (AzureKeyVault@2) utilise la connexion de service pour télécharger les secrets qui correspondent à SecretsFilter et expose chacun d'eux comme variable de pipeline secrète portant le nom du secret. Les variables secrètes ne sont pas déchiffrées automatiquement en variables d'environnement : l'étape bash doit mapper explicitement la variable avec env, ici sous le nom SQL_CONN.
+  options:
+    cli: { en: "AzureCLI@2 runs an Azure CLI script; it has no KeyVaultName or SecretsFilter inputs.", fr: "AzureCLI@2 exécute un script Azure CLI ; il n'a pas d'entrées KeyVaultName ni SecretsFilter." }
+    securefile: { en: "DownloadSecureFile@1 downloads a file from the secure files library, not a Key Vault secret.", fr: "DownloadSecureFile@1 télécharge un fichier de la bibliothèque de fichiers sécurisés, pas un secret Key Vault." }
+    ps: { en: "AzurePowerShell@5 runs an Azure PowerShell script; it has no KeyVaultName or SecretsFilter inputs.", fr: "AzurePowerShell@5 exécute un script Azure PowerShell ; il n'a pas d'entrées KeyVaultName ni SecretsFilter." }
+    nothing: { en: "Without an env mapping, the secret variable is not available as SQL_CONN in the script.", fr: "Sans mappage env, la variable secrète n'est pas disponible sous le nom SQL_CONN dans le script." }
+    ghsyntax: { en: "The secrets context is GitHub Actions syntax; Azure Pipelines uses macro syntax $(name).", fr: "Le contexte secrets est une syntaxe GitHub Actions ; Azure Pipelines utilise la syntaxe de macro $(nom)." }
+    upper: { en: "Secret variables are not exposed as environment variables, so $SALESDBCONNECTION is empty.", fr: "Les variables secrètes ne sont pas exposées comme variables d'environnement : $SALESDBCONNECTION est vide." }
+references:
+  - title: Use Azure Key Vault secrets in Azure Pipelines
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/release/azure-key-vault
+  - title: Set secret variables
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/set-secret-variables

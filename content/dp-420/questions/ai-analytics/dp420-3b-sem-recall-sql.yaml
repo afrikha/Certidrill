@@ -1,0 +1,76 @@
+id: dp420-3b-sem-recall-sql
+objective: "3.2.3"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Lamna Healthcare's scheduling agent stores turns, thread summaries and facts in one Azure Cosmos DB for NoSQL container named **memory**, partitioned by `/userId`. Each item has a `type` property (`turn`, `summary` or `fact`), and facts have a vector embedding in `/embedding`. The agent passes the embedding of the new question in `@q`.
+
+    At the start of a thread, the agent must recall the five facts of the current user that are most relevant to the question, from any of the user's previous threads.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'agent de planification de Lamna Healthcare stocke les tours, les résumés de threads et les faits dans un seul conteneur Azure Cosmos DB for NoSQL nommé **memory**, partitionné par `/userId`. Chaque élément a une propriété `type` (`turn`, `summary` ou `fact`), et les faits ont une incorporation vectorielle dans `/embedding`. L'agent passe l'incorporation de la nouvelle question dans `@q`.
+
+    Au début d'un thread, l'agent doit rappeler les cinq faits de l'utilisateur actuel les plus pertinents pour la question, issus de n'importe lequel des threads précédents de l'utilisateur.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 5 c.text, VectorDistance(c.embedding, @q) AS score
+    FROM c
+    WHERE [[scope]] AND c.type = [[kind]]
+    ORDER BY [[order]]
+  slots:
+    - id: scope
+      options:
+        - { id: user, text: "c.userId = @userId" }
+        - { id: thread, text: "c.threadId = @threadId" }
+        - { id: defined, text: "IS_DEFINED(c.embedding)" }
+    - id: kind
+      options:
+        - { id: fact, text: "\"fact\"" }
+        - { id: turn, text: "\"turn\"" }
+        - { id: summary, text: "\"summary\"" }
+    - id: order
+      options:
+        - { id: vd, text: "VectorDistance(c.embedding, @q)" }
+        - { id: created, text: "c.createdAt DESC" }
+        - { id: fts, text: "RANK FullTextScore(c.text, @q)" }
+answer:
+  values: { scope: user, kind: fact, order: vd }
+explanation:
+  correct:
+    en: "Filtering on the user ID keeps the query in the user's partition and returns only that user's memories, from all threads. The type filter selects facts, and ORDER BY VectorDistance with TOP 5 returns the facts closest in meaning to the question."
+    fr: "Filtrer sur l'ID de l'utilisateur garde la requête dans la partition de l'utilisateur et ne renvoie que ses mémoires, tous threads confondus. Le filtre sur le type sélectionne les faits, et ORDER BY VectorDistance avec TOP 5 renvoie les faits les plus proches de la question par leur sens."
+  options:
+    thread:
+      en: "The current thread has just started; the facts come from previous threads."
+      fr: "Le thread actuel vient de commencer ; les faits proviennent des threads précédents."
+    defined:
+      en: "Without a filter on the user, the query fans out to every partition and returns other users' memories."
+      fr: "Sans filtre sur l'utilisateur, la requête est diffusée vers toutes les partitions et renvoie les mémoires d'autres utilisateurs."
+    turn:
+      en: "Turns are the raw messages of a thread, not the extracted facts."
+      fr: "Les tours sont les messages bruts d'un thread, pas les faits extraits."
+    summary:
+      en: "Summaries condense whole threads; the requirement is to recall facts."
+      fr: "Les résumés condensent des threads entiers ; l'exigence porte sur le rappel de faits."
+    created:
+      en: "Sorting by date returns the newest facts, not the most relevant ones."
+      fr: "Trier par date renvoie les faits les plus récents, pas les plus pertinents."
+    fts:
+      en: "FullTextScore ranks by BM25 on search terms; @q is a vector, not a list of terms."
+      fr: "FullTextScore classe par BM25 sur des termes de recherche ; @q est un vecteur, pas une liste de termes."
+references:
+  - title: Agent Memory in Azure Cosmos DB for NoSQL - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories
+  - title: VECTORDISTANCE - Query Language for Cosmos DB (in Azure and Fabric)
+    url: https://learn.microsoft.com/en-us/cosmos-db/query/vectordistance

@@ -1,0 +1,95 @@
+id: dp420-2c-al-bicep-normalized
+objective: "2.3.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You deploy monitoring for an Azure Cosmos DB account by using Bicep. The symbolic names `cosmosAccount` and `actionGroup` reference existing resources.
+
+    You need an alert rule that fires when the maximum Normalized RU Consumption of the container named **inventory** is above 90 % over the last 15 minutes. The rule must be evaluated every 5 minutes and must ignore the other containers.
+
+    How should you complete the Bicep file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous déployez la surveillance d'un compte Azure Cosmos DB avec Bicep. Les noms symboliques `cosmosAccount` et `actionGroup` référencent des ressources existantes.
+
+    Vous avez besoin d'une règle d'alerte qui se déclenche lorsque la valeur maximale de Normalized RU Consumption du conteneur nommé **inventory** dépasse 90 % sur les 15 dernières minutes. La règle doit être évaluée toutes les 5 minutes et doit ignorer les autres conteneurs.
+
+    Comment devez-vous compléter le fichier Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource ruAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+      name: 'cosmos-inventory-normalized-ru'
+      location: 'global'
+      properties: {
+        severity: 2
+        enabled: true
+        scopes: [ cosmosAccount.id ]
+        evaluationFrequency: 'PT5M'
+        windowSize: '[[win]]'
+        criteria: {
+          'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+          allOf: [
+            {
+              name: 'HighNormalizedRU'
+              criterionType: 'StaticThresholdCriterion'
+              metricName: 'NormalizedRUConsumption'
+              timeAggregation: '[[agg]]'
+              operator: '[[op]]'
+              threshold: 90
+              dimensions: [
+                {
+                  name: 'CollectionName'
+                  operator: '[[dimop]]'
+                  values: [ 'inventory' ]
+                }
+              ]
+            }
+          ]
+        }
+        actions: [ { actionGroupId: actionGroup.id } ]
+      }
+    }
+  slots:
+    - id: win
+      options:
+        - { id: pt5, text: PT5M }
+        - { id: pt15, text: PT15M }
+        - { id: m15, text: 15m }
+    - id: agg
+      options:
+        - { id: avg, text: Average }
+        - { id: total, text: Total }
+        - { id: max, text: Maximum }
+    - id: op
+      options:
+        - { id: gt, text: GreaterThan }
+        - { id: ge, text: GreaterThanOrEqual }
+        - { id: eq, text: Equals }
+    - id: dimop
+      options:
+        - { id: include, text: Include }
+        - { id: exclude, text: Exclude }
+answer:
+  values: { win: pt15, agg: max, op: gt, dimop: include }
+explanation:
+  correct:
+    en: "In the `Microsoft.Insights/metricAlerts` resource, `windowSize` (the lookback period) and `evaluationFrequency` are ISO 8601 durations, so 15 minutes is `PT15M`. Normalized RU Consumption supports the Maximum and Average aggregations, and the requirement asks for the maximum. \"Above 90\" maps to `GreaterThan`, and a dimension filter uses the `Include` operator (only Include and Exclude are supported) to keep only the inventory container."
+    fr: "Dans la ressource `Microsoft.Insights/metricAlerts`, `windowSize` (période d'analyse) et `evaluationFrequency` sont des durées ISO 8601 : 15 minutes s'écrit `PT15M`. Normalized RU Consumption prend en charge les agrégations Maximum et Average, et l'exigence porte sur le maximum. « Au-dessus de 90 » correspond à `GreaterThan`, et un filtre de dimension utilise l'opérateur `Include` (seuls Include et Exclude sont pris en charge) pour ne garder que le conteneur inventory."
+  options:
+    pt5: { en: "PT5M is the evaluation frequency; the window must cover the last 15 minutes.", fr: "PT5M est la fréquence d'évaluation ; la fenêtre doit couvrir les 15 dernières minutes." }
+    m15: { en: "15m is the Azure CLI format; ARM and Bicep use ISO 8601 durations.", fr: "15m est le format d'Azure CLI ; ARM et Bicep utilisent des durées ISO 8601." }
+    total: { en: "Normalized RU Consumption is a percentage that supports only Maximum and Average; a sum is meaningless.", fr: "Normalized RU Consumption est un pourcentage qui ne prend en charge que Maximum et Average ; une somme n'a pas de sens." }
+    ge: { en: "GreaterThanOrEqual would also fire at exactly 90 %, which the requirement does not ask for.", fr: "GreaterThanOrEqual se déclencherait aussi à exactement 90 %, ce que l'exigence ne demande pas." }
+    exclude: { en: "Exclude would monitor every container except inventory.", fr: "Exclude surveillerait tous les conteneurs sauf inventory." }
+references:
+  - title: Microsoft.Insights metricAlerts
+    url: https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/metricalerts
+  - title: Azure Cosmos DB monitoring data reference
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-reference

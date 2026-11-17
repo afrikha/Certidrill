@@ -1,0 +1,77 @@
+id: dp300-3c-at-manual-force
+objective: "3.3.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure virtual machine that runs SQL Server 2022 and hosts a database named BillingDB. Query Store is enabled on BillingDB in `READ_WRITE` mode. Automatic tuning isn't enabled.
+
+    A query regressed after its plan changed. You need to perform the following tasks:
+
+    - List the plan regressions that the Database Engine detected, with the script that fixes each one.
+    - Immediately force plan 37 for query 412.
+    - Make the Database Engine correct future plan regressions automatically.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une machine virtuelle Azure qui exécute SQL Server 2022 et héberge une base de données nommée BillingDB. Le Magasin des requêtes est activé sur BillingDB en mode `READ_WRITE`. Le réglage automatique n'est pas activé.
+
+    Une requête s'est dégradée après un changement de plan. Vous devez effectuer les tâches suivantes :
+
+    - Lister les régressions de plan détectées par le moteur de base de données, avec le script qui corrige chacune d'elles.
+    - Forcer immédiatement le plan 37 pour la requête 412.
+    - Faire corriger automatiquement les futures régressions de plan par le moteur de base de données.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT reason, score,
+           JSON_VALUE(details, '$.implementationDetails.script') AS fix_script
+    FROM [[dmv]];
+
+    EXEC [[proc]] @query_id = 412, @plan_id = 37;
+
+    ALTER DATABASE BillingDB SET AUTOMATIC_TUNING ([[opt]] = ON);
+  slots:
+    - id: dmv
+      options:
+        - { id: recos, text: sys.dm_db_tuning_recommendations }
+        - { id: options, text: sys.database_automatic_tuning_options }
+        - { id: qsplan, text: sys.query_store_plan }
+        - { id: qstats, text: sys.dm_exec_query_stats }
+    - id: proc
+      options:
+        - { id: force, text: sp_query_store_force_plan }
+        - { id: unforce, text: sp_query_store_unforce_plan }
+        - { id: remove, text: sp_query_store_remove_plan }
+        - { id: recompile, text: sp_recompile }
+    - id: opt
+      options:
+        - { id: flgp, text: FORCE_LAST_GOOD_PLAN }
+        - { id: create, text: CREATE_INDEX }
+        - { id: drop, text: DROP_INDEX }
+answer:
+  values: { dmv: recos, proc: force, opt: flgp }
+explanation:
+  correct:
+    en: "`sys.dm_db_tuning_recommendations` returns the FORCE_LAST_GOOD_PLAN recommendations, with the fix script in the `details` JSON column. `sp_query_store_force_plan` forces a Query Store plan for a query. Setting `FORCE_LAST_GOOD_PLAN = ON` enables automatic plan correction, the only automatic tuning option of SQL Server."
+    fr: "`sys.dm_db_tuning_recommendations` renvoie les recommandations FORCE_LAST_GOOD_PLAN, avec le script de correction dans la colonne JSON `details`. `sp_query_store_force_plan` force un plan du Magasin des requêtes pour une requête. `FORCE_LAST_GOOD_PLAN = ON` active la correction automatique des plans, la seule option de réglage automatique de SQL Server."
+  options:
+    options: { en: "This view shows the desired and actual state of each automatic tuning option, not the detected regressions.", fr: "Cette vue montre l'état souhaité et l'état réel de chaque option de réglage automatique, pas les régressions détectées." }
+    qsplan: { en: "This Query Store view lists plans, but it has no recommendation or fix script.", fr: "Cette vue du Magasin des requêtes liste les plans, mais ne contient ni recommandation ni script de correction." }
+    qstats: { en: "This DMV returns statistics of cached plans, not tuning recommendations.", fr: "Cette DMV renvoie les statistiques des plans en cache, pas les recommandations de réglage." }
+    unforce: { en: "sp_query_store_unforce_plan removes a forced plan.", fr: "sp_query_store_unforce_plan supprime le forçage d'un plan." }
+    remove: { en: "sp_query_store_remove_plan deletes a plan from Query Store.", fr: "sp_query_store_remove_plan supprime un plan du Magasin des requêtes." }
+    recompile: { en: "sp_recompile marks an object for recompilation; it doesn't force a plan.", fr: "sp_recompile marque un objet pour recompilation ; elle ne force pas de plan." }
+    create: { en: "Automatic index creation exists only in Azure SQL Database and SQL database in Fabric.", fr: "La création automatique d'index n'existe que dans Azure SQL Database et SQL database dans Fabric." }
+    drop: { en: "Automatic index removal exists only in Azure SQL Database and SQL database in Fabric.", fr: "La suppression automatique d'index n'existe que dans Azure SQL Database et SQL database dans Fabric." }
+references:
+  - title: Automatic tuning
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/automatic-tuning/automatic-tuning

@@ -1,0 +1,88 @@
+id: dp300-5a-ag-commit-modes
+objective: "5.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind runs SQL Server 2022 Enterprise on three Azure virtual machines in one availability group:
+
+    | VM | Region | Availability zone | Role |
+    | --- | --- | --- | --- |
+    | VM1 | West Europe | 1 | Primary |
+    | VM2 | West Europe | 2 | Secondary |
+    | VM3 | North Europe | 1 | Secondary |
+
+    You need to recommend a configuration that meets the following requirements:
+
+    - A failure of VM1 must cause an automatic failover to VM2 with no data loss.
+    - VM3 provides disaster recovery and must not add the cross-region round trip to the commit time on VM1.
+
+    How should you complete the recommendation? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind exécute SQL Server 2022 Enterprise sur trois machines virtuelles Azure dans un même groupe de disponibilité :
+
+    | Machine virtuelle | Région | Zone de disponibilité | Rôle |
+    | --- | --- | --- | --- |
+    | VM1 | West Europe | 1 | Primaire |
+    | VM2 | West Europe | 2 | Secondaire |
+    | VM3 | North Europe | 1 | Secondaire |
+
+    Vous devez recommander une configuration qui satisfait les exigences suivantes :
+
+    - Une défaillance de VM1 doit provoquer un basculement automatique vers VM2 sans perte de données.
+    - VM3 assure la récupération d'urgence et ne doit pas ajouter l'aller-retour entre régions au temps de validation sur VM1.
+
+    Comment devez-vous compléter la recommandation ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Configure the VM2 replica with [[m2]].
+
+      Configure the VM3 replica with [[m3]].
+
+      After a forced failover to VM3, the data loss is [[rpo]].
+    fr: |
+      Configurer le réplica VM2 avec [[m2]].
+
+      Configurer le réplica VM3 avec [[m3]].
+
+      Après un basculement forcé vers VM3, la perte de données est [[rpo]].
+  slots:
+    - id: m2
+      options:
+        - { id: sa, text: { en: "synchronous commit and automatic failover", fr: "la validation synchrone et le basculement automatique" } }
+        - { id: sm, text: { en: "synchronous commit and manual failover", fr: "la validation synchrone et le basculement manuel" } }
+        - { id: am, text: { en: "asynchronous commit and manual failover", fr: "la validation asynchrone et le basculement manuel" } }
+    - id: m3
+      options:
+        - { id: sa, text: { en: "synchronous commit and automatic failover", fr: "la validation synchrone et le basculement automatique" } }
+        - { id: sm, text: { en: "synchronous commit and manual failover", fr: "la validation synchrone et le basculement manuel" } }
+        - { id: am, text: { en: "asynchronous commit and manual failover", fr: "la validation asynchrone et le basculement manuel" } }
+    - id: rpo
+      options:
+        - { id: zero, text: { en: "always zero", fr: "toujours nulle" } }
+        - { id: lag, text: { en: "the transactions not yet sent to or hardened on VM3", fr: "les transactions pas encore envoyées à VM3 ou écrites sur VM3" } }
+        - { id: logint, text: { en: "the changes since the last transaction log backup", fr: "les modifications depuis la dernière sauvegarde du journal des transactions" } }
+answer:
+  values: { m2: sa, m3: am, rpo: lag }
+explanation:
+  correct:
+    en: |
+      Automatic failover requires synchronous commit, which also guarantees no data loss between VM1 and VM2 in two zones of the same region. Asynchronous commit lets VM1 commit without waiting for VM3, but VM3 then supports only a forced manual failover, which loses the transactions that VM3 hadn't received or hardened yet.
+    fr: |
+      Le basculement automatique exige la validation synchrone, qui garantit aussi l'absence de perte de données entre VM1 et VM2 dans deux zones de la même région. La validation asynchrone permet à VM1 de valider sans attendre VM3, mais VM3 ne prend alors en charge qu'un basculement manuel forcé, qui perd les transactions que VM3 n'avait pas encore reçues ou écrites.
+  options:
+    sm: { en: "Synchronous commit without automatic failover doesn't meet the automatic failover requirement for VM2, and on VM3 it would add the cross-region latency to every commit.", fr: "La validation synchrone sans basculement automatique ne respecte pas l'exigence de basculement automatique pour VM2 et, sur VM3, elle ajouterait la latence entre régions à chaque validation." }
+    zero: { en: "Zero data loss requires synchronous commit; with asynchronous commit the secondary can lag behind the primary.", fr: "L'absence de perte de données exige la validation synchrone ; en validation asynchrone, le secondaire peut être en retard sur le primaire." }
+    logint: { en: "Availability groups send log records continuously; the log backup interval is the RPO of log shipping, not of an availability group.", fr: "Les groupes de disponibilité envoient les enregistrements du journal en continu ; l'intervalle des sauvegardes de journal est le RPO de la copie des journaux de transaction, pas d'un groupe de disponibilité." }
+references:
+  - title: Change availability mode of a replica within an Always On availability group
+    url: https://learn.microsoft.com/en-us/sql/database-engine/availability-groups/windows/change-the-availability-mode-of-an-availability-replica-sql-server
+  - title: Always On availability group on SQL Server on Azure VMs
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/availability-group-overview

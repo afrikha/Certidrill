@@ -1,0 +1,103 @@
+id: dp420-cs4b-relecloud-tickets
+status: draft
+title:
+  en: Relecloud Tickets
+  fr: Relecloud Tickets
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Relecloud sells tickets for concerts and sporting events in North America and Europe. Its ticketing platform, **Relecloud Tickets**, is an ASP.NET Core API written in C# that runs in Azure Kubernetes Service (AKS). The API uses the Azure Cosmos DB .NET SDK v3 (Microsoft.Azure.Cosmos 3.58.0).
+
+        Relecloud is redesigning the seat inventory before the next stadium tour, whose on-sales are expected to be the largest in the company's history.
+      fr: |
+        Relecloud vend des billets de concerts et d'événements sportifs en Amérique du Nord et en Europe. Sa plateforme de billetterie, **Relecloud Tickets**, est une API ASP.NET Core écrite en C# qui s'exécute dans Azure Kubernetes Service (AKS). L'API utilise le SDK .NET v3 d'Azure Cosmos DB (Microsoft.Azure.Cosmos 3.58.0).
+
+        Relecloud refond l'inventaire des places avant la prochaine tournée des stades, dont les ouvertures de vente devraient être les plus importantes de l'histoire de l'entreprise.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Relecloud has an Azure Cosmos DB for NoSQL account named **cosmos-relecloud** with the following configuration:
+
+        - Single write region East US 2 and one read region West Europe
+        - Default consistency level: Session
+        - Continuous backup, 7-day tier
+        - Diagnostic settings that send the DataPlaneRequests and PartitionKeyRUConsumption categories to a Log Analytics workspace in resource-specific mode
+
+        The **ticketing** database contains the following containers.
+
+        | Container | Partition key | Content |
+        | --- | --- | --- |
+        | tickets | /venueId | Current inventory of the 2,500 partner venues: one item per seat of each event, one item per hold and one item per order. Autoscale, maximum 100,000 RU/s. |
+        | orders-archive | /customerId | Completed orders. Each order contains a `tickets` array (one entry per seat sold) and, after a refund, a `refunds` array. |
+
+        During the last on-sale of a stadium concert, the API received many HTTP 429 responses even though the container consumed less than 20 percent of its provisioned throughput.
+
+        A Microsoft Fabric mirrored database replicates the ticketing database to OneLake.
+      fr: |
+        Relecloud dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-relecloud** dont la configuration est la suivante :
+
+        - Une seule région d'écriture, East US 2, et une région de lecture, West Europe
+        - Niveau de cohérence par défaut : Session
+        - Sauvegarde continue, niveau 7 jours
+        - Des paramètres de diagnostic qui envoient les catégories DataPlaneRequests et PartitionKeyRUConsumption vers un espace de travail Log Analytics en mode spécifique à la ressource
+
+        La base de données **ticketing** contient les conteneurs suivants.
+
+        | Conteneur | Clé de partition | Contenu |
+        | --- | --- | --- |
+        | tickets | /venueId | Inventaire actuel des 2 500 salles partenaires : un élément par place de chaque événement, un élément par réservation temporaire et un élément par commande. Mise à l'échelle automatique (autoscale), 100 000 RU/s au maximum. |
+        | orders-archive | /customerId | Commandes terminées. Chaque commande contient un tableau `tickets` (une entrée par place vendue) et, après un remboursement, un tableau `refunds`. |
+
+        Lors de la dernière ouverture de vente d'un concert dans un stade, l'API a reçu de nombreuses réponses HTTP 429 alors que le conteneur consommait moins de 20 % de son débit provisionné.
+
+        Une base de données mise en miroir dans Microsoft Fabric réplique la base de données ticketing vers OneLake.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Inventory**
+
+        1. A new container named **inventory** will replace tickets. It will store seat, hold and order items, and its default time to live will be -1.
+        2. The items of the largest stadiums will exceed 20 GB per venue within a year.
+        3. An order contains seats of a single event. Updating the seats and creating the order must succeed or fail as a unit.
+        4. The query that lists the events and available seats of a venue must not be sent to every physical partition of the container.
+
+        **Holds**
+
+        5. When a customer selects a seat, the API marks the seat as held and writes a hold item whose `ttl` is 600 seconds.
+        6. When a hold expires, a background worker written in C# must automatically return the seat to the available state. When a purchase completes, the API deletes the hold explicitly; that deletion must not return the seat to the available state.
+        7. A seat must never be sold twice, even when two customers try to buy it at the same time.
+
+        **Availability and operations**
+
+        8. If a partition of the container becomes unavailable in the write region, writes to that partition must continue automatically in another region without failing over the whole account.
+        9. Before the tour, the developers must identify the partition key values that consumed the most request units in the tickets container during the last on-sale.
+
+        **Analytics**
+
+        10. The finance team must analyze refunds by using T-SQL in the SQL analytics endpoint of the mirrored database, with one row per refund. Orders without refunds must also be returned, with empty refund columns.
+      fr: |
+        **Inventaire**
+
+        1. Un nouveau conteneur nommé **inventory** remplacera tickets. Il stockera les éléments de place, de réservation temporaire et de commande, et sa durée de vie par défaut sera -1.
+        2. Les éléments des plus grands stades dépasseront 20 Go par salle d'ici un an.
+        3. Une commande contient des places d'un seul événement. La mise à jour des places et la création de la commande doivent réussir ou échouer ensemble.
+        4. La requête qui liste les événements et les places disponibles d'une salle ne doit pas être envoyée à toutes les partitions physiques du conteneur.
+
+        **Réservations temporaires**
+
+        5. Quand un client sélectionne une place, l'API marque la place comme réservée et écrit un élément de réservation temporaire dont le `ttl` est de 600 secondes.
+        6. Quand une réservation temporaire expire, un processus d'arrière-plan écrit en C# doit automatiquement remettre la place à l'état disponible. Quand un achat se termine, l'API supprime explicitement la réservation temporaire ; cette suppression ne doit pas remettre la place à l'état disponible.
+        7. Une place ne doit jamais être vendue deux fois, même quand deux clients tentent de l'acheter en même temps.
+
+        **Disponibilité et exploitation**
+
+        8. Si une partition du conteneur devient indisponible dans la région d'écriture, les écritures vers cette partition doivent continuer automatiquement dans une autre région, sans basculement de l'ensemble du compte.
+        9. Avant la tournée, les développeurs doivent identifier les valeurs de clé de partition qui ont consommé le plus d'unités de requête dans le conteneur tickets pendant la dernière ouverture de vente.
+
+        **Analytique**
+
+        10. L'équipe financière doit analyser les remboursements en T-SQL dans le point de terminaison d'analytique SQL de la base de données mise en miroir, avec une ligne par remboursement. Les commandes sans remboursement doivent aussi être renvoyées, avec des colonnes de remboursement vides.

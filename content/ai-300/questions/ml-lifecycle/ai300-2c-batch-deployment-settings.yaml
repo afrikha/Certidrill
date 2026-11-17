@@ -1,0 +1,88 @@
+id: ai300-2c-batch-deployment-settings
+objective: "2.3.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso has a batch endpoint named **invoice-batch** in an Azure Machine Learning workspace. You are writing the YAML file of a new model deployment that runs on a compute cluster named **cpu-batch**.
+
+    The deployment must meet the following requirements:
+
+    - Each node runs four scoring processes in parallel.
+    - Each call to the `run()` function of the scoring script receives 20 input files.
+    - The predictions of all the calls are merged into a single file named `scores.csv`.
+    - The job completes even if some input files fail to score.
+
+    How should you complete the YAML file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'un point de terminaison de lot nommé **invoice-batch** dans un espace de travail Azure Machine Learning. Vous rédigez le fichier YAML d'un nouveau déploiement de modèle qui s'exécute sur un cluster de calcul nommé **cpu-batch**.
+
+    Le déploiement doit répondre aux exigences suivantes :
+
+    - Chaque nœud exécute quatre processus de scoring en parallèle.
+    - Chaque appel de la fonction `run()` du script de scoring reçoit 20 fichiers d'entrée.
+    - Les prédictions de tous les appels sont fusionnées dans un seul fichier nommé `scores.csv`.
+    - Le travail se termine même si le scoring de certains fichiers d'entrée échoue.
+
+    Comment devez-vous compléter le fichier YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/modelBatchDeployment.schema.json
+    name: invoice-risk-v3
+    endpoint_name: invoice-batch
+    type: model
+    model: azureml:invoice-risk:3
+    compute: azureml:cpu-batch
+    resources:
+      instance_count: 3
+    settings:
+      [[ckey]]: 4
+      mini_batch_size: [[mb]]
+      output_action: [[act]]
+      output_file_name: scores.csv
+      error_threshold: [[thr]]
+  slots:
+    - id: ckey
+      options:
+        - { id: maxconc, text: max_concurrency_per_instance }
+        - { id: inst, text: instance_count }
+        - { id: reqconc, text: max_concurrent_requests_per_instance }
+    - id: mb
+      options:
+        - { id: m4, text: "4" }
+        - { id: m20, text: "20" }
+        - { id: m80, text: "80" }
+        - { id: m240, text: "240" }
+    - id: act
+      options:
+        - { id: append, text: append_row }
+        - { id: summary, text: summary_only }
+    - id: thr
+      options:
+        - { id: neg, text: "-1" }
+        - { id: zero, text: "0" }
+        - { id: one, text: "1" }
+answer:
+  values: { ckey: maxconc, mb: m20, act: append, thr: neg }
+explanation:
+  correct:
+    en: |
+      `max_concurrency_per_instance` sets the number of parallel scoring processes on each node. `mini_batch_size` counts the files passed to one `run()` call, so it is 20 whatever the number of processes or nodes. `append_row` merges the results of all mini-batches into `output_file_name`, and an `error_threshold` of -1 tolerates any number of failed files.
+    fr: |
+      `max_concurrency_per_instance` définit le nombre de processus de scoring parallèles sur chaque nœud. `mini_batch_size` compte les fichiers passés à un appel de `run()` : il vaut 20 quel que soit le nombre de processus ou de nœuds. `append_row` fusionne les résultats de tous les mini-lots dans `output_file_name`, et un `error_threshold` de -1 tolère n'importe quel nombre de fichiers en échec.
+  options:
+    inst: { en: "instance_count belongs under resources and sets the number of nodes, not processes per node.", fr: "instance_count se place sous resources et définit le nombre de nœuds, pas les processus par nœud." }
+    reqconc: { en: "max_concurrent_requests_per_instance is a request setting of online deployments.", fr: "max_concurrent_requests_per_instance est un paramètre de requête des déploiements en ligne." }
+    m80: { en: "The mini-batch size is per run() call; it isn't multiplied by the number of processes.", fr: "La taille du mini-lot s'entend par appel de run() ; elle n'est pas multipliée par le nombre de processus." }
+    summary: { en: "summary_only doesn't merge results into output_file_name; the scoring script must write its own outputs.", fr: "summary_only ne fusionne pas les résultats dans output_file_name ; le script de scoring doit écrire ses propres sorties." }
+    zero: { en: "With 0, the first failed file exceeds the threshold and terminates the job.", fr: "Avec 0, le premier fichier en échec dépasse le seuil et met fin au travail." }
+references:
+  - title: Deploy models for scoring in batch endpoints
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-use-batch-model-deployments

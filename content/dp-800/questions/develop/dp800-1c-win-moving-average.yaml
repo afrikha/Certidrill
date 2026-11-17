@@ -1,0 +1,72 @@
+id: dp800-1c-win-moving-average
+objective: "1.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a table named **IoT.DailyReading** that contains exactly one row per sensor and per day, with no missing days. The table has the columns SensorID, ReadingDate and Value.
+
+    You need a query that returns, for each row:
+
+    - Avg7: the average of Value for the current day and the six previous days of the same sensor.
+    - PreviousValue: the Value of the previous day of the same sensor, or 0 for the first day of a sensor.
+
+    How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une table nommée **IoT.DailyReading** qui contient exactement une ligne par capteur et par jour, sans jour manquant. La table contient les colonnes SensorID, ReadingDate et Value.
+
+    Vous avez besoin d'une requête qui renvoie, pour chaque ligne :
+
+    - Avg7 : la moyenne de Value pour le jour courant et les six jours précédents du même capteur.
+    - PreviousValue : la valeur Value du jour précédent du même capteur, ou 0 pour le premier jour d'un capteur.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT SensorID, ReadingDate, Value,
+           AVG(Value) OVER (PARTITION BY SensorID
+                            ORDER BY ReadingDate
+                            [[frame]]) AS Avg7,
+           [[prev]] OVER (PARTITION BY SensorID
+                          ORDER BY ReadingDate) AS PreviousValue
+    FROM IoT.DailyReading;
+  slots:
+    - id: frame
+      options:
+        - { id: rows6, text: "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW" }
+        - { id: range6, text: "RANGE BETWEEN 6 PRECEDING AND CURRENT ROW" }
+        - { id: rows7, text: "ROWS BETWEEN 7 PRECEDING AND CURRENT ROW" }
+        - { id: follow6, text: "ROWS BETWEEN CURRENT ROW AND 6 FOLLOWING" }
+    - id: prev
+      options:
+        - { id: lag, text: "LAG(Value, 1, 0)" }
+        - { id: lead, text: "LEAD(Value, 1, 0)" }
+        - { id: lag0, text: "LAG(Value, 0, 1)" }
+        - { id: first, text: "FIRST_VALUE(Value)" }
+answer:
+  values: { frame: rows6, prev: lag }
+explanation:
+  correct:
+    en: |
+      Because there is exactly one row per day, a ROWS frame of 6 PRECEDING through CURRENT ROW covers seven days. LAG(Value, 1, 0) reads the row one position back in the partition and returns the default 0 when no such row exists, which is the case for the first day of each sensor.
+    fr: |
+      Comme il y a exactement une ligne par jour, un cadre ROWS de 6 PRECEDING à CURRENT ROW couvre sept jours. LAG(Value, 1, 0) lit la ligne située une position plus tôt dans la partition et renvoie la valeur par défaut 0 quand cette ligne n'existe pas, ce qui est le cas du premier jour de chaque capteur.
+  options:
+    range6: { en: "RANGE doesn't accept a numeric offset such as 6 PRECEDING; only ROWS does.", fr: "RANGE n'accepte pas de décalage numérique comme 6 PRECEDING ; seul ROWS l'accepte." }
+    rows7: { en: "Seven preceding rows plus the current row cover eight days.", fr: "Sept lignes précédentes plus la ligne courante couvrent huit jours." }
+    follow6: { en: "This frame averages the current day and the six following days.", fr: "Ce cadre fait la moyenne du jour courant et des six jours suivants." }
+    lead: { en: "LEAD reads the next day, not the previous one.", fr: "LEAD lit le jour suivant, pas le précédent." }
+    lag0: { en: "An offset of 0 returns the current row's value, and 1 is used as the default.", fr: "Un décalage de 0 renvoie la valeur de la ligne courante, et 1 sert de valeur par défaut." }
+    first: { en: "FIRST_VALUE returns the first day of the sensor on every row.", fr: "FIRST_VALUE renvoie le premier jour du capteur sur chaque ligne." }
+references:
+  - title: SELECT - OVER clause (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/select-over-clause-transact-sql
+  - title: LAG (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/lag-transact-sql

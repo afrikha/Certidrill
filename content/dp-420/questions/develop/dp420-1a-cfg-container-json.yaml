@@ -1,0 +1,79 @@
+id: dp420-1a-cfg-container-json
+objective: "1.1.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam is defining a new Azure Cosmos DB for NoSQL container named **customers** in an ARM template. The container is partitioned on `/tenantId`. The container must meet the following requirements:
+
+    - by default, items expire 30 days after their last modification, but an item can override this value;
+    - two customers of the same tenant must never share an email address;
+    - queries on any property must be served by the index.
+
+    How should you complete the container definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam définit un nouveau conteneur Azure Cosmos DB for NoSQL nommé **customers** dans un modèle ARM. Le conteneur est partitionné sur `/tenantId`. Le conteneur doit respecter les exigences suivantes :
+
+    - par défaut, les éléments expirent 30 jours après leur dernière modification, mais un élément peut remplacer cette valeur ;
+    - deux clients d'un même locataire ne doivent jamais partager une adresse e-mail ;
+    - les requêtes sur n'importe quelle propriété doivent être servies par l'index.
+
+    Comment devez-vous compléter la définition du conteneur ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    "resource": {
+      "id": "customers",
+      "partitionKey": { "paths": [ "/tenantId" ], "kind": "Hash" },
+      "indexingPolicy": {
+        "indexingMode": [[mode]],
+        "includedPaths": [ { "path": "/*" } ]
+      },
+      "defaultTtl": [[ttl]],
+      "uniqueKeyPolicy": {
+        "uniqueKeys": [ { "paths": [ [[uk]] ] } ]
+      }
+    }
+  slots:
+    - id: mode
+      options:
+        - { id: none, text: "\"none\"" }
+        - { id: lazy, text: "\"lazy\"" }
+        - { id: consistent, text: "\"consistent\"" }
+    - id: ttl
+      options:
+        - { id: ttlminus1, text: "-1" }
+        - { id: ttl30, text: "30" }
+        - { id: ttl720, text: "720" }
+        - { id: ttl30d, text: "2592000" }
+    - id: uk
+      options:
+        - { id: tenant, text: "\"/tenantId\"" }
+        - { id: emailq, text: "\"/email/?\"" }
+        - { id: email, text: "\"/email\"" }
+        - { id: tenantemail, text: "\"/tenantId/email\"" }
+answer:
+  values: { mode: consistent, ttl: ttl30d, uk: email }
+explanation:
+  correct:
+    en: |
+      The consistent mode updates the index synchronously and is required for TTL. `defaultTtl` is expressed in seconds: 30 days is 2,592,000 seconds, and items can override it with their own `ttl` property. A unique key is scoped to a logical partition, so a unique key on `/email` in a container partitioned on `/tenantId` makes emails unique within each tenant.
+    fr: |
+      Le mode consistent met à jour l'index de manière synchrone et il est obligatoire pour la durée de vie. `defaultTtl` s'exprime en secondes : 30 jours correspondent à 2 592 000 secondes, et les éléments peuvent la remplacer par leur propre propriété `ttl`. Une clé unique est limitée à une partition logique : une clé unique sur `/email` dans un conteneur partitionné sur `/tenantId` rend les adresses uniques dans chaque locataire.
+  options:
+    none: { en: "With indexing disabled, queries aren't served by the index and TTL can't be activated.", fr: "Sans indexation, les requêtes ne sont pas servies par l'index et la durée de vie ne peut pas être activée." }
+    lazy: { en: "New containers can't select lazy indexing, which can return incomplete query results.", fr: "Les nouveaux conteneurs ne peuvent pas choisir l'indexation lazy, qui peut renvoyer des résultats de requête incomplets." }
+    ttlminus1: { en: "-1 enables TTL without a default expiration: items expire only if they set their own ttl.", fr: "-1 active la durée de vie sans expiration par défaut : les éléments n'expirent que s'ils définissent leur propre ttl." }
+    ttl30: { en: "The TTL is expressed in seconds, so 30 means 30 seconds.", fr: "La durée de vie s'exprime en secondes : 30 signifie 30 secondes." }
+    tenantemail: { en: "This path points to an email property nested in a tenantId object, which doesn't exist; the partition key already scopes the constraint.", fr: "Ce chemin désigne une propriété email imbriquée dans un objet tenantId, qui n'existe pas ; la clé de partition limite déjà la portée de la contrainte." }
+references:
+  - title: Unique key constraints in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/unique-keys
+  - title: Indexing policies in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/index-policy

@@ -1,0 +1,40 @@
+id: dp700-3d-kql-predicate-order
+objective: "3.3.6"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a KQL database in a Fabric eventhouse. A table named AppRequests contains the columns Timestamp (datetime), Service (string), DurationMs (long) and Message (string).
+
+    You need a query that returns, for each hour of the last day, the number of requests of the checkout service that lasted more than 5,000 ms and whose Message contains the substring `retry`, which can appear inside longer words. The query must follow the recommended order of predicates to minimize the resources it uses.
+
+    Which five lines should you add after the line `AppRequests`, in sequence? To answer, move the appropriate lines from the list to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'une base de données KQL dans un eventhouse Fabric. Une table nommée AppRequests contient les colonnes Timestamp (datetime), Service (string), DurationMs (long) et Message (string).
+
+    Vous avez besoin d'une requête qui renvoie, pour chaque heure de la dernière journée, le nombre de requêtes du service checkout qui ont duré plus de 5 000 ms et dont Message contient la sous-chaîne `retry`, qui peut apparaître à l'intérieur de mots plus longs. La requête doit suivre l'ordre recommandé des prédicats pour réduire au minimum les ressources utilisées.
+
+    Quelles sont les cinq lignes à ajouter après la ligne `AppRequests`, dans l'ordre ? Pour répondre, déplacez les lignes appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 5
+  actions:
+    - { id: time, text: "| where Timestamp > ago(1d)" }
+    - { id: service, text: "| where Service == \"checkout\"" }
+    - { id: duration, text: "| where DurationMs > 5000" }
+    - { id: message, text: "| where Message contains \"retry\"" }
+    - { id: summarize, text: "| summarize count() by bin(Timestamp, 1h)" }
+    - { id: lower, text: "| extend Lower = tolower(Message)" }
+    - { id: search, text: "| search \"checkout\"" }
+answer:
+  sequence: [ time, service, duration, message, summarize ]
+explanation:
+  correct:
+    en: "Apply where right after the table reference and order the predicates for efficiency: datetime predicates first, then string predicates by selectivity, then selective numeric predicates, and last the predicates that scan column data, such as contains. A substring that can appear inside words requires contains rather than has, so it goes last. The aggregation by hour runs on the few remaining rows."
+    fr: "Appliquez where juste après la référence à la table et ordonnez les prédicats pour l'efficacité : d'abord les prédicats datetime, puis les prédicats de chaîne par sélectivité, puis les prédicats numériques sélectifs, et en dernier les prédicats qui analysent les données des colonnes, comme contains. Une sous-chaîne qui peut apparaître à l'intérieur de mots exige contains plutôt que has : ce prédicat vient donc en dernier. L'agrégation par heure s'exécute sur les quelques lignes restantes."
+  options:
+    lower: { en: "A calculated column is not needed and adds a conversion of every row.", fr: "Une colonne calculée n'est pas nécessaire et ajoute une conversion de chaque ligne." }
+    search: { en: "search runs a full-text search across all columns instead of an exact filter on Service.", fr: "search lance une recherche en texte intégral sur toutes les colonnes au lieu d'un filtre exact sur Service." }
+references:
+  - title: Best practices for Kusto Query Language queries
+    url: https://learn.microsoft.com/en-us/kusto/query/best-practices?view=microsoft-fabric

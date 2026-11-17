@@ -1,0 +1,89 @@
+id: az305-cs2c-tailwind-traders
+status: draft
+title:
+  en: Tailwind Traders
+  fr: Tailwind Traders
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Tailwind Traders is a home improvement retailer. It has 300 stores in the Midwest of the United States, all in the same time zone, and an online store. Its head office and its datacenter are in Chicago.
+
+        Tailwind Traders uses the East US 2 region. Central US, its paired region, is used for recovery only.
+      fr: |
+        Tailwind Traders est une enseigne de bricolage. Elle possède 300 magasins dans le Midwest des États-Unis, tous dans le même fuseau horaire, ainsi qu'une boutique en ligne. Son siège et son centre de données se trouvent à Chicago.
+
+        Tailwind Traders utilise la région East US 2. Central US, sa région jumelée, ne sert qu'à la récupération.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure.** Tailwind Traders has one Microsoft Entra tenant and a subscription named **Sub-Retail**. All the resources are in East US 2.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | plan-store | App Service plan | Standard tier, four instances. Hosts the online store. New versions are deployed directly to production. |
+        | db-orders | Azure SQL Database | Business Critical service tier, provisioned compute. Point-in-time restore retention of 7 days. Locally redundant backup storage. |
+        | sttailwinddocs | Storage account | General-purpose v2, RA-GRS. The **invoices** container holds the invoices as block blobs. Blob soft delete is enabled for 14 days. |
+
+        Sales analysts run long reporting queries on db-orders during the day. These queries slow down the checkout of the online store.
+
+        **Chicago datacenter.** A SQL Server instance hosts 300 store databases, one per store. Each database is smaller than 5 GB. A store database is used only while its store is open: all the stores open at the same hours and are closed at night and on Sundays. During opening hours, the load of a store database is irregular and hard to predict.
+      fr: |
+        **Azure.** Tailwind Traders dispose d'un locataire Microsoft Entra et d'un abonnement nommé **Sub-Retail**. Toutes les ressources se trouvent dans East US 2.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | plan-store | Plan App Service | Niveau Standard, quatre instances. Héberge la boutique en ligne. Les nouvelles versions sont déployées directement en production. |
+        | db-orders | Azure SQL Database | Niveau de service Business Critical, calcul provisionné. Rétention de la restauration à un instant dans le passé de 7 jours. Stockage de sauvegarde localement redondant. |
+        | sttailwinddocs | Compte de stockage | Usage général v2, RA-GRS. Le conteneur **invoices** contient les factures sous forme d'objets blob de blocs. La suppression réversible des objets blob est activée pour 14 jours. |
+
+        Les analystes des ventes exécutent de longues requêtes de rapport sur db-orders pendant la journée. Ces requêtes ralentissent le paiement des commandes de la boutique en ligne.
+
+        **Centre de données de Chicago.** Une instance SQL Server héberge 300 bases de données de magasin, une par magasin. Chaque base fait moins de 5 Go. Une base de données de magasin n'est utilisée que pendant l'ouverture de son magasin : tous les magasins ouvrent aux mêmes heures et sont fermés la nuit et le dimanche. Pendant les heures d'ouverture, la charge d'une base de données de magasin est irrégulière et difficile à prévoir.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Online store**
+
+        - plan-store must add and remove instances automatically according to the load.
+        - A new version of the online store must be deployed to a staging slot, then swapped with production.
+        - The online store must keep running if one availability zone of East US 2 fails.
+        - The lowest-cost pricing tier that meets these requirements must be used.
+
+        **Databases**
+
+        - The 300 store databases must be migrated to Azure SQL Database and remain separate databases. The compute of each database must follow its load automatically and be billed for what is used. While a store is closed, only the storage of its database must be billed. A delay on the first connection after a closing period is acceptable.
+        - The reporting queries of the sales analysts must no longer use the resources of the primary replica of db-orders. Tailwind Traders does not want to pay for an additional database or replica.
+
+        **Encryption**
+
+        - db-orders and sttailwinddocs must be encrypted with customer-managed keys. The keys must be stored in a fully managed hardware security module (HSM) that is validated FIPS 140-3 Level 3 and is single-tenant, so that Tailwind Traders alone administers the HSM. Azure SQL Database and Azure Storage must be able to use the keys directly.
+
+        **Backup**
+
+        - After a regional outage of East US 2, it must be possible to restore db-orders in Central US from its backups. Tailwind Traders does not want to pay for a secondary database.
+        - Recovery points of the invoices container must be kept for 90 days outside sttailwinddocs, so that the invoices can be restored to another storage account even if sttailwinddocs is deleted.
+      fr: |
+        **Boutique en ligne**
+
+        - plan-store doit ajouter et retirer des instances automatiquement selon la charge.
+        - Une nouvelle version de la boutique en ligne doit être déployée dans un emplacement de préproduction, puis échangée avec la production.
+        - La boutique en ligne doit continuer de fonctionner si une zone de disponibilité de East US 2 tombe en panne.
+        - Le niveau tarifaire le moins coûteux qui respecte ces exigences doit être utilisé.
+
+        **Bases de données**
+
+        - Les 300 bases de données de magasin doivent être migrées vers Azure SQL Database et rester des bases de données distinctes. Le calcul de chaque base doit suivre sa charge automatiquement et être facturé selon ce qui est utilisé. Pendant qu'un magasin est fermé, seul le stockage de sa base de données doit être facturé. Un délai lors de la première connexion après une période de fermeture est acceptable.
+        - Les requêtes de rapport des analystes des ventes ne doivent plus utiliser les ressources du réplica principal de db-orders. Tailwind Traders ne veut payer ni base de données ni réplica supplémentaire.
+
+        **Chiffrement**
+
+        - db-orders et sttailwinddocs doivent être chiffrés avec des clés gérées par le client. Les clés doivent être stockées dans un module de sécurité matériel (HSM) complètement managé, validé FIPS 140-3 niveau 3 et à locataire unique, de sorte que Tailwind Traders soit seul à administrer le HSM. Azure SQL Database et Stockage Azure doivent pouvoir utiliser les clés directement.
+
+        **Sauvegarde**
+
+        - Après une panne régionale de East US 2, il doit être possible de restaurer db-orders dans Central US à partir de ses sauvegardes. Tailwind Traders ne veut pas payer de base de données secondaire.
+        - Des points de récupération du conteneur invoices doivent être conservés pendant 90 jours en dehors de sttailwinddocs, afin que les factures puissent être restaurées dans un autre compte de stockage même si sttailwinddocs est supprimé.

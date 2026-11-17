@@ -1,0 +1,62 @@
+id: dp420-3a-vpart-shard-query
+objective: "3.1.3"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Fabrikam stores knowledge-base articles in an Azure Cosmos DB for NoSQL container. The indexing policy defines a diskANN index on `/embedding` with `"vectorIndexShardKey": ["/tenantId"]`.
+
+    You need to write the query that returns the 10 articles of the tenant `@tenantId` that are the most similar to the question embedding `@queryVector`. The query must search only the shard of that tenant.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam stocke des articles de base de connaissances dans un conteneur Azure Cosmos DB for NoSQL. La stratégie d'indexation définit un index diskANN sur `/embedding` avec `"vectorIndexShardKey": ["/tenantId"]`.
+
+    Vous devez écrire la requête qui renvoie les 10 articles du locataire `@tenantId` les plus similaires à l'incorporation de la question `@queryVector`. La requête ne doit parcourir que le shard de ce locataire.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT [[top]] c.id, c.title
+    FROM c
+    WHERE [[filter]]
+    ORDER BY [[order]]
+  slots:
+    - id: top
+      options:
+        - { id: distinct, text: DISTINCT }
+        - { id: top10, text: TOP 10 }
+        - { id: value, text: VALUE }
+    - id: filter
+      options:
+        - { id: eq, text: "c.tenantId = @tenantId" }
+        - { id: starts, text: "STARTSWITH(c.tenantId, @tenantId)" }
+        - { id: defined, text: "IS_DEFINED(c.tenantId)" }
+    - id: order
+      options:
+        - { id: ts, text: "c._ts DESC" }
+        - { id: tenant, text: "c.tenantId" }
+        - { id: vd, text: "VectorDistance(c.embedding, @queryVector)" }
+answer:
+  values: { top: top10, filter: eq, order: vd }
+explanation:
+  correct:
+    en: "A WHERE filter on the shard key property focuses the search on that value's DiskANN index. ORDER BY VectorDistance sorts the items by similarity to the query vector, and TOP 10 limits the results; without TOP, a vector search returns many more results at a higher RU cost."
+    fr: "Un filtre WHERE sur la propriété de la clé de shard concentre la recherche sur l'index DiskANN de cette valeur. ORDER BY VectorDistance trie les éléments par similarité avec le vecteur de la requête, et TOP 10 limite les résultats ; sans TOP, une recherche vectorielle renvoie beaucoup plus de résultats pour un coût en RU plus élevé."
+  options:
+    distinct: { en: "DISTINCT removes duplicates; it doesn't limit the result to 10 items.", fr: "DISTINCT supprime les doublons ; il ne limite pas le résultat à 10 éléments." }
+    value: { en: "VALUE returns a single expression per item and can't be followed by a list of properties.", fr: "VALUE renvoie une seule expression par élément et ne peut pas être suivi d'une liste de propriétés." }
+    starts: { en: "A prefix match can return other tenants whose ID starts with the same characters.", fr: "Une correspondance de préfixe peut renvoyer d'autres locataires dont l'ID commence par les mêmes caractères." }
+    defined: { en: "IS_DEFINED keeps items of every tenant.", fr: "IS_DEFINED garde les éléments de tous les locataires." }
+    ts: { en: "Sorting by timestamp returns the newest articles, not the most similar ones.", fr: "Trier par horodatage renvoie les articles les plus récents, pas les plus similaires." }
+    tenant: { en: "Sorting by tenantId doesn't rank by similarity.", fr: "Trier par tenantId ne classe pas par similarité." }
+references:
+  - title: Sharded DiskANN Focused Vector Search for Better Performance and Lower Cost - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/sharded-diskann

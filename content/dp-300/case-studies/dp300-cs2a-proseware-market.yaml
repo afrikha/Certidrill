@@ -1,0 +1,113 @@
+id: dp300-cs2a-proseware-market
+status: draft
+title:
+  en: Proseware Market
+  fr: Proseware Market
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Proseware Market runs an online marketplace on which 12,000 independent sellers in Europe sell household goods. The company runs several flash sales every month, during which the order volume is multiplied by ten.
+
+        The platform was built in Azure. A team of two database administrators (DBAs) and a team of developers support it. Company policy requires every Azure resource to be deployed by using Bicep files.
+      fr: |
+        Proseware Market exploite une place de marché en ligne sur laquelle 12 000 vendeurs indépendants en Europe vendent des articles pour la maison. L'entreprise organise chaque mois plusieurs ventes flash, pendant lesquelles le volume de commandes est multiplié par dix.
+
+        La plateforme a été conçue dans Azure. Une équipe de deux administrateurs de bases de données (DBA) et une équipe de développeurs la prennent en charge. La stratégie de l'entreprise impose que chaque ressource Azure soit déployée à l'aide de fichiers Bicep.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Database**
+
+        A logical server named **sql-pw-prod** in the West Europe region hosts a single database named **Orders**. sql-pw-prod has a Microsoft Entra admin.
+
+        | Setting | Value |
+        | --- | --- |
+        | Service tier | General Purpose, provisioned compute, 16 vCores |
+        | Size | 3.2 TB, growing by about 500 GB per month |
+        | Compatibility level | 150 |
+        | Query Store | Enabled (READ_WRITE) |
+        | READ_COMMITTED_SNAPSHOT | ON |
+
+        **Network**
+
+        - Public network access of sql-pw-prod is set to **Selected networks**. A server-level IP firewall rule allows the public IP address of the head office, and **Allow Azure services and resources to access this server** is enabled.
+        - The web application runs on Azure App Service and uses virtual network integration with the subnet **snet-app** of a virtual network named **vnet-pw-prod**. vnet-pw-prod also contains an empty subnet named **snet-data**.
+
+        **Workloads**
+
+        - Sellers search their listings through a stored procedure named **dbo.SearchListings** that has a parameter named @SellerId. About 40 sellers have more than one million listings each; most sellers have fewer than 100. The cached plan of the procedure performs well for one group of sellers and badly for the other.
+        - Business analysts, members of a Microsoft Entra group named **SG-Analysts**, run heavy reports on Orders during business hours, which slows down the checkout.
+        - During flash sales, the application reports query timeouts. The DBAs suspect blocking.
+
+        **Planned changes**
+
+        A logical server named **sql-pw-reports** has been deployed in West Europe for the reporting workload.
+      fr: |
+        **Base de données**
+
+        Un serveur logique nommé **sql-pw-prod** dans la région West Europe héberge une base de données unique nommée **Orders**. sql-pw-prod dispose d'un administrateur Microsoft Entra.
+
+        | Paramètre | Valeur |
+        | --- | --- |
+        | Niveau de service | General Purpose, calcul provisionné, 16 vCores |
+        | Taille | 3,2 To, en croissance d'environ 500 Go par mois |
+        | Niveau de compatibilité | 150 |
+        | Magasin des requêtes | Activé (READ_WRITE) |
+        | READ_COMMITTED_SNAPSHOT | ON |
+
+        **Réseau**
+
+        - L'accès au réseau public de sql-pw-prod est défini sur **Selected networks**. Une règle de pare-feu IP au niveau du serveur autorise l'adresse IP publique du siège, et **Allow Azure services and resources to access this server** est activé.
+        - L'application web s'exécute sur Azure App Service et utilise l'intégration au réseau virtuel avec le sous-réseau **snet-app** d'un réseau virtuel nommé **vnet-pw-prod**. vnet-pw-prod contient aussi un sous-réseau vide nommé **snet-data**.
+
+        **Charges de travail**
+
+        - Les vendeurs recherchent leurs annonces à l'aide d'une procédure stockée nommée **dbo.SearchListings** qui a un paramètre nommé @SellerId. Environ 40 vendeurs ont chacun plus d'un million d'annonces ; la plupart des vendeurs en ont moins de 100. Le plan mis en cache de la procédure est performant pour un groupe de vendeurs et mauvais pour l'autre.
+        - Les analystes métier, membres d'un groupe Microsoft Entra nommé **SG-Analysts**, exécutent des rapports lourds sur Orders pendant les heures ouvrées, ce qui ralentit le paiement des commandes.
+        - Pendant les ventes flash, l'application signale des expirations de délai de requête. Les DBA soupçonnent des blocages.
+
+        **Changements prévus**
+
+        Un serveur logique nommé **sql-pw-reports** a été déployé dans la région West Europe pour la charge de travail de rapports.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Platform requirements**
+
+        1. Orders is expected to reach 15 TB within two years and must remain a database in Azure SQL Database. A restore of Orders must complete in minutes whatever its size, and the compute must scale up or down without copying the data.
+
+        **Reporting requirements**
+
+        2. The reports of SG-Analysts must run on read-only compute that is isolated from the order processing workload. The DBAs must be able to set and change the compute size of the reporting workload independently of the primary database.
+        3. The members of SG-Analysts must be able to sign in to the reporting workload on sql-pw-reports, but they must not have any login or user on sql-pw-prod.
+
+        **Network requirements**
+
+        4. The web application must connect to Orders by using a private IP address of vnet-pw-prod. All connections to sql-pw-prod from public IP addresses, including from Azure services, must be denied.
+
+        **Performance requirements**
+
+        5. dbo.SearchListings must use plans adapted to the number of listings of the seller passed in @SellerId. The code of the procedure must not be modified.
+        6. During flash sales, the DBAs must be able to list each blocked request, the session that blocks it, the statement of the blocked request and the last batch sent by the blocking session, even when the blocking session is idle with an open transaction.
+      fr: |
+        **Exigences de plateforme**
+
+        1. Orders devrait atteindre 15 To d'ici deux ans et doit rester une base de données dans Azure SQL Database. Une restauration d'Orders doit se terminer en quelques minutes quelle que soit sa taille, et le calcul doit pouvoir être augmenté ou réduit sans copie des données.
+
+        **Exigences de rapports**
+
+        2. Les rapports de SG-Analysts doivent s'exécuter sur un calcul en lecture seule isolé de la charge de traitement des commandes. Les DBA doivent pouvoir définir et modifier la taille de calcul de la charge de rapports indépendamment de la base de données principale.
+        3. Les membres de SG-Analysts doivent pouvoir se connecter à la charge de rapports sur sql-pw-reports, mais ne doivent disposer d'aucune connexion ni d'aucun utilisateur sur sql-pw-prod.
+
+        **Exigences réseau**
+
+        4. L'application web doit se connecter à Orders à l'aide d'une adresse IP privée de vnet-pw-prod. Toutes les connexions à sql-pw-prod depuis des adresses IP publiques, y compris depuis des services Azure, doivent être refusées.
+
+        **Exigences de performances**
+
+        5. dbo.SearchListings doit utiliser des plans adaptés au nombre d'annonces du vendeur passé dans @SellerId. Le code de la procédure ne doit pas être modifié.
+        6. Pendant les ventes flash, les DBA doivent pouvoir lister chaque requête bloquée, la session qui la bloque, l'instruction de la requête bloquée et le dernier lot envoyé par la session bloquante, même quand la session bloquante est inactive avec une transaction ouverte.

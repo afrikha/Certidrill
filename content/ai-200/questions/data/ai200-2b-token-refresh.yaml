@@ -1,0 +1,42 @@
+id: ai200-2b-token-refresh
+objective: "2.2.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware runs an embedding worker on Azure Kubernetes Service (AKS). At startup, the worker calls `credential.get_token()` once, builds a connection string that contains the token, and stores the string in a global variable. The worker opens a new psycopg connection from that string whenever its previous connection is closed.
+
+    After the worker has run for several hours, every new connection fails with an authentication error. Connections that are already open keep working.
+
+    What should you do?
+  fr: |
+    Proseware exécute un worker d'incorporation sur Azure Kubernetes Service (AKS). Au démarrage, le worker appelle une seule fois `credential.get_token()`, construit une chaîne de connexion qui contient le jeton et stocke la chaîne dans une variable globale. Le worker ouvre une nouvelle connexion psycopg à partir de cette chaîne chaque fois que sa connexion précédente est fermée.
+
+    Après plusieurs heures d'exécution, chaque nouvelle connexion échoue avec une erreur d'authentification. Les connexions déjà ouvertes continuent de fonctionner.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Increase the `connect_timeout` value of the connection string to 120 seconds.", fr: "Porter la valeur `connect_timeout` de la chaîne de connexion à 120 secondes." } }
+    - { id: b, text: { en: "Store the token in a Kubernetes secret at deployment time and read it at startup.", fr: "Stocker le jeton dans un secret Kubernetes au déploiement et le lire au démarrage." } }
+    - { id: c, text: { en: "Change `sslmode=require` to `sslmode=verify-full` in the connection string.", fr: "Remplacer `sslmode=require` par `sslmode=verify-full` dans la chaîne de connexion." } }
+    - { id: d, text: { en: "Call `credential.get_token()` again each time the worker opens a new connection.", fr: "Appeler de nouveau `credential.get_token()` chaque fois que le worker ouvre une connexion." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "A Microsoft Entra token has a limited lifetime and is checked when a connection is opened, so connections opened after it expires fail while existing sessions continue. Requesting the token before each new connection, with the same credential object, implements the token refresh policy that Learn asks for in production; the credential returns a cached token until it needs a new one."
+    fr: "Un jeton Microsoft Entra a une durée de vie limitée et il est vérifié à l'ouverture d'une connexion : les connexions ouvertes après son expiration échouent, tandis que les sessions existantes continuent. Demander le jeton avant chaque nouvelle connexion, avec le même objet credential, met en œuvre la stratégie de renouvellement des jetons que Learn demande en production ; l'objet credential renvoie un jeton mis en cache tant qu'il n'a pas besoin d'en obtenir un nouveau."
+  options:
+    a:
+      en: "The failure is an authentication error with an expired token, not a timeout."
+      fr: "L'échec est une erreur d'authentification due à un jeton expiré, pas un délai d'attente."
+    b:
+      en: "A token stored at deployment time expires in the same way, so new connections would still fail."
+      fr: "Un jeton stocké au déploiement expire de la même façon : les nouvelles connexions échoueraient toujours."
+    c:
+      en: "verify-full adds server certificate validation; it does not renew the expired token."
+      fr: "verify-full ajoute la validation du certificat du serveur ; il ne renouvelle pas le jeton expiré."
+references:
+  - title: "Quickstart: Use Python to Connect and Query Data in Azure Database for PostgreSQL Flexible Server"
+    url: https://learn.microsoft.com/en-us/azure/postgresql/connectivity/connect-python

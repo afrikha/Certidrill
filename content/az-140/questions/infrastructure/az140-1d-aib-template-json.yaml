@@ -1,0 +1,102 @@
+id: az140-1d-aib-template-json
+objective: "1.5.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are creating an Azure VM Image Builder image template for Azure Virtual Desktop session hosts. The template must meet the following requirements:
+
+    - Start from the latest Windows 11 Enterprise multi-session image in Azure Marketplace.
+    - Install up to 40 pending Windows updates during the build.
+    - Store the result as a new version of an existing Azure Compute Gallery image definition.
+
+    How should you complete the template? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous créez un modèle d'image Azure VM Image Builder pour des hôtes de session Azure Virtual Desktop. Le modèle doit respecter les exigences suivantes :
+
+    - Partir de la dernière image Windows 11 Entreprise multisession de la Place de marché Azure.
+    - Installer jusqu'à 40 mises à jour Windows en attente pendant le build.
+    - Stocker le résultat comme nouvelle version d'une définition d'image Azure Compute Gallery existante.
+
+    Comment devez-vous compléter le modèle ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "type": "Microsoft.VirtualMachineImages/imageTemplates",
+      "apiVersion": "2022-07-01",
+      "name": "tpl-win11-avd",
+      "location": "westeurope",
+      "identity": {
+        "type": "[[idtype]]",
+        "userAssignedIdentities": {
+          "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-images/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-aib": {}
+        }
+      },
+      "properties": {
+        "source": {
+          "type": "[[src]]",
+          "publisher": "MicrosoftWindowsDesktop",
+          "offer": "windows-11",
+          "sku": "win11-24h2-avd",
+          "version": "latest"
+        },
+        "customize": [
+          { "type": "[[cust]]", "searchCriteria": "IsInstalled=0", "updateLimit": 40 }
+        ],
+        "distribute": [
+          {
+            "type": "[[dist]]",
+            "galleryImageId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-images/providers/Microsoft.Compute/galleries/galAvd/images/win11-multi",
+            "runOutputName": "win11-multi-out"
+          }
+        ]
+      }
+    }
+  slots:
+    - id: idtype
+      options:
+        - { id: sys, text: SystemAssigned }
+        - { id: user, text: UserAssigned }
+        - { id: none, text: None }
+    - id: src
+      options:
+        - { id: platform, text: PlatformImage }
+        - { id: managed, text: ManagedImage }
+        - { id: sigver, text: SharedImageVersion }
+    - id: cust
+      options:
+        - { id: restart, text: WindowsRestart }
+        - { id: ps, text: PowerShell }
+        - { id: wu, text: WindowsUpdate }
+    - id: dist
+      options:
+        - { id: mi, text: ManagedImage }
+        - { id: vhd, text: VHD }
+        - { id: shared, text: SharedImage }
+answer:
+  values: { idtype: user, src: platform, cust: wu, dist: shared }
+explanation:
+  correct:
+    en: |
+      The template identity must be `UserAssigned`. A Marketplace image is a `PlatformImage` source, identified by publisher, offer, SKU and version. The `WindowsUpdate` customizer installs updates that match `searchCriteria`, up to `updateLimit`. The `SharedImage` distribution target creates a version of the gallery image definition referenced by `galleryImageId`.
+    fr: |
+      L'identité du modèle doit être `UserAssigned`. Une image de la Place de marché est une source `PlatformImage`, identifiée par l'éditeur, l'offre, la référence SKU et la version. Le personnalisateur `WindowsUpdate` installe les mises à jour qui correspondent à `searchCriteria`, dans la limite de `updateLimit`. La cible de distribution `SharedImage` crée une version de la définition d'image de la galerie référencée par `galleryImageId`.
+  options:
+    sys: { en: "Image templates support only a user-assigned identity.", fr: "Les modèles d'image ne prennent en charge qu'une identité affectée par l'utilisateur." }
+    none: { en: "The template identity is required to write images to the gallery.", fr: "L'identité du modèle est obligatoire pour écrire des images dans la galerie." }
+    managed: { en: "ManagedImage starts from an existing managed image, not from Azure Marketplace.", fr: "ManagedImage part d'une image managée existante, pas de la Place de marché Azure." }
+    sigver: { en: "SharedImageVersion starts from an existing gallery image version.", fr: "SharedImageVersion part d'une version d'image existante de la galerie." }
+    restart: { en: "WindowsRestart only restarts the build VM.", fr: "WindowsRestart redémarre seulement la machine virtuelle de build." }
+    ps: { en: "PowerShell runs scripts; searchCriteria and updateLimit belong to the WindowsUpdate customizer.", fr: "PowerShell exécute des scripts ; searchCriteria et updateLimit appartiennent au personnalisateur WindowsUpdate." }
+    mi: { en: "ManagedImage creates a standalone managed image, not a gallery version.", fr: "ManagedImage crée une image managée autonome, pas une version de galerie." }
+    vhd: { en: "VHD writes a VHD file to a storage account.", fr: "VHD écrit un fichier VHD dans un compte de stockage." }
+references:
+  - title: Create an Azure Image Builder Bicep or ARM template JSON template
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/image-builder-json

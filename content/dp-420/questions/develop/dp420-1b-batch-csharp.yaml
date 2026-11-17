@@ -1,0 +1,73 @@
+id: dp420-1b-batch-csharp
+objective: "1.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware stores shopping carts and orders in the same Azure Cosmos DB for NoSQL container, partitioned by `/userId`. At checkout, a .NET service must create the order item and set the cart's `status` to `checkedOut` as one atomic operation.
+
+    If the operation fails, the service must log the status code of each operation and retry.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware stocke les paniers et les commandes dans le même conteneur Azure Cosmos DB for NoSQL, partitionné par `/userId`. Lors de la validation de la commande, un service .NET doit créer l'élément commande et définir le `status` du panier sur `checkedOut` en une seule opération atomique.
+
+    Si l'opération échoue, le service doit journaliser le code d'état de chaque opération et réessayer.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    TransactionalBatch batch = container.[[create]](new PartitionKey(userId))
+        .CreateItem(order)
+        .PatchItem(cartId, new[] { PatchOperation.Set("/status", "checkedOut") });
+
+    using TransactionalBatchResponse response = await batch.[[exec]]();
+
+    if (![[check]])
+    {
+        for (int i = 0; i < response.Count; i++)
+        {
+            logger.LogWarning("Operation {i}: {status}", i, response[i].StatusCode);
+        }
+    }
+  slots:
+    - id: create
+      options:
+        - { id: batch, text: CreateTransactionalBatch }
+        - { id: item, text: CreateItemAsync }
+        - { id: query, text: GetItemQueryIterator }
+    - id: exec
+      options:
+        - { id: exec, text: ExecuteAsync }
+        - { id: next, text: ReadNextAsync }
+        - { id: start, text: StartAsync }
+    - id: check
+      options:
+        - { id: success, text: response.IsSuccessStatusCode }
+        - { id: count, text: response.Count == 2 }
+        - { id: diag, text: response.Diagnostics != null }
+answer:
+  values: { create: batch, exec: exec, check: success }
+explanation:
+  correct:
+    en: "`CreateTransactionalBatch` creates a batch scoped to one partition key, here the user's. `ExecuteAsync` sends every operation in one request that commits or rolls back as a whole. A failed batch does not throw: you check `IsSuccessStatusCode` and inspect the result of each operation."
+    fr: "`CreateTransactionalBatch` crée un lot limité à une clé de partition, ici celle de l'utilisateur. `ExecuteAsync` envoie toutes les opérations en une requête qui est validée ou annulée dans son ensemble. Un lot en échec ne lève pas d'exception : vous vérifiez `IsSuccessStatusCode` et examinez le résultat de chaque opération."
+  options:
+    item: { en: "CreateItemAsync writes a single item immediately; it does not return a TransactionalBatch.", fr: "CreateItemAsync écrit immédiatement un seul élément ; il ne renvoie pas de TransactionalBatch." }
+    query: { en: "GetItemQueryIterator returns a query iterator, not a batch.", fr: "GetItemQueryIterator renvoie un itérateur de requête, pas un lot." }
+    next: { en: "ReadNextAsync reads the next page of a FeedIterator.", fr: "ReadNextAsync lit la page suivante d'un FeedIterator." }
+    start: { en: "StartAsync starts a change feed processor.", fr: "StartAsync démarre un processeur de flux de modifications." }
+    count: { en: "A failed batch still returns one result per operation, so the count is 2 in both cases.", fr: "Un lot en échec renvoie quand même un résultat par opération : le nombre vaut 2 dans les deux cas." }
+    diag: { en: "Diagnostics are present whether the batch succeeds or fails.", fr: "Les diagnostics sont présents que le lot réussisse ou échoue." }
+references:
+  - title: Transactional batch operations in Azure Cosmos DB using the .NET or Java SDK
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/transactional-batch
+  - title: Get Started with Partial Document Update - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/partial-document-update-getting-started

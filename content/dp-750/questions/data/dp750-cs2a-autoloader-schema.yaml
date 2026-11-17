@@ -1,0 +1,78 @@
+id: dp750-cs2a-autoloader-schema
+objective: "3.4.3"
+type: dropdown
+caseStudy: dp750-cs2a-wide-world-importers
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the notebook task that ingests the port schedule files.
+
+    How should you complete the code to meet the reference file requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la tâche de notebook qui ingère les fichiers de calendriers portuaires.
+
+    Comment devez-vous compléter le code pour respecter les exigences relatives aux fichiers de référence ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    (spark.readStream.format("cloudFiles")
+        .option("cloudFiles.format", "csv")
+        .option("header", "true")
+        .option("[[infer]]", "true")
+        .option("cloudFiles.schemaLocation", "/Volumes/wwi_prod/reference/checkpoints/port_schedules")
+        .option("cloudFiles.schemaEvolutionMode", "[[mode]]")
+        .load("/Volumes/wwi_prod/reference/landing/port_schedules/")
+        .writeStream
+        .option("checkpointLocation", "/Volumes/wwi_prod/reference/checkpoints/port_schedules")
+        .trigger([[trigger]])
+        .toTable("wwi_prod.reference.port_schedules"))
+  slots:
+    - id: infer
+      options:
+        - { id: allow, text: "cloudFiles.allowOverwrites" }
+        - { id: infertypes, text: "cloudFiles.inferColumnTypes" }
+        - { id: existing, text: "cloudFiles.includeExistingFiles" }
+    - id: mode
+      options:
+        - { id: addnew, text: "addNewColumns" }
+        - { id: failnew, text: "failOnNewColumns" }
+        - { id: none, text: "none" }
+        - { id: rescue, text: "rescue" }
+    - id: trigger
+      options:
+        - { id: processing, text: "processingTime=\"1 minute\"" }
+        - { id: availablenow, text: "availableNow=True" }
+        - { id: continuous, text: "continuous=\"1 second\"" }
+answer:
+  values: { infer: infertypes, mode: rescue, trigger: availablenow }
+explanation:
+  correct:
+    en: "For CSV files, Auto Loader infers every column as a string unless `cloudFiles.inferColumnTypes` is `true`. The `rescue` mode never evolves the schema and never fails on a schema change: it records the new columns in the rescued data column, where they can be reviewed. Serverless compute supports `availableNow=True`, which processes the files available when the run starts and then stops the stream."
+    fr: "Pour les fichiers CSV, Auto Loader déduit chaque colonne comme une chaîne, sauf si `cloudFiles.inferColumnTypes` vaut `true`. Le mode `rescue` ne fait jamais évoluer le schéma et n'échoue jamais sur un changement de schéma : il enregistre les nouvelles colonnes dans la colonne de données récupérées, où elles peuvent être examinées. Le calcul serverless prend en charge `availableNow=True`, qui traite les fichiers disponibles au démarrage de l'exécution puis arrête le flux."
+  options:
+    addnew:
+      en: "`addNewColumns`, the default when no schema is provided, adds the new columns to the schema and makes the stream fail until it restarts: the schema would change automatically."
+      fr: "`addNewColumns`, la valeur par défaut quand aucun schéma n'est fourni, ajoute les nouvelles colonnes au schéma et fait échouer le flux jusqu'à son redémarrage : le schéma changerait automatiquement."
+    failnew:
+      en: "`failOnNewColumns` makes the stream fail on a new column and keeps it stopped until the schema or the file is fixed."
+      fr: "`failOnNewColumns` fait échouer le flux sur une nouvelle colonne et le laisse arrêté jusqu'à la correction du schéma ou du fichier."
+    none:
+      en: "`none` ignores new columns and does not rescue them unless a rescued data column is configured, so the added columns would be lost."
+      fr: "`none` ignore les nouvelles colonnes et ne les récupère pas, sauf si une colonne de données récupérées est configurée : les colonnes ajoutées seraient perdues."
+    processing:
+      en: Serverless compute does not support the processing-time trigger, and the stream would not stop after the files are processed.
+      fr: Le calcul serverless ne prend pas en charge le déclencheur à intervalle de traitement, et le flux ne s'arrêterait pas après le traitement des fichiers.
+    continuous:
+      en: Serverless compute does not support the continuous trigger, which also keeps the stream running.
+      fr: Le calcul serverless ne prend pas en charge le déclencheur continu, qui maintient en outre le flux en cours d'exécution.
+references:
+  - title: Configure schema inference and evolution in Auto Loader
+    url: https://learn.microsoft.com/en-us/azure/databricks/ingestion/cloud-object-storage/auto-loader/schema
+  - title: Serverless compute limitations
+    url: https://learn.microsoft.com/en-us/azure/databricks/compute/serverless/limitations

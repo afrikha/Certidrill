@@ -1,0 +1,65 @@
+id: dp800-cs3a-installed-components
+objective: "1.3.6"
+type: dropdown
+caseStudy: dp800-cs3a-blue-yonder-airlines
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to write the query for the engineering application. The solution must meet the fleet requirements.
+
+    How should you complete the Transact-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire la requête de l'application d'ingénierie. La solution doit satisfaire les exigences de la flotte.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT c2.SerialNumber, c2.PartName, a.TailNumber
+    FROM Fleet.Component AS c1, Fleet.InstalledIn AS i1, Fleet.Aircraft AS a,
+         [[edge]], Fleet.Component AS c2
+    WHERE MATCH([[pattern]])
+      AND c1.SerialNumber = @SerialNumber
+      AND [[current]];
+  slots:
+    - id: edge
+      options:
+        - { id: alias, text: "Fleet.InstalledIn AS i2" }
+        - { id: forpath, text: "Fleet.InstalledIn FOR PATH AS i2" }
+        - { id: node, text: "Fleet.Aircraft AS i2" }
+    - id: pattern
+      options:
+        - { id: inward, text: "c1-(i1)->a<-(i2)-c2" }
+        - { id: chain, text: "c1-(i1)->a-(i2)->c2" }
+        - { id: reuse, text: "c1-(i1)->a<-(i1)-c2" }
+        - { id: reversed, text: "a-(i1)->c1 AND a-(i2)->c2" }
+    - id: current
+      options:
+        - { id: both, text: "i1.RemovalDate IS NULL AND i2.RemovalDate IS NULL" }
+        - { id: second, text: "i2.RemovalDate IS NULL" }
+        - { id: exclude, text: "i1.RemovalDate IS NULL AND c2.$node_id <> c1.$node_id" }
+answer:
+  values: { edge: alias, pattern: inward, current: both }
+explanation:
+  correct:
+    en: |
+      The pattern needs two InstalledIn edges, and an edge alias can't be repeated inside MATCH, so the edge table is listed a second time in FROM under the alias i2. Both edges go from a component to an aircraft, so the second one is written a<-(i2)-c2, which joins both components on the same aircraft node. Both edges must be current (RemovalDate IS NULL): otherwise the query also returns aircraft in which the given component was installed in the past, or components that were removed.
+    fr: |
+      Le modèle a besoin de deux arêtes InstalledIn, et un alias d'arête ne peut pas être répété dans MATCH : la table d'arêtes est donc listée une deuxième fois dans FROM sous l'alias i2. Les deux arêtes vont d'un composant vers un appareil : la seconde s'écrit donc a<-(i2)-c2, ce qui relie les deux composants au même nœud d'appareil. Les deux arêtes doivent être actuelles (RemovalDate IS NULL) : sinon la requête renvoie aussi les appareils sur lesquels le composant donné a été installé par le passé, ou des composants qui ont été déposés.
+  options:
+    forpath: { en: "FOR PATH marks the tables repeated inside SHORTEST_PATH; this pattern doesn't use SHORTEST_PATH.", fr: "FOR PATH marque les tables répétées dans SHORTEST_PATH ; ce modèle n'utilise pas SHORTEST_PATH." }
+    node: { en: "i2 is used as an edge in the pattern, so it must reference the edge table Fleet.InstalledIn, not a node table.", fr: "i2 est utilisé comme arête dans le modèle : il doit référencer la table d'arêtes Fleet.InstalledIn, pas une table de nœuds." }
+    chain: { en: "a-(i2)->c2 requires an edge that goes from an aircraft to a component; InstalledIn edges go from a component to an aircraft.", fr: "a-(i2)->c2 exige une arête qui va d'un appareil vers un composant ; les arêtes InstalledIn vont d'un composant vers un appareil." }
+    reuse: { en: "An edge alias can't be repeated inside MATCH; a second occurrence of the edge needs its own alias.", fr: "Un alias d'arête ne peut pas être répété dans MATCH ; une deuxième occurrence de l'arête a besoin de son propre alias." }
+    reversed: { en: "Both patterns start at the aircraft, which reverses the direction of the InstalledIn edges.", fr: "Les deux modèles partent de l'appareil, ce qui inverse le sens des arêtes InstalledIn." }
+    second: { en: "Without a filter on i1, the query also uses aircraft in which the given component was installed in the past.", fr: "Sans filtre sur i1, la requête utilise aussi les appareils sur lesquels le composant donné a été installé par le passé." }
+    exclude: { en: "The requirement includes the given component in the list, and i2 isn't filtered, so removed components are returned.", fr: "L'exigence inclut le composant donné dans la liste, et i2 n'est pas filtrée : des composants déposés sont renvoyés." }
+references:
+  - title: MATCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/match-sql-graph

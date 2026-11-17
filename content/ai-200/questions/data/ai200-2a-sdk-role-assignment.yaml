@@ -1,0 +1,66 @@
+id: ai200-2a-sdk-role-assignment
+objective: "2.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware has a container app named **ca-rag** with a system-assigned managed identity. The app connects to an Azure Cosmos DB for NoSQL account named **cosmos-rag** by using `DefaultAzureCredential`. Key-based authentication is disabled on the account.
+
+    The app must read and write items in the **chunks** container of the **ragdb** database only. The solution must follow the principle of least privilege.
+
+    How should you complete the script? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'une application conteneur nommée **ca-rag** avec une identité managée affectée par le système. L'application se connecte à un compte Azure Cosmos DB for NoSQL nommé **cosmos-rag** à l'aide de `DefaultAzureCredential`. L'authentification par clé est désactivée sur le compte.
+
+    L'application doit lire et écrire des éléments uniquement dans le conteneur **chunks** de la base de données **ragdb**. La solution doit respecter le principe du moindre privilège.
+
+    Comment devez-vous compléter le script ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    principal=$(az containerapp identity show --resource-group rg-rag \
+      --name ca-rag --query [[pid]] --output tsv)
+
+    az [[grp]] create --resource-group rg-rag \
+      --account-name cosmos-rag \
+      --role-definition-id 00000000-0000-0000-0000-000000000002 \
+      --principal-id "$principal" \
+      --scope [[scope]]
+  slots:
+    - id: pid
+      options:
+        - { id: principalid, text: principalId }
+        - { id: tenantid, text: tenantId }
+        - { id: type, text: type }
+    - id: grp
+      options:
+        - { id: sqlra, text: cosmosdb sql role assignment }
+        - { id: azra, text: role assignment }
+        - { id: sqlrd, text: cosmosdb sql role definition }
+    - id: scope
+      options:
+        - { id: coll, text: '"/dbs/ragdb/colls/chunks"' }
+        - { id: db, text: '"/dbs/ragdb"' }
+        - { id: root, text: '"/"' }
+answer:
+  values: { pid: principalid, grp: sqlra, scope: coll }
+explanation:
+  correct:
+    en: "A data plane role assignment needs the object (principal) ID of the identity, which `az containerapp identity show` returns as `principalId`. Cosmos DB data plane roles such as Cosmos DB Built-in Data Contributor (`...0002`) are assigned with `az cosmosdb sql role assignment create`, and the scope `/dbs/ragdb/colls/chunks` limits the access to that container."
+    fr: "Une attribution de rôle de plan de données nécessite l'ID d'objet (principal) de l'identité, que `az containerapp identity show` renvoie sous le nom `principalId`. Les rôles de plan de données Cosmos DB, comme Cosmos DB Built-in Data Contributor (`...0002`), s'attribuent avec `az cosmosdb sql role assignment create`, et l'étendue `/dbs/ragdb/colls/chunks` limite l'accès à ce conteneur."
+  options:
+    tenantid: { en: "The tenant ID identifies the Microsoft Entra tenant, not the identity.", fr: "L'ID de locataire identifie le locataire Microsoft Entra, pas l'identité." }
+    type: { en: "`type` only says whether the identity is system-assigned or user-assigned.", fr: "`type` indique seulement si l'identité est affectée par le système ou par l'utilisateur." }
+    azra: { en: "`az role assignment create` manages Azure RBAC roles; it has no `--account-name` parameter and can't assign Cosmos DB data plane roles.", fr: "`az role assignment create` gère les rôles Azure RBAC ; cette commande n'a pas de paramètre `--account-name` et ne peut pas attribuer les rôles de plan de données Cosmos DB." }
+    sqlrd: { en: "Role definitions describe custom roles; the built-in role already exists and only needs an assignment.", fr: "Les définitions de rôle décrivent des rôles personnalisés ; le rôle intégré existe déjà et n'a besoin que d'une attribution." }
+    db: { en: "A database scope also grants access to every other container of ragdb.", fr: "Une étendue de base de données donne aussi accès à tous les autres conteneurs de ragdb." }
+    root: { en: "The `/` scope grants access to the whole account.", fr: "L'étendue `/` donne accès à tout le compte." }
+references:
+  - title: Connect using role-based access control and Microsoft Entra ID - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/security/how-to-grant-data-plane-role-based-access

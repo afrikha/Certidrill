@@ -1,0 +1,63 @@
+id: dp420-3a-hybrid-filtered-query
+objective: "3.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso's warranty assistant uses an Azure Cosmos DB for NoSQL container with a vector index on `/embedding` and a full-text policy and full-text index on `/body` (en-US). The parameter `@v` contains the embedding of the customer's question, and `@t1` and `@t2` contain its keywords.
+
+    You need to complete the query to meet the following requirements:
+
+    - Return only the articles whose body contains the word "warranty" or its other forms, such as "warranties".
+    - Rank the articles by fusing vector similarity and BM25 relevance.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'assistant de garantie de Contoso utilise un conteneur Azure Cosmos DB for NoSQL doté d'un index vectoriel sur `/embedding`, ainsi que d'une stratégie de texte intégral et d'un index de texte intégral sur `/body` (en-US). Le paramètre `@v` contient l'incorporation de la question du client, et `@t1` et `@t2` ses mots clés.
+
+    Vous devez compléter la requête pour satisfaire les exigences suivantes :
+
+    - Ne renvoyer que les articles dont le corps contient le mot « warranty » ou ses autres formes, comme « warranties ».
+    - Classer les articles en fusionnant la similarité vectorielle et la pertinence BM25.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 10 c.id, c.title
+    FROM c
+    WHERE [[filter]]
+    ORDER BY RANK RRF([[vf]], FullTextScore(c.body, @t1, @t2))
+  slots:
+    - id: filter
+      options:
+        - { id: contains, text: "CONTAINS(c.body, \"warranty\", true)" }
+        - { id: ftc, text: "FullTextContains(c.body, \"warranty\")" }
+        - { id: fts, text: "FullTextScore(c.body, \"warranty\") > 0" }
+    - id: vf
+      options:
+        - { id: vd, text: "VectorDistance(c.embedding, @v)" }
+        - { id: vdbody, text: "VectorDistance(c.body, @v)" }
+        - { id: ftsemb, text: "FullTextScore(c.embedding, @t1)" }
+answer:
+  values: { filter: ftc, vf: vd }
+explanation:
+  correct:
+    en: "FullTextContains uses the full-text index, which applies stemming, so it also matches other forms of the word, and it is the filter to use in WHERE. RRF then fuses VectorDistance on the vector path /embedding with FullTextScore on /body in ORDER BY RANK."
+    fr: "FullTextContains utilise l'index de texte intégral, qui applique la racinisation : il trouve aussi les autres formes du mot, et c'est le filtre à utiliser dans WHERE. RRF fusionne ensuite VectorDistance sur le chemin vectoriel /embedding avec FullTextScore sur /body dans ORDER BY RANK."
+  options:
+    contains: { en: "CONTAINS looks for the literal substring, so \"warranties\" doesn't match, and it doesn't use the full-text index.", fr: "CONTAINS cherche la sous-chaîne littérale : « warranties » ne correspond pas, et il n'utilise pas l'index de texte intégral." }
+    fts: { en: "FullTextScore can be used only in ORDER BY RANK or in RRF, not in WHERE.", fr: "FullTextScore ne s'utilise que dans ORDER BY RANK ou dans RRF, pas dans WHERE." }
+    vdbody: { en: "/body is text; VectorDistance needs the vector path declared in the vector policy.", fr: "/body est du texte ; VectorDistance exige le chemin vectoriel déclaré dans la stratégie vectorielle." }
+    ftsemb: { en: "/embedding is a vector, not a text path of the full-text policy.", fr: "/embedding est un vecteur, pas un chemin de texte de la stratégie de texte intégral." }
+references:
+  - title: Use Hybrid Search - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/hybrid-search
+  - title: Use Full-Text Search - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/full-text-search

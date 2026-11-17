@@ -1,0 +1,45 @@
+id: dp800-1b-cte-dedupe
+objective: "1.3.1"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Adatum. After a migration, the Sales.Customer table contains duplicate rows: several rows have the same Email value. Each row has a unique CustomerID and a CreatedAt value.
+
+    You need to write a single statement that deletes the duplicates and keeps, for each email address, the row that was created first.
+
+    Which four code segments should you use in sequence? To answer, move the appropriate code segments from the list of code segments to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Adatum. Après une migration, la table Sales.Customer contient des lignes en double : plusieurs lignes ont la même valeur Email. Chaque ligne possède un CustomerID unique et une valeur CreatedAt.
+
+    Vous devez écrire une seule instruction qui supprime les doublons et conserve, pour chaque adresse e-mail, la ligne créée en premier.
+
+    Quels sont les quatre segments de code à utiliser dans l'ordre ? Pour répondre, déplacez les segments de code appropriés de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - { id: with, text: "WITH Ranked AS (" }
+    - { id: select, text: "SELECT CustomerID, ROW_NUMBER() OVER (PARTITION BY Email ORDER BY CreatedAt, CustomerID) AS rn FROM Sales.Customer )" }
+    - { id: delete, text: "DELETE FROM Ranked" }
+    - { id: where, text: "WHERE rn > 1;" }
+    - { id: wherekeep, text: "WHERE rn = 1;" }
+    - { id: group, text: "SELECT Email, COUNT(*) AS n FROM Sales.Customer GROUP BY Email HAVING COUNT(*) > 1 )" }
+    - { id: selectall, text: "SELECT * FROM Ranked" }
+answer:
+  sequence: [ with, select, delete, where ]
+explanation:
+  correct:
+    en: |
+      ROW_NUMBER() partitioned by Email and ordered by CreatedAt gives the number 1 to the oldest row of each email address. The CTE references a single base table, so the DELETE statement that follows it can target the CTE and removes the underlying rows numbered 2 and above.
+    fr: |
+      ROW_NUMBER() partitionné par Email et trié par CreatedAt attribue le numéro 1 à la ligne la plus ancienne de chaque adresse e-mail. La CTE référence une seule table de base : l'instruction DELETE qui la suit peut cibler la CTE et supprime les lignes sous-jacentes numérotées 2 et plus.
+  options:
+    wherekeep: { en: "rn = 1 would delete the row to keep and leave the duplicates.", fr: "rn = 1 supprimerait la ligne à conserver et laisserait les doublons." }
+    group: { en: "The grouped query returns one row per duplicated email; it identifies no individual row to delete and has no rn column.", fr: "La requête groupée renvoie une ligne par adresse en double ; elle n'identifie aucune ligne individuelle à supprimer et n'a pas de colonne rn." }
+    selectall: { en: "A SELECT only reads the rows; the statement must delete them.", fr: "Un SELECT ne fait que lire les lignes ; l'instruction doit les supprimer." }
+references:
+  - title: WITH common_table_expression (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/with-common-table-expression-transact-sql
+  - title: Remove duplicate rows from a SQL Server table by using a script
+    url: https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/development/remove-duplicate-rows-sql-server-tab

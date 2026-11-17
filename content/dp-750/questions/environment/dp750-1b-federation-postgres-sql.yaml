@@ -1,0 +1,74 @@
+id: dp750-1b-federation-postgres-sql
+objective: "1.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has an Azure Database for PostgreSQL flexible server named **pg-sales** that hosts a database named **salesdb**. The user name and the password of a read-only login are stored in the secret scope **kv-sales** under the keys `pg-user` and `pg-password`.
+
+    You need to create a Unity Catalog connection and a foreign catalog named **sales_pg** that mirrors salesdb. Credentials must not appear in plain text.
+
+    How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un serveur flexible Azure Database pour PostgreSQL nommé **pg-sales** qui héberge une base nommée **salesdb**. Le nom d'utilisateur et le mot de passe d'une connexion en lecture seule sont stockés dans l'étendue de secrets **kv-sales** sous les clés `pg-user` et `pg-password`.
+
+    Vous devez créer une connexion Unity Catalog et un catalogue étranger nommé **sales_pg** qui reflète salesdb. Les informations d'identification ne doivent pas apparaître en clair.
+
+    Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE CONNECTION pg_sales_conn [[type]] postgresql
+    OPTIONS (
+      host 'pg-sales.postgres.database.azure.com',
+      port '5432',
+      user secret('kv-sales', 'pg-user'),
+      password [[pwd]]
+    );
+
+    CREATE FOREIGN CATALOG IF NOT EXISTS sales_pg
+    [[using]] pg_sales_conn
+    OPTIONS ([[opt]] 'salesdb');
+  slots:
+    - id: type
+      options:
+        - { id: using, text: USING }
+        - { id: format, text: FORMAT }
+        - { id: type, text: TYPE }
+    - id: pwd
+      options:
+        - { id: dbutils, text: "dbutils.secrets.get('kv-sales', 'pg-password')" }
+        - { id: secret, text: "secret('kv-sales', 'pg-password')" }
+        - { id: ref, text: "'{{secrets/kv-sales/pg-password}}'" }
+        - { id: key, text: "'pg-password'" }
+    - id: using
+      options:
+        - { id: with, text: WITH CONNECTION }
+        - { id: from, text: FROM CONNECTION }
+        - { id: usingconn, text: USING CONNECTION }
+    - id: opt
+      options:
+        - { id: database, text: database }
+        - { id: catalog, text: catalog }
+        - { id: schema, text: schema }
+answer:
+  values: { type: type, pwd: secret, using: usingconn, opt: database }
+explanation:
+  correct:
+    en: "A connection is created with `CREATE CONNECTION <name> TYPE postgresql OPTIONS (...)`, and the SQL `secret(scope, key)` function reads the credentials from a secret scope. The foreign catalog is created with `CREATE FOREIGN CATALOG <name> USING CONNECTION <connection> OPTIONS (database '<database>')`, which mirrors one database of the server."
+    fr: "Une connexion se crée avec `CREATE CONNECTION <nom> TYPE postgresql OPTIONS (...)`, et la fonction SQL `secret(étendue, clé)` lit les informations d'identification dans une étendue de secrets. Le catalogue étranger se crée avec `CREATE FOREIGN CATALOG <nom> USING CONNECTION <connexion> OPTIONS (database '<base>')`, qui reflète une base du serveur."
+  options:
+    dbutils: { en: "dbutils.secrets.get() is a notebook utility for Python and Scala, not a SQL function.", fr: "dbutils.secrets.get() est un utilitaire de notebook pour Python et Scala, pas une fonction SQL." }
+    ref: { en: "The {{secrets/...}} reference syntax is used in Spark configuration and environment variables, not in connection options.", fr: "La syntaxe de référence {{secrets/...}} s'utilise dans la configuration Spark et les variables d'environnement, pas dans les options d'une connexion." }
+    key: { en: "This string would be sent as the literal password 'pg-password'.", fr: "Cette chaîne serait envoyée comme mot de passe littéral 'pg-password'." }
+    catalog: { en: "The foreign catalog option for PostgreSQL is database: one foreign catalog mirrors one database.", fr: "L'option du catalogue étranger pour PostgreSQL est database : un catalogue étranger reflète une base." }
+    schema: { en: "Schemas of the database appear automatically as schemas of the foreign catalog.", fr: "Les schémas de la base apparaissent automatiquement comme schémas du catalogue étranger." }
+references:
+  - title: Run federated queries on PostgreSQL
+    url: https://learn.microsoft.com/en-us/azure/databricks/query-federation/postgresql

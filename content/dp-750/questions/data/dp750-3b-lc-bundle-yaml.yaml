@@ -1,0 +1,87 @@
+id: dp750-3b-lc-bundle-yaml
+objective: "3.2.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum defines its Lakeflow Connect pipelines in a Declarative Automation Bundles project (formerly Databricks Asset Bundles). The project already defines a SQL Server ingestion gateway with the resource key **erp_gateway**.
+
+    You are adding a pipeline that ingests the table **dbo.customers** into the schema **adatum.bronze**. The solution must meet the following requirements:
+
+    - Keep every version of each customer row, ordered by the `last_modified` column.
+    - Ingest columns added to dbo.customers in the future automatically.
+    - Never ingest the `tax_id` column.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum définit ses pipelines Lakeflow Connect dans un projet Declarative Automation Bundles (anciennement Databricks Asset Bundles). Le projet définit déjà une passerelle d'ingestion SQL Server avec la clé de ressource **erp_gateway**.
+
+    Vous ajoutez un pipeline qui ingère la table **dbo.customers** dans le schéma **adatum.bronze**. La solution doit satisfaire les exigences suivantes :
+
+    - Conserver chaque version de chaque ligne client, ordonnée par la colonne `last_modified`.
+    - Ingérer automatiquement les colonnes ajoutées ultérieurement à dbo.customers.
+    - Ne jamais ingérer la colonne `tax_id`.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    resources:
+      pipelines:
+        customers_ingest:
+          name: erp-customers-ingest
+          catalog: adatum
+          schema: bronze
+          ingestion_definition:
+            [[ref]]: ${resources.pipelines.erp_gateway.id}
+            objects:
+              - table:
+                  source_schema: dbo
+                  source_table: customers
+                  destination_catalog: adatum
+                  destination_schema: bronze
+                  table_configuration:
+                    scd_type: [[scd]]
+                    sequence_by: last_modified
+                    [[cols]]:
+                      - tax_id
+  slots:
+    - id: ref
+      options:
+        - { id: gw, text: ingestion_gateway_id }
+        - { id: conn, text: connection_name }
+        - { id: srccat, text: source_catalog }
+    - id: scd
+      options:
+        - { id: t1, text: SCD_TYPE_1 }
+        - { id: t2, text: SCD_TYPE_2 }
+    - id: cols
+      options:
+        - { id: excl, text: exclude_columns }
+        - { id: incl, text: include_columns }
+        - { id: except, text: except_column_list }
+answer:
+  values: { ref: gw, scd: t2, cols: excl }
+explanation:
+  correct:
+    en: |
+      With gateway-based CDC, the ingestion pipeline references the gateway through ingestion_gateway_id. SCD_TYPE_2 turns on history tracking, and for SQL Server sequence_by sets the column that orders the versions. With exclude_columns, every column except the listed ones is ingested, including columns added later.
+    fr: |
+      Avec une CDC basée sur une passerelle, le pipeline d'ingestion référence la passerelle au moyen d'ingestion_gateway_id. SCD_TYPE_2 active le suivi de l'historique, et pour SQL Server sequence_by définit la colonne qui ordonne les versions. Avec exclude_columns, toutes les colonnes sauf celles de la liste sont ingérées, y compris les colonnes ajoutées ultérieurement.
+  options:
+    conn: { en: "connection_name is used by connectors without a gateway, such as SaaS connectors or integrated CDC.", fr: "connection_name est utilisé par les connecteurs sans passerelle, comme les connecteurs SaaS ou la CDC intégrée." }
+    srccat: { en: "source_catalog identifies the source database of an object, not the gateway.", fr: "source_catalog identifie la base de données source d'un objet, pas la passerelle." }
+    t1: { en: "SCD_TYPE_1 overwrites rows and keeps no history.", fr: "SCD_TYPE_1 écrase les lignes et ne conserve aucun historique." }
+    incl: { en: "With include_columns, only the listed columns are ingested and new source columns are excluded.", fr: "Avec include_columns, seules les colonnes listées sont ingérées et les nouvelles colonnes de la source sont exclues." }
+    except: { en: "except_column_list is a parameter of AUTO CDC flows in pipelines, not of a Lakeflow Connect table configuration.", fr: "except_column_list est un paramètre des flux AUTO CDC des pipelines, pas de la configuration de table de Lakeflow Connect." }
+references:
+  - title: Enable history tracking (SCD type 2)
+    url: https://learn.microsoft.com/en-us/azure/databricks/ingestion/lakeflow-connect/scd
+  - title: Select columns to ingest
+    url: https://learn.microsoft.com/en-us/azure/databricks/ingestion/lakeflow-connect/column-selection

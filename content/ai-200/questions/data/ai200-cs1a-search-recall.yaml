@@ -1,0 +1,66 @@
+id: ai200-cs1a-search-recall
+objective: "2.2.5"
+type: dropdown
+caseStudy: ai200-cs1a-proseware
+difficulty: 3
+status: draft
+shuffle: false
+stem:
+  en: |
+    You are modifying the code that the search API runs for each search.
+
+    You need to meet the search recall requirement. How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous modifiez le code que l'API de recherche exécute pour chaque recherche.
+
+    Vous devez satisfaire l'exigence relative au rappel de la recherche. Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    BEGIN;
+    [[scope]] [[param]] = [[value]];
+    SELECT id, doc_id, content
+    FROM passages
+    WHERE jurisdiction = %s
+    ORDER BY embedding <=> %s::vector
+    LIMIT 10;
+    COMMIT;
+  slots:
+    - id: scope
+      options:
+        - { id: setsession, text: SET SESSION }
+        - { id: setlocal, text: SET LOCAL }
+        - { id: alterdb, text: ALTER DATABASE casefinder SET }
+    - id: param
+      options:
+        - { id: probes, text: ivfflat.probes }
+        - { id: efsearch, text: hnsw.ef_search }
+        - { id: maint, text: maintenance_work_mem }
+    - id: value
+      options:
+        - { id: v20, text: "20" }
+        - { id: v40, text: "40" }
+        - { id: v200, text: "200" }
+answer:
+  values: { scope: setlocal, param: efsearch, value: v200 }
+explanation:
+  correct:
+    en: |
+      `hnsw.ef_search` sets the size of the candidate list that an HNSW index scan returns (default 40). The `WHERE` filter is applied to these candidates, so in a small jurisdiction few of them remain; a larger value such as 200 returns more candidates and improves recall without rebuilding the index. `SET LOCAL` applies the value only until the end of the current transaction, so it affects only this query.
+    fr: |
+      `hnsw.ef_search` définit la taille de la liste de candidats que renvoie un parcours d'index HNSW (40 par défaut). Le filtre `WHERE` s'applique à ces candidats : dans une petite juridiction, peu d'entre eux subsistent. Une valeur plus élevée, par exemple 200, renvoie plus de candidats et améliore le rappel sans regénérer l'index. `SET LOCAL` n'applique la valeur que jusqu'à la fin de la transaction en cours : elle ne concerne que cette requête.
+  options:
+    setsession: { en: "SET SESSION keeps the value for every later query on the same connection, not only for the search query.", fr: "SET SESSION conserve la valeur pour toutes les requêtes suivantes de la même connexion, pas seulement pour la requête de recherche." }
+    alterdb: { en: "ALTER DATABASE changes the default of every new session that connects to casefinder.", fr: "ALTER DATABASE modifie la valeur par défaut de toutes les nouvelles sessions qui se connectent à casefinder." }
+    probes: { en: "ivfflat.probes tunes IVFFlat indexes; passages_embedding_idx is an HNSW index.", fr: "ivfflat.probes règle les index IVFFlat ; passages_embedding_idx est un index HNSW." }
+    maint: { en: "maintenance_work_mem is the memory used by maintenance operations such as index builds, not a search parameter.", fr: "maintenance_work_mem est la mémoire utilisée par les opérations de maintenance comme la génération d'index, pas un paramètre de recherche." }
+    v20: { en: "A value below the default of 40 returns fewer candidates and lowers recall.", fr: "Une valeur inférieure à la valeur par défaut de 40 renvoie moins de candidats et réduit le rappel." }
+    v40: { en: "40 is the default value, which already produces the reported results.", fr: "40 est la valeur par défaut, qui produit déjà les résultats signalés." }
+references:
+  - title: Optimize performance when using pgvector in Azure Database for PostgreSQL flexible server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

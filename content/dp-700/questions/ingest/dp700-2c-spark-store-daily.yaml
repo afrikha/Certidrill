@@ -1,0 +1,77 @@
+id: dp700-2c-spark-store-daily
+objective: "2.2.8"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric workspace that contains a lakehouse named LH_Sales. LH_Sales contains a Delta table named silver_orderlines that has one row per order line and the following columns: OrderID, OrderDate, StoreID, CustomerID, and Amount.
+
+    You need to create a table named gold_store_daily that contains one row per store and order date, with the total amount and the exact number of distinct customers. The table must not contain subtotal rows.
+
+    How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Fabric qui contient un lakehouse nommé LH_Sales. LH_Sales contient une table Delta nommée silver_orderlines qui comporte une ligne par ligne de commande et les colonnes suivantes : OrderID, OrderDate, StoreID, CustomerID et Amount.
+
+    Vous devez créer une table nommée gold_store_daily qui contient une ligne par magasin et par date de commande, avec le montant total et le nombre exact de clients distincts. La table ne doit pas contenir de lignes de sous-total.
+
+    Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    daily = (spark.read.table("silver_orderlines")
+        .[[grp]]("StoreID", "OrderDate")
+        .agg(F.sum("Amount").alias("Revenue"),
+             [[cnt]]("CustomerID").alias("Customers")))
+
+    daily.write.mode("overwrite").saveAsTable("gold_store_daily")
+  slots:
+    - id: grp
+      options:
+        - { id: groupby, text: groupBy }
+        - { id: rollup, text: rollup }
+        - { id: cube, text: cube }
+        - { id: orderby, text: orderBy }
+    - id: cnt
+      options:
+        - { id: countdistinct, text: F.countDistinct }
+        - { id: approx, text: F.approx_count_distinct }
+        - { id: count, text: F.count }
+        - { id: sum, text: F.sum }
+answer:
+  values: { grp: groupby, cnt: countdistinct }
+explanation:
+  correct:
+    en: |
+      `groupBy("StoreID", "OrderDate")` returns one group per combination of the two columns, and `agg()` computes the aggregations of each group. `F.countDistinct("CustomerID")` returns the exact number of distinct customers in each group.
+    fr: |
+      `groupBy("StoreID", "OrderDate")` renvoie un groupe par combinaison des deux colonnes, et `agg()` calcule les agrégations de chaque groupe. `F.countDistinct("CustomerID")` renvoie le nombre exact de clients distincts de chaque groupe.
+  options:
+    rollup:
+      en: "rollup also adds a subtotal row per store and a grand total row, which the table must not contain."
+      fr: "rollup ajoute aussi une ligne de sous-total par magasin et une ligne de total général, que la table ne doit pas contenir."
+    cube:
+      en: "cube adds subtotal rows for every combination of the grouping columns, including the grand total."
+      fr: "cube ajoute des lignes de sous-total pour chaque combinaison des colonnes de regroupement, y compris le total général."
+    orderby:
+      en: "orderBy sorts the rows; it does not return a grouped object on which agg() aggregates per store and date."
+      fr: "orderBy trie les lignes ; il ne renvoie pas d'objet groupé sur lequel agg() agrège par magasin et par date."
+    approx:
+      en: "approx_count_distinct returns an estimate, not the exact number of distinct customers."
+      fr: "approx_count_distinct renvoie une estimation, pas le nombre exact de clients distincts."
+    count:
+      en: "count counts the non-null CustomerID values, so a customer with several order lines is counted several times."
+      fr: "count compte les valeurs CustomerID non nulles : un client qui a plusieurs lignes de commande est compté plusieurs fois."
+    sum:
+      en: "sum adds the CustomerID values together, which has no business meaning."
+      fr: "sum additionne les valeurs CustomerID, ce qui n'a aucun sens métier."
+references:
+  - title: Combine and aggregate data
+    url: https://learn.microsoft.com/en-us/training/modules/fabric-transform-data-notebooks/4-combine-aggregate

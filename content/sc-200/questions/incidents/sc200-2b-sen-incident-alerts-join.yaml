@@ -1,0 +1,75 @@
+id: sc200-2b-sen-incident-alerts-join
+objective: "2.1.7"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank uses Microsoft Sentinel. For a weekly report, you need a query that lists every high-severity incident of the last seven days together with the names of the alerts it contains.
+
+    In `SecurityIncident`, the `AlertIds` column is a dynamic array of alert IDs. In `SecurityAlert`, each alert is identified by `SystemAlertId`.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank utilise Microsoft Sentinel. Pour un rapport hebdomadaire, vous avez besoin d'une requête qui liste chaque incident de gravité élevée des sept derniers jours avec les noms des alertes qu'il contient.
+
+    Dans `SecurityIncident`, la colonne `AlertIds` est un tableau dynamique d'ID d'alertes. Dans `SecurityAlert`, chaque alerte est identifiée par `SystemAlertId`.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    SecurityIncident
+    | where TimeGenerated > ago(7d)
+    | summarize arg_max(TimeGenerated, *) by IncidentNumber
+    | where Severity == "High"
+    | [[expand]] AlertIds
+    | extend AlertId = tostring(AlertIds)
+    | join kind=[[kind]] (
+        SecurityAlert
+        | summarize arg_max(TimeGenerated, *) by SystemAlertId
+      ) on $left.AlertId == $right.[[col]]
+    | summarize AlertNames = make_set(AlertName) by IncidentNumber, Title
+  slots:
+    - id: expand
+      options:
+        - { id: mvexpand, text: mv-expand }
+        - { id: project, text: project }
+        - { id: parse, text: parse }
+        - { id: extend, text: extend }
+    - id: kind
+      options:
+        - { id: inner, text: inner }
+        - { id: leftanti, text: leftanti }
+        - { id: leftsemi, text: leftsemi }
+    - id: col
+      options:
+        - { id: sysid, text: SystemAlertId }
+        - { id: name, text: AlertName }
+        - { id: vendor, text: VendorOriginalId }
+        - { id: provider, text: ProviderName }
+answer:
+  values: { expand: mvexpand, kind: inner, col: sysid }
+explanation:
+  correct:
+    en: |
+      `mv-expand` turns the `AlertIds` array into one row per alert ID, which `tostring()` converts for the join. An `inner` join keeps the incident rows that match an alert and adds the alert columns such as `AlertName`. The key on the right side is `SystemAlertId`, the ID that `AlertIds` references.
+    fr: |
+      `mv-expand` transforme le tableau `AlertIds` en une ligne par ID d'alerte, que `tostring()` convertit pour la jointure. Une jointure `inner` conserve les lignes d'incident qui correspondent à une alerte et ajoute les colonnes de l'alerte comme `AlertName`. La clé du côté droit est `SystemAlertId`, l'ID que référence `AlertIds`.
+  options:
+    project: { en: "project selects columns; it doesn't create one row per array element.", fr: "project sélectionne des colonnes ; il ne crée pas une ligne par élément du tableau." }
+    parse: { en: "parse extracts values from a string with a pattern; it doesn't expand an array.", fr: "parse extrait des valeurs d'une chaîne avec un modèle ; il n'étend pas un tableau." }
+    extend: { en: "extend adds a column but keeps the whole array in a single row.", fr: "extend ajoute une colonne mais garde tout le tableau sur une seule ligne." }
+    leftanti: { en: "leftanti returns the incident rows that have no matching alert, the opposite of the requirement.", fr: "leftanti renvoie les lignes d'incident sans alerte correspondante, l'inverse de l'exigence." }
+    leftsemi: { en: "leftsemi returns only left-side columns, so AlertName wouldn't be available.", fr: "leftsemi ne renvoie que les colonnes du côté gauche : AlertName ne serait pas disponible." }
+    name: { en: "AlertName is the display name of the alert, not the ID stored in AlertIds.", fr: "AlertName est le nom d'affichage de l'alerte, pas l'ID stocké dans AlertIds." }
+    vendor: { en: "VendorOriginalId is the ID assigned by the product that raised the alert, not the ID referenced by the incident.", fr: "VendorOriginalId est l'ID attribué par le produit qui a généré l'alerte, pas l'ID référencé par l'incident." }
+    provider: { en: "ProviderName identifies the source product, not a single alert.", fr: "ProviderName identifie le produit source, pas une alerte précise." }
+references:
+  - title: Azure Monitor Logs reference - SecurityIncident
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/securityincident

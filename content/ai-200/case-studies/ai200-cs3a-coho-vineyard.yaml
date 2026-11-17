@@ -1,0 +1,79 @@
+id: ai200-cs3a-coho-vineyard
+status: draft
+title:
+  en: Coho Vineyard
+  fr: Coho Vineyard
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Coho Vineyard is a wine producer that sells about 300 wines online and in three tasting rooms. Customers often ask which bottle goes with a given dish.
+
+        Coho Vineyard is building **Sommelier**, a wine pairing assistant written in Python. Sommelier suggests wines from the catalog, lets customers fill a cart, and sends the orders to a fulfilment service. Sommelier also calls the API of a wine supplier by using an API key that the supplier rotates on request.
+      fr: |
+        Coho Vineyard est un producteur de vin qui vend environ 300 vins en ligne et dans trois caveaux de dégustation. Les clients demandent souvent quelle bouteille accompagne un plat donné.
+
+        Coho Vineyard développe **Sommelier**, un assistant d'accords mets-vins écrit en Python. Sommelier suggère des vins du catalogue, permet aux clients de remplir un panier et envoie les commandes à un service de traitement des commandes. Sommelier appelle aussi l'API d'un fournisseur de vin à l'aide d'une clé API que le fournisseur renouvelle sur demande.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Coho Vineyard has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | crcoho | Azure Container Registry | Standard SKU |
+        | app-coho-pairing | App Service web app | Linux custom container from crcoho; runs the Sommelier front end; system-assigned managed identity |
+        | app-coho-fulfil | App Service web app | Linux custom container from crcoho; Python worker that receives the order messages |
+        | cosmos-coho | Azure Cosmos DB for NoSQL account | Single region; default consistency level **Strong**; database **cellar** with the containers **wines** (partition key `/region`) and **carts** (partition key `/customerId`) |
+        | sb-coho | Azure Service Bus namespace | Standard tier; topic **orders** with one subscription named **fulfilment** that has its default rule |
+        | kv-coho | Azure Key Vault | Azure RBAC permission model; secret **supplier-api-key**, each version expires 90 days after it is created |
+        | func-coho-rotate | Function app | Python function that requests a new key from the supplier and stores it as a new version of supplier-api-key |
+        | appi-coho | Application Insights | Workspace-based |
+
+        The managed identity of app-coho-pairing has the Cosmos DB Built-in Data Contributor role on cosmos-coho and the Key Vault Secrets User role on kv-coho.
+
+        app-coho-pairing already sends telemetry to appi-coho: it calls `configure_azure_monitor()` from the `azure-monitor-opentelemetry` package at startup, and its `APPLICATIONINSIGHTS_CONNECTION_STRING` app setting contains the connection string of appi-coho. app-coho-fulfil sends no telemetry.
+
+        Each item of the wines container contains the properties `id`, `region`, `name`, `vintage`, `price`, `pairings` (an array of dish names) and `tastingNotes`, a long text written by the cellar master.
+      fr: |
+        Coho Vineyard dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | crcoho | Azure Container Registry | SKU Standard |
+        | app-coho-pairing | Application web App Service | Conteneur personnalisé Linux provenant de crcoho ; exécute le front-end de Sommelier ; identité managée affectée par le système |
+        | app-coho-fulfil | Application web App Service | Conteneur personnalisé Linux provenant de crcoho ; worker Python qui reçoit les messages de commande |
+        | cosmos-coho | Compte Azure Cosmos DB for NoSQL | Une seule région ; niveau de cohérence par défaut **Strong** ; base de données **cellar** avec les conteneurs **wines** (clé de partition `/region`) et **carts** (clé de partition `/customerId`) |
+        | sb-coho | Espace de noms Azure Service Bus | Niveau Standard ; rubrique **orders** avec un abonnement nommé **fulfilment** qui a sa règle par défaut |
+        | kv-coho | Azure Key Vault | Modèle d'autorisation Azure RBAC ; secret **supplier-api-key**, chaque version expire 90 jours après sa création |
+        | func-coho-rotate | Application de fonction | Fonction Python qui demande une nouvelle clé au fournisseur et la stocke comme nouvelle version de supplier-api-key |
+        | appi-coho | Application Insights | Basé sur un espace de travail |
+
+        L'identité managée de app-coho-pairing a le rôle Cosmos DB Built-in Data Contributor sur cosmos-coho et le rôle Key Vault Secrets User sur kv-coho.
+
+        app-coho-pairing envoie déjà des données de télémétrie à appi-coho : elle appelle `configure_azure_monitor()` du package `azure-monitor-opentelemetry` au démarrage, et son paramètre d'application `APPLICATIONINSIGHTS_CONNECTION_STRING` contient la chaîne de connexion de appi-coho. app-coho-fulfil n'envoie aucune donnée de télémétrie.
+
+        Chaque élément du conteneur wines contient les propriétés `id`, `region`, `name`, `vintage`, `price`, `pairings` (un tableau de noms de plats) et `tastingNotes`, un long texte rédigé par le maître de chai.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Coho Vineyard identifies the following requirements:
+
+        1. **Supplier key**: the Sommelier code reads the supplier key from the `SUPPLIER_API_KEY` environment variable and must not change. No secret value may be stored in the app settings of app-coho-pairing. When func-coho-rotate stores a new version of supplier-api-key, app-coho-pairing must start using it without any manual change.
+        2. **Rotation**: func-coho-rotate must run automatically before the current version of supplier-api-key expires. No component may poll kv-coho to detect the expiration.
+        3. **Catalog access**: app-coho-pairing must authenticate to cosmos-coho by using Microsoft Entra ID. Reading one wine when its `id` and `region` are known must use the cheapest operation. The pairing queries always target one region and must run in a single logical partition.
+        4. **Catalog and cart performance**: the catalog page lists the wines of a region sorted by `vintage` in descending order and then by `price` in ascending order. `tastingNotes` is never used in a filter or a sort, and the RU charge of the writes to the wines container must be minimized. After a customer adds a bottle to the cart, the same customer session must always read the updated cart; other customers do not need to see the change immediately. The RU charge of the reads must be minimized.
+        5. **Orders**: every order must still reach the fulfilment subscription. The orders of Gold club members must also reach a new subscription named **vip**.
+        6. **Tracing**: the end-to-end transaction view of appi-coho must show each order from the request to app-coho-pairing to its processing by app-coho-fulfil. No connection string may appear in the code.
+      fr: |
+        Coho Vineyard a défini les exigences suivantes :
+
+        1. **Clé du fournisseur** : le code de Sommelier lit la clé du fournisseur dans la variable d'environnement `SUPPLIER_API_KEY` et ne doit pas changer. Aucune valeur de secret ne doit être stockée dans les paramètres d'application de app-coho-pairing. Quand func-coho-rotate stocke une nouvelle version de supplier-api-key, app-coho-pairing doit commencer à l'utiliser sans aucune modification manuelle.
+        2. **Renouvellement** : func-coho-rotate doit s'exécuter automatiquement avant l'expiration de la version actuelle de supplier-api-key. Aucun composant ne doit interroger kv-coho à intervalles réguliers pour détecter l'expiration.
+        3. **Accès au catalogue** : app-coho-pairing doit s'authentifier auprès de cosmos-coho à l'aide de Microsoft Entra ID. La lecture d'un vin dont l'`id` et la `region` sont connus doit utiliser l'opération la moins coûteuse. Les requêtes d'accords ciblent toujours une seule région et doivent s'exécuter dans une seule partition logique.
+        4. **Performances du catalogue et du panier** : la page du catalogue liste les vins d'une région triés par `vintage` dans l'ordre décroissant, puis par `price` dans l'ordre croissant. `tastingNotes` n'est jamais utilisée dans un filtre ni dans un tri, et la consommation de RU des écritures dans le conteneur wines doit être réduite au minimum. Après qu'un client a ajouté une bouteille à son panier, la même session client doit toujours lire le panier mis à jour ; les autres clients n'ont pas besoin de voir la modification immédiatement. La consommation de RU des lectures doit être réduite au minimum.
+        5. **Commandes** : chaque commande doit toujours parvenir à l'abonnement fulfilment. Les commandes des membres du club Gold doivent aussi parvenir à un nouvel abonnement nommé **vip**.
+        6. **Traçage** : la vue des transactions de bout en bout de appi-coho doit montrer chaque commande depuis la requête adressée à app-coho-pairing jusqu'à son traitement par app-coho-fulfil. Aucune chaîne de connexion ne doit apparaître dans le code.

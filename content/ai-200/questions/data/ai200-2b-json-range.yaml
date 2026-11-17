@@ -1,0 +1,66 @@
+id: ai200-2b-json-range
+objective: "2.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin's travel assistant stores offers on Azure Database for PostgreSQL. Prices are kept in a jsonb column named **attributes** because each partner sends a different set of fields. The search API filters offers with `WHERE (attributes->>'price')::numeric BETWEEN 200 AND 500`, and a GIN index on attributes does not help this filter.
+
+    You must index the price range filter without changing the table structure.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'assistant de voyage de Tailspin stocke des offres sur Azure Database for PostgreSQL. Les prix sont conservés dans une colonne jsonb nommée **attributes**, car chaque partenaire envoie un ensemble de champs différent. L'API de recherche filtre les offres avec `WHERE (attributes->>'price')::numeric BETWEEN 200 AND 500`, et un index GIN sur attributes n'aide pas ce filtre.
+
+    Vous devez indexer le filtre de plage de prix sans modifier la structure de la table.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE INDEX idx_offers_price
+    ON offers USING [[method]] ([[expr]]);
+  slots:
+    - id: method
+      options:
+        - { id: btree, text: btree }
+        - { id: gin, text: gin }
+        - { id: hash, text: hash }
+        - { id: hnsw, text: hnsw }
+    - id: expr
+      options:
+        - { id: cast, text: "((attributes->>'price')::numeric)" }
+        - { id: whole, text: attributes }
+        - { id: jsonval, text: "(attributes->'price')" }
+        - { id: pathops, text: attributes jsonb_path_ops }
+answer:
+  values: { method: btree, expr: cast }
+explanation:
+  correct:
+    en: "GIN indexes serve containment, not ranges. An expression index on `((attributes->>'price')::numeric)` stores the extracted numeric price in a B-tree, which supports range comparisons such as BETWEEN. The planner uses it because the expression in the query is the same as the indexed expression."
+    fr: "Les index GIN servent la contenance, pas les plages. Un index d'expression sur `((attributes->>'price')::numeric)` stocke le prix numérique extrait dans un B-tree, qui prend en charge les comparaisons de plage comme BETWEEN. Le planificateur l'utilise parce que l'expression de la requête est identique à l'expression indexée."
+  options:
+    gin:
+      en: "GIN does not accelerate range queries."
+      fr: "GIN n'accélère pas les requêtes de plage."
+    hash:
+      en: "A hash index supports only equality, not BETWEEN."
+      fr: "Un index hash ne prend en charge que l'égalité, pas BETWEEN."
+    whole:
+      en: "An index on the whole document does not match the extracted, cast price used in the filter."
+      fr: "Un index sur le document entier ne correspond pas au prix extrait et converti utilisé dans le filtre."
+    jsonval:
+      en: "The `->` operator returns a jsonb value, not the numeric expression of the query, so the planner cannot use this index for the filter."
+      fr: "L'opérateur `->` renvoie une valeur jsonb, pas l'expression numérique de la requête : le planificateur ne peut pas utiliser cet index pour le filtre."
+    pathops:
+      en: "jsonb_path_ops is a GIN operator class for containment; it does not support ranges."
+      fr: "jsonb_path_ops est une classe d'opérateurs GIN pour la contenance ; elle ne prend pas en charge les plages."
+references:
+  - title: Optimize data layout
+    url: https://learn.microsoft.com/en-us/training/modules/optimize-vector-search-azure-database-postgresql/4-optimize-data-layout

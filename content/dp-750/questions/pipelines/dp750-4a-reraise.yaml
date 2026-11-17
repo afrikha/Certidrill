@@ -1,0 +1,80 @@
+id: dp750-4a-reraise
+objective: "4.1.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has a Lakeflow job in which the notebook task **load_silver** runs the following code. The task **publish_gold** depends on load_silver with the default Run if condition, and the job sends a notification on failure.
+
+    ```python
+    try:
+        df = spark.read.table("woodgrove.bronze.payments")
+        (df.write.mode("overwrite")
+           .option("replaceWhere", f"pay_day = '{run_date}'")
+           .saveAsTable("woodgrove.silver.payments"))
+    except Exception as e:
+        print(f"Load failed for {run_date}: {e}")
+    ```
+
+    Last night, the write failed. publish_gold then ran on the previous day's data, and nobody received a notification.
+
+    You need the job to report the failure and stop publish_gold from running when the write fails.
+
+    What should you do?
+  fr: |
+    Woodgrove Bank dispose d'un job Lakeflow dans lequel la tâche notebook **load_silver** exécute le code suivant. La tâche **publish_gold** dépend de load_silver avec la condition Run if par défaut, et le job envoie une notification en cas d'échec.
+
+    ```python
+    try:
+        df = spark.read.table("woodgrove.bronze.payments")
+        (df.write.mode("overwrite")
+           .option("replaceWhere", f"pay_day = '{run_date}'")
+           .saveAsTable("woodgrove.silver.payments"))
+    except Exception as e:
+        print(f"Load failed for {run_date}: {e}")
+    ```
+
+    La nuit dernière, l'écriture a échoué. publish_gold s'est alors exécutée sur les données de la veille, et personne n'a reçu de notification.
+
+    Vous devez faire en sorte que le job signale l'échec et empêche l'exécution de publish_gold quand l'écriture échoue.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Replace the print statement with dbutils.notebook.exit(\"FAILED\").", fr: "Remplacer l'instruction print par dbutils.notebook.exit(\"FAILED\")." }
+    - id: b
+      text: { en: "Add a raise statement after the print statement in the except block.", fr: "Ajouter une instruction raise après l'instruction print dans le bloc except." }
+    - id: c
+      text: { en: "Set the Run if condition of publish_gold to None failed.", fr: "Définir la condition Run if de publish_gold sur None failed." }
+    - id: d
+      text: { en: "Add a retry policy with two retries to the load_silver task.", fr: "Ajouter à la tâche load_silver une stratégie de deux nouvelles tentatives." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      The except block catches the exception and the notebook then ends normally, so the task is reported as succeeded and publish_gold runs. Re-raising the exception after logging it makes the task fail, which triggers the failure notification and leaves publish_gold in the Upstream failed state.
+    fr: |
+      Le bloc except intercepte l'exception, puis le notebook se termine normalement : la tâche est signalée comme réussie et publish_gold s'exécute. Relever l'exception après l'avoir journalisée fait échouer la tâche, ce qui déclenche la notification d'échec et laisse publish_gold dans l'état Upstream failed.
+  options:
+    a:
+      en: |
+        exit() ends the notebook successfully and only returns a string, so the task still succeeds.
+      fr: |
+        exit() termine le notebook avec succès et ne fait que renvoyer une chaîne : la tâche réussit toujours.
+    c:
+      en: |
+        load_silver doesn't fail, so None failed still runs publish_gold.
+      fr: |
+        load_silver n'échoue pas : None failed exécute donc toujours publish_gold.
+    d:
+      en: |
+        Retries apply only to a failed task; the swallowed exception means the task never fails.
+      fr: |
+        Les nouvelles tentatives ne s'appliquent qu'à une tâche en échec ; comme l'exception est absorbée, la tâche n'échoue jamais.
+references:
+  - title: Orchestrate Databricks notebooks and modularize code
+    url: https://learn.microsoft.com/en-us/azure/databricks/notebooks/notebook-workflows
+  - title: Configure task dependencies
+    url: https://learn.microsoft.com/en-us/azure/databricks/jobs/run-if

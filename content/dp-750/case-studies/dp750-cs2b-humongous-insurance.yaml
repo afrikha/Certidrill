@@ -1,0 +1,97 @@
+id: dp750-cs2b-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is a property and casualty insurer that has 2.4 million policyholders in France. Its head office is in Lille. A data team of six data engineers and a security team manage the claims analytics platform on Azure Databricks.
+
+        Humongous Insurance wants to protect personal data in its claims tables, give actuaries access to the policy administration database, share ceded claims with its reinsurer, and build dimension tables that meet regulatory audit needs.
+      fr: |
+        Humongous Insurance est un assureur de biens et de responsabilité qui compte 2,4 millions d'assurés en France. Son siège est à Lille. Une équipe de six ingénieurs données et une équipe sécurité gèrent la plateforme d'analytique des sinistres sur Azure Databricks.
+
+        Humongous Insurance souhaite protéger les données personnelles de ses tables de sinistres, donner aux actuaires l'accès à la base de données de gestion des contrats, partager les sinistres cédés avec son réassureur et créer des tables de dimension qui répondent aux besoins des audits réglementaires.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Humongous Insurance has the following resources in the France Central region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-hi-prod | Azure Databricks workspace | Premium plan; enabled for Unity Catalog and serverless compute |
+        | sqldb-policyadmin | Azure SQL Database | Database **PolicyAdmin** on the server sql-hi-policy.database.windows.net; tables policies, coverages and brokers |
+        | kv-hi-data | Azure Key Vault | Permission model: Vault access policy; secrets **sqlpa-user** and **sqlpa-password** for sqldb-policyadmin |
+
+        The Unity Catalog catalog **claims_prod** contains the schemas bronze, silver, gold and governance.
+
+        - The silver schema contains the tables claims, claimants and payments, which contain personal data. Columns that contain a national identification number have the governed tag `pii` with the value `national_id`. Email and phone columns have the governed tag `pii` with the value `contact`.
+        - The gold table **claims_prod.gold.ceded_claims** is a Delta table partitioned by `treaty_year`. It has no row filter and no column mask.
+        - The functions used by the data protection rules are stored in claims_prod.governance.
+
+        The following account-level groups exist: **claims-analysts**, **siu-investigators** (special investigations unit), **actuaries** and **data-engineers**.
+
+        The reinsurer **Proseware Re** uses Azure Databricks with Unity Catalog in its own Azure Databricks account.
+
+        A Lakeflow Spark Declarative Pipeline reads the change data feed of the silver tables to maintain the dimension tables **dim_policyholder**, **dim_broker** and **dim_policy** in claims_prod.gold by using AUTO CDC flows.
+      fr: |
+        Humongous Insurance dispose des ressources suivantes dans la région France Central.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-hi-prod | Espace de travail Azure Databricks | Plan Premium ; activé pour Unity Catalog et le calcul serverless |
+        | sqldb-policyadmin | Azure SQL Database | Base de données **PolicyAdmin** sur le serveur sql-hi-policy.database.windows.net ; tables policies, coverages et brokers |
+        | kv-hi-data | Azure Key Vault | Modèle d'autorisation : stratégie d'accès du coffre (Vault access policy) ; secrets **sqlpa-user** et **sqlpa-password** pour sqldb-policyadmin |
+
+        Le catalogue Unity Catalog **claims_prod** contient les schémas bronze, silver, gold et governance.
+
+        - Le schéma silver contient les tables claims, claimants et payments, qui contiennent des données personnelles. Les colonnes qui contiennent un numéro d'identification national portent la balise gouvernée `pii` avec la valeur `national_id`. Les colonnes d'e-mail et de téléphone portent la balise gouvernée `pii` avec la valeur `contact`.
+        - La table gold **claims_prod.gold.ceded_claims** est une table Delta partitionnée par `treaty_year`. Elle n'a ni filtre de lignes ni masque de colonne.
+        - Les fonctions utilisées par les règles de protection des données sont stockées dans claims_prod.governance.
+
+        Les groupes de niveau compte suivants existent : **claims-analysts**, **siu-investigators** (cellule d'enquêtes spéciales), **actuaries** et **data-engineers**.
+
+        Le réassureur **Proseware Re** utilise Azure Databricks avec Unity Catalog dans son propre compte Azure Databricks.
+
+        Un pipeline déclaratif Lakeflow Spark lit le flux des changements de données des tables silver pour mettre à jour les tables de dimension **dim_policyholder**, **dim_broker** et **dim_policy** dans claims_prod.gold à l'aide de flux AUTO CDC.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Security**
+
+        1. The credentials of sqldb-policyadmin must remain in kv-hi-data, where only the security team creates, updates and rotates them. The credentials must not be copied to any other store.
+        2. In every current and future table of claims_prod.silver, the columns that contain a national identification number must show only their last four characters to all users except the members of siu-investigators. Email and phone columns must not be masked. Table owners must not be able to remove the masking.
+        3. The members of claims-analysts must be able to query every current and future table of claims_prod.gold, and nothing in the other schemas. The principle of least privilege must be followed.
+
+        **Data access**
+
+        4. The actuaries must query the PolicyAdmin tables from Azure Databricks in place, without copying the data.
+        5. Proseware Re must receive the ceded claims of the treaty years 2025 and 2026 only. No long-lived credential must be exchanged with Proseware Re or rotated.
+
+        **Dimension tables**
+
+        6. dim_policyholder must keep every version of each policyholder, for any change of any column, for regulatory audits.
+        7. In dim_broker, a change must overwrite the current row; no history is needed.
+        8. dim_policy has the columns `policy_id` (key), `coverage_level`, `premium_tier`, `marketing_opt_in` and `agent_notes`. It must create a new version only when `coverage_level` or `premium_tier` changes. Changes to the other columns must overwrite the current version.
+      fr: |
+        **Sécurité**
+
+        1. Les informations d'identification de sqldb-policyadmin doivent rester dans kv-hi-data, où seule l'équipe sécurité les crée, les met à jour et les renouvelle. Elles ne doivent être copiées dans aucun autre magasin.
+        2. Dans chaque table actuelle et future de claims_prod.silver, les colonnes qui contiennent un numéro d'identification national ne doivent afficher que leurs quatre derniers caractères à tous les utilisateurs, sauf aux membres de siu-investigators. Les colonnes d'e-mail et de téléphone ne doivent pas être masquées. Les propriétaires des tables ne doivent pas pouvoir supprimer le masquage.
+        3. Les membres de claims-analysts doivent pouvoir interroger chaque table actuelle et future de claims_prod.gold, et rien dans les autres schémas. Le principe des privilèges minimum doit être respecté.
+
+        **Accès aux données**
+
+        4. Les actuaires doivent interroger les tables de PolicyAdmin depuis Azure Databricks sur place, sans copier les données.
+        5. Proseware Re doit recevoir uniquement les sinistres cédés des exercices de traité 2025 et 2026. Aucune information d'identification de longue durée ne doit être échangée avec Proseware Re ni renouvelée.
+
+        **Tables de dimension**
+
+        6. dim_policyholder doit conserver chaque version de chaque assuré, pour toute modification de n'importe quelle colonne, pour les audits réglementaires.
+        7. Dans dim_broker, une modification doit écraser la ligne actuelle ; aucun historique n'est nécessaire.
+        8. dim_policy comporte les colonnes `policy_id` (clé), `coverage_level`, `premium_tier`, `marketing_opt_in` et `agent_notes`. Elle ne doit créer une nouvelle version que lorsque `coverage_level` ou `premium_tier` change. Les modifications des autres colonnes doivent écraser la version actuelle.

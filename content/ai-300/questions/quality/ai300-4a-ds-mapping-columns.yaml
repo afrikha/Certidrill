@@ -1,0 +1,83 @@
+id: ai300-4a-ds-mapping-columns
+objective: "4.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders exported 500 interactions of its RAG chat application to a JSONL file and uploaded it as a dataset in a Foundry project. Each row contains the following fields: `question` (user input), `docs` (retrieved passages), `answer` (stored response) and `expected` (reference answer written by an expert).
+
+    You need to evaluate the stored responses with the Groundedness and Relevance evaluators. No model or agent target is called during the run.
+
+    How should you complete the testing criteria? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders a exporté 500 interactions de son application de conversation RAG dans un fichier JSONL et l'a chargé comme jeu de données dans un projet Foundry. Chaque ligne contient les champs suivants : `question` (entrée de l'utilisateur), `docs` (passages récupérés), `answer` (réponse stockée) et `expected` (réponse de référence rédigée par un expert).
+
+    Vous devez évaluer les réponses stockées avec les évaluateurs Groundedness et Relevance. Aucune cible de modèle ou d'agent n'est appelée pendant l'exécution.
+
+    Comment devez-vous compléter les critères de test ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    testing_criteria = [
+        {
+            "type": "azure_ai_evaluator",
+            "name": "groundedness",
+            "evaluator_name": "builtin.groundedness",
+            "initialization_parameters": {"deployment_name": judge_deployment},
+            "data_mapping": {
+                "context": [[gctx]],
+                "response": [[gresp]],
+            },
+        },
+        {
+            "type": "azure_ai_evaluator",
+            "name": "relevance",
+            "evaluator_name": "builtin.relevance",
+            "initialization_parameters": {"deployment_name": judge_deployment},
+            "data_mapping": {
+                "query": [[rq]],
+                "response": "{{item.answer}}",
+            },
+        },
+    ]
+  slots:
+    - id: gctx
+      options:
+        - { id: docs, text: "\"{{item.docs}}\"" }
+        - { id: exp, text: "\"{{item.expected}}\"" }
+        - { id: ctx, text: "\"{{item.context}}\"" }
+        - { id: items, text: "\"{{sample.output_items}}\"" }
+    - id: gresp
+      options:
+        - { id: ans, text: "\"{{item.answer}}\"" }
+        - { id: out, text: "\"{{sample.output_text}}\"" }
+        - { id: resp, text: "\"{{item.response}}\"" }
+    - id: rq
+      options:
+        - { id: q, text: "\"{{item.question}}\"" }
+        - { id: query, text: "\"{{item.query}}\"" }
+        - { id: d, text: "\"{{item.docs}}\"" }
+answer:
+  values: { gctx: docs, gresp: ans, rq: q }
+explanation:
+  correct:
+    en: "`{{item.<field>}}` references a field of the test dataset, and a data mapping is required when the column names differ from the evaluator inputs. Groundedness compares the response with the context, so `context` maps to the `docs` column and `response` to the stored `answer`. Relevance compares the response with the user input, so `query` maps to the `question` column."
+    fr: "`{{item.<champ>}}` référence un champ du jeu de données de test, et un mappage de données est nécessaire quand les noms de colonnes diffèrent des entrées de l'évaluateur. Groundedness compare la réponse au contexte : `context` est mappé à la colonne `docs` et `response` à la réponse stockée `answer`. Relevance compare la réponse à l'entrée de l'utilisateur : `query` est mappé à la colonne `question`."
+  options:
+    exp: { en: "The expert reference answer is a ground truth, not the context the response must be grounded in.", fr: "La réponse de référence de l'expert est une vérité de terrain, pas le contexte sur lequel la réponse doit s'appuyer." }
+    ctx: { en: "The dataset has no context column; the mapping must use the actual column name docs.", fr: "Le jeu de données n'a pas de colonne context ; le mappage doit utiliser le nom réel de la colonne, docs." }
+    items: { en: "The sample namespace holds output generated during the run by a target; no target is called here.", fr: "L'espace de noms sample contient la sortie générée pendant l'exécution par une cible ; aucune cible n'est appelée ici." }
+    out: { en: "sample.output_text exists only when a model or agent target generates the response during the run.", fr: "sample.output_text n'existe que lorsqu'une cible de modèle ou d'agent génère la réponse pendant l'exécution." }
+    resp: { en: "The dataset has no response column; the stored response is in answer.", fr: "Le jeu de données n'a pas de colonne response ; la réponse stockée se trouve dans answer." }
+    query: { en: "The dataset has no query column; the user input is in question.", fr: "Le jeu de données n'a pas de colonne query ; l'entrée de l'utilisateur se trouve dans question." }
+references:
+  - title: Evaluation dataset schema in Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/evaluation-dataset-schema
+  - title: Retrieval-Augmented Generation (RAG) evaluators
+    url: https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/rag-evaluators

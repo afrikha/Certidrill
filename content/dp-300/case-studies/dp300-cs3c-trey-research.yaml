@@ -1,0 +1,117 @@
+id: dp300-cs3c-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a contract research organization that runs clinical trials for pharmaceutical companies in 11 European countries. Trial sites send visit and adverse event data to Trey every day.
+
+        Trey runs its trial databases on Azure SQL Managed Instance and uses Microsoft Fabric for analytics. A team of three database administrators (DBAs) manages the databases.
+      fr: |
+        Trey Research est une société de recherche sous contrat qui mène des essais cliniques pour des laboratoires pharmaceutiques dans 11 pays européens. Les sites d'essai envoient chaque jour à Trey des données de visites et d'événements indésirables.
+
+        Trey exécute ses bases de données d'essais sur Azure SQL Managed Instance et utilise Microsoft Fabric pour l'analytique. Une équipe de trois administrateurs de bases de données (DBA) gère les bases de données.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure SQL Managed Instance**
+
+        A managed instance named **MI-TRIALS** runs in the West Europe region in the Business Critical service tier. MI-TRIALS has a system-assigned managed identity and a Microsoft Entra admin. Transparent data encryption (TDE) uses a customer-managed key stored in a key vault named **kv-trey**. MI-TRIALS hosts the following databases.
+
+        | Database | Content |
+        | --- | --- |
+        | TrialData | 1.1 TB. Participants, visits and results. The **dbo.Participants** table has the columns ParticipantId, Email, DateOfBirth and Diagnosis. |
+        | SiteMonitoring | The **dbo.SiteVisits** table (300 million rows) stores the monitoring visits of 40 studies across 1,800 sites. Each row has the columns VisitId, StudyId, SiteId, VisitDate, Status and MonitorId. The clustered index is on VisitId. |
+
+        The site coordinators' portal runs the following query against SiteMonitoring thousands of times per hour.
+
+        ```text
+        SELECT VisitId, Status, MonitorId
+        FROM dbo.SiteVisits
+        WHERE StudyId = @StudyId AND SiteId = @SiteId AND VisitDate >= @FromDate;
+        ```
+
+        The missing index dynamic management views of SiteMonitoring return the following row for dbo.SiteVisits.
+
+        | equality_columns | inequality_columns | included_columns |
+        | --- | --- | --- |
+        | [StudyId], [SiteId] | [VisitDate] | [Status], [MonitorId] |
+
+        A Microsoft Entra group named **SG-Trial-Ops** contains the data managers. A login was created on MI-TRIALS for SG-Trial-Ops by using `CREATE LOGIN [SG-Trial-Ops] FROM EXTERNAL PROVIDER`, and its user in msdb is a member of **SQLAgentUserRole**. When a data manager named Dana, a member of SG-Trial-Ops, tries to create a SQL Server Agent job, the operation fails.
+
+        **Storage and analytics**
+
+        - A storage account named **sttreyexport** has a container named **regulator**. The managed identity of MI-TRIALS has the Storage Blob Data Contributor role on the container.
+        - Trey has a Microsoft Fabric F64 capacity. The analytics developers work in a Fabric workspace named **Clinical Analytics** that is assigned to this capacity. Power BI reports read data from OneLake.
+      fr: |
+        **Azure SQL Managed Instance**
+
+        Une instance managée nommée **MI-TRIALS** s'exécute dans la région West Europe au niveau de service Business Critical. MI-TRIALS dispose d'une identité managée affectée par le système et d'un administrateur Microsoft Entra. Le chiffrement transparent des données (TDE) utilise une clé gérée par le client stockée dans un coffre de clés nommé **kv-trey**. MI-TRIALS héberge les bases de données suivantes.
+
+        | Base de données | Contenu |
+        | --- | --- |
+        | TrialData | 1,1 To. Participants, visites et résultats. La table **dbo.Participants** comporte les colonnes ParticipantId, Email, DateOfBirth et Diagnosis. |
+        | SiteMonitoring | La table **dbo.SiteVisits** (300 millions de lignes) stocke les visites de monitoring de 40 études sur 1 800 sites. Chaque ligne comporte les colonnes VisitId, StudyId, SiteId, VisitDate, Status et MonitorId. L'index cluster porte sur VisitId. |
+
+        Le portail des coordinateurs de sites exécute la requête suivante sur SiteMonitoring des milliers de fois par heure.
+
+        ```text
+        SELECT VisitId, Status, MonitorId
+        FROM dbo.SiteVisits
+        WHERE StudyId = @StudyId AND SiteId = @SiteId AND VisitDate >= @FromDate;
+        ```
+
+        Les vues de gestion dynamique des index manquants de SiteMonitoring renvoient la ligne suivante pour dbo.SiteVisits.
+
+        | equality_columns | inequality_columns | included_columns |
+        | --- | --- | --- |
+        | [StudyId], [SiteId] | [VisitDate] | [Status], [MonitorId] |
+
+        Un groupe Microsoft Entra nommé **SG-Trial-Ops** contient les gestionnaires de données. Une connexion a été créée sur MI-TRIALS pour SG-Trial-Ops à l'aide de `CREATE LOGIN [SG-Trial-Ops] FROM EXTERNAL PROVIDER`, et son utilisateur dans msdb est membre de **SQLAgentUserRole**. Quand une gestionnaire de données nommée Dana, membre de SG-Trial-Ops, tente de créer un travail SQL Server Agent, l'opération échoue.
+
+        **Stockage et analytique**
+
+        - Un compte de stockage nommé **sttreyexport** contient un conteneur nommé **regulator**. L'identité managée de MI-TRIALS dispose du rôle Storage Blob Data Contributor sur le conteneur.
+        - Trey dispose d'une capacité Microsoft Fabric F64. Les développeurs analytiques travaillent dans un espace de travail Fabric nommé **Clinical Analytics** affecté à cette capacité. Les rapports Power BI lisent les données dans OneLake.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **New application**
+
+        1. The analytics developers will build an application in which site coordinators record adverse events. The database of the application must support many small concurrent transactions and must enforce primary key and foreign key constraints. It must be created and managed in the Clinical Analytics workspace and billed through the existing Fabric capacity, and no new Azure resource must be deployed. Its data must be available in OneLake for Power BI in near real time, without building any pipeline.
+
+        **Compliance requirements**
+
+        2. The Email, DateOfBirth and Diagnosis columns of dbo.Participants must be classified as sensitive by using the built-in classification of Azure SQL. The compliance team must be able to list the classified columns by running a Transact-SQL query, and the audit logs must record the classification of the data returned by each query.
+        3. Once a quarter, a full backup of TrialData must be written to the regulator container for the health authority. The backup must not affect the automated backups of MI-TRIALS, and no secret, such as a shared access signature (SAS) token, must be stored on MI-TRIALS.
+
+        **Performance requirements**
+
+        4. You must create one nonclustered index for the query of the site coordinators' portal. The index must follow the Microsoft guidance for missing index suggestions, and its key must contain only the columns that the query uses to search for rows.
+
+        **Operations requirements**
+
+        5. Dana and the other members of SG-Trial-Ops must be able to create and run their own SQL Server Agent jobs on MI-TRIALS by using their Microsoft Entra identities. The principle of least privilege must be applied.
+      fr: |
+        **Nouvelle application**
+
+        1. Les développeurs analytiques vont créer une application dans laquelle les coordinateurs de sites enregistrent les événements indésirables. La base de données de l'application doit prendre en charge de nombreuses petites transactions simultanées et doit appliquer des contraintes de clé primaire et de clé étrangère. Elle doit être créée et gérée dans l'espace de travail Clinical Analytics et facturée via la capacité Fabric existante, et aucune nouvelle ressource Azure ne doit être déployée. Ses données doivent être disponibles dans OneLake pour Power BI en quasi-temps réel, sans créer de pipeline.
+
+        **Exigences de conformité**
+
+        2. Les colonnes Email, DateOfBirth et Diagnosis de dbo.Participants doivent être classées comme sensibles à l'aide de la classification intégrée d'Azure SQL. L'équipe conformité doit pouvoir lister les colonnes classées en exécutant une requête Transact-SQL, et les journaux d'audit doivent enregistrer la classification des données renvoyées par chaque requête.
+        3. Une fois par trimestre, une sauvegarde complète de TrialData doit être écrite dans le conteneur regulator pour l'autorité de santé. La sauvegarde ne doit pas affecter les sauvegardes automatisées de MI-TRIALS, et aucun secret, tel qu'un jeton de signature d'accès partagé (SAS), ne doit être stocké sur MI-TRIALS.
+
+        **Exigences de performances**
+
+        4. Vous devez créer un index non cluster pour la requête du portail des coordinateurs de sites. L'index doit suivre les recommandations de Microsoft pour les suggestions d'index manquants, et sa clé ne doit contenir que les colonnes que la requête utilise pour rechercher les lignes.
+
+        **Exigences d'exploitation**
+
+        5. Dana et les autres membres de SG-Trial-Ops doivent pouvoir créer et exécuter leurs propres travaux SQL Server Agent sur MI-TRIALS avec leurs identités Microsoft Entra. Le principe des privilèges minimum doit être appliqué.

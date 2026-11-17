@@ -1,0 +1,88 @@
+id: ai103-2c-handoff-builder-code
+objective: "2.2.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Wingtip Toys is building a support workflow in Python by using Microsoft Agent Framework. The workflow has four agents: triage_agent, order_agent, return_agent and refund_agent.
+
+    The workflow must meet the following requirements:
+
+    - triage_agent receives the first message of the customer.
+    - Only return_agent can transfer the conversation to refund_agent.
+    - The application must detect when an agent answers without a handoff and waits for the customer.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys crée un workflow de support en Python à l'aide de Microsoft Agent Framework. Le workflow comporte quatre agents : triage_agent, order_agent, return_agent et refund_agent.
+
+    Le workflow doit satisfaire les exigences suivantes :
+
+    - triage_agent reçoit le premier message du client.
+    - Seul return_agent peut transférer la conversation à refund_agent.
+    - L'application doit détecter quand un agent répond sans handoff et attend le client.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    workflow = (
+        HandoffBuilder(
+            name="wingtip_support",
+            participants=[triage_agent, order_agent, return_agent, refund_agent],
+        )
+        .[[start]](triage_agent)
+        .add_handoff(triage_agent, [order_agent, return_agent])
+        .add_handoff([[source]], [refund_agent])
+        .add_handoff(order_agent, [triage_agent])
+        .add_handoff(return_agent, [triage_agent])
+        .add_handoff(refund_agent, [triage_agent])
+        .build()
+    )
+
+    async for event in workflow.run(customer_message, stream=True):
+        if event.type == "[[evt]]" and isinstance(event.data, HandoffAgentUserRequest):
+            pending.append(event)
+  slots:
+    - id: start
+      options:
+        - { id: autonomous, text: with_autonomous_mode }
+        - { id: start, text: with_start_agent }
+        - { id: handoff, text: add_handoff }
+    - id: source
+      options:
+        - { id: triage, text: triage_agent }
+        - { id: order, text: order_agent }
+        - { id: return, text: return_agent }
+    - id: evt
+      options:
+        - { id: output, text: output }
+        - { id: requestinfo, text: request_info }
+        - { id: intermediate, text: intermediate }
+answer:
+  values: { start: start, source: return, evt: requestinfo }
+explanation:
+  correct:
+    en: |
+      `with_start_agent()` sets the agent that receives the first user input. By default every agent can hand off to every other one; once you call `add_handoff()`, only the declared routes apply, so `add_handoff(return_agent, [refund_agent])` makes return_agent the only path to refund_agent. When an agent responds without handing off, the workflow emits a `request_info` event whose data is a `HandoffAgentUserRequest`.
+    fr: |
+      `with_start_agent()` définit l'agent qui reçoit la première entrée de l'utilisateur. Par défaut, chaque agent peut transférer la conversation à tous les autres ; dès que vous appelez `add_handoff()`, seules les routes déclarées s'appliquent : `add_handoff(return_agent, [refund_agent])` fait donc de return_agent le seul chemin vers refund_agent. Quand un agent répond sans handoff, le workflow émet un événement `request_info` dont les données sont un `HandoffAgentUserRequest`.
+  options:
+    autonomous:
+      en: "`with_autonomous_mode()` makes the workflow continue without waiting for the user; it doesn't choose the first agent."
+      fr: "`with_autonomous_mode()` fait continuer le workflow sans attendre l'utilisateur ; il ne choisit pas le premier agent."
+    triage:
+      en: "triage_agent must not route directly to refund_agent."
+      fr: "triage_agent ne doit pas router directement vers refund_agent."
+    output:
+      en: "`output` events carry terminal results; a pause for user input is surfaced as `request_info`."
+      fr: "Les événements `output` portent les résultats terminaux ; une pause pour une entrée utilisateur apparaît sous forme de `request_info`."
+references:
+  - title: Microsoft Agent Framework Workflows Orchestrations - Handoff
+    url: https://learn.microsoft.com/en-us/agent-framework/user-guide/workflows/orchestrations/handoff

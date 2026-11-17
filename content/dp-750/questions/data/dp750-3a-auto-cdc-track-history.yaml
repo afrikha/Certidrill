@@ -1,0 +1,89 @@
+id: dp750-3a-auto-cdc-track-history
+objective: "3.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso builds the customer dimension **dim_customer** in a Lakeflow Spark Declarative Pipelines pipeline from the change feed **contoso.crm.customers_cdf**. Change records can arrive out of order; the `change_seq` column gives their correct order.
+
+    The solution must meet the following requirements:
+
+    - Keep the full history of every customer, with one row per version.
+    - A change that affects only `last_login_at` must not create a new version, but the column must remain in the table with its latest value.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso construit la dimension client **dim_customer** dans un pipeline Lakeflow Spark Declarative Pipelines à partir du flux de changements **contoso.crm.customers_cdf**. Les enregistrements de changement peuvent arriver dans le désordre ; la colonne `change_seq` donne leur ordre correct.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - Conserver l'historique complet de chaque client, avec une ligne par version.
+    - Un changement qui ne concerne que `last_login_at` ne doit pas créer de nouvelle version, mais la colonne doit rester dans la table avec sa dernière valeur.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH STREAMING TABLE dim_customer;
+
+    CREATE FLOW customer_cdc AS AUTO CDC INTO
+      dim_customer
+    FROM
+      stream(contoso.crm.customers_cdf)
+    KEYS
+      (customer_id)
+    APPLY AS DELETE WHEN
+      operation = "DELETE"
+    [[seq]]
+      change_seq
+    COLUMNS * EXCEPT
+      (operation, change_seq)
+    STORED AS
+      [[scd]]
+    [[track]]
+      (last_login_at);
+  slots:
+    - id: seq
+      options:
+        - { id: orderby, text: ORDER BY }
+        - { id: seqby, text: SEQUENCE BY }
+        - { id: partby, text: PARTITION BY }
+    - id: scd
+      options:
+        - { id: t1, text: SCD TYPE 1 }
+        - { id: t2, text: SCD TYPE 2 }
+        - { id: t3, text: SCD TYPE 3 }
+    - id: track
+      options:
+        - { id: trackexcept, text: "TRACK HISTORY ON * EXCEPT" }
+        - { id: trackon, text: "TRACK HISTORY ON" }
+        - { id: colexcept, text: "COLUMNS * EXCEPT" }
+answer:
+  values: { seq: seqby, scd: t2, track: trackexcept }
+explanation:
+  correct:
+    en: "`SEQUENCE BY` sets the column that orders change records, so out-of-order arrivals are applied correctly. `STORED AS SCD TYPE 2` keeps one row per version with `__START_AT` and `__END_AT`, and `TRACK HISTORY ON * EXCEPT (last_login_at)` tracks every column but that one: changes to it update the current version in place instead of creating a new record."
+    fr: "`SEQUENCE BY` définit la colonne qui ordonne les enregistrements de changement, de sorte que les arrivées dans le désordre sont appliquées correctement. `STORED AS SCD TYPE 2` conserve une ligne par version avec `__START_AT` et `__END_AT`, et `TRACK HISTORY ON * EXCEPT (last_login_at)` suit toutes les colonnes sauf celle-ci : ses changements mettent à jour la version actuelle sur place au lieu de créer un nouvel enregistrement."
+  options:
+    seq:
+      en: |
+        AUTO CDC orders changes with the SEQUENCE BY clause; ORDER BY and PARTITION BY are not clauses of this statement.
+      fr: |
+        AUTO CDC ordonne les changements avec la clause SEQUENCE BY ; ORDER BY et PARTITION BY ne sont pas des clauses de cette instruction.
+    scd:
+      en: |
+        SCD Type 1 overwrites rows without history, and SCD Type 3 is not a storage option of AUTO CDC.
+      fr: |
+        SCD Type 1 écrase les lignes sans historique, et SCD Type 3 n'est pas une option de stockage d'AUTO CDC.
+    track:
+      en: "`TRACK HISTORY ON (last_login_at)` would track only that column, and a second `COLUMNS * EXCEPT` would remove the column from the table."
+      fr: "`TRACK HISTORY ON (last_login_at)` suivrait uniquement cette colonne, et un second `COLUMNS * EXCEPT` supprimerait la colonne de la table."
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc
