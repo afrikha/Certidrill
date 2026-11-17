@@ -197,6 +197,7 @@ model Certification {
   outcomes       ExamOutcome[]
   entitlements   Entitlement[]
   payments       Payment[]
+  planPrices     PlanPrice[]
   courseModules  CourseModule[]
   courseChapters CourseChapter[]
 
@@ -567,8 +568,31 @@ model Plan {
   createdAt     DateTime        @default(now())
 
   payments Payment[]
+  prices   PlanPrice[]
 
   @@map("plan")
+}
+
+/// The price of a plan for one certification, when it differs from the
+/// plan's (a Pass priced per certification). Without a row, the plan's price
+/// applies.
+model PlanPrice {
+  id              String   @id @default(cuid())
+  planId          String
+  certificationId String
+  amountCents     Int
+  currency        String   @default("eur")
+  /// Set by `npm run stripe:sync-prices` (lookup key = plan code, certification code, amount and currency).
+  stripePriceId   String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  plan          Plan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  certification Certification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, certificationId])
+  @@index([certificationId])
+  @@map("plan_price")
 }
 
 /// A Pass-type right: full access to one certification between two dates.

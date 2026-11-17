@@ -29,7 +29,13 @@ export function BuyPass({
   certifications,
   defaultCertification,
   className,
-}: Readonly<{ planCode: string; certifications: readonly { code: string; title: string }[]; defaultCertification?: string; className?: string }>) {
+}: Readonly<{
+  planCode: string;
+  /** The certifications on sale, with their formatted price when it may differ from one to another. */
+  certifications: readonly { code: string; title: string; price?: string }[];
+  defaultCertification?: string;
+  className?: string;
+}>) {
   const t = useTranslations("billing");
   const [certification, setCertification] = useState(
     certifications.some((c) => c.code === defaultCertification) ? defaultCertification! : (certifications[0]?.code ?? ""),
@@ -52,6 +58,9 @@ export function BuyPass({
   }
 
   const selectId = `buy-${planCode}-certification`;
+  // The price is shown next to the choice only when it depends on the certification.
+  const prices = new Set(certifications.map((c) => c.price));
+  const selectedPrice = prices.size > 1 ? certifications.find((c) => c.code === certification)?.price : undefined;
   return (
     <div className={cn("space-y-3", className)}>
       {certifications.length > 1 && (
@@ -68,6 +77,11 @@ export function BuyPass({
             ))}
           </select>
         </div>
+      )}
+      {selectedPrice && (
+        <p className="text-sm font-medium" data-testid="pass-price" aria-live="polite">
+          {t("selectedPrice", { price: selectedPrice, code: certification.toUpperCase() })}
+        </p>
       )}
       <Button type="button" onClick={buy} disabled={busy || !certification} className="w-full py-2.5" data-testid="buy-pass">
         {busy ? t("redirecting") : t("buy")}

@@ -14,13 +14,16 @@ import { seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { getAccess } from "@/lib/access";
 import { revokeEntitlement } from "@/lib/access/admin";
-import { BillingError, canBuyOnline, CHECKOUT_MINUTES, heldPayments, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
+import { BillingError, buyableCertifications, CHECKOUT_MINUTES, heldPayments, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
 import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
 import { eraseDeletedCustomers, eraseRetryDelay } from "@/lib/billing/erase";
 import { handleStripeEvent, HELD_NOTE } from "@/lib/billing/webhook";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
 import { kickEmailWorker, startEmailWorker, stopEmailWorker } from "@/lib/email/worker";
 import { SWITCHES } from "@/lib/settings";
+
+/** Whether some certification's Pass can be bought online now. */
+const canBuyOnline = async (db: Parameters<typeof buyableCertifications>[0], planCode: string, stripe: StripeApi | null) => (await buyableCertifications(db, planCode, stripe)).length > 0;
 
 const session = vi.hoisted(() => ({ current: null as null | { user: { id: string; role: string; locale: string } } }));
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => session.current) }));
@@ -119,7 +122,7 @@ const paid = (payment: { id: string; stripeCheckoutSessionId: string | null }, i
 
 beforeAll(async () => {
   await db.$executeRawUnsafe(
-    'TRUNCATE "email_outbox","stripe_event","entitlement","payment","billing_customer","attempt_item","attempt_section","attempt","audit_log","question_report","question","case_study","question_series","objective","domain","blueprint","certification","auth_account","auth_session","auth_verification_token","user" CASCADE',
+    'TRUNCATE "email_outbox","stripe_event","entitlement","plan_price","payment","billing_customer","attempt_item","attempt_section","attempt","audit_log","question_report","question","case_study","question_series","objective","domain","blueprint","certification","auth_account","auth_session","auth_verification_token","user" CASCADE',
   );
   const content = await loadCertification(path.resolve(__dirname, "../../content/az-104"));
   await seedReferential(db, content);
@@ -214,6 +217,32 @@ describe("checkout", () => {
     // Nothing is granted before the webhook, even with the session id in hand.
     expect(await getAccess(db, user, certificationId, T0)).toMatchObject({ level: "free" });
     expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "pending", certification: "az-104", startsAt: null, expiresAt: null, chained: false });
+  });
+
+  it("charges the certification's own price when it has one, the plan's otherwise", async () => {
+    await openSales();
+    const user = await verifiedUser("own-price@example.com");
+    const pass = await db.plan.findUniqueOrThrow({ where: { code: "pass_90" } });
+    // Not linked to Stripe yet: not on sale for that certification.
+    const own = await db.planPrice.create({ data: { planId: pass.id, certificationId, amountCents: 1200, currency: "eur" } });
+    try {
+      vi.stubEnv("AUTH_URL", BASE);
+      expect(await buyableCertifications(db, "pass_90", fakeStripe().api)).toEqual([]);
+      await expect(checkout(user)).rejects.toMatchObject({ code: "unavailable" });
+      await db.planPrice.update({ where: { id: own.id }, data: { stripePriceId: "price_pass_90_az104" } });
+      expect(await buyableCertifications(db, "pass_90", fakeStripe().api)).toEqual([
+        { code: "az-104", title: expect.any(String), amountCents: 1200, currency: "eur", stripePriceId: "price_pass_90_az104", custom: true },
+      ]);
+      const { api, calls } = fakeStripe();
+      const payment = await checkout(user, api);
+      expect(payment).toMatchObject({ amountCents: 1200, currency: "eur", planId: pass.id });
+      expect((calls.sessions[0] as [Stripe.Checkout.SessionCreateParams])[0].line_items).toEqual([{ price: "price_pass_90_az104", quantity: 1 }]);
+    } finally {
+      vi.unstubAllEnvs();
+      await db.planPrice.delete({ where: { id: own.id } });
+    }
+    // Back to the plan's price.
+    expect(await checkout(user)).toMatchObject({ amountCents: 1900 });
   });
 
   it("stores one Stripe customer when two checkouts start at once, and deletes the other at Stripe", async () => {
@@ -882,6 +911,16 @@ describe("price sync", () => {
       await db.plan.update({ where: { code: "pass_90" }, data: { currency: "EUR" } });
       expect((await syncPrices(db, store.api)).find((l) => l.code === "pass_90")).toMatchObject({ action: "unchanged" });
       await db.plan.update({ where: { code: "pass_90" }, data: { currency: "eur" } });
+      // A certification's own price: its own Stripe price, a new one for a new amount.
+      const pass = await db.plan.findUniqueOrThrow({ where: { code: "pass_90" } });
+      const own = await db.planPrice.create({ data: { planId: pass.id, certificationId, amountCents: 1200, currency: "eur" } });
+      expect((await syncPrices(db, store.api)).find((l) => l.code === "pass_90/az-104")).toMatchObject({ action: "created", priceId: "price_pass_90.az-104.1200eur" });
+      expect(store.products).toContainEqual({ name: "Pass Certification — 90 jours — AZ-104", metadata: { planCode: "pass_90", certificationCode: "az-104" } });
+      expect(await db.planPrice.findUniqueOrThrow({ where: { id: own.id } })).toMatchObject({ stripePriceId: "price_pass_90.az-104.1200eur" });
+      expect((await syncPrices(db, store.api)).find((l) => l.code === "pass_90/az-104")).toMatchObject({ action: "unchanged" });
+      await db.planPrice.update({ where: { id: own.id }, data: { amountCents: 1500 } });
+      expect((await syncPrices(db, store.api)).find((l) => l.code === "pass_90/az-104")).toMatchObject({ action: "created", priceId: "price_pass_90.az-104.1500eur" });
+      await db.planPrice.delete({ where: { id: own.id } });
       // The plan's price changed without a new code: reported, not touched.
       await db.plan.update({ where: { code: "pass_90" }, data: { amountCents: 2400 } });
       expect((await syncPrices(db, store.api)).find((l) => l.code === "pass_90")).toMatchObject({ action: "mismatch", detail: "amount 1900 ≠ 2400" });
@@ -890,5 +929,45 @@ describe("price sync", () => {
       await db.plan.updateMany({ data: { stripePriceId: null } });
       await db.plan.update({ where: { code: "pass_90" }, data: { stripePriceId: "price_pass_90" } });
     }
+  });
+});
+
+describe("certification prices", () => {
+  it("sets a certification's own price once, with its trace, clears its Stripe link on a new amount, and goes back to the plan's", async () => {
+    const { setCertificationPrice, pricesByCertification } = await import("@/lib/billing/prices");
+    const admin = (await db.user.create({ data: { email: "price-admin@example.com", role: "admin" } })).id;
+    const set = (amount: string, certificationCode = "az-104", planCode = "pass_90") => setCertificationPrice(db, admin, { planCode, certificationCode, amount });
+    const own = () => db.planPrice.findFirst({ where: { certificationId } });
+
+    expect(await set("12,50")).toBe(true);
+    expect(await own()).toMatchObject({ amountCents: 1250, currency: "eur", stripePriceId: null });
+    expect(await set("12.5")).toBe(false);
+    await db.planPrice.updateMany({ where: { certificationId }, data: { stripePriceId: "price_linked" } });
+    expect((await pricesByCertification(db, "pass_90")).find((p) => p.code === "az-104")).toMatchObject({ amountCents: 1250, custom: true, stripePriceId: "price_linked" });
+    // A new amount is a new Stripe price: the link goes.
+    expect(await set("15")).toBe(true);
+    expect(await own()).toMatchObject({ amountCents: 1500, stripePriceId: null });
+    // The plan's own amount, or empty: back to the plan's price.
+    expect(await set("19")).toBe(true);
+    expect(await own()).toBeNull();
+    expect(await set("")).toBe(false);
+    expect((await pricesByCertification(db, "pass_90")).find((p) => p.code === "az-104")).toMatchObject({ amountCents: 1900, custom: false, stripePriceId: "price_pass_90" });
+
+    expect(await set("10", "az-999")).toBeNull();
+    expect(await set("10", "az-104", "free")).toBeNull();
+    for (const bad of ["0", "0.10", "abc", "12.345", "100000", "-5"]) await expect(set(bad)).rejects.toThrow();
+    const log = await db.auditLog.findMany({ where: { action: "price.update" }, orderBy: { createdAt: "asc" } });
+    expect(log.map((l) => l.details)).toEqual([
+      { plan: "pass_90", certification: "az-104", from: 1900, to: 1250, currency: "eur" },
+      { plan: "pass_90", certification: "az-104", from: 1250, to: 1500, currency: "eur" },
+      { plan: "pass_90", certification: "az-104", from: 1500, to: 1900, currency: "eur" },
+    ]);
+  });
+
+  it("gives a price range for the 'from X' labels, none for mixed currencies", async () => {
+    const { priceRange } = await import("@/lib/billing/prices");
+    expect(priceRange([])).toBeNull();
+    expect(priceRange([{ amountCents: 1900, currency: "eur" }, { amountCents: 900, currency: "EUR" }])).toEqual({ min: 900, max: 1900, currency: "eur" });
+    expect(priceRange([{ amountCents: 1900, currency: "eur" }, { amountCents: 900, currency: "usd" }])).toBeNull();
   });
 });

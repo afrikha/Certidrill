@@ -61,7 +61,7 @@ import { createUserAction } from "@/lib/actions/admin";
 import { confirmSignupAction, loginWithMagicLink, loginWithPassword, signupAction } from "@/lib/actions/auth";
 import { createHash } from "node:crypto";
 import { hashPassword } from "@/lib/auth/password";
-import { grantPassAction, revokeEntitlementAction, setSwitchAction } from "@/lib/actions/billing";
+import { grantPassAction, revokeEntitlementAction, setCertificationPriceAction, setSwitchAction } from "@/lib/actions/billing";
 import { SWITCHES } from "@/lib/settings";
 import { startNewExam } from "@/lib/actions/exam";
 import { setLocale } from "@/lib/actions/locale";
@@ -383,6 +383,20 @@ describe("rights back-office actions", () => {
     expect(await redirectOf(grantPassAction(undefined, form({})))).toBe("/dashboard");
     expect(await redirectOf(revokeEntitlementAction(undefined, form({})))).toBe("/dashboard");
     expect(await redirectOf(setSwitchAction(form({ name: "team", enabled: "true" })))).toBe("/dashboard");
+    expect(await redirectOf(setCertificationPriceAction(undefined, form({ plan: "pass_90", certification: "az-104", amount: "1" })))).toBe("/dashboard");
+  });
+
+  it("sets a certification's Pass price, with the errors of the form", async () => {
+    as(adminId, "admin");
+    const price = (fields: Record<string, string>) => setCertificationPriceAction(undefined, form({ plan: "pass_90", certification: "az-104", amount: "9.90", ...fields }));
+    expect(await price({ amount: "free" })).toEqual({ error: "invalid_price" });
+    expect(await price({ certification: "zz-999" })).toEqual({ error: "not_found" });
+    expect(h.revalidatePath).not.toHaveBeenCalled();
+    expect(await price({})).toEqual({ ok: true });
+    expect(h.revalidatePath).toHaveBeenCalledWith("/admin/billing");
+    expect(await price({})).toEqual({ unchanged: true });
+    expect(await price({ amount: "" })).toEqual({ ok: true });
+    expect(await prisma.planPrice.count()).toBe(0);
   });
 
   it("grant and revoke a Pass, with the errors of the form", async () => {

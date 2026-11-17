@@ -43,6 +43,20 @@ describe("BuyPass", () => {
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCode: "az-104" });
   });
 
+  it("shows the price of the chosen certification when the prices differ, never when they are the same", async () => {
+    const priced = [
+      { code: "az-104", title: "Azure Administrator", price: "19,00 €" },
+      { code: "az-900", title: "Azure Fundamentals", price: "9,00 €" },
+    ];
+    const { unmount } = renderIntl(<BuyPass planCode="pass_90" certifications={priced} defaultCertification="az-900" />, "fr");
+    expect(screen.getByTestId("pass-price")).toHaveTextContent("9,00 € pour AZ-900");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Certification" }), "az-104");
+    expect(screen.getByTestId("pass-price")).toHaveTextContent("19,00 € pour AZ-104");
+    unmount();
+    renderIntl(<BuyPass planCode="pass_90" certifications={priced.map((c) => ({ ...c, price: "19,00 €" }))} />, "fr");
+    expect(screen.queryByTestId("pass-price")).toBeNull();
+  });
+
   it("explains a refusal and lets the buyer try again", async () => {
     renderIntl(<BuyPass planCode="pass_90" certifications={AZ} defaultCertification="unknown" />);
     for (const [code, text] of [

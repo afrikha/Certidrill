@@ -3,7 +3,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { getOffers, type Offer } from "@/lib/access/offers";
-import { canBuyOnline } from "@/lib/billing/checkout";
+import { passPricing } from "@/lib/billing/checkout";
 import { stripeApi } from "@/lib/billing/stripe";
 import { BuyPass } from "@/components/billing/buy-pass";
 import { Card } from "@/components/ui/card";
@@ -33,17 +33,26 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
   const t = await getTranslations("offer");
   const tBilling = await getTranslations("billing");
   const format = await getFormatter();
-  const [offers, certification, certifications, course] = await Promise.all([
+  const [offers, certification, course] = await Promise.all([
     getOffers(prisma),
     code ? prisma.certification.findFirst({ where: { code, active: true }, select: { code: true, title: true } }) : null,
-    prisma.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { code: true, title: true } }),
     // The course is a benefit once readers have a chapter to open.
     hasVisibleCourse(prisma, { userId: user.id, isAdmin: false }),
   ]);
   const benefits = ["benefitExams", "benefitCorrection", ...(course ? ["benefitCourse" as const] : []), "benefitProgress", "benefitTime"] as const;
   const pass = offers.find((o) => o.kind === "pass");
-  const buyable = pass ? await canBuyOnline(prisma, pass.code, stripeApi()) : false;
-  const price = (o: Offer) => format.number(o.amountCents / 100, { style: "currency", currency: o.currency.toUpperCase() });
+  const pricing = pass ? await passPricing(prisma, pass.code, stripeApi()) : null;
+  const buyable = (pricing?.buyable.length ?? 0) > 0;
+  const money = (cents: number, currency: string) => format.number(cents / 100, { style: "currency", currency: currency.toUpperCase() });
+  // The Pass is priced per certification: the price of the certification asked for, else "from X" when the prices differ.
+  const price = (o: Offer) => {
+    const own = o.kind === "pass" && certification ? pricing?.prices.find((p) => p.code === certification.code) : undefined;
+    if (own) return money(own.amountCents, own.currency);
+    const range = o.kind === "pass" ? pricing?.range : null;
+    if (range && range.min !== range.max) return t("priceFrom", { price: money(range.min, range.currency) });
+    return range ? money(range.min, range.currency) : money(o.amountCents, o.currency);
+  };
+  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, price: money(c.amountCents, c.currency) }));
   const terms = (o: Offer) => {
     const tax = t(o.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded");
     if (o.kind === "pass") return t("termsPass", { tax, days: o.durationDays ?? 0 });
