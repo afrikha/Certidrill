@@ -285,12 +285,15 @@ type Reason = (typeof GRANT_REASONS)[number] | (typeof REVOKE_REASONS)[number];
 const REASONS = new Set<string>([...GRANT_REASONS, ...REVOKE_REASONS]);
 
 /**
- * The details of an audit entry on one line, without the ids already shown;
+ * The details of an audit entry on one line, without the ids already shown
+ * (and a long list as its length);
  * a reason code in words (older entries kept their free text, shown as is).
  */
 function describe(details: unknown, reason: (code: string) => string): string {
   if (!details || typeof details !== "object") return "";
   const text = (key: string, value: unknown) => {
+    // A batch lists its questions or chapters: their number is enough here, the entry keeps them.
+    if (Array.isArray(value) && value.length > 5) return `[${value.length}]`;
     if (typeof value !== "string") return JSON.stringify(value);
     return key === "reason" ? reason(value) : value;
   };

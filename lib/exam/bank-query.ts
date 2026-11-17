@@ -1,4 +1,4 @@
-import type { ContentStatus, PrismaClient } from "@prisma/client";
+import type { ContentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type { BlueprintStructure, QuestionTypeCode } from "@/lib/content/schema";
 import type { AssemblyBank, AssemblyBlueprint, AssemblyHistory, CandidateQuestion } from "./assembler";
 
@@ -19,8 +19,11 @@ function candidate(q: Row): CandidateQuestion {
   return { id: q.id, type: q.type, difficulty: q.difficulty as 1 | 2 | 3, objective: q.objective.code, domain: q.objective.domain.code };
 }
 
+/** Reads also run inside a transaction (the back-office checks a bank before committing a change). */
+type ReadDb = PrismaClient | Prisma.TransactionClient;
+
 /** Loads the current blueprint of a certification in the shape the assembler expects. */
-export async function loadAssemblyBlueprint(db: PrismaClient, certificationId: string) {
+export async function loadAssemblyBlueprint(db: ReadDb, certificationId: string) {
   const bp = await db.blueprint.findFirstOrThrow({
     where: { certificationId, current: true },
     include: { domains: { orderBy: { order: "asc" } } },
@@ -36,12 +39,21 @@ export async function loadAssemblyBlueprint(db: PrismaClient, certificationId: s
   return { row: bp, blueprint };
 }
 
-export async function loadAssemblyBank(db: PrismaClient, certificationId: string): Promise<AssemblyBank> {
+export async function loadAssemblyBank(db: ReadDb, certificationId: string): Promise<AssemblyBank> {
   const status = { in: examStatuses() };
   const select = { id: true, type: true, difficulty: true, caseStudyId: true, seriesId: true, seriesOrder: true, objective: { select: { code: true, domain: { select: { code: true } } } } } as const;
   const rows = await db.question.findMany({ where: { certificationId, status }, select, orderBy: { id: "asc" } });
-  const caseStudies = await db.caseStudy.findMany({ where: { certificationId, status }, select: { id: true }, orderBy: { id: "asc" } });
-  const series = await db.questionSeries.findMany({ where: { certificationId, status }, select: { id: true }, orderBy: { id: "asc" } });
+  // A case study or a series is drawn whole or not at all: never while one of
+  // its questions (retired ones aside) may not enter an exam, e.g. reported by
+  // a user (needs_review) or back to draft with a new version of its file.
+  const outside = await db.question.findMany({
+    where: { certificationId, status: { notIn: [...examStatuses(), "retired"] }, OR: [{ caseStudyId: { not: null } }, { seriesId: { not: null } }] },
+    select: { caseStudyId: true, seriesId: true },
+  });
+  const incomplete = [...new Set(outside.flatMap((q) => [q.caseStudyId, q.seriesId]).filter((id): id is string => id !== null))];
+  const group = { certificationId, status, id: { notIn: incomplete } };
+  const caseStudies = await db.caseStudy.findMany({ where: group, select: { id: true }, orderBy: { id: "asc" } });
+  const series = await db.questionSeries.findMany({ where: group, select: { id: true }, orderBy: { id: "asc" } });
 
   return {
     questions: rows.filter((q) => !q.caseStudyId && !q.seriesId).map(candidate),

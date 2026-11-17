@@ -115,14 +115,14 @@ export default async function AdminCoursePage({ searchParams }: Readonly<{ searc
         ) : (
           <ul className="space-y-1 text-sm" data-testid="admin-course-history">
             {log.map((entry) => {
-              const d = entry.details as { chapter?: string; from?: string; to?: string };
+              const d = entry.details as { chapter?: string; chapters?: string[]; from?: string | null; to?: string };
               return (
                 <li key={entry.id}>
                   <span className="text-muted-foreground">{format.dateTime(entry.createdAt, { dateStyle: "short", timeStyle: "short" })}</span>{" "}
                   {t("changed", {
                     who: entry.actor?.email ?? t("cli"),
-                    chapter: d.chapter ?? "?",
-                    from: d.from ? tCourse(`status_${d.from}`) : "?",
+                    chapter: d.chapter ?? (d.chapters ? t("batchChapters", { count: d.chapters.length }) : "?"),
+                    from: d.from ? tCourse(`status_${d.from}`) : t("anyStatus"),
                     to: d.to ? tCourse(`status_${d.to}`) : "?",
                   })}
                 </li>
