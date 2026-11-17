@@ -1,0 +1,67 @@
+id: dp750-2b-rfcm-set-mask-code
+objective: "2.2.3"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Contoso has a table named **hr.core.employees** that contains a column named **salary** of type DECIMAL(10,2). The Microsoft Entra ID group **hr_admins** is synchronized to the Azure Databricks account.
+
+    You need to ensure that only members of hr_admins can see salary values. All other users must see NULL. The control must apply to this table only.
+
+    How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'une table nommée **hr.core.employees** qui contient une colonne nommée **salary** de type DECIMAL(10,2). Le groupe Microsoft Entra ID **hr_admins** est synchronisé avec le compte Azure Databricks.
+
+    Vous devez faire en sorte que seuls les membres de hr_admins puissent voir les valeurs de salary. Tous les autres utilisateurs doivent voir NULL. Le contrôle doit s'appliquer à cette table uniquement.
+
+    Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION hr.core.mask_salary(salary DECIMAL(10,2))
+      RETURN CASE WHEN [[fn]]('hr_admins') THEN salary ELSE NULL END;
+
+    ALTER TABLE hr.core.employees
+      [[clause]] salary [[op]] hr.core.mask_salary;
+  slots:
+    - id: fn
+      options:
+        - { id: current_user, text: current_user }
+        - { id: isgroup, text: is_account_group_member }
+        - { id: recipient, text: current_recipient }
+        - { id: hastag, text: has_tag }
+    - id: clause
+      options:
+        - { id: add, text: ADD COLUMN }
+        - { id: rename, text: RENAME COLUMN }
+        - { id: alter, text: ALTER COLUMN }
+    - id: op
+      options:
+        - { id: settags, text: SET TAGS }
+        - { id: setfilter, text: SET ROW FILTER }
+        - { id: setmask, text: SET MASK }
+answer:
+  values: { fn: isgroup, clause: alter, op: setmask }
+explanation:
+  correct:
+    en: |
+      is_account_group_member returns TRUE when the session user is a direct or indirect member of the account-level group, so the CASE expression returns the real value only to hr_admins. ALTER TABLE … ALTER COLUMN … SET MASK binds the function to the column as a table-level column mask; the column value is passed as the first parameter.
+    fr: |
+      is_account_group_member renvoie TRUE lorsque l'utilisateur de la session est membre direct ou indirect du groupe de niveau compte : l'expression CASE ne renvoie la valeur réelle qu'à hr_admins. ALTER TABLE … ALTER COLUMN … SET MASK associe la fonction à la colonne en tant que masque de colonne au niveau de la table ; la valeur de la colonne est passée comme premier paramètre.
+  options:
+    current_user: { en: "current_user takes no argument and returns the user name; it does not test group membership.", fr: "current_user ne prend pas d'argument et renvoie le nom de l'utilisateur ; il ne teste pas l'appartenance à un groupe." }
+    recipient: { en: "current_recipient reads properties of a Delta Sharing recipient; it is used in shared views, not for workspace users.", fr: "current_recipient lit les propriétés d'un destinataire Delta Sharing ; elle sert dans les vues partagées, pas pour les utilisateurs de l'espace de travail." }
+    hastag: { en: "has_tag is a condition of ABAC policies that tests object tags, not a function for masking logic.", fr: "has_tag est une condition des stratégies ABAC qui teste les balises des objets, pas une fonction de logique de masquage." }
+    setfilter: { en: "SET ROW FILTER is a table clause that hides rows; it is not set on a column.", fr: "SET ROW FILTER est une clause de table qui masque des lignes ; elle ne se définit pas sur une colonne." }
+    settags: { en: "SET TAGS assigns tags to the column but does not mask its values.", fr: "SET TAGS attribue des balises à la colonne mais n'en masque pas les valeurs." }
+references:
+  - title: Manually apply row filters and column masks
+    url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/manually-apply
+  - title: is_account_group_member function
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/functions/is_account_group_member

@@ -1,0 +1,72 @@
+id: az400-cs1c-nuget-cache
+objective: "3.6.2"
+type: dropdown
+caseStudy: az400-cs1c-southridge-video
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are modifying the YAML pipeline of skyforge to meet the pipeline requirement about the NuGet restore time.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous modifiez le pipeline YAML de skyforge pour satisfaire l'exigence relative aux pipelines concernant le temps de restauration NuGet.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    pool: mdp-win-build
+
+    variables:
+      NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
+
+    steps:
+    - task: [[task]]
+      displayName: Restore cached NuGet packages
+      inputs:
+        key: 'nuget | "$(Agent.OS)" | [[key]]'
+        restoreKeys: |
+          nuget | "$(Agent.OS)"
+        path: [[path]]
+    - script: dotnet restore --locked-mode
+    - script: dotnet build --no-restore --configuration Release
+  slots:
+    - id: task
+      options:
+        - { id: cache, text: Cache@2 }
+        - { id: publish, text: PublishPipelineArtifact@1 }
+        - { id: auth, text: NuGetAuthenticate@1 }
+    - id: key
+      options:
+        - { id: buildid, text: $(Build.BuildId) }
+        - { id: lock, text: "**/packages.lock.json" }
+        - { id: sources, text: "**/*.cs" }
+    - id: path
+      options:
+        - { id: staging, text: $(Build.ArtifactStagingDirectory) }
+        - { id: temp, text: $(Agent.TempDirectory) }
+        - { id: nuget, text: $(NUGET_PACKAGES) }
+answer:
+  values: { task: cache, key: lock, path: nuget }
+explanation:
+  correct:
+    en: |
+      The Cache@2 task restores a folder saved by an earlier run when the key matches and saves it at the end of the job when it does not, which helps most on agents that start from a new VM. A key built from the hash of the packages.lock.json files changes only when a dependency changes, as the requirement asks. The cached folder must be the NuGet global packages folder that dotnet restore uses, set here by the NUGET_PACKAGES variable.
+    fr: |
+      La tâche Cache@2 restaure un dossier enregistré par une exécution précédente quand la clé correspond et l'enregistre à la fin du travail quand elle ne correspond pas, ce qui est surtout utile sur des agents qui démarrent sur une nouvelle machine virtuelle. Une clé construite à partir du hachage des fichiers packages.lock.json ne change que lorsqu'une dépendance change, comme le demande l'exigence. Le dossier mis en cache doit être le dossier global des packages NuGet utilisé par dotnet restore, défini ici par la variable NUGET_PACKAGES.
+  options:
+    publish: { en: "PublishPipelineArtifact@1 publishes build outputs for later stages or pipelines; it does not restore anything automatically at the next run.", fr: "PublishPipelineArtifact@1 publie des sorties de build pour des phases ou des pipelines ultérieurs ; il ne restaure rien automatiquement à l'exécution suivante." }
+    auth: { en: "NuGetAuthenticate@1 configures credentials for Azure Artifacts feeds; it does not cache packages.", fr: "NuGetAuthenticate@1 configure les informations d'identification des flux Azure Artifacts ; il ne met pas de packages en cache." }
+    buildid: { en: "Build.BuildId changes at every run, so the exact key would never match a previous cache.", fr: "Build.BuildId change à chaque exécution : la clé exacte ne correspondrait jamais à un cache précédent." }
+    sources: { en: "Source files change at almost every commit, so the cache would be rebuilt even when no dependency changed.", fr: "Les fichiers sources changent à presque chaque commit : le cache serait reconstruit même sans changement de dépendance." }
+    staging: { en: "The artifact staging directory holds the files to publish, not the packages that dotnet restore uses.", fr: "Le répertoire intermédiaire des artefacts contient les fichiers à publier, pas les packages utilisés par dotnet restore." }
+    temp: { en: "Agent.TempDirectory is a scratch folder cleaned after each job, not the NuGet packages folder.", fr: "Agent.TempDirectory est un dossier temporaire nettoyé après chaque travail, pas le dossier des packages NuGet." }
+references:
+  - title: Pipeline caching
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/release/caching

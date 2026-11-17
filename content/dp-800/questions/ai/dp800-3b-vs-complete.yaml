@@ -1,0 +1,84 @@
+id: dp800-3b-vs-complete
+objective: "3.2.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Articles with 2 million rows. A latest-version vector index that uses the cosine metric exists on the Embedding column. The IsPublished column identifies the published articles, and a view named dbo.vw_PublishedArticles returns them.
+
+    The search procedure contains the following code.
+
+    ```sql
+    DECLARE @question nvarchar(400) = N'How do I renew a parking permit?';
+    DECLARE @qv VECTOR(1536) = AI_GENERATE_EMBEDDINGS(@question USE MODEL ArticleEmbeddings);
+    ```
+
+    You need to return the 10 published articles closest to the question by using the vector index.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Articles de 2 millions de lignes. Un index vectoriel de dernière version qui utilise la métrique cosinus existe sur la colonne Embedding. La colonne IsPublished identifie les articles publiés, et une vue nommée dbo.vw_PublishedArticles les renvoie.
+
+    La procédure de recherche contient le code suivant.
+
+    ```sql
+    DECLARE @question nvarchar(400) = N'How do I renew a parking permit?';
+    DECLARE @qv VECTOR(1536) = AI_GENERATE_EMBEDDINGS(@question USE MODEL ArticleEmbeddings);
+    ```
+
+    Vous devez renvoyer les 10 articles publiés les plus proches de la question à l'aide de l'index vectoriel.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT [[top]]
+           a.ArticleID, a.Title, r.distance
+    FROM VECTOR_SEARCH(
+            TABLE = [[tbl]],
+            COLUMN = Embedding,
+            SIMILAR_TO = [[sim]],
+            METRIC = 'cosine'
+        ) AS r
+    WHERE a.IsPublished = 1
+    ORDER BY r.distance;
+  slots:
+    - id: top
+      options:
+        - { id: approx, text: TOP (10) WITH APPROXIMATE }
+        - { id: ties, text: TOP (10) WITH TIES }
+        - { id: percent, text: TOP (10) PERCENT }
+    - id: tbl
+      options:
+        - { id: base, text: dbo.Articles AS a }
+        - { id: view, text: dbo.vw_PublishedArticles AS a }
+        - { id: temp, text: "#Articles AS a" }
+    - id: sim
+      options:
+        - { id: qv, text: "@qv" }
+        - { id: question, text: "@question" }
+        - { id: title, text: a.Title }
+answer:
+  values: { top: approx, tbl: base, sim: qv }
+explanation:
+  correct:
+    en: |-
+      With a latest-version index, approximate search uses SELECT TOP (N) WITH APPROXIMATE and ORDER BY distance. The TABLE argument must be a base table, and its alias is used to reference its columns, including in the WHERE clause, which is applied during the search. SIMILAR_TO takes a vector variable or column, here the embedding of the question.
+    fr: |-
+      Avec un index de dernière version, la recherche approximative utilise SELECT TOP (N) WITH APPROXIMATE et ORDER BY distance. L'argument TABLE doit être une table de base, et son alias sert à référencer ses colonnes, y compris dans la clause WHERE, qui est appliquée pendant la recherche. SIMILAR_TO prend une variable ou une colonne vectorielle, ici l'incorporation de la question.
+  options:
+    ties: { en: "WITH TIES does not request an approximate search; the query would run an exact kNN search.", fr: "WITH TIES ne demande pas de recherche approximative ; la requête effectuerait une recherche kNN exacte." }
+    percent: { en: "PERCENT returns a share of the rows and does not request an approximate search.", fr: "PERCENT renvoie une part des lignes et ne demande pas de recherche approximative." }
+    view: { en: "VECTOR_SEARCH does not support views as the TABLE argument.", fr: "VECTOR_SEARCH ne prend pas en charge les vues comme argument TABLE." }
+    temp: { en: "Temporary tables are not supported, and #Articles has no vector index.", fr: "Les tables temporaires ne sont pas prises en charge, et #Articles n'a pas d'index vectoriel." }
+    question: { en: "SIMILAR_TO requires a vector, not the text of the question.", fr: "SIMILAR_TO exige un vecteur, pas le texte de la question." }
+    title: { en: "SIMILAR_TO takes a vector expression; Title is a text column.", fr: "SIMILAR_TO prend une expression vectorielle ; Title est une colonne de texte." }
+references:
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

@@ -1,0 +1,97 @@
+id: ai200-3a-lock-renewal-code
+objective: "3.1.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware runs a Python worker that summarizes legal files with a language model. Each job takes 8 to 12 minutes. The worker reads the jobs from a Service Bus queue named **summaries** that uses the default lock duration.
+
+    Some jobs are summarized twice by two replicas. You need to keep each message locked for up to 15 minutes while it is processed, and remove the message from the queue only when the summary succeeds.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware exécute un worker Python qui résume des dossiers juridiques avec un modèle de langage. Chaque tâche dure de 8 à 12 minutes. Le worker lit les tâches dans une file d'attente Service Bus nommée **summaries** qui utilise la durée de verrouillage par défaut.
+
+    Certaines tâches sont résumées deux fois par deux réplicas. Vous devez conserver le verrou de chaque message pendant 15 minutes au maximum durant son traitement, et ne supprimer le message de la file d'attente que si le résumé réussit.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.identity import DefaultAzureCredential
+    from azure.servicebus import ServiceBusClient, AutoLockRenewer
+
+    client = ServiceBusClient("sb-proseware.servicebus.windows.net", DefaultAzureCredential())
+    renewer = AutoLockRenewer()
+
+    with client.get_queue_receiver(queue_name="summaries", max_wait_time=30) as receiver:
+        for msg in receiver:
+            renewer.[[reg]](receiver, msg, max_lock_renewal_duration=[[dur]])
+            summarize(str(msg))
+            receiver.[[settle]](msg)
+  slots:
+    - id: reg
+      options:
+        - { id: register, text: register }
+        - { id: renew, text: renew_message_lock }
+        - { id: close, text: close }
+    - id: dur
+      options:
+        - { id: d15, text: "15" }
+        - { id: d300, text: "300" }
+        - { id: d900, text: "900" }
+    - id: settle
+      options:
+        - { id: complete, text: complete_message }
+        - { id: abandon, text: abandon_message }
+        - { id: defer, text: defer_message }
+answer:
+  values: { reg: register, dur: d900, settle: complete }
+explanation:
+  correct:
+    en: |
+      The lock duration of a queue is 1 minute by default and 5 minutes at most, so a 12-minute job needs lock renewal. AutoLockRenewer.register(receiver, message, max_lock_renewal_duration=...) keeps renewing the lock in the background for the given number of seconds, 900 for 15 minutes. complete_message then removes the message after the summary succeeds.
+    fr: |
+      La durée de verrouillage d'une file d'attente est de 1 minute par défaut et de 5 minutes au plus ; une tâche de 12 minutes exige donc le renouvellement du verrou. AutoLockRenewer.register(receiver, message, max_lock_renewal_duration=...) renouvelle le verrou en arrière-plan pendant le nombre de secondes indiqué, 900 pour 15 minutes. complete_message supprime ensuite le message une fois le résumé réussi.
+  options:
+    renew:
+      en: |
+        renew_message_lock is a method of the receiver that renews the lock once; AutoLockRenewer has no method with that name.
+      fr: |
+        renew_message_lock est une méthode du récepteur qui renouvelle le verrou une seule fois ; AutoLockRenewer n'a pas de méthode de ce nom.
+    close:
+      en: |
+        close shuts down the renewer's thread pool when renewal is finished; it does not register a message.
+      fr: |
+        close arrête le pool de threads du renouveleur quand le renouvellement est terminé ; il n'inscrit aucun message.
+    d15:
+      en: |
+        The duration is expressed in seconds, so 15 would renew the lock for only 15 seconds.
+      fr: |
+        La durée s'exprime en secondes : 15 ne renouvellerait le verrou que pendant 15 secondes.
+    d300:
+      en: |
+        300 seconds is the default renewal duration (5 minutes), shorter than the 12-minute jobs.
+      fr: |
+        300 secondes est la durée de renouvellement par défaut (5 minutes), plus courte que les tâches de 12 minutes.
+    abandon:
+      en: |
+        Abandoning releases the lock and redelivers the message, so a successful job would be processed again.
+      fr: |
+        L'abandon libère le verrou et remet le message : une tâche réussie serait traitée de nouveau.
+    defer:
+      en: |
+        Deferring leaves the message in the queue until it is received by its sequence number.
+      fr: |
+        Le report laisse le message dans la file d'attente jusqu'à ce qu'il soit reçu par son numéro de séquence.
+references:
+  - title: azure.servicebus.AutoLockRenewer class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.autolockrenewer
+  - title: Message Transfers, Locks, and Settlement
+    url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-transfers-locks-settlement

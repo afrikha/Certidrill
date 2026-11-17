@@ -1,0 +1,103 @@
+id: dp600-cs2b-bellows-college
+status: draft
+title:
+  en: Bellows College
+  fr: Bellows College
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Bellows College is a private higher education institution with 14,000 students in five faculties. A business intelligence team of three developers produces the enrollment reports used by the faculty deans and the registrar's office.
+
+        Bellows College is moving its reporting from spreadsheets to Microsoft Fabric.
+      fr: |
+        Bellows College est un établissement privé d'enseignement supérieur qui compte 14 000 étudiants répartis dans cinq facultés. Une équipe décisionnelle de trois développeurs produit les rapports d'inscription utilisés par les doyens des facultés et le service de la scolarité.
+
+        Bellows College migre ses rapports, aujourd'hui dans des feuilles de calcul, vers Microsoft Fabric.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        The student information system stores its data in an Azure SQL Database database named **SIS-DB** (vCore purchasing model, General Purpose service tier). The table **dbo.StudentHistory** receives a new row each time a student record changes: the columns are StudentId, FullName, ProgramCode, FacultyCode and ModifiedDate. Bulk corrections sometimes create several rows with the same StudentId and the same ModifiedDate.
+
+        Bellows College has the following Fabric items.
+
+        | Item | Type | Configuration |
+        | --- | --- | --- |
+        | Academic-Dev, Academic-Test, Academic-Prod | Workspaces | Assigned to the Development, Test and Production stages of the deployment pipeline **Academic Pipeline** |
+        | WH-Academic | Warehouse | One in each workspace; contains the star schema of the enrollments |
+        | SM-Enrollment | Semantic model | Import mode; the server and the database of its warehouse connection are set by the Power Query parameters **WarehouseServer** and **WarehouseName** |
+        | Enrollment Report | Report | Uses SM-Enrollment; published to the deans through the Academic-Prod app |
+        | FAC-Science, FAC-Law, FAC-Arts | Workspaces | Each faculty builds its own reports on SM-Enrollment; the BI team has no role in these workspaces |
+
+        SM-Enrollment contains the following tables:
+
+        | Table | Description |
+        | --- | --- |
+        | Faculty | One row per faculty; the column **DeanUPN** contains the user principal name of the dean |
+        | Course | One row per course; related to Faculty |
+        | Instructor | One row per instructor |
+        | CourseInstructor | One row per course and instructor; a course can have several instructors |
+        | Enrollment | One row per student and course; related to Course |
+
+        The deans are members of the Microsoft Entra security group **Deans**. The Deans group has the Viewer role on Academic-Prod.
+      fr: |
+        Le système d'information étudiant stocke ses données dans une base de données Azure SQL Database nommée **SIS-DB** (modèle d'achat vCore, niveau de service General Purpose). La table **dbo.StudentHistory** reçoit une nouvelle ligne à chaque modification d'un dossier étudiant : ses colonnes sont StudentId, FullName, ProgramCode, FacultyCode et ModifiedDate. Les corrections de masse créent parfois plusieurs lignes avec le même StudentId et la même ModifiedDate.
+
+        Bellows College dispose des éléments Fabric suivants.
+
+        | Élément | Type | Configuration |
+        | --- | --- | --- |
+        | Academic-Dev, Academic-Test, Academic-Prod | Espaces de travail | Affectés aux phases Development, Test et Production du pipeline de déploiement **Academic Pipeline** |
+        | WH-Academic | Entrepôt | Un dans chaque espace de travail ; contient le schéma en étoile des inscriptions |
+        | SM-Enrollment | Modèle sémantique | Mode Import ; le serveur et la base de données de sa connexion à l'entrepôt sont définis par les paramètres Power Query **WarehouseServer** et **WarehouseName** |
+        | Enrollment Report | Rapport | Utilise SM-Enrollment ; publié pour les doyens par l'application d'Academic-Prod |
+        | FAC-Science, FAC-Law, FAC-Arts | Espaces de travail | Chaque faculté crée ses propres rapports sur SM-Enrollment ; l'équipe décisionnelle n'a aucun rôle dans ces espaces de travail |
+
+        SM-Enrollment contient les tables suivantes :
+
+        | Table | Description |
+        | --- | --- |
+        | Faculty | Une ligne par faculté ; la colonne **DeanUPN** contient le nom d'utilisateur principal du doyen |
+        | Course | Une ligne par cours ; liée à Faculty |
+        | Instructor | Une ligne par enseignant |
+        | CourseInstructor | Une ligne par cours et par enseignant ; un cours peut avoir plusieurs enseignants |
+        | Enrollment | Une ligne par étudiant et par cours ; liée à Course |
+
+        Les doyens sont membres du groupe de sécurité Microsoft Entra **Deans**. Le groupe Deans a le rôle Viewer sur Academic-Prod.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Data integration**
+
+        1. The data of SIS-DB must be replicated continuously into OneLake as Delta tables. The BI team must not build or maintain any pipeline or notebook for this replication, and the replication compute must not consume capacity units.
+        2. The replicated database will be named **SIS_Mirror** and will be in the same workspace as WH-Academic.
+        3. A stored procedure in WH-Academic must reload the table **dbo.DimStudent** with exactly one row per student, taken from the most recent version of the student record.
+
+        **Semantic model**
+
+        4. Enrollment Report must let users filter the enrollments by instructor. Bidirectional relationships must be used only where they are required.
+        5. Each dean must see only the enrollments of the courses of his or her faculty. The registrar's office staff, who have the Member role on Academic-Prod, must see all the data.
+
+        **Lifecycle**
+
+        6. When SM-Enrollment is deployed to the Test or Production stage, it must connect automatically to the WH-Academic of that stage.
+        7. Before the BI team changes the schema of a table in WH-Academic, it must identify every downstream item, including the items in the faculty workspaces, and notify the contacts of the affected workspaces by email.
+      fr: |
+        **Intégration des données**
+
+        1. Les données de SIS-DB doivent être répliquées en continu dans OneLake sous forme de tables Delta. L'équipe décisionnelle ne doit créer ni maintenir aucun pipeline ni aucun notebook pour cette réplication, et le calcul de réplication ne doit pas consommer d'unités de capacité.
+        2. La base de données répliquée sera nommée **SIS_Mirror** et se trouvera dans le même espace de travail que WH-Academic.
+        3. Une procédure stockée de WH-Academic doit recharger la table **dbo.DimStudent** avec exactement une ligne par étudiant, issue de la version la plus récente du dossier étudiant.
+
+        **Modèle sémantique**
+
+        4. Enrollment Report doit permettre de filtrer les inscriptions par enseignant. Les relations bidirectionnelles ne doivent être utilisées que là où elles sont nécessaires.
+        5. Chaque doyen ne doit voir que les inscriptions aux cours de sa faculté. Le personnel du service de la scolarité, qui a le rôle Member sur Academic-Prod, doit voir toutes les données.
+
+        **Cycle de vie**
+
+        6. Quand SM-Enrollment est déployé dans la phase Test ou Production, il doit se connecter automatiquement au WH-Academic de cette phase.
+        7. Avant de modifier le schéma d'une table de WH-Academic, l'équipe décisionnelle doit identifier tous les éléments en aval, y compris ceux des espaces de travail des facultés, et prévenir par e-mail les contacts des espaces de travail concernés.

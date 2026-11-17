@@ -1,0 +1,76 @@
+id: ai300-cs1c-distributed-job
+objective: "2.1.6"
+type: dropdown
+caseStudy: ai300-cs1c-trey-research
+difficulty: 2
+status: draft
+shuffle: false
+stem:
+  en: |
+    gpu-cluster has been created. You are writing the command job YAML that trains LesionSeg.
+
+    How should you complete the YAML to meet the training requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    gpu-cluster a été créé. Vous écrivez le YAML du travail de commande qui entraîne LesionSeg.
+
+    Comment devez-vous compléter le YAML pour respecter les exigences d'entraînement ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+    type: command
+    code: ./src
+    command: python train.py --data ${{inputs.scans}}
+    inputs:
+      scans:
+        type: uri_folder
+        path: azureml:ct-scans@latest
+    environment: azureml:lesionseg-env@latest
+    compute: azureml:gpu-cluster
+    experiment_name: lesion-seg
+    distribution:
+      type: [[dtype]]
+      process_count_per_instance: [[procs]]
+    resources:
+      instance_count: [[nodes]]
+  slots:
+    - id: dtype
+      options:
+        - { id: mpi, text: "mpi" }
+        - { id: pytorch, text: "pytorch" }
+        - { id: tensorflow, text: "tensorflow" }
+    - id: procs
+      options:
+        - { id: p1, text: "1" }
+        - { id: p2, text: "2" }
+        - { id: p8, text: "8" }
+        - { id: p16, text: "16" }
+    - id: nodes
+      options:
+        - { id: n1, text: "1" }
+        - { id: n2, text: "2" }
+        - { id: n8, text: "8" }
+        - { id: n16, text: "16" }
+answer:
+  values: { dtype: pytorch, procs: p8, nodes: n2 }
+explanation:
+  correct:
+    en: "train.py uses PyTorch DistributedDataParallel, so the `pytorch` distribution lets Azure Machine Learning set MASTER_ADDR, MASTER_PORT, WORLD_SIZE, NODE_RANK, RANK and LOCAL_RANK for each process. `process_count_per_instance` should equal the number of GPUs per node (8), and `instance_count` is the number of nodes (2), which gives 16 processes in total."
+    fr: "train.py utilise DistributedDataParallel de PyTorch ; la distribution `pytorch` permet donc à Azure Machine Learning de définir MASTER_ADDR, MASTER_PORT, WORLD_SIZE, NODE_RANK, RANK et LOCAL_RANK pour chaque processus. `process_count_per_instance` doit être égal au nombre de GPU par nœud (8), et `instance_count` est le nombre de nœuds (2), soit 16 processus au total."
+  options:
+    mpi: { en: "MPI distribution is used for MPI-based launchers such as Horovod or DeepSpeed, not for a PyTorch DistributedDataParallel script launched natively.", fr: "La distribution MPI sert aux lanceurs basés sur MPI, comme Horovod ou DeepSpeed, pas à un script DistributedDataParallel de PyTorch lancé nativement." }
+    tensorflow: { en: "The TensorFlow distribution sets TF_CONFIG for TensorFlow workers; the script uses PyTorch.", fr: "La distribution TensorFlow définit TF_CONFIG pour les workers TensorFlow ; le script utilise PyTorch." }
+    p1: { en: "One process per node, the default, leaves seven GPUs of each node idle.", fr: "Un processus par nœud, la valeur par défaut, laisse sept GPU de chaque nœud inutilisés." }
+    p2: { en: "Two processes per node use only two of the eight GPUs.", fr: "Deux processus par nœud n'utilisent que deux des huit GPU." }
+    p16: { en: "16 is the total number of processes, not the number per node.", fr: "16 est le nombre total de processus, pas le nombre par nœud." }
+    n1: { en: "One node doesn't meet the two-node requirement.", fr: "Un seul nœud ne respecte pas l'exigence de deux nœuds." }
+    n8: { en: "instance_count counts nodes, not GPUs.", fr: "instance_count compte les nœuds, pas les GPU." }
+    n16: { en: "16 is the number of GPUs in total; instance_count counts nodes.", fr: "16 est le nombre total de GPU ; instance_count compte les nœuds." }
+references:
+  - title: Distributed GPU training guide (SDK v2)
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-train-distributed-gpu

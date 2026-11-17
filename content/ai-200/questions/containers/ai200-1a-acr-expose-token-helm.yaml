@@ -1,0 +1,59 @@
+id: ai200-1a-acr-expose-token-helm
+objective: "1.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank packages the deployment of its fraud-scoring API as a Helm chart stored in the Azure container registry **crwoodgrove**. A pipeline job runs in a container that has the Azure CLI and Helm but no Docker daemon. The job signs in with `az login` by using a Microsoft Entra identity that has push rights on crwoodgrove.
+
+    You need to authenticate Helm to the registry with this Microsoft Entra identity. The admin user of the registry must stay disabled.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank empaquette le déploiement de son API de notation de fraude sous forme de chart Helm stocké dans le registre de conteneurs Azure **crwoodgrove**. Un travail de pipeline s'exécute dans un conteneur qui dispose de l'Azure CLI et de Helm, mais d'aucun démon Docker. Le travail se connecte avec `az login` à l'aide d'une identité Microsoft Entra qui dispose des droits d'envoi sur crwoodgrove.
+
+    Vous devez authentifier Helm auprès du registre avec cette identité Microsoft Entra. L'utilisateur administrateur du registre doit rester désactivé.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    TOKEN=$(az acr login --name crwoodgrove [[flag]] \
+      --output tsv --query accessToken)
+
+    echo $TOKEN | helm registry login crwoodgrove.azurecr.io \
+      --username [[user]] \
+      --password-stdin
+  slots:
+    - id: flag
+      options:
+        - { id: expose, text: "--expose-token" }
+        - { id: admin, text: "--username crwoodgrove --password $ADMIN_PASSWORD" }
+        - { id: quiet, text: "--only-show-errors" }
+    - id: user
+      options:
+        - { id: zero, text: "00000000-0000-0000-0000-000000000000" }
+        - { id: reg, text: crwoodgrove }
+        - { id: upn, text: "$(az account show --query user.name --output tsv)" }
+answer:
+  values: { flag: expose, user: zero }
+explanation:
+  correct:
+    en: |
+      `az acr login --expose-token` returns an access token for the signed-in Microsoft Entra identity instead of calling the Docker CLI, so it works without a Docker daemon. The token is then passed to docker login or helm registry login with the fixed user name 00000000-0000-0000-0000-000000000000.
+    fr: |
+      `az acr login --expose-token` renvoie un jeton d'accès pour l'identité Microsoft Entra connectée au lieu d'appeler l'interface Docker : la commande fonctionne donc sans démon Docker. Le jeton est ensuite transmis à docker login ou à helm registry login avec le nom d'utilisateur fixe 00000000-0000-0000-0000-000000000000.
+  options:
+    admin: { en: "The registry name and password are the admin user's credentials, which must stay disabled.", fr: "Le nom du registre et un mot de passe sont les informations de l'utilisateur administrateur, qui doit rester désactivé." }
+    quiet: { en: "Without --expose-token, az acr login tries to call Docker and returns no token.", fr: "Sans --expose-token, az acr login tente d'appeler Docker et ne renvoie aucun jeton." }
+    reg: { en: "The registry name is the admin user name, not the user name expected with a Microsoft Entra token.", fr: "Le nom du registre est le nom de l'utilisateur administrateur, pas celui attendu avec un jeton Microsoft Entra." }
+    upn: { en: "The token isn't tied to a user name; the registry expects the fixed all-zero GUID.", fr: "Le jeton n'est pas lié à un nom d'utilisateur ; le registre attend le GUID fixe composé de zéros." }
+references:
+  - title: Authenticate with Azure Container Registry
+    url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-authentication

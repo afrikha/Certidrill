@@ -1,0 +1,95 @@
+id: dp750-3d-autoloader-hints-rescue
+objective: "3.4.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware ingests JSON order files from the volume path **/Volumes/litware/sales/landing/orders/** by using Auto Loader. The files always contain the same fields, with the same names and case. Auto Loader infers the schema of the other columns.
+
+    You need to meet the following requirements:
+
+    - The `amount` column must be read as `DECIMAL(12,2)` and the `order_day` column as `DATE`.
+    - Values that don't match these types must be kept in a column named `bad_values`.
+    - The `quarantine` DataFrame must contain only the rows that have at least one such value.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware ingère des fichiers de commandes JSON depuis le chemin de volume **/Volumes/litware/sales/landing/orders/** à l'aide d'Auto Loader. Les fichiers contiennent toujours les mêmes champs, avec les mêmes noms et la même casse. Auto Loader infère le schéma des autres colonnes.
+
+    Vous devez satisfaire les exigences suivantes :
+
+    - La colonne `amount` doit être lue en `DECIMAL(12,2)` et la colonne `order_day` en `DATE`.
+    - Les valeurs qui ne correspondent pas à ces types doivent être conservées dans une colonne nommée `bad_values`.
+    - Le DataFrame `quarantine` ne doit contenir que les lignes qui ont au moins une telle valeur.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    orders = (spark.readStream.format("cloudFiles")
+        .option("cloudFiles.format", "json")
+        .option("cloudFiles.schemaLocation", "/Volumes/litware/sales/_schemas/orders")
+        .option("[[hint]]", "amount DECIMAL(12,2), order_day DATE")
+        .option("[[rescue]]", "bad_values")
+        .load("/Volumes/litware/sales/landing/orders/"))
+
+    quarantine = orders.where("[[filter]]")
+  slots:
+    - id: hint
+      options:
+        - { id: partition, text: cloudFiles.partitionColumns }
+        - { id: hints, text: cloudFiles.schemaHints }
+        - { id: infer, text: cloudFiles.inferColumnTypes }
+    - id: rescue
+      options:
+        - { id: badrecords, text: badRecordsPath }
+        - { id: corrupt, text: columnNameOfCorruptRecord }
+        - { id: rescued, text: rescuedDataColumn }
+    - id: filter
+      options:
+        - { id: notnull, text: "bad_values IS NOT NULL" }
+        - { id: amountnull, text: "amount IS NULL OR order_day IS NULL" }
+        - { id: typeof, text: "typeof(amount) <> 'decimal(12,2)'" }
+answer:
+  values: { hint: hints, rescue: rescued, filter: notnull }
+explanation:
+  correct:
+    en: |
+      `cloudFiles.schemaHints` overrides the inferred type of the listed columns while Auto Loader infers the others. Values that don't parse against the schema go to the rescued data column as a JSON blob, and `rescuedDataColumn` renames that column to `bad_values`. Because the files never have extra fields or case mismatches, a non-null `bad_values` identifies exactly the rows with a type mismatch.
+    fr: |
+      `cloudFiles.schemaHints` remplace le type inféré des colonnes listées pendant qu'Auto Loader infère les autres. Les valeurs qui ne s'analysent pas selon le schéma vont dans la colonne de données récupérées sous forme de blob JSON, et `rescuedDataColumn` renomme cette colonne en `bad_values`. Comme les fichiers n'ont jamais de champs supplémentaires ni d'écarts de casse, un `bad_values` non null identifie exactement les lignes avec une incompatibilité de type.
+  options:
+    partition:
+      en: |
+        `cloudFiles.partitionColumns` lists the Hive-style partition columns to read from the file paths; it doesn't set column types.
+      fr: |
+        `cloudFiles.partitionColumns` liste les colonnes de partition de style Hive à lire dans les chemins de fichiers ; elle ne définit pas de types de colonnes.
+    infer:
+      en: |
+        `cloudFiles.inferColumnTypes` takes `true` or `false`; it doesn't accept a list of column types.
+      fr: |
+        `cloudFiles.inferColumnTypes` prend la valeur `true` ou `false` ; elle n'accepte pas une liste de types de colonnes.
+    badrecords:
+      en: |
+        `badRecordsPath` is a path where corrupt records are written as files, not the name of a column.
+      fr: |
+        `badRecordsPath` est un chemin où les enregistrements corrompus sont écrits sous forme de fichiers, pas le nom d'une colonne.
+    amountnull:
+      en: |
+        This filter also returns rows where the source value was really null, and it loses the original invalid value.
+      fr: |
+        Ce filtre renvoie aussi les lignes dont la valeur source était réellement null, et il perd la valeur non valide d'origine.
+    typeof:
+      en: |
+        `amount` is always read as `decimal(12,2)`, so this filter returns no rows.
+      fr: |
+        `amount` est toujours lu en `decimal(12,2)` : ce filtre ne renvoie aucune ligne.
+references:
+  - title: Configure schema inference and evolution in Auto Loader
+    url: https://learn.microsoft.com/en-us/azure/databricks/ingestion/cloud-object-storage/auto-loader/schema

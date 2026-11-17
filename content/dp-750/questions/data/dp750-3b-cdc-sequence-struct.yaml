@@ -1,0 +1,50 @@
+id: dp750-3b-cdc-sequence-struct
+objective: "3.2.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind Traders receives a CDC feed in the Delta table **northwind.bronze.order_cdc**, which has the following columns: `order_id`, `status`, `amount`, `op`, `change_ts` and `change_id`. `change_ts` is a TIMESTAMP with a precision of one second, and `change_id` is a BIGINT that increases with every change in the source.
+
+    Several changes to the same order can have the same `change_ts` value. A Lakeflow Spark Declarative Pipelines pipeline applies the feed to the streaming table **orders** with AUTO CDC and STORED AS SCD TYPE 1. The table must contain one row per order with its latest values.
+
+    How should you configure the flow?
+  fr: |
+    Northwind Traders reçoit un flux CDC dans la table Delta **northwind.bronze.order_cdc**, qui comporte les colonnes suivantes : `order_id`, `status`, `amount`, `op`, `change_ts` et `change_id`. `change_ts` est un TIMESTAMP d'une précision d'une seconde, et `change_id` est un BIGINT qui augmente à chaque modification dans la source.
+
+    Plusieurs modifications d'une même commande peuvent avoir la même valeur de `change_ts`. Un pipeline Lakeflow Spark Declarative Pipelines applique le flux à la table de streaming **orders** avec AUTO CDC et STORED AS SCD TYPE 1. La table doit contenir une ligne par commande avec ses dernières valeurs.
+
+    Comment devez-vous configurer le flux ?
+body:
+  options:
+    - { id: a, text: "KEYS (order_id, change_id) and SEQUENCE BY change_ts" }
+    - { id: b, text: { en: "KEYS (order_id) and SEQUENCE BY change_ts, with the source query sorted by change_id", fr: "KEYS (order_id) et SEQUENCE BY change_ts, avec la requête source triée sur change_id" } }
+    - { id: c, text: "KEYS (order_id) and SEQUENCE BY STRUCT(change_ts, change_id)" }
+    - { id: d, text: "KEYS (order_id) and SEQUENCE BY _metadata.file_modification_time" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      AUTO CDC uses the SEQUENCE BY value to order the changes of each key and to drop out-of-order records. When one column isn't enough to order the changes, you can sequence by a STRUCT: changes are ordered by change_ts first, then by change_id when the timestamps are equal. KEYS must identify one row per order.
+    fr: |
+      AUTO CDC utilise la valeur de SEQUENCE BY pour ordonner les modifications de chaque clé et écarter les enregistrements hors séquence. Quand une seule colonne ne suffit pas à ordonner les modifications, vous pouvez séquencer avec une STRUCT : les modifications sont ordonnées d'abord par change_ts, puis par change_id quand les horodatages sont égaux. KEYS doit identifier une ligne par commande.
+  options:
+    a:
+      en: |
+        Adding change_id to the keys makes every change a different row, so the table no longer has one row per order.
+      fr: |
+        Ajouter change_id aux clés fait de chaque modification une ligne différente : la table n'a plus une ligne par commande.
+    b:
+      en: |
+        AUTO CDC orders changes only by the SEQUENCE BY value; sorting the source doesn't break ties between equal timestamps.
+      fr: |
+        AUTO CDC n'ordonne les modifications que par la valeur de SEQUENCE BY ; trier la source ne départage pas des horodatages égaux.
+    d:
+      en: |
+        The file modification time reflects arrival order, not the order of the changes in the source.
+      fr: |
+        L'heure de modification du fichier reflète l'ordre d'arrivée, pas l'ordre des modifications dans la source.
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

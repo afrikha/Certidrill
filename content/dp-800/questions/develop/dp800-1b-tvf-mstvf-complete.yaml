@@ -1,0 +1,78 @@
+id: dp800-1b-tvf-mstvf-complete
+objective: "1.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are developing an Azure SQL database for Adatum. You need a function named Inventory.ufn_LowStock that returns the products of a warehouse whose stock is below their reorder level. When @IncludeDiscontinued is 0, discontinued products must be removed from the result in a second statement. Queries must be able to use the function in their FROM clause.
+
+    How should you complete the function? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous développez une base de données Azure SQL pour Adatum. Vous avez besoin d'une fonction nommée Inventory.ufn_LowStock qui renvoie les produits d'un entrepôt dont le stock est inférieur à leur seuil de réapprovisionnement. Quand @IncludeDiscontinued vaut 0, les produits abandonnés doivent être retirés du résultat par une deuxième instruction. Les requêtes doivent pouvoir utiliser la fonction dans leur clause FROM.
+
+    Comment devez-vous compléter la fonction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR ALTER FUNCTION Inventory.ufn_LowStock
+    (
+        @WarehouseID         int,
+        @IncludeDiscontinued bit
+    )
+    RETURNS [[ret]]
+    AS
+    BEGIN
+        INSERT INTO [[target]] (ProductID, OnHand)
+        SELECT ProductID, OnHand
+        FROM Inventory.Stock
+        WHERE WarehouseID = @WarehouseID AND OnHand < ReorderLevel;
+
+        IF @IncludeDiscontinued = 0
+            DELETE FROM @result
+            WHERE ProductID IN (SELECT ProductID FROM Inventory.Product
+                                WHERE IsDiscontinued = 1);
+
+        [[end]]
+    END;
+  slots:
+    - id: ret
+      options:
+        - { id: tvar, text: "@result TABLE (ProductID int PRIMARY KEY, OnHand int)" }
+        - { id: table, text: TABLE }
+        - { id: tablecols, text: "TABLE (ProductID int PRIMARY KEY, OnHand int)" }
+    - id: target
+      options:
+        - { id: result, text: "@result" }
+        - { id: temp, text: "#result" }
+        - { id: self, text: Inventory.ufn_LowStock }
+    - id: end
+      options:
+        - { id: bare, text: "RETURN;" }
+        - { id: retvar, text: "RETURN @result;" }
+        - { id: retsel, text: "RETURN (SELECT ProductID, OnHand FROM @result);" }
+answer:
+  values: { ret: tvar, target: result, end: bare }
+explanation:
+  correct:
+    en: |
+      A multi-statement table-valued function declares a named table variable and its columns in the RETURNS clause. The body inserts rows into that variable, can modify it (here with DELETE), and ends with a RETURN statement without an argument, which returns the content of the table variable to the caller.
+    fr: |
+      Une fonction table à instructions multiples déclare une variable de table nommée et ses colonnes dans la clause RETURNS. Le corps insère des lignes dans cette variable, peut la modifier (ici avec DELETE) et se termine par une instruction RETURN sans argument, qui renvoie le contenu de la variable de table à l'appelant.
+  options:
+    table: { en: "RETURNS TABLE declares an inline function, which has no BEGIN...END body and contains a single SELECT.", fr: "RETURNS TABLE déclare une fonction inline, qui n'a pas de corps BEGIN...END et ne contient qu'un SELECT." }
+    tablecols: { en: "The return table of a multi-statement function must be a named table variable, such as @result.", fr: "La table de retour d'une fonction à instructions multiples doit être une variable de table nommée, comme @result." }
+    temp: { en: "Functions cannot use temporary tables; they can modify only local table variables.", fr: "Les fonctions ne peuvent pas utiliser de tables temporaires ; elles ne peuvent modifier que des variables de table locales." }
+    self: { en: "A function cannot be the target of an INSERT; rows are inserted into the declared table variable.", fr: "Une fonction ne peut pas être la cible d'un INSERT ; les lignes sont insérées dans la variable de table déclarée." }
+    retvar: { en: "The RETURN statement of a multi-statement table-valued function takes no argument.", fr: "L'instruction RETURN d'une fonction table à instructions multiples ne prend aucun argument." }
+    retsel: { en: "RETURN with a SELECT is the syntax of an inline function, not of a multi-statement function.", fr: "RETURN avec un SELECT est la syntaxe d'une fonction inline, pas d'une fonction à instructions multiples." }
+references:
+  - title: CREATE FUNCTION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-function-transact-sql
+  - title: Create user-defined functions (Database Engine)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/user-defined-functions/create-user-defined-functions-database-engine

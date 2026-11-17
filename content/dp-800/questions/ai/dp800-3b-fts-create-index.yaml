@@ -1,0 +1,102 @@
+id: dp800-3b-fts-create-index
+objective: "3.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a SQL Server 2025 database that contains the following objects.
+
+    ```sql
+    CREATE TABLE dbo.Manuals
+    (
+        ManualID      int IDENTITY   NOT NULL,
+        Title         nvarchar(200)  NOT NULL,
+        FileExtension nvarchar(8)    NOT NULL,  -- '.pdf', '.docx'
+        Content       varbinary(max) NOT NULL,
+        CONSTRAINT PK_Manuals PRIMARY KEY (ManualID)
+    );
+    CREATE INDEX IX_Manuals_Title ON dbo.Manuals (Title);
+    CREATE FULLTEXT CATALOG ManualsCatalog;
+    ```
+
+    You need to create a full-text index on Title and Content. The solution must meet the following requirements:
+
+    - Each document in Content is indexed according to its file type.
+    - The index is created empty and populated later, during off-peak hours.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données SQL Server 2025 qui contient les objets suivants.
+
+    ```sql
+    CREATE TABLE dbo.Manuals
+    (
+        ManualID      int IDENTITY   NOT NULL,
+        Title         nvarchar(200)  NOT NULL,
+        FileExtension nvarchar(8)    NOT NULL,  -- '.pdf', '.docx'
+        Content       varbinary(max) NOT NULL,
+        CONSTRAINT PK_Manuals PRIMARY KEY (ManualID)
+    );
+    CREATE INDEX IX_Manuals_Title ON dbo.Manuals (Title);
+    CREATE FULLTEXT CATALOG ManualsCatalog;
+    ```
+
+    Vous devez créer un index de recherche en texte intégral sur Title et Content. La solution doit satisfaire les exigences suivantes :
+
+    - Chaque document de Content est indexé selon son type de fichier.
+    - L'index est créé vide et rempli plus tard, pendant les heures creuses.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FULLTEXT INDEX ON dbo.Manuals
+    (
+        Title LANGUAGE 1033,
+        Content [[doc]] LANGUAGE 1033
+    )
+    KEY INDEX [[key]]
+    ON ManualsCatalog
+    WITH [[pop]];
+  slots:
+    - id: doc
+      options:
+        - { id: typecol, text: TYPE COLUMN FileExtension }
+        - { id: typeid, text: TYPE COLUMN ManualID }
+        - { id: semantics, text: STATISTICAL_SEMANTICS }
+    - id: key
+      options:
+        - { id: pk, text: PK_Manuals }
+        - { id: ix, text: IX_Manuals_Title }
+        - { id: col, text: ManualID }
+    - id: pop
+      options:
+        - { id: offnopop, text: "CHANGE_TRACKING = OFF, NO POPULATION" }
+        - { id: autonopop, text: "CHANGE_TRACKING = AUTO, NO POPULATION" }
+        - { id: manual, text: CHANGE_TRACKING = MANUAL }
+        - { id: stopoff, text: STOPLIST = OFF }
+answer:
+  values: { doc: typecol, key: pk, pop: offnopop }
+explanation:
+  correct:
+    en: |
+      For a varbinary(max) column, TYPE COLUMN names the character column that holds the document type (the file extension), so the right filter is used for each document. KEY INDEX takes the name of a unique, single-column, non-nullable index: PK_Manuals on the int key. NO POPULATION is allowed only with CHANGE_TRACKING OFF and creates the index without populating it; you start the population later with ALTER FULLTEXT INDEX.
+    fr: |
+      Pour une colonne varbinary(max), TYPE COLUMN désigne la colonne de caractères qui contient le type de document (l'extension du fichier), afin que le filtre adapté soit utilisé pour chaque document. KEY INDEX prend le nom d'un index unique, sur une seule colonne et non nullable : PK_Manuals, sur la clé int. NO POPULATION n'est autorisé qu'avec CHANGE_TRACKING OFF et crée l'index sans le remplir ; vous lancez le remplissage plus tard avec ALTER FULLTEXT INDEX.
+  options:
+    typeid: { en: "The type column must be of type char, nchar, varchar or nvarchar and must contain the document type.", fr: "La colonne de type doit être de type char, nchar, varchar ou nvarchar et contenir le type de document." }
+    semantics: { en: "STATISTICAL_SEMANTICS adds key phrase and similarity indexes; it does not tell the engine the file type of each document.", fr: "STATISTICAL_SEMANTICS ajoute des index d'expressions clés et de similarité ; il n'indique pas au moteur le type de fichier de chaque document." }
+    ix: { en: "IX_Manuals_Title is not unique, so it cannot be the full-text key index.", fr: "IX_Manuals_Title n'est pas unique : il ne peut pas servir d'index de clé de texte intégral." }
+    col: { en: "KEY INDEX expects the name of an index, not the name of a column.", fr: "KEY INDEX attend le nom d'un index, pas celui d'une colonne." }
+    autonopop: { en: "NO POPULATION can be used only when CHANGE_TRACKING is OFF.", fr: "NO POPULATION ne peut être utilisé que lorsque CHANGE_TRACKING vaut OFF." }
+    manual: { en: "With change tracking enabled, a full population runs as soon as the index is created.", fr: "Avec le suivi des modifications activé, un remplissage complet s'exécute dès la création de l'index." }
+    stopoff: { en: "STOPLIST = OFF only removes the stoplist; the index is still populated at creation.", fr: "STOPLIST = OFF supprime uniquement la liste de mots vides ; l'index est quand même rempli à sa création." }
+references:
+  - title: CREATE FULLTEXT INDEX (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-fulltext-index-transact-sql

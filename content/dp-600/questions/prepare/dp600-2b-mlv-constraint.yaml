@@ -1,0 +1,59 @@
+id: dp600-2b-mlv-constraint
+objective: "2.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a schema-enabled lakehouse named LH-Logistics that contains a Delta table named bronze.shipments.
+
+    You need to create silver.shipments_clean from bronze.shipments by using Spark SQL. The result must be persisted as a Delta table whose refresh and dependencies are managed by Fabric. Rows that have a weight_kg value of 0 or less must be excluded, and the refresh must continue when such rows exist.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse avec schémas nommé LH-Logistics qui contient une table Delta nommée bronze.shipments.
+
+    Vous devez créer silver.shipments_clean à partir de bronze.shipments avec Spark SQL. Le résultat doit être conservé sous forme de table Delta dont l'actualisation et les dépendances sont gérées par Fabric. Les lignes dont la valeur weight_kg est inférieure ou égale à 0 doivent être exclues, et l'actualisation doit se poursuivre quand de telles lignes existent.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE [[obj]] silver.shipments_clean
+    (
+        CONSTRAINT valid_weight CHECK (weight_kg > 0) ON MISMATCH [[act]]
+    )
+    AS SELECT shipment_id, carrier, CAST(weight_kg AS DECIMAL(10,2)) AS weight_kg
+    FROM bronze.shipments;
+  slots:
+    - id: obj
+      options:
+        - { id: mlv, text: MATERIALIZED LAKE VIEW }
+        - { id: mv, text: MATERIALIZED VIEW }
+        - { id: view, text: VIEW }
+        - { id: tbl, text: TABLE }
+    - id: act
+      options:
+        - { id: drop, text: DROP }
+        - { id: fail, text: FAIL }
+answer:
+  values: { obj: mlv, act: drop }
+explanation:
+  correct:
+    en: |
+      A materialized lake view is defined declaratively in Spark SQL with CREATE MATERIALIZED LAKE VIEW, persisted as a Delta table, and refreshed by Fabric, which tracks its dependencies. A data quality constraint with ON MISMATCH DROP removes the rows that violate the CHECK condition and lets the refresh continue.
+    fr: |
+      Une vue matérialisée de lakehouse se définit de façon déclarative en Spark SQL avec CREATE MATERIALIZED LAKE VIEW ; elle est conservée sous forme de table Delta et actualisée par Fabric, qui suit ses dépendances. Une contrainte de qualité des données avec ON MISMATCH DROP supprime les lignes qui enfreignent la condition CHECK et laisse l'actualisation se poursuivre.
+  options:
+    mv: { en: "MATERIALIZED VIEW is not the Fabric lakehouse syntax; materialized lake views use CREATE MATERIALIZED LAKE VIEW.", fr: "MATERIALIZED VIEW n'est pas la syntaxe des lakehouses Fabric ; les vues matérialisées de lakehouse utilisent CREATE MATERIALIZED LAKE VIEW." }
+    view: { en: "A view stores no data and has no data quality constraints.", fr: "Une vue ne stocke pas de données et n'a pas de contraintes de qualité des données." }
+    tbl: { en: "A table created with CREATE TABLE AS SELECT is not refreshed by Fabric and doesn't support ON MISMATCH constraints.", fr: "Une table créée avec CREATE TABLE AS SELECT n'est pas actualisée par Fabric et ne prend pas en charge les contraintes ON MISMATCH." }
+    fail: { en: "FAIL stops the refresh when a row violates the constraint.", fr: "FAIL arrête l'actualisation quand une ligne enfreint la contrainte." }
+references:
+  - title: Overview of Materialized Lake Views
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/materialized-lake-views/overview-materialized-lake-view

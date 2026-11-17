@@ -1,0 +1,42 @@
+id: ai200-2a-cons-session-token
+objective: "2.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware runs a chat API on three replicas in Azure Kubernetes Service (AKS). Each replica has its own `CosmosClient`. The Azure Cosmos DB for NoSQL account uses the **Session** default consistency level and a single region.
+
+    A user posts a message, which replica A writes with `upsert_item()`. The next request of the user reaches replica B, whose `read_item()` sometimes returns the conversation without the new message.
+
+    You need to make sure that a user always reads their own messages. The solution must minimize the RU charge of reads.
+
+    What should you do?
+  fr: |
+    Litware exécute une API de conversation sur trois réplicas dans Azure Kubernetes Service (AKS). Chaque réplica a son propre `CosmosClient`. Le compte Azure Cosmos DB for NoSQL utilise le niveau de cohérence par défaut **Session** et une seule région.
+
+    Un utilisateur publie un message, que le réplica A écrit avec `upsert_item()`. La requête suivante de l'utilisateur arrive sur le réplica B, dont `read_item()` renvoie parfois la conversation sans le nouveau message.
+
+    Vous devez garantir qu'un utilisateur lit toujours ses propres messages. La solution doit réduire au minimum la consommation de RU des lectures.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Pass the x-ms-session-token value returned by the write as session_token to read_item() on any replica.", fr: "Passer la valeur x-ms-session-token renvoyée par l'écriture comme session_token à read_item() sur n'importe quel réplica." } }
+    - { id: b, text: { en: "Change the default consistency level of the account to Strong so that every replica reads the latest write.", fr: "Changer le niveau de cohérence par défaut du compte en Strong pour que chaque réplica lise la dernière écriture." } }
+    - { id: c, text: { en: "Create a new CosmosClient for every request so that each read gets the latest session token.", fr: "Créer un nouveau CosmosClient pour chaque requête afin que chaque lecture obtienne le dernier jeton de session." } }
+    - { id: d, text: { en: "Change the default consistency level of the account to Consistent prefix so that writes are seen in order.", fr: "Changer le niveau de cohérence par défaut du compte en Consistent prefix pour que les écritures soient vues dans l'ordre." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "Session tokens are cached by each client instance: replica B never wrote to that partition, so it has no token and its read behaves like eventual consistency. Passing the token returned by the write (`x-ms-session-token`) to the read restores read-your-writes while reads still use a single replica."
+    fr: "Les jetons de session sont mis en cache par chaque instance de client : le réplica B n'a jamais écrit dans cette partition, il n'a donc pas de jeton et sa lecture se comporte comme une cohérence éventuelle. Passer à la lecture le jeton renvoyé par l'écriture (`x-ms-session-token`) rétablit la lecture de ses propres écritures, tout en lisant un seul réplica."
+  options:
+    b: { en: "Strong solves the problem but reads two replicas, which doubles the RU charge of reads.", fr: "Strong résout le problème mais lit deux réplicas, ce qui double la consommation de RU des lectures." }
+    c: { en: "A new client starts with an empty token cache, which makes the problem worse and adds initialization overhead.", fr: "Un nouveau client démarre avec un cache de jetons vide, ce qui aggrave le problème et ajoute une surcharge d'initialisation." }
+    d: { en: "Consistent prefix only guarantees that writes aren't seen out of order; a lagging replica can still miss the new message.", fr: "Consistent prefix garantit seulement que les écritures ne sont pas vues dans le désordre ; un réplica en retard peut toujours ignorer le nouveau message." }
+references:
+  - title: Consistency level choices - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/consistency-levels
+  - title: Manage Consistency - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-manage-consistency

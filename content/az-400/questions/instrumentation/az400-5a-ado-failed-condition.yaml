@@ -1,0 +1,82 @@
+id: az400-5a-ado-failed-condition
+objective: "5.1.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam has a YAML pipeline in Azure Pipelines. All the jobs run in the same agent pool. The pipeline must meet the following requirements:
+
+    - The **Notify** job posts an alert to the on-call chat only when the **Deploy** job fails.
+    - The **Cleanup** job removes temporary resources after Deploy, whether Deploy succeeds or fails, but must not run when someone cancels the run.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un pipeline YAML dans Azure Pipelines. Tous les travaux s'exécutent dans le même pool d'agents. Le pipeline doit respecter les exigences suivantes :
+
+    - Le travail **Notify** publie une alerte dans la conversation de l'équipe d'astreinte uniquement quand le travail **Deploy** échoue.
+    - Le travail **Cleanup** supprime les ressources temporaires après Deploy, que Deploy réussisse ou échoue, mais ne doit pas s'exécuter quand quelqu'un annule l'exécution.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    pool:
+      vmImage: ubuntu-latest
+
+    jobs:
+    - job: Deploy
+      steps:
+      - script: ./deploy.sh
+
+    - job: Notify
+      [[dep]]: Deploy
+      condition: [[notify]]
+      steps:
+      - script: ./post-alert.sh
+
+    - job: Cleanup
+      dependsOn: Deploy
+      condition: [[cleanup]]
+      steps:
+      - script: ./cleanup.sh
+  slots:
+    - id: dep
+      options:
+        - { id: needs, text: needs }
+        - { id: dependson, text: dependsOn }
+        - { id: after, text: after }
+    - id: notify
+      options:
+        - { id: always, text: always() }
+        - { id: sof, text: succeededOrFailed() }
+        - { id: failed, text: failed() }
+        - { id: succeeded, text: succeeded() }
+    - id: cleanup
+      options:
+        - { id: c-always, text: always() }
+        - { id: c-failed, text: failed() }
+        - { id: c-succeeded, text: succeeded() }
+        - { id: c-sof, text: succeededOrFailed() }
+answer:
+  values: { dep: dependson, notify: failed, cleanup: c-sof }
+explanation:
+  correct:
+    en: "In Azure Pipelines, dependsOn declares the dependency between jobs. failed() runs a job only when a previous dependency failed. succeededOrFailed() runs the job even if a dependency failed, unless the run is canceled, which matches the Cleanup requirement."
+    fr: "Dans Azure Pipelines, dependsOn déclare la dépendance entre travaux. failed() n'exécute un travail que si une dépendance précédente a échoué. succeededOrFailed() exécute le travail même si une dépendance a échoué, sauf si l'exécution est annulée, ce qui correspond à l'exigence de Cleanup."
+  options:
+    needs: { en: "needs is the GitHub Actions keyword; Azure Pipelines uses dependsOn.", fr: "needs est le mot clé de GitHub Actions ; Azure Pipelines utilise dependsOn." }
+    always: { en: "For Notify, always() would also post an alert after successful or canceled deployments.", fr: "Pour Notify, always() publierait aussi une alerte après les déploiements réussis ou annulés." }
+    c-always: { en: "For Cleanup, always() also runs when someone cancels the run, which the requirement forbids.", fr: "Pour Cleanup, always() s'exécute aussi quand quelqu'un annule l'exécution, ce que l'exigence interdit." }
+    c-failed: { en: "For Cleanup, failed() would skip the cleanup after a successful deployment.", fr: "Pour Cleanup, failed() ignorerait le nettoyage après un déploiement réussi." }
+    c-succeeded: { en: "For Cleanup, succeeded() would skip the cleanup after a failed deployment.", fr: "Pour Cleanup, succeeded() ignorerait le nettoyage après un déploiement en échec." }
+    sof: { en: "For Notify, succeededOrFailed() would also post an alert after a successful deployment.", fr: "Pour Notify, succeededOrFailed() publierait aussi une alerte après un déploiement réussi." }
+    succeeded: { en: "For Notify, succeeded() is the default condition; the job would run only when Deploy succeeds.", fr: "Pour Notify, succeeded() est la condition par défaut ; le travail ne s'exécuterait que si Deploy réussit." }
+references:
+  - title: Pipeline conditions
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/conditions

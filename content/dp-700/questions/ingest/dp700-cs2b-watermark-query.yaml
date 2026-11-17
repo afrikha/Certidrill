@@ -1,0 +1,75 @@
+id: dp700-cs2b-watermark-query
+objective: "2.1.1"
+type: dropdown
+caseStudy: dp700-cs2b-munsons
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are redesigning PL_Orders to meet the requirement for the order data. The pipeline contains the following activities:
+
+    - A Lookup activity named **Lookup old watermark** that reads the row of dbo.OrderLines in dbo.Watermark. **First row only** is selected.
+    - A Lookup activity named **Lookup new watermark** that runs `SELECT MAX(LastModified) AS NewValue FROM dbo.OrderLines` on MPSALES. **First row only** is selected.
+    - A Copy activity that runs after both lookups succeed.
+    - A Stored procedure activity that writes the NewValue of Lookup new watermark to dbo.Watermark after the Copy activity succeeds.
+
+    You need to complete the source query of the Copy activity.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous reconcevez PL_Orders pour satisfaire l'exigence relative aux données de commande. Le pipeline contient les activités suivantes :
+
+    - Une activité Lookup nommée **Lookup old watermark** qui lit la ligne de dbo.OrderLines dans dbo.Watermark. **First row only** est sélectionné.
+    - Une activité Lookup nommée **Lookup new watermark** qui exécute `SELECT MAX(LastModified) AS NewValue FROM dbo.OrderLines` sur MPSALES. **First row only** est sélectionné.
+    - Une activité Copy qui s'exécute après la réussite des deux recherches.
+    - Une activité Stored procedure qui écrit la valeur NewValue de Lookup new watermark dans dbo.Watermark après la réussite de l'activité Copy.
+
+    Vous devez compléter la requête source de l'activité Copy.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT *
+    FROM dbo.OrderLines
+    WHERE LastModified [[low]] '@{activity('Lookup old watermark').output.[[prop]].LastValue}'
+      AND LastModified [[high]] '@{activity('Lookup new watermark').output.firstRow.NewValue}'
+  slots:
+    - id: low
+      options:
+        - { id: gte, text: ">=" }
+        - { id: gt, text: ">" }
+        - { id: ltlow, text: "<" }
+    - id: prop
+      options:
+        - { id: value, text: value }
+        - { id: count, text: count }
+        - { id: firstRow, text: firstRow }
+    - id: high
+      options:
+        - { id: lt, text: "<" }
+        - { id: lte, text: "<=" }
+        - { id: gthigh, text: ">" }
+answer:
+  values: { low: gt, prop: firstRow, high: lte }
+explanation:
+  correct:
+    en: |
+      The old watermark is the highest LastModified value that the previous run already copied, so the lower bound is exclusive (>): rows equal to it were copied last time. The new watermark is the highest value present now, so the upper bound is inclusive (<=); it becomes the next run's old watermark. When First row only is selected, the Lookup activity returns its row in output.firstRow.
+    fr: |
+      L'ancien filigrane est la plus grande valeur de LastModified déjà copiée par l'exécution précédente : la borne inférieure est donc exclusive (>), car les lignes égales à cette valeur ont été copiées la dernière fois. Le nouveau filigrane est la plus grande valeur présente maintenant : la borne supérieure est inclusive (<=), et elle devient l'ancien filigrane de l'exécution suivante. Quand First row only est sélectionné, l'activité Lookup renvoie sa ligne dans output.firstRow.
+  options:
+    gte: { en: ">= copies again the rows whose LastModified equals the old watermark, so they would be copied twice.", fr: ">= copie de nouveau les lignes dont LastModified est égal à l'ancien filigrane : elles seraient copiées deux fois." }
+    value: { en: "output.value is the array of rows that Lookup returns when First row only is cleared.", fr: "output.value est le tableau de lignes renvoyé par Lookup quand First row only est désactivé." }
+    count: { en: "output.count is the number of rows returned, not a row whose columns can be read.", fr: "output.count est le nombre de lignes renvoyées, pas une ligne dont on peut lire les colonnes." }
+    lt: { en: "With < as the upper bound, the rows that have exactly the new watermark value are skipped now and excluded by the > test of the next run, so they would be missed.", fr: "Avec < comme borne supérieure, les lignes qui ont exactement la valeur du nouveau filigrane sont ignorées maintenant et exclues par le test > de l'exécution suivante : elles seraient oubliées." }
+    ltlow: { en: "< as the lower bound selects the rows older than the previous watermark, which were already copied.", fr: "< comme borne inférieure sélectionne les lignes plus anciennes que le filigrane précédent, déjà copiées." }
+    gthigh: { en: "> as the upper bound selects only rows newer than the current maximum, so the copy would return no rows.", fr: "> comme borne supérieure ne sélectionne que des lignes plus récentes que le maximum actuel : la copie ne renverrait aucune ligne." }
+references:
+  - title: Incrementally load data from Data Warehouse to Lakehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/tutorial-incremental-copy-data-warehouse-lakehouse

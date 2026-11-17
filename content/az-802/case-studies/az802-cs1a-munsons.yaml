@@ -1,0 +1,75 @@
+id: az802-cs1a-munsons
+status: draft
+title:
+  en: Munson's Pickles and Preserves
+  fr: Munson's Pickles and Preserves
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Munson's Pickles and Preserves produces pickles, jams and sauces. The head office and the main datacenter are in Halifax. The company has three production plants in Moncton, Truro and Gander. The Gander plant connects to the head office through a satellite link; the other plants use fiber links.
+
+        A team of five administrators manages the servers of the head office and of the plants.
+      fr: |
+        Munson's Pickles and Preserves fabrique des cornichons, des confitures et des sauces. Le siège et le centre de données principal se trouvent à Halifax. L'entreprise possède trois usines de production à Moncton, Truro et Gander. L'usine de Gander est reliée au siège par une liaison satellite ; les autres usines utilisent des liaisons fibre.
+
+        Une équipe de cinq administrateurs gère les serveurs du siège et des usines.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Active Directory.** The network contains a single-domain Active Directory Domain Services (AD DS) forest named **munsons.com**. The forest and domain functional levels are Windows Server 2016.
+
+        | AD DS site | Subnet | Servers |
+        | --- | --- | --- |
+        | HQ (Halifax) | 10.10.0.0/22 | DC1, DC2 (domain controllers), HV1, HV2 |
+        | MON (Moncton) | 10.10.11.0/24 | DC-MON (domain controller), MON-APP1 |
+        | TRU (Truro) | 10.10.12.0/24 | DC-TRU (domain controller), TRU-APP1 |
+        | GAN (Gander) | 10.10.13.0/24 | DC-GAN (domain controller), GAN-APP1 |
+
+        All the domain controllers are writable domain controllers. The site links **HQ-MON**, **HQ-TRU** and **HQ-GAN** each contain two sites. They were created by running `New-ADReplicationSiteLink` with only the `-Name` and `-SitesIncluded` parameters.
+
+        **Hyper-V.** HV1 and HV2 run Windows Server 2025 Datacenter and are the nodes of a failover cluster named **HVCL1**. A virtual machine named **VM-MES1** runs the manufacturing execution system (MES) application and its SQL Server database on Windows Server 2022. VM-MES1 currently runs on HV1. Its only network adapter is connected to a virtual switch named **vSwitch-OT** that is bound to the production (OT) network. The OT network has no route to the management network of HV1 and HV2. The integration services of VM-MES1 have their default settings.
+
+        Each host has two identical 25-GbE network adapters named **NIC1** and **NIC2** that aren't bound to any virtual switch yet.
+
+        **Plant servers.** MON-APP1, TRU-APP1 and GAN-APP1 run Windows Server 2022. They are Azure Arc-enabled servers in a resource group named **RG-Plants** of an Azure subscription named **Sub-Ops**, and each has the tag **Role=PlantServer**. The Azure Monitor Agent extension is installed on each plant server. Sub-Ops contains a Log Analytics workspace named **LAW-Ops**.
+      fr: |
+        **Active Directory.** Le réseau contient une forêt Active Directory Domain Services (AD DS) à domaine unique nommée **munsons.com**. Les niveaux fonctionnels de la forêt et du domaine sont Windows Server 2016.
+
+        | Site AD DS | Sous-réseau | Serveurs |
+        | --- | --- | --- |
+        | HQ (Halifax) | 10.10.0.0/22 | DC1, DC2 (contrôleurs de domaine), HV1, HV2 |
+        | MON (Moncton) | 10.10.11.0/24 | DC-MON (contrôleur de domaine), MON-APP1 |
+        | TRU (Truro) | 10.10.12.0/24 | DC-TRU (contrôleur de domaine), TRU-APP1 |
+        | GAN (Gander) | 10.10.13.0/24 | DC-GAN (contrôleur de domaine), GAN-APP1 |
+
+        Tous les contrôleurs de domaine sont accessibles en écriture. Les liens de sites **HQ-MON**, **HQ-TRU** et **HQ-GAN** contiennent chacun deux sites. Ils ont été créés en exécutant `New-ADReplicationSiteLink` avec les seuls paramètres `-Name` et `-SitesIncluded`.
+
+        **Hyper-V.** HV1 et HV2 exécutent Windows Server 2025 Datacenter et sont les nœuds d'un cluster de basculement nommé **HVCL1**. Une machine virtuelle nommée **VM-MES1** exécute l'application de pilotage de la production (MES) et sa base de données SQL Server sous Windows Server 2022. VM-MES1 s'exécute actuellement sur HV1. Sa seule carte réseau est connectée à un commutateur virtuel nommé **vSwitch-OT**, lié au réseau de production (OT). Le réseau OT n'a aucun itinéraire vers le réseau d'administration de HV1 et HV2. Les services d'intégration de VM-MES1 ont leurs paramètres par défaut.
+
+        Chaque hôte dispose de deux cartes réseau 25 GbE identiques nommées **NIC1** et **NIC2**, qui ne sont encore liées à aucun commutateur virtuel.
+
+        **Serveurs des usines.** MON-APP1, TRU-APP1 et GAN-APP1 exécutent Windows Server 2022. Ce sont des serveurs activés pour Azure Arc dans un groupe de ressources nommé **RG-Plants** d'un abonnement Azure nommé **Sub-Ops**, et chacun porte l'étiquette **Role=PlantServer**. L'extension Azure Monitor Agent est installée sur chaque serveur d'usine. Sub-Ops contient un espace de travail Log Analytics nommé **LAW-Ops**.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Munson's identifies the following requirements:
+
+        1. **Host networking.** On HV1 and HV2, a new virtual switch named vSwitch-Prod must use both NIC1 and NIC2, so that the VMs connected to it keep their connectivity if one adapter fails. The management operating system must also use vSwitch-Prod.
+        2. **File transfer.** The administrators must copy installation packages from the local disks of the Hyper-V hosts into VM-MES1. No network connectivity may be added between the hosts and the OT network.
+        3. **Updates.** The plant servers must install Critical and Security updates every Saturday at 23:00. Plant servers that are onboarded to Azure Arc later and tagged Role=PlantServer must be included automatically, without editing the update schedule.
+        4. **Extensions.** The Azure Monitor Agent must be the only VM extension that can be installed on the plant servers, and no Azure administrator, including the Owners of Sub-Ops, may be able to lift this restriction. Custom guest configuration policies must not run on the plant servers.
+        5. **Replication.** Active Directory replication between the HQ and GAN sites must occur only between 20:00 and 06:00.
+        6. Administrative effort must be minimized.
+      fr: |
+        Munson's a défini les exigences suivantes :
+
+        1. **Réseau des hôtes.** Sur HV1 et HV2, un nouveau commutateur virtuel nommé vSwitch-Prod doit utiliser NIC1 et NIC2, afin que les machines virtuelles qui y sont connectées conservent leur connectivité si une carte tombe en panne. Le système d'exploitation de gestion doit aussi utiliser vSwitch-Prod.
+        2. **Transfert de fichiers.** Les administrateurs doivent copier des packages d'installation depuis les disques locaux des hôtes Hyper-V vers VM-MES1. Aucune connectivité réseau ne doit être ajoutée entre les hôtes et le réseau OT.
+        3. **Mises à jour.** Les serveurs des usines doivent installer les mises à jour critiques et de sécurité chaque samedi à 23 h 00. Les serveurs d'usine intégrés plus tard à Azure Arc et portant l'étiquette Role=PlantServer doivent être inclus automatiquement, sans modifier la planification des mises à jour.
+        4. **Extensions.** Azure Monitor Agent doit être la seule extension de machine virtuelle pouvant être installée sur les serveurs des usines, et aucun administrateur Azure, y compris les propriétaires (Owner) de Sub-Ops, ne doit pouvoir lever cette restriction. Les stratégies de configuration d'invité personnalisées ne doivent pas s'exécuter sur les serveurs des usines.
+        5. **Réplication.** La réplication Active Directory entre les sites HQ et GAN ne doit avoir lieu qu'entre 20 h 00 et 06 h 00.
+        6. L'effort d'administration doit être réduit au minimum.

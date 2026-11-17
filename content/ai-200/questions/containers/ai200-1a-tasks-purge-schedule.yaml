@@ -1,0 +1,76 @@
+id: ai200-1a-tasks-purge-schedule
+objective: "1.1.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys pushes a new build of its OCR service to the Azure container registry **crtailspin** on every commit. You need to create an ACR task that meets the following requirements:
+
+    - It runs every day at 03:00 UTC.
+    - It deletes the tags of the `vision/ocr` repository that were last modified more than 30 days ago.
+    - It also deletes the manifests that are left without any tag.
+    - It doesn't depend on any source code repository.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys envoie un nouveau build de son service OCR au registre de conteneurs Azure **crtailspin** à chaque commit. Vous devez créer une tâche ACR qui satisfait les exigences suivantes :
+
+    - Elle s'exécute tous les jours à 03:00 UTC.
+    - Elle supprime les balises du dépôt `vision/ocr` dont la dernière modification date de plus de 30 jours.
+    - Elle supprime aussi les manifestes qui se retrouvent sans balise.
+    - Elle ne dépend d'aucun dépôt de code source.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az acr task create --name purge-ocr --registry crtailspin \
+      --cmd "acr purge --filter 'vision/ocr:.*' --ago [[ago]] [[flag]]" \
+      --schedule "[[cron]]" \
+      --context /dev/null
+  slots:
+    - id: ago
+      options:
+        - { id: d30, text: 30d }
+        - { id: m30, text: 30m }
+        - { id: h30, text: 30h }
+    - id: flag
+      options:
+        - { id: untagged, text: "--untagged" }
+        - { id: dryrun, text: "--dry-run" }
+        - { id: locked, text: "--include-locked" }
+        - { id: keep, text: "--keep 30" }
+    - id: cron
+      options:
+        - { id: c1, text: "0 3 * * *" }
+        - { id: c2, text: "3 0 * * *" }
+        - { id: c3, text: "0 0 3 * * *" }
+        - { id: c4, text: "0 3 * * 1" }
+answer:
+  values: { ago: d30, flag: untagged, cron: c1 }
+explanation:
+  correct:
+    en: |
+      `--ago` takes a duration in days (d), hours (h) or minutes (m), so 30d selects artifacts last modified more than 30 days ago. `--untagged` also deletes the manifests that no longer have any tag. ACR Tasks uses five-field cron expressions in UTC ({minute} {hour} {day} {month} {day-of-week}), so 03:00 every day is `0 3 * * *`, and `--context /dev/null` creates the task without source code.
+    fr: |
+      `--ago` prend une durée en jours (d), heures (h) ou minutes (m) : 30d sélectionne les artefacts modifiés pour la dernière fois il y a plus de 30 jours. `--untagged` supprime aussi les manifestes qui n'ont plus de balise. ACR Tasks utilise des expressions cron à cinq champs en UTC ({minute} {heure} {jour} {mois} {jour de la semaine}) : 03:00 chaque jour s'écrit `0 3 * * *`, et `--context /dev/null` crée la tâche sans code source.
+  options:
+    m30: { en: "m means minutes, not months: 30m selects everything older than 30 minutes.", fr: "m signifie minutes, pas mois : 30m sélectionne tout ce qui a plus de 30 minutes." }
+    h30: { en: "30h is 30 hours, not 30 days.", fr: "30h correspond à 30 heures, pas à 30 jours." }
+    dryrun: { en: "--dry-run only lists what would be deleted, and untagged manifests wouldn't be deleted.", fr: "--dry-run liste seulement ce qui serait supprimé, et les manifestes non balisés ne seraient pas supprimés." }
+    locked: { en: "--include-locked also deletes locked images and still leaves untagged manifests.", fr: "--include-locked supprime aussi les images verrouillées et laisse toujours les manifestes non balisés." }
+    keep: { en: "--keep retains the latest tags; without --untagged it doesn't delete untagged manifests.", fr: "--keep conserve les balises les plus récentes ; sans --untagged, il ne supprime pas les manifestes non balisés." }
+    c2: { en: "3 0 * * * means minute 3 of hour 0, that is 00:03 UTC.", fr: "3 0 * * * signifie la minute 3 de l'heure 0, soit 00:03 UTC." }
+    c3: { en: "A seconds field isn't supported by ACR Tasks.", fr: "ACR Tasks ne prend pas en charge de champ des secondes." }
+    c4: { en: "The day-of-week value 1 limits the run to Mondays.", fr: "La valeur 1 du jour de la semaine limite l'exécution aux lundis." }
+references:
+  - title: Automatically purge images from an Azure container registry (preview)
+    url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-auto-purge
+  - title: "Tutorial: Run an ACR task on a defined schedule"
+    url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-scheduled

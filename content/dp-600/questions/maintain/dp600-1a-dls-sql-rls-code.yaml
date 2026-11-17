@@ -1,0 +1,68 @@
+id: dp600-1a-dls-sql-rls-code
+objective: "1.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has a Fabric warehouse named **WH-Loans**. The table `dbo.FactLoans` has a `BranchCode` column. The table `Security.BranchManager` maps each branch manager's user principal name (`ManagerUPN`) to a `BranchCode`.
+
+    Branch managers query WH-Loans with T-SQL. Each manager must see only the rows of `dbo.FactLoans` for their own branch, and the other rows must be silently excluded from the results.
+
+    How should you complete the T-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank dispose d'un entrepôt Fabric nommé **WH-Loans**. La table `dbo.FactLoans` contient une colonne `BranchCode`. La table `Security.BranchManager` associe le nom d'utilisateur principal (`ManagerUPN`) de chaque directeur d'agence à un `BranchCode`.
+
+    Les directeurs d'agence interrogent WH-Loans en T-SQL. Chaque directeur ne doit voir que les lignes de `dbo.FactLoans` de sa propre agence, et les autres lignes doivent être exclues des résultats sans message.
+
+    Comment devez-vous compléter les instructions T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION Security.fn_branch(@BranchCode AS varchar(10))
+        RETURNS TABLE
+    WITH [[s1]]
+    AS
+        RETURN SELECT 1 AS allowed
+        WHERE @BranchCode = (SELECT BranchCode FROM Security.BranchManager
+                             WHERE ManagerUPN = [[s2]]);
+    GO
+    CREATE SECURITY POLICY Security.BranchFilter
+    ADD [[s3]] PREDICATE Security.fn_branch(BranchCode) ON dbo.FactLoans
+    WITH (STATE = ON);
+  slots:
+    - id: s1
+      options:
+        - { id: schemabinding, text: SCHEMABINDING }
+        - { id: encryption, text: ENCRYPTION }
+        - { id: recompile, text: RECOMPILE }
+    - id: s2
+      options:
+        - { id: username, text: "USER_NAME()" }
+        - { id: upn, text: "USERPRINCIPALNAME()" }
+        - { id: hostname, text: "HOST_NAME()" }
+        - { id: appname, text: "APP_NAME()" }
+    - id: s3
+      options:
+        - { id: filter, text: FILTER }
+        - { id: block, text: BLOCK }
+        - { id: mask, text: MASK }
+answer:
+  values: { s1: schemabinding, s2: username, s3: filter }
+explanation:
+  correct:
+    en: "Row-level security in a Fabric warehouse uses an inline table-valued function created WITH SCHEMABINDING, the default for security policies. `USER_NAME()` returns the name of the Microsoft Entra user running the query, which is compared with the mapping table. A FILTER predicate silently removes the rows the function doesn't return from reads."
+    fr: "La sécurité au niveau des lignes d'un entrepôt Fabric utilise une fonction table inline créée WITH SCHEMABINDING, l'option par défaut des stratégies de sécurité. `USER_NAME()` renvoie le nom de l'utilisateur Microsoft Entra qui exécute la requête, comparé à la table de correspondance. Un prédicat FILTER retire sans message des lectures les lignes que la fonction ne renvoie pas."
+  options:
+    upn: { en: "USERPRINCIPALNAME() is a DAX function used in semantic model roles, not a T-SQL function.", fr: "USERPRINCIPALNAME() est une fonction DAX des rôles de modèle sémantique, pas une fonction T-SQL." }
+    hostname: { en: "HOST_NAME() returns the client workstation name, not the user.", fr: "HOST_NAME() renvoie le nom du poste client, pas l'utilisateur." }
+    appname: { en: "APP_NAME() returns the client application name, not the user.", fr: "APP_NAME() renvoie le nom de l'application cliente, pas l'utilisateur." }
+    block: { en: "A block predicate targets write operations; the requirement is to filter what managers read.", fr: "Un prédicat de blocage vise les opérations d'écriture ; le besoin est de filtrer ce que lisent les directeurs." }
+references:
+  - title: Row-level security in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/row-level-security

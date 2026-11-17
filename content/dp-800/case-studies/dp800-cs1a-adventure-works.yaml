@@ -1,0 +1,121 @@
+id: dp800-cs1a-adventure-works
+status: draft
+title:
+  en: Adventure Works
+  fr: Adventure Works
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Adventure Works is an online retailer of bicycles, cycling components and outdoor apparel. Its storefront serves customers in 14 countries. A team of four database developers maintains the catalog database and the APIs that the storefront uses.
+
+        Adventure Works plans to replace the keyword-only product search of the storefront with an AI-assisted search.
+      fr: |
+        Adventure Works est un détaillant en ligne de vélos, de composants de cyclisme et de vêtements d'extérieur. Sa boutique en ligne sert des clients dans 14 pays. Une équipe de quatre développeurs de bases de données gère la base de données du catalogue et les API utilisées par la boutique en ligne.
+
+        Adventure Works prévoit de remplacer la recherche de produits par mots clés de la boutique en ligne par une recherche assistée par l'IA.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Adventure Works has the following resources in the West Europe region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | sql-aw-catalog | Azure SQL Database logical server | System-assigned managed identity enabled; the identity has the Cognitive Services OpenAI User role on fdy-aw |
+        | sqldb-catalog | Azure SQL Database | General Purpose, 8 vCores, compatibility level 170; a database master key exists |
+        | fdy-aw | Microsoft Foundry resource | Endpoint https://fdy-aw.cognitiveservices.azure.com; deployment **embed-small** of the text-embedding-3-small model (1,536 dimensions) |
+        | ca-aw-dab | Azure Container Apps app | Runs Data API builder (DAB) for the storefront |
+
+        The catalog is stored in the following table, which contains 250,000 rows.
+
+        ```sql
+        CREATE TABLE dbo.Products (
+            ProductID         int            NOT NULL CONSTRAINT PK_Products PRIMARY KEY CLUSTERED,
+            Name              nvarchar(200)  NOT NULL,
+            Description       nvarchar(max)  NOT NULL,
+            Specs             json           NULL,
+            ListPrice         decimal(10,2)  NOT NULL,
+            InternalCost      decimal(10,2)  NOT NULL,
+            ProductStatus     varchar(12)    NOT NULL,  -- 'Active' or 'Discontinued'
+            DescriptionVector vector(1536)   NULL
+        );
+        ```
+
+        A full-text index exists on the Description column, with PK_Products as the key index. A typical Specs value is `{"waterproof": true, "colors": ["black", "red"], "weightKg": 0.45}`.
+
+        A merchandising application, which Adventure Works buys from a vendor, writes directly to dbo.Products. It updates about 300 product descriptions per day, one row per transaction.
+
+        A stored procedure named **dbo.usp_SearchProducts** takes a single parameter, @text, and returns the ranked results of the product search. It only reads data.
+      fr: |
+        Adventure Works dispose des ressources suivantes dans la région West Europe.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | sql-aw-catalog | Serveur logique Azure SQL Database | Identité managée affectée par le système activée ; l'identité a le rôle Cognitive Services OpenAI User sur fdy-aw |
+        | sqldb-catalog | Azure SQL Database | Usage général (General Purpose), 8 vCores, niveau de compatibilité 170 ; une clé principale de base de données existe |
+        | fdy-aw | Ressource Microsoft Foundry | Point de terminaison https://fdy-aw.cognitiveservices.azure.com ; déploiement **embed-small** du modèle text-embedding-3-small (1 536 dimensions) |
+        | ca-aw-dab | Application Azure Container Apps | Exécute Data API builder (DAB) pour la boutique en ligne |
+
+        Le catalogue est stocké dans la table suivante, qui contient 250 000 lignes.
+
+        ```sql
+        CREATE TABLE dbo.Products (
+            ProductID         int            NOT NULL CONSTRAINT PK_Products PRIMARY KEY CLUSTERED,
+            Name              nvarchar(200)  NOT NULL,
+            Description       nvarchar(max)  NOT NULL,
+            Specs             json           NULL,
+            ListPrice         decimal(10,2)  NOT NULL,
+            InternalCost      decimal(10,2)  NOT NULL,
+            ProductStatus     varchar(12)    NOT NULL,  -- 'Active' or 'Discontinued'
+            DescriptionVector vector(1536)   NULL
+        );
+        ```
+
+        Un index de recherche en texte intégral existe sur la colonne Description, avec PK_Products comme index de clé. Une valeur typique de Specs est `{"waterproof": true, "colors": ["black", "red"], "weightKg": 0.45}`.
+
+        Une application de merchandising, achetée par Adventure Works à un éditeur, écrit directement dans dbo.Products. Elle met à jour environ 300 descriptions de produits par jour, une ligne par transaction.
+
+        Une procédure stockée nommée **dbo.usp_SearchProducts** prend un seul paramètre, @text, et renvoie les résultats classés de la recherche de produits. Elle ne fait que lire des données.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Embeddings**
+
+        - The embeddings of DescriptionVector must be generated by sqldb-catalog from the embed-small deployment. No API key or other secret may be stored in the database.
+        - A product description and its embedding must always be consistent: an update of a description must fail if its embedding cannot be generated.
+        - The merchandising application must not be modified.
+
+        **Search**
+
+        - The product search must combine full-text matches (for example, model codes such as XC-900) with semantic matches. A product that only one of the two methods finds must still be returned.
+        - The final ranking must not compare full-text scores with cosine distances directly.
+        - The "similar products" panel shows the 10 nearest active products. It must respond in less than 300 ms; approximate results are acceptable.
+        - Before the release, the team must measure the recall of the "similar products" panel: the share of the exact 10 nearest active products that the panel returns.
+        - The storefront must be able to filter products on the attributes stored in Specs.
+
+        **Storefront API**
+
+        - The storefront runs the product search anonymously by calling dbo.usp_SearchProducts through Data API builder.
+        - REST clients must call the search with the HTTP GET method only. GraphQL clients must call it as a query, not as a mutation.
+      fr: |
+        **Incorporations**
+
+        - Les incorporations de DescriptionVector doivent être générées par sqldb-catalog à partir du déploiement embed-small. Aucune clé API ni aucun autre secret ne doit être stocké dans la base de données.
+        - Une description de produit et son incorporation doivent toujours être cohérentes : la mise à jour d'une description doit échouer si son incorporation ne peut pas être générée.
+        - L'application de merchandising ne doit pas être modifiée.
+
+        **Recherche**
+
+        - La recherche de produits doit combiner les correspondances en texte intégral (par exemple des codes de modèle comme XC-900) et les correspondances sémantiques. Un produit trouvé par une seule des deux méthodes doit quand même être renvoyé.
+        - Le classement final ne doit pas comparer directement les scores du texte intégral et les distances cosinus.
+        - Le panneau « produits similaires » affiche les 10 produits actifs les plus proches. Il doit répondre en moins de 300 ms ; des résultats approximatifs sont acceptables.
+        - Avant la mise en production, l'équipe doit mesurer le rappel du panneau « produits similaires » : la part des 10 produits actifs exactement les plus proches que le panneau renvoie.
+        - La boutique en ligne doit pouvoir filtrer les produits sur les attributs stockés dans Specs.
+
+        **API de la boutique en ligne**
+
+        - La boutique en ligne exécute la recherche de produits de manière anonyme en appelant dbo.usp_SearchProducts via Data API builder.
+        - Les clients REST doivent appeler la recherche uniquement avec la méthode HTTP GET. Les clients GraphQL doivent l'appeler comme une requête (query), pas comme une mutation.

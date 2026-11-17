@@ -1,0 +1,70 @@
+id: sc200-2b-cx-remote-logons-kql
+objective: "2.1.9"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware onboards all its Windows devices to Microsoft Defender for Endpoint. An incident suggests that an attacker is moving laterally with a stolen account.
+
+    You need an advanced hunting query that returns the accounts that, from the same source IP address, successfully signed in remotely or over the network to more than five different devices during the last day.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware intègre tous ses appareils Windows à Microsoft Defender for Endpoint. Un incident suggère qu'un attaquant se déplace latéralement avec un compte volé.
+
+    Vous avez besoin d'une requête de repérage avancé qui renvoie les comptes qui, depuis une même adresse IP source, se sont connectés avec succès à distance ou par le réseau à plus de cinq appareils différents au cours de la dernière journée.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    DeviceLogonEvents
+    | where Timestamp > ago(1d)
+    | where ActionType == "LogonSuccess"
+    | where LogonType [[op]] ("RemoteInteractive", "Network")
+    | summarize Targets = [[agg]](DeviceName), TargetList = make_set(DeviceName, 20) by AccountName, [[key]]
+    | where Targets > 5
+  slots:
+    - id: op
+      options:
+        - { id: in, text: in }
+        - { id: eq, text: "==" }
+        - { id: startswith, text: startswith }
+        - { id: between, text: between }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+        - { id: list, text: make_list }
+        - { id: sum, text: sum }
+    - id: key
+      options:
+        - { id: remoteip, text: RemoteIP }
+        - { id: deviceid, text: DeviceId }
+        - { id: reportid, text: ReportId }
+answer:
+  values: { op: in, agg: dcount, key: remoteip }
+explanation:
+  correct:
+    en: |
+      `in` keeps the logons whose `LogonType` is one of the listed values. `dcount(DeviceName)` counts the distinct devices each account signed in to, and grouping by `AccountName` and `RemoteIP` keeps one row per account and source address, so the last line finds the accounts that reached more than five devices from the same source.
+    fr: |
+      `in` conserve les ouvertures de session dont `LogonType` fait partie des valeurs listées. `dcount(DeviceName)` compte les appareils distincts auxquels chaque compte s'est connecté, et le regroupement par `AccountName` et `RemoteIP` conserve une ligne par compte et par adresse source : la dernière ligne trouve les comptes qui ont atteint plus de cinq appareils depuis la même source.
+  options:
+    eq: { en: "== compares with a single value, not a list.", fr: "== compare à une seule valeur, pas à une liste." }
+    startswith: { en: "startswith expects a single string prefix, not a list of values.", fr: "startswith attend un seul préfixe de chaîne, pas une liste de valeurs." }
+    between: { en: "between works on numeric or date ranges.", fr: "between fonctionne sur des plages numériques ou de dates." }
+    count: { en: "count() counts logon events, so repeated logons to the same device would inflate the result.", fr: "count() compte les événements d'ouverture de session : des connexions répétées au même appareil gonfleraient le résultat." }
+    list: { en: "make_list() returns an array, which can't be compared with 5.", fr: "make_list() renvoie un tableau, qui ne peut pas être comparé à 5." }
+    sum: { en: "sum() adds numeric values and can't be applied to device names.", fr: "sum() additionne des valeurs numériques et ne s'applique pas à des noms d'appareils." }
+    deviceid: { en: "DeviceId identifies the target device, so each group would contain a single device.", fr: "DeviceId identifie l'appareil cible : chaque groupe ne contiendrait qu'un seul appareil." }
+    reportid: { en: "ReportId identifies a single event, so each group would contain one logon.", fr: "ReportId identifie un seul événement : chaque groupe ne contiendrait qu'une ouverture de session." }
+references:
+  - title: DeviceLogonEvents table in the advanced hunting schema - Microsoft Defender XDR
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicelogonevents-table

@@ -1,0 +1,70 @@
+id: dp800-2c-drift-extract-check
+objective: "2.3.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind stores an SDK-style SQL database project in the **InventoryDb** folder of a Git repository. The object files are organized in one folder per schema and per object type. A scheduled pipeline checks out main and must detect drift in the production database.
+
+    The step must replace the object files with the current schema of the production database and output the number of object files that differ from the repository.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind stocke un projet de base de données SQL de style SDK dans le dossier **InventoryDb** d'un dépôt Git. Les fichiers d'objets sont organisés en un dossier par schéma et par type d'objet. Un pipeline planifié extrait main et doit détecter une dérive de la base de données de production.
+
+    L'étape doit remplacer les fichiers d'objets par le schéma actuel de la base de données de production et afficher le nombre de fichiers d'objets qui diffèrent du dépôt.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    rm -rf InventoryDb
+    sqlpackage /Action:[[action]] /SourceConnectionString:"$PROD_CONN" \
+      /TargetFile:InventoryDb /p:ExtractTarget=[[target]]
+    [[git]]
+  slots:
+    - id: action
+      options:
+        - { id: extract, text: "Extract" }
+        - { id: export, text: "Export" }
+        - { id: deployreport, text: "DeployReport" }
+        - { id: script, text: "Script" }
+    - id: target
+      options:
+        - { id: sot, text: "SchemaObjectType" }
+        - { id: flat, text: "Flat" }
+        - { id: file, text: "File" }
+        - { id: dacpac, text: "DacPac" }
+    - id: git
+      options:
+        - { id: status, text: "git status --porcelain | wc -l" }
+        - { id: log, text: "git log --oneline | wc -l" }
+        - { id: stash, text: "git stash list | wc -l" }
+answer:
+  values: { action: extract, target: sot, git: status }
+explanation:
+  correct:
+    en: |
+      Extract with ExtractTarget=SchemaObjectType writes one .sql file per object in folders for each schema and object type, the same layout as the project. git status --porcelain then prints one line per added, changed or deleted file, so counting the lines gives the number of drifted objects.
+    fr: |
+      Extract avec ExtractTarget=SchemaObjectType écrit un fichier .sql par objet dans des dossiers par schéma et par type d'objet, soit la même organisation que le projet. git status --porcelain affiche ensuite une ligne par fichier ajouté, modifié ou supprimé : compter les lignes donne le nombre d'objets en dérive.
+  options:
+    export: { en: "Export creates a .bacpac with schema and data; it does not accept ExtractTarget.", fr: "Export crée un .bacpac avec le schéma et les données ; il n'accepte pas ExtractTarget." }
+    deployreport: { en: "DeployReport writes an XML report; ExtractTarget is an Extract property.", fr: "DeployReport écrit un rapport XML ; ExtractTarget est une propriété d'Extract." }
+    script: { en: "Script generates a T-SQL deployment script from a source .dacpac; it does not write object files.", fr: "Script génère un script T-SQL de déploiement à partir d'un .dacpac source ; il n'écrit pas de fichiers d'objets." }
+    flat: { en: "Flat puts every file in one folder, so every file would appear as moved, not only the drifted objects.", fr: "Flat place tous les fichiers dans un seul dossier : chaque fichier apparaîtrait comme déplacé, pas seulement les objets en dérive." }
+    file: { en: "File writes a single .sql file, which cannot show which objects changed.", fr: "File écrit un seul fichier .sql, qui ne permet pas de voir quels objets ont changé." }
+    dacpac: { en: "DacPac writes a single .dacpac file instead of object files.", fr: "DacPac écrit un seul fichier .dacpac au lieu de fichiers d'objets." }
+    log: { en: "git log counts commits, not files changed in the working tree.", fr: "git log compte les validations, pas les fichiers modifiés dans l'arborescence de travail." }
+    stash: { en: "git stash list counts stashed changes, which the script never creates.", fr: "git stash list compte les remises (stash), que le script ne crée jamais." }
+references:
+  - title: SqlPackage Extract
+    url: https://learn.microsoft.com/en-us/sql/tools/sqlpackage/sqlpackage-extract
+  - title: Compare a database and a project
+    url: https://learn.microsoft.com/en-us/sql/tools/sql-database-projects/howto/compare-database-project

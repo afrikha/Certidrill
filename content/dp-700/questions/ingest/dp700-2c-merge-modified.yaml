@@ -1,0 +1,87 @@
+id: dp700-2c-merge-modified
+objective: "2.2.9"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a lakehouse named LH1 that contains two Delta tables named bronze_orders and silver_orders. Each modification of an order in the source system adds a row to bronze_orders. The columns include OrderID, OrderDate, Status, and ModifiedAt. An order can be modified up to 30 days after its OrderDate.
+
+    A notebook runs every hour. A variable named last_watermark contains the highest ModifiedAt value processed by the previous successful run.
+
+    You need silver_orders to contain one current row per order. Each run must process only the new rows of bronze_orders, and rerunning the notebook after a failure must not create duplicate orders.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse nommé LH1 qui contient deux tables Delta nommées bronze_orders et silver_orders. Chaque modification d'une commande dans le système source ajoute une ligne à bronze_orders. Les colonnes comprennent OrderID, OrderDate, Status et ModifiedAt. Une commande peut être modifiée jusqu'à 30 jours après sa date OrderDate.
+
+    Un notebook s'exécute toutes les heures. Une variable nommée last_watermark contient la valeur ModifiedAt la plus élevée traitée par la précédente exécution réussie.
+
+    silver_orders doit contenir une ligne à jour par commande. Chaque exécution ne doit traiter que les nouvelles lignes de bronze_orders, et une réexécution du notebook après un échec ne doit pas créer de commandes en double.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from delta.tables import DeltaTable
+    from pyspark.sql import functions as F
+    from pyspark.sql.window import Window
+
+    w = Window.partitionBy("OrderID").orderBy(F.col("ModifiedAt").desc())
+    changes = (spark.read.table("bronze_orders")
+        .filter(F.col("[[col]]") > F.lit(last_watermark))
+        .withColumn("rn", F.row_number().over(w))
+        .filter("rn = 1").drop("rn"))
+
+    (DeltaTable.forName(spark, "silver_orders").alias("t")
+        .merge(changes.alias("s"), "[[cond]]")
+        .whenMatchedUpdateAll()
+        .[[ins]]()
+        .execute())
+  slots:
+    - id: col
+      options:
+        - { id: modified, text: ModifiedAt }
+        - { id: orderdate, text: OrderDate }
+    - id: cond
+      options:
+        - { id: key, text: t.OrderID = s.OrderID }
+        - { id: keyts, text: t.OrderID = s.OrderID AND t.ModifiedAt = s.ModifiedAt }
+        - { id: ts, text: t.ModifiedAt = s.ModifiedAt }
+    - id: ins
+      options:
+        - { id: insertall, text: whenNotMatchedInsertAll }
+        - { id: bysource, text: whenNotMatchedBySourceDelete }
+        - { id: matcheddelete, text: whenMatchedDelete }
+answer:
+  values: { col: modified, cond: key, ins: insertall }
+explanation:
+  correct:
+    en: |
+      Filtering on ModifiedAt, the change timestamp, picks up every new version, including late modifications of orders placed weeks ago. The window keeps one version per order, because a merge fails when several source rows match the same target row. Matching on the business key OrderID updates existing orders and inserts new ones, so a rerun that reads the same rows again updates them instead of adding duplicates.
+    fr: |
+      Filtrer sur ModifiedAt, l'horodatage de modification, récupère chaque nouvelle version, y compris les modifications tardives de commandes passées il y a plusieurs semaines. La fenêtre ne conserve qu'une version par commande, car une fusion échoue quand plusieurs lignes sources correspondent à la même ligne cible. La correspondance sur la clé métier OrderID met à jour les commandes existantes et insère les nouvelles : une réexécution qui relit les mêmes lignes les met à jour au lieu d'ajouter des doublons.
+  options:
+    orderdate:
+      en: "Filtering on OrderDate misses the modifications of orders whose OrderDate is older than the watermark."
+      fr: "Filtrer sur OrderDate manque les modifications des commandes dont la date OrderDate est antérieure au filigrane."
+    keyts:
+      en: "Including ModifiedAt in the condition makes every new version unmatched, so it is inserted as a second row for the same order."
+      fr: "Inclure ModifiedAt dans la condition rend chaque nouvelle version sans correspondance : elle est insérée comme deuxième ligne de la même commande."
+    ts:
+      en: "ModifiedAt is not a key; different orders modified at the same time would overwrite each other."
+      fr: "ModifiedAt n'est pas une clé ; des commandes différentes modifiées au même moment s'écraseraient mutuellement."
+    bysource:
+      en: "whenNotMatchedBySourceDelete deletes every order that isn't in the current batch of changes."
+      fr: "whenNotMatchedBySourceDelete supprime toutes les commandes qui ne figurent pas dans le lot de modifications en cours."
+    matcheddelete:
+      en: "whenMatchedDelete would delete matched orders, and new orders would never be inserted."
+      fr: "whenMatchedDelete supprimerait les commandes correspondantes, et les nouvelles commandes ne seraient jamais insérées."
+references:
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

@@ -1,0 +1,70 @@
+id: ai200-2c-pg-diskann-iterative
+objective: "2.2.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys stores aircraft maintenance chunks in a table named `manual_chunks` in Azure Database for PostgreSQL flexible server. The table has a DiskANN index that uses `vector_cosine_ops`. About 3 percent of the rows have `aircraft = 'A320'`.
+
+    A connection setup script runs `SET diskann.iterative_search TO 'off';` on every session. The following query often returns fewer than 20 rows, although the table contains more than 2,000 A320 chunks.
+
+    ```sql
+    SELECT id, content
+    FROM manual_chunks
+    WHERE aircraft = 'A320'
+    ORDER BY embedding <=> %s::vector
+    LIMIT 20;
+    ```
+
+    You need the query to return 20 rows, strictly sorted by distance. You must not change the setup script.
+
+    Which statement should you run in the same transaction, before the query?
+  fr: |
+    Tailspin Toys stocke des segments de maintenance aéronautique dans une table nommée `manual_chunks` dans Azure Database for PostgreSQL serveur flexible. La table possède un index DiskANN qui utilise `vector_cosine_ops`. Environ 3 % des lignes ont `aircraft = 'A320'`.
+
+    Un script de configuration des connexions exécute `SET diskann.iterative_search TO 'off';` dans chaque session. La requête suivante renvoie souvent moins de 20 lignes, alors que la table contient plus de 2 000 segments A320.
+
+    ```sql
+    SELECT id, content
+    FROM manual_chunks
+    WHERE aircraft = 'A320'
+    ORDER BY embedding <=> %s::vector
+    LIMIT 20;
+    ```
+
+    La requête doit renvoyer 20 lignes, strictement triées par distance. Vous ne devez pas modifier le script de configuration.
+
+    Quelle instruction devez-vous exécuter dans la même transaction, avant la requête ?
+body:
+  options:
+    - { id: a, text: "SET LOCAL diskann.iterative_search TO 'relaxed_order';" }
+    - { id: b, text: "SET LOCAL diskann.l_value_is TO 20;" }
+    - { id: c, text: "SET LOCAL diskann.iterative_search TO 'strict_order';" }
+    - { id: d, text: "SET LOCAL enable_seqscan TO OFF;" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      With `diskann.iterative_search` set to `off`, DiskANN fetches `diskann.l_value_is` candidates (100 by default) in one step, and the `WHERE` filter then keeps only the few A320 rows among them. Iterative search keeps exploring the graph in batches until the `LIMIT` is reached, and `strict_order` also guarantees results sorted by distance. `SET LOCAL` applies the setting to the current transaction only.
+    fr: |
+      Avec `diskann.iterative_search` défini sur `off`, DiskANN récupère `diskann.l_value_is` candidats (100 par défaut) en une seule étape, puis le filtre `WHERE` ne conserve que les rares lignes A320 parmi eux. La recherche itérative continue d'explorer le graphe par lots jusqu'à atteindre le `LIMIT`, et `strict_order` garantit en plus des résultats triés par distance. `SET LOCAL` applique le paramètre à la transaction en cours uniquement.
+  options:
+    a:
+      en: |
+        Relaxed order returns enough rows, but the results might be out of order, which breaks the strict sorting requirement.
+      fr: |
+        L'ordre souple renvoie suffisamment de lignes, mais les résultats peuvent ne pas être triés, ce qui enfreint l'exigence de tri strict.
+    b:
+      en: |
+        Without iterative search, the query returns at most `l_value_is` rows before filtering; lowering it to 20 returns even fewer A320 rows.
+      fr: |
+        Sans recherche itérative, la requête renvoie au plus `l_value_is` lignes avant filtrage ; l'abaisser à 20 renvoie encore moins de lignes A320.
+    d:
+      en: |
+        This forces the planner to use the index, which is already the case; the non-iterative scan still stops after one batch of candidates.
+      fr: |
+        Cette instruction force le planificateur à utiliser l'index, ce qu'il fait déjà ; l'analyse non itérative s'arrête toujours après un seul lot de candidats.
+references:
+  - title: Enable and Use DiskANN in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-use-pgdiskann

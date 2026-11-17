@@ -1,0 +1,120 @@
+id: ai300-cs1b-vanarsdel
+status: draft
+title:
+  en: VanArsdel, Ltd.
+  fr: VanArsdel, Ltd.
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        VanArsdel, Ltd. is a law firm based in Stockholm with 450 lawyers in Sweden, Denmark and Finland. It reviews commercial contracts for its clients.
+
+        VanArsdel is moving two generative AI workloads to production:
+
+        - **ClauseCheck**: a retrieval-augmented generation (RAG) web application in which lawyers ask questions about a contract and receive an answer built from passages of that contract.
+        - **Contract Triage**: a batch process that reads each incoming contract, from short non-disclosure agreements to complex supply agreements, and assigns it a category and a risk level.
+
+        A GenAIOps team of four engineers manages the platform from a GitHub repository.
+      fr: |
+        VanArsdel, Ltd. est un cabinet d'avocats basé à Stockholm qui compte 450 avocats en Suède, au Danemark et en Finlande. Il examine des contrats commerciaux pour ses clients.
+
+        VanArsdel met en production deux charges de travail d'IA générative :
+
+        - **ClauseCheck** : une application web de génération augmentée par récupération (RAG) dans laquelle les avocats posent des questions sur un contrat et reçoivent une réponse construite à partir de passages de ce contrat.
+        - **Contract Triage** : un traitement par lots qui lit chaque contrat entrant, du court accord de confidentialité au contrat d'approvisionnement complexe, et lui attribue une catégorie et un niveau de risque.
+
+        Une équipe GenAIOps de quatre ingénieurs gère la plateforme à partir d'un dépôt GitHub.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        VanArsdel has the following resources in the Sweden Central region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | fdy-vanarsdel-dev | Microsoft Foundry resource | Development; public network access enabled; project **clausecheck-dev** |
+        | vnet-vanarsdel | Virtual network | Subnets **snet-app** (App Service virtual network integration) and **snet-pe** (private endpoints) |
+        | app-clausecheck | Azure App Service web app | Hosts ClauseCheck; integrated with snet-app; system-assigned managed identity; queries srch-vanarsdel, then calls the chat model deployment **chat-qa** with streaming enabled |
+        | srch-vanarsdel | Azure AI Search service | Standard tier; public network access enabled; index **contracts-idx** |
+        | main.bicep | Bicep file in the GitHub repository | Will deploy the production Foundry resource **fdy-vanarsdel-prod** |
+        | eval-clauses.jsonl | Evaluation dataset in clausecheck-dev | 40 rows; each row contains a question, the retrieved passages and the answer of ClauseCheck |
+
+        contracts-idx is built with chunks of 512 tokens embedded with text-embedding-3-small.
+      fr: |
+        VanArsdel dispose des ressources suivantes dans la région Sweden Central.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | fdy-vanarsdel-dev | Ressource Microsoft Foundry | Développement ; accès au réseau public activé ; projet **clausecheck-dev** |
+        | vnet-vanarsdel | Réseau virtuel | Sous-réseaux **snet-app** (intégration de réseau virtuel App Service) et **snet-pe** (points de terminaison privés) |
+        | app-clausecheck | Application web Azure App Service | Héberge ClauseCheck ; intégrée à snet-app ; identité managée affectée par le système ; interroge srch-vanarsdel, puis appelle le déploiement de modèle de conversation **chat-qa** avec la diffusion en continu (streaming) activée |
+        | srch-vanarsdel | Service Azure AI Search | Niveau Standard ; accès au réseau public activé ; index **contracts-idx** |
+        | main.bicep | Fichier Bicep du dépôt GitHub | Déploiera la ressource Foundry de production **fdy-vanarsdel-prod** |
+        | eval-clauses.jsonl | Jeu de données d'évaluation dans clausecheck-dev | 40 lignes ; chaque ligne contient une question, les passages récupérés et la réponse de ClauseCheck |
+
+        contracts-idx est construit avec des blocs de 512 jetons incorporés avec text-embedding-3-small.
+  - key: problems
+    title: { en: "Problem statements", fr: "Problèmes constatés" }
+    body:
+      en: |
+        - Lawyers report that they sometimes wait several seconds before the first words of an answer appear.
+        - Last month, the team evaluated a retrieval variant that uses chunks of 1,024 tokens embedded with text-embedding-3-large. The variant run and a baseline run of the current configuration both used eval-clauses.jsonl. In the **Compare** view of the Foundry portal, with the baseline run set as the baseline, the groundedness and retrieval results of the variant are **Inconclusive**, although its average scores are slightly higher.
+      fr: |
+        - Les avocats signalent qu'ils attendent parfois plusieurs secondes avant que les premiers mots d'une réponse apparaissent.
+        - Le mois dernier, l'équipe a évalué une variante de récupération qui utilise des blocs de 1 024 jetons incorporés avec text-embedding-3-large. L'exécution de la variante et une exécution de référence de la configuration actuelle ont toutes deux utilisé eval-clauses.jsonl. Dans la vue **Compare** du portail Foundry, avec l'exécution de référence définie comme base de référence, les résultats de groundedness et de retrieval de la variante sont **Inconclusive**, bien que ses scores moyens soient légèrement supérieurs.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Platform**
+
+        - main.bicep must deploy fdy-vanarsdel-prod and a project named **clausecheck** in the same template.
+        - No client may authenticate to fdy-vanarsdel-prod by using an API key.
+        - fdy-vanarsdel-prod and srch-vanarsdel must not be reachable from the internet. app-clausecheck must reach both resources through vnet-vanarsdel.
+
+        **Contract Triage**
+
+        - Prompts and responses must be processed only within the EU data zone.
+        - Contract Triage must route each contract to an appropriate model and favor cost savings more than the default routing does.
+        - Only the models approved by the risk team (gpt-4.1, gpt-4.1-mini and gpt-5-mini, all available to model router in Sweden Central) may process contracts. If one approved model is unavailable, the requests must be served by another approved model.
+
+        **Evaluation**
+
+        Before each release, an automated evaluation must check that:
+
+        1. Each answer cites at least one clause number in the format "Clause 12.3". This check must be deterministic and must not consume judge model tokens.
+        2. Each cited clause number exists in the clause register, which is available only through VanArsdel's internal REST API.
+        3. Each answer keeps a neutral tone and doesn't advise the client to sign or reject the contract, as judged by a model that follows a judge prompt written by the legal team.
+        4. Each answer contains only information supported by the retrieved passages.
+
+        **Operations**
+
+        - The team must monitor how long lawyers wait before the first words of an answer appear.
+        - Any change to the retrieval configuration must be attributable to a single setting and must show a statistically significant improvement before it's promoted.
+      fr: |
+        **Plateforme**
+
+        - main.bicep doit déployer fdy-vanarsdel-prod et un projet nommé **clausecheck** dans le même modèle.
+        - Aucun client ne doit s'authentifier auprès de fdy-vanarsdel-prod avec une clé API.
+        - fdy-vanarsdel-prod et srch-vanarsdel ne doivent pas être accessibles depuis Internet. app-clausecheck doit atteindre les deux ressources par vnet-vanarsdel.
+
+        **Contract Triage**
+
+        - Les invites et les réponses doivent être traitées uniquement dans la zone de données UE.
+        - Contract Triage doit acheminer chaque contrat vers un modèle approprié et privilégier les économies davantage que le routage par défaut.
+        - Seuls les modèles approuvés par l'équipe des risques (gpt-4.1, gpt-4.1-mini et gpt-5-mini, tous disponibles pour le routeur de modèles dans Sweden Central) peuvent traiter les contrats. Si un modèle approuvé n'est pas disponible, les requêtes doivent être servies par un autre modèle approuvé.
+
+        **Évaluation**
+
+        Avant chaque mise en production, une évaluation automatisée doit vérifier que :
+
+        1. Chaque réponse cite au moins un numéro de clause au format « Clause 12.3 ». Cette vérification doit être déterministe et ne doit pas consommer de jetons de modèle juge.
+        2. Chaque numéro de clause cité existe dans le registre des clauses, accessible uniquement par l'API REST interne de VanArsdel.
+        3. Chaque réponse garde un ton neutre et ne conseille pas au client de signer ou de refuser le contrat, selon le jugement d'un modèle qui suit une invite de juge rédigée par l'équipe juridique.
+        4. Chaque réponse ne contient que des informations étayées par les passages récupérés.
+
+        **Exploitation**
+
+        - L'équipe doit surveiller combien de temps les avocats attendent avant que les premiers mots d'une réponse apparaissent.
+        - Toute modification de la configuration de récupération doit pouvoir être attribuée à un seul paramètre et doit montrer une amélioration statistiquement significative avant d'être promue.

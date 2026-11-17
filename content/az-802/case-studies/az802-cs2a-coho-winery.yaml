@@ -1,0 +1,87 @@
+id: az802-cs2a-coho-winery
+status: draft
+title:
+  en: Coho Winery
+  fr: Coho Winery
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Coho Winery is a wine producer. The head office and the bottling plant are in Bordeaux. The company also runs three vineyard estates: Saint-Emilion, Medoc and Pomerol.
+
+        A team of four administrators in Bordeaux manages all the servers. No IT staff work at the estates, and the estate offices are not physically secured.
+      fr: |
+        Coho Winery est un producteur de vin. Le siège et l'usine d'embouteillage se trouvent à Bordeaux. L'entreprise exploite aussi trois propriétés viticoles : Saint-Emilion, Medoc et Pomerol.
+
+        Une équipe de quatre administrateurs basée à Bordeaux gère tous les serveurs. Aucun informaticien ne travaille dans les propriétés, et leurs bureaux ne sont pas sécurisés physiquement.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Active Directory.** The network contains a single-domain AD DS forest named **cohowinery.com**. All the servers run Windows Server 2025.
+
+        | AD DS site | Subnet | Servers |
+        | --- | --- | --- |
+        | HQ (Bordeaux) | 10.40.0.0/22 | DC1, DC2 (writable DCs, DNS), DHCP1, HV1 and HV2 (nodes of the failover cluster HVCLUS) |
+        | VIN-SE (Saint-Emilion) | 10.40.11.0/24 | RODC-SE, HV-SE (Hyper-V host, domain member) |
+        | VIN-MED (Medoc) | 10.40.12.0/24 | RODC-MED |
+        | VIN-POM (Pomerol) | 10.40.13.0/24 | RODC-POM |
+
+        The site link HQ-VIN contains all four sites.
+
+        **Group Policy.** Each estate has tasting-room kiosk computers. Their computer accounts are in an organizational unit (OU) named **Kiosks**, and all the user accounts are in an OU named **Staff**. A GPO named **Kiosk-Lockdown** is linked to the Kiosks OU. It contains user settings that restrict the Start menu and block Control Panel.
+
+        **Password replication policy of RODC-SE.** The Allowed list contains the Allowed RODC Password Replication Group and a global group named **SE-Staff**. The Denied list contains its default entries. The following users work at Saint-Emilion:
+
+        | User | Group memberships |
+        | --- | --- |
+        | Lucas | SE-Staff |
+        | Emma | SE-Staff, Backup Operators |
+
+        **DHCP.** A server named **SE-SRV1** at Saint-Emilion runs the DHCP Server role and hosts the scope 10.40.11.0. DHCP1 hosts the scopes of the HQ site.
+
+        **Virtualization.** HV-SE runs a virtual machine named **VM-PRESS** that hosts the press-scheduling application. Saint-Emilion connects to Bordeaux through a site-to-site link over the internet provider's network.
+      fr: |
+        **Active Directory.** Le réseau contient une forêt AD DS à domaine unique nommée **cohowinery.com**. Tous les serveurs exécutent Windows Server 2025.
+
+        | Site AD DS | Sous-réseau | Serveurs |
+        | --- | --- | --- |
+        | HQ (Bordeaux) | 10.40.0.0/22 | DC1, DC2 (contrôleurs de domaine accessibles en écriture, DNS), DHCP1, HV1 et HV2 (nœuds du cluster de basculement HVCLUS) |
+        | VIN-SE (Saint-Emilion) | 10.40.11.0/24 | RODC-SE, HV-SE (hôte Hyper-V, membre du domaine) |
+        | VIN-MED (Medoc) | 10.40.12.0/24 | RODC-MED |
+        | VIN-POM (Pomerol) | 10.40.13.0/24 | RODC-POM |
+
+        Le lien de sites HQ-VIN contient les quatre sites.
+
+        **Stratégie de groupe.** Chaque propriété dispose d'ordinateurs kiosques dans sa salle de dégustation. Leurs comptes d'ordinateur se trouvent dans une unité d'organisation (UO) nommée **Kiosks**, et tous les comptes d'utilisateur dans une UO nommée **Staff**. Un objet de stratégie de groupe (GPO) nommé **Kiosk-Lockdown** est lié à l'UO Kiosks. Il contient des paramètres utilisateur qui restreignent le menu Démarrer et bloquent le Panneau de configuration.
+
+        **Stratégie de réplication de mot de passe de RODC-SE.** La liste Autorisés contient le groupe Allowed RODC Password Replication Group et un groupe global nommé **SE-Staff**. La liste Refusés contient ses entrées par défaut. Les utilisateurs suivants travaillent à Saint-Emilion :
+
+        | Utilisateur | Appartenance aux groupes |
+        | --- | --- |
+        | Lucas | SE-Staff |
+        | Emma | SE-Staff, Backup Operators |
+
+        **DHCP.** Un serveur nommé **SE-SRV1** à Saint-Emilion exécute le rôle Serveur DHCP et héberge l'étendue 10.40.11.0. DHCP1 héberge les étendues du site HQ.
+
+        **Virtualisation.** HV-SE exécute une machine virtuelle nommée **VM-PRESS** qui héberge l'application de planification des pressoirs. Saint-Emilion est relié à Bordeaux par une liaison site à site qui passe par le réseau du fournisseur d'accès Internet.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Coho Winery identifies the following requirements:
+
+        1. **DHCP.** If SE-SRV1 fails, DHCP1 must lease addresses to the Saint-Emilion clients. While SE-SRV1 is available, DHCP1 must not lease addresses from the scope 10.40.11.0. Ten percent of the free addresses of the scope must be kept for DHCP1.
+        2. **Disaster recovery.** VM-PRESS must be replicated from HV-SE to HVCLUS by using Hyper-V Replica. The replication traffic must be encrypted by Hyper-V Replica itself. The loss of up to 15 minutes of changes is acceptable, and replication cycles must be as infrequent as possible.
+        3. **Hybrid management.** All the servers must be connected to Azure Arc by running a script on each server. The identity that the script uses must have the least privileges required.
+        4. **Security.** If an estate RODC is stolen, the administrators must be able to identify the accounts whose passwords must be reset.
+        5. **Kiosks.** When any user signs in to a kiosk computer, the user settings of Kiosk-Lockdown must apply, and the user settings of the GPOs that normally apply to the user account must not apply.
+      fr: |
+        Coho Winery a défini les exigences suivantes :
+
+        1. **DHCP.** Si SE-SRV1 tombe en panne, DHCP1 doit attribuer des adresses aux clients de Saint-Emilion. Tant que SE-SRV1 est disponible, DHCP1 ne doit attribuer aucune adresse de l'étendue 10.40.11.0. Dix pour cent des adresses libres de l'étendue doivent être réservées à DHCP1.
+        2. **Reprise d'activité.** VM-PRESS doit être répliquée de HV-SE vers HVCLUS à l'aide du réplica Hyper-V. Le trafic de réplication doit être chiffré par le réplica Hyper-V lui-même. La perte de 15 minutes de modifications au maximum est acceptable, et les cycles de réplication doivent être aussi peu fréquents que possible.
+        3. **Gestion hybride.** Tous les serveurs doivent être connectés à Azure Arc en exécutant un script sur chaque serveur. L'identité utilisée par le script doit disposer du minimum de privilèges nécessaires.
+        4. **Sécurité.** Si le RODC d'une propriété viticole est volé, les administrateurs doivent pouvoir identifier les comptes dont le mot de passe doit être réinitialisé.
+        5. **Kiosques.** Quand un utilisateur ouvre une session sur un ordinateur kiosque, les paramètres utilisateur de Kiosk-Lockdown doivent s'appliquer, et les paramètres utilisateur des GPO qui s'appliquent normalement au compte d'utilisateur ne doivent pas s'appliquer.

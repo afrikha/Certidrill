@@ -1,0 +1,83 @@
+id: az700-cs3a-southridge
+status: draft
+title:
+  en: Southridge Video
+  fr: Southridge Video
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Southridge Video is a video streaming company. Its catalog website, **www.southridgevideo.com**, serves viewers in Europe and North America. Independent producers also send live streams to Southridge, which rebroadcasts them.
+
+        Southridge is closing its last datacenter and moving the remaining public endpoints to Azure. A team of four network engineers manages the Azure environment.
+      fr: |
+        Southridge Video est une entreprise de vidéo en streaming. Son site de catalogue, **www.southridgevideo.com**, sert des spectateurs en Europe et en Amérique du Nord. Des producteurs indépendants envoient aussi des flux en direct à Southridge, qui les rediffuse.
+
+        Southridge ferme son dernier centre de données et déplace ses derniers points de terminaison publics vers Azure. Une équipe de quatre ingénieurs réseau gère l'environnement Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Southridge has an Azure subscription named **Sub-Media** that contains the following resources.
+
+        | Resource | Region | Configuration |
+        | --- | --- | --- |
+        | VNet-WE | West Europe | Virtual network, 10.40.0.0/16 |
+        | VNet-EUS | East US | Virtual network, 10.41.0.0/16 |
+        | ILB-WE | West Europe | Standard internal load balancer in VNet-WE, backend pool of four web VMs that serve the catalog website over HTTPS |
+        | ILB-EUS | East US | Standard internal load balancer in VNet-EUS, backend pool of four web VMs that serve the catalog website over HTTPS |
+        | LB-Ingest | West Europe | Standard public load balancer in VNet-WE that receives live streams on TCP port 1935 (RTMP) |
+        | stsrposters | West Europe | Storage account that contains the posters and thumbnails of the catalog |
+        | fd-southridge | Global | Azure Front Door Premium profile, not configured yet |
+
+        The public DNS zone **southridgevideo.com** is hosted by the registrar's DNS service. The web VMs have no public IP addresses.
+
+        Southridge owns the public range **203.0.113.0/24**, which is registered to it with RIPE NCC. The datacenter ISP currently advertises the range. Producers add the addresses of this range to their firewall allowlists.
+      fr: |
+        Southridge dispose d'un abonnement Azure nommé **Sub-Media** qui contient les ressources suivantes.
+
+        | Ressource | Région | Configuration |
+        | --- | --- | --- |
+        | VNet-WE | West Europe | Réseau virtuel, 10.40.0.0/16 |
+        | VNet-EUS | East US | Réseau virtuel, 10.41.0.0/16 |
+        | ILB-WE | West Europe | Équilibreur de charge interne Standard dans VNet-WE, pool principal de quatre machines virtuelles web qui servent le site de catalogue en HTTPS |
+        | ILB-EUS | East US | Équilibreur de charge interne Standard dans VNet-EUS, pool principal de quatre machines virtuelles web qui servent le site de catalogue en HTTPS |
+        | LB-Ingest | West Europe | Équilibreur de charge public Standard dans VNet-WE qui reçoit les flux en direct sur le port TCP 1935 (RTMP) |
+        | stsrposters | West Europe | Compte de stockage qui contient les affiches et les miniatures du catalogue |
+        | fd-southridge | Global | Profil Azure Front Door Premium, pas encore configuré |
+
+        La zone DNS publique **southridgevideo.com** est hébergée par le service DNS du bureau d'enregistrement. Les machines virtuelles web n'ont pas d'adresse IP publique.
+
+        Southridge possède la plage publique **203.0.113.0/24**, enregistrée à son nom auprès du RIPE NCC. Le fournisseur d'accès du centre de données publie actuellement cette plage. Les producteurs ajoutent les adresses de cette plage aux listes d'autorisation de leurs pare-feu.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Catalog website**
+
+        1. Viewers must reach the catalog website through fd-southridge, which sends each request to the closest healthy region.
+        2. The web VMs must stay reachable only through private IP addresses. ILB-WE and ILB-EUS must not receive public IP addresses.
+        3. Requests to `/media/*` must be served from stsrposters and cached at the edge. Each poster URL contains a version parameter **v**; a new version must be fetched as soon as **v** changes. Marketing tools add tracking parameters whose names change with every campaign, and those parameters must not create separate cache entries.
+        4. A web application firewall must block the requests that match a Microsoft-managed rule set.
+        5. The sign-in page **/login** must be protected against password-spraying bursts from a single client IP address.
+        6. The zone southridgevideo.com must be hosted in Azure DNS.
+
+        **Live ingest**
+
+        7. LB-Ingest must use addresses from 203.0.113.0/24 so that producers keep their allowlists. Azure must not advertise the range before the public IP prefix for LB-Ingest has been created from it.
+        8. The public IP addresses of LB-Ingest must be protected against volumetric attacks. During an attack, Southridge must be able to engage Microsoft DDoS experts and must receive service credits for the scale-out costs that the attack causes.
+      fr: |
+        **Site de catalogue**
+
+        1. Les spectateurs doivent atteindre le site de catalogue par fd-southridge, qui envoie chaque requête vers la région saine la plus proche.
+        2. Les machines virtuelles web doivent rester joignables uniquement par des adresses IP privées. ILB-WE et ILB-EUS ne doivent pas recevoir d'adresse IP publique.
+        3. Les requêtes vers `/media/*` doivent être servies depuis stsrposters et mises en cache en périphérie. Chaque URL d'affiche contient un paramètre de version **v** ; une nouvelle version doit être récupérée dès que **v** change. Les outils marketing ajoutent des paramètres de suivi dont les noms changent à chaque campagne, et ces paramètres ne doivent pas créer d'entrées de cache distinctes.
+        4. Un pare-feu d'applications web doit bloquer les requêtes qui correspondent à un ensemble de règles managé par Microsoft.
+        5. La page de connexion **/login** doit être protégée contre les rafales de pulvérisation de mots de passe venant d'une même adresse IP cliente.
+        6. La zone southridgevideo.com doit être hébergée dans Azure DNS.
+
+        **Réception en direct**
+
+        7. LB-Ingest doit utiliser des adresses de la plage 203.0.113.0/24 afin que les producteurs conservent leurs listes d'autorisation. Azure ne doit pas publier la plage avant la création, à partir de celle-ci, du préfixe d'adresse IP publique destiné à LB-Ingest.
+        8. Les adresses IP publiques de LB-Ingest doivent être protégées contre les attaques volumétriques. Pendant une attaque, Southridge doit pouvoir faire appel aux experts DDoS de Microsoft et doit recevoir des crédits de service pour les coûts de montée en charge causés par l'attaque.

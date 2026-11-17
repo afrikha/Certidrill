@@ -1,0 +1,137 @@
+id: az700-cs4b-fernhill
+status: draft
+title:
+  en: Fernhill Market Data
+  fr: Fernhill Market Data
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fernhill Market Data collects price feeds from stock exchanges in its datacenters in Paris and London, enriches them and sells the resulting data to banks.
+
+        Fernhill is moving its processing platform and its distribution API to Azure, in the France Central region. A network team of four engineers manages the datacenters and Azure.
+      fr: |
+        Fernhill Market Data collecte des flux de cotations de places boursières dans ses centres de données de Paris et de Londres, les enrichit et vend les données obtenues à des banques.
+
+        Fernhill migre sa plateforme de traitement et son API de distribution vers Azure, dans la région France Central. Une équipe réseau de quatre ingénieurs gère les centres de données et Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Datacenters**
+
+        | Datacenter | Address space | ExpressRoute circuit | Peering location |
+        | --- | --- | --- | --- |
+        | Paris | 10.10.0.0/16 | ER-Paris (Standard, 2 Gbps) | Paris |
+        | London | 10.20.0.0/16 | ER-London (Standard, 2 Gbps) | London |
+
+        The datacenters are linked by a private WAN. Both circuits are provided by a connectivity provider (they aren't ExpressRoute Direct circuits), and Azure private peering is configured on both. To provide a backup path, the edge routers of each datacenter advertise both 10.10.0.0/16 and 10.20.0.0/16 over their local circuit, with AS paths of the same length.
+
+        **Azure (France Central)**
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Virtual network | 10.0.0.0/22 — subnets GatewaySubnet (10.0.0.0/27) and AzureFirewallSubnet (10.0.1.0/26) |
+        | ERGW1 | ExpressRoute gateway | In VNet-Hub, SKU ErGw1Az; connected to ER-Paris and ER-London, routing weight 0 on both connections |
+        | FW1 | Azure Firewall | Standard, in VNet-Hub, private IP address 10.0.1.4 |
+        | VNet-Data | Virtual network | 10.2.0.0/16 — subnets snet-etl (10.2.1.0/24) and snet-sql (10.2.2.0/24); peered with VNet-Hub and uses the remote gateway |
+        | RT-Data | Route table | Associated with snet-etl; one route: 0.0.0.0/0, next hop type Virtual appliance, next hop 10.0.1.4; **Propagate gateway routes**: Yes |
+        | NSG-SQL | Network security group | Associated with snet-sql |
+        | VNet-Feed | Virtual network | 10.3.0.0/16 — subnet snet-feed (10.3.1.0/24); not peered with any virtual network |
+        | ERGW-Feed | ExpressRoute gateway | In VNet-Feed, SKU ErGw1Az; connected to ER-Paris and ER-London |
+        | VNet-Dist | Virtual network | 10.4.0.0/16 — subnets snet-api (10.4.1.0/24) and snet-pls (10.4.2.0/24); not peered with any virtual network |
+        | stfharchive | Storage account | StorageV2; public network access enabled from all networks |
+
+        **Virtual machines**
+
+        - VM-ETL1 (10.2.1.4) and VM-ETL2 (10.2.1.5) are in snet-etl. Their network interfaces are members of the application security group **ASG-ETL**.
+        - VM-SQL1 (10.2.2.4) is in snet-sql. Its network interface is a member of the application security group **ASG-SQL**.
+        - VM-FEED1 to VM-FEED4 are in snet-feed.
+        - VM-API1 to VM-API3 host the distribution API in snet-api, behind a Standard internal load balancer named **ILB-Dist**.
+
+        All the virtual networks use the Azure-provided DNS service.
+      fr: |
+        **Centres de données**
+
+        | Centre de données | Espace d'adressage | Circuit ExpressRoute | Emplacement de peering |
+        | --- | --- | --- | --- |
+        | Paris | 10.10.0.0/16 | ER-Paris (Standard, 2 Gbit/s) | Paris |
+        | Londres | 10.20.0.0/16 | ER-London (Standard, 2 Gbit/s) | London |
+
+        Les centres de données sont reliés par un WAN privé. Les deux circuits sont fournis par un fournisseur de connectivité (ce ne sont pas des circuits ExpressRoute Direct), et le peering privé Azure est configuré sur les deux. Pour disposer d'un chemin de secours, les routeurs de périphérie de chaque centre de données publient 10.10.0.0/16 et 10.20.0.0/16 sur leur circuit local, avec des chemins AS de même longueur.
+
+        **Azure (France Central)**
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Réseau virtuel | 10.0.0.0/22 — sous-réseaux GatewaySubnet (10.0.0.0/27) et AzureFirewallSubnet (10.0.1.0/26) |
+        | ERGW1 | Passerelle ExpressRoute | Dans VNet-Hub, SKU ErGw1Az ; connectée à ER-Paris et à ER-London, poids de routage 0 sur les deux connexions |
+        | FW1 | Pare-feu Azure | Standard, dans VNet-Hub, adresse IP privée 10.0.1.4 |
+        | VNet-Data | Réseau virtuel | 10.2.0.0/16 — sous-réseaux snet-etl (10.2.1.0/24) et snet-sql (10.2.2.0/24) ; peering avec VNet-Hub, utilise la passerelle distante |
+        | RT-Data | Table de routage | Associée à snet-etl ; un itinéraire : 0.0.0.0/0, type de tronçon suivant Virtual appliance, tronçon suivant 10.0.1.4 ; **Propager les itinéraires de passerelle** : Oui |
+        | NSG-SQL | Groupe de sécurité réseau | Associé à snet-sql |
+        | VNet-Feed | Réseau virtuel | 10.3.0.0/16 — sous-réseau snet-feed (10.3.1.0/24) ; aucun peering avec un autre réseau virtuel |
+        | ERGW-Feed | Passerelle ExpressRoute | Dans VNet-Feed, SKU ErGw1Az ; connectée à ER-Paris et à ER-London |
+        | VNet-Dist | Réseau virtuel | 10.4.0.0/16 — sous-réseaux snet-api (10.4.1.0/24) et snet-pls (10.4.2.0/24) ; aucun peering avec un autre réseau virtuel |
+        | stfharchive | Compte de stockage | StorageV2 ; accès réseau public activé depuis tous les réseaux |
+
+        **Machines virtuelles**
+
+        - VM-ETL1 (10.2.1.4) et VM-ETL2 (10.2.1.5) sont dans snet-etl. Leurs interfaces réseau sont membres du groupe de sécurité d'application **ASG-ETL**.
+        - VM-SQL1 (10.2.2.4) est dans snet-sql. Son interface réseau est membre du groupe de sécurité d'application **ASG-SQL**.
+        - VM-FEED1 à VM-FEED4 sont dans snet-feed.
+        - VM-API1 à VM-API3 hébergent l'API de distribution dans snet-api, derrière un équilibreur de charge interne Standard nommé **ILB-Dist**.
+
+        Tous les réseaux virtuels utilisent le service DNS fourni par Azure.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Connectivity**
+
+        1. Traffic from Azure to each datacenter must use the circuit of that datacenter while the circuit is available, and fail over to the other circuit otherwise. Today, Azure spreads this traffic over both circuits.
+        2. The market feeds that the datacenters send to VM-FEED1 to VM-FEED4 must bypass the ExpressRoute gateway in the data path to minimize latency.
+
+        **Security**
+
+        3. All traffic between snet-etl and the datacenters, and all internet-bound traffic from snet-etl, must be inspected by FW1.
+
+        **Archive**
+
+        4. Applications in the Paris datacenter must upload files to stfharchive through Azure private peering. Public network access to stfharchive must be disabled.
+
+        **Distribution API**
+
+        5. Banks will consume the distribution API from virtual networks in their own Azure subscriptions and Microsoft Entra tenants. Their address spaces can overlap the address spaces of Fernhill. The traffic must stay on the Microsoft network, without virtual network peering.
+        6. Only the bank subscriptions registered with Fernhill can find the service. Fernhill doesn't grant any Azure permission to bank users.
+        7. Connection requests from registered bank subscriptions must be accepted without manual approval.
+        8. The API must log the private IP address of each bank client that calls it.
+
+        **General**
+
+        9. Costs must be minimized.
+      fr: |
+        **Connectivité**
+
+        1. Le trafic d'Azure vers chaque centre de données doit utiliser le circuit de ce centre de données tant que ce circuit est disponible, et basculer sur l'autre circuit dans le cas contraire. Aujourd'hui, Azure répartit ce trafic sur les deux circuits.
+        2. Les flux de cotations que les centres de données envoient à VM-FEED1 à VM-FEED4 doivent contourner la passerelle ExpressRoute dans le chemin des données afin de réduire la latence au minimum.
+
+        **Sécurité**
+
+        3. Tout le trafic entre snet-etl et les centres de données, ainsi que tout le trafic de snet-etl à destination d'Internet, doit être inspecté par FW1.
+
+        **Archive**
+
+        4. Les applications du centre de données de Paris doivent déposer des fichiers dans stfharchive par le peering privé Azure. L'accès réseau public à stfharchive doit être désactivé.
+
+        **API de distribution**
+
+        5. Les banques consommeront l'API de distribution depuis des réseaux virtuels de leurs propres abonnements Azure et locataires Microsoft Entra. Leurs espaces d'adressage peuvent chevaucher ceux de Fernhill. Le trafic doit rester sur le réseau Microsoft, sans peering de réseaux virtuels.
+        6. Seuls les abonnements des banques enregistrés auprès de Fernhill peuvent trouver le service. Fernhill n'accorde aucune autorisation Azure aux utilisateurs des banques.
+        7. Les demandes de connexion des abonnements de banques enregistrés doivent être acceptées sans approbation manuelle.
+        8. L'API doit journaliser l'adresse IP privée de chaque client de banque qui l'appelle.
+
+        **Général**
+
+        9. Les coûts doivent être réduits au minimum.

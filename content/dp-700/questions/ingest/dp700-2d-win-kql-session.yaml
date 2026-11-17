@@ -1,0 +1,66 @@
+id: dp700-2d-win-kql-session
+objective: "2.3.7"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric eventhouse that contains a KQL database named **DB-Apps**. A table named **AppEvents** contains the `UserId` and `Timestamp` columns.
+
+    You need a query that returns, for each event of the last day, the start time of the user session it belongs to. A new session starts when the same user has had no event for 30 minutes, when a session reaches 2 hours, or when the user changes.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse Fabric qui contient une base de données KQL nommée **DB-Apps**. Une table nommée **AppEvents** contient les colonnes `UserId` et `Timestamp`.
+
+    Vous avez besoin d'une requête qui renvoie, pour chaque événement de la dernière journée, l'heure de début de la session utilisateur à laquelle il appartient. Une nouvelle session commence quand le même utilisateur n'a eu aucun événement pendant 30 minutes, quand une session atteint 2 heures, ou quand l'utilisateur change.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    AppEvents
+    | where Timestamp > ago(1d)
+    | [[order]]
+    | extend SessionStart = row_window_session(Timestamp, [[args]], [[restart]])
+  slots:
+    - id: order
+      options:
+        - { id: orSort, text: "sort by UserId asc, Timestamp asc" }
+        - { id: orSummarize, text: "summarize by UserId, Timestamp" }
+        - { id: orSortTime, text: "sort by Timestamp desc" }
+        - { id: orSerialize, text: serialize }
+    - id: args
+      options:
+        - { id: ar30m2h, text: "30m, 2h" }
+        - { id: ar2h30m, text: "2h, 30m" }
+        - { id: ar2h2h, text: "2h, 2h" }
+    - id: restart
+      options:
+        - { id: rsPrev, text: "UserId != prev(UserId)" }
+        - { id: rsNext, text: "UserId == next(UserId)" }
+        - { id: rsIsNull, text: "isnull(UserId)" }
+answer:
+  values: { order: orSort, args: ar2h30m, restart: rsPrev }
+explanation:
+  correct:
+    en: "`row_window_session()` works on a serialized row set, and the sessions only make sense if the rows are ordered by user, then by time ascending. Its second argument is the maximum distance from the first value of the session (2h), and its third is the maximum distance between neighboring values (30m). The restart condition `UserId != prev(UserId)` starts a new session at the first row of each user."
+    fr: "`row_window_session()` s'applique à un ensemble de lignes sérialisé, et les sessions n'ont de sens que si les lignes sont triées par utilisateur, puis par heure croissante. Son deuxième argument est la distance maximale depuis la première valeur de la session (2h), et son troisième la distance maximale entre deux valeurs voisines (30m). La condition de redémarrage `UserId != prev(UserId)` démarre une nouvelle session à la première ligne de chaque utilisateur."
+  options:
+    orSummarize: { en: "summarize doesn't produce a serialized row set, so window functions can't be applied after it.", fr: "summarize ne produit pas d'ensemble de lignes sérialisé : des fonctions de fenêtre ne peuvent pas lui être appliquées ensuite." }
+    orSortTime: { en: "Sorting by time only, in descending order, interleaves the users and reverses the sequence of events.", fr: "Trier uniquement par heure, en ordre décroissant, entremêle les utilisateurs et inverse la séquence des événements." }
+    orSerialize: { en: "serialize freezes the current order, which is arbitrary; the rows must be sorted by user and time.", fr: "serialize fige l'ordre actuel, qui est arbitraire ; les lignes doivent être triées par utilisateur et par heure." }
+    ar30m2h: { en: "This order sets a 30-minute maximum session length and a 2-hour inactivity gap, the reverse of the requirement.", fr: "Cet ordre définit une durée maximale de session de 30 minutes et un intervalle d'inactivité de 2 heures, l'inverse de l'exigence." }
+    ar2h2h: { en: "A 2-hour gap between neighbors doesn't start a new session after 30 minutes of inactivity.", fr: "Un intervalle de 2 heures entre voisins ne démarre pas de nouvelle session après 30 minutes d'inactivité." }
+    rsNext: { en: "This condition is true for every row followed by a row of the same user, so it would restart the session on almost every row.", fr: "Cette condition est vraie pour chaque ligne suivie d'une ligne du même utilisateur : elle redémarrerait la session à presque chaque ligne." }
+    rsIsNull: { en: "This condition never detects a change of user, so a session could continue from one user to the next.", fr: "Cette condition ne détecte jamais un changement d'utilisateur : une session pourrait se poursuivre d'un utilisateur au suivant." }
+references:
+  - title: row_window_session()
+    url: https://learn.microsoft.com/en-us/kusto/query/row-window-session-function?view=microsoft-fabric
+  - title: Window functions
+    url: https://learn.microsoft.com/en-us/kusto/query/window-functions?view=microsoft-fabric

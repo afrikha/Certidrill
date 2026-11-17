@@ -1,0 +1,76 @@
+id: dp420-1c-synth-csharp-hash-suffix
+objective: "1.3.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are developing a .NET application that stores one daily summary item per vehicle in an Azure Cosmos DB for NoSQL container partitioned by `/partitionKey`. The partition key value is the date followed by a suffix from 1 to 400.
+
+    You have the following requirements:
+
+    - The writes of a day must be spread evenly across the 400 suffixes.
+    - Any instance of the application, including after a restart, must be able to read the summary of a given vehicle and date with a point read.
+
+    `StableHash` is a helper method of your application that returns the same `uint` for the same string in every process.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous développez une application .NET qui stocke un élément de synthèse quotidienne par véhicule dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/partitionKey`. La valeur de clé de partition est la date suivie d'un suffixe de 1 à 400.
+
+    Vous avez les exigences suivantes :
+
+    - Les écritures d'une journée doivent être réparties uniformément entre les 400 suffixes.
+    - Toute instance de l'application, y compris après un redémarrage, doit pouvoir lire la synthèse d'un véhicule et d'une date donnés par une lecture ponctuelle.
+
+    `StableHash` est une méthode utilitaire de votre application qui renvoie le même `uint` pour la même chaîne dans chaque processus.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    public static string BuildPartitionKey(string vin, DateOnly day)
+    {
+        int suffix = [[suffix]];
+        return $"{day:yyyy-MM-dd}.{suffix}";
+    }
+
+    ItemResponse<DailySummary> summary = await container.ReadItemAsync<DailySummary>(
+        id: $"{vin}-{day:yyyy-MM-dd}",
+        partitionKey: new PartitionKey([[value]]));
+  slots:
+    - id: suffix
+      options:
+        - { id: sstable, text: "(int)(StableHash(vin) % 400) + 1" }
+        - { id: srandom, text: "Random.Shared.Next(1, 401)" }
+        - { id: sgethash, text: "Math.Abs(vin.GetHashCode() % 400) + 1" }
+        - { id: sday, text: "day.Day" }
+    - id: value
+      options:
+        - { id: vbuild, text: "BuildPartitionKey(vin, day)" }
+        - { id: vvin, text: "vin" }
+        - { id: vdate, text: 'day.ToString("yyyy-MM-dd")' }
+answer:
+  values: { suffix: sstable, value: vbuild }
+explanation:
+  correct:
+    en: |-
+      A precalculated suffix must be deterministic and evenly distributed, so it is derived from a stable hash of the VIN. Any instance can then recompute the same partition key value from the VIN and the date and pass it, with the id, to ReadItemAsync for a point read.
+    fr: |-
+      Un suffixe précalculé doit être déterministe et uniformément réparti : il est dérivé d'un hachage stable du VIN. Toute instance peut alors recalculer la même valeur de clé de partition à partir du VIN et de la date, et la transmettre avec l'id à ReadItemAsync pour une lecture ponctuelle.
+  options:
+    srandom: { en: "A random suffix spreads the writes, but a reader cannot know which suffix was used.", fr: "Un suffixe aléatoire répartit les écritures, mais un lecteur ne peut pas savoir quel suffixe a été utilisé." }
+    sgethash: { en: "String.GetHashCode is not guaranteed to be stable and can differ between two runs of the same program, so it must not be persisted.", fr: "String.GetHashCode n'est pas garanti stable et peut différer entre deux exécutions du même programme : il ne doit pas être persisté." }
+    sday: { en: "Every vehicle gets the same suffix on a given day, so all the day's writes hit one value.", fr: "Tous les véhicules reçoivent le même suffixe un jour donné : toutes les écritures du jour visent une seule valeur." }
+    vvin: { en: "The partition key value is the date and suffix, not the VIN.", fr: "La valeur de clé de partition est la date et le suffixe, pas le VIN." }
+    vdate: { en: "The date alone omits the suffix, so it identifies no existing logical partition.", fr: "La date seule omet le suffixe : elle ne désigne aucune partition logique existante." }
+references:
+  - title: Create a synthetic partition key
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/synthetic-partition-keys
+  - title: String.GetHashCode Method
+    url: https://learn.microsoft.com/en-us/dotnet/api/system.string.gethashcode

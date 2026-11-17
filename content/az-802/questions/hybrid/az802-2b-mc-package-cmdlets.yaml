@@ -1,0 +1,84 @@
+id: az802-2b-mc-package-cmdlets
+objective: "2.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin Toys has Azure Arc-enabled servers that run Windows Server 2025. You compiled a DSC configuration named **TimeZoneParis** into the file `TimeZoneParis.mof`, and you will upload the package to a storage account whose URI is stored in `$contentUri`.
+
+    You need to create a machine configuration package and a policy definition file. The policy must apply the time zone to the servers and set it back automatically if someone changes it.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys dispose de serveurs activés pour Azure Arc qui exécutent Windows Server 2025. Vous avez compilé une configuration DSC nommée **TimeZoneParis** dans le fichier `TimeZoneParis.mof`, et vous chargerez le package dans un compte de stockage dont l'URI est stocké dans `$contentUri`.
+
+    Vous devez créer un package de configuration de machine et un fichier de définition de stratégie. La stratégie doit appliquer le fuseau horaire aux serveurs et le rétablir automatiquement si quelqu'un le modifie.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $params = @{
+        Name          = 'TimeZoneParis'
+        Configuration = './TimeZoneParis/TimeZoneParis.mof'
+        Type          = '[[type]]'
+        Force         = $true
+    }
+    [[pkg]] @params
+
+    # Upload TimeZoneParis.zip to the storage account, then:
+    $policyConfig = @{
+        PolicyId      = (New-Guid).Guid
+        ContentUri    = $contentUri
+        DisplayName   = 'Paris time zone'
+        Description   = 'Sets the Paris time zone'
+        Path          = './policies/deployIfNotExists.json'
+        Platform      = 'Windows'
+        PolicyVersion = '1.0.0'
+        Mode          = '[[mode]]'
+    }
+    New-GuestConfigurationPolicy @policyConfig
+  slots:
+    - id: type
+      options:
+        - { id: audit, text: Audit }
+        - { id: auditset, text: AuditAndSet }
+        - { id: autocorrect, text: ApplyAndAutoCorrect }
+    - id: pkg
+      options:
+        - { id: newpkg, text: New-GuestConfigurationPackage }
+        - { id: dsc, text: Publish-AzVMDscConfiguration }
+        - { id: remed, text: Start-GuestConfigurationPackageRemediation }
+        - { id: compliance, text: Get-GuestConfigurationPackageComplianceStatus }
+    - id: mode
+      options:
+        - { id: maudit, text: Audit }
+        - { id: monitor, text: ApplyAndMonitor }
+        - { id: mauto, text: ApplyAndAutoCorrect }
+answer:
+  values: { type: auditset, pkg: newpkg, mode: mauto }
+explanation:
+  correct:
+    en: |
+      `New-GuestConfigurationPackage` builds the .zip package from the compiled MOF file. Its `Type` must be `AuditAndSet` for the package to change the machine; `Audit`, the default, only reports. `New-GuestConfigurationPolicy` then generates the policy definition, and the `ApplyAndAutoCorrect` mode makes the agent correct drift at each evaluation.
+    fr: |
+      `New-GuestConfigurationPackage` crée le package .zip à partir du fichier MOF compilé. Son paramètre `Type` doit valoir `AuditAndSet` pour que le package modifie la machine ; `Audit`, la valeur par défaut, se contente de signaler. `New-GuestConfigurationPolicy` génère ensuite la définition de stratégie, et le mode `ApplyAndAutoCorrect` fait corriger la dérive par l'agent à chaque évaluation.
+  options:
+    audit: { en: "An Audit package can't set the configuration on the machine.", fr: "Un package Audit ne peut pas définir la configuration sur la machine." }
+    autocorrect: { en: "ApplyAndAutoCorrect is a policy mode, not a package type; package types are Audit and AuditAndSet.", fr: "ApplyAndAutoCorrect est un mode de stratégie, pas un type de package ; les types de package sont Audit et AuditAndSet." }
+    dsc: { en: "Publish-AzVMDscConfiguration belongs to the DSC VM extension, which isn't available for Arc-enabled servers.", fr: "Publish-AzVMDscConfiguration appartient à l'extension de machine virtuelle DSC, qui n'est pas disponible pour les serveurs activés pour Azure Arc." }
+    remed: { en: "Start-GuestConfigurationPackageRemediation tests an existing package on the local machine; it doesn't create one.", fr: "Start-GuestConfigurationPackageRemediation teste un package existant sur la machine locale ; il n'en crée pas." }
+    compliance: { en: "Get-GuestConfigurationPackageComplianceStatus tests an existing package; it doesn't create one.", fr: "Get-GuestConfigurationPackageComplianceStatus teste un package existant ; il n'en crée pas." }
+    maudit: { en: "Audit mode only reports compliance and never applies the configuration.", fr: "Le mode Audit signale seulement la conformité et n'applique jamais la configuration." }
+    monitor: { en: "ApplyAndMonitor applies the configuration once and doesn't correct drift automatically.", fr: "ApplyAndMonitor applique la configuration une fois et ne corrige pas la dérive automatiquement." }
+references:
+  - title: How to create custom machine configuration package artifacts
+    url: https://learn.microsoft.com/en-us/azure/governance/machine-configuration/how-to/develop-custom-package/2-create-package
+  - title: How to create custom machine configuration policy definitions
+    url: https://learn.microsoft.com/en-us/azure/governance/machine-configuration/how-to/create-policy-definition

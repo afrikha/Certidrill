@@ -1,0 +1,46 @@
+id: ai200-2b-opclass-mismatch
+objective: "2.2.3"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Fabrikam created the following index on a table of article embeddings on Azure Database for PostgreSQL:
+
+    `CREATE INDEX idx_articles_embedding ON articles USING hnsw (embedding vector_cosine_ops);`
+
+    The search query orders rows by `embedding <-> %s::vector`, and EXPLAIN shows a sequential scan. The application must rank articles by cosine distance.
+
+    What should you do?
+  fr: |
+    Fabrikam a créé l'index suivant sur une table d'incorporations d'articles dans Azure Database for PostgreSQL :
+
+    `CREATE INDEX idx_articles_embedding ON articles USING hnsw (embedding vector_cosine_ops);`
+
+    La requête de recherche trie les lignes par `embedding <-> %s::vector`, et EXPLAIN montre une analyse séquentielle. L'application doit classer les articles par distance cosinus.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Increase `hnsw.ef_search` to 100 before running the query.", fr: "Porter `hnsw.ef_search` à 100 avant d'exécuter la requête." } }
+    - { id: b, text: { en: "Run ANALYZE on the articles table to refresh its statistics.", fr: "Exécuter ANALYZE sur la table articles pour actualiser ses statistiques." } }
+    - { id: c, text: { en: "Change the query to order rows by `embedding <=> %s::vector`.", fr: "Modifier la requête pour trier les lignes par `embedding <=> %s::vector`." } }
+    - { id: d, text: { en: "Rebuild the index with `m = 32` and `ef_construction = 128`.", fr: "Reconstruire l'index avec `m = 32` et `ef_construction = 128`." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "The operator class of a vector index must match the operator of the query. `vector_cosine_ops` serves the cosine distance operator `<=>`, while `<->` is the Euclidean distance; with a mismatch the planner ignores the index and scans the table."
+    fr: "La classe d'opérateurs d'un index vectoriel doit correspondre à l'opérateur de la requête. `vector_cosine_ops` sert l'opérateur de distance cosinus `<=>`, alors que `<->` est la distance euclidienne ; en cas de discordance, le planificateur ignore l'index et parcourt la table."
+  options:
+    a:
+      en: "ef_search changes the candidate list of an index scan that is already used; it does not make the planner use a mismatched index."
+      fr: "ef_search modifie la liste de candidats d'une analyse d'index déjà utilisée ; il ne fait pas utiliser au planificateur un index discordant."
+    b:
+      en: "Statistics do not change the fact that the index cannot serve the `<->` operator."
+      fr: "Les statistiques ne changent rien au fait que l'index ne peut pas servir l'opérateur `<->`."
+    d:
+      en: "A rebuild with other graph parameters keeps vector_cosine_ops, so the `<->` query still cannot use it."
+      fr: "Une reconstruction avec d'autres paramètres de graphe conserve vector_cosine_ops : la requête `<->` ne peut toujours pas l'utiliser."
+references:
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

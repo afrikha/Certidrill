@@ -1,0 +1,66 @@
+id: sc200-3a-kql-dd-office-child
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam, Inc. uses Microsoft Defender for Endpoint. Macro-based malware often makes Word, Excel or PowerPoint start a command interpreter. Process file names can appear in any case, for example `WINWORD.EXE`.
+
+    You need an advanced hunting query that covers the last seven days and returns, for each Office application and child process, the number of launches and the number of distinct devices.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam, Inc. utilise Microsoft Defender for Endpoint. Les programmes malveillants à base de macros font souvent démarrer un interpréteur de commandes par Word, Excel ou PowerPoint. Les noms de fichier des processus peuvent apparaître avec n'importe quelle casse, par exemple `WINWORD.EXE`.
+
+    Vous avez besoin d'une requête de repérage avancé qui couvre les sept derniers jours et renvoie, pour chaque application Office et chaque processus enfant, le nombre de lancements et le nombre d'appareils distincts.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    DeviceProcessEvents
+    | where Timestamp [[time]]
+    | where InitiatingProcessFileName [[op]] ("winword.exe", "excel.exe", "powerpnt.exe")
+    | where FileName in~ ("cmd.exe", "powershell.exe", "wscript.exe")
+    | summarize Launches = count(), Devices = [[agg]](DeviceId) by InitiatingProcessFileName, FileName
+  slots:
+    - id: time
+      options:
+        - { id: gt, text: "> ago(7d)" }
+        - { id: lt, text: "< ago(7d)" }
+        - { id: range, text: "between (ago(14d) .. ago(7d))" }
+    - id: op
+      options:
+        - { id: inci, text: in~ }
+        - { id: in, text: in }
+        - { id: hasall, text: has_all }
+        - { id: eq, text: "==" }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+        - { id: makeset, text: make_set }
+        - { id: sum, text: sum }
+answer:
+  values: { time: gt, op: inci, agg: dcount }
+explanation:
+  correct:
+    en: Timestamp > ago(7d) keeps the events of the last seven days. in~ compares the value with each element of the list without regard to case, so WINWORD.EXE matches. dcount(DeviceId) returns the number of distinct devices.
+    fr: |
+      Timestamp > ago(7d) conserve les événements des sept derniers jours. in~ compare la valeur à chaque élément de la liste sans tenir compte de la casse : WINWORD.EXE correspond. dcount(DeviceId) renvoie le nombre d'appareils distincts.
+  options:
+    lt: { en: "< ago(7d) keeps the events older than seven days.", fr: "< ago(7d) conserve les événements de plus de sept jours." }
+    range: { en: "This range covers the week before the last seven days.", fr: "Cette plage couvre la semaine qui précède les sept derniers jours." }
+    in: { en: "in is case-sensitive, so WINWORD.EXE wouldn't match winword.exe.", fr: "in est sensible à la casse : WINWORD.EXE ne correspondrait pas à winword.exe." }
+    hasall: { en: "has_all requires every listed term to be present in the same value, which no single file name satisfies.", fr: "has_all exige que tous les termes de la liste soient présents dans la même valeur, ce qu'aucun nom de fichier ne satisfait." }
+    count: { en: "count() takes no column and counts rows, not distinct devices.", fr: "count() ne prend pas de colonne et compte des lignes, pas des appareils distincts." }
+    makeset: { en: "make_set returns the list of device IDs, not their number.", fr: "make_set renvoie la liste des identificateurs d'appareils, pas leur nombre." }
+references:
+  - title: String operators
+    url: https://learn.microsoft.com/en-us/kusto/query/datatypes-string-operators

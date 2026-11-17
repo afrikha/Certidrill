@@ -1,0 +1,56 @@
+id: ai200-1c-imagepull-401
+objective: "1.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum deploys a summarization API to an Azure Kubernetes Service (AKS) cluster named **aks-ml** in a resource group named **rg-ml**. The cluster uses a managed identity. The image is stored in an Azure Container Registry named **cradatum**, which does not use attribute-based access control (ABAC) repository permissions.
+
+    The new pods stay in **ImagePullBackOff**. The events of `kubectl describe pod` contain `failed to fetch oauth token: unexpected status: 401 Unauthorized`.
+
+    You need to fix the error. No registry password or other secret must be stored in the cluster.
+
+    Which command should you run?
+  fr: |
+    Adatum déploie une API de synthèse sur un cluster Azure Kubernetes Service (AKS) nommé **aks-ml** dans un groupe de ressources nommé **rg-ml**. Le cluster utilise une identité managée. L'image est stockée dans un registre Azure Container Registry nommé **cradatum**, qui n'utilise pas les autorisations de dépôt par contrôle d'accès en fonction des attributs (ABAC).
+
+    Les nouveaux pods restent à l'état **ImagePullBackOff**. Les événements de `kubectl describe pod` contiennent `failed to fetch oauth token: unexpected status: 401 Unauthorized`.
+
+    Vous devez corriger l'erreur. Aucun mot de passe de registre ni aucun autre secret ne doit être stocké dans le cluster.
+
+    Quelle commande devez-vous exécuter ?
+body:
+  options:
+    - { id: a, text: "az acr network-rule add --name cradatum --ip-address <aks-outbound-ip>" }
+    - { id: b, text: "az acr update --name cradatum --admin-enabled true" }
+    - { id: c, text: "az aks update --name aks-ml --resource-group rg-ml --attach-acr cradatum" }
+    - { id: d, text: "kubectl rollout restart deployment/summarizer -n ml" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A 401 Unauthorized during the pull means the kubelet identity of the nodes is not authorized on the registry. `az aks update --attach-acr` assigns the AcrPull role on the registry to the kubelet managed identity, so the nodes authenticate with Microsoft Entra ID and no secret is stored in the cluster.
+    fr: |
+      Une erreur 401 Unauthorized pendant le tirage signifie que l'identité kubelet des nœuds n'est pas autorisée sur le registre. `az aks update --attach-acr` attribue le rôle AcrPull sur le registre à l'identité managée kubelet : les nœuds s'authentifient avec Microsoft Entra ID et aucun secret n'est stocké dans le cluster.
+  options:
+    a:
+      en: |
+        A registry firewall rule fixes a 403 Forbidden caused by restricted public access, not a 401 caused by missing authorization.
+      fr: |
+        Une règle de pare-feu du registre corrige une erreur 403 Forbidden due à un accès public restreint, pas une erreur 401 due à une autorisation manquante.
+    b:
+      en: |
+        The admin account only helps through an image pull secret that holds its password, which the requirement forbids; enabling it alone changes nothing for the nodes.
+      fr: |
+        Le compte administrateur n'aide qu'au moyen d'un secret de tirage d'image contenant son mot de passe, ce que l'exigence interdit ; l'activer seul ne change rien pour les nœuds.
+    d:
+      en: |
+        Restarting the rollout pulls the image again with the same identity, which is still not authorized.
+      fr: |
+        Redémarrer le déploiement tire de nouveau l'image avec la même identité, qui n'est toujours pas autorisée.
+references:
+  - title: Troubleshoot Azure Kubernetes Service image pull errors from Azure Container Registry
+    url: https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/connectivity/cannot-pull-image-from-acr-to-aks-cluster
+  - title: Integrate Azure Container Registry with Azure Kubernetes Service (AKS)
+    url: https://learn.microsoft.com/en-us/azure/aks/cluster-container-registry-integration

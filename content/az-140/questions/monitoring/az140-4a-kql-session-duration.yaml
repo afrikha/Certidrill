@@ -1,0 +1,68 @@
+id: az140-4a-kql-session-duration
+objective: "4.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The diagnostic settings of your Azure Virtual Desktop host pools send the Connections category to a Log Analytics workspace.
+
+    You need a query that returns the duration of each session of the user **ana@contoso.com**, measured from the moment the session is established on the session host until the session is completed.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Les paramètres de diagnostic de vos pools d'hôtes Azure Virtual Desktop envoient la catégorie Connections vers un espace de travail Log Analytics.
+
+    Vous avez besoin d'une requête qui renvoie la durée de chaque session de l'utilisateur **ana@contoso.com**, mesurée entre le moment où la session est établie sur l'hôte de session et la fin de la session.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let Events = WVDConnections | where UserName == "ana@contoso.com";
+    Events
+    | where State == "[[start]]"
+    | project CorrelationId, UserName, ResourceAlias, StartTime = TimeGenerated
+    | join (Events
+        | where State == "[[stop]]"
+        | project EndTime = TimeGenerated, CorrelationId)
+      on [[key]]
+    | project Duration = EndTime - StartTime, ResourceAlias
+    | sort by Duration asc
+  slots:
+    - id: start
+      options:
+        - { id: started, text: Started }
+        - { id: connected, text: Connected }
+        - { id: completed, text: Completed }
+    - id: stop
+      options:
+        - { id: started2, text: Started }
+        - { id: connected2, text: Connected }
+        - { id: completed2, text: Completed }
+    - id: key
+      options:
+        - { id: user, text: UserName }
+        - { id: alias, text: ResourceAlias }
+        - { id: corr, text: CorrelationId }
+answer:
+  values: { start: connected, stop: completed2, key: corr }
+explanation:
+  correct:
+    en: A connection reports the states Started (the user selects a resource in the client), Connected (the session is established on the session host) and Completed (the session ends). Joining the Connected and Completed records on CorrelationId pairs the two records of the same connection, so EndTime - StartTime is the duration of that session.
+    fr: Une connexion signale les états Started (l'utilisateur sélectionne une ressource dans le client), Connected (la session est établie sur l'hôte de session) et Completed (la session se termine). Joindre les enregistrements Connected et Completed sur CorrelationId associe les deux enregistrements d'une même connexion, et EndTime - StartTime est alors la durée de cette session.
+  options:
+    started: { en: "Started is recorded when the user selects the resource in the client, before the session is established on the session host.", fr: "Started est enregistré quand l'utilisateur sélectionne la ressource dans le client, avant l'établissement de la session sur l'hôte de session." }
+    completed: { en: "Completed marks the end of the session, not its start.", fr: "Completed marque la fin de la session, pas son début." }
+    started2: { en: "Started marks the beginning of a connection attempt, never the end of a session.", fr: "Started marque le début d'une tentative de connexion, jamais la fin d'une session." }
+    connected2: { en: "Connected marks the start of the session, not its end.", fr: "Connected marque le début de la session, pas sa fin." }
+    user: { en: "Joining on UserName pairs every session of the user with every other one, which produces wrong durations.", fr: "Une jointure sur UserName associe chaque session de l'utilisateur à toutes les autres, ce qui produit des durées fausses." }
+    alias: { en: "Several connections can use the same ResourceAlias; only CorrelationId identifies one connection.", fr: "Plusieurs connexions peuvent utiliser le même ResourceAlias ; seul CorrelationId identifie une connexion." }
+references:
+  - title: Azure Virtual Desktop diagnostics log analytics
+    url: https://learn.microsoft.com/en-us/azure/virtual-desktop/diagnostics-log-analytics

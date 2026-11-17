@@ -1,0 +1,42 @@
+id: dp800-2d-ct-sync-order
+objective: "2.4.7"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin synchronizes the dbo.Customers table of an Azure SQL database to a partner CRM every 15 minutes. Change tracking is enabled on the database and on dbo.Customers, and ALLOW_SNAPSHOT_ISOLATION is ON. The job stores the last synchronized version in a table named etl.SyncState.
+
+    You need to write the job so that it reads a consistent set of changes and never misses a change. When the stored version is too old, the CRM must be reinitialized.
+
+    Which five actions should the job perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Tailspin synchronise la table dbo.Customers d'une base de données Azure SQL avec un CRM partenaire toutes les 15 minutes. Le suivi des modifications est activé sur la base de données et sur dbo.Customers, et ALLOW_SNAPSHOT_ISOLATION est ON. Le travail stocke la dernière version synchronisée dans une table nommée etl.SyncState.
+
+    Vous devez écrire le travail de façon qu'il lise un ensemble cohérent de modifications et ne manque jamais une modification. Quand la version stockée est trop ancienne, le CRM doit être réinitialisé.
+
+    Quelles sont les cinq actions que le travail doit effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 5
+  actions:
+    - { id: snap, text: { en: "Start a transaction with SET TRANSACTION ISOLATION LEVEL SNAPSHOT.", fr: "Démarrer une transaction avec SET TRANSACTION ISOLATION LEVEL SNAPSHOT." } }
+    - { id: valid, text: { en: "Compare the stored version with CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID('dbo.Customers')), and reinitialize the CRM if the stored version is lower.", fr: "Comparer la version stockée à CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID('dbo.Customers')), et réinitialiser le CRM si la version stockée est inférieure." } }
+    - { id: cur, text: { en: "Save CHANGE_TRACKING_CURRENT_VERSION() in a variable as the next version.", fr: "Enregistrer CHANGE_TRACKING_CURRENT_VERSION() dans une variable comme version suivante." } }
+    - { id: read, text: { en: "Read the changed rows from CHANGETABLE(CHANGES dbo.Customers, @last_version) joined to dbo.Customers.", fr: "Lire les lignes modifiées à partir de CHANGETABLE(CHANGES dbo.Customers, @last_version) joint à dbo.Customers." } }
+    - { id: save, text: { en: "Write the next version to etl.SyncState and commit the transaction.", fr: "Écrire la version suivante dans etl.SyncState et valider la transaction." } }
+    - { id: lsn, text: { en: "Call sys.fn_cdc_get_max_lsn() to get the upper bound of the changes.", fr: "Appeler sys.fn_cdc_get_max_lsn() pour obtenir la borne supérieure des modifications." } }
+    - { id: version, text: { en: "Read CHANGETABLE(VERSION dbo.Customers, (CustomerID), (@id)) for each customer of the CRM.", fr: "Lire CHANGETABLE(VERSION dbo.Customers, (CustomerID), (@id)) pour chaque client du CRM." } }
+answer:
+  sequence: [ snap, valid, cur, read, save ]
+explanation:
+  correct:
+    en: |
+      Microsoft recommends snapshot isolation so that the version checks and the change query see the same consistent data. Inside the transaction, the job first checks that its last version isn't older than CHANGE_TRACKING_MIN_VALID_VERSION (otherwise CHANGETABLE can't return valid results and the client must be reinitialized), then gets the next version with CHANGE_TRACKING_CURRENT_VERSION(), then reads the changes with CHANGETABLE(CHANGES ...), and finally stores the next version for the following run.
+    fr: |
+      Microsoft recommande l'isolement d'instantané pour que les contrôles de version et la requête des modifications voient les mêmes données cohérentes. Dans la transaction, le travail vérifie d'abord que sa dernière version n'est pas antérieure à CHANGE_TRACKING_MIN_VALID_VERSION (sinon CHANGETABLE ne peut pas renvoyer de résultats valides et le client doit être réinitialisé), puis obtient la version suivante avec CHANGE_TRACKING_CURRENT_VERSION(), lit ensuite les modifications avec CHANGETABLE(CHANGES ...), et enregistre enfin la version suivante pour l'exécution suivante.
+  options:
+    lsn: { en: "LSN functions belong to change data capture, not to change tracking.", fr: "Les fonctions LSN appartiennent à la capture des données modifiées, pas au suivi des modifications." }
+    version: { en: "CHANGETABLE(VERSION ...) returns the latest version of one row, for conflict detection; synchronization uses CHANGETABLE(CHANGES ...).", fr: "CHANGETABLE(VERSION ...) renvoie la dernière version d'une ligne, pour la détection des conflits ; la synchronisation utilise CHANGETABLE(CHANGES ...)." }
+references:
+  - title: Work with Change Tracking - SQL Server
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/work-with-change-tracking-sql-server

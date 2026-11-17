@@ -1,0 +1,80 @@
+id: dp800-2b-refdata-merge
+objective: "2.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind keeps the rows of the `dbo.OrderStatus` lookup table in the post-deployment script of a SQL database project. `StatusID` is the primary key.
+
+    After each deployment, the table must contain exactly the rows defined in Git:
+
+    - New rows are inserted.
+    - Renamed statuses are updated.
+    - Rows removed from Git are deleted from the table.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind conserve les lignes de la table de recherche `dbo.OrderStatus` dans le script de post-déploiement d'un projet de base de données SQL. `StatusID` est la clé primaire.
+
+    Après chaque déploiement, la table doit contenir exactement les lignes définies dans Git :
+
+    - Les nouvelles lignes sont insérées.
+    - Les statuts renommés sont mis à jour.
+    - Les lignes supprimées de Git sont supprimées de la table.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    MERGE INTO dbo.OrderStatus AS target
+    USING (VALUES (1, N'Pending'), (2, N'Shipped'), (3, N'Delivered'), (4, N'Cancelled'))
+          AS source (StatusID, StatusName)
+    ON [[match]]
+    WHEN MATCHED AND target.StatusName <> source.StatusName THEN
+        UPDATE SET StatusName = source.StatusName
+    [[ins]]
+        INSERT (StatusID, StatusName) VALUES (source.StatusID, source.StatusName)
+    [[del]]
+        DELETE;
+  slots:
+    - id: match
+      options:
+        - { id: name, text: target.StatusName = source.StatusName }
+        - { id: id, text: target.StatusID = source.StatusID }
+        - { id: notnull, text: source.StatusID IS NOT NULL }
+    - id: ins
+      options:
+        - { id: matched, text: WHEN MATCHED THEN }
+        - { id: bysource, text: WHEN NOT MATCHED BY SOURCE THEN }
+        - { id: bytarget, text: WHEN NOT MATCHED BY TARGET THEN }
+    - id: del
+      options:
+        - { id: dbytarget, text: WHEN NOT MATCHED BY TARGET THEN }
+        - { id: dbysource, text: WHEN NOT MATCHED BY SOURCE THEN }
+        - { id: dmatched, text: WHEN MATCHED THEN }
+answer:
+  values: { match: id, ins: bytarget, del: dbysource }
+explanation:
+  correct:
+    en: |
+      The rows must be matched on the key, StatusID, so that a renamed status is recognized as the same row and updated. WHEN NOT MATCHED BY TARGET inserts the source rows that the table lacks; INSERT is allowed only in this clause. WHEN NOT MATCHED BY SOURCE deletes the table rows that are no longer in the source, so rows removed from Git disappear.
+    fr: |
+      Les lignes doivent être mises en correspondance sur la clé, StatusID, afin qu'un statut renommé soit reconnu comme la même ligne et mis à jour. WHEN NOT MATCHED BY TARGET insère les lignes sources absentes de la table ; INSERT n'est autorisé que dans cette clause. WHEN NOT MATCHED BY SOURCE supprime les lignes de la table qui ne figurent plus dans la source : les lignes supprimées de Git disparaissent.
+  options:
+    name: { en: "Matching on the name treats a renamed status as a new row, and its insert violates the primary key.", fr: "La correspondance sur le nom traite un statut renommé comme une nouvelle ligne, dont l'insertion viole la clé primaire." }
+    notnull: { en: "A condition that ignores the target matches every source row with every target row.", fr: "Une condition qui ignore la cible fait correspondre chaque ligne source à chaque ligne cible." }
+    matched: { en: "MATCHED clauses accept only UPDATE or DELETE.", fr: "Les clauses MATCHED n'acceptent que UPDATE ou DELETE." }
+    bysource: { en: "NOT MATCHED BY SOURCE accepts only UPDATE or DELETE.", fr: "NOT MATCHED BY SOURCE n'accepte que UPDATE ou DELETE." }
+    dbytarget: { en: "NOT MATCHED BY TARGET accepts only INSERT, and MERGE allows only one such clause.", fr: "NOT MATCHED BY TARGET n'accepte que INSERT, et MERGE n'autorise qu'une seule clause de ce type." }
+    dmatched: { en: "WHEN MATCHED THEN DELETE would delete the rows that are still in Git.", fr: "WHEN MATCHED THEN DELETE supprimerait les lignes qui figurent toujours dans Git." }
+references:
+  - title: MERGE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/merge-transact-sql
+  - title: Configure source control and manage reference data
+    url: https://learn.microsoft.com/en-us/training/modules/implement-cicd-sql-database-projects/03-configure-source-control-manage-reference-data

@@ -1,0 +1,65 @@
+id: dp750-1b-mv-create-trigger
+objective: "1.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso already has a materialized view named **contoso_prod.gold.daily_sales**. You need to change its definition by running a statement from a serverless SQL warehouse. The new definition must meet the following requirements:
+
+    - The statement must replace the existing materialized view.
+    - The materialized view must be refreshed automatically whenever the table contoso_prod.silver.orders is updated.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose déjà d'une vue matérialisée nommée **contoso_prod.gold.daily_sales**. Vous devez modifier sa définition en exécutant une instruction depuis un entrepôt SQL serverless. La nouvelle définition doit respecter les exigences suivantes :
+
+    - L'instruction doit remplacer la vue matérialisée existante.
+    - La vue matérialisée doit être actualisée automatiquement chaque fois que la table contoso_prod.silver.orders est mise à jour.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE [[create]] MATERIALIZED VIEW contoso_prod.gold.daily_sales
+      [[refresh]]
+    AS SELECT
+      order_date,
+      region,
+      SUM(amount) AS total_amount
+    FROM contoso_prod.silver.orders
+    GROUP BY order_date, region;
+  slots:
+    - id: create
+      options:
+        - { id: ine, text: IF NOT EXISTS }
+        - { id: temp, text: TEMPORARY }
+        - { id: orr, text: OR REPLACE }
+    - id: refresh
+      options:
+        - { id: every, text: SCHEDULE EVERY 1 HOUR }
+        - { id: trigger, text: TRIGGER ON UPDATE }
+        - { id: cron, text: "SCHEDULE CRON '0 0 * * * ?' AT TIME ZONE 'UTC'" }
+        - { id: cluster, text: CLUSTER BY (region) }
+answer:
+  values: { create: orr, refresh: trigger }
+explanation:
+  correct:
+    en: CREATE OR REPLACE MATERIALIZED VIEW replaces the existing view and its contents. TRIGGER ON UPDATE refreshes the materialized view when its upstream Delta sources change, by default at most once every minute.
+    fr: CREATE OR REPLACE MATERIALIZED VIEW remplace la vue existante et son contenu. TRIGGER ON UPDATE actualise la vue matérialisée lorsque ses sources Delta en amont changent, par défaut au plus une fois par minute.
+  options:
+    ine: { en: "IF NOT EXISTS ignores the statement because the view already exists, so the definition would not change.", fr: "IF NOT EXISTS ignore l'instruction, car la vue existe déjà ; la définition ne changerait pas." }
+    temp: { en: "Materialized views are Unity Catalog objects; they cannot be temporary.", fr: "Les vues matérialisées sont des objets Unity Catalog ; elles ne peuvent pas être temporaires." }
+    every: { en: "SCHEDULE EVERY refreshes at a fixed interval, whether or not the source changed.", fr: "SCHEDULE EVERY actualise à intervalle fixe, que la source ait changé ou non." }
+    cron: { en: "A cron schedule also refreshes at fixed times, not when the source is updated.", fr: "Une planification cron actualise aussi à heures fixes, pas lors de la mise à jour de la source." }
+    cluster: { en: "CLUSTER BY sets liquid clustering keys; it does not define when the view is refreshed.", fr: "CLUSTER BY définit les clés du clustering liquide ; il ne détermine pas quand la vue est actualisée." }
+references:
+  - title: CREATE MATERIALIZED VIEW
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-ddl-create-materialized-view
+  - title: Use standalone materialized views
+    url: https://learn.microsoft.com/en-us/azure/databricks/views/materialized

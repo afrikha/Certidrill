@@ -1,0 +1,72 @@
+id: dp600-2b-merge-soft-delete
+objective: "2.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named Warehouse1 that contains a dimension table named dbo.DimProduct with the columns ProductKey (surrogate key), ProductID (business key), ProductName and IsDeleted. A staging table named stg.Product contains the complete current product list from the source, keyed by ProductID.
+
+    You need a statement that overwrites the name of existing products when it changes in the source (SCD type 1), and flags products that no longer exist in the source by setting IsDeleted to 1 instead of deleting them. New products are inserted by another procedure.
+
+    How should you complete the T-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé Warehouse1 qui contient une table de dimension nommée dbo.DimProduct avec les colonnes ProductKey (clé de substitution), ProductID (clé métier), ProductName et IsDeleted. Une table de staging nommée stg.Product contient la liste complète et actuelle des produits de la source, identifiés par ProductID.
+
+    Vous avez besoin d'une instruction qui écrase le nom des produits existants quand il change dans la source (SCD de type 1), et qui marque les produits qui n'existent plus dans la source en définissant IsDeleted sur 1 au lieu de les supprimer. Les nouveaux produits sont insérés par une autre procédure.
+
+    Comment devez-vous compléter l'instruction T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    MERGE dbo.DimProduct AS tgt
+    USING stg.Product AS src
+        ON tgt.[[key]] = src.ProductID
+    WHEN [[m1]] AND tgt.ProductName <> src.ProductName THEN
+        UPDATE SET tgt.ProductName = src.ProductName
+    WHEN [[m2]] THEN
+        UPDATE SET tgt.IsDeleted = 1[[term]]
+  slots:
+    - id: key
+      options:
+        - { id: productid, text: ProductID }
+        - { id: productkey, text: ProductKey }
+    - id: m1
+      options:
+        - { id: m1matched, text: MATCHED }
+        - { id: m1bytarget, text: NOT MATCHED BY TARGET }
+        - { id: m1bysource, text: NOT MATCHED BY SOURCE }
+    - id: m2
+      options:
+        - { id: m2matched, text: MATCHED }
+        - { id: m2bytarget, text: NOT MATCHED BY TARGET }
+        - { id: m2bysource, text: NOT MATCHED BY SOURCE }
+    - id: term
+      options:
+        - { id: semicolon, text: ";" }
+        - { id: noterm, text: { en: "(no terminator)", fr: "(aucun terminateur)" } }
+answer:
+  values: { key: productid, m1: m1matched, m2: m2bysource, term: semicolon }
+explanation:
+  correct:
+    en: |
+      Source and dimension rows are matched on the business key, because the surrogate key exists only in the warehouse. WHEN MATCHED updates rows that exist on both sides (type 1 overwrite), and WHEN NOT MATCHED BY SOURCE acts on dimension rows that no longer exist in the source, here a soft delete. In Fabric Data Warehouse, the MERGE statement must end with a semicolon, or it returns a syntax error.
+    fr: |
+      Les lignes de la source et de la dimension se rapprochent sur la clé métier, car la clé de substitution n'existe que dans l'entrepôt. WHEN MATCHED met à jour les lignes présentes des deux côtés (écrasement de type 1), et WHEN NOT MATCHED BY SOURCE agit sur les lignes de la dimension qui n'existent plus dans la source, ici une suppression réversible. Dans Fabric Data Warehouse, l'instruction MERGE doit se terminer par un point-virgule, sinon elle renvoie une erreur de syntaxe.
+  options:
+    productkey: { en: "stg.Product has no surrogate key; ProductKey is generated in the warehouse and never equals the source ProductID.", fr: "stg.Product n'a pas de clé de substitution ; ProductKey est générée dans l'entrepôt et n'est jamais égale au ProductID de la source." }
+    m1bytarget: { en: "NOT MATCHED BY TARGET handles new source rows, and its only allowed action is INSERT.", fr: "NOT MATCHED BY TARGET traite les nouvelles lignes de la source, et sa seule action autorisée est INSERT." }
+    m1bysource: { en: "Rows not matched by the source have no src values to compare or copy.", fr: "Les lignes sans correspondance dans la source n'ont pas de valeurs src à comparer ni à copier." }
+    m2matched: { en: "MATCHED rows still exist in the source; they must not be flagged as deleted.", fr: "Les lignes MATCHED existent toujours dans la source ; elles ne doivent pas être marquées comme supprimées." }
+    m2bytarget: { en: "NOT MATCHED BY TARGET concerns source rows missing from the dimension, and it only allows INSERT.", fr: "NOT MATCHED BY TARGET concerne les lignes de la source absentes de la dimension, et n'autorise que INSERT." }
+    noterm: { en: "In Fabric Data Warehouse, MERGE without a terminating semicolon returns a syntax error.", fr: "Dans Fabric Data Warehouse, un MERGE sans point-virgule final renvoie une erreur de syntaxe." }
+references:
+  - title: MERGE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/merge-transact-sql
+  - title: Load Tables in a Dimensional Model
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables

@@ -1,0 +1,65 @@
+id: dp420-1e-kitai-rag-retrieval
+objective: "1.5.2"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Proseware builds a retrieval-augmented generation (RAG) assistant in Python on Azure Cosmos DB for NoSQL. Document chunks are stored with an `embedding` property that has a vector policy and a vector index. The function `get_embedding()` calls the same embedding model that produced the stored vectors and returns a list of floats.
+
+    Your AI coding assistant, which has the Azure Cosmos DB Agent Kit installed, generated the retrieval function below. The function must return only the five chunks most similar to the user's question, at the lowest request unit (RU) cost.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware crée un assistant à génération augmentée de récupération (RAG) en Python sur Azure Cosmos DB for NoSQL. Les segments de documents sont stockés avec une propriété `embedding` dotée d'une stratégie vectorielle et d'un index vectoriel. La fonction `get_embedding()` appelle le même modèle d'incorporation que celui qui a produit les vecteurs stockés et renvoie une liste de nombres à virgule flottante.
+
+    Votre assistant de codage IA, sur lequel Azure Cosmos DB Agent Kit est installé, a généré la fonction de récupération ci-dessous. La fonction doit renvoyer uniquement les cinq segments les plus similaires à la question de l'utilisateur, au coût en unités de requête (RU) le plus faible.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    def retrieve(question: str, tenant_id: str):
+        q_vec = get_embedding(question)
+        query = (
+            "SELECT [[top]] c.id, c.chunk, "
+            "VectorDistance(c.embedding, @q) AS score "
+            "FROM c ORDER BY VectorDistance(c.embedding, @q)"
+        )
+        return list(container.query_items(
+            query=query,
+            parameters=[{"name": "@q", "value": [[value]]}],
+            partition_key=tenant_id,
+        ))
+  slots:
+    - id: top
+      options:
+        - { id: distinct, text: DISTINCT }
+        - { id: top5, text: TOP 5 }
+        - { id: valkw, text: VALUE }
+    - id: value
+      options:
+        - { id: text, text: question }
+        - { id: list, text: "[question]" }
+        - { id: vec, text: q_vec }
+answer:
+  values: { top: top5, value: vec }
+explanation:
+  correct:
+    en: |
+      A vector search query should always include a TOP N clause; without it, the search tries to return many more results and costs more RUs with higher latency. VectorDistance compares vectors, so the parameter must be the embedding of the question produced by the same model as the stored vectors.
+    fr: |
+      Une requête de recherche vectorielle doit toujours comporter une clause TOP N ; sans elle, la recherche tente de renvoyer beaucoup plus de résultats et coûte plus de RU, avec une latence plus élevée. VectorDistance compare des vecteurs : le paramètre doit donc être l'incorporation de la question produite par le même modèle que les vecteurs stockés.
+  options:
+    distinct: { en: "DISTINCT removes duplicate rows but does not limit the number of results.", fr: "DISTINCT supprime les lignes en double mais ne limite pas le nombre de résultats." }
+    valkw: { en: "VALUE returns unwrapped values and cannot be followed by several projected properties.", fr: "VALUE renvoie des valeurs non encapsulées et ne peut pas être suivi de plusieurs propriétés projetées." }
+    text: { en: "The raw question is a string, not a vector, so it cannot be compared with the stored embeddings.", fr: "La question brute est une chaîne, pas un vecteur : elle ne peut pas être comparée aux incorporations stockées." }
+    list: { en: "A list that contains the question string is still not an embedding.", fr: "Une liste contenant la chaîne de la question n'est toujours pas une incorporation." }
+references:
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search

@@ -1,0 +1,110 @@
+id: dp700-3c-foreach-slices
+objective: "3.3.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric pipeline that must copy four years of data from a large table named dbo.Shipments to a lakehouse. A single Copy activity takes more than 20 hours.
+
+    You redesign the pipeline as follows:
+
+    - A Lookup activity named GetMonths runs a query that returns 48 rows, one per month, with a column named MonthKey, such as 202301. First row only is cleared.
+    - A ForEach activity named ForEach_Month contains a Copy activity that reads one month of dbo.Shipments. dbo.Shipments has an int column named ShipMonthKey.
+
+    You need to configure the pipeline to copy the months in parallel, with at most 12 Copy activities running at the same time.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un pipeline Fabric qui doit copier quatre années de données d'une grande table nommée dbo.Shipments vers un lakehouse. Une seule activité Copy prend plus de 20 heures.
+
+    Vous reconcevez le pipeline comme suit :
+
+    - Une activité Lookup nommée GetMonths exécute une requête qui renvoie 48 lignes, une par mois, avec une colonne nommée MonthKey, par exemple 202301. First row only est désélectionné.
+    - Une activité ForEach nommée ForEach_Month contient une activité Copy qui lit un mois de dbo.Shipments. dbo.Shipments possède une colonne int nommée ShipMonthKey.
+
+    Vous devez configurer le pipeline pour copier les mois en parallèle, avec au plus 12 activités Copy exécutées en même temps.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      ForEach_Month, Items: [[items]]
+
+      ForEach_Month, Sequential: [[seq]]
+
+      ForEach_Month, Batch count: [[bc]]
+
+      Copy activity, source query: SELECT * FROM dbo.Shipments WHERE ShipMonthKey = [[start]]
+    fr: |
+      ForEach_Month, Items : [[items]]
+
+      ForEach_Month, Sequential : [[seq]]
+
+      ForEach_Month, Batch count : [[bc]]
+
+      Activité Copy, requête source : SELECT * FROM dbo.Shipments WHERE ShipMonthKey = [[start]]
+  slots:
+    - id: items
+      options:
+        - { id: value, text: "@activity('GetMonths').output.value" }
+        - { id: firstrow, text: "@activity('GetMonths').output.firstRow" }
+        - { id: count, text: "@activity('GetMonths').output.count" }
+    - id: seq
+      options:
+        - { id: selected, text: { en: "Selected", fr: "Sélectionné" } }
+        - { id: cleared, text: { en: "Cleared", fr: "Désélectionné" } }
+    - id: bc
+      options:
+        - { id: b1, text: "1" }
+        - { id: b12, text: "12" }
+        - { id: b48, text: "48" }
+    - id: start
+      options:
+        - { id: item, text: "@{item().MonthKey}" }
+        - { id: lookup, text: "@{activity('GetMonths').output.firstRow.MonthKey}" }
+        - { id: param, text: "@{pipeline().parameters.MonthKey}" }
+answer:
+  values: { items: value, seq: cleared, bc: b12, start: item }
+explanation:
+  correct:
+    en: |
+      With First row only cleared, the Lookup returns its rows as an array in output.value, which the ForEach iterates. Clearing Sequential runs the items in parallel, and Batch count limits how many run at the same time, here 12. Inside the loop, @{item().MonthKey} reads the column of the current row, so each Copy activity reads one month; this logical partition design is how Microsoft split a long single copy into parallel copies.
+    fr: |
+      Avec First row only désélectionné, le Lookup renvoie ses lignes sous forme de tableau dans output.value, que le ForEach parcourt. Désélectionner Sequential exécute les éléments en parallèle, et Batch count limite le nombre d'éléments exécutés en même temps, ici 12. Dans la boucle, @{item().MonthKey} lit la colonne de la ligne en cours : chaque activité Copy lit un mois. Cette conception par partitions logiques est celle que Microsoft utilise pour découper une longue copie unique en copies parallèles.
+  options:
+    firstrow:
+      en: |
+        firstRow contains only the first row of the result, so the loop would not get the 48 months.
+      fr: |
+        firstRow ne contient que la première ligne du résultat : la boucle n'obtiendrait pas les 48 mois.
+    selected:
+      en: |
+        With Sequential selected, the ForEach processes one month at a time.
+      fr: |
+        Avec Sequential sélectionné, le ForEach traite un mois à la fois.
+    b48:
+      en: |
+        48 would let all the months run at the same time, above the limit of 12.
+      fr: |
+        48 laisserait tous les mois s'exécuter en même temps, au-delà de la limite de 12.
+    lookup:
+      en: |
+        This expression returns the same value for every iteration, so every copy would start at the same month.
+      fr: |
+        Cette expression renvoie la même valeur à chaque itération : toutes les copies commenceraient au même mois.
+    param:
+      en: |
+        A pipeline parameter has one value for the whole run; it does not change per iteration.
+      fr: |
+        Un paramètre de pipeline a une seule valeur pour toute l'exécution ; il ne change pas à chaque itération.
+references:
+  - title: ForEach Activity
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/foreach-activity
+  - title: Copy activity performance with SQL databases
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/copy-performance-sql-databases

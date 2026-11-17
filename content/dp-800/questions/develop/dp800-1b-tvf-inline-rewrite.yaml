@@ -1,0 +1,66 @@
+id: dp800-1b-tvf-inline-rewrite
+objective: "1.2.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains the following function. Dozens of queries join the function to large tables in their FROM clause.
+
+    ```sql
+    CREATE FUNCTION Sales.ufn_OpenOrders (@CustomerID int)
+    RETURNS @result TABLE (OrderID int, OrderDate date, Amount decimal(12, 2))
+    AS
+    BEGIN
+        INSERT INTO @result (OrderID, OrderDate, Amount)
+        SELECT OrderID, OrderDate, Amount
+        FROM Sales.Orders
+        WHERE CustomerID = @CustomerID AND Status = 'Open';
+        RETURN;
+    END;
+    ```
+
+    The execution plans of these queries show poor row estimates for the function. You need to improve the performance of the queries. The solution must not require changes to the calling queries.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient la fonction suivante. Des dizaines de requêtes joignent la fonction à de grandes tables dans leur clause FROM.
+
+    ```sql
+    CREATE FUNCTION Sales.ufn_OpenOrders (@CustomerID int)
+    RETURNS @result TABLE (OrderID int, OrderDate date, Amount decimal(12, 2))
+    AS
+    BEGIN
+        INSERT INTO @result (OrderID, OrderDate, Amount)
+        SELECT OrderID, OrderDate, Amount
+        FROM Sales.Orders
+        WHERE CustomerID = @CustomerID AND Status = 'Open';
+        RETURN;
+    END;
+    ```
+
+    Les plans d'exécution de ces requêtes montrent de mauvaises estimations du nombre de lignes pour la fonction. Vous devez améliorer les performances des requêtes. La solution ne doit pas nécessiter de modifications des requêtes appelantes.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Recreate the function as an inline table-valued function that returns the same SELECT statement.", fr: "Recréer la fonction sous forme de fonction table inline qui renvoie la même instruction SELECT." } }
+    - { id: b, text: { en: "Recreate the function as a stored procedure that returns the same result set.", fr: "Recréer la fonction sous forme de procédure stockée qui renvoie le même jeu de résultats." } }
+    - { id: c, text: { en: "Add WITH SCHEMABINDING to the function definition.", fr: "Ajouter WITH SCHEMABINDING à la définition de la fonction." } }
+    - { id: d, text: { en: "Add WITH INLINE = ON to the function definition.", fr: "Ajouter WITH INLINE = ON à la définition de la fonction." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      The logic is a single SELECT statement, so it can be an inline table-valued function (RETURNS TABLE with RETURN (SELECT ...)). The optimizer expands an inline function into the calling query like a view, so it uses the statistics and indexes of Sales.Orders instead of the fixed estimate of a multi-statement function. The name, parameter and columns stay the same, so the calling queries do not change.
+    fr: |
+      La logique est une seule instruction SELECT : elle peut devenir une fonction table inline (RETURNS TABLE avec RETURN (SELECT ...)). L'optimiseur développe une fonction inline dans la requête appelante comme une vue : il utilise les statistiques et les index de Sales.Orders au lieu de l'estimation fixe d'une fonction à instructions multiples. Le nom, le paramètre et les colonnes restent identiques : les requêtes appelantes ne changent pas.
+  options:
+    b: { en: "A stored procedure cannot be used in a FROM clause, so every calling query would have to change.", fr: "Une procédure stockée ne peut pas être utilisée dans une clause FROM : chaque requête appelante devrait changer." }
+    c: { en: "Schema binding protects Sales.Orders from schema changes; the function still returns an opaque table variable.", fr: "La liaison au schéma protège Sales.Orders contre les modifications de schéma ; la fonction renvoie toujours une variable de table opaque." }
+    d: { en: "The INLINE option applies only to scalar user-defined functions, not to table-valued functions.", fr: "L'option INLINE s'applique uniquement aux fonctions scalaires définies par l'utilisateur, pas aux fonctions table." }
+references:
+  - title: Create user-defined functions (Database Engine)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/user-defined-functions/create-user-defined-functions-database-engine
+  - title: CREATE FUNCTION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-function-transact-sql

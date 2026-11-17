@@ -1,0 +1,88 @@
+id: ai200-1c-service-selector
+objective: "1.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind deploys a retrieval API to the **rag** namespace of an Azure Kubernetes Service (AKS) cluster by using the manifests shown in the exhibit. The two pods are **Running** and **Ready**, and the application listens on port 8080.
+
+    From another pod in the cluster, requests to `http://rag-api.rag.svc.cluster.local` fail. `kubectl get endpoints rag-api -n rag` returns `<none>` in the **ENDPOINTS** column.
+
+    You need the Service to route requests to the pods. What should you do?
+  fr: |
+    Northwind déploie une API de récupération dans l'espace de noms **rag** d'un cluster Azure Kubernetes Service (AKS) à l'aide des manifestes présentés dans la pièce. Les deux pods sont **Running** et **Ready**, et l'application écoute sur le port 8080.
+
+    Depuis un autre pod du cluster, les requêtes vers `http://rag-api.rag.svc.cluster.local` échouent. `kubectl get endpoints rag-api -n rag` renvoie `<none>` dans la colonne **ENDPOINTS**.
+
+    Le Service doit acheminer les requêtes vers les pods. Que devez-vous faire ?
+exhibits:
+  - id: manifests
+    title: { en: "Manifests (extract)", fr: "Manifestes (extrait)" }
+    body: |
+      ```yaml
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: rag-api
+        namespace: rag
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ragapi
+        template:
+          metadata:
+            labels:
+              app: ragapi
+          spec:
+            containers:
+              - name: api
+                image: crnorthwind.azurecr.io/rag-api:2.3.0
+                ports:
+                  - containerPort: 8080
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: rag-api
+        namespace: rag
+      spec:
+        selector:
+          app: rag-api
+        ports:
+          - port: 80
+            targetPort: 8080
+      ```
+body:
+  options:
+    - { id: a, text: { en: "Change the selector of the Service to `app: ragapi`.", fr: "Remplacer le sélecteur du Service par `app: ragapi`." } }
+    - { id: b, text: { en: "Change the `targetPort` of the Service to `80`.", fr: "Remplacer le `targetPort` du Service par `80`." } }
+    - { id: c, text: { en: "Change the type of the Service to `LoadBalancer`.", fr: "Remplacer le type du Service par `LoadBalancer`." } }
+    - { id: d, text: { en: "Add a network policy that allows ingress to the pods on port `8080`.", fr: "Ajouter une stratégie réseau qui autorise le trafic entrant vers les pods sur le port `8080`." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A Service gets its endpoints from the ready pods whose labels match its selector. The Service selects `app: rag-api`, but the pods are labeled `app: ragapi`, so the endpoint list is empty. Making the selector match the pod labels fills the endpoints, and the existing port mapping (80 to 8080) is already correct.
+    fr: |
+      Un Service obtient ses points de terminaison à partir des pods prêts dont les étiquettes correspondent à son sélecteur. Le Service sélectionne `app: rag-api`, mais les pods portent l'étiquette `app: ragapi` : la liste des points de terminaison est vide. Faire correspondre le sélecteur aux étiquettes des pods remplit les points de terminaison, et le mappage de ports existant (80 vers 8080) est déjà correct.
+  options:
+    b:
+      en: |
+        `targetPort` must equal the port the container listens on (8080), so 80 would break the mapping; the port does not explain an empty endpoint list.
+      fr: |
+        `targetPort` doit être égal au port d'écoute du conteneur (8080) : 80 casserait le mappage ; le port n'explique pas une liste de points de terminaison vide.
+    c:
+      en: |
+        A LoadBalancer Service uses the same selector, so it would still have no endpoints, and it adds a public entry point that is not needed.
+      fr: |
+        Un Service LoadBalancer utilise le même sélecteur : il n'aurait toujours aucun point de terminaison, et il ajoute un point d'entrée public inutile.
+    d:
+      en: |
+        A network policy can block traffic to existing endpoints, but it does not create endpoints; the selector mismatch remains.
+      fr: |
+        Une stratégie réseau peut bloquer le trafic vers des points de terminaison existants, mais elle n'en crée pas ; l'incohérence du sélecteur demeure.
+references:
+  - title: Troubleshoot connections to pods and services within an AKS cluster
+    url: https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/connectivity/troubleshoot-connection-pods-services-same-cluster

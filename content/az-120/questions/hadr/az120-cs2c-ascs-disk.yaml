@@ -1,0 +1,65 @@
+id: az120-cs2c-ascs-disk
+objective: "3.1.4"
+type: dropdown
+caseStudy: az120-cs2c-litware
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are preparing the Windows Server failover cluster of the ASCS/ERS VMs of LE1. The solution must meet the ASCS high availability requirements.
+
+    How should you complete the PowerShell script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous préparez le cluster de basculement Windows Server des machines virtuelles ASCS/ERS de LE1. La solution doit respecter les exigences de haute disponibilité de l'ASCS.
+
+    Comment devez-vous compléter le script PowerShell ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $diskConfig = New-AzDiskConfig -Location 'germanywestcentral' -SkuName [[sku]] `
+        -CreateOption Empty -DiskSizeGB 512 -MaxSharesCount [[shares]]
+    New-AzDisk -ResourceGroupName 'rg-le1-prd' -DiskName 'LE1ASCSSharedDisk' -Disk $diskConfig
+
+    # After the disk is attached to both nodes and the cluster is created:
+    Set-ClusterQuorum [[quorum]] -AccountName 'stle1witness' -AccessKey $key
+  slots:
+    - id: sku
+      options:
+        - { id: plrs, text: Premium_LRS }
+        - { id: pzrs, text: Premium_ZRS }
+        - { id: ultra, text: UltraSSD_LRS }
+        - { id: szrs, text: StandardSSD_ZRS }
+    - id: shares
+      options:
+        - { id: n1, text: "1" }
+        - { id: n2, text: "2" }
+        - { id: n3, text: "3" }
+        - { id: n5, text: "5" }
+    - id: quorum
+      options:
+        - { id: disk, text: -DiskWitness }
+        - { id: fsw, text: -FileShareWitness }
+        - { id: cloud, text: -CloudWitness }
+        - { id: node, text: -NodeMajority }
+answer:
+  values: { sku: pzrs, shares: n2, quorum: cloud }
+explanation:
+  correct:
+    en: For an ASCS/SCS cluster across availability zones, the Azure shared disk must be Premium SSD with zone-redundant storage (Premium_ZRS); Premium_LRS is for availability sets. MaxSharesCount is the number of cluster nodes that attach the disk, here 2. Microsoft recommends an Azure cloud witness for the quorum; it uses a storage account, not a VM or disk.
+    fr: Pour un cluster ASCS/SCS réparti sur des zones de disponibilité, le disque partagé Azure doit être un SSD Premium à stockage redondant interzone (Premium_ZRS) ; Premium_LRS est réservé aux groupes à haute disponibilité. MaxSharesCount est le nombre de nœuds du cluster qui attachent le disque, ici 2. Microsoft recommande un témoin cloud Azure pour le quorum ; il utilise un compte de stockage, pas une machine virtuelle ni un disque.
+  options:
+    plrs: { en: "Premium_LRS keeps the disk in one zone and is supported only with availability sets.", fr: "Premium_LRS conserve le disque dans une seule zone et n'est pris en charge qu'avec des groupes à haute disponibilité." }
+    ultra: { en: "Ultra Disk is not supported as a shared disk for SAP ASCS/SCS clusters.", fr: "Ultra Disk n'est pas pris en charge comme disque partagé pour les clusters SAP ASCS/SCS." }
+    szrs: { en: "Standard SSD is not supported as a shared disk for SAP workloads.", fr: "Le SSD Standard n'est pas pris en charge comme disque partagé pour les charges de travail SAP." }
+    disk: { en: "A disk witness depends on an additional disk, which the requirements forbid.", fr: "Un témoin de disque dépend d'un disque supplémentaire, ce que les exigences interdisent." }
+    fsw: { en: "A file share witness needs a file server, and it does not take a storage account name and access key.", fr: "Un témoin de partage de fichiers nécessite un serveur de fichiers et n'accepte pas de nom de compte de stockage ni de clé d'accès." }
+references:
+  - title: Prepare the Azure infrastructure for SAP HA by using a Windows failover cluster and shared disk for SAP ASCS/SCS
+    url: https://learn.microsoft.com/en-us/azure/sap/workloads/sap-high-availability-infrastructure-wsfc-shared-disk
+  - title: Cluster an SAP ASCS/SCS instance on a Windows failover cluster by using a shared disk in Azure
+    url: https://learn.microsoft.com/en-us/azure/sap/workloads/sap-high-availability-guide-wsfc-shared-disk

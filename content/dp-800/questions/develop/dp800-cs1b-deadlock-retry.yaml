@@ -1,0 +1,66 @@
+id: dp800-cs1b-deadlock-retry
+objective: "1.3.8"
+type: yesno_statements
+caseStudy: dp800-cs1b-wide-world-importers
+difficulty: 2
+status: draft
+stem:
+  en: |
+    To meet the reliability requirement, a developer rewrites dbo.usp_ReleaseShipment as shown in the Procedure exhibit. The CHECK and FOREIGN KEY constraints of the tables are enabled.
+
+    For each of the following statements, select Yes if the statement is true. Otherwise, select No.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Pour respecter l'exigence de fiabilité, un développeur réécrit dbo.usp_ReleaseShipment comme le montre la pièce Procédure. Les contraintes CHECK et FOREIGN KEY des tables sont activées.
+
+    Pour chacune des affirmations suivantes, sélectionnez Oui si elle est vraie. Sinon, sélectionnez Non.
+
+    Remarque : chaque sélection correcte vaut un point.
+exhibits:
+  - id: procedure
+    title: { en: "Procedure", fr: "Procédure" }
+    body: |
+      ```sql
+      CREATE OR ALTER PROCEDURE dbo.usp_ReleaseShipment @ShipmentID bigint
+      AS
+      BEGIN
+          SET NOCOUNT ON;
+          DECLARE @attempt int = 1;
+          WHILE @attempt <= 3
+          BEGIN
+              BEGIN TRY
+                  BEGIN TRANSACTION;
+                  UPDATE dbo.Containers SET ShipmentID = NULL WHERE ShipmentID = @ShipmentID;
+                  UPDATE dbo.Shipments SET StatusCode = 'REL' WHERE ShipmentID = @ShipmentID;
+                  COMMIT TRANSACTION;
+                  RETURN;
+              END TRY
+              BEGIN CATCH
+                  IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+                  IF ERROR_NUMBER() = 1205 AND @attempt < 3
+                      SET @attempt += 1;
+                  ELSE
+                      THROW;
+              END CATCH
+          END
+      END;
+      ```
+body:
+  statements:
+    - { id: s1, text: { en: "If the first attempt is chosen as a deadlock victim, the procedure runs both UPDATE statements again.", fr: "Si la première tentative est choisie comme victime d'interblocage, la procédure exécute de nouveau les deux instructions UPDATE." } }
+    - { id: s2, text: { en: "If all three attempts are chosen as deadlock victims, the procedure ends without returning an error to the caller.", fr: "Si les trois tentatives sont choisies comme victimes d'interblocage, la procédure se termine sans renvoyer d'erreur à l'appelant." } }
+    - { id: s3, text: { en: "If the update of dbo.Shipments violates a FOREIGN KEY constraint, the caller receives error 547.", fr: "Si la mise à jour de dbo.Shipments viole une contrainte FOREIGN KEY, l'appelant reçoit l'erreur 547." } }
+answer:
+  values: { s1: true, s2: false, s3: true }
+explanation:
+  correct:
+    en: |
+      Error 1205 is raised in the deadlock victim's session; the CATCH block rolls back what is left of the transaction and, while @attempt is lower than 3, increments it so that the WHILE loop runs the transaction again. On the third failure, the condition is false and THROW without arguments re-raises the original error. Any other error, such as error 547 for a constraint violation, goes directly to THROW with its original number.
+    fr: |
+      L'erreur 1205 est levée dans la session de la victime de l'interblocage ; le bloc CATCH annule ce qui reste de la transaction et, tant que @attempt est inférieur à 3, l'incrémente pour que la boucle WHILE exécute de nouveau la transaction. Au troisième échec, la condition est fausse et THROW sans argument lève de nouveau l'erreur d'origine. Toute autre erreur, comme l'erreur 547 d'une violation de contrainte, passe directement par THROW avec son numéro d'origine.
+  options:
+    s2: { en: "When @attempt equals 3, the condition @attempt < 3 is false, so THROW returns error 1205 to the caller.", fr: "Quand @attempt vaut 3, la condition @attempt < 3 est fausse : THROW renvoie l'erreur 1205 à l'appelant." }
+references:
+  - title: TRY...CATCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql

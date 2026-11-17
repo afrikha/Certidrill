@@ -1,0 +1,84 @@
+id: az802-cs3b-blue-yonder
+status: draft
+title:
+  en: Blue Yonder Airlines
+  fr: Blue Yonder Airlines
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Blue Yonder Airlines is a regional airline. Its head office and its maintenance base are in Seattle. Blue Yonder recently acquired a travel agency named Margie's Travel, which keeps its own IT environment.
+
+        Blue Yonder is extending its datacenter to Azure and wants to manage its on-premises servers from Azure.
+      fr: |
+        Blue Yonder Airlines est une compagnie aérienne régionale. Son siège et sa base de maintenance se trouvent à Seattle. Blue Yonder a récemment acquis une agence de voyages nommée Margie's Travel, qui conserve son propre environnement informatique.
+
+        Blue Yonder étend son centre de données à Azure et souhaite gérer ses serveurs locaux depuis Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Active Directory.** The environment contains two AD DS forests. No trust exists between them. A site-to-site VPN connects the Margie's Travel office to the Blue Yonder head office.
+
+        | Forest | Domain controllers | Forest functional level |
+        | --- | --- | --- |
+        | blueyonderairlines.com | DC1, DC2 (Windows Server 2025, DNS, head office) | Windows Server 2016 |
+        | margiestravel.com | MT-DC1, MT-DC2 (Windows Server 2022, DNS) | Windows Server 2016 |
+
+        **On-premises servers.** The head office contains 80 member servers of blueyonderairlines.com that run Windows Server 2022 or Windows Server 2025. All of them are connected to Azure Arc in a resource group named **rg-arc-hq**. A server named **BOOK1** hosts the booking application.
+
+        **Azure.** Blue Yonder has an Azure subscription named **Sub1**. The head office connects to Sub1 through a site-to-site VPN.
+
+        | Resource | Configuration |
+        | --- | --- |
+        | VNet-Hub | 10.100.0.0/16, subnets snet-dc (10.100.1.0/24), snet-dns-in (10.100.10.0/28) and snet-dns-out (10.100.11.0/28); DNS servers: default (Azure-provided) |
+        | dnspr-hub | Azure DNS Private Resolver in VNet-Hub; inbound endpoint 10.100.10.4 in snet-dns-in; outbound endpoint in snet-dns-out |
+        | stbyfiles | Storage account that hosts Azure file shares, with a private endpoint in VNet-Hub |
+        | privatelink.file.core.windows.net | Private DNS zone linked to VNet-Hub that contains the A record of the stbyfiles private endpoint |
+      fr: |
+        **Active Directory.** L'environnement contient deux forêts AD DS. Aucune approbation n'existe entre elles. Un VPN site à site relie le bureau de Margie's Travel au siège de Blue Yonder.
+
+        | Forêt | Contrôleurs de domaine | Niveau fonctionnel de la forêt |
+        | --- | --- | --- |
+        | blueyonderairlines.com | DC1, DC2 (Windows Server 2025, DNS, siège) | Windows Server 2016 |
+        | margiestravel.com | MT-DC1, MT-DC2 (Windows Server 2022, DNS) | Windows Server 2016 |
+
+        **Serveurs locaux.** Le siège contient 80 serveurs membres de blueyonderairlines.com qui exécutent Windows Server 2022 ou Windows Server 2025. Tous sont connectés à Azure Arc dans un groupe de ressources nommé **rg-arc-hq**. Un serveur nommé **BOOK1** héberge l'application de réservation.
+
+        **Azure.** Blue Yonder dispose d'un abonnement Azure nommé **Sub1**. Le siège est relié à Sub1 par un VPN site à site.
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | VNet-Hub | 10.100.0.0/16, sous-réseaux snet-dc (10.100.1.0/24), snet-dns-in (10.100.10.0/28) et snet-dns-out (10.100.11.0/28) ; serveurs DNS : par défaut (fournis par Azure) |
+        | dnspr-hub | Azure DNS Private Resolver dans VNet-Hub ; point de terminaison entrant 10.100.10.4 dans snet-dns-in ; point de terminaison sortant dans snet-dns-out |
+        | stbyfiles | Compte de stockage qui héberge des partages de fichiers Azure, avec un point de terminaison privé dans VNet-Hub |
+        | privatelink.file.core.windows.net | Zone DNS privée liée à VNet-Hub qui contient l'enregistrement A du point de terminaison privé de stbyfiles |
+  - key: planned
+    title: { en: "Planned changes", fr: "Modifications prévues" }
+    body:
+      en: |
+        Blue Yonder plans to deploy two Azure virtual machines named **AZDC1** and **AZDC2** in snet-dc. Both will run Windows Server 2025 and will be promoted to domain controllers and DNS servers for blueyonderairlines.com.
+
+        Blue Yonder plans to use Azure Update Manager to patch AZDC1, AZDC2 and the Arc-enabled servers by using a single maintenance configuration named **MC-Sat2** that runs every second Saturday.
+      fr: |
+        Blue Yonder prévoit de déployer deux machines virtuelles Azure nommées **AZDC1** et **AZDC2** dans snet-dc. Les deux exécuteront Windows Server 2025 et seront promues contrôleurs de domaine et serveurs DNS de blueyonderairlines.com.
+
+        Blue Yonder prévoit d'utiliser le Gestionnaire de mise à jour Azure pour corriger AZDC1, AZDC2 et les serveurs activés pour Azure Arc à l'aide d'une seule configuration de maintenance nommée **MC-Sat2** qui s'exécute un samedi sur deux.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Blue Yonder identifies the following requirements:
+
+        1. **Trust.** The users of margiestravel.com must be able to access the booking application on BOOK1. The users of blueyonderairlines.com must not be able to access resources in margiestravel.com through the trust.
+        2. **Azure domain controllers.** AZDC1 and AZDC2 must follow the Microsoft recommendations for domain controllers in Azure.
+        3. **Hybrid name resolution.** The on-premises servers must resolve stbyfiles.file.core.windows.net to the IP address of its private endpoint. AZDC1 and AZDC2 must not be used for this purpose.
+        4. **Administration.** The administrators must connect to AZDC1 and AZDC2 from their Windows workstations by using the Remote Desktop Connection client (mstsc.exe). AZDC1 and AZDC2 must not have public IP addresses. Costs must be minimized.
+      fr: |
+        Blue Yonder a défini les exigences suivantes :
+
+        1. **Approbation.** Les utilisateurs de margiestravel.com doivent pouvoir accéder à l'application de réservation sur BOOK1. Les utilisateurs de blueyonderairlines.com ne doivent pas pouvoir accéder aux ressources de margiestravel.com par l'intermédiaire de l'approbation.
+        2. **Contrôleurs de domaine Azure.** AZDC1 et AZDC2 doivent suivre les recommandations de Microsoft pour les contrôleurs de domaine dans Azure.
+        3. **Résolution de noms hybride.** Les serveurs locaux doivent résoudre stbyfiles.file.core.windows.net en l'adresse IP de son point de terminaison privé. AZDC1 et AZDC2 ne doivent pas être utilisés à cette fin.
+        4. **Administration.** Les administrateurs doivent se connecter à AZDC1 et AZDC2 depuis leurs stations de travail Windows à l'aide du client Connexion Bureau à distance (mstsc.exe). AZDC1 et AZDC2 ne doivent pas avoir d'adresse IP publique. Les coûts doivent être réduits au minimum.

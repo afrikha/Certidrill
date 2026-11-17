@@ -1,0 +1,91 @@
+id: ai200-cs3b-bellows-college
+status: draft
+title:
+  en: Bellows College
+  fr: Bellows College
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Bellows College is a university with 18,000 students. Its lecturers publish lecture transcripts, slides and syllabi for each course.
+
+        Bellows College is building **StudyBuddy**, a tutoring assistant written in Python. StudyBuddy answers student questions by retrieving the most relevant passages of the course material from a vector store and sending them to a language model (retrieval-augmented generation).
+      fr: |
+        Bellows College est une université de 18 000 étudiants. Ses enseignants publient les transcriptions des cours magistraux, les diapositives et les programmes de chaque cours.
+
+        Bellows College développe **StudyBuddy**, un assistant de tutorat écrit en Python. StudyBuddy répond aux questions des étudiants en récupérant dans un magasin de vecteurs les passages les plus pertinents des supports de cours, puis en les envoyant à un modèle de langage (génération augmentée de récupération).
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Bellows College has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | cae-bellows | Azure Container Apps environment | Hosts tutor-api and ingest-worker |
+        | tutor-api | Container app | External ingress; single revision mode; the active revision is **tutor-api--v1** |
+        | ingest-worker | Container app | No ingress; system-assigned managed identity that has the permissions required on sb-bellows; no scale rule |
+        | sb-bellows | Azure Service Bus namespace | Standard tier; queue **ingest** |
+        | stbellowscourse | Storage account | Container **materials**; an Event Grid system topic sends the `Microsoft.Storage.BlobCreated` events to the ingest queue |
+        | stbellowsops | Storage account | Container **eg-deadletter** |
+        | pg-bellows | Azure Database for PostgreSQL flexible server | General Purpose compute tier; the `vector` extension is created in the **tutor** database |
+
+        ingest-worker reads the ingest queue, splits each new document into chunks, generates a 1,536-dimension embedding for each chunk and inserts the chunks into the following table of the tutor database.
+
+        ```sql
+        CREATE TABLE course_chunks (
+          id          bigserial PRIMARY KEY,
+          course_id   integer NOT NULL,
+          chunk_text  text NOT NULL,
+          embedding   vector(1536) NOT NULL
+        );
+        ```
+
+        The table is empty. Ingestion starts next week, and chunks will then be added continuously during the semester.
+      fr: |
+        Bellows College dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | cae-bellows | Environnement Azure Container Apps | Héberge tutor-api et ingest-worker |
+        | tutor-api | Application conteneur | Entrée externe ; mode de révision unique ; la révision active est **tutor-api--v1** |
+        | ingest-worker | Application conteneur | Pas d'entrée ; identité managée affectée par le système qui a les autorisations requises sur sb-bellows ; aucune règle de mise à l'échelle |
+        | sb-bellows | Espace de noms Azure Service Bus | Niveau Standard ; file d'attente **ingest** |
+        | stbellowscourse | Compte de stockage | Conteneur **materials** ; une rubrique système Event Grid envoie les événements `Microsoft.Storage.BlobCreated` à la file d'attente ingest |
+        | stbellowsops | Compte de stockage | Conteneur **eg-deadletter** |
+        | pg-bellows | Azure Database for PostgreSQL serveur flexible | Niveau de calcul Usage général ; l'extension `vector` est créée dans la base de données **tutor** |
+
+        ingest-worker lit la file d'attente ingest, découpe chaque nouveau document en blocs, génère une incorporation de 1 536 dimensions pour chaque bloc et insère les blocs dans la table suivante de la base de données tutor.
+
+        ```sql
+        CREATE TABLE course_chunks (
+          id          bigserial PRIMARY KEY,
+          course_id   integer NOT NULL,
+          chunk_text  text NOT NULL,
+          embedding   vector(1536) NOT NULL
+        );
+        ```
+
+        La table est vide. L'ingestion démarre la semaine prochaine, puis des blocs seront ajoutés en continu pendant tout le semestre.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Bellows College identifies the following requirements:
+
+        1. **Releases**: the faculty must test each new version of tutor-api through a test URL that stays the same from one release to the next, before the new version receives any student traffic. All the student traffic must then move to the new version in one operation, and the previous version must stay available for a fast rollback.
+        2. **Ingestion scaling**: ingest-worker must run no replica when the ingest queue is empty and add one replica for every 25 messages in the queue, up to 20 replicas. The scaler must authenticate by using the system-assigned managed identity of ingest-worker. No connection string may be used.
+        3. **Vector index**: the vector index of course_chunks must be created before ingestion starts and must offer the best trade-off between query speed and recall. StudyBuddy compares embeddings by using the cosine distance.
+        4. **Retrieval**: for each question, StudyBuddy must send to the language model the five chunks nearest to the question, taken only from the course that the student is studying.
+        5. **Connections**: during exam weeks, tutor-api scales out to 40 replicas and each replica opens its own connection pool to pg-bellows, which then rejects new connections. tutor-api must still be able to scale to 40 replicas, and the compute size of pg-bellows must not change.
+        6. **Event delivery**: when the ingest queue cannot receive events, Event Grid must not attempt to deliver an event more than two hours after it was published. The undelivered events must be stored in the eg-deadletter container.
+      fr: |
+        Bellows College a défini les exigences suivantes :
+
+        1. **Mises en production** : les enseignants doivent tester chaque nouvelle version de tutor-api par le biais d'une URL de test qui reste la même d'une mise en production à l'autre, avant que la nouvelle version reçoive le moindre trafic étudiant. Tout le trafic étudiant doit ensuite passer à la nouvelle version en une seule opération, et la version précédente doit rester disponible pour une restauration rapide.
+        2. **Mise à l'échelle de l'ingestion** : ingest-worker ne doit exécuter aucun réplica quand la file d'attente ingest est vide et doit ajouter un réplica pour 25 messages dans la file d'attente, jusqu'à 20 réplicas. Le scaler doit s'authentifier à l'aide de l'identité managée affectée par le système de ingest-worker. Aucune chaîne de connexion ne doit être utilisée.
+        3. **Index vectoriel** : l'index vectoriel de course_chunks doit être créé avant le démarrage de l'ingestion et doit offrir le meilleur compromis entre la vitesse des requêtes et le rappel. StudyBuddy compare les incorporations à l'aide de la distance cosinus.
+        4. **Récupération** : pour chaque question, StudyBuddy doit envoyer au modèle de langage les cinq blocs les plus proches de la question, pris uniquement dans le cours que l'étudiant suit.
+        5. **Connexions** : pendant les semaines d'examens, tutor-api monte en charge jusqu'à 40 réplicas et chaque réplica ouvre son propre pool de connexions vers pg-bellows, qui rejette alors les nouvelles connexions. tutor-api doit toujours pouvoir monter jusqu'à 40 réplicas, et la taille de calcul de pg-bellows ne doit pas changer.
+        6. **Remise des événements** : quand la file d'attente ingest ne peut pas recevoir d'événements, Event Grid ne doit pas tenter de remettre un événement plus de deux heures après sa publication. Les événements non remis doivent être stockés dans le conteneur eg-deadletter.

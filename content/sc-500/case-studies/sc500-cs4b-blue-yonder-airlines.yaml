@@ -1,0 +1,129 @@
+id: sc500-cs4b-blue-yonder-airlines
+status: draft
+title:
+  en: Blue Yonder Airlines
+  fr: Blue Yonder Airlines
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Blue Yonder Airlines is a regional airline with 3,000 employees and 45 aircraft. Its operations center is in Toulouse.
+
+        Blue Yonder sells tickets through a booking website hosted in Azure. A team of 12 operations engineers manages the Azure environment, and a security operations center (SOC) monitors it by using Microsoft Sentinel.
+      fr: |
+        Blue Yonder Airlines est une compagnie aérienne régionale qui compte 3 000 employés et 45 avions. Son centre d'opérations se trouve à Toulouse.
+
+        Blue Yonder vend ses billets sur un site de réservation hébergé dans Azure. Une équipe de 12 ingénieurs d'exploitation gère l'environnement Azure, et un centre des opérations de sécurité (SOC) le surveille à l'aide de Microsoft Sentinel.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity**
+
+        Blue Yonder has a Microsoft Entra tenant named blueyonderairlines.com. All users have Microsoft Entra ID P2 licenses. The operations engineers are members of a group named **GRP-OpsEng** and sign in by using a password and Microsoft Authenticator push notifications. Blue Yonder bought FIDO2 security keys for all the operations engineers, including new hires.
+
+        **Azure**
+
+        Blue Yonder has an Azure subscription named **Sub-Web** in the France Central region that contains the following resources.
+
+        | Name | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Virtual network | Subnet AzureFirewallSubnet |
+        | VNet-App | Virtual network | Peered with VNet-Hub; contains VM-API1 and VM-API2 |
+        | fw-hub | Azure Firewall, Premium SKU | Firewall policy **fwp-hub** (Premium tier); all internet-bound traffic from VNet-App is routed to fw-hub |
+        | VM-API1, VM-API2 | Virtual machines | Ubuntu Server 24.04 |
+        | la-claims | Logic app (Consumption) | Request trigger called by app-booking; an HTTP action named **Get_passenger** calls the passenger API of the airline and returns passenger details |
+        | kv-netsec | Key Vault | Permission model: Vault access policy; contains the intermediate CA certificate **BYA-TLS-CA**, imported as a certificate |
+        | app-booking | App Service web app | Resource group RG-Web, system-assigned managed identity, default publishing settings |
+        | stbyadocs | Storage account | General-purpose v2, container **claims**, storage account key access allowed |
+        | law-soc | Log Analytics workspace | Microsoft Sentinel enabled |
+
+        The client devices of Blue Yonder and VM-API1 and VM-API2 trust the root CA of BYA-TLS-CA.
+
+        A GitHub Actions workflow deploys app-booking by using the publish profile of the app. Some developers also upload hotfixes to app-booking over FTP.
+
+        **Crew rostering**
+
+        An on-premises crew rostering application writes JSON records. A Microsoft Entra app registration named **app-crewlog** with a client secret was created for this application.
+      fr: |
+        **Identité**
+
+        Blue Yonder dispose d'un locataire Microsoft Entra nommé blueyonderairlines.com. Tous les utilisateurs disposent de licences Microsoft Entra ID P2. Les ingénieurs d'exploitation sont membres d'un groupe nommé **GRP-OpsEng** et se connectent avec un mot de passe et des notifications Push de Microsoft Authenticator. Blue Yonder a acheté des clés de sécurité FIDO2 pour tous les ingénieurs d'exploitation, y compris les nouvelles recrues.
+
+        **Azure**
+
+        Blue Yonder dispose d'un abonnement Azure nommé **Sub-Web** dans la région France Central, qui contient les ressources suivantes.
+
+        | Nom | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Réseau virtuel | Sous-réseau AzureFirewallSubnet |
+        | VNet-App | Réseau virtuel | Peering avec VNet-Hub ; contient VM-API1 et VM-API2 |
+        | fw-hub | Azure Firewall, SKU Premium | Stratégie de pare-feu **fwp-hub** (niveau Premium) ; tout le trafic de VNet-App à destination d'Internet est acheminé vers fw-hub |
+        | VM-API1, VM-API2 | Machines virtuelles | Ubuntu Server 24.04 |
+        | la-claims | Application logique (Consommation) | Déclencheur Request appelé par app-booking ; une action HTTP nommée **Get_passenger** appelle l'API des passagers de la compagnie et renvoie les informations des passagers |
+        | kv-netsec | Key Vault | Modèle d'autorisation : Vault access policy ; contient le certificat d'autorité de certification intermédiaire **BYA-TLS-CA**, importé en tant que certificat |
+        | app-booking | Application web App Service | Groupe de ressources RG-Web, identité managée affectée par le système, paramètres de publication par défaut |
+        | stbyadocs | Compte de stockage | Usage général v2, conteneur **claims**, accès par clé de compte de stockage autorisé |
+        | law-soc | Espace de travail Log Analytics | Microsoft Sentinel activé |
+
+        Les appareils clients de Blue Yonder ainsi que VM-API1 et VM-API2 approuvent l'autorité de certification racine de BYA-TLS-CA.
+
+        Un workflow GitHub Actions déploie app-booking à l'aide du profil de publication de l'application. Certains développeurs déposent aussi des correctifs sur app-booking par FTP.
+
+        **Planification des équipages**
+
+        Une application locale de planification des équipages écrit des enregistrements JSON. Une inscription d'application Microsoft Entra nommée **app-crewlog**, avec une clé secrète client, a été créée pour cette application.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Blue Yonder identifies the following requirements.
+
+        **Identity**
+
+        1. Members of GRP-OpsEng must use phishing-resistant multifactor authentication to access the Azure portal.
+        2. A new operations engineer must be able to register a FIDO2 security key on the first day without ever receiving a password.
+
+        **Network**
+
+        3. HTTPS traffic from VNet-App to the internet must be decrypted and inspected by fw-hub by using BYA-TLS-CA.
+
+        **Applications and data**
+
+        4. Calls to the Request trigger of la-claims must be authorized only by Microsoft Entra ID tokens; the SAS in the trigger URL must stop working. The run history of la-claims must not show the passenger details that Get_passenger returns, but support engineers must still see the requests that Get_passenger sends.
+        5. Deployments to app-booking must authenticate with Microsoft Entra ID only. Every deployment method that uses basic authentication must be blocked, and the GitHub Actions workflow must continue to deploy app-booking.
+        6. Shared Key authorization must be disallowed on stbyadocs. app-booking must generate a SAS that lets a baggage claims partner upload documents to the claims container for five days.
+
+        **Security operations**
+
+        7. The crew rostering application must send its records to a new table named **CrewRoster_CL** in law-soc by using the Logs Ingestion API and app-crewlog.
+
+        **General**
+
+        8. Use the principle of least privilege. Minimize costs.
+      fr: |
+        Blue Yonder a défini les exigences suivantes.
+
+        **Identité**
+
+        1. Les membres de GRP-OpsEng doivent utiliser une authentification multifacteur résistante au hameçonnage pour accéder au portail Azure.
+        2. Un nouvel ingénieur d'exploitation doit pouvoir inscrire une clé de sécurité FIDO2 dès son premier jour sans jamais recevoir de mot de passe.
+
+        **Réseau**
+
+        3. Le trafic HTTPS de VNet-App vers Internet doit être déchiffré et inspecté par fw-hub à l'aide de BYA-TLS-CA.
+
+        **Applications et données**
+
+        4. Les appels au déclencheur Request de la-claims doivent être autorisés uniquement par des jetons Microsoft Entra ID ; la SAS de l'URL du déclencheur doit cesser de fonctionner. L'historique des exécutions de la-claims ne doit pas afficher les informations des passagers que renvoie Get_passenger, mais les ingénieurs du support doivent toujours voir les requêtes qu'envoie Get_passenger.
+        5. Les déploiements sur app-booking doivent s'authentifier uniquement avec Microsoft Entra ID. Toutes les méthodes de déploiement qui utilisent l'authentification de base doivent être bloquées, et le workflow GitHub Actions doit continuer à déployer app-booking.
+        6. L'autorisation par clé partagée doit être interdite sur stbyadocs. app-booking doit générer une SAS qui permet à un partenaire de gestion des bagages de déposer des documents dans le conteneur claims pendant cinq jours.
+
+        **Opérations de sécurité**
+
+        7. L'application de planification des équipages doit envoyer ses enregistrements dans une nouvelle table nommée **CrewRoster_CL** dans law-soc à l'aide de l'API d'ingestion de journaux et d'app-crewlog.
+
+        **Général**
+
+        8. Appliquer le principe du moindre privilège. Réduire les coûts au minimum.

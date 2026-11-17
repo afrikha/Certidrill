@@ -1,0 +1,74 @@
+id: dp700-2c-rerun-duplicates
+objective: "2.2.9"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a lakehouse that contains a Delta table named silver_shipments. A notebook loads silver_shipments every 15 minutes by performing the following steps:
+
+    1. Read the rows of a source table whose UpdatedAt value is greater than a watermark stored in a control table.
+    2. Append the rows to silver_shipments.
+    3. Write the highest UpdatedAt value to the control table.
+
+    Last night, a run failed after step 2. The next run loaded the same rows again, and silver_shipments now contains duplicate shipments.
+
+    You need to ensure that rerunning the notebook never creates duplicates in silver_shipments. Late updates of a shipment must replace its previous version.
+
+    What should you do?
+  fr: |
+    Vous disposez d'un lakehouse qui contient une table Delta nommée silver_shipments. Un notebook charge silver_shipments toutes les 15 minutes en effectuant les étapes suivantes :
+
+    1. Lire les lignes d'une table source dont la valeur UpdatedAt est supérieure à un filigrane stocké dans une table de contrôle.
+    2. Ajouter les lignes à silver_shipments.
+    3. Écrire la valeur UpdatedAt la plus élevée dans la table de contrôle.
+
+    La nuit dernière, une exécution a échoué après l'étape 2. L'exécution suivante a rechargé les mêmes lignes, et silver_shipments contient maintenant des expéditions en double.
+
+    Vous devez vous assurer qu'une réexécution du notebook ne crée jamais de doublons dans silver_shipments. Les mises à jour tardives d'une expédition doivent remplacer sa version précédente.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Call dropDuplicates() on the rows read in step 1 before they are appended."
+        fr: "Appeler dropDuplicates() sur les lignes lues à l'étape 1 avant leur ajout."
+    - id: b
+      text:
+        en: "Replace the append in step 2 with a write in overwrite mode of the rows read in step 1."
+        fr: "Remplacer l'ajout de l'étape 2 par une écriture en mode overwrite des lignes lues à l'étape 1."
+    - id: c
+      text:
+        en: "Replace the append in step 2 with a merge into silver_shipments that matches on ShipmentID."
+        fr: "Remplacer l'ajout de l'étape 2 par une fusion dans silver_shipments qui fait correspondre les lignes sur ShipmentID."
+    - id: d
+      text:
+        en: "Move step 3 before step 2 so that the watermark is updated before the rows are appended."
+        fr: "Placer l'étape 3 avant l'étape 2 pour que le filigrane soit mis à jour avant l'ajout des lignes."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A merge on the business key makes the load idempotent: a row read again by a rerun matches the existing shipment and updates it instead of adding a second copy, and a late update replaces the previous version. New shipments are inserted as before.
+    fr: |
+      Une fusion sur la clé métier rend le chargement idempotent : une ligne relue par une réexécution correspond à l'expédition existante et la met à jour au lieu d'ajouter une seconde copie, et une mise à jour tardive remplace la version précédente. Les nouvelles expéditions sont insérées comme avant.
+  options:
+    d:
+      en: |
+        Updating the watermark first means that a failure during the append skips those rows forever, so data is lost instead of duplicated.
+      fr: |
+        Mettre à jour le filigrane en premier signifie qu'un échec pendant l'ajout fait ignorer ces lignes pour toujours : des données sont perdues au lieu d'être dupliquées.
+    a:
+      en: |
+        dropDuplicates() removes duplicates within the batch only; the rows of the rerun still duplicate the rows already appended, and updates are added as new rows.
+      fr: |
+        dropDuplicates() ne supprime que les doublons du lot ; les lignes de la réexécution dupliquent toujours les lignes déjà ajoutées, et les mises à jour sont ajoutées comme nouvelles lignes.
+    b:
+      en: |
+        Overwrite mode replaces the whole table with the latest batch and deletes all the other shipments.
+      fr: |
+        Le mode overwrite remplace toute la table par le dernier lot et supprime toutes les autres expéditions.
+references:
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

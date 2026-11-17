@@ -1,0 +1,58 @@
+id: dp700-3c-append-merge-conflict
+objective: "3.2.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW1 that contains a table named dbo.FactOrders.
+
+    Two pipelines named PL_EU and PL_US run at the same time every hour. Each pipeline runs a stored procedure that loads the new orders of its region from a staging table into dbo.FactOrders by using a MERGE statement that contains only a WHEN NOT MATCHED THEN INSERT clause. The two regions never share an OrderID value.
+
+    The stored procedure of PL_US fails intermittently with error 24556, "Snapshot isolation transaction aborted due to update conflict".
+
+    You need to prevent the errors. The pipelines must continue to run at the same time.
+
+    What should you do?
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW1 qui contient une table nommée dbo.FactOrders.
+
+    Deux pipelines nommés PL_EU et PL_US s'exécutent en même temps toutes les heures. Chaque pipeline exécute une procédure stockée qui charge les nouvelles commandes de sa région depuis une table de transit vers dbo.FactOrders avec une instruction MERGE qui ne contient qu'une clause WHEN NOT MATCHED THEN INSERT. Les deux régions ne partagent jamais de valeur OrderID.
+
+    La procédure stockée de PL_US échoue par intermittence avec l'erreur 24556, « Snapshot isolation transaction aborted due to update conflict ».
+
+    Vous devez empêcher ces erreurs. Les pipelines doivent continuer à s'exécuter en même temps.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add SET TRANSACTION ISOLATION LEVEL READ COMMITTED at the start of both stored procedures.", fr: "Ajouter SET TRANSACTION ISOLATION LEVEL READ COMMITTED au début des deux procédures stockées." } }
+    - { id: b, text: { en: "Add a condition on the region column to the ON clause of each MERGE statement.", fr: "Ajouter une condition sur la colonne de région à la clause ON de chaque instruction MERGE." } }
+    - { id: c, text: { en: "Replace each MERGE statement with an INSERT ... SELECT statement that filters out existing OrderID values.", fr: "Remplacer chaque instruction MERGE par une instruction INSERT ... SELECT qui exclut les valeurs OrderID existantes." } }
+    - { id: d, text: { en: "Enclose each MERGE statement in an explicit BEGIN TRAN ... COMMIT TRAN transaction.", fr: "Encadrer chaque instruction MERGE dans une transaction explicite BEGIN TRAN ... COMMIT TRAN." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      Fabric Data Warehouse evaluates write-write conflicts at the table level, and a MERGE can conflict even when it only appends rows. INSERT statements always write new Parquet files, so concurrent inserts into the same table rarely conflict. An INSERT ... SELECT with a NOT EXISTS filter gives the same result as the append-only MERGE and lets both pipelines keep running in parallel.
+    fr: |
+      Fabric Data Warehouse évalue les conflits d'écriture au niveau de la table, et un MERGE peut entrer en conflit même s'il ne fait qu'ajouter des lignes. Les instructions INSERT écrivent toujours de nouveaux fichiers Parquet : des insertions simultanées dans la même table entrent rarement en conflit. Un INSERT ... SELECT avec un filtre NOT EXISTS donne le même résultat que le MERGE en ajout seul et permet aux deux pipelines de continuer à s'exécuter en parallèle.
+  options:
+    a:
+      en: |
+        The warehouse always uses snapshot isolation. An isolation level set in T-SQL is ignored at execution time.
+      fr: |
+        L'entrepôt utilise toujours l'isolement de capture instantanée. Un niveau d'isolation défini en T-SQL est ignoré à l'exécution.
+    b:
+      en: |
+        The statements already touch different rows. Conflicts are detected per table, so limiting the rows does not prevent them.
+      fr: |
+        Les instructions touchent déjà des lignes différentes. Les conflits sont détectés par table : limiter les lignes ne les empêche pas.
+    d:
+      en: |
+        Each statement already runs in its own transaction. An explicit transaction does not change how conflicts are evaluated at commit time and can hold the lock longer.
+      fr: |
+        Chaque instruction s'exécute déjà dans sa propre transaction. Une transaction explicite ne change pas l'évaluation des conflits à la validation et peut garder le verrou plus longtemps.
+references:
+  - title: Transactions in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/transactions

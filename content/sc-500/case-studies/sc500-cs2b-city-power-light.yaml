@@ -1,0 +1,75 @@
+id: sc500-cs2b-city-power-light
+status: draft
+title:
+  en: |
+    City Power & Light
+  fr: |
+    City Power & Light
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        City Power & Light is an electricity distributor that serves 1.2 million customers in northern France.
+
+        Customers use a web portal to report outages and submit meter readings. Field contractors upload photos of meters, which a serverless application processes. The platform runs on Azure PaaS services in a subscription named **Sub-Grid**, and a security team reviews every change.
+      fr: |
+        City Power & Light est un distributeur d'électricité qui dessert 1,2 million de clients dans le nord de la France.
+
+        Les clients utilisent un portail web pour signaler des pannes et transmettre leurs relevés de compteur. Des sous-traitants de terrain chargent des photos de compteurs, qu'une application serverless traite. La plateforme s'exécute sur des services PaaS Azure dans un abonnement nommé **Sub-Grid**, et une équipe de sécurité examine chaque modification.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Sub-Grid contains the following resources:
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | fd-cpl | Azure Front Door Premium profile | Public entry point of the customer portal |
+        | app-portal | App Service web app | Origin of fd-cpl. No access restrictions are configured. |
+        | func-meter | Function app, Flex Consumption plan | System-assigned managed identity enabled. The `AzureWebJobsStorage` app setting contains a connection string with an account key of stcplhost. |
+        | stcplhost | Storage account, general-purpose v2 | Host storage of func-meter |
+        | stcplupload | Storage account, general-purpose v2 | Container **meter-photos**. Shared Key authorization is disallowed. Defender for Storage is enabled with on-upload malware scanning and default settings. |
+        | egt-cpl | Event Grid custom topic | Public network access enabled |
+        | law-cpl | Log Analytics workspace | Used by the security team |
+        | kv-cpl | Key vault | Azure role-based access control permission model, purge protection enabled. Contains the key **cmk-upload**, used through a versionless key URI as the customer-managed key of stcplupload. |
+
+        An operations engineer named **Ops1** has the **Storage Blob Data Contributor** role on stcplupload and uses the Azure CLI.
+      fr: |
+        Sub-Grid contient les ressources suivantes :
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | fd-cpl | Profil Azure Front Door Premium | Point d'entrée public du portail clients |
+        | app-portal | Application web App Service | Origine de fd-cpl. Aucune restriction d'accès n'est configurée. |
+        | func-meter | Application de fonction, plan Flex Consumption | Identité managée affectée par le système activée. Le paramètre d'application `AzureWebJobsStorage` contient une chaîne de connexion avec une clé de compte de stcplhost. |
+        | stcplhost | Compte de stockage, usage général v2 | Stockage hôte de func-meter |
+        | stcplupload | Compte de stockage, usage général v2 | Conteneur **meter-photos**. L'autorisation par clé partagée (Shared Key) est interdite. Defender for Storage est activé avec l'analyse des programmes malveillants lors du chargement et les paramètres par défaut. |
+        | egt-cpl | Rubrique personnalisée Event Grid | Accès réseau public activé |
+        | law-cpl | Espace de travail Log Analytics | Utilisé par l'équipe de sécurité |
+        | kv-cpl | Coffre de clés | Modèle d'autorisation contrôle d'accès en fonction du rôle Azure, protection contre le vidage activée. Contient la clé **cmk-upload**, utilisée par un URI de clé sans version comme clé gérée par le client de stcplupload. |
+
+        Un ingénieur d'exploitation nommé **Ops1** dispose du rôle **Storage Blob Data Contributor** sur stcplupload et utilise Azure CLI.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        City Power & Light identifies the following requirements:
+
+        1. Only fd-cpl must be able to reach app-portal. Requests sent directly from the internet or through any other Azure Front Door profile must be rejected.
+        2. func-meter must stop using account keys to access stcplhost. The managed identity of func-meter must receive only the permissions that the Functions host requires.
+        3. Ops1 must send each contractor a link to the meter-photos container that allows only the creation and writing of new blobs and that expires after 72 hours. Account keys must not be used.
+        4. func-meter must start processing each uploaded photo automatically as soon as its malware scan result is available, for clean and malicious files alike. The trigger must not depend on information that a user who can modify blob tags can change.
+        5. The auditors require the history of all the malware scan results in law-cpl.
+        6. cmk-upload must be rotated automatically every 12 months. Each new key version must expire 15 months after its creation, and the security team must be notified 30 days before the expiry.
+        7. Administrative effort must be minimized.
+      fr: |
+        City Power & Light a défini les exigences suivantes :
+
+        1. Seul fd-cpl doit pouvoir atteindre app-portal. Les requêtes envoyées directement depuis Internet ou par tout autre profil Azure Front Door doivent être rejetées.
+        2. func-meter ne doit plus utiliser de clés de compte pour accéder à stcplhost. L'identité managée de func-meter ne doit recevoir que les autorisations nécessaires à l'hôte Functions.
+        3. Ops1 doit envoyer à chaque sous-traitant un lien vers le conteneur meter-photos qui autorise uniquement la création et l'écriture de nouveaux objets blob et qui expire au bout de 72 heures. Les clés de compte ne doivent pas être utilisées.
+        4. func-meter doit commencer automatiquement le traitement de chaque photo chargée dès que le résultat de son analyse des programmes malveillants est disponible, pour les fichiers sains comme pour les fichiers malveillants. Le déclencheur ne doit pas dépendre d'informations qu'un utilisateur autorisé à modifier les balises des objets blob peut changer.
+        5. Les auditeurs exigent l'historique de tous les résultats d'analyse des programmes malveillants dans law-cpl.
+        6. cmk-upload doit faire l'objet d'une rotation automatique tous les 12 mois. Chaque nouvelle version de la clé doit expirer 15 mois après sa création, et l'équipe de sécurité doit être prévenue 30 jours avant l'expiration.
+        7. L'effort d'administration doit être réduit au minimum.

@@ -1,0 +1,83 @@
+id: dp420-3b-sem-user-summary
+objective: "3.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders' sales agent keeps one cross-thread profile per customer, of type `user_summary`, in an Azure Cosmos DB for NoSQL container named **memories**, partitioned by `/userId`. A background pipeline regenerates the profile from new facts. The agent loads the profile at the start of every thread.
+
+    Loading the profile must have the lowest possible RU charge, and regenerating it must leave exactly one profile per customer.
+
+    How should you complete the design? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'agent commercial de Northwind Traders conserve un profil multithread par client, de type `user_summary`, dans un conteneur Azure Cosmos DB for NoSQL nommé **memories**, partitionné par `/userId`. Un pipeline en arrière-plan régénère le profil à partir des nouveaux faits. L'agent charge le profil au début de chaque thread.
+
+    Le chargement du profil doit avoir les frais en RU les plus faibles possibles, et sa régénération doit laisser exactement un profil par client.
+
+    Comment devez-vous compléter la conception ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Give the profile item the id [[id]].
+
+      The pipeline writes the regenerated profile with [[write]].
+
+      The agent loads the profile with [[read]].
+    fr: |
+      Donner à l'élément de profil l'id [[id]].
+
+      Le pipeline écrit le profil régénéré avec [[write]].
+
+      L'agent charge le profil avec [[read]].
+  slots:
+    - id: id
+      options:
+        - { id: fixed, text: { en: "user_summary-{userId}", fr: "user_summary-{userId}" } }
+        - { id: guid, text: { en: "a new GUID for each regeneration", fr: "un nouveau GUID à chaque régénération" } }
+        - { id: thread, text: { en: "the ID of the latest thread", fr: "l'ID du dernier thread" } }
+    - id: write
+      options:
+        - { id: upsert, text: { en: "an upsert", fr: "une opération upsert" } }
+        - { id: create, text: { en: "a create", fr: "une opération create" } }
+        - { id: batch, text: { en: "a cross-partition transactional batch", fr: "un lot transactionnel interpartitions" } }
+    - id: read
+      options:
+        - { id: point, text: { en: "a point read by id and partition key", fr: "une lecture ponctuelle par id et clé de partition" } }
+        - { id: vector, text: { en: "a vector query on the profile embedding", fr: "une requête vectorielle sur l'incorporation du profil" } }
+        - { id: query, text: { en: "a query filtered on type = \"user_summary\"", fr: "une requête filtrée sur type = \"user_summary\"" } }
+answer:
+  values: { id: fixed, write: upsert, read: point }
+explanation:
+  correct:
+    en: "A deterministic id derived from the user ID identifies the single profile of each customer. An upsert creates the profile the first time and overwrites it afterwards, so there is never more than one. Knowing the id and the partition key, the agent loads the profile with a point read, the most efficient read in Azure Cosmos DB."
+    fr: "Un id déterministe dérivé de l'ID de l'utilisateur identifie l'unique profil de chaque client. Une opération upsert crée le profil la première fois puis l'écrase, si bien qu'il n'en existe jamais plus d'un. Comme l'agent connaît l'id et la clé de partition, il charge le profil par une lecture ponctuelle, la lecture la plus efficace d'Azure Cosmos DB."
+  options:
+    guid:
+      en: "A new GUID creates a new profile at each regeneration, and the agent can no longer address the profile directly."
+      fr: "Un nouveau GUID crée un nouveau profil à chaque régénération, et l'agent ne peut plus adresser le profil directement."
+    thread:
+      en: "The latest thread changes over time, so the id cannot be known in advance and old profiles remain."
+      fr: "Le dernier thread change avec le temps : l'id ne peut pas être connu à l'avance et les anciens profils subsistent."
+    create:
+      en: "A create fails with a conflict when the profile already exists."
+      fr: "Une opération create échoue avec un conflit quand le profil existe déjà."
+    batch:
+      en: "A transactional batch is limited to items of one partition key value, and a single upsert is enough."
+      fr: "Un lot transactionnel est limité aux éléments d'une même valeur de clé de partition, et une seule opération upsert suffit."
+    vector:
+      en: "The profile is identified by its user, not found by similarity; a vector query costs more than a point read."
+      fr: "Le profil est identifié par son utilisateur, pas trouvé par similarité ; une requête vectorielle coûte plus qu'une lecture ponctuelle."
+    query:
+      en: "Even inside one partition, a query costs more than a point read, which is the cheapest way to read one item."
+      fr: "Même dans une seule partition, une requête coûte plus qu'une lecture ponctuelle, qui est le moyen le moins coûteux de lire un élément."
+references:
+  - title: Optimize Request Cost - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/optimize-cost-reads-writes
+  - title: Agent Memory Toolkit (Preview) - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agent-memory-toolkit

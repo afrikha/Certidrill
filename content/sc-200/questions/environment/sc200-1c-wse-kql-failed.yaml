@@ -1,0 +1,67 @@
+id: sc200-1c-wse-kql-failed
+objective: "1.3.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind Traders collects the Security events of its servers with the Windows Security Events via AMA connector and the Common event set.
+
+    You need a query that returns each account that failed to sign in more than 20 times on the same computer during the last hour.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders collecte les événements de sécurité de ses serveurs avec le connecteur Windows Security Events via AMA et le jeu d'événements Common.
+
+    Vous avez besoin d'une requête qui renvoie chaque compte ayant échoué à se connecter plus de 20 fois sur un même ordinateur au cours de la dernière heure.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    SecurityEvent
+    | where TimeGenerated > [[time]]
+    | where EventID == [[eid]]
+    | summarize FailedLogons = [[agg]] by TargetAccount, Computer
+    | where FailedLogons > 20
+  slots:
+    - id: time
+      options:
+        - { id: ago, text: ago(1h) }
+        - { id: raw, text: 1h }
+        - { id: sod, text: startofday(now()) }
+        - { id: dt, text: datetime(1h) }
+    - id: eid
+      options:
+        - { id: e4624, text: "4624" }
+        - { id: e4625, text: "4625" }
+        - { id: e4634, text: "4634" }
+        - { id: e4688, text: "4688" }
+    - id: agg
+      options:
+        - { id: count, text: count() }
+        - { id: dcount, text: dcount(TargetAccount) }
+        - { id: max, text: max(TimeGenerated) }
+        - { id: sum, text: sum(EventID) }
+answer:
+  values: { time: ago, eid: e4625, agg: count }
+explanation:
+  correct:
+    en: "`ago(1h)` returns the time one hour before now. Event 4625 records a failed sign-in, and `count()` returns the number of failures for each account and computer pair, which the last line compares with 20."
+    fr: "`ago(1h)` renvoie l'heure qu'il était il y a une heure. L'événement 4625 enregistre un échec de connexion, et `count()` renvoie le nombre d'échecs pour chaque couple compte-ordinateur, que la dernière ligne compare à 20."
+  options:
+    raw: { en: "A timespan can't be compared with the datetime column TimeGenerated.", fr: "Une durée ne peut pas être comparée à la colonne de date TimeGenerated." }
+    sod: { en: "startofday(now()) returns midnight today, not the last hour.", fr: "startofday(now()) renvoie minuit aujourd'hui, pas la dernière heure." }
+    e4624: { en: "4624 is a successful sign-in.", fr: "4624 est une connexion réussie." }
+    e4634: { en: "4634 is a sign-out.", fr: "4634 est une déconnexion." }
+    e4688: { en: "4688 is a process creation.", fr: "4688 est une création de processus." }
+    dcount: { en: "dcount(TargetAccount) is always 1 when grouping by TargetAccount.", fr: "dcount(TargetAccount) vaut toujours 1 quand on regroupe par TargetAccount." }
+    sum: { en: "Summing event IDs doesn't count anything meaningful.", fr: "Additionner des ID d'événement ne compte rien d'utile." }
+references:
+  - title: Windows security event sets that can be sent to Microsoft Sentinel
+    url: https://learn.microsoft.com/en-us/azure/sentinel/windows-security-event-id-reference

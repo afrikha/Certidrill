@@ -1,0 +1,79 @@
+id: dp420-3b-rag-design-choices
+objective: "3.1.7"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Litware is designing a RAG assistant for its 300-page equipment manuals. The manuals and their embeddings will be stored in an Azure Cosmos DB for NoSQL container with a vector embedding policy on `/embedding`. Each retrieved passage must be traceable to its manual and page, and the prompt sent to the chat model must stay within a fixed token budget.
+
+    How should you complete the design? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware conçoit un assistant RAG pour ses manuels d'équipement de 300 pages. Les manuels et leurs incorporations seront stockés dans un conteneur Azure Cosmos DB for NoSQL avec une stratégie d'incorporation vectorielle sur `/embedding`. Chaque passage récupéré doit pouvoir être relié à son manuel et à sa page, et le prompt envoyé au modèle de conversation doit rester dans un budget de jetons fixe.
+
+    Comment devez-vous compléter la conception ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Store each manual as [[unit]].
+
+      To ground the answer, add [[ctx]] to the prompt.
+
+      To keep the prompt within the token budget, [[lim]].
+    fr: |
+      Stocker chaque manuel sous la forme [[unit]].
+
+      Pour ancrer la réponse, ajouter au prompt [[ctx]].
+
+      Pour que le prompt reste dans le budget de jetons, [[lim]].
+  slots:
+    - id: unit
+      options:
+        - { id: chunk, text: { en: "one item per chunk, with its manual ID, page number and embedding", fr: "d'un élément par segment, avec l'ID du manuel, le numéro de page et l'incorporation" } }
+        - { id: whole, text: { en: "one item per manual, with an array of chunks that each hold an embedding", fr: "d'un élément par manuel, avec un tableau de segments contenant chacun une incorporation" } }
+        - { id: single, text: { en: "one item per manual, with one embedding of the whole text", fr: "d'un élément par manuel, avec une seule incorporation du texte entier" } }
+    - id: ctx
+      options:
+        - { id: text, text: { en: "the text of the retrieved chunks with their manual and page", fr: "le texte des segments récupérés avec leur manuel et leur page" } }
+        - { id: vectors, text: { en: "the embeddings of the retrieved chunks", fr: "les incorporations des segments récupérés" } }
+        - { id: ids, text: { en: "the item IDs of the retrieved chunks", fr: "les ID d'élément des segments récupérés" } }
+    - id: lim
+      options:
+        - { id: top, text: { en: "use TOP N in the vector query", fr: "utiliser TOP N dans la requête vectorielle" } }
+        - { id: page, text: { en: "set max_item_count on the query", fr: "définir max_item_count sur la requête" } }
+        - { id: f16, text: { en: "store the embeddings as float16", fr: "stocker les incorporations en float16" } }
+answer:
+  values: { unit: chunk, ctx: text, lim: top }
+explanation:
+  correct:
+    en: "One item per chunk keeps items small and lets each chunk carry its own embedding, page and filters, so a passage is traceable. The model answers from text, so the prompt receives the chunk text with its source. TOP N caps how many chunks the query returns, which bounds the size of the context."
+    fr: "Un élément par segment garde des éléments petits et permet à chaque segment de porter sa propre incorporation, sa page et ses filtres, ce qui rend un passage traçable. Le modèle répond à partir de texte ; le prompt reçoit donc le texte du segment avec sa source. TOP N limite le nombre de segments renvoyés par la requête, ce qui borne la taille du contexte."
+  options:
+    whole:
+      en: "Vector paths cannot be inside arrays, and a 300-page manual in one item approaches the 2 MB item limit."
+      fr: "Les chemins vectoriels ne peuvent pas se trouver dans des tableaux, et un manuel de 300 pages dans un seul élément approche la limite de 2 Mo par élément."
+    single:
+      en: "One embedding for 300 pages blurs every topic into one vector and cannot point to a page."
+      fr: "Une seule incorporation pour 300 pages fond tous les sujets dans un seul vecteur et ne peut pas désigner une page."
+    vectors:
+      en: "Chat models read text; embeddings are only used to find the chunks."
+      fr: "Les modèles de conversation lisent du texte ; les incorporations servent uniquement à trouver les segments."
+    ids:
+      en: "IDs carry no content for the model to answer from."
+      fr: "Les ID ne contiennent aucun contenu à partir duquel le modèle pourrait répondre."
+    page:
+      en: "max_item_count sets the page size; iterating the results still returns every match."
+      fr: "max_item_count définit la taille de page ; parcourir les résultats renvoie quand même toutes les correspondances."
+    f16:
+      en: "float16 halves vector storage in the database but has no effect on the text sent to the model."
+      fr: "float16 réduit de moitié le stockage des vecteurs dans la base de données mais n'a aucun effet sur le texte envoyé au modèle."
+references:
+  - title: Retrieval Augmented Generation - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/rag
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/vector-search

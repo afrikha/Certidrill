@@ -1,0 +1,84 @@
+id: sc500-1a-consent-revoke-powershell
+objective: "1.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank discovers that a malicious multitenant app has been granted both delegated permissions (by several users) and Microsoft Graph application permissions. You have the object ID of the app's service principal in the variable `$spId`.
+
+    You need to revoke all the permissions granted to the app by using Microsoft Graph PowerShell.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank découvre qu'une application multilocataire malveillante a reçu à la fois des autorisations déléguées (de plusieurs utilisateurs) et des autorisations d'application Microsoft Graph. Vous disposez de l'ID d'objet du principal de service de l'application dans la variable `$spId`.
+
+    Vous devez révoquer toutes les autorisations accordées à l'application avec Microsoft Graph PowerShell.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    Connect-MgGraph -Scopes "Application.ReadWrite.All", "DelegatedPermissionGrant.ReadWrite.All", "AppRoleAssignment.ReadWrite.All"
+
+    # Delegated permissions
+    Get-MgOauth2PermissionGrant -All |
+      Where-Object { $_.[[filter]] -eq $spId } |
+      ForEach-Object { [[del]] -OAuth2PermissionGrantId $_.Id }
+
+    # Application permissions
+    Get-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $spId -All |
+      ForEach-Object { [[app]] -ServicePrincipalId $spId -AppRoleAssignmentId $_.Id }
+  slots:
+    - id: filter
+      options:
+        - { id: client, text: ClientId }
+        - { id: resource, text: ResourceId }
+        - { id: principal, text: PrincipalId }
+    - id: del
+      options:
+        - { id: rmgrant, text: Remove-MgOauth2PermissionGrant }
+        - { id: rmsp, text: Remove-MgServicePrincipal }
+        - { id: revoke, text: Revoke-MgUserSignInSession }
+    - id: app
+      options:
+        - { id: rmassign, text: Remove-MgServicePrincipalAppRoleAssignment }
+        - { id: rmgrant, text: Remove-MgOauth2PermissionGrant }
+        - { id: rmuserassign, text: Remove-MgUserAppRoleAssignment }
+answer:
+  values: { filter: client, del: rmgrant, app: rmassign }
+explanation:
+  correct:
+    en: |
+      Delegated permissions are stored as OAuth2 permission grants whose `ClientId` is the object ID of the client service principal, and each grant is deleted with `Remove-MgOauth2PermissionGrant`. Application permissions are app role assignments granted to the service principal, listed by `Get-MgServicePrincipalAppRoleAssignment` and removed with `Remove-MgServicePrincipalAppRoleAssignment`. User consent grants cannot be revoked in the portal, which is why a script is used.
+    fr: |
+      Les autorisations déléguées sont stockées comme octrois d'autorisations OAuth2 dont le `ClientId` est l'ID d'objet du principal de service client, et chaque octroi est supprimé avec `Remove-MgOauth2PermissionGrant`. Les autorisations d'application sont des attributions de rôles d'application accordées au principal de service, listées par `Get-MgServicePrincipalAppRoleAssignment` et supprimées avec `Remove-MgServicePrincipalAppRoleAssignment`. Les consentements des utilisateurs ne peuvent pas être révoqués dans le portail, d'où le script.
+  options:
+    resource:
+      en: |
+        ResourceId is the API (for example Microsoft Graph) that the permission applies to, not the app that received it.
+      fr: |
+        ResourceId est l'API (par exemple Microsoft Graph) à laquelle s'applique l'autorisation, pas l'application qui l'a reçue.
+    rmsp:
+      en: |
+        Deleting the service principal is a different action and takes no grant ID.
+      fr: |
+        Supprimer le principal de service est une autre action, qui ne prend pas d'ID d'octroi.
+    revoke:
+      en: |
+        Revoking sign-in sessions invalidates a user's refresh tokens; it does not remove permission grants.
+      fr: |
+        Révoquer les sessions de connexion invalide les jetons d'actualisation d'un utilisateur ; cela ne supprime pas les octrois d'autorisations.
+    rmuserassign:
+      en: |
+        This cmdlet removes app role assignments granted to users, not to the service principal.
+      fr: |
+        Cette applet de commande supprime des attributions de rôles d'application accordées à des utilisateurs, pas au principal de service.
+references:
+  - title: Review permissions granted to enterprise applications
+    url: https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/manage-application-permissions

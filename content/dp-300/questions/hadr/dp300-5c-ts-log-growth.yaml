@@ -1,0 +1,44 @@
+id: dp300-5c-ts-log-growth
+objective: "5.3.7"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Always On availability group named **AG1** for a database named **OrdersDb**. **SQLVM1** hosts the primary replica, **SQLVM2** a synchronous-commit secondary replica and **SQLVM3** an asynchronous-commit secondary replica in another region.
+
+    Log backups of OrdersDb run every 15 minutes and succeed, but the transaction log of OrdersDb on SQLVM1 keeps growing. On SQLVM1, sys.databases returns AVAILABILITY_REPLICA in the log_reuse_wait_desc column for OrdersDb. On SQLVM3, sys.dm_hadr_database_replica_states shows is_suspended = 1 and suspend_reason_desc = SUSPEND_FROM_USER.
+
+    You need to allow the log of OrdersDb to be truncated. Which two actions should you perform? Each correct answer presents a complete solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un groupe de disponibilité Always On nommé **AG1** pour une base de données nommée **OrdersDb**. **SQLVM1** héberge le réplica primaire, **SQLVM2** un réplica secondaire avec validation synchrone et **SQLVM3** un réplica secondaire avec validation asynchrone dans une autre région.
+
+    Les sauvegardes du journal de OrdersDb s'exécutent toutes les 15 minutes et réussissent, mais le journal des transactions de OrdersDb sur SQLVM1 ne cesse de grossir. Sur SQLVM1, sys.databases renvoie AVAILABILITY_REPLICA dans la colonne log_reuse_wait_desc pour OrdersDb. Sur SQLVM3, sys.dm_hadr_database_replica_states affiche is_suspended = 1 et suspend_reason_desc = SUSPEND_FROM_USER.
+
+    Vous devez permettre la troncation du journal de OrdersDb. Quelles sont les deux actions à effectuer ? Chaque bonne réponse constitue une solution complète.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "On SQLVM3, run ALTER DATABASE OrdersDb SET HADR RESUME.", fr: "Sur SQLVM3, exécuter ALTER DATABASE OrdersDb SET HADR RESUME." } }
+    - { id: b, text: { en: "On SQLVM1, switch OrdersDb to the SIMPLE recovery model.", fr: "Sur SQLVM1, passer OrdersDb en mode de récupération SIMPLE." } }
+    - { id: c, text: { en: "On SQLVM1, run BACKUP LOG OrdersDb WITH COPY_ONLY to a new file.", fr: "Sur SQLVM1, exécuter BACKUP LOG OrdersDb WITH COPY_ONLY vers un nouveau fichier." } }
+    - { id: d, text: { en: "On SQLVM1, run ALTER AVAILABILITY GROUP AG1 REMOVE REPLICA ON N'SQLVM3'.", fr: "Sur SQLVM1, exécuter ALTER AVAILABILITY GROUP AG1 REMOVE REPLICA ON N'SQLVM3'." } }
+    - { id: e, text: { en: "Change the availability mode of SQLVM3 to synchronous commit.", fr: "Passer le mode de disponibilité de SQLVM3 en validation synchrone." } }
+answer: { optionIds: [ a, d ] }
+explanation:
+  correct:
+    en: The primary can't truncate log records that a secondary hasn't hardened yet, whatever its commit mode, so the suspended database on SQLVM3 holds the log. Resuming data movement on SQLVM3 lets it catch up, after which the next log backup can truncate the log. Removing SQLVM3 from AG1 also releases the log, at the cost of the remote DR copy.
+    fr: Le primaire ne peut pas tronquer les enregistrements de journal qu'un secondaire n'a pas encore renforcés, quel que soit son mode de validation ; la base suspendue sur SQLVM3 retient donc le journal. Reprendre le déplacement des données sur SQLVM3 lui permet de rattraper son retard, puis la sauvegarde du journal suivante peut tronquer le journal. Retirer SQLVM3 de AG1 libère aussi le journal, au prix de la copie distante de reprise d'activité.
+  options:
+    b: { en: "Availability group databases must use the FULL recovery model; SIMPLE isn't allowed.", fr: "Les bases d'un groupe de disponibilité doivent utiliser le mode de récupération FULL ; SIMPLE n'est pas autorisé." }
+    c: { en: "A copy-only log backup never truncates the log, and log backups already succeed.", fr: "Une sauvegarde du journal en copie seule ne tronque jamais le journal, et les sauvegardes du journal réussissent déjà." }
+    e: { en: "Changing the commit mode doesn't resume a suspended database; the log stays held in both modes.", fr: "Changer le mode de validation ne reprend pas une base suspendue ; le journal reste retenu dans les deux modes." }
+references:
+  - title: Troubleshoot a full transaction log (SQL Server Error 9002)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/logs/troubleshoot-a-full-transaction-log-sql-server-error-9002
+  - title: ALTER DATABASE SET HADR (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-database-transact-sql-set-hadr

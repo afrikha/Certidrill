@@ -1,0 +1,50 @@
+id: dp800-3b-ann-switch-steps
+objective: "3.2.5"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Products. The table has 30,000 rows with embeddings in the DescriptionVector column, and searches use VECTOR_DISTANCE. The table has no vector index.
+
+    You import 5 million rows from a partner catalog. The imported rows have no embeddings. You need to switch the search to approximate nearest neighbor (ANN) search. The solution must meet the following requirements:
+
+    - The vector index is built once, on the complete data.
+    - The deployed search query never falls back to an exact kNN scan.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Products. La table compte 30 000 lignes avec des incorporations dans la colonne DescriptionVector, et les recherches utilisent VECTOR_DISTANCE. La table ne possède pas d'index vectoriel.
+
+    Vous importez 5 millions de lignes d'un catalogue partenaire. Les lignes importées n'ont pas d'incorporations. Vous devez faire passer la recherche à une recherche de plus proches voisins approximatifs (ANN). La solution doit satisfaire les exigences suivantes :
+
+    - L'index vectoriel est créé une seule fois, sur les données complètes.
+    - La requête de recherche déployée ne revient jamais à une analyse kNN exacte.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: embed, text: { en: "Generate embeddings for the imported rows with the model used for the existing rows.", fr: "Générer les incorporations des lignes importées avec le modèle utilisé pour les lignes existantes." } }
+    - { id: index, text: { en: "Create a vector index on DescriptionVector with METRIC = 'cosine'.", fr: "Créer un index vectoriel sur DescriptionVector avec METRIC = 'cosine'." } }
+    - { id: query, text: { en: "Deploy a query that uses VECTOR_SEARCH, SELECT TOP (10) WITH APPROXIMATE and the FORCE_ANN_ONLY hint.", fr: "Déployer une requête qui utilise VECTOR_SEARCH, SELECT TOP (10) WITH APPROXIMATE et l'indicateur FORCE_ANN_ONLY." } }
+    - { id: stale, text: { en: "Set the ALLOW_STALE_VECTOR_INDEX database scoped configuration to ON.", fr: "Définir la configuration étendue à la base de données ALLOW_STALE_VECTOR_INDEX sur ON." } }
+    - { id: topn, text: { en: "Deploy a query that passes TOP_N = 10 to VECTOR_SEARCH.", fr: "Déployer une requête qui passe TOP_N = 10 à VECTOR_SEARCH." } }
+    - { id: cci, text: { en: "Create a clustered columnstore index on dbo.Products.", fr: "Créer un index columnstore cluster sur dbo.Products." } }
+answer:
+  sequence: [ embed, index, query ]
+explanation:
+  correct:
+    en: |
+      The index must be built once on the complete data, so every row needs its embedding first, generated with the same model as the existing vectors. You then create the DiskANN vector index. Only then can you deploy the ANN query: FORCE_ANN_ONLY makes the query fail instead of running a kNN scan, so it requires the index to exist.
+    fr: |
+      L'index doit être créé une seule fois sur les données complètes : chaque ligne a d'abord besoin de son incorporation, générée avec le même modèle que les vecteurs existants. Vous créez ensuite l'index vectoriel DiskANN. Vous pouvez alors seulement déployer la requête ANN : FORCE_ANN_ONLY fait échouer la requête au lieu d'exécuter une analyse kNN, ce qui exige que l'index existe.
+  options:
+    stale: { en: "ALLOW_STALE_VECTOR_INDEX concerns earlier index versions that made the table read-only; it is not needed to build an index.", fr: "ALLOW_STALE_VECTOR_INDEX concerne les versions d'index antérieures qui rendaient la table en lecture seule ; il n'est pas nécessaire pour créer un index." }
+    topn: { en: "TOP_N is deprecated and fails with a latest-version index (Msg 42274).", fr: "TOP_N est déconseillé et échoue avec un index de dernière version (Msg 42274)." }
+    cci: { en: "A columnstore index does not support vector columns and does not provide ANN search.", fr: "Un index columnstore ne prend pas en charge les colonnes vectorielles et n'offre pas de recherche ANN." }
+references:
+  - title: CREATE VECTOR INDEX (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-index-transact-sql
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

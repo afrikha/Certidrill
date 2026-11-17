@@ -1,0 +1,84 @@
+id: dp800-1c-json-arrayagg-doc
+objective: "1.3.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a SQL Server 2025 database that contains the tables **Sales.Customer** (CustomerID, Email) and **Sales.Orders** (OrderID, CustomerID, OrderDate).
+
+    You need a query that returns one row per customer that has orders, with a column named Doc that meets the following requirements:
+
+    - Doc contains a JSON object that has the keys customer, email and orderIds.
+    - orderIds is a JSON array of the customer's order IDs, most recent order first.
+    - Doc is returned as the json data type.
+
+    How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données SQL Server 2025 qui contient les tables **Sales.Customer** (CustomerID, Email) et **Sales.Orders** (OrderID, CustomerID, OrderDate).
+
+    Vous avez besoin d'une requête qui renvoie une ligne par client ayant des commandes, avec une colonne nommée Doc qui respecte les exigences suivantes :
+
+    - Doc contient un objet JSON qui a les clés customer, email et orderIds.
+    - orderIds est un tableau JSON des ID de commande du client, la commande la plus récente en premier.
+    - Doc est renvoyé avec le type de données json.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT c.CustomerID,
+           JSON_OBJECT('customer': c.CustomerID,
+                       'email': c.Email,
+                       'orderIds': [[agg]](o.OrderID [[order]])
+                       [[ret]]) AS Doc
+    FROM Sales.Customer AS c
+    JOIN Sales.Orders AS o ON o.CustomerID = c.CustomerID
+    GROUP BY c.CustomerID, c.Email;
+  slots:
+    - id: agg
+      options:
+        - { id: arrayagg, text: "JSON_ARRAYAGG" }
+        - { id: array, text: "JSON_ARRAY" }
+        - { id: objectagg, text: "JSON_OBJECTAGG" }
+        - { id: stringagg, text: "STRING_AGG" }
+    - id: order
+      options:
+        - { id: desc, text: "ORDER BY o.OrderDate DESC" }
+        - { id: asc, text: "ORDER BY o.OrderDate" }
+        - { id: within, text: "WITHIN GROUP (ORDER BY o.OrderDate DESC)" }
+        - { id: over, text: "OVER (ORDER BY o.OrderDate DESC)" }
+    - id: ret
+      options:
+        - { id: json, text: "RETURNING json" }
+        - { id: absent, text: "ABSENT ON NULL" }
+        - { id: nullon, text: "NULL ON NULL" }
+        - { id: forjson, text: "FOR JSON PATH" }
+answer:
+  values: { agg: arrayagg, order: desc, ret: json }
+explanation:
+  correct:
+    en: |
+      JSON_ARRAYAGG is an aggregate that builds a JSON array from the rows of each group, and its optional ORDER BY clause sets the order of the elements. JSON_OBJECT returns nvarchar(max) by default; adding RETURNING json returns the json type.
+    fr: |
+      JSON_ARRAYAGG est un agrégat qui construit un tableau JSON à partir des lignes de chaque groupe, et sa clause ORDER BY facultative définit l'ordre des éléments. JSON_OBJECT renvoie un nvarchar(max) par défaut ; l'ajout de RETURNING json renvoie le type json.
+  options:
+    array: { en: "JSON_ARRAY isn't an aggregate: o.OrderID isn't in GROUP BY, so the statement fails.", fr: "JSON_ARRAY n'est pas un agrégat : o.OrderID ne figure pas dans GROUP BY, l'instruction échoue donc." }
+    objectagg: { en: "JSON_OBJECTAGG builds an object from key:value pairs, not an array.", fr: "JSON_OBJECTAGG construit un objet à partir de paires clé:valeur, pas un tableau." }
+    stringagg: { en: "STRING_AGG returns a delimited string, not a JSON array, and it orders with WITHIN GROUP.", fr: "STRING_AGG renvoie une chaîne délimitée, pas un tableau JSON, et il trie avec WITHIN GROUP." }
+    asc: { en: "Ascending order puts the oldest order first.", fr: "L'ordre croissant place la commande la plus ancienne en premier." }
+    within: { en: "WITHIN GROUP is the syntax of STRING_AGG; JSON_ARRAYAGG takes ORDER BY inside its parentheses.", fr: "WITHIN GROUP est la syntaxe de STRING_AGG ; JSON_ARRAYAGG prend ORDER BY entre ses parenthèses." }
+    over: { en: "An OVER clause isn't valid inside the argument list of the aggregate.", fr: "Une clause OVER n'est pas valide dans la liste d'arguments de l'agrégat." }
+    absent: { en: "ABSENT ON NULL removes keys with NULL values; the result is still nvarchar(max).", fr: "ABSENT ON NULL supprime les clés de valeur NULL ; le résultat reste un nvarchar(max)." }
+    nullon: { en: "NULL ON NULL is already the default of JSON_OBJECT and doesn't change the return type.", fr: "NULL ON NULL est déjà la valeur par défaut de JSON_OBJECT et ne change pas le type renvoyé." }
+    forjson: { en: "FOR JSON is a clause of the SELECT statement, not an option of JSON_OBJECT.", fr: "FOR JSON est une clause de l'instruction SELECT, pas une option de JSON_OBJECT." }
+references:
+  - title: JSON_ARRAYAGG (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/json-arrayagg-transact-sql
+  - title: JSON_OBJECT (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/json-object-transact-sql

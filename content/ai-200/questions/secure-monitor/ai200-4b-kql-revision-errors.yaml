@@ -1,0 +1,74 @@
+id: ai200-4b-kql-revision-errors
+objective: "4.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin Toys splits the traffic of a container app named **rag-api** between two revisions in Azure Container Apps. HTTP logging sends the ingress requests to the `ContainerAppHTTPLogs` table of a Log Analytics workspace.
+
+    You need a time chart that compares, for each revision and each five-minute interval, the number of requests that returned a 5xx status code.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys répartit le trafic d'une application conteneur nommée **rag-api** entre deux révisions dans Azure Container Apps. La journalisation HTTP envoie les requêtes d'entrée dans la table `ContainerAppHTTPLogs` d'un espace de travail Log Analytics.
+
+    Vous avez besoin d'un graphique temporel qui compare, pour chaque révision et chaque intervalle de cinq minutes, le nombre de requêtes ayant renvoyé un code d'état 5xx.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    ContainerAppHTTPLogs
+    | where TimeGenerated > ago(6h) and ContainerAppName == "rag-api"
+    | summarize Errors = [[agg]](StatusCode >= 500)
+        by [[grp]], bin(TimeGenerated, 5m)
+    | render timechart
+  slots:
+    - id: agg
+      options:
+        - { id: countif, text: countif }
+        - { id: count, text: count }
+        - { id: dcount, text: dcount }
+    - id: grp
+      options:
+        - { id: revision, text: RevisionName }
+        - { id: revisions, text: RevisionName_s }
+        - { id: replica, text: ReplicaName }
+answer:
+  values: { agg: countif, grp: revision }
+explanation:
+  correct:
+    en: "`countif()` counts the rows for which the predicate is true, here the responses with a status code of 500 or more. In `ContainerAppHTTPLogs`, the revision is in the `RevisionName` column, without the `_s` suffix used by the console and system log tables."
+    fr: "`countif()` compte les lignes pour lesquelles le prédicat est vrai, ici les réponses dont le code d'état vaut 500 ou plus. Dans `ContainerAppHTTPLogs`, la révision se trouve dans la colonne `RevisionName`, sans le suffixe `_s` des tables de journaux de console et système."
+  options:
+    count:
+      en: |-
+        count() takes no predicate; it counts every row of the group.
+      fr: |-
+        count() n'accepte pas de prédicat ; il compte toutes les lignes du groupe.
+    dcount:
+      en: |-
+        dcount() counts distinct values; applied to a Boolean it returns at most 2.
+      fr: |-
+        dcount() compte des valeurs distinctes ; appliqué à un booléen, il renvoie au plus 2.
+    revisions:
+      en: |-
+        RevisionName_s is the column name of the console and system log tables, not of ContainerAppHTTPLogs.
+      fr: |-
+        RevisionName_s est le nom de colonne des tables de journaux de console et système, pas de ContainerAppHTTPLogs.
+    replica:
+      en: |-
+        ReplicaName groups by replica, and a revision can have several replicas.
+      fr: |-
+        ReplicaName regroupe par réplica, et une révision peut avoir plusieurs réplicas.
+references:
+  - title: Monitor logs in Azure Container Apps with Log Analytics
+    url: https://learn.microsoft.com/en-us/azure/container-apps/log-monitoring
+  - title: countif() (aggregation function)
+    url: https://learn.microsoft.com/en-us/kusto/query/countif-aggregation-function

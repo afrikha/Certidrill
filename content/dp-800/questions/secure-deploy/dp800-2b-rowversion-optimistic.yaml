@@ -1,0 +1,86 @@
+id: dp800-2b-rowversion-optimistic
+objective: "2.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin has a customer management application on Azure SQL Database. Agents open a customer record, edit it for several minutes, and then save it. Two agents sometimes edit the same customer, and the second save silently overwrites the first.
+
+    You need to implement optimistic concurrency. The solution must meet the following requirements:
+
+    - No lock is held while an agent edits the record.
+    - A save must fail if another agent saved the same customer after the record was opened.
+
+    The application reads `RowVer` with the record and passes it back as `@RowVerReadEarlier`.
+
+    How should you complete the Transact-SQL? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin dispose d'une application de gestion des clients sur Azure SQL Database. Les agents ouvrent une fiche client, la modifient pendant plusieurs minutes, puis l'enregistrent. Deux agents modifient parfois le même client, et le second enregistrement écrase le premier sans avertissement.
+
+    Vous devez implémenter un contrôle d'accès concurrentiel optimiste. La solution doit satisfaire les exigences suivantes :
+
+    - Aucun verrou n'est conservé pendant qu'un agent modifie la fiche.
+    - Un enregistrement doit échouer si un autre agent a enregistré le même client après l'ouverture de la fiche.
+
+    L'application lit `RowVer` avec la fiche et la renvoie sous la forme `@RowVerReadEarlier`.
+
+    Comment devez-vous compléter le code Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE dbo.Customer ADD RowVer [[t]] NOT NULL;
+
+    -- Save procedure
+    UPDATE dbo.Customer
+    SET Email = @Email, Phone = @Phone
+    WHERE CustomerID = @CustomerID
+      AND [[w]];
+
+    IF [[c]] = 0
+        THROW 50002, N'The customer was changed by another agent.', 1;
+  slots:
+    - id: t
+      options:
+        - { id: dt2, text: "datetime2" }
+        - { id: guid, text: "uniqueidentifier" }
+        - { id: rv, text: "rowversion" }
+        - { id: int, text: "int" }
+    - id: w
+      options:
+        - { id: gt, text: "RowVer > @RowVerReadEarlier" }
+        - { id: eq, text: "RowVer = @RowVerReadEarlier" }
+        - { id: dbts, text: "RowVer = @@DBTS" }
+        - { id: nn, text: "RowVer IS NOT NULL" }
+    - id: c
+      options:
+        - { id: err, text: "@@ERROR" }
+        - { id: tran, text: "@@TRANCOUNT" }
+        - { id: xs, text: "XACT_STATE()" }
+        - { id: rc, text: "@@ROWCOUNT" }
+answer:
+  values: { t: rv, w: eq, c: rc }
+explanation:
+  correct:
+    en: |
+      A rowversion column gets a new database-wide value automatically every time the row is modified, with no trigger or application code. The UPDATE changes the row only if its version is still the one the agent read; if another agent saved in between, the version differs and the statement affects 0 rows. Testing @@ROWCOUNT immediately after the UPDATE detects the conflict, and no lock is held during the edit.
+    fr: |
+      Une colonne rowversion reçoit automatiquement une nouvelle valeur, unique dans la base, à chaque modification de la ligne, sans déclencheur ni code applicatif. L'instruction UPDATE ne modifie la ligne que si sa version est toujours celle lue par l'agent ; si un autre agent a enregistré entre-temps, la version diffère et l'instruction affecte 0 ligne. Le test de @@ROWCOUNT juste après UPDATE détecte le conflit, et aucun verrou n'est conservé pendant la modification.
+  options:
+    dt2: { en: "A datetime2 column isn't maintained automatically and two saves can share a value.", fr: "Une colonne datetime2 n'est pas mise à jour automatiquement, et deux enregistrements peuvent partager une valeur." }
+    guid: { en: "A uniqueidentifier doesn't change when the row is updated unless code sets it.", fr: "Un uniqueidentifier ne change pas lors de la mise à jour de la ligne, sauf si du code le définit." }
+    int: { en: "An int column needs code in every writer to increment it.", fr: "Une colonne int exige que chaque rédacteur l'incrémente dans son code." }
+    gt: { en: "The row matches only if it was changed after the read, which inverts the test.", fr: "La ligne ne correspond que si elle a été modifiée après la lecture, ce qui inverse le test." }
+    dbts: { en: "@@DBTS is the last rowversion value used in the database, not the value of this row when the agent read it.", fr: "@@DBTS est la dernière valeur rowversion utilisée dans la base, pas la valeur de cette ligne lors de la lecture par l'agent." }
+    nn: { en: "This predicate is always true, so the overwrite still happens.", fr: "Ce prédicat est toujours vrai : l'écrasement se produit toujours." }
+    err: { en: "No error is raised when the UPDATE matches 0 rows.", fr: "Aucune erreur n'est levée lorsque l'instruction UPDATE ne correspond à aucune ligne." }
+    tran: { en: "@@TRANCOUNT counts open transactions, not affected rows.", fr: "@@TRANCOUNT compte les transactions ouvertes, pas les lignes affectées." }
+    xs: { en: "XACT_STATE() reports the state of the current transaction, not affected rows.", fr: "XACT_STATE() indique l'état de la transaction en cours, pas les lignes affectées." }
+references:
+  - title: Transaction locking and row versioning guide
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide

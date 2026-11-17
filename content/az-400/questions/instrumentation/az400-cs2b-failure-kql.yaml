@@ -1,0 +1,67 @@
+id: az400-cs2b-failure-kql
+objective: "5.2.4"
+type: dropdown
+caseStudy: az400-cs2b-relecloud
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to write a query in the Logs page of appi-relecloud to meet the operations team requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire une requête dans la page Journaux d'appi-relecloud pour respecter l'exigence de l'équipe d'exploitation.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where timestamp > ago(1h)
+    | summarize total = count(), failed = [[agg]](success == false) by [[dim]]
+    | extend failureRate = round(100.0 * failed / total, 2)
+    | order by failureRate desc
+  slots:
+    - id: table
+      options:
+        - { id: deps, text: dependencies }
+        - { id: req, text: requests }
+        - { id: exc, text: exceptions }
+        - { id: traces, text: traces }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: countif, text: countif }
+        - { id: count, text: count }
+        - { id: avg, text: avg }
+    - id: dim
+      options:
+        - { id: role, text: cloud_RoleName }
+        - { id: op, text: operation_Id }
+        - { id: name, text: name }
+        - { id: code, text: resultCode }
+answer:
+  values: { table: req, agg: countif, dim: role }
+explanation:
+  correct:
+    en: Incoming calls handled by a service are stored in the requests table, whose success field says whether each request succeeded. countif() counts only the rows for which the predicate is true, so failed / total gives the failure rate. Each service sets its own cloud role name, so grouping by cloud_RoleName returns one row per microservice.
+    fr: |
+      Les appels entrants traités par un service sont stockés dans la table requests, dont le champ success indique si chaque requête a réussi. countif() ne compte que les lignes pour lesquelles le prédicat est vrai : failed / total donne donc le taux d'échec. Chaque service définit son propre nom de rôle cloud : un regroupement par cloud_RoleName renvoie une ligne par microservice.
+  options:
+    deps: { en: "dependencies contains the outgoing calls that a service makes to other components, not its incoming requests.", fr: "dependencies contient les appels sortants qu'un service effectue vers d'autres composants, pas ses requêtes entrantes." }
+    exc: { en: "exceptions has no success field and doesn't contain the successful requests needed for a rate.", fr: "exceptions n'a pas de champ success et ne contient pas les requêtes réussies nécessaires au calcul d'un taux." }
+    traces: { en: "traces contains log messages, not request outcomes.", fr: "traces contient des messages de journal, pas le résultat des requêtes." }
+    dcount: { en: "dcount() counts distinct values of an expression; applied to a Boolean it returns at most 2.", fr: "dcount() compte les valeurs distinctes d'une expression ; appliquée à un booléen, elle renvoie au plus 2." }
+    count: { en: "count() takes no predicate and counts every row of the group.", fr: "count() ne prend pas de prédicat et compte toutes les lignes du groupe." }
+    avg: { en: "avg() of the Boolean comparison isn't a count of failed requests.", fr: "avg() appliquée à la comparaison booléenne ne donne pas un nombre de requêtes en échec." }
+    op: { en: "operation_Id identifies one end-to-end operation, so the query would return one row per operation.", fr: "operation_Id identifie une opération de bout en bout : la requête renverrait une ligne par opération." }
+    name: { en: "name is the request name (code path), which groups by operation instead of by microservice.", fr: "name est le nom de la requête (chemin de code), ce qui regroupe par opération plutôt que par microservice." }
+    code: { en: "Grouping by resultCode returns one row per HTTP status code, not per microservice.", fr: "Un regroupement par resultCode renvoie une ligne par code d'état HTTP, pas par microservice." }
+references:
+  - title: Application Insights telemetry data model
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete

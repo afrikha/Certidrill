@@ -1,0 +1,84 @@
+id: ai300-4a-ds-trace-job-code
+objective: "4.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam runs a Foundry agent named **retail-agent** in production. Traffic is currently split between versions 2 and 3 of the agent. Last month, you created a versioned evaluation dataset named **retail-agent-eval-set** from the agent's traces.
+
+    You need to add the traces of the last seven days to the dataset. The solution must meet the following requirements:
+
+    - Use only the spans produced by version 3 of the agent.
+    - The new dataset version must contain the rows of the latest version plus the new rows, without duplicate trace rows.
+
+    How should you complete the Python code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam exécute en production un agent Foundry nommé **retail-agent**. Le trafic est actuellement réparti entre les versions 2 et 3 de l'agent. Le mois dernier, vous avez créé un jeu de données d'évaluation versionné nommé **retail-agent-eval-set** à partir des traces de l'agent.
+
+    Vous devez ajouter au jeu de données les traces des sept derniers jours. La solution doit répondre aux exigences suivantes :
+
+    - Utiliser uniquement les étendues (spans) produites par la version 3 de l'agent.
+    - La nouvelle version du jeu de données doit contenir les lignes de la dernière version et les nouvelles lignes, sans lignes de trace en double.
+
+    Comment devez-vous compléter le code Python ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    job = EvaluationDataGenerationJobInputs(
+        name="retail-agent-eval-set",
+        sources=[
+            TracesDataGenerationJobSource(
+                description="Production traces of retail-agent.",
+                agent_name="retail-agent",
+                start_time=start_time,
+                end_time=end_time,
+                [[ver]],
+            ),
+        ],
+        generation_configuration=TracesDataGenerationJobConfiguration(
+            max_samples=100,
+            redact_private_content=True,
+        ),
+        output_configuration=EvaluationDataGenerationJobOutputConfiguration(
+            name="retail-agent-eval-set",
+            write_mode=DataGenerationJobOutputWriteMode.[[mode]],
+        ),
+    )
+
+    poller = project_client.datasets.[[call]]
+    result = poller.result()
+  slots:
+    - id: ver
+      options:
+        - { id: av, text: "agent_version=\"3\"" }
+        - { id: tid, text: "trace_ids=[\"3\"]" }
+        - { id: ms, text: "max_samples=3" }
+    - id: mode
+      options:
+        - { id: merge, text: MERGE }
+        - { id: over, text: OVERWRITE }
+    - id: call
+      options:
+        - { id: gen, text: "begin_create_generation_job(job=job)" }
+        - { id: up, text: "upload_file(job=job)" }
+        - { id: get, text: "get(job=job)" }
+answer:
+  values: { ver: av, mode: merge, call: gen }
+explanation:
+  correct:
+    en: "`agent_version` pins the job to one agent version; without it, the job mixes spans from all active versions. `MERGE` combines the new rows with the latest version and deduplicates trace rows, whereas the default `OVERWRITE` creates the next version from the new rows only. `datasets.begin_create_generation_job` submits the job and returns a poller."
+    fr: "`agent_version` limite le travail à une seule version de l'agent ; sans ce paramètre, le travail mélange les étendues de toutes les versions actives. `MERGE` combine les nouvelles lignes avec la dernière version et dédoublonne les lignes de trace, alors que `OVERWRITE` (par défaut) crée la version suivante à partir des seules nouvelles lignes. `datasets.begin_create_generation_job` soumet le travail et renvoie un objet d'interrogation (poller)."
+  options:
+    tid: { en: "trace_ids selects specific traces by trace ID, not an agent version.", fr: "trace_ids sélectionne des traces précises par ID de trace, pas une version d'agent." }
+    ms: { en: "max_samples sets the maximum number of sampled rows (1 to 1,000) and belongs to the generation configuration.", fr: "max_samples définit le nombre maximal de lignes échantillonnées (1 à 1 000) et appartient à la configuration de génération." }
+    over: { en: "OVERWRITE builds the new version from the new rows only, so the previous rows would be missing.", fr: "OVERWRITE crée la nouvelle version à partir des seules nouvelles lignes : les lignes précédentes manqueraient." }
+    up: { en: "upload_file registers a local file as a dataset; it does not run a trace generation job.", fr: "upload_file inscrit un fichier local comme jeu de données ; il n'exécute pas de travail de génération à partir des traces." }
+references:
+  - title: Convert agent traces into evaluation datasets
+    url: https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/traces-to-dataset

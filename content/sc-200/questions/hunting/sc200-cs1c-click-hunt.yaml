@@ -1,0 +1,69 @@
+id: sc200-cs1c-click-hunt
+objective: "3.1.3"
+type: dropdown
+caseStudy: sc200-cs1c-tailwind-traders
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to create an Advanced Hunting query that meets the click analysis requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer une requête de repérage avancé qui respecte l'exigence d'analyse des clics.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let PhishMail = EmailEvents
+        | where Timestamp > ago(7d)
+        | where SenderFromDomain == "giftcards-tailwind.example"
+        | project NetworkMessageId, Subject;
+    PhishMail
+    | join kind=[[kind]] (
+        [[table]]
+        | where ActionType == "ClickAllowed"
+        ) on [[key]]
+    | project Timestamp, AccountUpn, Url, Subject
+  slots:
+    - id: kind
+      options:
+        - { id: inner, text: inner }
+        - { id: leftouter, text: leftouter }
+        - { id: leftanti, text: leftanti }
+        - { id: rightanti, text: rightanti }
+    - id: table
+      options:
+        - { id: click, text: UrlClickEvents }
+        - { id: urlinfo, text: EmailUrlInfo }
+        - { id: postdelivery, text: EmailPostDeliveryEvents }
+        - { id: devnet, text: DeviceNetworkEvents }
+    - id: key
+      options:
+        - { id: nmid, text: NetworkMessageId }
+        - { id: reportid, text: ReportId }
+        - { id: upn, text: AccountUpn }
+answer:
+  values: { kind: inner, table: click, key: nmid }
+explanation:
+  correct:
+    en: "UrlClickEvents records the Safe Links clicks in email, Office and Teams, with an ActionType that shows whether the click was allowed, the AccountUpn of the user and the NetworkMessageId of the email that contained the link. Joining on NetworkMessageId links each click to its message, and an inner join keeps only the messages that have at least one allowed click."
+    fr: "UrlClickEvents enregistre les clics Liens fiables (Safe Links) dans les e-mails, Office et Teams, avec un ActionType qui indique si le clic a été autorisé, l'AccountUpn de l'utilisateur et le NetworkMessageId de l'e-mail qui contenait le lien. La jointure sur NetworkMessageId relie chaque clic à son message, et une jointure inner ne garde que les messages qui ont au moins un clic autorisé."
+  options:
+    leftouter: { en: "leftouter also returns the messages that nobody clicked, with empty click columns.", fr: "leftouter renvoie aussi les messages sur lesquels personne n'a cliqué, avec des colonnes de clic vides." }
+    leftanti: { en: "leftanti returns only the messages that have no matching click, the opposite of the requirement.", fr: "leftanti ne renvoie que les messages sans clic correspondant, l'inverse de l'exigence." }
+    rightanti: { en: "rightanti returns only the clicks that match none of the phishing messages.", fr: "rightanti ne renvoie que les clics qui ne correspondent à aucun des messages d'hameçonnage." }
+    urlinfo: { en: "EmailUrlInfo lists the URLs contained in emails, not the clicks of the users.", fr: "EmailUrlInfo liste les URL contenues dans les e-mails, pas les clics des utilisateurs." }
+    postdelivery: { en: "EmailPostDeliveryEvents records actions taken on messages after delivery, such as ZAP or manual remediation, not clicks.", fr: "EmailPostDeliveryEvents enregistre les actions effectuées sur les messages après leur remise, comme ZAP ou une correction manuelle, pas les clics." }
+    devnet: { en: "DeviceNetworkEvents records network connections of devices; it has no ActionType ClickAllowed and no NetworkMessageId to link a connection to an email.", fr: "DeviceNetworkEvents enregistre les connexions réseau des appareils ; il n'a ni ActionType ClickAllowed ni NetworkMessageId pour relier une connexion à un e-mail." }
+    reportid: { en: "ReportId identifies an event within its own table, so it does not match between EmailEvents and UrlClickEvents.", fr: "ReportId identifie un événement dans sa propre table : il ne correspond pas entre EmailEvents et UrlClickEvents." }
+    upn: { en: "The PhishMail result has no AccountUpn column, so the join cannot use it as a key.", fr: "Le résultat PhishMail n'a pas de colonne AccountUpn : la jointure ne peut pas l'utiliser comme clé." }
+references:
+  - title: UrlClickEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-urlclickevents-table

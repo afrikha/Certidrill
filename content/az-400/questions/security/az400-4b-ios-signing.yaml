@@ -1,0 +1,82 @@
+id: az400-4b-ios-signing
+objective: "4.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum Corporation builds an iOS app with an Azure Pipelines YAML pipeline that runs on a Microsoft-hosted macOS agent. A distribution certificate named **adatum-dist.p12** and a provisioning profile named **adatum-appstore.mobileprovision** are uploaded to **Pipelines** > **Library** > **Secure files**. The password of the certificate is stored in a secret variable named **P12Password**.
+
+    You need to complete the pipeline. The solution must meet the following requirements:
+
+    - The certificate must be installed in a keychain that is always deleted when the run completes, without a keychain password to manage.
+    - The provisioning profile must be read from the secure files and removed from the agent after the build.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum Corporation génère une application iOS avec un pipeline YAML Azure Pipelines qui s'exécute sur un agent macOS hébergé par Microsoft. Un certificat de distribution nommé **adatum-dist.p12** et un profil de provisionnement nommé **adatum-appstore.mobileprovision** sont chargés dans **Pipelines** > **Library** > **Secure files**. Le mot de passe du certificat est stocké dans une variable secrète nommée **P12Password**.
+
+    Vous devez compléter le pipeline. La solution doit répondre aux exigences suivantes :
+
+    - Le certificat doit être installé dans un trousseau qui est toujours supprimé à la fin de l'exécution, sans mot de passe de trousseau à gérer.
+    - Le profil de provisionnement doit être lu dans les fichiers sécurisés et supprimé de l'agent après le build.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    pool:
+      vmImage: macOS-latest
+
+    steps:
+    - task: [[certtask]]
+      inputs:
+        certSecureFile: 'adatum-dist.p12'
+        certPwd: $(P12Password)
+        keychain: [[keychain]]
+    - task: InstallAppleProvisioningProfile@1
+      inputs:
+        provisioningProfileLocation: [[location]]
+        provProfileSecureFile: 'adatum-appstore.mobileprovision'
+        removeProfile: true
+    - script: xcodebuild -workspace Adatum.xcworkspace -scheme Adatum archive
+      displayName: Build and archive
+  slots:
+    - id: certtask
+      options:
+        - { id: install, text: InstallAppleCertificate@2 }
+        - { id: download, text: DownloadSecureFile@1 }
+        - { id: ssh, text: InstallSSHKey@0 }
+    - id: keychain
+      options:
+        - { id: default, text: "'default'" }
+        - { id: temp, text: "'temp'" }
+        - { id: custom, text: "'custom'" }
+    - id: location
+      options:
+        - { id: repo, text: "'sourceRepository'" }
+        - { id: secure, text: "'secureFiles'" }
+answer:
+  values: { certtask: install, keychain: temp, location: secure }
+explanation:
+  correct:
+    en: |
+      InstallAppleCertificate@2 takes the P12 file from the secure files through `certSecureFile`. Its `temp` keychain, the default, is always deleted when the build or release completes and generates its own password when none is given, which suits Microsoft-hosted agents. InstallAppleProvisioningProfile@1 reads the profile from the secure files when `provisioningProfileLocation` is `secureFiles`, and `removeProfile` deletes it after the build. Both tasks download the secure file themselves, so no DownloadSecureFile@1 step is needed.
+    fr: |
+      InstallAppleCertificate@2 prend le fichier P12 dans les fichiers sécurisés via `certSecureFile`. Son trousseau `temp`, la valeur par défaut, est toujours supprimé à la fin du build ou de la mise en production et génère son propre mot de passe si aucun n'est fourni, ce qui convient aux agents hébergés par Microsoft. InstallAppleProvisioningProfile@1 lit le profil dans les fichiers sécurisés quand `provisioningProfileLocation` vaut `secureFiles`, et `removeProfile` le supprime après le build. Les deux tâches téléchargent elles-mêmes le fichier sécurisé : aucune étape DownloadSecureFile@1 n'est nécessaire.
+  options:
+    download: { en: "DownloadSecureFile@1 only copies a file to the agent; it has no certSecureFile or keychain input and installs nothing.", fr: "DownloadSecureFile@1 copie seulement un fichier sur l'agent ; elle n'a pas d'entrée certSecureFile ni keychain et n'installe rien." }
+    ssh: { en: "InstallSSHKey@0 installs an SSH private key, not an Apple signing certificate.", fr: "InstallSSHKey@0 installe une clé privée SSH, pas un certificat de signature Apple." }
+    default: { en: "The default keychain requires a keychain password and isn't deleted automatically.", fr: "Le trousseau par défaut exige un mot de passe de trousseau et n'est pas supprimé automatiquement." }
+    custom: { en: "A custom keychain requires a path and a password to manage.", fr: "Un trousseau personnalisé exige un chemin et un mot de passe à gérer." }
+    repo: { en: "sourceRepository reads the profile from the repository or the agent, not from the secure files.", fr: "sourceRepository lit le profil dans le dépôt ou sur l'agent, pas dans les fichiers sécurisés." }
+references:
+  - title: InstallAppleCertificate@2 - Install Apple certificate v2 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/install-apple-certificate-v2
+  - title: InstallAppleProvisioningProfile@1 - Install Apple provisioning profile v1 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/install-apple-provisioning-profile-v1

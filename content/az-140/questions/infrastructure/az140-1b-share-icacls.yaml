@@ -1,0 +1,80 @@
+id: az140-1b-share-icacls
+objective: "1.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You mounted an Azure file share named **profiles** as drive Z: on a domain-joined session host by using the storage account key. The share will store FSLogix profile containers.
+
+    You need to set the NTFS permissions on the root of the share to meet the following requirements:
+
+    - Inherited permissions must be removed.
+    - Members of CONTOSO\AVD-Users must be able to create their own profile folder but must not be able to open the folders of other users.
+    - Each user must have Modify rights on the folder and files they create.
+    - Members of CONTOSO\AVD-Admins must have full control.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous avez monté un partage de fichiers Azure nommé **profiles** en tant que lecteur Z: sur un hôte de session joint au domaine à l'aide de la clé du compte de stockage. Le partage stockera les conteneurs de profils FSLogix.
+
+    Vous devez définir les autorisations NTFS à la racine du partage pour répondre aux exigences suivantes :
+
+    - Les autorisations héritées doivent être supprimées.
+    - Les membres de CONTOSO\AVD-Users doivent pouvoir créer leur propre dossier de profil, mais ne doivent pas pouvoir ouvrir les dossiers des autres utilisateurs.
+    - Chaque utilisateur doit disposer du droit Modification sur le dossier et les fichiers qu'il crée.
+    - Les membres de CONTOSO\AVD-Admins doivent disposer du contrôle total.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    icacls Z: [[inh]]
+    icacls Z: /grant:r "CREATOR OWNER:[[co]]"
+    icacls Z: /grant:r "CONTOSO\AVD-Admins:(OI)(CI)(F)"
+    icacls Z: /grant:r "CONTOSO\AVD-Users:[[users]]"
+  slots:
+    - id: inh
+      options:
+        - { id: r, text: "/inheritance:r" }
+        - { id: e, text: "/inheritance:e" }
+        - { id: d, text: "/inheritance:d" }
+        - { id: reset, text: "/reset" }
+    - id: co
+      options:
+        - { id: io, text: "(OI)(CI)(IO)(M)" }
+        - { id: oici, text: "(OI)(CI)(M)" }
+        - { id: iof, text: "(OI)(CI)(IO)(F)" }
+        - { id: cm, text: "(M)" }
+    - id: users
+      options:
+        - { id: um, text: "(M)" }
+        - { id: uoici, text: "(OI)(CI)(M)" }
+        - { id: uio, text: "(OI)(CI)(IO)(M)" }
+        - { id: urx, text: "(OI)(CI)(RX)" }
+answer:
+  values: { inh: r, co: io, users: um }
+explanation:
+  correct:
+    en: |
+      `/inheritance:r` removes all inherited entries, leaving only the explicit ones you grant. CREATOR OWNER with `(OI)(CI)(IO)(M)` applies Modify to subfolders and files only, so each user gets Modify on the profile folder they create. The users' group gets `(M)` on this folder only: they can create a folder at the root but inherit no rights on folders created by others.
+    fr: |
+      `/inheritance:r` supprime toutes les entrées héritées et ne conserve que les entrées explicites accordées. CREATOR OWNER avec `(OI)(CI)(IO)(M)` applique Modification aux sous-dossiers et fichiers seulement : chaque utilisateur obtient Modification sur le dossier de profil qu'il crée. Le groupe des utilisateurs obtient `(M)` sur ce dossier seulement : ses membres peuvent créer un dossier à la racine, sans hériter de droits sur les dossiers créés par les autres.
+  options:
+    e: { en: "/inheritance:e enables inheritance, the opposite of the requirement.", fr: "/inheritance:e active l'héritage, l'inverse de l'exigence." }
+    d: { en: "/inheritance:d disables inheritance but copies the inherited entries as explicit ones, so they aren't removed.", fr: "/inheritance:d désactive l'héritage mais copie les entrées héritées en entrées explicites : elles ne sont pas supprimées." }
+    reset: { en: "/reset replaces the ACLs with the inherited ones, the opposite of the requirement.", fr: "/reset remplace les listes ACL par les entrées héritées, l'inverse de l'exigence." }
+    oici: { en: "Without (IO), the CREATOR OWNER entry also applies to the root itself instead of only to the folders and files users create.", fr: "Sans (IO), l'entrée CREATOR OWNER s'applique aussi à la racine elle-même au lieu des seuls dossiers et fichiers créés par les utilisateurs." }
+    cm: { en: "Without (OI)(CI)(IO), CREATOR OWNER gets nothing on the folders users create.", fr: "Sans (OI)(CI)(IO), CREATOR OWNER n'obtient rien sur les dossiers créés par les utilisateurs." }
+    uoici: { en: "(OI)(CI) would propagate Modify for the whole group to every user's folder.", fr: "(OI)(CI) propagerait Modification pour tout le groupe à chaque dossier utilisateur." }
+    uio: { en: "Inherit-only rights on subfolders would let every member modify the folders of other users and wouldn't apply to the root, where users create their folder.", fr: "Des droits en héritage seul sur les sous-dossiers permettraient à chaque membre de modifier les dossiers des autres et ne s'appliqueraient pas à la racine, où les utilisateurs créent leur dossier." }
+    iof: { en: "Full control on created folders is more than the Modify right required.", fr: "Le contrôle total sur les dossiers créés dépasse le droit Modification demandé." }
+    urx: { en: "Read and execute on all subfolders would let users browse the folders of other users and wouldn't let them create their own folder.", fr: "Lecture et exécution sur tous les sous-dossiers permettrait aux utilisateurs de parcourir les dossiers des autres et ne leur permettrait pas de créer leur propre dossier." }
+references:
+  - title: Configure SMB Storage Permissions
+    url: https://learn.microsoft.com/en-us/fslogix/how-to-configure-storage-permissions

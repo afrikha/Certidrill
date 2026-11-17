@@ -1,0 +1,68 @@
+id: az120-2b-pe-cli
+objective: "2.2.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware hosts the SAP transport directory on an NFS Azure file share in the storage account **stsaptrans01**. You need to create a private endpoint for the share in the subnet **snet-pe** of **vnet-sap**, with the Azure private DNS zone that Microsoft recommends for this service. The VMs of vnet-sap already register their host names in another private DNS zone.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware héberge le répertoire de transport SAP sur un partage de fichiers Azure NFS du compte de stockage **stsaptrans01**. Vous devez créer un point de terminaison privé pour le partage dans le sous-réseau **snet-pe** de **vnet-sap**, avec la zone DNS privée Azure que Microsoft recommande pour ce service. Les machines virtuelles de vnet-sap inscrivent déjà leurs noms d'hôte dans une autre zone DNS privée.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    ZONE=[[zone]]
+
+    az network private-endpoint create --resource-group rg-sap \
+      --name pe-stsaptrans01 --vnet-name vnet-sap --subnet snet-pe \
+      --private-connection-resource-id $STORAGE_ID \
+      --group-id [[grp]] --connection-name pec-stsaptrans01
+
+    az network private-dns zone create --resource-group rg-sap --name $ZONE
+
+    az network private-dns link vnet create --resource-group rg-sap \
+      --zone-name $ZONE --name link-vnet-sap --virtual-network vnet-sap \
+      --registration-enabled [[reg]]
+  slots:
+    - id: zone
+      options:
+        - { id: pfile, text: privatelink.file.core.windows.net }
+        - { id: pblob, text: privatelink.blob.core.windows.net }
+        - { id: file, text: file.core.windows.net }
+        - { id: pdfs, text: privatelink.dfs.core.windows.net }
+    - id: grp
+      options:
+        - { id: file, text: file }
+        - { id: blob, text: blob }
+        - { id: dfs, text: dfs }
+        - { id: table, text: table }
+    - id: reg
+      options:
+        - { id: "no", text: "false" }
+        - { id: "yes", text: "true" }
+answer:
+  values: { zone: pfile, grp: file, reg: "no" }
+explanation:
+  correct:
+    en: "Azure Files is the file target sub-resource of the storage account, and its recommended private DNS zone is privatelink.file.core.windows.net. The virtual network link only needs resolution; a virtual network can have only one registration zone, and vnet-sap already registers its VMs in another zone, so autoregistration stays disabled."
+    fr: "Azure Files correspond à la sous-ressource cible file du compte de stockage, et sa zone DNS privée recommandée est privatelink.file.core.windows.net. Le lien de réseau virtuel n'a besoin que de la résolution ; un réseau virtuel ne peut avoir qu'une seule zone d'inscription, et vnet-sap inscrit déjà ses machines virtuelles dans une autre zone : l'inscription automatique reste désactivée."
+  options:
+    pblob: { en: "This zone is for the blob sub-resource.", fr: "Cette zone concerne la sous-ressource blob." }
+    file: { en: "This is the public zone; the private endpoint records live in the privatelink subdomain.", fr: "C'est la zone publique ; les enregistrements du point de terminaison privé se trouvent dans le sous-domaine privatelink." }
+    pdfs: { en: "This zone is for Data Lake Storage (dfs).", fr: "Cette zone concerne Data Lake Storage (dfs)." }
+    blob: { en: "Each storage service needs its own private endpoint; blob doesn't cover file shares.", fr: "Chaque service de stockage a besoin de son propre point de terminaison privé ; blob ne couvre pas les partages de fichiers." }
+    "yes": { en: "Only one registration zone per virtual network is allowed, and it's already used for the VM host names.", fr: "Une seule zone d'inscription par réseau virtuel est autorisée, et elle est déjà utilisée pour les noms d'hôte des machines virtuelles." }
+references:
+  - title: Use private endpoints for Azure Storage
+    url: https://learn.microsoft.com/en-us/azure/storage/common/storage-private-endpoints
+  - title: What is a virtual network link subresource of Azure DNS private zones
+    url: https://learn.microsoft.com/en-us/azure/dns/private-dns-virtual-network-links

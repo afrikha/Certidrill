@@ -1,0 +1,91 @@
+id: sc200-cs4a-munsons
+status: draft
+title:
+  en: Munson's Pickles and Preserves Farm
+  fr: Munson's Pickles and Preserves Farm
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Munson's Pickles and Preserves Farm is a food manufacturer with 2,300 employees. It runs three production plants and a head office. A security operations center (SOC) of six analysts monitors the corporate network and the plant networks.
+
+        Food safety regulators require Munson's to keep network security logs for three years.
+      fr: |
+        Munson's Pickles and Preserves Farm est un fabricant agroalimentaire qui compte 2 300 employés. Il exploite trois usines de production et un siège. Un centre des opérations de sécurité (SOC) de six analystes surveille le réseau de l'entreprise et les réseaux des usines.
+
+        Les autorités de sécurité alimentaire imposent à Munson's de conserver les journaux de sécurité réseau pendant trois ans.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Microsoft Defender XDR.** All users have Microsoft 365 E5 licenses. Microsoft Defender for Endpoint Plan 2 protects 1,900 Windows 11 workstations and 140 servers that run Windows Server 2022. The device group **DG-PlantOps** contains the onboarded workstations and servers of the plants.
+
+        The advanced features of Defender for Endpoint are configured as follows.
+
+        | Advanced feature | Setting |
+        | --- | --- |
+        | Live response | On |
+        | Live response for servers | Off |
+        | Live response unsigned script execution | Off |
+        | Custom network indicators | Off |
+        | Device discovery | On (standard discovery) |
+
+        The SOC analysts have a Defender for Endpoint role that includes the advanced live response commands. An analyst uploaded an unsigned PowerShell script named **Get-MesArtifacts.ps1** to the live response library.
+
+        **Plant networks.** The plant networks contain:
+
+        - 40 servers that run Windows Server 2016 in an isolated segment that has no internet access. They are not onboarded to Defender for Endpoint. They forward the events of their Security log by using Windows Event Forwarding (WEF) to a Windows Event Collector server named **SRV-WEC1** that runs Windows Server 2022 in the head office. SRV-WEC1 can reach Azure through a proxy and is not Azure Arc-enabled yet.
+        - Line control panels named **HMI-L1** to **HMI-L9** that run an embedded operating system. They cannot be onboarded to Defender for Endpoint and appear in the device inventory as unmanaged devices.
+        - A server named **SRV-MES1** that runs Windows Server 2022, hosts the manufacturing execution system (MES), and is onboarded to Defender for Endpoint.
+
+        **Microsoft Sentinel.** A Log Analytics workspace named **law-munsons-soc** with Microsoft Sentinel, onboarded to the Microsoft Defender portal and to the Microsoft Sentinel data lake. The plant firewalls already send Common Event Format (CEF) messages to the **CommonSecurityLog** table, which uses the default retention settings.
+
+        **Azure.** An Azure subscription named **Sub-Plant** contains 14 key vaults. You have the Owner role for Sub-Plant.
+      fr: |
+        **Microsoft Defender XDR.** Tous les utilisateurs disposent de licences Microsoft 365 E5. Microsoft Defender pour point de terminaison Plan 2 protège 1 900 stations de travail Windows 11 et 140 serveurs qui exécutent Windows Server 2022. Le groupe d'appareils **DG-PlantOps** contient les stations de travail et les serveurs intégrés des usines.
+
+        Les fonctionnalités avancées de Defender pour point de terminaison sont configurées comme suit.
+
+        | Fonctionnalité avancée | Paramètre |
+        | --- | --- |
+        | Live response | On |
+        | Live response for servers | Off |
+        | Live response unsigned script execution | Off |
+        | Custom network indicators | Off |
+        | Device discovery | On (découverte standard) |
+
+        Les analystes du SOC disposent d'un rôle Defender pour point de terminaison qui inclut les commandes avancées de réponse dynamique. Un analyste a chargé un script PowerShell non signé nommé **Get-MesArtifacts.ps1** dans la bibliothèque de réponse dynamique.
+
+        **Réseaux des usines.** Les réseaux des usines contiennent :
+
+        - 40 serveurs qui exécutent Windows Server 2016 dans un segment isolé sans accès à Internet. Ils ne sont pas intégrés à Defender pour point de terminaison. Ils transfèrent les événements de leur journal Security avec le transfert d'événements Windows (WEF) vers un serveur collecteur d'événements Windows nommé **SRV-WEC1** qui exécute Windows Server 2022 au siège. SRV-WEC1 peut joindre Azure par un proxy et n'est pas encore activé pour Azure Arc.
+        - Des panneaux de commande de ligne nommés **HMI-L1** à **HMI-L9** qui exécutent un système d'exploitation embarqué. Ils ne peuvent pas être intégrés à Defender pour point de terminaison et apparaissent dans l'inventaire des appareils comme appareils non gérés.
+        - Un serveur nommé **SRV-MES1** qui exécute Windows Server 2022, héberge le système d'exécution de la production (MES) et est intégré à Defender pour point de terminaison.
+
+        **Microsoft Sentinel.** Un espace de travail Log Analytics nommé **law-munsons-soc** avec Microsoft Sentinel, intégré au portail Microsoft Defender et au data lake Microsoft Sentinel. Les pare-feu des usines envoient déjà des messages Common Event Format (CEF) dans la table **CommonSecurityLog**, qui utilise les paramètres de rétention par défaut.
+
+        **Azure.** Un abonnement Azure nommé **Sub-Plant** contient 14 coffres de clés. Vous disposez du rôle Owner sur Sub-Plant.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Munson's identifies the following requirements:
+
+        1. **Plant server events.** The Security log events of the 40 plant servers must be ingested into law-munsons-soc. No software can be installed on the plant servers. New detections for these servers will use Advanced Security Information Model (ASIM) parsers.
+        2. **Key vault logs.** The diagnostic logs of all the existing and future key vaults in Sub-Plant must be sent to law-munsons-soc.
+        3. **MES forensics.** During an investigation, the analysts must be able to run Get-MesArtifacts.ps1 on SRV-MES1 from a live response session.
+        4. **Firewall log retention.** The firewall events must be available to analytics rules and hunting queries for 90 days and must be kept for three years. Storage costs must be minimized.
+        5. **Line control panels.** When a line control panel is suspected to be compromised, the onboarded devices must stop all inbound and outbound communication with it. Nothing can be installed or changed on the panel.
+        6. **Scheduled task hunting.** The analysts must find the scheduled tasks created during the last seven days on devices that are currently members of DG-PlantOps, by using Advanced Hunting.
+        7. Administrative effort must be minimized.
+      fr: |
+        Munson's a défini les exigences suivantes :
+
+        1. **Événements des serveurs des usines.** Les événements du journal Security des 40 serveurs des usines doivent être ingérés dans law-munsons-soc. Aucun logiciel ne peut être installé sur les serveurs des usines. Les nouvelles détections pour ces serveurs utiliseront des analyseurs ASIM (Advanced Security Information Model).
+        2. **Journaux des coffres de clés.** Les journaux de diagnostic de tous les coffres de clés existants et futurs de Sub-Plant doivent être envoyés à law-munsons-soc.
+        3. **Investigation du MES.** Pendant une enquête, les analystes doivent pouvoir exécuter Get-MesArtifacts.ps1 sur SRV-MES1 depuis une session de réponse dynamique.
+        4. **Rétention des journaux des pare-feu.** Les événements des pare-feu doivent être disponibles pour les règles d'analytique et les requêtes de chasse pendant 90 jours et doivent être conservés pendant trois ans. Les coûts de stockage doivent être réduits au minimum.
+        5. **Panneaux de commande de ligne.** Quand un panneau de commande de ligne est suspecté d'être compromis, les appareils intégrés doivent cesser toute communication entrante et sortante avec lui. Rien ne peut être installé ni modifié sur le panneau.
+        6. **Chasse aux tâches planifiées.** Les analystes doivent trouver les tâches planifiées créées au cours des sept derniers jours sur les appareils actuellement membres de DG-PlantOps, à l'aide du repérage avancé.
+        7. L'effort d'administration doit être réduit au minimum.

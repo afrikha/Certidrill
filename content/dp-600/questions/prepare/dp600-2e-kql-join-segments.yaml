@@ -1,0 +1,77 @@
+id: dp600-2e-kql-join-segments
+objective: "2.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a KQL database named **CommerceRT** in a Fabric eventhouse. CommerceRT contains the following tables:
+
+    - **Orders**: one row per order, with the columns **OrderId**, **CustomerId**, **Amount** and **OrderDate**. Most customers place several orders.
+    - **Customers**: one row per customer, with the columns **Id**, **Name** and **Segment**. Some recent customers aren't in the table yet.
+
+    You need a query that returns the number of orders of the last seven days per customer segment. Every order must be counted, including the orders of customers that aren't in Customers.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données KQL nommée **CommerceRT** dans un eventhouse Fabric. CommerceRT contient les tables suivantes :
+
+    - **Orders** : une ligne par commande, avec les colonnes **OrderId**, **CustomerId**, **Amount** et **OrderDate**. La plupart des clients passent plusieurs commandes.
+    - **Customers** : une ligne par client, avec les colonnes **Id**, **Name** et **Segment**. Certains clients récents ne figurent pas encore dans la table.
+
+    Vous avez besoin d'une requête qui renvoie le nombre de commandes des sept derniers jours par segment de clientèle. Chaque commande doit être comptée, y compris les commandes des clients absents de Customers.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    Orders
+    | where OrderDate > ago(7d)
+    | join kind=[[kind]] (Customers | project Id, Segment) on [[cond]]
+    | summarize Orders = count() by Segment
+  slots:
+    - id: kind
+      options:
+        - { id: innerunique, text: innerunique }
+        - { id: inner, text: inner }
+        - { id: leftouter, text: leftouter }
+        - { id: leftanti, text: leftanti }
+    - id: cond
+      options:
+        - { id: same, text: CustomerId }
+        - { id: leftright, text: "$left.CustomerId == $right.Id" }
+        - { id: reversed, text: "$left.Id == $right.CustomerId" }
+        - { id: id, text: Id }
+answer:
+  values: { kind: leftouter, cond: leftright }
+explanation:
+  correct:
+    en: "A `leftouter` join returns every row of the left table (Orders) and the matching rows of the right table, so orders without a matching customer are kept with an empty Segment. Because the key columns have different names, the condition must use `$left.CustomerId == $right.Id`."
+    fr: "Une jointure `leftouter` renvoie toutes les lignes de la table de gauche (Orders) et les lignes correspondantes de la table de droite : les commandes sans client correspondant sont conservées avec un Segment vide. Comme les colonnes clés ont des noms différents, la condition doit utiliser `$left.CustomerId == $right.Id`."
+  options:
+    innerunique:
+      en: "`innerunique`, the default kind, deduplicates the left side: only one order per customer would be kept, and orders without a matching customer would be dropped."
+      fr: "`innerunique`, le type par défaut, dédoublonne le côté gauche : une seule commande par client serait conservée, et les commandes sans client correspondant seraient supprimées."
+    inner:
+      en: "`inner` keeps every matching order but drops the orders of customers that aren't in Customers."
+      fr: "`inner` conserve chaque commande correspondante, mais supprime les commandes des clients absents de Customers."
+    leftanti:
+      en: "`leftanti` returns only the orders that have no matching customer."
+      fr: "`leftanti` ne renvoie que les commandes sans client correspondant."
+    same:
+      en: "`on CustomerId` requires a column with that name on both sides, but the right side has Id."
+      fr: "`on CustomerId` exige une colonne de ce nom des deux côtés, alors que le côté droit possède Id."
+    reversed:
+      en: "Orders has no Id column and the projected Customers table has no CustomerId column."
+      fr: "Orders n'a pas de colonne Id et la table Customers projetée n'a pas de colonne CustomerId."
+    id:
+      en: "`on Id` requires an Id column in Orders, which doesn't exist."
+      fr: "`on Id` exige une colonne Id dans Orders, qui n'existe pas."
+references:
+  - title: join operator
+    url: https://learn.microsoft.com/en-us/kusto/query/join-operator

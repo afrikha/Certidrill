@@ -1,0 +1,78 @@
+id: az700-3b-probe-cli-appservice
+objective: "3.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An Application Gateway Standard_v2 named **agw-web** has a backend pool that contains two App Service apps addressed by their default `azurewebsites.net` host names. The backend settings named **bs-app** use HTTPS and have **Pick host name from backend target** enabled.
+
+    The apps expose a health page at `/health/ready`. The page always returns HTTP 200, and its body contains the word `Ready` only when the app can reach its database.
+
+    You need to create a probe that meets the following requirements:
+
+    - The probe requests the health page by using the host name configured in bs-app.
+    - A server is healthy only when the response body contains `Ready`.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un Application Gateway Standard_v2 nommé **agw-web** possède un pool principal qui contient deux applications App Service adressées par leur nom d'hôte `azurewebsites.net` par défaut. Les paramètres de back-end nommés **bs-app** utilisent HTTPS et l'option **Choisir le nom d'hôte de la cible de back-end** (Pick host name from backend target) y est activée.
+
+    Les applications exposent une page d'intégrité à l'adresse `/health/ready`. La page renvoie toujours HTTP 200, et son corps contient le mot `Ready` uniquement quand l'application peut joindre sa base de données.
+
+    Vous devez créer une sonde qui répond aux exigences suivantes :
+
+    - La sonde demande la page d'intégrité avec le nom d'hôte configuré dans bs-app.
+    - Un serveur n'est sain que si le corps de la réponse contient `Ready`.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network application-gateway probe create --resource-group RG-Web \
+      --gateway-name agw-web --name probe-app --protocol Https \
+      --path [[path]] [[host]] \
+      --interval 15 --threshold 3 [[match]]
+  slots:
+    - id: path
+      options:
+        - { id: rel, text: /health/ready }
+        - { id: norel, text: health/ready }
+        - { id: url, text: "https://agw-web/health/ready" }
+    - id: host
+      options:
+        - { id: fromsettings, text: "--host-name-from-http-settings true" }
+        - { id: loopback, text: "--host 127.0.0.1" }
+        - { id: proxy, text: "--enable-proxy-header true" }
+        - { id: minsrv, text: "--min-servers 1" }
+    - id: match
+      options:
+        - { id: body, text: "--match-body Ready" }
+        - { id: codes, text: "--match-status-codes 200-399" }
+        - { id: port, text: "--port 443" }
+        - { id: timeout, text: "--timeout 30" }
+answer:
+  values: { path: rel, host: fromsettings, match: body }
+explanation:
+  correct:
+    en: The probe path is a relative path that must start with `/`. `--host-name-from-http-settings true` makes the probe use the host header of the associated backend settings, which here is the FQDN of each App Service. `--match-body` marks a server healthy only when the response body contains the given string, which is the only way to tell the two states apart because the page always returns 200.
+    fr: "Le chemin de la sonde est un chemin relatif qui doit commencer par `/`. `--host-name-from-http-settings true` fait utiliser à la sonde l'en-tête d'hôte des paramètres de back-end associés, ici le FQDN de chaque application App Service. `--match-body` ne marque un serveur comme sain que si le corps de la réponse contient la chaîne indiquée : c'est le seul moyen de distinguer les deux états, puisque la page renvoie toujours 200."
+  options:
+    norel: { en: "A probe path must start with /.", fr: "Le chemin d'une sonde doit commencer par /." }
+    url: { en: "The path is relative; the protocol, host and port come from other settings.", fr: "Le chemin est relatif ; le protocole, l'hôte et le port proviennent d'autres paramètres." }
+    loopback: { en: "App Service does not answer for 127.0.0.1, so the probe would fail.", fr: "App Service ne répond pas pour 127.0.0.1 : la sonde échouerait." }
+    proxy: { en: "The Proxy Protocol header is for TCP or TLS probes; it does not set the host name.", fr: "L'en-tête Proxy Protocol concerne les sondes TCP ou TLS ; il ne définit pas le nom d'hôte." }
+    minsrv: { en: "MinServers keeps servers marked healthy; it does not choose the host name.", fr: "MinServers maintient des serveurs marqués comme sains ; il ne choisit pas le nom d'hôte." }
+    codes: { en: "The page always returns 200, so a status code match cannot detect the database failure.", fr: "La page renvoie toujours 200 : une correspondance sur le code d'état ne peut pas détecter la panne de base de données." }
+    port: { en: "The port only changes the destination port; it does not check the body.", fr: "Le port ne modifie que le port de destination ; il ne vérifie pas le corps." }
+    timeout: { en: "The timeout decides how long to wait, not what a healthy response contains.", fr: "Le délai d'expiration détermine la durée d'attente, pas le contenu d'une réponse saine." }
+references:
+  - title: az network application-gateway probe
+    url: https://learn.microsoft.com/en-us/cli/azure/network/application-gateway/probe?view=azure-cli-latest
+  - title: Application Gateway health probes overview
+    url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-probe-overview

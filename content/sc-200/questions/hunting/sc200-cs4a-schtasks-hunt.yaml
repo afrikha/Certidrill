@@ -1,0 +1,68 @@
+id: sc200-cs4a-schtasks-hunt
+objective: "3.1.3"
+type: dropdown
+caseStudy: sc200-cs4a-munsons
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to create an Advanced Hunting query that meets the scheduled task hunting requirement. Some devices were recently moved between device groups.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer une requête de repérage avancé qui respecte l'exigence relative à la chasse aux tâches planifiées. Certains appareils ont récemment changé de groupe d'appareils.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let PlantDevices = [[table]]
+        | summarize [[agg]] by DeviceId
+        | where MachineGroup == "DG-PlantOps"
+        | project DeviceId;
+    DeviceProcessEvents
+    | where Timestamp > ago(7d)
+    | where FileName =~ "schtasks.exe" and ProcessCommandLine has "create"
+    | join kind=[[kind]] PlantDevices on DeviceId
+    | project Timestamp, DeviceName, AccountName, ProcessCommandLine
+  slots:
+    - id: table
+      options:
+        - { id: info, text: DeviceInfo }
+        - { id: netinfo, text: DeviceNetworkInfo }
+        - { id: events, text: DeviceEvents }
+        - { id: tvm, text: DeviceTvmSoftwareInventory }
+    - id: agg
+      options:
+        - { id: argmax, text: "arg_max(Timestamp, *)" }
+        - { id: max, text: "max(Timestamp)" }
+        - { id: any, text: "take_any(*)" }
+        - { id: argmin, text: "arg_min(Timestamp, *)" }
+    - id: kind
+      options:
+        - { id: inner, text: inner }
+        - { id: leftanti, text: leftanti }
+        - { id: rightanti, text: rightanti }
+        - { id: fullouter, text: fullouter }
+answer:
+  values: { table: info, agg: argmax, kind: inner }
+explanation:
+  correct:
+    en: |
+      DeviceInfo contains the MachineGroup column, with one record per device each time its information is reported. `summarize arg_max(Timestamp, *) by DeviceId` keeps the most recent record of each device with all its columns, so the filter on MachineGroup that follows uses the current device group. An inner join then keeps only the schtasks.exe events whose DeviceId matches a current DG-PlantOps device.
+    fr: |
+      DeviceInfo contient la colonne MachineGroup, avec un enregistrement par appareil à chaque remontée de ses informations. `summarize arg_max(Timestamp, *) by DeviceId` conserve l'enregistrement le plus récent de chaque appareil avec toutes ses colonnes : le filtre sur MachineGroup qui suit utilise donc le groupe d'appareils actuel. Une jointure inner ne conserve ensuite que les événements schtasks.exe dont le DeviceId correspond à un appareil actuel de DG-PlantOps.
+  options:
+    netinfo: { en: "DeviceNetworkInfo describes network adapters and addresses; it has no MachineGroup column.", fr: "DeviceNetworkInfo décrit les cartes et adresses réseau ; elle n'a pas de colonne MachineGroup." }
+    max: { en: "max(Timestamp) returns only the DeviceId and the time, so the MachineGroup column no longer exists for the where filter.", fr: "max(Timestamp) ne renvoie que DeviceId et l'heure : la colonne MachineGroup n'existe plus pour le filtre where." }
+    any: { en: "take_any(*) returns an arbitrary record of each device, which might show a device group the device has since left.", fr: "take_any(*) renvoie un enregistrement quelconque de chaque appareil, qui peut indiquer un groupe d'appareils que l'appareil a quitté depuis." }
+    argmin: { en: "arg_min returns the oldest record, which reflects the earliest device group rather than the current one.", fr: "arg_min renvoie l'enregistrement le plus ancien, qui reflète le premier groupe d'appareils et non le groupe actuel." }
+    leftanti: { en: "leftanti keeps the events of devices that are not in DG-PlantOps, the opposite of the requirement.", fr: "leftanti conserve les événements des appareils qui ne sont pas dans DG-PlantOps, soit l'inverse de l'exigence." }
+references:
+  - title: DeviceInfo table in the advanced hunting schema - Microsoft Defender XDR
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceinfo-table

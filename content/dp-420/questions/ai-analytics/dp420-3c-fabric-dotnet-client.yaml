@@ -1,0 +1,77 @@
+id: dp420-3c-fabric-dotnet-client
+objective: "3.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware moves a telemetry service from Azure Cosmos DB to a Cosmos DB database named telemetry in Microsoft Fabric. The service uses the .NET SDK and runs with a managed identity that has access to the Fabric database.
+
+    At startup, the service must connect to the database and create the readings container if it doesn't exist, with a maximum throughput of 4,000 RU/s.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware déplace un service de télémétrie d'Azure Cosmos DB vers une base de données Cosmos DB nommée telemetry dans Microsoft Fabric. Le service utilise le SDK .NET et s'exécute avec une identité managée qui a accès à la base de données Fabric.
+
+    Au démarrage, le service doit se connecter à la base de données et créer le conteneur readings s'il n'existe pas, avec un débit maximal de 4 000 RU/s.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    CosmosClientOptions options = new() { [[mode]] };
+    using CosmosClient client = new(fabricEndpoint, [[cred]], options);
+
+    Database database = client.GetDatabase("telemetry");
+    await database.CreateContainerIfNotExistsAsync(
+        new ContainerProperties("readings", "/deviceId"),
+        [[throughput]]);
+  slots:
+    - id: mode
+      options:
+        - { id: gateway, text: "ConnectionMode = ConnectionMode.Gateway" }
+        - { id: direct, text: "ConnectionMode = ConnectionMode.Direct" }
+        - { id: bulk, text: "AllowBulkExecution = true" }
+        - { id: endpoint, text: "LimitToEndpoint = true" }
+    - id: cred
+      options:
+        - { id: entra, text: "new DefaultAzureCredential()" }
+        - { id: keycred, text: "new AzureKeyCredential(primaryKey)" }
+        - { id: key, text: "primaryKey" }
+    - id: throughput
+      options:
+        - { id: autoscale, text: "ThroughputProperties.CreateAutoscaleThroughput(4000)" }
+        - { id: manual, text: "ThroughputProperties.CreateManualThroughput(4000)" }
+        - { id: int, text: "4000" }
+answer:
+  values: { mode: gateway, cred: entra, throughput: autoscale }
+explanation:
+  correct:
+    en: "Cosmos DB in Fabric supports only the gateway connection mode, and the .NET SDK defaults to direct mode, so the mode must be set explicitly. Authentication uses a Microsoft Entra token, which `DefaultAzureCredential` obtains from the managed identity. Every container in Fabric uses autoscale throughput, and an SDK call that creates a container without autoscale fails."
+    fr: "Cosmos DB dans Fabric ne prend en charge que le mode de connexion passerelle, et le SDK .NET utilise le mode direct par défaut : le mode doit donc être défini explicitement. L'authentification utilise un jeton Microsoft Entra, que `DefaultAzureCredential` obtient à partir de l'identité managée. Tous les conteneurs dans Fabric utilisent un débit autoscale, et un appel SDK qui crée un conteneur sans autoscale échoue."
+  options:
+    direct:
+      en: "Direct mode is the .NET default and isn't supported by Cosmos DB in Fabric."
+      fr: "Le mode direct est le mode par défaut du .NET et n'est pas pris en charge par Cosmos DB dans Fabric."
+    bulk:
+      en: "Bulk execution optimizes high-volume writes but leaves the client in direct mode."
+      fr: "L'exécution en bloc optimise les écritures en volume mais laisse le client en mode direct."
+    keycred:
+      en: "Cosmos DB in Fabric has no primary or secondary keys; only Microsoft Entra authentication is supported."
+      fr: "Cosmos DB dans Fabric n'a ni clé primaire ni clé secondaire ; seule l'authentification Microsoft Entra est prise en charge."
+    manual:
+      en: "Manual throughput is rejected with the error Offer Type is restricted to Autoscale for your account."
+      fr: "Le débit manuel est refusé avec l'erreur Offer Type is restricted to Autoscale for your account."
+    int:
+      en: "An integer throughput value creates the container with manual throughput, which Fabric rejects."
+      fr: "Une valeur de débit entière crée le conteneur avec un débit manuel, que Fabric refuse."
+references:
+  - title: Authenticate to Cosmos DB in Microsoft Fabric from Azure host services
+    url: https://learn.microsoft.com/en-us/fabric/database/cosmos-db/how-to-authenticate
+  - title: Frequently asked questions for Cosmos DB in Fabric
+    url: https://learn.microsoft.com/en-us/fabric/database/cosmos-db/faq

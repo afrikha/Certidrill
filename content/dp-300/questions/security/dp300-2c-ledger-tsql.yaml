@@ -1,0 +1,91 @@
+id: dp300-2c-ledger-tsql
+objective: "2.3.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named FinanceDB that has automatic digest storage configured.
+
+    You need to create two tables and a verification script that meet the following requirements:
+
+    - Finance.AccountBalance: balances are updated, and every previous version of each row must be kept for auditors.
+    - Finance.PaymentReceipt: receipts are inserted and must never be updated or deleted.
+    - The verification script must check both tables against the digests stored automatically.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée FinanceDB sur laquelle le stockage automatique des synthèses est configuré.
+
+    Vous devez créer deux tables et un script de vérification qui répondent aux exigences suivantes :
+
+    - Finance.AccountBalance : les soldes sont mis à jour, et chaque version précédente de chaque ligne doit être conservée pour les auditeurs.
+    - Finance.PaymentReceipt : les reçus sont insérés et ne doivent jamais être mis à jour ni supprimés.
+    - Le script de vérification doit contrôler les deux tables par rapport aux synthèses stockées automatiquement.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE Finance.AccountBalance (
+        AccountID int NOT NULL PRIMARY KEY,
+        Balance decimal(18, 2) NOT NULL
+    ) WITH ([[bal]]);
+
+    CREATE TABLE Finance.PaymentReceipt (
+        ReceiptID int NOT NULL,
+        Amount decimal(18, 2) NOT NULL,
+        IssuedAt datetime2 NOT NULL
+    ) WITH ([[rcpt]]);
+
+    DECLARE @locations nvarchar(max) =
+        (SELECT * FROM [[view]] FOR JSON AUTO, INCLUDE_NULL_VALUES);
+    EXECUTE [[proc]] @locations;
+  slots:
+    - id: bal
+      options:
+        - { id: bal_upd, text: "SYSTEM_VERSIONING = ON, LEDGER = ON" }
+        - { id: bal_app, text: "LEDGER = ON (APPEND_ONLY = ON)" }
+        - { id: bal_sv, text: "SYSTEM_VERSIONING = ON" }
+    - id: rcpt
+      options:
+        - { id: rcpt_upd, text: "SYSTEM_VERSIONING = ON, LEDGER = ON" }
+        - { id: rcpt_app, text: "LEDGER = ON (APPEND_ONLY = ON)" }
+        - { id: rcpt_sv, text: "SYSTEM_VERSIONING = ON" }
+    - id: view
+      options:
+        - { id: v_blocks, text: sys.database_ledger_blocks }
+        - { id: v_locations, text: sys.database_ledger_digest_locations }
+        - { id: v_history, text: sys.ledger_table_history }
+    - id: proc
+      options:
+        - { id: p_generate, text: sys.sp_generate_database_ledger_digest }
+        - { id: p_manual, text: sys.sp_verify_database_ledger }
+        - { id: p_storage, text: sys.sp_verify_database_ledger_from_digest_storage }
+answer:
+  values: { bal: bal_upd, rcpt: rcpt_app, view: v_locations, proc: p_storage }
+explanation:
+  correct:
+    en: |
+      An updatable ledger table (SYSTEM_VERSIONING = ON, LEDGER = ON) allows updates and deletes and keeps previous row versions in an automatically created history table. An append-only ledger table (LEDGER = ON (APPEND_ONLY = ON)) allows inserts only. With automatic digest storage, verification passes the JSON returned by sys.database_ledger_digest_locations to sys.sp_verify_database_ledger_from_digest_storage, which recomputes the hashes and reports any mismatch.
+    fr: |
+      Une table de registre modifiable (SYSTEM_VERSIONING = ON, LEDGER = ON) autorise les mises à jour et les suppressions et conserve les versions précédentes des lignes dans une table d'historique créée automatiquement. Une table de registre d'ajout uniquement (LEDGER = ON (APPEND_ONLY = ON)) n'autorise que les insertions. Avec le stockage automatique des synthèses, la vérification transmet le JSON renvoyé par sys.database_ledger_digest_locations à sys.sp_verify_database_ledger_from_digest_storage, qui recalcule les hachages et signale toute incohérence.
+  options:
+    bal_app: { en: "An append-only ledger table blocks the updates that balances need.", fr: "Une table de registre d'ajout uniquement bloque les mises à jour dont les soldes ont besoin." }
+    bal_sv: { en: "SYSTEM_VERSIONING alone creates a temporal table, which isn't tamper-evident.", fr: "SYSTEM_VERSIONING seul crée une table temporelle, qui ne permet pas de détecter les falsifications." }
+    rcpt_upd: { en: "An updatable ledger table records updates and deletes but doesn't block them.", fr: "Une table de registre modifiable enregistre les mises à jour et les suppressions, mais ne les bloque pas." }
+    rcpt_sv: { en: "A temporal table allows updates and deletes and provides no tamper evidence.", fr: "Une table temporelle autorise les mises à jour et les suppressions et n'apporte aucune preuve de falsification." }
+    v_blocks: { en: "sys.database_ledger_blocks lists the blocks of the ledger, not the locations where digests are stored.", fr: "sys.database_ledger_blocks liste les blocs du registre, pas les emplacements où les synthèses sont stockées." }
+    v_history: { en: "sys.ledger_table_history records the creation and dropping of ledger tables.", fr: "sys.ledger_table_history enregistre la création et la suppression des tables de registre." }
+    p_generate: { en: "sys.sp_generate_database_ledger_digest generates a digest manually; it doesn't verify anything.", fr: "sys.sp_generate_database_ledger_digest génère une synthèse manuellement ; il ne vérifie rien." }
+    p_manual: { en: "sys.sp_verify_database_ledger verifies against digests that you supply yourself, not against the automatic digest storage locations.", fr: "sys.sp_verify_database_ledger effectue la vérification par rapport à des synthèses que vous fournissez vous-même, pas par rapport aux emplacements du stockage automatique des synthèses." }
+references:
+  - title: Verify a ledger table to detect tampering
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/ledger/ledger-verify-database
+  - title: Ledger overview
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/ledger/ledger-overview

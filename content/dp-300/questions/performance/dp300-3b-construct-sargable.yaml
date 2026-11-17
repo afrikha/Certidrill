@@ -1,0 +1,54 @@
+id: dp300-3b-construct-sargable
+objective: "3.2.6"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named **SalesDB**. The table **dbo.Orders** has a nonclustered index on the **OrderDate** column (`datetime2`).
+
+    A report runs the following query, and its execution plan shows an Index Scan that reads all the rows of the index:
+
+    ```text
+    SELECT OrderID, OrderDate
+    FROM dbo.Orders
+    WHERE YEAR(OrderDate) = 2026 AND MONTH(OrderDate) = 3;
+    ```
+
+    You need the query to use an Index Seek. The solution must not create any index.
+
+    Which `WHERE` clause should you use?
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée **SalesDB**. La table **dbo.Orders** a un index non cluster sur la colonne **OrderDate** (`datetime2`).
+
+    Un rapport exécute la requête suivante, et son plan d'exécution montre un Index Scan qui lit toutes les lignes de l'index :
+
+    ```text
+    SELECT OrderID, OrderDate
+    FROM dbo.Orders
+    WHERE YEAR(OrderDate) = 2026 AND MONTH(OrderDate) = 3;
+    ```
+
+    Vous devez faire en sorte que la requête utilise un Index Seek. La solution ne doit créer aucun index.
+
+    Quelle clause `WHERE` devez-vous utiliser ?
+body:
+  options:
+    - { id: a, text: "WHERE CONVERT(char(7), OrderDate, 120) = '2026-03'" }
+    - { id: b, text: "WHERE DATEDIFF(month, OrderDate, '2026-03-01') = 0" }
+    - { id: c, text: "WHERE OrderDate >= '2026-03-01' AND OrderDate < '2026-04-01'" }
+    - { id: d, text: "WHERE FORMAT(OrderDate, 'yyyy-MM') = '2026-03'" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A function applied to an indexed column hides the column value from the optimizer, which must compute the function for every row and therefore scans the index. A range predicate that compares the bare column with constants is SARGable, so the optimizer can seek directly to the first row of March 2026 and stop at the end of the month.
+    fr: |
+      Une fonction appliquée à une colonne indexée masque la valeur de la colonne à l'optimiseur, qui doit calculer la fonction pour chaque ligne et donc analyser l'index. Un prédicat de plage qui compare la colonne nue à des constantes est SARGable : l'optimiseur peut rechercher directement la première ligne de mars 2026 et s'arrêter à la fin du mois.
+  options:
+    a: { en: "`CONVERT` is still applied to the column, so the predicate isn't SARGable.", fr: "`CONVERT` est toujours appliqué à la colonne : le prédicat n'est pas SARGable." }
+    b: { en: "`DATEDIFF` takes the column as an argument, which also forces a scan.", fr: "`DATEDIFF` prend la colonne en argument, ce qui impose aussi une analyse." }
+    d: { en: "`FORMAT` wraps the column in a function and is also expensive to evaluate for every row.", fr: "`FORMAT` encapsule la colonne dans une fonction et est en plus coûteux à évaluer pour chaque ligne." }
+references:
+  - title: Index architecture and design guide
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-index-design-guide

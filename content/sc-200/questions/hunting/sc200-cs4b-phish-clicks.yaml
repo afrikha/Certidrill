@@ -1,0 +1,69 @@
+id: sc200-cs4b-phish-clicks
+objective: "3.1.2"
+type: dropdown
+caseStudy: sc200-cs4b-best-for-you-organics
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to create an Advanced Hunting query that meets the phishing scope requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer une requête de repérage avancé qui respecte l'exigence relative à la portée de l'hameçonnage.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let Campaign = EmailEvents
+        | where Timestamp > ago(7d)
+        | where SenderFromDomain == "bfyo-delivery.com"
+        | project NetworkMessageId, Subject;
+    [[table]]
+    | where Timestamp > ago(7d)
+    | where ActionType == "ClickAllowed"
+    | join kind=inner Campaign on [[key]]
+    | summarize Users = [[agg]] by Subject
+  slots:
+    - id: table
+      options:
+        - { id: click, text: UrlClickEvents }
+        - { id: urlinfo, text: EmailUrlInfo }
+        - { id: post, text: EmailPostDeliveryEvents }
+        - { id: devnet, text: DeviceNetworkEvents }
+    - id: key
+      options:
+        - { id: nmid, text: NetworkMessageId }
+        - { id: report, text: ReportId }
+        - { id: subject, text: Subject }
+        - { id: device, text: DeviceId }
+    - id: agg
+      options:
+        - { id: dcount, text: "dcount(AccountUpn)" }
+        - { id: count, text: "count()" }
+        - { id: makeset, text: "make_set(AccountUpn)" }
+        - { id: countif, text: "countif(isnotempty(AccountUpn))" }
+answer:
+  values: { table: click, key: nmid, agg: dcount }
+explanation:
+  correct:
+    en: |
+      UrlClickEvents records Safe Links clicks from email, Teams, and Office apps, with the AccountUpn of the user and an ActionType that shows whether the click was allowed. Its NetworkMessageId identifies the email that contained the link, so it joins with the campaign messages from EmailEvents. `dcount(AccountUpn)` returns the number of distinct users for each subject, whereas a user who clicked several times would be counted several times by count().
+    fr: |
+      UrlClickEvents enregistre les clics Liens fiables (Safe Links) depuis la messagerie, Teams et les applications Office, avec l'AccountUpn de l'utilisateur et un ActionType qui indique si le clic a été autorisé. Sa colonne NetworkMessageId identifie l'e-mail qui contenait le lien : elle permet la jointure avec les messages de la campagne issus d'EmailEvents. `dcount(AccountUpn)` renvoie le nombre d'utilisateurs distincts par objet, alors que count() compterait plusieurs fois un utilisateur qui a cliqué plusieurs fois.
+  options:
+    urlinfo: { en: "EmailUrlInfo lists the URLs contained in messages; it does not record clicks or the user who clicked.", fr: "EmailUrlInfo liste les URL contenues dans les messages ; elle n'enregistre ni les clics ni l'utilisateur qui a cliqué." }
+    devnet: { en: "DeviceNetworkEvents only covers connections from onboarded devices and does not record Safe Links verdicts or the email of origin.", fr: "DeviceNetworkEvents ne couvre que les connexions des appareils intégrés et n'enregistre ni les verdicts Liens fiables ni l'e-mail d'origine." }
+    report: { en: "ReportId identifies a click event in UrlClickEvents; it does not identify the email message.", fr: "ReportId identifie un événement de clic dans UrlClickEvents ; il n'identifie pas le message e-mail." }
+    subject: { en: "UrlClickEvents has no Subject column, so the subject cannot be the join key.", fr: "UrlClickEvents n'a pas de colonne Subject : l'objet ne peut pas servir de clé de jointure." }
+    count: { en: "count() returns the number of clicks, not the number of distinct users.", fr: "count() renvoie le nombre de clics, pas le nombre d'utilisateurs distincts." }
+    makeset: { en: "make_set returns the list of users, not their number.", fr: "make_set renvoie la liste des utilisateurs, pas leur nombre." }
+references:
+  - title: UrlClickEvents table in the advanced hunting schema - Microsoft Defender XDR
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-urlclickevents-table

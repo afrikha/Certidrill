@@ -1,0 +1,64 @@
+id: ai200-2c-pg-tenant-filter
+objective: "2.2.5"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Contoso is building a multi-tenant support assistant on Azure Database for PostgreSQL flexible server with the `vector` extension. The document chunks are stored in the following table.
+
+    ```sql
+    CREATE TABLE kb_chunks (
+        id        bigint PRIMARY KEY,
+        tenant_id integer NOT NULL,
+        content   text NOT NULL,
+        embedding vector(1536)
+    );
+    ```
+
+    The API receives the tenant ID of the caller and the embedding of the question. You need a query that returns the five chunks of the caller's tenant that are the most similar to the question by cosine distance.
+
+    Which query should you use?
+  fr: |
+    Contoso développe un assistant de support multilocataire sur Azure Database for PostgreSQL serveur flexible avec l'extension `vector`. Les segments de documents sont stockés dans la table suivante.
+
+    ```sql
+    CREATE TABLE kb_chunks (
+        id        bigint PRIMARY KEY,
+        tenant_id integer NOT NULL,
+        content   text NOT NULL,
+        embedding vector(1536)
+    );
+    ```
+
+    L'API reçoit l'ID de locataire de l'appelant et l'incorporation de la question. Vous avez besoin d'une requête qui renvoie les cinq segments du locataire de l'appelant les plus similaires à la question selon la distance cosinus.
+
+    Quelle requête devez-vous utiliser ?
+body:
+  options:
+    - { id: a, text: "SELECT content FROM kb_chunks ORDER BY tenant_id, embedding <=> %s::vector LIMIT 5" }
+    - { id: b, text: "SELECT content FROM kb_chunks WHERE tenant_id = %s ORDER BY embedding <=> %s::vector DESC LIMIT 5" }
+    - { id: c, text: "SELECT content FROM kb_chunks WHERE tenant_id = %s ORDER BY embedding <=> %s::vector LIMIT 5" }
+    - { id: d, text: "SELECT content FROM kb_chunks WHERE tenant_id = %s ORDER BY embedding <-> %s::vector DESC LIMIT 5" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      The metadata filter goes in the `WHERE` clause of the same query, so only the rows of the caller's tenant are candidates. The `<=>` operator returns the cosine distance, where a smaller value means a more similar vector, so an ascending `ORDER BY` with `LIMIT 5` returns the five nearest chunks.
+    fr: |
+      Le filtre de métadonnées se place dans la clause `WHERE` de la même requête, de sorte que seules les lignes du locataire de l'appelant sont candidates. L'opérateur `<=>` renvoie la distance cosinus, où une valeur plus petite signifie un vecteur plus similaire : un `ORDER BY` croissant avec `LIMIT 5` renvoie donc les cinq segments les plus proches.
+  options:
+    a:
+      en: |
+        Without a `WHERE` filter, the query sorts every tenant's rows by tenant ID first and returns chunks of other tenants.
+      fr: |
+        Sans filtre `WHERE`, la requête trie d'abord les lignes de tous les locataires par ID de locataire et renvoie des segments d'autres locataires.
+    b:
+      en: "`DESC` sorts by decreasing distance, so the query returns the five least similar chunks of the tenant."
+      fr: "`DESC` trie par distance décroissante : la requête renvoie les cinq segments les moins similaires du locataire."
+    d:
+      en: "`<->` is the Euclidean distance, not the cosine distance, and `DESC` returns the least similar chunks."
+      fr: "`<->` est la distance euclidienne, pas la distance cosinus, et `DESC` renvoie les segments les moins similaires."
+references:
+  - title: Vector Search in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector

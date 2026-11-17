@@ -1,0 +1,68 @@
+id: sc500-3b-enc-host-cli
+objective: "3.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware has an Azure subscription in which encryption at host has never been used. A disk encryption set named **des1** exists in the resource group **RG1**.
+
+    You need to deploy a Linux virtual machine named **VM1** by using the Azure CLI. The temp disk and the disk caches of VM1 must be encrypted, and the OS disk must use the customer-managed key of des1.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'un abonnement Azure dans lequel le chiffrement sur l'hôte n'a jamais été utilisé. Un jeu de chiffrement de disque nommé **des1** existe dans le groupe de ressources **RG1**.
+
+    Vous devez déployer une machine virtuelle Linux nommée **VM1** à l'aide d'Azure CLI. Le disque temporaire et les caches de disque de VM1 doivent être chiffrés, et le disque de système d'exploitation doit utiliser la clé gérée par le client de des1.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az feature register --namespace [[ns]] --name EncryptionAtHost
+
+    desId=$(az disk-encryption-set show -g RG1 -n des1 --query id -o tsv)
+
+    az vm create -g RG1 -n VM1 --image Ubuntu2204 --size Standard_D4s_v5 \
+      [[flag]] \
+      [[des]] $desId
+  slots:
+    - id: ns
+      options:
+        - { id: compute, text: Microsoft.Compute }
+        - { id: kv, text: Microsoft.KeyVault }
+        - { id: storage, text: Microsoft.Storage }
+    - id: flag
+      options:
+        - { id: secboot, text: "--enable-secure-boot true" }
+        - { id: host, text: "--encryption-at-host true" }
+        - { id: vtpm, text: "--enable-vtpm true" }
+    - id: des
+      options:
+        - { id: kvparam, text: "--disk-encryption-keyvault" }
+        - { id: sectype, text: "--security-type" }
+        - { id: osdes, text: "--os-disk-encryption-set" }
+answer:
+  values: { ns: compute, flag: host, des: osdes }
+explanation:
+  correct:
+    en: |
+      Encryption at host is a feature of the Microsoft.Compute resource provider that must be registered once per subscription. The `--encryption-at-host` parameter of `az vm create` encrypts the temp disk, the caches and the data flows, and `--os-disk-encryption-set` makes the OS disk use the customer-managed key of the disk encryption set.
+    fr: |
+      Le chiffrement sur l'hôte est une fonctionnalité du fournisseur de ressources Microsoft.Compute qui doit être inscrite une fois par abonnement. Le paramètre `--encryption-at-host` de `az vm create` chiffre le disque temporaire, les caches et les flux de données, et `--os-disk-encryption-set` fait utiliser au disque de système d'exploitation la clé gérée par le client du jeu de chiffrement de disque.
+  options:
+    kv: { en: "Key Vault stores the key, but the EncryptionAtHost feature belongs to Microsoft.Compute.", fr: "Key Vault stocke la clé, mais la fonctionnalité EncryptionAtHost appartient à Microsoft.Compute." }
+    secboot: { en: "Secure boot is a Trusted launch setting; it doesn't encrypt disks.", fr: "Le démarrage sécurisé est un paramètre du lancement fiable ; il ne chiffre pas les disques." }
+    vtpm: { en: "vTPM is a Trusted launch setting; it doesn't encrypt the temp disk or caches.", fr: "Le vTPM est un paramètre du lancement fiable ; il ne chiffre ni le disque temporaire ni les caches." }
+    kvparam: { en: "--disk-encryption-keyvault belongs to `az vm encryption enable`, which configures Azure Disk Encryption, not a disk encryption set.", fr: "--disk-encryption-keyvault appartient à `az vm encryption enable`, qui configure Azure Disk Encryption, pas un jeu de chiffrement de disque." }
+    sectype: { en: "--security-type selects Standard, TrustedLaunch or ConfidentialVM; it doesn't take a disk encryption set ID.", fr: "--security-type sélectionne Standard, TrustedLaunch ou ConfidentialVM ; il n'accepte pas d'ID de jeu de chiffrement de disque." }
+references:
+  - title: Enable end-to-end encryption using encryption at host - Azure portal - managed disks
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-host-based-encryption-portal
+  - title: Overview of managed disk encryption options
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption-overview

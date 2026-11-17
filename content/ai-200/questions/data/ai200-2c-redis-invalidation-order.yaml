@@ -1,0 +1,78 @@
+id: ai200-2c-redis-invalidation-order
+objective: "2.3.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders uses the cache-aside pattern with Azure Managed Redis for product data. Products are cached for one hour. When a price changes, the following function runs.
+
+    ```python
+    def update_price(product_id: int, price: float) -> None:
+        r.delete(f"product:{product_id}")
+        db.update_price(product_id, price)
+    ```
+
+    Under load, some customers keep seeing the old price until the cached entry expires.
+
+    You need to ensure that customers see the new price as soon as the update completes.
+
+    What should you do?
+  fr: |
+    Northwind Traders utilise le modèle cache-aside avec Azure Managed Redis pour les données produits. Les produits sont mis en cache pendant une heure. Quand un prix change, la fonction suivante s'exécute.
+
+    ```python
+    def update_price(product_id: int, price: float) -> None:
+        r.delete(f"product:{product_id}")
+        db.update_price(product_id, price)
+    ```
+
+    En charge, certains clients continuent de voir l'ancien prix jusqu'à l'expiration de l'entrée mise en cache.
+
+    Les clients doivent voir le nouveau prix dès que la mise à jour est terminée.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Replace `r.delete` with `r.persist` so that the entry stays until the next read."
+        fr: "Remplacer `r.delete` par `r.persist` pour que l'entrée reste jusqu'à la lecture suivante."
+    - id: b
+      text:
+        en: "Replace `r.delete` with `r.expire(key, 3600)` to restart the expiration."
+        fr: "Remplacer `r.delete` par `r.expire(key, 3600)` pour relancer l'expiration."
+    - id: c
+      text:
+        en: "Delete the cache entry after the database update instead of before it."
+        fr: "Supprimer l'entrée du cache après la mise à jour de la base de données au lieu de le faire avant."
+    - id: d
+      text:
+        en: "Reduce the time to live of the product entries to five minutes."
+        fr: "Ramener la durée de vie des entrées produits à cinq minutes."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      If the entry is deleted first, a concurrent read can miss the cache, load the old price from the database before the update, and write it back to the cache, where it stays until it expires. Updating the data store first and then removing the cached item closes that window.
+    fr: |
+      Si l'entrée est supprimée d'abord, une lecture concurrente peut manquer le cache, charger l'ancien prix depuis la base de données avant la mise à jour et le réécrire dans le cache, où il reste jusqu'à son expiration. Mettre d'abord à jour le magasin de données, puis supprimer l'élément mis en cache, élimine cette fenêtre.
+  options:
+    a:
+      en: |
+        PERSIST removes the expiration and keeps the old value in the cache indefinitely.
+      fr: |
+        PERSIST supprime l'expiration et conserve indéfiniment l'ancienne valeur dans le cache.
+    b:
+      en: |
+        Restarting the expiration keeps the old price cached for another hour.
+      fr: |
+        Relancer l'expiration conserve l'ancien prix en cache pendant une heure de plus.
+    d:
+      en: |
+        A shorter TTL only bounds the staleness: the old price can still be served for up to five minutes.
+      fr: |
+        Une durée de vie plus courte ne fait que limiter l'obsolescence : l'ancien prix peut encore être servi pendant cinq minutes au plus.
+references:
+  - title: Cache-Aside Pattern
+    url: https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside

@@ -1,0 +1,67 @@
+id: dp800-1a-azure-sql-partition
+objective: "1.1.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has an Azure SQL database. You need to partition a new table named **Sales.OrderLog** by month on the **LoggedOn** column. The first day of each month must belong to that month's partition.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'une base de données Azure SQL. Vous devez partitionner par mois une nouvelle table nommée **Sales.OrderLog** sur la colonne **LoggedOn**. Le premier jour de chaque mois doit appartenir à la partition de ce mois.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE PARTITION FUNCTION PF_Month (date)
+    AS RANGE [[side]] FOR VALUES ('2026-01-01', '2026-02-01', '2026-03-01');
+
+    CREATE PARTITION SCHEME PS_Month
+    AS PARTITION PF_Month [[fg]];
+
+    CREATE TABLE Sales.OrderLog
+    (
+        LogID    bigint NOT NULL,
+        LoggedOn date NOT NULL,
+        Detail   nvarchar(400) NULL,
+        CONSTRAINT PK_OrderLog PRIMARY KEY CLUSTERED (LoggedOn, LogID)
+    ) ON [[on]];
+  slots:
+    - id: side
+      options:
+        - { id: right, text: RIGHT }
+        - { id: left, text: LEFT }
+    - id: fg
+      options:
+        - { id: allprimary, text: "ALL TO ([PRIMARY])" }
+        - { id: fourfg, text: "TO (FG1, FG2, FG3, FG4)" }
+        - { id: allfg1, text: "ALL TO (FG1)" }
+    - id: on
+      options:
+        - { id: pscol, text: PS_Month (LoggedOn) }
+        - { id: pfcol, text: PF_Month (LoggedOn) }
+        - { id: primary, text: "[PRIMARY]" }
+answer:
+  values: { side: right, fg: allprimary, on: pscol }
+explanation:
+  correct:
+    en: |
+      With RANGE RIGHT, each boundary such as 2026-02-01 is the lower bound of the next partition, so the first day of a month belongs to its own month. Azure SQL Database doesn't support adding files and filegroups, so every partition must be mapped to PRIMARY with ALL TO ([PRIMARY]). The table is created on the partition scheme, with the partitioning column in parentheses.
+    fr: |
+      Avec RANGE RIGHT, chaque limite comme 2026-02-01 est la borne inférieure de la partition suivante : le premier jour d'un mois appartient donc à son propre mois. Azure SQL Database ne permet pas d'ajouter des fichiers et des groupes de fichiers : chaque partition doit être mappée sur PRIMARY avec ALL TO ([PRIMARY]). La table est créée sur le schéma de partition, avec la colonne de partitionnement entre parenthèses.
+  options:
+    left: { en: "With RANGE LEFT, 2026-02-01 would be the last value of the January partition.", fr: "Avec RANGE LEFT, 2026-02-01 serait la dernière valeur de la partition de janvier." }
+    fourfg: { en: "Azure SQL Database provides only the PRIMARY filegroup; FG1 to FG4 can't be created.", fr: "Azure SQL Database ne fournit que le groupe de fichiers PRIMARY ; FG1 à FG4 ne peuvent pas être créés." }
+    allfg1: { en: "FG1 doesn't exist and can't be added in Azure SQL Database.", fr: "FG1 n'existe pas et ne peut pas être ajouté dans Azure SQL Database." }
+    pfcol: { en: "A table is placed on a partition scheme, not directly on a partition function.", fr: "Une table est placée sur un schéma de partition, pas directement sur une fonction de partition." }
+    primary: { en: "Creating the table on the PRIMARY filegroup leaves it unpartitioned.", fr: "Créer la table sur le groupe de fichiers PRIMARY la laisse non partitionnée." }
+references:
+  - title: Create partitioned tables and indexes
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/partitions/create-partitioned-tables-and-indexes

@@ -1,0 +1,73 @@
+id: ai200-2c-pg-too-many-clients
+objective: "2.2.6"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Graphic Design Institute runs a tutoring API on 30 replicas. For each request, the API opens a new connection on port 5432 to an Azure Database for PostgreSQL flexible server on the General Purpose tier, runs one query, and closes the connection. During peaks, requests fail with the error `FATAL: sorry, too many clients already`, and the CPU of the server is high.
+
+    You need to eliminate the errors. You must not change the compute tier or the `max_connections` parameter.
+
+    Which two actions should you perform? Each correct answer presents a complete solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Graphic Design Institute exécute une API de tutorat sur 30 réplicas. Pour chaque requête, l'API ouvre une nouvelle connexion sur le port 5432 vers un serveur flexible Azure Database for PostgreSQL du niveau General Purpose, exécute une requête et ferme la connexion. Pendant les pics, les requêtes échouent avec l'erreur `FATAL: sorry, too many clients already`, et l'utilisation du processeur du serveur est élevée.
+
+    Vous devez éliminer les erreurs. Vous ne devez modifier ni le niveau de calcul ni le paramètre `max_connections`.
+
+    Quelles sont les deux actions à effectuer ? Chaque bonne réponse constitue une solution complète.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: "Create a connection pool in each request handler, and close the pool at the end of the request."
+        fr: "Créer un pool de connexions dans chaque gestionnaire de requêtes, et fermer le pool à la fin de la requête."
+    - id: b
+      text:
+        en: "Enable the built-in PgBouncer, and change the API to connect on port 6432."
+        fr: "Activer le PgBouncer intégré, et modifier l'API pour qu'elle se connecte sur le port 6432."
+    - id: c
+      text:
+        en: "Add a read replica, and send all the queries of the API to the replica."
+        fr: "Ajouter un réplica en lecture, et envoyer toutes les requêtes de l'API vers ce réplica."
+    - id: d
+      text:
+        en: "Create one connection pool per replica process, with a maximum size that keeps the total below the limit."
+        fr: "Créer un pool de connexions par processus de réplica, avec une taille maximale qui maintient le total sous la limite."
+    - id: e
+      text:
+        en: "Add `connect_timeout=60` to the connection string of the API."
+        fr: "Ajouter `connect_timeout=60` à la chaîne de connexion de l'API."
+answer: { optionIds: [ b, d ] }
+explanation:
+  correct:
+    en: |
+      Each PostgreSQL connection is a server process, and short-lived connections consume CPU. The built-in PgBouncer, reached on port 6432, multiplexes many client connections over a limited number of server connections. An application-side pool created once per process reuses open connections, and a bounded maximum size keeps the total of all replicas below the server limit.
+    fr: |
+      Chaque connexion PostgreSQL est un processus serveur, et les connexions de courte durée consomment du processeur. Le PgBouncer intégré, atteint sur le port 6432, multiplexe de nombreuses connexions clientes sur un nombre limité de connexions au serveur. Un pool côté application créé une fois par processus réutilise les connexions ouvertes, et une taille maximale bornée maintient le total de tous les réplicas sous la limite du serveur.
+  options:
+    a:
+      en: |
+        A pool created and closed for each request opens new connections every time, which is the current behavior.
+      fr: |
+        Un pool créé et fermé à chaque requête ouvre de nouvelles connexions à chaque fois, ce qui reproduit le comportement actuel.
+    c:
+      en: |
+        A read replica is read-only and has its own connection limit, so moving every query there doesn't remove the connection churn and breaks the writes.
+      fr: |
+        Un réplica en lecture est en lecture seule et a sa propre limite de connexions : y envoyer toutes les requêtes ne supprime pas le renouvellement constant des connexions et empêche les écritures.
+    e:
+      en: |
+        A longer connection timeout doesn't reduce the number of connections, and the server rejects them once the limit is reached.
+      fr: |
+        Un délai de connexion plus long ne réduit pas le nombre de connexions, et le serveur les refuse une fois la limite atteinte.
+references:
+  - title: Limits in Azure Database for PostgreSQL flexible server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-limits
+  - title: Connection Pooling Strategy Using PgBouncer in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-connection-pooling-best-practices

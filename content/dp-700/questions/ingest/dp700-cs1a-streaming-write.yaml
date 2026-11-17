@@ -1,0 +1,76 @@
+id: dp700-cs1a-streaming-write
+objective: "2.3.5"
+type: dropdown
+caseStudy: dp700-cs1a-alpine-ski-house
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are rewriting the output of the scoring stream to meet requirement 5. The `score_events` function applies the anomaly model to each event and returns one row per event. How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous réécrivez la sortie du flux d'évaluation pour satisfaire l'exigence 5. La fonction `score_events` applique le modèle d'anomalies à chaque événement et retourne une ligne par événement. Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    raw = spark.readStream.format("eventhubs").options(**eh_conf).load()
+    scored = score_events(raw)
+
+    query = (scored.writeStream
+        .format("delta")
+        .outputMode([[mode]])
+        .option([[opt]], "Files/checkpoints/cannon_scores")
+        [[trig]]
+        .toTable("cannon_scores"))
+  slots:
+    - id: mode
+      options:
+        - { id: complete, text: "\"complete\"" }
+        - { id: append, text: "\"append\"" }
+        - { id: update, text: "\"update\"" }
+    - id: opt
+      options:
+        - { id: path, text: "\"path\"" }
+        - { id: merge, text: "\"mergeSchema\"" }
+        - { id: ckpt, text: "\"checkpointLocation\"" }
+    - id: trig
+      options:
+        - { id: avail, text: ".trigger(availableNow=True)" }
+        - { id: cont, text: ".trigger(continuous=\"1 minute\")" }
+        - { id: proc, text: ".trigger(processingTime=\"1 minute\")" }
+answer:
+  values: { mode: append, opt: ckpt, trig: proc }
+explanation:
+  correct:
+    en: |-
+      Each scored event is a new row, so the append output mode writes only the new rows to the Delta table. The checkpoint location stores the stream's progress, which lets the query resume from where it stopped after a restart without skipping or reprocessing events. A processing-time trigger of one minute groups the events into one micro-batch per minute, which writes fewer, larger files than the default trigger.
+    fr: |-
+      Chaque événement évalué est une nouvelle ligne ; le mode de sortie append écrit donc uniquement les nouvelles lignes dans la table Delta. L'emplacement de checkpoint enregistre la progression du flux, ce qui permet à la requête de reprendre là où elle s'est arrêtée après un redémarrage, sans ignorer ni retraiter d'événements. Un déclencheur processingTime d'une minute regroupe les événements en un micro-lot par minute, ce qui écrit des fichiers moins nombreux et plus volumineux que le déclencheur par défaut.
+  options:
+    complete:
+      en: |-
+        The complete mode rewrites the whole result table at each trigger and is meant for streaming aggregations, not for appending scored events.
+      fr: |-
+        Le mode complete réécrit toute la table de résultats à chaque déclenchement ; il est destiné aux agrégations en flux, pas à l'ajout d'événements évalués.
+    merge:
+      en: |-
+        mergeSchema allows new columns to be added to the table schema; it does not record the progress of the stream.
+      fr: |-
+        mergeSchema autorise l'ajout de nouvelles colonnes au schéma de la table ; il n'enregistre pas la progression du flux.
+    avail:
+      en: |-
+        availableNow processes the data that is available and then stops the query, so the stream would not keep running continuously.
+      fr: |-
+        availableNow traite les données disponibles puis arrête la requête ; le flux ne s'exécuterait donc pas en continu.
+    cont:
+      en: |-
+        The continuous trigger is an experimental low-latency mode with limited sink support; it does not group events into one-minute micro-batches.
+      fr: |-
+        Le déclencheur continuous est un mode expérimental à faible latence qui prend en charge peu de récepteurs ; il ne regroupe pas les événements en micro-lots d'une minute.
+references:
+  - title: Data streaming into a lakehouse with Spark
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/lakehouse-streaming-data

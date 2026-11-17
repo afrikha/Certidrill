@@ -1,0 +1,68 @@
+id: dp700-3c-result-cache
+objective: "3.3.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW_Retail that uses the default settings. A dashboard runs the following query hundreds of times per hour. dbo.FactSales contains 800 million rows and is loaded once a night. The query returns about 40 rows.
+
+    ```sql
+    SELECT StoreID, SUM(Amount) AS Sales
+    FROM dbo.FactSales
+    WHERE SaleDate >= DATEADD(day, -7, CAST(GETDATE() AS date))
+    GROUP BY StoreID;
+    ```
+
+    In queryinsights.exec_requests_history, the result_cache_hit column of every execution of this query is 0.
+
+    You need the repeated executions of the query to be answered from the result set cache.
+
+    What should you do?
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW_Retail qui utilise les paramètres par défaut. Un tableau de bord exécute la requête suivante des centaines de fois par heure. dbo.FactSales contient 800 millions de lignes et est chargée une fois par nuit. La requête renvoie environ 40 lignes.
+
+    ```sql
+    SELECT StoreID, SUM(Amount) AS Sales
+    FROM dbo.FactSales
+    WHERE SaleDate >= DATEADD(day, -7, CAST(GETDATE() AS date))
+    GROUP BY StoreID;
+    ```
+
+    Dans queryinsights.exec_requests_history, la colonne result_cache_hit de chaque exécution de cette requête vaut 0.
+
+    Les exécutions répétées de la requête doivent être servies par le cache des jeux de résultats.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Run ALTER DATABASE DW_Retail SET RESULT_SET_CACHING ON.", fr: "Exécuter ALTER DATABASE DW_Retail SET RESULT_SET_CACHING ON." } }
+    - { id: b, text: { en: "Have the dashboard pass the start date as a literal value instead of computing it with GETDATE().", fr: "Faire transmettre par le tableau de bord la date de début comme valeur littérale au lieu de la calculer avec GETDATE()." } }
+    - { id: c, text: { en: "Run the query inside an explicit BEGIN TRAN ... COMMIT TRAN transaction.", fr: "Exécuter la requête dans une transaction explicite BEGIN TRAN ... COMMIT TRAN." } }
+    - { id: d, text: { en: "Create statistics on the SaleDate and StoreID columns of dbo.FactSales.", fr: "Créer des statistiques sur les colonnes SaleDate et StoreID de dbo.FactSales." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      Result set caching is enabled by default, but only some SELECT statements are eligible. A query that uses a runtime constant such as GETDATE() is not cached, because its result can change at every execution, and a CAST to the date type also makes a query ineligible. With a literal date instead of the whole expression, the query is a deterministic SELECT on a table of more than 100,000 rows that returns fewer than 10,000 rows, so later identical executions can reuse the cache until the nightly load changes the table.
+    fr: |
+      La mise en cache des jeux de résultats est activée par défaut, mais seules certaines instructions SELECT sont éligibles. Une requête qui utilise une constante d'exécution comme GETDATE() n'est pas mise en cache, car son résultat peut changer à chaque exécution, et un CAST vers le type date rend aussi une requête inéligible. Avec une date littérale à la place de toute l'expression, la requête est un SELECT déterministe sur une table de plus de 100 000 lignes qui renvoie moins de 10 000 lignes : les exécutions identiques suivantes peuvent réutiliser le cache jusqu'à ce que le chargement nocturne modifie la table.
+  options:
+    a:
+      en: |
+        Result set caching is already enabled by default for every warehouse; the query is not eligible.
+      fr: |
+        La mise en cache des jeux de résultats est déjà activée par défaut pour chaque entrepôt ; c'est la requête qui n'est pas éligible.
+    c:
+      en: |
+        Queries in explicit transactions are also not eligible for result set caching.
+      fr: |
+        Les requêtes exécutées dans des transactions explicites ne sont pas non plus éligibles à la mise en cache des jeux de résultats.
+    d:
+      en: |
+        Statistics improve the plan of each execution; they do not make the query eligible for the cache.
+      fr: |
+        Les statistiques améliorent le plan de chaque exécution ; elles ne rendent pas la requête éligible au cache.
+references:
+  - title: Result Set Caching
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/result-set-caching

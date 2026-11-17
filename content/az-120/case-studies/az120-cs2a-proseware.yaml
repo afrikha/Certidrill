@@ -1,0 +1,98 @@
+id: az120-cs2a-proseware
+status: draft
+title:
+  en: Proseware Pharmaceuticals
+  fr: Proseware Pharmaceuticals
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Proseware Pharmaceuticals manufactures generic medicines in five plants in the Netherlands and Ireland. The head office is in Amsterdam.
+
+        Proseware runs SAP ECC 6.0 EHP8 in its Amsterdam datacenter. The company will move the SAP landscape to Azure and, during the same project, migrate the database from Oracle Database to SAP HANA. The conversion to SAP S/4HANA is a separate project planned for later.
+      fr: |
+        Proseware Pharmaceuticals fabrique des médicaments génériques dans cinq usines aux Pays-Bas et en Irlande. Le siège est à Amsterdam.
+
+        Proseware exécute SAP ECC 6.0 EHP8 dans son centre de données d'Amsterdam. L'entreprise va déplacer le paysage SAP vers Azure et, dans le même projet, migrer la base de données d'Oracle Database vers SAP HANA. La conversion vers SAP S/4HANA est un projet distinct prévu plus tard.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **On-premises SAP systems**
+
+        | SID | Role | Database | Operating system |
+        | --- | --- | --- | --- |
+        | PE1 | Production | Oracle Database 19c, 6 TB | Oracle Linux 8 |
+        | QE1 | Quality assurance | Oracle Database 19c, 6 TB | Oracle Linux 8 |
+        | DE1 | Development | Oracle Database 19c, 1 TB | Oracle Linux 8 |
+
+        **Connectivity and Azure**
+
+        - A 10-Gbps ExpressRoute circuit connects the Amsterdam datacenter to the **West Europe** region.
+        - An Azure landing zone already exists: a hub virtual network in West Europe and a spoke virtual network named **VNet-SAP-WE** for the SAP workloads.
+        - An Azure Monitor for SAP solutions resource is already deployed in a dedicated subnet of VNet-SAP-WE.
+      fr: |
+        **Systèmes SAP locaux**
+
+        | SID | Rôle | Base de données | Système d'exploitation |
+        | --- | --- | --- | --- |
+        | PE1 | Production | Oracle Database 19c, 6 To | Oracle Linux 8 |
+        | QE1 | Assurance qualité | Oracle Database 19c, 6 To | Oracle Linux 8 |
+        | DE1 | Développement | Oracle Database 19c, 1 To | Oracle Linux 8 |
+
+        **Connectivité et Azure**
+
+        - Un circuit ExpressRoute de 10 Gbit/s relie le centre de données d'Amsterdam à la région **West Europe**.
+        - Une zone d'atterrissage Azure existe déjà : un réseau virtuel hub dans West Europe et un réseau virtuel spoke nommé **VNet-SAP-WE** pour les charges de travail SAP.
+        - Une ressource Azure Monitor pour solutions SAP est déjà déployée dans un sous-réseau dédié de VNet-SAP-WE.
+  - key: planned
+    title: { en: "Planned environment", fr: "Environnement prévu" }
+    body:
+      en: |
+        The production system will be named **HP1** on Azure.
+
+        | Component | Design |
+        | --- | --- |
+        | SAP HANA database (instance number 03) | Two M-series VMs certified for SAP HANA, Red Hat Enterprise Linux 9 for SAP Solutions, in availability zones 1 and 2, synchronous HANA System Replication, Pacemaker cluster, Standard internal load balancer for the virtual IP |
+        | HANA storage | Premium SSD (v1) managed disks for /hana/data, /hana/log and /hana/shared; /hana/data and /hana/log are LVM striped volumes |
+        | ASCS/ERS | Two RHEL VMs in a Pacemaker cluster, in zones 1 and 2 |
+        | Application servers | Four RHEL VMs, two in each zone |
+        | Shared file systems | /sapmnt and /usr/sap/trans on Azure NetApp Files NFS volumes |
+        | Disaster recovery | **North Europe** region. Microsoft has confirmed that every required VM size and service is available there. |
+
+        A custom Azure role named **Linux Fence Agent** already exists. It grants `Microsoft.Compute/*/read`, `Microsoft.Compute/virtualMachines/powerOff/action` and `Microsoft.Compute/virtualMachines/start/action`.
+      fr: |
+        Le système de production s'appellera **HP1** sur Azure.
+
+        | Composant | Conception |
+        | --- | --- |
+        | Base de données SAP HANA (numéro d'instance 03) | Deux machines virtuelles de série M certifiées pour SAP HANA, Red Hat Enterprise Linux 9 for SAP Solutions, dans les zones de disponibilité 1 et 2, réplication système HANA synchrone, cluster Pacemaker, équilibreur de charge interne Standard pour l'adresse IP virtuelle |
+        | Stockage HANA | Disques managés SSD Premium (v1) pour /hana/data, /hana/log et /hana/shared ; /hana/data et /hana/log sont des volumes LVM entrelacés |
+        | ASCS/ERS | Deux machines virtuelles RHEL dans un cluster Pacemaker, dans les zones 1 et 2 |
+        | Serveurs d'applications | Quatre machines virtuelles RHEL, deux dans chaque zone |
+        | Systèmes de fichiers partagés | /sapmnt et /usr/sap/trans sur des volumes NFS Azure NetApp Files |
+        | Reprise d'activité | Région **North Europe**. Microsoft a confirmé que toutes les tailles de machine virtuelle et tous les services nécessaires y sont disponibles. |
+
+        Un rôle Azure personnalisé nommé **Linux Fence Agent** existe déjà. Il accorde `Microsoft.Compute/*/read`, `Microsoft.Compute/virtualMachines/powerOff/action` et `Microsoft.Compute/virtualMachines/start/action`.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Proseware identifies the following requirements:
+
+        1. **Migration.** PE1 must move to Azure and to SAP HANA during a single downtime window. No intermediate Oracle-based copy of PE1 may be built on Azure. The technical downtime must be as short as possible.
+        2. **Storage.** The HANA disks must follow Microsoft's recommended configuration for Premium SSD (v1) on M-series VMs.
+        3. **Load balancing.** The internal load balancer of the HANA cluster must follow Microsoft's guidance for SAP HANA on RHEL.
+        4. **Fencing.** The HANA cluster must fence nodes through the Azure API. No secret or certificate may be stored on the cluster nodes, and no additional VM or disk may be deployed for fencing.
+        5. **Disaster recovery.** HP1 must be recoverable in North Europe. The database must be replicated by a method that guarantees database consistency. Administrative effort must be minimized.
+        6. **Monitoring.** The operations team must see the node, resource and quorum status of the HANA Pacemaker cluster in Azure Monitor for SAP solutions.
+      fr: |
+        Proseware a défini les exigences suivantes :
+
+        1. **Migration.** PE1 doit passer sur Azure et sur SAP HANA pendant une seule fenêtre d'interruption. Aucune copie intermédiaire de PE1 basée sur Oracle ne doit être créée sur Azure. L'interruption technique doit être la plus courte possible.
+        2. **Stockage.** Les disques HANA doivent suivre la configuration recommandée par Microsoft pour les disques SSD Premium (v1) sur des machines virtuelles de série M.
+        3. **Équilibrage de charge.** L'équilibreur de charge interne du cluster HANA doit suivre les recommandations de Microsoft pour SAP HANA sur RHEL.
+        4. **Isolation (fencing).** Le cluster HANA doit isoler les nœuds par l'API Azure. Aucun secret ni certificat ne doit être stocké sur les nœuds du cluster, et aucune machine virtuelle ni aucun disque supplémentaire ne doit être déployé pour l'isolation.
+        5. **Reprise d'activité.** HP1 doit pouvoir être restauré dans North Europe. La base de données doit être répliquée par une méthode qui garantit la cohérence de la base. L'effort d'administration doit être réduit au minimum.
+        6. **Supervision.** L'équipe d'exploitation doit voir l'état des nœuds, des ressources et du quorum du cluster Pacemaker HANA dans Azure Monitor pour solutions SAP.

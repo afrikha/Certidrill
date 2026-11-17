@@ -1,0 +1,70 @@
+id: sc200-3c-summary-basic-lookup
+objective: "3.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware has a Microsoft Sentinel workspace that contains the following tables.
+
+    | Table | Plan | Relevant columns |
+    | --- | --- | --- |
+    | ProxyLogs_CL | Basic | SrcUser, DestHost, SentBytes |
+    | HrUsers_CL | Analytics | UserPrincipalName, Department |
+
+    You need to create a summary rule that returns, for each user and destination host, the number of requests and the total number of bytes sent, together with the department of the user. Users that aren't in HrUsers_CL must still appear in the results.
+
+    How should you complete the summary rule query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'un espace de travail Microsoft Sentinel qui contient les tables suivantes.
+
+    | Table | Plan | Colonnes utiles |
+    | --- | --- | --- |
+    | ProxyLogs_CL | Basic | SrcUser, DestHost, SentBytes |
+    | HrUsers_CL | Analytics | UserPrincipalName, Department |
+
+    Vous devez créer une règle de synthèse qui renvoie, pour chaque utilisateur et chaque hôte de destination, le nombre de requêtes et le nombre total d'octets envoyés, ainsi que le service de l'utilisateur. Les utilisateurs absents de HrUsers_CL doivent quand même figurer dans les résultats.
+
+    Comment devez-vous compléter la requête de la règle de synthèse ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    ProxyLogs_CL
+    | summarize Requests = count(), TotalSent = [[agg]](SentBytes) by SrcUser, DestHost
+    | [[op]] kind=leftouter (HrUsers_CL | project SrcUser = UserPrincipalName, Department) on SrcUser
+  slots:
+    - id: agg
+      options:
+        - { id: sum, text: sum }
+        - { id: max, text: max }
+        - { id: dcount, text: dcount }
+        - { id: avg, text: avg }
+    - id: op
+      options:
+        - { id: join, text: join }
+        - { id: lookup, text: lookup }
+        - { id: union, text: union }
+        - { id: mvexpand, text: mv-expand }
+answer:
+  values: { agg: sum, op: lookup }
+explanation:
+  correct:
+    en: |
+      sum(SentBytes) returns the total bytes sent for each user and host. When the source table of a summary rule uses the Basic plan, the query can use all KQL operators on that single table and can enrich it with up to five Analytics tables only through the lookup operator. lookup kind=leftouter keeps the users that have no match in HrUsers_CL.
+    fr: |
+      sum(SentBytes) renvoie le total des octets envoyés pour chaque utilisateur et chaque hôte. Quand la table source d'une règle de synthèse utilise le plan Basic, la requête peut utiliser tous les opérateurs KQL sur cette seule table et ne peut l'enrichir avec cinq tables Analytics au plus qu'au moyen de l'opérateur lookup. lookup kind=leftouter conserve les utilisateurs sans correspondance dans HrUsers_CL.
+  options:
+    max: { en: "max returns the largest single value of SentBytes, not the total.", fr: "max renvoie la plus grande valeur de SentBytes, pas le total." }
+    dcount: { en: "dcount counts distinct values of SentBytes; it doesn't add them.", fr: "dcount compte les valeurs distinctes de SentBytes ; il ne les additionne pas." }
+    avg: { en: "avg returns the mean bytes per request, not the total.", fr: "avg renvoie la moyenne d'octets par requête, pas le total." }
+    join: { en: "A summary rule on a Basic table can combine it with Analytics tables only by using lookup, not join.", fr: "Une règle de synthèse sur une table Basic ne peut la combiner avec des tables Analytics qu'avec lookup, pas avec join." }
+    union: { en: "union appends the rows of both tables instead of adding Department to each summarized row.", fr: "union ajoute les lignes des deux tables au lieu d'ajouter Department à chaque ligne agrégée." }
+    mvexpand: { en: "mv-expand splits a dynamic array into rows; it doesn't combine two tables.", fr: "mv-expand éclate un tableau dynamique en lignes ; il ne combine pas deux tables." }
+references:
+  - title: Aggregate data in a Log Analytics workspace by using summary rules
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/logs/summary-rules

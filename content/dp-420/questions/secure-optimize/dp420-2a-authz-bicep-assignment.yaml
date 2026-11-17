@@ -1,0 +1,69 @@
+id: dp420-2a-authz-bicep-assignment
+objective: "2.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You deploy an Azure Cosmos DB for NoSQL account named **wingtip-orders** and a user-assigned managed identity named **id-api** by using Bicep. The symbolic names are `account` and `apiIdentity`.
+
+    The API that runs as id-api must read, create, replace and delete items in every container of the account. You need to grant the access by using a built-in role in the same Bicep file.
+
+    How should you complete the Bicep code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous déployez avec Bicep un compte Azure Cosmos DB for NoSQL nommé **wingtip-orders** et une identité managée affectée par l'utilisateur nommée **id-api**. Les noms symboliques sont `account` et `apiIdentity`.
+
+    L'API qui s'exécute en tant qu'id-api doit lire, créer, remplacer et supprimer des éléments dans tous les conteneurs du compte. Vous devez accorder cet accès avec un rôle intégré dans le même fichier Bicep.
+
+    Comment devez-vous compléter le code Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource apiAccess 'Microsoft.DocumentDB/databaseAccounts/[[rtype]]@2024-05-15' = {
+      parent: account
+      name: guid(account.id, apiIdentity.id, 'data-contributor')
+      properties: {
+        principalId: apiIdentity.properties.principalId
+        roleDefinitionId: '${account.id}/sqlRoleDefinitions/[[roleid]]'
+        scope: [[scope]]
+      }
+    }
+  slots:
+    - id: rtype
+      options:
+        - { id: assign, text: "sqlRoleAssignments" }
+        - { id: def, text: "sqlRoleDefinitions" }
+        - { id: arm, text: "roleAssignments" }
+    - id: roleid
+      options:
+        - { id: r1, text: "00000000-0000-0000-0000-000000000001" }
+        - { id: r2, text: "00000000-0000-0000-0000-000000000002" }
+        - { id: op, text: "230815da-be43-4aae-9cb4-875f7bd000aa" }
+    - id: scope
+      options:
+        - { id: acct, text: "account.id" }
+        - { id: rg, text: "resourceGroup().id" }
+        - { id: sub, text: "subscription().id" }
+answer:
+  values: { rtype: assign, roleid: r2, scope: acct }
+explanation:
+  correct:
+    en: |
+      Native data plane assignments are child resources of type `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments`. The role definition ID ending in 0002 is Cosmos DB Built-in Data Contributor, which covers every item operation. Using the account resource ID as the scope applies the assignment to all databases and containers.
+    fr: |
+      Les attributions natives du plan de données sont des ressources enfants de type `Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments`. L'ID de définition de rôle se terminant par 0002 correspond à Cosmos DB Built-in Data Contributor, qui couvre toutes les opérations sur les éléments. Utiliser l'ID de ressource du compte comme étendue applique l'attribution à toutes les bases de données et à tous les conteneurs.
+  options:
+    def: { en: "sqlRoleDefinitions defines custom roles; it does not assign a role to a principal.", fr: "sqlRoleDefinitions définit des rôles personnalisés ; il n'attribue pas de rôle à un principal." }
+    arm: { en: "roleAssignments belongs to Microsoft.Authorization (Azure RBAC), not to the Cosmos DB account.", fr: "roleAssignments appartient à Microsoft.Authorization (Azure RBAC), pas au compte Cosmos DB." }
+    r1: { en: "0001 is Built-in Data Reader, which cannot create, replace or delete items.", fr: "0001 correspond à Built-in Data Reader, qui ne peut pas créer, remplacer ni supprimer d'éléments." }
+    op: { en: "This is the Azure RBAC Cosmos DB Operator role, which is not a data plane role definition.", fr: "C'est le rôle Azure RBAC Cosmos DB Operator, qui n'est pas une définition de rôle du plan de données." }
+    rg: { en: "A data plane assignment scope must be the account or a database or container inside it.", fr: "L'étendue d'une attribution du plan de données doit être le compte, ou une base de données ou un conteneur de ce compte." }
+    sub: { en: "A data plane assignment scope must be the account or a database or container inside it.", fr: "L'étendue d'une attribution du plan de données doit être le compte, ou une base de données ou un conteneur de ce compte." }
+references:
+  - title: Connect to Azure Cosmos DB for NoSQL using role-based access control and Microsoft Entra ID
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-connect-role-based-access-control

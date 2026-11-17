@@ -1,0 +1,52 @@
+id: ai200-3a-receive-mode-crash
+objective: "3.1.1"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Litware runs a speech-to-text worker on Azure Kubernetes Service. The worker reads transcription jobs from a Service Bus queue named **transcribe** by using the azure-servicebus Python library. Worker pods are sometimes evicted in the middle of a transcription.
+
+    No job can be lost, and a job must leave the queue only after its transcription is saved.
+
+    How should the worker receive and settle the messages?
+  fr: |
+    Litware exécute un worker de reconnaissance vocale sur Azure Kubernetes Service. Le worker lit des tâches de transcription dans une file d'attente Service Bus nommée **transcribe** à l'aide de la bibliothèque Python azure-servicebus. Les pods du worker sont parfois évincés en pleine transcription.
+
+    Aucune tâche ne doit être perdue, et une tâche ne doit quitter la file d'attente qu'une fois sa transcription enregistrée.
+
+    Comment le worker doit-il recevoir et régler les messages ?
+body:
+  options:
+    - { id: a, text: { en: "Receive in RECEIVE_AND_DELETE mode, and send the job back to the queue if the transcription fails.", fr: "Recevoir en mode RECEIVE_AND_DELETE, et renvoyer la tâche dans la file d'attente si la transcription échoue." } }
+    - { id: b, text: { en: "Read the job with peek_messages, and receive it in RECEIVE_AND_DELETE mode once the transcription is saved.", fr: "Lire la tâche avec peek_messages, puis la recevoir en mode RECEIVE_AND_DELETE une fois la transcription enregistrée." } }
+    - { id: c, text: { en: "Receive in PEEK_LOCK mode, and call defer_message once the transcription is saved.", fr: "Recevoir en mode PEEK_LOCK, et appeler defer_message une fois la transcription enregistrée." } }
+    - { id: d, text: { en: "Receive in PEEK_LOCK mode, and call complete_message once the transcription is saved.", fr: "Recevoir en mode PEEK_LOCK, et appeler complete_message une fois la transcription enregistrée." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      In peek-lock mode, the default, the message stays in the queue under a lock until the receiver settles it. complete_message removes it after success; if the pod is evicted first, the lock expires and the message is delivered again (at-least-once delivery).
+    fr: |
+      En mode peek-lock, le mode par défaut, le message reste dans la file d'attente sous un verrou jusqu'à ce que le récepteur le règle. complete_message le supprime après la réussite ; si le pod est évincé avant, le verrou expire et le message est remis de nouveau (remise au moins une fois).
+  options:
+    a:
+      en: |
+        Receive-and-delete removes the message as soon as it is delivered; an evicted pod can't send it back, so the job is lost.
+      fr: |
+        Le mode receive-and-delete supprime le message dès sa remise ; un pod évincé ne peut pas le renvoyer, la tâche est donc perdue.
+    b:
+      en: |
+        Peeked messages are not locked, so other replicas can process the same job at the same time, and the final receive-and-delete may remove a different message.
+      fr: |
+        Les messages lus par peek ne sont pas verrouillés : d'autres réplicas peuvent traiter la même tâche en même temps, et la réception finale en receive-and-delete peut supprimer un autre message.
+    c:
+      en: |
+        Deferral keeps the message in the queue to be received later by its sequence number; it does not remove a processed job.
+      fr: |
+        Le report conserve le message dans la file d'attente pour qu'il soit reçu plus tard par son numéro de séquence ; il ne supprime pas une tâche traitée.
+references:
+  - title: Message Transfers, Locks, and Settlement
+    url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-transfers-locks-settlement
+  - title: azure.servicebus.ServiceBusReceiver class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.servicebusreceiver

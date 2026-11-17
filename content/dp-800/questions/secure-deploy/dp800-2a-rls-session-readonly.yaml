@@ -1,0 +1,54 @@
+id: dp800-2a-rls-session-readonly
+objective: "2.1.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A web API connects to an Azure SQL Database with a single managed identity and uses connection pooling. Row-Level Security predicates compare the TenantID column with `SESSION_CONTEXT(N'TenantID')`.
+
+    After it opens each connection, the API runs:
+
+    ```text
+    EXEC sp_set_session_context @key = N'TenantID', @value = @TenantID;
+    ```
+
+    A security review finds that injected code could call sp_set_session_context again in the same session and switch to another tenant.
+
+    You need to ensure that the tenant value cannot be changed for the rest of the session. What should you do?
+  fr: |
+    Une API web se connecte à une base de données Azure SQL Database avec une identité managée unique et utilise le regroupement de connexions. Les prédicats de Row-Level Security comparent la colonne TenantID à `SESSION_CONTEXT(N'TenantID')`.
+
+    Après l'ouverture de chaque connexion, l'API exécute :
+
+    ```text
+    EXEC sp_set_session_context @key = N'TenantID', @value = @TenantID;
+    ```
+
+    Une revue de sécurité constate que du code injecté pourrait rappeler sp_set_session_context dans la même session et basculer vers un autre locataire.
+
+    Vous devez vous assurer que la valeur du locataire ne peut pas être modifiée pendant le reste de la session. Que devez-vous faire ?
+body:
+  options:
+    - id: c
+      text: { en: "Re-create the predicate function WITH SCHEMABINDING.", fr: "Recréer la fonction de prédicat WITH SCHEMABINDING." }
+    - id: b
+      text: { en: "Store the tenant in CONTEXT_INFO and read CONTEXT_INFO() in the predicate.", fr: "Stocker le locataire dans CONTEXT_INFO et lire CONTEXT_INFO() dans le prédicat." }
+    - id: a
+      text: { en: "Add @read_only = 1 to the sp_set_session_context call.", fr: "Ajouter @read_only = 1 à l'appel de sp_set_session_context." }
+    - id: d
+      text: { en: "Add an AFTER UPDATE block predicate to the security policy.", fr: "Ajouter un prédicat de blocage AFTER UPDATE à la stratégie de sécurité." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      When sp_set_session_context is called with @read_only = 1, the key cannot be changed again until the connection is closed or returned to the pool. The RLS predicates therefore keep evaluating the tenant set by the API right after it opened the connection.
+    fr: |
+      Lorsque sp_set_session_context est appelée avec @read_only = 1, la clé ne peut plus être modifiée tant que la connexion n'est pas fermée ou rendue au pool. Les prédicats de RLS continuent donc d'évaluer le locataire défini par l'API juste après l'ouverture de la connexion.
+  options:
+    c: { en: "SCHEMABINDING protects the objects referenced by the predicate from schema changes; it does not lock the session context value.", fr: "SCHEMABINDING protège les objets référencés par le prédicat contre les modifications de schéma ; il ne verrouille pas la valeur du contexte de session." }
+    b: { en: "CONTEXT_INFO can also be overwritten by any code that runs in the session.", fr: "CONTEXT_INFO peut lui aussi être écrasé par n'importe quel code exécuté dans la session." }
+    d: { en: "A block predicate checks the rows being written; it does not stop the code from switching the tenant value.", fr: "Un prédicat de blocage vérifie les lignes écrites ; il n'empêche pas le code de changer la valeur du locataire." }
+references:
+  - title: Row-level security
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/row-level-security

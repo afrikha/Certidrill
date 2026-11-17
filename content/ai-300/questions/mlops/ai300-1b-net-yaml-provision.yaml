@@ -1,0 +1,86 @@
+id: ai300-1b-net-yaml-provision
+objective: "1.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an existing Azure Machine Learning workspace named **mlw-northwind** in a resource group named **rg-ml-northwind**. The workspace has no compute yet.
+
+    You need to configure the following:
+
+    - Managed compute may send outbound traffic only to approved destinations, including `pypi.org`.
+    - The FQDN rule must use the lowest-cost firewall SKU that supports it.
+    - The managed network must be created now, before you create a managed online deployment.
+
+    How should you complete the file and the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Azure Machine Learning existant nommé **mlw-northwind** dans un groupe de ressources nommé **rg-ml-northwind**. L'espace de travail n'a encore aucun calcul.
+
+    Vous devez configurer les éléments suivants :
+
+    - le calcul managé ne peut envoyer du trafic sortant que vers des destinations approuvées, dont `pypi.org` ;
+    - la règle FQDN doit utiliser la référence SKU de pare-feu la moins chère qui la prend en charge ;
+    - le réseau managé doit être créé maintenant, avant que vous ne créiez un déploiement en ligne managé.
+
+    Comment devez-vous compléter le fichier et les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    # workspace.yml
+    name: mlw-northwind
+    managed_network:
+      isolation_mode: [[mode]]
+      firewall_sku: [[sku]]
+      outbound_rules:
+        - name: pypi
+          type: fqdn
+          destination: 'pypi.org'
+
+    az ml workspace [[cmd]] --file workspace.yml -g rg-ml-northwind -n mlw-northwind
+    az ml workspace [[prov]] -g rg-ml-northwind -n mlw-northwind
+  slots:
+    - id: mode
+      options:
+        - { id: inet, text: allow_internet_outbound }
+        - { id: approved, text: allow_only_approved_outbound }
+        - { id: disabled, text: disabled }
+    - id: sku
+      options:
+        - { id: standard, text: standard }
+        - { id: basic, text: basic }
+        - { id: premium, text: premium }
+    - id: cmd
+      options:
+        - { id: create, text: create }
+        - { id: update, text: update }
+        - { id: show, text: show }
+    - id: prov
+      options:
+        - { id: provision, text: provision-network }
+        - { id: sync, text: sync-keys }
+        - { id: showq, text: show }
+answer:
+  values: { mode: approved, sku: basic, cmd: update, prov: provision }
+explanation:
+  correct:
+    en: |
+      FQDN rules are only valid in the allow only approved outbound mode. They use an Azure Firewall whose SKU is Standard by default and can be set to Basic with `firewall_sku: basic`; Premium isn't supported. The existing workspace is changed with `az ml workspace update --file`, and `az ml workspace provision-network` provisions the managed network on demand, which is required before online deployments when no compute exists.
+    fr: "Les règles FQDN ne sont valides qu'en mode allow only approved outbound. Elles utilisent un pare-feu Azure Firewall dont la référence SKU est Standard par défaut et peut être définie sur Basic avec `firewall_sku: basic` ; Premium n'est pas pris en charge. L'espace de travail existant se modifie avec `az ml workspace update --file`, et `az ml workspace provision-network` provisionne le réseau managé à la demande, ce qui est nécessaire avant des déploiements en ligne quand aucun calcul n'existe."
+  options:
+    inet: { en: "FQDN and service tag rules aren't allowed in the internet outbound mode, which allows all internet traffic anyway.", fr: "Les règles FQDN et de balise de service ne sont pas autorisées en mode internet outbound, qui autorise de toute façon tout le trafic Internet." }
+    disabled: { en: "disabled means no managed network.", fr: "disabled signifie pas de réseau managé." }
+    standard: { en: "Standard is the default and costs more than Basic.", fr: "Standard est la valeur par défaut et coûte plus cher que Basic." }
+    premium: { en: "The managed network doesn't support the Premium firewall SKU.", fr: "Le réseau managé ne prend pas en charge la référence SKU Premium du pare-feu." }
+    create: { en: "The workspace already exists; create is for a new workspace.", fr: "L'espace de travail existe déjà ; create sert à un nouvel espace de travail." }
+    show: { en: "show displays the configuration without changing it.", fr: "show affiche la configuration sans la modifier." }
+    sync: { en: "sync-keys resynchronizes the keys of associated resources.", fr: "sync-keys resynchronise les clés des ressources associées." }
+    showq: { en: "show only displays the workspace; the network would wait for the first compute.", fr: "show ne fait qu'afficher l'espace de travail ; le réseau attendrait le premier calcul." }
+references:
+  - title: Managed virtual network isolation
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-managed-network

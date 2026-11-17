@@ -1,0 +1,108 @@
+id: ai300-cs2c-adventure-works
+status: draft
+title:
+  en: Adventure Works Cycles
+  fr: Adventure Works Cycles
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Adventure Works Cycles is a bicycle manufacturer based in the United States. It sells through 1,500 independent dealers.
+
+        Adventure Works runs a retrieval-augmented generation (RAG) assistant named RideHelp. Dealers ask RideHelp questions about assembly, repair and warranty procedures, and RideHelp answers from the company's 9,000 technical manuals.
+      fr: |
+        Adventure Works Cycles est un fabricant de vélos basé aux États-Unis. Il vend ses produits par l'intermédiaire de 1 500 revendeurs indépendants.
+
+        Adventure Works exploite un assistant de génération augmentée par récupération (RAG) nommé RideHelp. Les revendeurs posent à RideHelp des questions sur les procédures d'assemblage, de réparation et de garantie, et RideHelp répond à partir des 9 000 manuels techniques de l'entreprise.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Adventure Works has the following Azure resources in the East US 2 region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | srch-aw | Azure AI Search service | Standard tier; semantic ranker enabled |
+        | manuals | Index in srch-aw | Field **content** (searchable text), vector field **contentVector** with a vectorizer, semantic configuration **sem-manuals** |
+        | idx-manuals | Indexer in srch-aw | Skillset with a Text Split skill (`textSplitMode` pages, unit characters, `maximumPageLength` 5000, `pageOverlapLength` 0), followed by an embedding skill |
+        | fdy-aw | Microsoft Foundry resource | Contains a project named **ridehelp** and an embedding model deployment used by the vectorizer |
+        | gpt-support | Model deployment in fdy-aw | Chat model used by RideHelp; deployed manually in the Foundry portal |
+
+        RideHelp sends each dealer question to srch-aw as a vector query of the `text` kind on contentVector, with `k` set to 5, and sends the five chunks it retrieves to gpt-support.
+
+        Part numbers in the manuals, such as BK-R93R-62 or FR-M94B-38, are codes with no natural-language meaning.
+      fr: |
+        Adventure Works dispose des ressources Azure suivantes dans la région East US 2.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | srch-aw | Service Azure AI Search | Niveau Standard ; classeur sémantique activé |
+        | manuals | Index dans srch-aw | Champ **content** (texte avec recherche), champ vectoriel **contentVector** avec un vectoriseur, configuration sémantique **sem-manuals** |
+        | idx-manuals | Indexeur dans srch-aw | Ensemble de compétences avec une compétence Text Split (`textSplitMode` pages, unité characters, `maximumPageLength` 5000, `pageOverlapLength` 0), suivie d'une compétence d'incorporation |
+        | fdy-aw | Ressource Microsoft Foundry | Contient un projet nommé **ridehelp** et un déploiement de modèle d'incorporation utilisé par le vectoriseur |
+        | gpt-support | Déploiement de modèle dans fdy-aw | Modèle de conversation utilisé par RideHelp ; déployé manuellement dans le portail Foundry |
+
+        RideHelp envoie chaque question de revendeur à srch-aw sous la forme d'une requête vectorielle de type `text` sur contentVector, avec `k` défini sur 5, et transmet les cinq blocs récupérés à gpt-support.
+
+        Les références de pièces dans les manuels, comme BK-R93R-62 ou FR-M94B-38, sont des codes sans signification en langage naturel.
+  - key: issues
+    title: { en: "Problem statements", fr: "Problèmes constatés" }
+    body:
+      en: |
+        Adventure Works has identified the following problems:
+
+        - Questions that contain a part number often retrieve the manual of another bicycle.
+        - A single 5,000-character chunk often mixes several repair procedures.
+        - Repair steps that are cut at the end of one chunk are missing from the next chunk, so answers skip steps.
+        - Dealers find the answers of RideHelp correct but too long and too formal.
+      fr: |
+        Adventure Works a constaté les problèmes suivants :
+
+        - Les questions qui contiennent une référence de pièce récupèrent souvent le manuel d'un autre vélo.
+        - Un même bloc de 5 000 caractères mélange souvent plusieurs procédures de réparation.
+        - Les étapes de réparation coupées à la fin d'un bloc sont absentes du bloc suivant : les réponses sautent des étapes.
+        - Les revendeurs trouvent les réponses de RideHelp correctes, mais trop longues et trop formelles.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Adventure Works identifies the following requirements.
+
+        **Retrieval**
+
+        1. Chunks must be measured in tokens of the embedding model and contain about 512 tokens. Consecutive chunks must share part of their text. Preview features are allowed in the indexing pipeline.
+        2. Questions that contain a part number must retrieve the chunks that contain this part number, without losing the semantic matching of the other questions.
+
+        **Evaluation**
+
+        3. Product experts labeled the relevance of the manual chunks for 300 test questions on a scale from 0 to 4. Retrieval quality must be measured with NDCG and XDCG on these questions after each change to the index.
+
+        **Customization**
+
+        4. For 1,800 dealer questions, the editors reviewed two candidate answers and marked one as preferred and the other as rejected, based on tone and length. There is no single correct answer to these questions. The chat model must learn these preferences.
+
+        **Deployment**
+
+        5. gpt-support must be redeployed by using Bicep. Requests must be processed only within the United States data zone and billed per token.
+        6. The model version of gpt-support must not change while it is still supported. When the version expires, the deployment must move to a newer version without manual action.
+      fr: |
+        Adventure Works a défini les exigences suivantes.
+
+        **Récupération**
+
+        1. Les blocs doivent être mesurés en jetons du modèle d'incorporation et contenir environ 512 jetons. Des blocs consécutifs doivent partager une partie de leur texte. Les fonctionnalités en préversion sont autorisées dans le pipeline d'indexation.
+        2. Les questions qui contiennent une référence de pièce doivent récupérer les blocs qui contiennent cette référence, sans perdre la correspondance sémantique des autres questions.
+
+        **Évaluation**
+
+        3. Des experts produit ont évalué la pertinence des blocs des manuels pour 300 questions de test, sur une échelle de 0 à 4. La qualité de la récupération doit être mesurée avec NDCG et XDCG sur ces questions après chaque modification de l'index.
+
+        **Personnalisation**
+
+        4. Pour 1 800 questions de revendeurs, les rédacteurs ont examiné deux réponses candidates et ont marqué l'une comme préférée et l'autre comme rejetée, selon le ton et la longueur. Il n'existe pas de réponse correcte unique à ces questions. Le modèle de conversation doit apprendre ces préférences.
+
+        **Déploiement**
+
+        5. gpt-support doit être redéployé à l'aide de Bicep. Les requêtes ne doivent être traitées qu'à l'intérieur de la zone de données des États-Unis et facturées au jeton.
+        6. La version du modèle de gpt-support ne doit pas changer tant qu'elle est prise en charge. Quand la version expire, le déploiement doit passer à une version plus récente sans action manuelle.

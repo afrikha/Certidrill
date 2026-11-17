@@ -1,0 +1,79 @@
+id: dp800-2a-ae-create-table
+objective: "2.1.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are creating a table named **dbo.Applicant** in an Azure SQL Database. The column encryption key **CEK_HR** already exists and is protected by a column master key stored in Azure Key Vault.
+
+    The table must meet the following requirements:
+
+    - **PassportNumber**: database administrators must not see the values, and the recruiting application finds applicants by using an equality filter on the column.
+    - **ExpectedSalary**: database administrators must not see the values; the column is only displayed, never filtered or grouped, and must get the strongest protection.
+    - Secure enclaves are not used.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous créez une table nommée **dbo.Applicant** dans une base de données Azure SQL Database. La clé de chiffrement de colonne **CEK_HR** existe déjà et est protégée par une clé principale de colonne stockée dans Azure Key Vault.
+
+    La table doit satisfaire les exigences suivantes :
+
+    - **PassportNumber** : les administrateurs de base de données ne doivent pas voir les valeurs, et l'application de recrutement recherche les candidats à l'aide d'un filtre d'égalité sur la colonne.
+    - **ExpectedSalary** : les administrateurs de base de données ne doivent pas voir les valeurs ; la colonne est seulement affichée, jamais filtrée ni regroupée, et doit bénéficier de la protection la plus forte.
+    - Les enclaves sécurisées ne sont pas utilisées.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE dbo.Applicant (
+        ApplicantID int PRIMARY KEY,
+        PassportNumber varchar(20) COLLATE [[coll]]
+            ENCRYPTED WITH (COLUMN_ENCRYPTION_KEY = CEK_HR,
+                            ENCRYPTION_TYPE = [[type1]],
+                            ALGORITHM = '[[alg]]') NOT NULL,
+        ExpectedSalary decimal(12,2)
+            ENCRYPTED WITH (COLUMN_ENCRYPTION_KEY = CEK_HR,
+                            ENCRYPTION_TYPE = [[type2]],
+                            ALGORITHM = 'AEAD_AES_256_CBC_HMAC_SHA_256') NULL);
+  slots:
+    - id: coll
+      options:
+        - { id: bin2, text: Latin1_General_BIN2 }
+        - { id: cias, text: Latin1_General_CI_AS }
+        - { id: utf8, text: Latin1_General_100_CI_AS_SC_UTF8 }
+        - { id: cp1, text: SQL_Latin1_General_CP1_CI_AS }
+    - id: type1
+      options:
+        - { id: det, text: DETERMINISTIC }
+        - { id: rnd, text: RANDOMIZED }
+    - id: alg
+      options:
+        - { id: aead, text: AEAD_AES_256_CBC_HMAC_SHA_256 }
+        - { id: rsa, text: RSA_OAEP }
+        - { id: aes, text: AES_256 }
+    - id: type2
+      options:
+        - { id: det, text: DETERMINISTIC }
+        - { id: rnd, text: RANDOMIZED }
+answer:
+  values: { coll: bin2, type1: det, alg: aead, type2: rnd }
+explanation:
+  correct:
+    en: |
+      Equality lookups on an encrypted column without an enclave require deterministic encryption, and an encrypted string column must use the _BIN2 variant of the collation. AEAD_AES_256_CBC_HMAC_SHA_256 is the algorithm that encrypts column data. A column that is never searched or grouped should use randomized encryption, which produces a different ciphertext for each encryption and is the stronger option.
+    fr: |
+      Les recherches d'égalité sur une colonne chiffrée sans enclave exigent le chiffrement déterministe, et une colonne de chaînes chiffrée doit utiliser la variante _BIN2 du classement. AEAD_AES_256_CBC_HMAC_SHA_256 est l'algorithme qui chiffre les données de colonne. Une colonne jamais recherchée ni regroupée doit utiliser le chiffrement aléatoire, qui produit un texte chiffré différent à chaque chiffrement et constitue l'option la plus forte.
+  options:
+    cias: { en: "Encrypted string columns must use a binary-code point (_BIN2) collation.", fr: "Les colonnes de chaînes chiffrées doivent utiliser un classement binaire (_BIN2)." }
+    rsa: { en: "RSA_OAEP is the algorithm that encrypts the column encryption key with the column master key, not the column data.", fr: "RSA_OAEP est l'algorithme qui chiffre la clé de chiffrement de colonne avec la clé principale de colonne, pas les données de la colonne." }
+    aes: { en: "AES_256 is an algorithm of CREATE SYMMETRIC KEY for column-level encryption, not an Always Encrypted algorithm.", fr: "AES_256 est un algorithme de CREATE SYMMETRIC KEY pour le chiffrement au niveau des colonnes, pas un algorithme d'Always Encrypted." }
+references:
+  - title: Always Encrypted
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/encryption/always-encrypted-database-engine

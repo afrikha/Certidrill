@@ -1,0 +1,77 @@
+id: ai200-cs3c-product-cache
+objective: "2.3.1"
+type: dropdown
+caseStudy: ai200-cs3c-vanarsdel
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You are writing the product cache code of app-vanarsdel-shop by using redis-py. The code must meet the product cache requirement.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le code du cache des produits de app-vanarsdel-shop à l'aide de redis-py. Le code doit respecter l'exigence relative au cache des produits.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import json, os, redis
+    from redis_entraid.cred_provider import create_from_default_azure_credential
+
+    r = redis.Redis(
+        host=os.environ["REDIS_HOST"],
+        port=[[port]],
+        ssl=True,
+        decode_responses=True,
+        credential_provider=create_from_default_azure_credential(("https://redis.azure.com/.default",)),
+    )
+
+    def get_product(product_id: str) -> dict:
+        key = f"product:{product_id}"
+        cached = r.get(key)
+        if cached is not None:
+            return json.loads(cached)
+        product = load_product_from_catalog(product_id)
+        r.set(key, json.dumps(product), [[ttl]])
+        return product
+
+    def on_price_changed(product_id: str) -> None:
+        r.[[invalidate]](f"product:{product_id}")
+  slots:
+    - id: port
+      options:
+        - { id: p10000, text: "10000" }
+        - { id: p6380, text: "6380" }
+        - { id: p6379, text: "6379" }
+    - id: ttl
+      options:
+        - { id: ex600, text: "ex=600" }
+        - { id: px600, text: "px=600" }
+        - { id: ex10, text: "ex=10" }
+    - id: invalidate
+      options:
+        - { id: delete, text: "delete" }
+        - { id: persist, text: "persist" }
+        - { id: touch, text: "touch" }
+answer:
+  values: { port: p10000, ttl: ex600, invalidate: delete }
+explanation:
+  correct:
+    en: "Azure Managed Redis listens on port 10000 with TLS. In redis-py, `ex` sets the expiration in seconds, so `ex=600` keeps the product for 10 minutes. `delete` removes the key at once, so the next read loads the new price from the catalog."
+    fr: "Azure Managed Redis écoute sur le port 10000 avec TLS. Dans redis-py, `ex` définit l'expiration en secondes : `ex=600` conserve le produit pendant 10 minutes. `delete` supprime la clé immédiatement : la lecture suivante charge le nouveau prix depuis le catalogue."
+  options:
+    p6380: { en: "Port 6380 is the TLS port of Azure Cache for Redis, not of Azure Managed Redis.", fr: "Le port 6380 est le port TLS d'Azure Cache for Redis, pas d'Azure Managed Redis." }
+    p6379: { en: "6379 is the default non-TLS port of open-source Redis.", fr: "6379 est le port par défaut sans TLS de Redis open source." }
+    px600: { en: "`px` is in milliseconds, so the key would expire after 0.6 seconds.", fr: "`px` est exprimé en millisecondes : la clé expirerait au bout de 0,6 seconde." }
+    ex10: { en: "`ex` is in seconds, so the key would expire after 10 seconds.", fr: "`ex` est exprimé en secondes : la clé expirerait au bout de 10 secondes." }
+    persist: { en: "PERSIST removes the expiration of the key and keeps the stale price in the cache.", fr: "PERSIST supprime l'expiration de la clé et conserve l'ancien prix dans le cache." }
+    touch: { en: "TOUCH only updates the last access time of the key.", fr: "TOUCH met seulement à jour l'heure du dernier accès à la clé." }
+references:
+  - title: "Quickstart: Create a Python app with Azure Managed Redis"
+    url: https://learn.microsoft.com/en-us/azure/redis/python-get-started

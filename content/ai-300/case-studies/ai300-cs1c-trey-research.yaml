@@ -1,0 +1,109 @@
+id: ai300-cs1c-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a medical imaging research company based in Lyon that works with a network of 14 partner hospitals.
+
+        Trey Research runs two AI projects:
+
+        - **LesionSeg**: a deep learning model, trained with PyTorch, that outlines lesions on CT scans.
+        - **RadAssist**: a retrieval-augmented generation (RAG) assistant that lets radiologists search past radiology reports in natural language.
+
+        A team of five machine learning engineers works on both projects.
+      fr: |
+        Trey Research est une entreprise de recherche en imagerie médicale basée à Lyon, qui travaille avec un réseau de 14 hôpitaux partenaires.
+
+        Trey Research mène deux projets d'IA :
+
+        - **LesionSeg** : un modèle de deep learning, entraîné avec PyTorch, qui délimite les lésions sur des scanners CT.
+        - **RadAssist** : un assistant de génération augmentée par récupération (RAG) qui permet aux radiologues de rechercher d'anciens comptes rendus de radiologie en langage naturel.
+
+        Une équipe de cinq ingénieurs en machine learning travaille sur les deux projets.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Trey Research has the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-trey-imaging | Azure Machine Learning workspace | Experiment **lesion-seg** contains the runs of LesionSeg |
+        | ct-scans | Data asset (`uri_folder`) in mlw-trey-imaging | 4 TB of anonymized CT scans |
+        | train.py | Training script of LesionSeg | Uses PyTorch `DistributedDataParallel` with the `nccl` backend; logs the parameters **architecture**, **learning_rate** and **batch_size** and, after each epoch, the metric **val_dice** with MLflow; saves the trained model with `mlflow.pytorch.log_model(model, "model")` |
+        | srch-trey | Azure AI Search service | Index **reports-idx**: chunks of radiology reports embedded with text-embedding-3-small |
+        | fdy-trey | Microsoft Foundry resource | Embedding model deployment used by RadAssist for the chunks and the queries |
+
+        The radiology reports use many internal abbreviations of the hospital network that can't be found on the internet. RadAssist often fails to retrieve reports that contain these abbreviations.
+      fr: |
+        Trey Research dispose des ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-trey-imaging | Espace de travail Azure Machine Learning | L'expérience **lesion-seg** contient les exécutions de LesionSeg |
+        | ct-scans | Ressource de données (`uri_folder`) dans mlw-trey-imaging | 4 To de scanners CT anonymisés |
+        | train.py | Script d'entraînement de LesionSeg | Utilise `DistributedDataParallel` de PyTorch avec le backend `nccl` ; enregistre avec MLflow les paramètres **architecture**, **learning_rate** et **batch_size** et, après chaque époque, la métrique **val_dice** ; enregistre le modèle entraîné avec `mlflow.pytorch.log_model(model, "model")` |
+        | srch-trey | Service Azure AI Search | Index **reports-idx** : blocs de comptes rendus de radiologie incorporés avec text-embedding-3-small |
+        | fdy-trey | Ressource Microsoft Foundry | Déploiement de modèle d'incorporation utilisé par RadAssist pour les blocs et pour les requêtes |
+
+        Les comptes rendus de radiologie utilisent de nombreuses abréviations internes du réseau hospitalier qui sont introuvables sur Internet. RadAssist ne parvient souvent pas à récupérer les comptes rendus qui contiennent ces abréviations.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Compute**
+
+        - A compute cluster named **gpu-cluster** must be created in mlw-trey-imaging for LesionSeg training.
+        - Each node must have eight GPUs, and the nodes must communicate over InfiniBand.
+        - No compute cost must be incurred when no job runs.
+        - A training run lasts up to three days and must not be interrupted by preemption.
+
+        **Training**
+
+        - LesionSeg must train on two nodes of gpu-cluster, with one training process per GPU.
+
+        **Tuning**
+
+        - A sweep job must tune learning_rate, a continuous value between 0.0001 and 0.01, and batch_size, one of the values 8, 16 or 32.
+        - The hyperparameter values of each new trial must be selected from the results of the earlier trials.
+        - The number of trials must be the minimum that follows Microsoft's recommendation for the sampling method.
+
+        **Comparison and registration**
+
+        - From a notebook that doesn't set an active experiment, the engineers must list the five runs of lesion-seg that have the highest val_dice among the runs whose architecture parameter is **unet**.
+        - The model of the best run must be registered in mlw-trey-imaging with lineage to the job that trained it, and it must be deployable to a batch endpoint without a scoring script or an environment.
+
+        **RadAssist**
+
+        - Trey Research plans to evaluate another embedding model for reports-idx to improve the retrieval of reports that contain internal abbreviations.
+      fr: |
+        **Calcul**
+
+        - Un cluster de calcul nommé **gpu-cluster** doit être créé dans mlw-trey-imaging pour l'entraînement de LesionSeg.
+        - Chaque nœud doit disposer de huit GPU, et les nœuds doivent communiquer par InfiniBand.
+        - Aucun coût de calcul ne doit être engagé quand aucun travail ne s'exécute.
+        - Une exécution d'entraînement dure jusqu'à trois jours et ne doit pas être interrompue par une préemption.
+
+        **Entraînement**
+
+        - LesionSeg doit s'entraîner sur deux nœuds de gpu-cluster, avec un processus d'entraînement par GPU.
+
+        **Réglage**
+
+        - Un travail de balayage (sweep) doit régler learning_rate, une valeur continue entre 0,0001 et 0,01, et batch_size, l'une des valeurs 8, 16 ou 32.
+        - Les valeurs d'hyperparamètres de chaque nouvel essai doivent être choisies à partir des résultats des essais précédents.
+        - Le nombre d'essais doit être le minimum qui respecte la recommandation de Microsoft pour la méthode d'échantillonnage.
+
+        **Comparaison et inscription**
+
+        - Depuis un notebook qui ne définit pas d'expérience active, les ingénieurs doivent lister les cinq exécutions de lesion-seg qui ont la val_dice la plus élevée parmi les exécutions dont le paramètre architecture vaut **unet**.
+        - Le modèle de la meilleure exécution doit être inscrit dans mlw-trey-imaging avec une traçabilité vers le travail qui l'a entraîné, et il doit pouvoir être déployé sur un point de terminaison par lots sans script de scoring ni environnement.
+
+        **RadAssist**
+
+        - Trey Research prévoit d'évaluer un autre modèle d'incorporation pour reports-idx afin d'améliorer la récupération des comptes rendus qui contiennent des abréviations internes.

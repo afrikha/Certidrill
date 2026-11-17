@@ -1,0 +1,95 @@
+id: ai200-2c-pg-rag-clauses
+objective: "2.2.5"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum Corporation is building an HR assistant that uses retrieval-augmented generation (RAG) on Azure Database for PostgreSQL flexible server. The data is stored in the following tables.
+
+    ```sql
+    CREATE TABLE policy_documents (
+        id            integer PRIMARY KEY,
+        title         text NOT NULL,
+        source_url    text NOT NULL,
+        department_id integer NOT NULL
+    );
+    CREATE TABLE policy_chunks (
+        id          bigint PRIMARY KEY,
+        document_id integer NOT NULL REFERENCES policy_documents(id),
+        content     text NOT NULL,
+        embedding   vector(1536)
+    );
+    ```
+
+    The Python code passes the question embedding as `%(q)s` and the list of department IDs that the user may read as `%(depts)s`. The retrieval query must meet the following requirements:
+
+    - Return the title and URL of the source document with each chunk, so that the answer can cite its sources.
+    - Return only chunks of documents that belong to the user's departments.
+    - Return the six chunks that are the most similar to the question by cosine distance.
+
+    Which three clauses should the query include? Each correct answer presents part of the solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum Corporation développe un assistant RH qui utilise la génération augmentée de récupération (RAG) sur Azure Database for PostgreSQL serveur flexible. Les données sont stockées dans les tables suivantes.
+
+    ```sql
+    CREATE TABLE policy_documents (
+        id            integer PRIMARY KEY,
+        title         text NOT NULL,
+        source_url    text NOT NULL,
+        department_id integer NOT NULL
+    );
+    CREATE TABLE policy_chunks (
+        id          bigint PRIMARY KEY,
+        document_id integer NOT NULL REFERENCES policy_documents(id),
+        content     text NOT NULL,
+        embedding   vector(1536)
+    );
+    ```
+
+    Le code Python passe l'incorporation de la question sous la forme `%(q)s` et la liste des ID de services que l'utilisateur peut lire sous la forme `%(depts)s`. La requête de récupération doit respecter les exigences suivantes :
+
+    - Renvoyer le titre et l'URL du document source avec chaque segment, pour que la réponse puisse citer ses sources.
+    - Renvoyer uniquement les segments des documents qui appartiennent aux services de l'utilisateur.
+    - Renvoyer les six segments les plus similaires à la question selon la distance cosinus.
+
+    Quelles sont les trois clauses que la requête doit inclure ? Chaque bonne réponse présente une partie de la solution.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 3
+  options:
+    - { id: a, text: "WHERE d.department_id = ANY(%(depts)s)" }
+    - { id: b, text: "GROUP BY d.title, d.source_url" }
+    - { id: c, text: "ORDER BY d.title LIMIT 6" }
+    - { id: d, text: "JOIN policy_documents AS d ON d.id = c.document_id" }
+    - { id: e, text: "WHERE c.embedding <=> %(q)s::vector > 0.8" }
+    - { id: f, text: "ORDER BY c.embedding <=> %(q)s::vector LIMIT 6" }
+answer: { optionIds: [ a, d, f ] }
+explanation:
+  correct:
+    en: |
+      The join to `policy_documents` brings the title and URL of each chunk's source document and gives access to its department. The `WHERE ... = ANY(...)` metadata filter keeps only the departments in the list that psycopg passes as an array. Sorting by the cosine distance `<=>` in ascending order with `LIMIT 6` returns the six nearest chunks.
+    fr: |
+      La jointure avec `policy_documents` apporte le titre et l'URL du document source de chaque segment et donne accès à son service. Le filtre de métadonnées `WHERE ... = ANY(...)` ne conserve que les services de la liste que psycopg passe sous forme de tableau. Le tri par distance cosinus `<=>` dans l'ordre croissant avec `LIMIT 6` renvoie les six segments les plus proches.
+  options:
+    b:
+      en: |
+        Grouping by document collapses the chunks of a document into one row; it doesn't select the most similar chunks.
+      fr: |
+        Le regroupement par document fusionne les segments d'un document en une seule ligne ; il ne sélectionne pas les segments les plus similaires.
+    c:
+      en: |
+        Sorting by title returns six chunks in alphabetical order, not the six nearest chunks.
+      fr: |
+        Le tri par titre renvoie six segments dans l'ordre alphabétique, pas les six segments les plus proches.
+    e:
+      en: |
+        A distance greater than 0.8 keeps only the least similar chunks.
+      fr: |
+        Une distance supérieure à 0,8 ne conserve que les segments les moins similaires.
+references:
+  - title: Vector Search in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector

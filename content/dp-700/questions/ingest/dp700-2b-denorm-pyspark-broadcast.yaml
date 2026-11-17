@@ -1,0 +1,65 @@
+id: dp700-2b-denorm-pyspark-broadcast
+objective: "2.2.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a lakehouse that contains a Delta table named silver_sales with 2 billion rows and a Delta table named silver_stores with 300 rows. Both tables have a StoreID column.
+
+    You need a notebook to create a table named gold_sales_wide that adds the store attributes to every sale. Sales whose StoreID doesn't exist in silver_stores must be kept. The join must not shuffle silver_sales across the cluster.
+
+    How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse qui contient une table Delta nommée silver_sales de 2 milliards de lignes et une table Delta nommée silver_stores de 300 lignes. Les deux tables ont une colonne StoreID.
+
+    Un notebook doit créer une table nommée gold_sales_wide qui ajoute les attributs du magasin à chaque vente. Les ventes dont le StoreID n'existe pas dans silver_stores doivent être conservées. La jointure ne doit pas redistribuer (shuffle) silver_sales dans le cluster.
+
+    Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    sales = spark.read.table("silver_sales")
+    stores = spark.read.table("silver_stores")
+
+    wide = sales.join(F.[[hint]](stores), on="StoreID", how="[[how]]")
+
+    wide.write.format("delta").mode("overwrite").saveAsTable("gold_sales_wide")
+  slots:
+    - id: hint
+      options:
+        - { id: h_broadcast, text: broadcast }
+        - { id: h_coalesce, text: coalesce }
+        - { id: h_struct, text: struct }
+        - { id: h_lit, text: lit }
+    - id: how
+      options:
+        - { id: w_left, text: left }
+        - { id: w_inner, text: inner }
+        - { id: w_right, text: right }
+        - { id: w_anti, text: left_anti }
+answer:
+  values: { hint: h_broadcast, how: w_left }
+explanation:
+  correct:
+    en: |
+      broadcast() marks the small stores DataFrame to be copied to every executor, so Spark joins each partition of sales locally instead of shuffling 2 billion rows. A left join keeps every row of sales and fills the store columns with nulls when the StoreID has no match.
+    fr: |
+      broadcast() indique que le petit DataFrame stores doit être copié sur chaque exécuteur : Spark joint chaque partition de sales localement au lieu de redistribuer 2 milliards de lignes. Une jointure gauche conserve chaque ligne de sales et remplit les colonnes du magasin avec des valeurs NULL quand le StoreID n'a pas de correspondance.
+  options:
+    h_coalesce: { en: "coalesce() returns the first non-null value of columns; it isn't a join hint.", fr: "coalesce() renvoie la première valeur non NULL de colonnes ; ce n'est pas un indicateur de jointure." }
+    h_struct: { en: "struct() builds a struct column from columns; it doesn't change the join strategy.", fr: "struct() construit une colonne de structure à partir de colonnes ; il ne change pas la stratégie de jointure." }
+    h_lit: { en: "lit() creates a literal column; it can't wrap a DataFrame.", fr: "lit() crée une colonne littérale ; il ne peut pas envelopper un DataFrame." }
+    w_inner: { en: "inner drops the sales whose StoreID has no match in stores.", fr: "inner supprime les ventes dont le StoreID n'a pas de correspondance dans stores." }
+    w_right: { en: "right keeps every store and drops unmatched sales.", fr: "right conserve chaque magasin et supprime les ventes sans correspondance." }
+    w_anti: { en: "left_anti returns only the unmatched sales, without the store columns.", fr: "left_anti ne renvoie que les ventes sans correspondance, sans les colonnes du magasin." }
+references:
+  - title: "Lakehouse tutorial: Prepare and transform data in the lakehouse"
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/tutorial-lakehouse-data-preparation

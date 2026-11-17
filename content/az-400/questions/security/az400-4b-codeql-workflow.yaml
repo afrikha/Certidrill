@@ -1,0 +1,93 @@
+id: az400-4b-codeql-workflow
+objective: "4.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has a private GitHub repository that contains a C# solution and has GitHub Code Security. The solution compiles correctly only with the team's own command, `dotnet build src/Payments.sln --configuration Release`.
+
+    You need to create a code scanning workflow (advanced setup). The solution must meet the following requirements:
+
+    - CodeQL must analyze exactly the code that the team's build command compiles.
+    - The results must appear as code scanning alerts in the repository.
+    - The workflow must have only the permissions it needs.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank dispose d'un dépôt GitHub privé qui contient une solution C# et bénéficie de GitHub Code Security. La solution ne se compile correctement qu'avec la commande de l'équipe, `dotnet build src/Payments.sln --configuration Release`.
+
+    Vous devez créer un workflow d'analyse du code (configuration avancée). La solution doit répondre aux exigences suivantes :
+
+    - CodeQL doit analyser exactement le code compilé par la commande de build de l'équipe.
+    - Les résultats doivent apparaître sous forme d'alertes d'analyse du code dans le dépôt.
+    - Le workflow ne doit disposer que des autorisations nécessaires.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: CodeQL
+    on:
+      push:
+        branches: [ main ]
+      pull_request:
+        branches: [ main ]
+
+    permissions:
+      contents: read
+      actions: read
+      [[perm]]
+
+    jobs:
+      analyze:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v6
+          - uses: github/codeql-action/init@v4
+            with:
+              languages: csharp
+              build-mode: [[mode]]
+          - run: dotnet build src/Payments.sln --configuration Release
+          - uses: [[final]]
+  slots:
+    - id: perm
+      options:
+        - { id: checks, text: "checks: write" }
+        - { id: idtoken, text: "id-token: write" }
+        - { id: secevents, text: "security-events: write" }
+        - { id: prs, text: "pull-requests: write" }
+    - id: mode
+      options:
+        - { id: none, text: none }
+        - { id: autobuild, text: autobuild }
+        - { id: manual, text: manual }
+    - id: final
+      options:
+        - { id: analyze, text: github/codeql-action/analyze@v4 }
+        - { id: upload, text: github/codeql-action/upload-sarif@v4 }
+        - { id: auto, text: github/codeql-action/autobuild@v4 }
+answer:
+  values: { perm: secevents, mode: manual, final: analyze }
+explanation:
+  correct:
+    en: |
+      Uploading code scanning results requires the `security-events: write` permission; `actions: read` is needed for private repositories. The `manual` build mode makes CodeQL trace the build steps you supply, so it analyzes what the team's command compiles. The analyze action finalizes the CodeQL database, runs the queries and uploads the results to code scanning.
+    fr: |
+      Le chargement des résultats de l'analyse du code exige l'autorisation `security-events: write` ; `actions: read` est nécessaire pour les dépôts privés. Le mode de build `manual` fait suivre à CodeQL les étapes de build que vous fournissez : il analyse ce que compile la commande de l'équipe. L'action analyze finalise la base de données CodeQL, exécute les requêtes et charge les résultats dans l'analyse du code.
+  options:
+    checks: { en: "`checks: write` lets a workflow create check runs; it doesn't allow uploading code scanning results.", fr: "`checks: write` permet à un workflow de créer des exécutions de vérification ; il ne permet pas de charger des résultats d'analyse du code." }
+    idtoken: { en: "`id-token: write` requests an OIDC token for cloud authentication, which CodeQL doesn't need.", fr: "`id-token: write` demande un jeton OIDC pour l'authentification auprès d'un cloud, inutile pour CodeQL." }
+    prs: { en: "`pull-requests: write` lets a workflow comment on or edit pull requests; it doesn't upload alerts.", fr: "`pull-requests: write` permet à un workflow de commenter ou de modifier des pull requests ; il ne charge pas d'alertes." }
+    none: { en: "none creates the database without observing any build, so it doesn't follow the team's command.", fr: "none crée la base de données sans observer de build : elle ne suit pas la commande de l'équipe." }
+    autobuild: { en: "autobuild makes CodeQL try its own build instead of relying on the team's command.", fr: "autobuild fait tenter à CodeQL son propre build au lieu de s'appuyer sur la commande de l'équipe." }
+    upload: { en: "upload-sarif uploads a SARIF file produced by another tool; it doesn't run the CodeQL queries.", fr: "upload-sarif charge un fichier SARIF produit par un autre outil ; il n'exécute pas les requêtes CodeQL." }
+    auto: { en: "The autobuild action builds the code; placed last it neither runs the queries nor uploads results.", fr: "L'action autobuild génère le code ; placée en dernier, elle n'exécute pas les requêtes et ne charge pas de résultats." }
+references:
+  - title: Configure code scanning
+    url: https://learn.microsoft.com/en-us/training/modules/configure-code-scanning/4-configure-code-scanning

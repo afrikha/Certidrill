@@ -1,0 +1,70 @@
+id: dp700-2a-merge-cdc-rows
+objective: "2.1.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a warehouse named **DW1** that contains a table named **dbo.Customer**. A pipeline loads the net changes of an operational customer table into a staging table named **stg.CustomerChanges**.
+
+    stg.CustomerChanges contains one row per customer that changed since the previous load, with the columns CustomerID, Name, City and Operation. Operation contains `I` for an insert, `U` for an update and `D` for a delete. A customer that was inserted and then deleted since the previous load appears with Operation = `D`.
+
+    You need to apply the changes to dbo.Customer. Customers deleted at the source must be removed from dbo.Customer. Customers that didn't change must be left untouched.
+
+    How should you complete the T-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt nommé **DW1** qui contient une table nommée **dbo.Customer**. Un pipeline charge les changements nets d'une table de clients opérationnelle dans une table de mise en lots nommée **stg.CustomerChanges**.
+
+    stg.CustomerChanges contient une ligne par client modifié depuis le chargement précédent, avec les colonnes CustomerID, Name, City et Operation. Operation contient `I` pour une insertion, `U` pour une mise à jour et `D` pour une suppression. Un client inséré puis supprimé depuis le chargement précédent apparaît avec Operation = `D`.
+
+    Vous devez appliquer les changements à dbo.Customer. Les clients supprimés à la source doivent être retirés de dbo.Customer. Les clients qui n'ont pas changé doivent rester intacts.
+
+    Comment devez-vous compléter l'instruction T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    MERGE dbo.Customer AS t
+    USING stg.CustomerChanges AS s
+        ON t.CustomerID = s.CustomerID
+    WHEN MATCHED AND s.Operation = 'D' THEN
+        [[del]]
+    WHEN MATCHED THEN
+        UPDATE SET t.Name = s.Name, t.City = s.City
+    WHEN NOT MATCHED [[nm]] THEN
+        INSERT (CustomerID, Name, City) VALUES (s.CustomerID, s.Name, s.City);
+  slots:
+    - id: del
+      options:
+        - { id: delete, text: DELETE }
+        - { id: setnull, text: "UPDATE SET t.Name = NULL, t.City = NULL" }
+        - { id: setsame, text: "UPDATE SET t.Name = s.Name, t.City = s.City" }
+    - id: nm
+      options:
+        - { id: bytarget, text: "BY TARGET AND s.Operation <> 'D'" }
+        - { id: bysource, text: BY SOURCE }
+        - { id: bysourceop, text: "BY SOURCE AND s.Operation <> 'D'" }
+        - { id: targetop, text: "AND t.Operation <> 'D'" }
+answer:
+  values: { del: delete, nm: bytarget }
+explanation:
+  correct:
+    en: |
+      A matched row flagged `D` must be removed, so the first WHEN MATCHED clause uses DELETE. Rows that exist only in the staging table are new customers, handled by WHEN NOT MATCHED [BY TARGET]; the condition `s.Operation <> 'D'` prevents inserting a customer that was created and deleted between two loads. Fabric Data Warehouse supports MERGE with these clauses.
+    fr: |
+      Une ligne correspondante marquée `D` doit être retirée : la première clause WHEN MATCHED utilise DELETE. Les lignes présentes uniquement dans la table de mise en lots sont de nouveaux clients, traités par WHEN NOT MATCHED [BY TARGET] ; la condition `s.Operation <> 'D'` évite d'insérer un client créé puis supprimé entre deux chargements. Fabric Data Warehouse prend en charge MERGE avec ces clauses.
+  options:
+    setnull: { en: "Clearing the attributes keeps the customer in dbo.Customer, but deleted customers must be removed.", fr: "Vider les attributs garde le client dans dbo.Customer, alors que les clients supprimés doivent être retirés." }
+    setsame: { en: "This update keeps the deleted customer in dbo.Customer.", fr: "Cette mise à jour garde le client supprimé dans dbo.Customer." }
+    bysource: { en: "WHEN NOT MATCHED BY SOURCE targets the dbo.Customer rows absent from the staging table, that is every unchanged customer, and it allows only UPDATE or DELETE, not INSERT.", fr: "WHEN NOT MATCHED BY SOURCE cible les lignes de dbo.Customer absentes de la table de mise en lots, c'est-à-dire tous les clients inchangés, et n'autorise que UPDATE ou DELETE, pas INSERT." }
+    bysourceop: { en: "A BY SOURCE condition can reference only target columns, and the clause can't insert rows.", fr: "Une condition BY SOURCE ne peut référencer que des colonnes de la cible, et la clause ne peut pas insérer de lignes." }
+    targetop: { en: "dbo.Customer has no Operation column, and an unmatched row has no target values to test.", fr: "dbo.Customer n'a pas de colonne Operation, et une ligne sans correspondance n'a pas de valeurs cibles à tester." }
+references:
+  - title: MERGE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/merge-transact-sql?view=fabric
+  - title: T-SQL surface area in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/tsql-surface-area

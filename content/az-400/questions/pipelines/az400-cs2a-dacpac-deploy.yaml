@@ -1,0 +1,84 @@
+id: az400-cs2a-dacpac-deploy
+objective: "3.4.8"
+type: dropdown
+caseStudy: az400-cs2a-trey-research
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the stage of the LabPortal pipeline that deploys the LabResults schema. The build stage publishes the .dacpac file in a pipeline artifact named **db**.
+
+    You need to complete the stage so that it meets the requirements.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la phase du pipeline LabPortal qui déploie le schéma de LabResults. La phase de build publie le fichier .dacpac dans un artefact de pipeline nommé **db**.
+
+    Vous devez compléter la phase pour qu'elle respecte les exigences.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    - stage: DeployDatabase
+      jobs:
+      - deployment: LabResultsSchema
+        environment: validated
+        pool:
+          vmImage: [[pool]]
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - task: SqlAzureDacpacDeployment@1
+                inputs:
+                  azureSubscription: 'sc-trey-validated'
+                  AuthenticationType: [[auth]]
+                  ServerName: 'sql-trey-lab.database.windows.net'
+                  DatabaseName: 'LabResults'
+                  deployType: 'DacpacTask'
+                  DeploymentAction: [[action]]
+                  DacpacFile: '$(Pipeline.Workspace)/db/LabResults.dacpac'
+  slots:
+    - id: pool
+      options:
+        - { id: win, text: "'windows-latest'" }
+        - { id: ubu, text: "'ubuntu-latest'" }
+        - { id: mac, text: "'macOS-latest'" }
+    - id: auth
+      options:
+        - { id: server, text: "'server'" }
+        - { id: integ, text: "'aadAuthenticationIntegrated'" }
+        - { id: spn, text: "'servicePrincipal'" }
+        - { id: cs, text: "'connectionString'" }
+    - id: action
+      options:
+        - { id: extract, text: "'Extract'" }
+        - { id: report, text: "'DeployReport'" }
+        - { id: publish, text: "'Publish'" }
+        - { id: export, text: "'Export'" }
+answer:
+  values: { pool: win, auth: spn, action: publish }
+explanation:
+  correct:
+    en: |
+      The Azure SQL Database deployment task (SqlAzureDacpacDeployment@1) is supported only on Windows agents, so the job uses a Windows Microsoft-hosted image. The servicePrincipal authentication type uses the service principal of the Azure Resource Manager service connection, so no SQL login or password is stored. The Publish action applies the schema of the .dacpac file to the target database.
+    fr: |
+      La tâche de déploiement Azure SQL Database (SqlAzureDacpacDeployment@1) n'est prise en charge que sur des agents Windows ; le travail utilise donc une image Windows hébergée par Microsoft. Le type d'authentification servicePrincipal utilise le principal de service de la connexion de service Azure Resource Manager : aucun identifiant de connexion SQL ni mot de passe n'est stocké. L'action Publish applique le schéma du fichier .dacpac à la base de données cible.
+  options:
+    ubu: { en: "The task runs only in a Windows environment.", fr: "La tâche ne s'exécute que dans un environnement Windows." }
+    mac: { en: "The task runs only in a Windows environment.", fr: "La tâche ne s'exécute que dans un environnement Windows." }
+    server: { en: "SQL Server authentication requires a SQL user name and password in the pipeline.", fr: "L'authentification SQL Server exige un nom d'utilisateur et un mot de passe SQL dans le pipeline." }
+    integ: { en: "Integrated authentication uses the agent's account and isn't supported on Microsoft-hosted agents.", fr: "L'authentification intégrée utilise le compte de l'agent et n'est pas prise en charge sur les agents hébergés par Microsoft." }
+    cs: { en: "A connection string to Azure SQL Database would contain the credentials that must not be stored.", fr: "Une chaîne de connexion à Azure SQL Database contiendrait les informations d'identification qui ne doivent pas être stockées." }
+    extract: { en: "Extract creates a .dacpac file from an existing database; it doesn't deploy one.", fr: "Extract crée un fichier .dacpac à partir d'une base existante ; elle n'en déploie pas." }
+    report: { en: "DeployReport only produces a report of the changes that a publish would make.", fr: "DeployReport produit seulement un rapport des modifications qu'une publication effectuerait." }
+    export: { en: "Export creates a .bacpac file with the schema and data of an existing database.", fr: "Export crée un fichier .bacpac contenant le schéma et les données d'une base existante." }
+references:
+  - title: SqlAzureDacpacDeployment@1 - Azure SQL Database deployment v1 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/sql-azure-dacpac-deployment-v1

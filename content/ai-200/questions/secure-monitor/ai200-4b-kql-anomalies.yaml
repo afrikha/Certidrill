@@ -1,0 +1,72 @@
+id: ai200-4b-kql-anomalies
+objective: "4.2.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso's RAG API calls a model endpoint whose host name ends with `openai.azure.com`. The operations team wants to detect unusual spikes in failed calls to this endpoint, by 15-minute interval, over the last seven days. Intervals with no failure must count as zero.
+
+    Which query should you use?
+  fr: |
+    L'API RAG de Contoso appelle un point de terminaison de modèle dont le nom d'hôte se termine par `openai.azure.com`. L'équipe d'exploitation veut détecter les pics inhabituels d'appels en échec vers ce point de terminaison, par intervalle de 15 minutes, sur les sept derniers jours. Les intervalles sans échec doivent compter pour zéro.
+
+    Quelle requête devez-vous utiliser ?
+body:
+  options:
+    - id: a
+      text: |-
+        ```kusto
+        AppDependencies
+        | where Target endswith "openai.azure.com"
+        | make-series Failures = countif(Success == false) default=0 on TimeGenerated from ago(7d) to now() step 15m
+        | extend Anomalies = series_decompose_anomalies(Failures)
+        ```
+    - id: b
+      text: |-
+        ```kusto
+        AppDependencies
+        | where TimeGenerated > ago(7d) and Target endswith "openai.azure.com"
+        | summarize Failures = countif(Success == false) by bin(TimeGenerated, 15m)
+        | extend Anomalies = series_decompose_anomalies(Failures)
+        ```
+    - id: c
+      text: |-
+        ```kusto
+        AppDependencies
+        | where Target endswith "openai.azure.com"
+        | make-series Failures = countif(Success == false) default=0 on TimeGenerated from ago(7d) to now() step 15m
+        | extend Anomalies = series_decompose_anomalies(TimeGenerated)
+        ```
+    - id: d
+      text: |-
+        ```kusto
+        AppDependencies
+        | where TimeGenerated > ago(7d) and Target endswith "openai.azure.com"
+        | summarize Failures = countif(Success == false) by bin(TimeGenerated, 15m)
+        | top 10 by Failures desc
+        ```
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "`make-series` builds one array of values per series, with one element per 15-minute step and `default=0` for empty intervals. `series_decompose_anomalies()` takes such a numeric array and flags the anomalous points."
+    fr: "`make-series` construit un tableau de valeurs par série, avec un élément par pas de 15 minutes et `default=0` pour les intervalles vides. `series_decompose_anomalies()` prend un tel tableau numérique et signale les points anormaux."
+  options:
+    b:
+      en: "`summarize` returns one scalar row per interval and omits empty intervals; the anomaly function expects a dynamic numeric array."
+      fr: "`summarize` renvoie une ligne scalaire par intervalle et omet les intervalles vides ; la fonction d'anomalies attend un tableau numérique dynamique."
+    c:
+      en: |-
+        The function must analyze the series of failure counts, not the time axis.
+      fr: |-
+        La fonction doit analyser la série des nombres d'échecs, pas l'axe du temps.
+    d:
+      en: |-
+        The ten busiest intervals aren't necessarily anomalies, for example when failures follow a daily pattern.
+      fr: |-
+        Les dix intervalles les plus chargés ne sont pas forcément des anomalies, par exemple quand les échecs suivent un cycle quotidien.
+references:
+  - title: make-series operator
+    url: https://learn.microsoft.com/en-us/kusto/query/make-series-operator
+  - title: series_decompose_anomalies()
+    url: https://learn.microsoft.com/en-us/kusto/query/series-decompose-anomalies-function

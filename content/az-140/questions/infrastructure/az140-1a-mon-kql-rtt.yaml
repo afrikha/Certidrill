@@ -1,0 +1,67 @@
+id: az140-1a-mon-kql-rtt
+objective: "1.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The diagnostic settings of an Azure Virtual Desktop host pool named **HP1** send all logs to a Log Analytics workspace.
+
+    You need a query that lists the 10 users who had the highest average round-trip time during the last seven days.
+
+    How should you complete the query? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Les paramètres de diagnostic d'un pool d'hôtes Azure Virtual Desktop nommé **HP1** envoient tous les journaux vers un espace de travail Log Analytics.
+
+    Vous avez besoin d'une requête qui liste les 10 utilisateurs dont la durée aller-retour moyenne a été la plus élevée au cours des sept derniers jours.
+
+    Comment devez-vous compléter la requête ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[tbl]]
+    | where TimeGenerated > ago(7d)
+    | join kind=leftouter (
+        WVDConnections
+        | distinct CorrelationId, UserName
+    ) on [[key]]
+    | summarize AvgRTT = avg([[col]]) by UserName
+    | top 10 by AvgRTT desc
+  slots:
+    - id: tbl
+      options:
+        - { id: net, text: WVDConnectionNetworkData }
+        - { id: conn, text: WVDConnections }
+        - { id: err, text: WVDErrors }
+        - { id: perf, text: Perf }
+    - id: key
+      options:
+        - { id: corr, text: CorrelationId }
+        - { id: time, text: TimeGenerated }
+        - { id: host, text: SessionHostName }
+    - id: col
+      options:
+        - { id: rtt, text: EstRoundTripTimeInMs }
+        - { id: bw, text: EstAvailableBandwidthKBps }
+        - { id: tg, text: TimeGenerated }
+answer:
+  values: { tbl: net, key: corr, col: rtt }
+explanation:
+  correct:
+    en: |
+      Network data of Azure Virtual Desktop connections is in the WVDConnectionNetworkData table, whose `EstRoundTripTimeInMs` column holds the estimated round-trip time. The user name comes from WVDConnections, and the two tables are joined on `CorrelationId`, which identifies the connection in both.
+    fr: |
+      Les données réseau des connexions Azure Virtual Desktop se trouvent dans la table WVDConnectionNetworkData, dont la colonne `EstRoundTripTimeInMs` contient la durée aller-retour estimée. Le nom d'utilisateur provient de WVDConnections, et les deux tables sont jointes sur `CorrelationId`, qui identifie la connexion dans les deux.
+  options:
+    conn: { en: "WVDConnections holds connection states and metadata, not the round-trip time samples.", fr: "WVDConnections contient les états et les métadonnées des connexions, pas les échantillons de durée aller-retour." }
+    perf: { en: "Perf holds performance counters collected from machines, not Azure Virtual Desktop network data.", fr: "Perf contient des compteurs de performances collectés sur des machines, pas les données réseau d'Azure Virtual Desktop." }
+    time: { en: "Timestamps differ between the tables; the connection is matched by its correlation ID.", fr: "Les horodatages diffèrent entre les tables ; la connexion se rapproche par son ID de corrélation." }
+    bw: { en: "EstAvailableBandwidthKBps is the estimated bandwidth, not the round-trip time.", fr: "EstAvailableBandwidthKBps est la bande passante estimée, pas la durée aller-retour." }
+references:
+  - title: Collect and query connection quality data
+    url: https://learn.microsoft.com/en-us/azure/virtual-desktop/connection-quality-monitoring

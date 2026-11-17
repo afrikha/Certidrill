@@ -1,0 +1,44 @@
+id: ai200-2b-ivfflat-empty
+objective: "2.2.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum's deployment script creates an IVFFlat index on the empty chunks table of an Azure Database for PostgreSQL flexible server. An ingestion job then loads two million embeddings. Searches use the index, but recall is much lower than in the test environment, where the index was created after the data was loaded.
+
+    You need to restore the expected recall without increasing query latency. The table must stay available for writes.
+
+    What should you do?
+  fr: |
+    Le script de déploiement d'Adatum crée un index IVFFlat sur la table chunks vide d'un serveur flexible Azure Database for PostgreSQL. Un travail d'ingestion charge ensuite deux millions d'incorporations. Les recherches utilisent l'index, mais le rappel est bien plus faible que dans l'environnement de test, où l'index a été créé après le chargement des données.
+
+    Vous devez rétablir le rappel attendu sans augmenter la latence des requêtes. La table doit rester disponible en écriture.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Run `REINDEX INDEX CONCURRENTLY` on the IVFFlat index now that the data is loaded.", fr: "Exécuter `REINDEX INDEX CONCURRENTLY` sur l'index IVFFlat maintenant que les données sont chargées." } }
+    - { id: b, text: { en: "Set `ivfflat.probes` equal to the number of lists for every search query.", fr: "Définir `ivfflat.probes` sur le nombre de listes pour chaque requête de recherche." } }
+    - { id: c, text: { en: "Set `hnsw.ef_search` to 200 for the sessions that run the searches.", fr: "Définir `hnsw.ef_search` sur 200 pour les sessions qui exécutent les recherches." } }
+    - { id: d, text: { en: "Run `VACUUM ANALYZE` on the chunks table to refresh the statistics.", fr: "Exécuter `VACUUM ANALYZE` sur la table chunks pour actualiser les statistiques." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "IVFFlat computes its list centroids with k-means on the rows that exist when it is built, so an index built on an empty table clusters the data badly. Rebuilding it after the load recomputes the centroids, and `REINDEX INDEX CONCURRENTLY` does so without blocking writes."
+    fr: "IVFFlat calcule les centroïdes de ses listes par k-means sur les lignes présentes au moment de sa construction : un index construit sur une table vide regroupe mal les données. Le reconstruire après le chargement recalcule les centroïdes, et `REINDEX INDEX CONCURRENTLY` le fait sans bloquer les écritures."
+  options:
+    b:
+      en: "Probing every list turns the query into an exact search that the planner runs without the index, which increases latency."
+      fr: "Sonder toutes les listes transforme la requête en recherche exacte que le planificateur exécute sans l'index, ce qui augmente la latence."
+    c:
+      en: "hnsw.ef_search applies to HNSW indexes only; it has no effect on an IVFFlat index."
+      fr: "hnsw.ef_search ne s'applique qu'aux index HNSW ; il n'a aucun effet sur un index IVFFlat."
+    d:
+      en: "VACUUM ANALYZE refreshes visibility information and statistics; it does not recompute the IVFFlat centroids."
+      fr: "VACUUM ANALYZE actualise les informations de visibilité et les statistiques ; il ne recalcule pas les centroïdes IVFFlat."
+references:
+  - title: Choose and configure vector indexes
+    url: https://learn.microsoft.com/en-us/training/modules/optimize-vector-search-azure-database-postgresql/3-choose-configure-vector-indexes
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

@@ -1,0 +1,86 @@
+id: dp700-3c-insights-cpu
+objective: "3.3.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW_Claims. The capacity administrator reports high CPU consumption by DW_Claims during the past week.
+
+    You need a query that returns the 10 query shapes that consumed the most CPU time in total during the last seven days. Executions of the same query with different parameter values must be grouped together.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW_Claims. L'administrateur de la capacité signale une forte consommation de processeur par DW_Claims au cours de la semaine écoulée.
+
+    Vous avez besoin d'une requête qui renvoie les 10 formes de requête qui ont consommé le plus de temps processeur au total pendant les sept derniers jours. Les exécutions d'une même requête avec des valeurs de paramètres différentes doivent être regroupées.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 10 query_hash,
+           [[agg]](allocated_cpu_time_ms) AS total_cpu_ms,
+           COUNT(*) AS executions
+    FROM [[view]]
+    WHERE start_time >= DATEADD(day, -7, GETDATE())
+    GROUP BY query_hash
+    ORDER BY total_cpu_ms [[dir]];
+  slots:
+    - id: agg
+      options:
+        - { id: sum, text: SUM }
+        - { id: max, text: MAX }
+        - { id: avg, text: AVG }
+    - id: view
+      options:
+        - { id: history, text: queryinsights.exec_requests_history }
+        - { id: long, text: queryinsights.long_running_queries }
+        - { id: frequent, text: queryinsights.frequently_run_queries }
+        - { id: dmv, text: sys.dm_exec_requests }
+    - id: dir
+      options:
+        - { id: desc, text: DESC }
+        - { id: asc, text: ASC }
+answer:
+  values: { agg: sum, view: history, dir: desc }
+explanation:
+  correct:
+    en: |
+      queryinsights.exec_requests_history keeps one row per completed request for 30 days, with allocated_cpu_time_ms and a query_hash that groups queries of the same shape even when their predicates differ. Summing the CPU time per query_hash and sorting in descending order returns the shapes that consumed the most CPU in total.
+    fr: |
+      queryinsights.exec_requests_history conserve une ligne par requête terminée pendant 30 jours, avec allocated_cpu_time_ms et un query_hash qui regroupe les requêtes de même forme même quand leurs prédicats diffèrent. Additionner le temps processeur par query_hash et trier par ordre décroissant renvoie les formes qui ont consommé le plus de processeur au total.
+  options:
+    max:
+      en: |
+        MAX returns the most expensive single execution of each shape, not the total consumption.
+      fr: |
+        MAX renvoie l'exécution la plus coûteuse de chaque forme, pas la consommation totale.
+    avg:
+      en: |
+        AVG ignores how often a query runs; a cheap query that runs thousands of times can consume more CPU in total.
+      fr: |
+        AVG ignore la fréquence d'exécution ; une requête peu coûteuse exécutée des milliers de fois peut consommer plus de processeur au total.
+    long:
+      en: |
+        long_running_queries is an aggregated view ordered by execution time; it does not hold one row per execution with its CPU time.
+      fr: |
+        long_running_queries est une vue agrégée classée par durée d'exécution ; elle ne contient pas une ligne par exécution avec son temps processeur.
+    frequent:
+      en: |
+        frequently_run_queries is an aggregated view of run counts, not of the CPU time of each execution.
+      fr: |
+        frequently_run_queries est une vue agrégée du nombre d'exécutions, pas du temps processeur de chaque exécution.
+    dmv:
+      en: |
+        sys.dm_exec_requests shows only the requests running now, not the past seven days.
+      fr: |
+        sys.dm_exec_requests ne montre que les requêtes en cours, pas les sept derniers jours.
+references:
+  - title: Query Insights in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/query-insights

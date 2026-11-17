@@ -1,0 +1,139 @@
+id: sc100-cs3c-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a pharmaceutical research company with laboratories in Switzerland, Ireland and Canada. It employs 4,500 people, including 1,800 scientists.
+
+        Trey Research deployed its Azure environment by using the Azure landing zone reference architecture. It is now building a generative AI assistant for its scientists and opening its AI models to the internal applications of each department. The CISO asked you to design the security of these new workloads.
+      fr: |
+        Trey Research est une entreprise de recherche pharmaceutique qui possède des laboratoires en Suisse, en Irlande et au Canada. Elle emploie 4 500 personnes, dont 1 800 scientifiques.
+
+        Trey Research a déployé son environnement Azure avec l'architecture de référence de zone d'atterrissage Azure. Elle développe maintenant un assistant d'IA générative pour ses scientifiques et ouvre ses modèles d'IA aux applications internes de chaque département. Le RSSI vous a demandé de concevoir la sécurité de ces nouvelles charges de travail.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure landing zone**
+
+        The management group hierarchy follows the Azure landing zone design. Under the intermediate root management group named **trey**, there are the **Platform**, **Landing zones**, **Sandbox** and **Decommissioned** management groups. **Landing zones** contains the **Corp** and **Online** management groups.
+
+        | Subscription | Management group | Workload |
+        | --- | --- | --- |
+        | sub-research-assist | Corp | ResearchAssist, the AI assistant for scientists, connected to the corporate network through the hub |
+        | sub-lab-apps | Corp | Laboratory applications, connected to the corporate network through the hub |
+        | sub-trial-portal | Corp | TrialPortal, the internet-facing website where patients apply to clinical trials |
+        | sub-dev-01 to sub-dev-12 | Sandbox | Developer experiments |
+
+        New subscriptions for hub-connected workloads are created every quarter.
+
+        **AI platform**
+
+        - ResearchAssist is a Microsoft Foundry agent. It answers questions by reading internal documents and the PDF files that partner laboratories send to the scientists.
+        - Azure OpenAI model deployments in two Azure regions serve ResearchAssist and the applications of five departments.
+        - The departments call the models directly with API keys. An Azure API Management instance named **apim-ai** was deployed but isn't used yet.
+        - A partner team uses Amazon Bedrock in an AWS account named **aws-partner-ai**. The account is connected to Microsoft Defender for Cloud.
+
+        **Security operations**
+
+        The SOC uses Microsoft Sentinel in the Microsoft Defender portal. The Defender CSPM plan is enabled on all subscriptions.
+
+        **Secrets**
+
+        All applications, in all environments, store their secrets in one Azure Key Vault named **kv-trey-shared**, which uses the vault access policy permission model. Four administrators have permanent access to manage its secrets.
+      fr: |
+        **Zone d'atterrissage Azure**
+
+        La hiérarchie des groupes d'administration suit la conception de zone d'atterrissage Azure. Sous le groupe d'administration racine intermédiaire nommé **trey** se trouvent les groupes d'administration **Platform**, **Landing zones**, **Sandbox** et **Decommissioned**. **Landing zones** contient les groupes d'administration **Corp** et **Online**.
+
+        | Abonnement | Groupe d'administration | Charge de travail |
+        | --- | --- | --- |
+        | sub-research-assist | Corp | ResearchAssist, l'assistant d'IA des scientifiques, connecté au réseau d'entreprise via le hub |
+        | sub-lab-apps | Corp | Applications de laboratoire, connectées au réseau d'entreprise via le hub |
+        | sub-trial-portal | Corp | TrialPortal, le site web exposé sur Internet où les patients postulent aux essais cliniques |
+        | sub-dev-01 à sub-dev-12 | Sandbox | Expérimentations des développeurs |
+
+        De nouveaux abonnements pour des charges de travail connectées au hub sont créés chaque trimestre.
+
+        **Plateforme d'IA**
+
+        - ResearchAssist est un agent Microsoft Foundry. Il répond aux questions en lisant des documents internes et les fichiers PDF que les laboratoires partenaires envoient aux scientifiques.
+        - Des déploiements de modèles Azure OpenAI dans deux régions Azure servent ResearchAssist et les applications de cinq départements.
+        - Les départements appellent les modèles directement avec des clés API. Une instance Gestion des API Azure nommée **apim-ai** a été déployée, mais elle n'est pas encore utilisée.
+        - Une équipe partenaire utilise Amazon Bedrock dans un compte AWS nommé **aws-partner-ai**. Ce compte est connecté à Microsoft Defender pour le cloud.
+
+        **Opérations de sécurité**
+
+        Le SOC utilise Microsoft Sentinel dans le portail Microsoft Defender. Le plan Defender CSPM est activé sur tous les abonnements.
+
+        **Secrets**
+
+        Toutes les applications, dans tous les environnements, stockent leurs secrets dans un seul coffre Azure Key Vault nommé **kv-trey-shared**, qui utilise le modèle d'autorisation par stratégie d'accès au coffre. Quatre administrateurs disposent d'un accès permanent pour gérer ses secrets.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Landing zone requirements**
+
+        - A policy that denies public network access to PaaS services must apply to every current and future subscription whose workloads connect to the corporate network through the hub.
+        - The policy must not apply to TrialPortal, which must stay reachable from the internet, or to the developer sandboxes.
+        - Follow the Azure landing zone design and minimize the number of policy assignments.
+
+        **AI security requirements**
+
+        - Instructions hidden in the partner PDF files must be detected and blocked before ResearchAssist acts on them.
+        - The SOC must receive security alerts about jailbreak attempts against the model deployments, and correlate them with other incidents in the Defender portal.
+        - The security team must discover all the AI workloads in Azure and AWS, and see the attack paths that lead to them.
+
+        **Incident response requirements**
+
+        - Every incident created by the analytics rule **ResearchAssist-Jailbreak** must be assigned automatically to the AI response team.
+        - For the same incidents, the sessions of the user involved must be revoked automatically in Microsoft Entra ID.
+        - Minimize custom code.
+
+        **AI gateway requirements**
+
+        - Each department must be limited to a number of tokens per minute.
+        - Token consumption must be reported per department in Azure Monitor for chargeback.
+        - The departments' applications must not use API keys to reach the models.
+        - When the deployment in one region is throttled, requests must be sent to the other region.
+
+        **Secrets requirements**
+
+        - The compromise of the secrets of one application must not expose the secrets of another application or of another environment.
+        - Administrators must get just-in-time access to manage secrets through Microsoft Entra Privileged Identity Management (PIM).
+      fr: |
+        **Exigences relatives à la zone d'atterrissage**
+
+        - Une stratégie qui refuse l'accès réseau public aux services PaaS doit s'appliquer à chaque abonnement actuel et futur dont les charges de travail se connectent au réseau d'entreprise via le hub.
+        - La stratégie ne doit s'appliquer ni à TrialPortal, qui doit rester accessible depuis Internet, ni aux bacs à sable des développeurs.
+        - Suivre la conception de zone d'atterrissage Azure et réduire au minimum le nombre d'attributions de stratégie.
+
+        **Exigences relatives à la sécurité de l'IA**
+
+        - Les instructions cachées dans les fichiers PDF des partenaires doivent être détectées et bloquées avant que ResearchAssist n'agisse en conséquence.
+        - Le SOC doit recevoir des alertes de sécurité sur les tentatives de jailbreak contre les déploiements de modèles, et les corréler avec les autres incidents dans le portail Defender.
+        - L'équipe de sécurité doit découvrir toutes les charges de travail d'IA dans Azure et AWS, et voir les chemins d'attaque qui y mènent.
+
+        **Exigences relatives à la réponse aux incidents**
+
+        - Chaque incident créé par la règle d'analyse **ResearchAssist-Jailbreak** doit être attribué automatiquement à l'équipe de réponse IA.
+        - Pour ces mêmes incidents, les sessions de l'utilisateur concerné doivent être révoquées automatiquement dans Microsoft Entra ID.
+        - Réduire au minimum le code personnalisé.
+
+        **Exigences relatives à la passerelle IA**
+
+        - Chaque département doit être limité à un nombre de jetons par minute.
+        - La consommation de jetons doit être présentée par département dans Azure Monitor pour la refacturation.
+        - Les applications des départements ne doivent pas utiliser de clés API pour atteindre les modèles.
+        - Quand le déploiement d'une région est limité (throttling), les requêtes doivent être envoyées à l'autre région.
+
+        **Exigences relatives aux secrets**
+
+        - La compromission des secrets d'une application ne doit pas exposer les secrets d'une autre application ou d'un autre environnement.
+        - Les administrateurs doivent obtenir un accès juste-à-temps pour gérer les secrets via Microsoft Entra Privileged Identity Management (PIM).

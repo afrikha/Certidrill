@@ -1,0 +1,74 @@
+id: dp420-2d-log-diag-cli-resource-specific
+objective: "2.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has an Azure Cosmos DB for NoSQL account named **cosmos-fabrikam** in a resource group named **rg-orders**. A Log Analytics workspace ID is stored in the `workspaceId` variable.
+
+    You need to create a diagnostic setting by using the Azure CLI. The solution must meet the following requirements:
+
+    - Capture the text of the queries that run against the account.
+    - Write the logs to dedicated tables that have typed columns, not to a shared table.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-fabrikam** dans un groupe de ressources nommé **rg-orders**. L'ID d'un espace de travail Log Analytics est stocké dans la variable `workspaceId`.
+
+    Vous devez créer un paramètre de diagnostic avec Azure CLI. La solution doit respecter les exigences suivantes :
+
+    - Capturer le texte des requêtes exécutées sur le compte.
+    - Écrire les journaux dans des tables dédiées aux colonnes typées, et non dans une table partagée.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    accountId=$(az cosmosdb show --resource-group rg-orders --name cosmos-fabrikam \
+      --query [[q]] --output tsv)
+
+    az monitor diagnostic-settings create \
+      --name diag-queries \
+      --resource "$accountId" \
+      --workspace "$workspaceId" \
+      [[mode]] \
+      --logs '[{"category": "[[cat]]", "enabled": true}]'
+  slots:
+    - id: q
+      options:
+        - { id: qid, text: id }
+        - { id: qend, text: documentEndpoint }
+        - { id: qname, text: name }
+    - id: mode
+      options:
+        - { id: mtrue, text: "--export-to-resource-specific true" }
+        - { id: mfalse, text: "--export-to-resource-specific false" }
+        - { id: mstor, text: "--storage-account \"$storageId\"" }
+    - id: cat
+      options:
+        - { id: cqrs, text: QueryRuntimeStatistics }
+        - { id: cdp, text: DataPlaneRequests }
+        - { id: cpks, text: PartitionKeyStatistics }
+        - { id: ccp, text: ControlPlaneRequests }
+answer:
+  values: { q: qid, mode: mtrue, cat: cqrs }
+explanation:
+  correct:
+    en: |
+      A diagnostic setting targets the account's Azure Resource Manager resource ID, so the `id` property is queried. `--export-to-resource-specific true` selects the resource-specific (dedicated) destination tables, which Microsoft recommends for every API except Table. The QueryRuntimeStatistics category records the query text in the CDBQueryRuntimeStatistics table.
+    fr: |
+      Un paramètre de diagnostic cible l'ID de ressource Azure Resource Manager du compte : c'est donc la propriété `id` qui est interrogée. `--export-to-resource-specific true` sélectionne les tables de destination spécifiques à la ressource (dédiées), recommandées par Microsoft pour toutes les API sauf Table. La catégorie QueryRuntimeStatistics enregistre le texte des requêtes dans la table CDBQueryRuntimeStatistics.
+  options:
+    qend: { en: "documentEndpoint is the data plane URI used by SDK clients, not a resource ID.", fr: "documentEndpoint est l'URI du plan de données utilisé par les clients SDK, pas un ID de ressource." }
+    mfalse: { en: "Without resource-specific export, the logs go to the shared AzureDiagnostics table with suffixed columns.", fr: "Sans l'export spécifique à la ressource, les journaux vont dans la table partagée AzureDiagnostics, aux colonnes suffixées." }
+    mstor: { en: "A storage account is an additional destination; it doesn't change the Log Analytics table mode.", fr: "Un compte de stockage est une destination supplémentaire ; il ne change pas le mode de table Log Analytics." }
+    cdp: { en: "DataPlaneRequests records each operation with its charge and status, but not the query text.", fr: "DataPlaneRequests enregistre chaque opération avec sa charge et son statut, mais pas le texte de la requête." }
+references:
+  - title: Monitor Data using Diagnostic Settings - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-resource-logs

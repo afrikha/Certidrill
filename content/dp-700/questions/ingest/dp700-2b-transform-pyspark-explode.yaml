@@ -1,0 +1,69 @@
+id: dp700-2b-transform-pyspark-explode
+objective: "2.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a lakehouse named LH-Orders. The Files/raw/orders folder contains JSON files. Each JSON document is one order that has the fields OrderID, OrderTs and lines, where lines is an array of objects that have the fields sku and qty.
+
+    You need a notebook to create a Delta table named silver_order_lines that has one row for each element of lines. Each run must replace the whole content of the table.
+
+    How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse nommé LH-Orders. Le dossier Files/raw/orders contient des fichiers JSON. Chaque document JSON est une commande qui possède les champs OrderID, OrderTs et lines, où lines est un tableau d'objets dotés des champs sku et qty.
+
+    Un notebook doit créer une table Delta nommée silver_order_lines qui comporte une ligne par élément de lines. Chaque exécution doit remplacer tout le contenu de la table.
+
+    Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    raw = spark.read.json("Files/raw/orders/")
+
+    lines = (raw
+        .select("OrderID", "OrderTs", F.[[fn]]("lines").alias("line"))
+        .select("OrderID",
+                F.to_date("OrderTs").alias("OrderDate"),
+                F.col("line.sku").alias("Sku"),
+                F.col("line.qty").cast("int").alias("Qty")))
+
+    lines.write.format("delta").mode("[[mode]]").saveAsTable("silver_order_lines")
+  slots:
+    - id: fn
+      options:
+        - { id: explode, text: explode }
+        - { id: flatten, text: flatten }
+        - { id: collect, text: collect_list }
+        - { id: split, text: split }
+    - id: mode
+      options:
+        - { id: overwrite, text: overwrite }
+        - { id: append, text: append }
+        - { id: ignore, text: ignore }
+        - { id: error, text: errorifexists }
+answer:
+  values: { fn: explode, mode: overwrite }
+explanation:
+  correct:
+    en: |
+      explode() returns one row for each element of an array column, repeating the other selected columns, so each order line becomes a row whose struct fields are read as line.sku and line.qty. The overwrite save mode replaces the content of the Delta table at each run, and the previous versions stay available through time travel.
+    fr: |
+      explode() renvoie une ligne par élément d'une colonne de type tableau, en répétant les autres colonnes sélectionnées : chaque ligne de commande devient une ligne dont les champs de structure se lisent avec line.sku et line.qty. Le mode d'enregistrement overwrite remplace le contenu de la table Delta à chaque exécution, et les versions précédentes restent disponibles par le voyage dans le temps.
+  options:
+    flatten: { en: "flatten() merges an array of arrays into one array; it doesn't create rows.", fr: "flatten() fusionne un tableau de tableaux en un seul tableau ; il ne crée pas de lignes." }
+    collect: { en: "collect_list() is an aggregate that builds an array, the opposite of what is needed.", fr: "collect_list() est un agrégat qui construit un tableau, l'inverse de ce qui est nécessaire." }
+    split: { en: "split() cuts a string into an array; lines is already an array.", fr: "split() découpe une chaîne en tableau ; lines est déjà un tableau." }
+    append: { en: "append adds the rows to the existing content, which duplicates the lines at each run.", fr: "append ajoute les lignes au contenu existant, ce qui duplique les lignes à chaque exécution." }
+    ignore: { en: "ignore writes nothing when the table already exists.", fr: "ignore n'écrit rien quand la table existe déjà." }
+    error: { en: "errorifexists fails as soon as the table exists, so the second run fails.", fr: "errorifexists échoue dès que la table existe : la deuxième exécution échoue." }
+references:
+  - title: "Lakehouse tutorial: Prepare and transform data in the lakehouse"
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/tutorial-lakehouse-data-preparation

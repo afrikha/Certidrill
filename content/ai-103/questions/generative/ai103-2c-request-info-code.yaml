@@ -1,0 +1,84 @@
+id: ai103-2c-request-info-code
+objective: "2.2.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam, Inc. is building a claims workflow in Python by using Microsoft Agent Framework. A custom executor named ReviewGate receives each claim. When the amount of a claim exceeds 5,000 USD, the workflow must pause until an adjuster answers yes or no, and then continue with the adjuster's answer.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam, Inc. crée un workflow de sinistres en Python à l'aide de Microsoft Agent Framework. Un exécuteur personnalisé nommé ReviewGate reçoit chaque sinistre. Quand le montant d'un sinistre dépasse 5 000 USD, le workflow doit se suspendre jusqu'à ce qu'un gestionnaire de sinistres réponde oui ou non, puis continuer avec sa réponse.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    class ReviewGate(Executor):
+        @handler
+        async def check(self, claim: Claim, ctx: WorkflowContext[Claim]) -> None:
+            if claim.amount > 5000:
+                await ctx.[[ask]](request_data=AdjusterReview(claim_id=claim.id), response_type=bool)
+            else:
+                await ctx.send_message(claim)
+
+        @[[deco]]
+        async def on_adjuster_answer(
+            self,
+            original_request: AdjusterReview,
+            response: bool,
+            ctx: WorkflowContext[Claim],
+        ) -> None:
+            await self.continue_claim(original_request.claim_id, response, ctx)
+
+    # Application: resume the workflow with the adjusters' answers
+    stream = workflow.run(stream=True, [[param]]=pending_answers)
+  slots:
+    - id: ask
+      options:
+        - { id: sendmsg, text: send_message }
+        - { id: requestinfo, text: request_info }
+        - { id: setstate, text: set_state }
+    - id: deco
+      options:
+        - { id: tool, text: tool }
+        - { id: handler, text: handler }
+        - { id: responsehandler, text: response_handler }
+    - id: param
+      options:
+        - { id: responses, text: responses }
+        - { id: checkpoint, text: checkpoint_id }
+        - { id: message, text: message }
+answer:
+  values: { ask: requestinfo, deco: responsehandler, param: responses }
+explanation:
+  correct:
+    en: |
+      `ctx.request_info()` sends `request_data` outside the workflow with the expected `response_type`, and the workflow emits a `request_info` event and waits. A method decorated with `@response_handler` receives the original request and the response; the framework matches it by the types of `original_request` and `response`. The application resumes the workflow by passing a `responses` dictionary keyed by request ID to `workflow.run`.
+    fr: |
+      `ctx.request_info()` envoie `request_data` hors du workflow avec le `response_type` attendu, et le workflow émet un événement `request_info` puis attend. Une méthode décorée par `@response_handler` reçoit la demande d'origine et la réponse ; le framework l'associe d'après les types de `original_request` et de `response`. L'application reprend le workflow en transmettant à `workflow.run` un dictionnaire `responses` indexé par ID de demande.
+  options:
+    sendmsg:
+      en: "`send_message` passes a message to the next executor without waiting for anyone."
+      fr: "`send_message` transmet un message à l'exécuteur suivant sans attendre personne."
+    setstate:
+      en: "`set_state` stores a value in the workflow state for other executors; it doesn't pause for a person."
+      fr: "`set_state` stocke une valeur dans l'état du workflow pour d'autres exécuteurs ; il ne se met pas en pause pour une personne."
+    tool:
+      en: "`@tool` declares a function tool for an agent, not the handler of a human response."
+      fr: "`@tool` déclare un outil de fonction pour un agent, pas le gestionnaire d'une réponse humaine."
+    handler:
+      en: "`@handler`, used on `check`, registers a method for incoming messages; the method that receives the answer to a request uses `@response_handler`."
+      fr: "`@handler`, utilisé sur `check`, inscrit une méthode pour les messages entrants ; la méthode qui reçoit la réponse à une demande utilise `@response_handler`."
+    checkpoint:
+      en: "`checkpoint_id` restores a saved state; on its own it doesn't deliver the adjusters' answers."
+      fr: "`checkpoint_id` restaure un état enregistré ; seul, il ne transmet pas les réponses des gestionnaires de sinistres."
+references:
+  - title: Microsoft Agent Framework Workflows - Human-in-the-loop (HITL)
+    url: https://learn.microsoft.com/en-us/agent-framework/workflows/human-in-the-loop

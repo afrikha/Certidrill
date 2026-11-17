@@ -1,0 +1,54 @@
+id: dp420-1c-model-denormalize-username
+objective: "1.3.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin runs a social application on Azure Cosmos DB for NoSQL. User profiles are stored in a container named **users** partitioned by `/userId`. Posts are stored in a container named **posts** partitioned by `/postId`.
+
+    The home feed displays 50 posts per page with the author's username. Feed reads outnumber post writes 200 to 1, and users rarely change their username.
+
+    You need to minimize the RU cost of displaying a feed page.
+
+    What should you do?
+  fr: |
+    Tailspin exécute une application sociale sur Azure Cosmos DB for NoSQL. Les profils utilisateur sont stockés dans un conteneur nommé **users** partitionné par `/userId`. Les publications sont stockées dans un conteneur nommé **posts** partitionné par `/postId`.
+
+    Le fil d'accueil affiche 50 publications par page avec le nom d'utilisateur de l'auteur. Les lectures du fil sont 200 fois plus nombreuses que les écritures de publications, et les utilisateurs changent rarement leur nom d'utilisateur.
+
+    Vous devez réduire au minimum le coût en RU de l'affichage d'une page du fil.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Read the author of each post from the users container with a point read when the page is built", fr: "Lire l'auteur de chaque publication dans le conteneur users par lecture ponctuelle lors de la construction de la page" } }
+    - { id: b, text: { en: "Run one query per page that joins the posts container with the users container on userId", fr: "Exécuter une requête par page qui joint le conteneur posts au conteneur users sur userId" } }
+    - { id: c, text: { en: "Embed all the posts of each user in an array inside the user's profile item", fr: "Incorporer toutes les publications de chaque utilisateur dans un tableau à l'intérieur de l'élément de profil" } }
+    - { id: d, text: { en: "Copy the username into each post item and update the copies from the change feed of the users container", fr: "Copier le nom d'utilisateur dans chaque publication et mettre à jour les copies à partir du flux de modification du conteneur users" } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      For a read-heavy workload, denormalizing the username into the post items removes the extra lookups when the feed is read. Because usernames rarely change, a change feed processor on the **users** container can update the copies in the **posts** container; the extra write cost is small compared with the read savings.
+    fr: |-
+      Pour une charge de travail à dominante lecture, dénormaliser le nom d'utilisateur dans les publications supprime les recherches supplémentaires lors de la lecture du fil. Comme les noms d'utilisateur changent rarement, un processeur de flux de modification sur le conteneur **users** peut mettre à jour les copies dans le conteneur **posts** ; le surcoût en écriture est faible par rapport à l'économie en lecture.
+  options:
+    a:
+      en: |-
+        Up to 50 extra point reads per page multiplies the RU cost and the latency of the most frequent operation.
+      fr: |-
+        Jusqu'à 50 lectures ponctuelles supplémentaires par page multiplient le coût en RU et la latence de l'opération la plus fréquente.
+    c:
+      en: |-
+        The number of posts per user is unbounded, so the array would grow without limit toward the 2 MB item size limit, and every new post would rewrite a large item.
+      fr: |-
+        Le nombre de publications par utilisateur n'est pas borné : le tableau grossirait sans limite jusqu'à la taille maximale de 2 Mo par élément, et chaque nouvelle publication réécrirait un élément volumineux.
+    b:
+      en: |-
+        A query runs against a single container; the JOIN keyword only joins arrays inside the same item.
+      fr: |-
+        Une requête s'exécute sur un seul conteneur ; le mot clé JOIN ne joint que des tableaux à l'intérieur d'un même élément.
+references:
+  - title: How to model and partition data using a real-world example
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/model-partition-example

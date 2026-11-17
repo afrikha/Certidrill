@@ -1,0 +1,36 @@
+id: dp300-3a-interpret-tempdb-pool
+objective: "3.1.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an elastic pool named **Pool1** that contains 40 Azure SQL databases. Several databases run reports that create many temporary tables.
+
+    During peaks, queries in a database named **DB7** slow down. CPU and data I/O of Pool1 are below 50 %. In DB7, `sys.dm_exec_requests` shows many requests with the `PAGELATCH_UP` wait type and a `wait_resource` value that starts with `2:1:`.
+
+    What is the most likely cause of the slowdown?
+  fr: |
+    Vous disposez d'un pool élastique nommé **Pool1** qui contient 40 bases de données Azure SQL. Plusieurs bases exécutent des rapports qui créent de nombreuses tables temporaires.
+
+    Pendant les pics, les requêtes d'une base nommée **DB7** ralentissent. Le processeur et les E/S de données de Pool1 sont inférieurs à 50 %. Dans DB7, `sys.dm_exec_requests` affiche de nombreuses requêtes avec le type d'attente `PAGELATCH_UP` et une valeur `wait_resource` qui commence par `2:1:`.
+
+    Quelle est la cause la plus probable du ralentissement ?
+body:
+  options:
+    - { id: a, text: { en: "Data file I/O of DB7 reaches the I/O limit of its compute size.", fr: "Les E/S des fichiers de données de DB7 atteignent la limite d'E/S de sa taille de calcul." } }
+    - { id: b, text: { en: "Allocation contention in tempdb, which all the databases of Pool1 share.", fr: "Une contention d'allocation dans tempdb, que toutes les bases de Pool1 partagent." } }
+    - { id: c, text: { en: "Lock blocking between sessions that update the same rows of DB7.", fr: "Un blocage par verrous entre des sessions qui mettent à jour les mêmes lignes de DB7." } }
+    - { id: d, text: { en: "Queries of DB7 that wait for memory grants.", fr: "Des requêtes de DB7 qui attendent des allocations de mémoire." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "`PAGELATCH_*` waits are latches on pages already in memory, and a `wait_resource` starting with `2:` designates database ID 2, which is `tempdb`. All the databases of an elastic pool share the same `tempdb`, so heavy temporary table usage in other databases can slow DB7. Reducing temporary object churn (temporary tables, table variables, sorts and spools) is the usual fix."
+    fr: "Les attentes `PAGELATCH_*` sont des verrous internes sur des pages déjà en mémoire, et une valeur `wait_resource` qui commence par `2:` désigne l'ID de base de données 2, c'est-à-dire `tempdb`. Toutes les bases d'un pool élastique partagent le même `tempdb` : un usage intensif de tables temporaires dans d'autres bases peut ralentir DB7. Réduire la création d'objets temporaires (tables temporaires, variables de table, tris et spools) est la correction habituelle."
+  options:
+    a: { en: "Waits on data file reads are PAGEIOLATCH_*, and data I/O of the pool is below 50 %.", fr: "Les attentes de lecture des fichiers de données sont de type PAGEIOLATCH_*, et les E/S de données du pool sont inférieures à 50 %." }
+    c: { en: "Lock blocking shows LCK_M_* wait types, not PAGELATCH_*.", fr: "Un blocage par verrous se traduit par des types d'attente LCK_M_*, pas PAGELATCH_*." }
+    d: { en: "Memory grant waits show the RESOURCE_SEMAPHORE wait type.", fr: "Les attentes d'allocation de mémoire se traduisent par le type d'attente RESOURCE_SEMAPHORE." }
+references:
+  - title: Monitor Microsoft Azure SQL performance using dynamic management views
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/monitoring-with-dmvs

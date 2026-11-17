@@ -1,0 +1,60 @@
+id: az700-4a-access-udr-firewall
+objective: "4.1.3"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware has a virtual network named **VNet1** (10.1.0.0/16) with the following subnets:
+
+    | Subnet | Prefix | Content |
+    | --- | --- | --- |
+    | AzureFirewallSubnet | 10.1.0.0/26 | An Azure Firewall with the private IP address 10.1.0.4 |
+    | snet-app | 10.1.1.0/24 | Application virtual machines |
+    | snet-pe | 10.1.2.0/24 | Private endpoints for Azure PaaS services |
+
+    The network policy for private endpoints of snet-pe is set to **RouteTableEnabled**. The firewall uses application rules to allow the application traffic.
+
+    You need to ensure that all the traffic from snet-app to the private endpoints in snet-pe is inspected by the firewall. The solution must keep working when new private endpoints are added to snet-pe.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Litware dispose d'un réseau virtuel nommé **VNet1** (10.1.0.0/16) avec les sous-réseaux suivants :
+
+    | Sous-réseau | Préfixe | Contenu |
+    | --- | --- | --- |
+    | AzureFirewallSubnet | 10.1.0.0/26 | Un Pare-feu Azure d'adresse IP privée 10.1.0.4 |
+    | snet-app | 10.1.1.0/24 | Machines virtuelles de l'application |
+    | snet-pe | 10.1.2.0/24 | Points de terminaison privés pour des services PaaS Azure |
+
+    La stratégie réseau des points de terminaison privés de snet-pe vaut **RouteTableEnabled**. Le pare-feu utilise des règles d'application pour autoriser le trafic de l'application.
+
+    Vous devez faire en sorte que tout le trafic de snet-app vers les points de terminaison privés de snet-pe soit inspecté par le pare-feu. La solution doit continuer de fonctionner quand de nouveaux points de terminaison privés sont ajoutés à snet-pe.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: rt, text: { en: "Create a route table.", fr: "Créer une table de routage." } }
+    - { id: route, text: { en: "Add a route for 10.1.2.0/24 with the next hop type **Virtual appliance** and the address 10.1.0.4.", fr: "Ajouter un itinéraire pour 10.1.2.0/24 avec le type de tronçon suivant **Appliance virtuelle** et l'adresse 10.1.0.4." } }
+    - { id: assoc, text: { en: "Associate the route table with snet-app.", fr: "Associer la table de routage à snet-app." } }
+    - { id: default, text: { en: "Add a route for 0.0.0.0/0 with the next hop type **Virtual appliance** and the address 10.1.0.4.", fr: "Ajouter un itinéraire pour 0.0.0.0/0 avec le type de tronçon suivant **Appliance virtuelle** et l'adresse 10.1.0.4." } }
+    - { id: assocpe, text: { en: "Associate the route table with AzureFirewallSubnet.", fr: "Associer la table de routage à AzureFirewallSubnet." } }
+    - { id: nsg, text: { en: "Associate an NSG that denies traffic from snet-app with snet-pe.", fr: "Associer à snet-pe un NSG qui refuse le trafic provenant de snet-app." } }
+answer:
+  sequence: [ rt, route, assoc ]
+explanation:
+  correct:
+    en: |
+      Each private endpoint adds a /32 system route to the virtual network. With the route table policy enabled on snet-pe, a user-defined route whose prefix is at least as specific as the virtual network address space (here 10.1.2.0/24, longer than /16) overrides those /32 routes. You create the route table, add the route to the firewall, and associate the table with the source subnet, snet-app. One route for the whole subnet also covers future endpoints, and application rules SNAT the traffic, which keeps the return path symmetric.
+    fr: |
+      Chaque point de terminaison privé ajoute un itinéraire système /32 au réseau virtuel. Avec la stratégie de table de routage activée sur snet-pe, un itinéraire défini par l'utilisateur dont le préfixe est au moins aussi précis que l'espace d'adressage du réseau virtuel (ici 10.1.2.0/24, plus long que /16) remplace ces itinéraires /32. Vous créez la table de routage, ajoutez l'itinéraire vers le pare-feu et associez la table au sous-réseau source, snet-app. Un seul itinéraire pour tout le sous-réseau couvre aussi les futurs points de terminaison, et les règles d'application appliquent la SNAT au trafic, ce qui garde le chemin de retour symétrique.
+  options:
+    default: { en: "A 0.0.0.0/0 route is less specific than the virtual network address space and doesn't override the /32 routes of the private endpoints.", fr: "Un itinéraire 0.0.0.0/0 est moins précis que l'espace d'adressage du réseau virtuel et ne remplace pas les itinéraires /32 des points de terminaison privés." }
+    assocpe: { en: "The route must apply to the source subnet, snet-app; on the firewall subnet it would loop traffic back to the firewall.", fr: "L'itinéraire doit s'appliquer au sous-réseau source, snet-app ; sur le sous-réseau du pare-feu, il renverrait le trafic vers le pare-feu lui-même." }
+    nsg: { en: "An NSG filters traffic but can't send it through the firewall.", fr: "Un NSG filtre le trafic mais ne peut pas le faire passer par le pare-feu." }
+references:
+  - title: Manage network policies for private endpoints
+    url: https://learn.microsoft.com/en-us/azure/private-link/disable-private-endpoint-network-policy
+  - title: Azure Firewall scenarios to inspect traffic destined to a private endpoint
+    url: https://learn.microsoft.com/en-us/azure/private-link/inspect-traffic-with-azure-firewall

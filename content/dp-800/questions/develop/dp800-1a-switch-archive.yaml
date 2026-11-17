@@ -1,0 +1,54 @@
+id: dp800-1a-switch-archive
+objective: "1.1.6"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware has a SQL Server 2025 database. The **Sales.Orders** table is partitioned by the following function, and all its indexes are aligned.
+
+    ```sql
+    CREATE PARTITION FUNCTION PF_OrderYear (date)
+    AS RANGE RIGHT FOR VALUES ('2024-01-01', '2025-01-01', '2026-01-01', '2027-01-01');
+    ```
+
+    Partition 1 is empty, and partition 2 contains all the 2024 orders. You need to move the 2024 orders out of Sales.Orders into a new table named **Sales.Orders_2024** without copying the rows. Then you must remove the partition boundary that is no longer needed without moving any data.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Litware dispose d'une base de données SQL Server 2025. La table **Sales.Orders** est partitionnée par la fonction suivante, et tous ses index sont alignés.
+
+    ```sql
+    CREATE PARTITION FUNCTION PF_OrderYear (date)
+    AS RANGE RIGHT FOR VALUES ('2024-01-01', '2025-01-01', '2026-01-01', '2027-01-01');
+    ```
+
+    La partition 1 est vide, et la partition 2 contient toutes les commandes de 2024. Vous devez déplacer les commandes de 2024 de Sales.Orders vers une nouvelle table nommée **Sales.Orders_2024** sans copier les lignes. Vous devez ensuite supprimer la limite de partition devenue inutile sans déplacer de données.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: merge, text: { en: "Run ALTER PARTITION FUNCTION PF_OrderYear() MERGE RANGE ('2024-01-01').", fr: "Exécuter ALTER PARTITION FUNCTION PF_OrderYear() MERGE RANGE ('2024-01-01')." } }
+    - { id: create, text: { en: "Create an empty Sales.Orders_2024 table with the same columns and indexes as Sales.Orders, on the filegroup of partition 2.", fr: "Créer une table Sales.Orders_2024 vide avec les mêmes colonnes et index que Sales.Orders, sur le groupe de fichiers de la partition 2." } }
+    - { id: switch, text: { en: "Run ALTER TABLE Sales.Orders SWITCH PARTITION 2 TO Sales.Orders_2024.", fr: "Exécuter ALTER TABLE Sales.Orders SWITCH PARTITION 2 TO Sales.Orders_2024." } }
+    - { id: truncate, text: { en: "Run TRUNCATE TABLE Sales.Orders WITH (PARTITIONS (2)).", fr: "Exécuter TRUNCATE TABLE Sales.Orders WITH (PARTITIONS (2))." } }
+    - { id: split, text: { en: "Run ALTER PARTITION FUNCTION PF_OrderYear() SPLIT RANGE ('2024-01-01').", fr: "Exécuter ALTER PARTITION FUNCTION PF_OrderYear() SPLIT RANGE ('2024-01-01')." } }
+    - { id: otherfg, text: { en: "Create an empty Sales.Orders_2024 table with the same columns and indexes as Sales.Orders, on a new filegroup.", fr: "Créer une table Sales.Orders_2024 vide avec les mêmes colonnes et index que Sales.Orders, sur un nouveau groupe de fichiers." } }
+answer:
+  sequence: [ create, switch, merge ]
+explanation:
+  correct:
+    en: |
+      SWITCH reassigns the rows of a partition to another table without copying them; the target must already exist, be empty and be on the same filegroup as the source partition, with matching indexes. After the switch, partitions 1 and 2 are both empty, so merging the boundary 2024-01-01 removes a partition without moving data and keeps an empty partition at the left end.
+    fr: |
+      SWITCH réaffecte les lignes d'une partition à une autre table sans les copier ; la cible doit déjà exister, être vide et se trouver sur le même groupe de fichiers que la partition source, avec des index correspondants. Après le basculement, les partitions 1 et 2 sont toutes deux vides : fusionner la limite 2024-01-01 supprime une partition sans déplacer de données et conserve une partition vide à l'extrémité gauche.
+  options:
+    truncate: { en: "TRUNCATE deletes the 2024 orders instead of moving them to Sales.Orders_2024.", fr: "TRUNCATE supprime les commandes de 2024 au lieu de les déplacer vers Sales.Orders_2024." }
+    split: { en: "2024-01-01 is already a boundary; SPLIT adds a boundary instead of removing one.", fr: "2024-01-01 est déjà une limite ; SPLIT ajoute une limite au lieu d'en supprimer une." }
+    otherfg: { en: "The target of a switch must be on the same filegroup as the source partition.", fr: "La cible d'un basculement doit se trouver sur le même groupe de fichiers que la partition source." }
+references:
+  - title: ALTER TABLE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql
+  - title: ALTER PARTITION FUNCTION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-partition-function-transact-sql

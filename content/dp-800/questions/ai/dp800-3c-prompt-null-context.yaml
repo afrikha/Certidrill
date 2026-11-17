@@ -1,0 +1,66 @@
+id: dp800-3c-prompt-null-context
+objective: "3.3.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database. A stored procedure builds a prompt as follows before it calls a chat deployment by using sp_invoke_external_rest_endpoint.
+
+    ```sql
+    SET @context = (SELECT TOP (5) p.Name, p.ListPrice, p.Description
+                    FROM dbo.Products AS p
+                    WHERE p.Category = @category
+                    ORDER BY VECTOR_DISTANCE('cosine', p.DescriptionVector, @qv)
+                    FOR JSON PATH);
+
+    SET @user = N'Products: ' + @context + N' Question: ' + @question;
+
+    SET @payload = JSON_OBJECT('messages': JSON_ARRAY(
+        JSON_OBJECT('role': 'system', 'content': @rules),
+        JSON_OBJECT('role': 'user', 'content': @user)));
+    ```
+
+    When no product matches @category, the model ignores the question, and the payload contains "content":null for the user message. The question must always be sent, and the model must be told that no product was found.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL. Une procédure stockée construit une invite comme suit avant d'appeler un déploiement de conversation avec sp_invoke_external_rest_endpoint.
+
+    ```sql
+    SET @context = (SELECT TOP (5) p.Name, p.ListPrice, p.Description
+                    FROM dbo.Products AS p
+                    WHERE p.Category = @category
+                    ORDER BY VECTOR_DISTANCE('cosine', p.DescriptionVector, @qv)
+                    FOR JSON PATH);
+
+    SET @user = N'Products: ' + @context + N' Question: ' + @question;
+
+    SET @payload = JSON_OBJECT('messages': JSON_ARRAY(
+        JSON_OBJECT('role': 'system', 'content': @rules),
+        JSON_OBJECT('role': 'user', 'content': @user)));
+    ```
+
+    Lorsqu'aucun produit ne correspond à @category, le modèle ignore la question, et la charge utile contient "content":null pour le message user. La question doit toujours être envoyée, et le modèle doit être informé qu'aucun produit n'a été trouvé.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add INCLUDE_NULL_VALUES to the FOR JSON clause.", fr: "Ajouter INCLUDE_NULL_VALUES à la clause FOR JSON." } }
+    - { id: b, text: { en: "Build @user with CONCAT and ISNULL(@context, N'[]').", fr: "Construire @user avec CONCAT et ISNULL(@context, N'[]')." } }
+    - { id: c, text: { en: "Add ABSENT ON NULL to the JSON_OBJECT of the user message.", fr: "Ajouter ABSENT ON NULL au JSON_OBJECT du message user." } }
+    - { id: d, text: { en: "Add WITHOUT_ARRAY_WRAPPER to the FOR JSON clause.", fr: "Ajouter WITHOUT_ARRAY_WRAPPER à la clause FOR JSON." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "When the query returns no row, @context is NULL, and with the + operator one NULL makes the whole string NULL. CONCAT treats NULL as an empty string, and ISNULL(@context, N'[]') sends an empty array, so the user message keeps the question and shows that no product was found."
+    fr: "Quand la requête ne renvoie aucune ligne, @context vaut NULL, et avec l'opérateur + un seul NULL rend toute la chaîne NULL. CONCAT traite NULL comme une chaîne vide, et ISNULL(@context, N'[]') envoie un tableau vide : le message user conserve la question et montre qu'aucun produit n'a été trouvé."
+  options:
+    a: { en: "INCLUDE_NULL_VALUES keeps NULL columns of returned rows; with no row at all, FOR JSON still returns NULL.", fr: "INCLUDE_NULL_VALUES conserve les colonnes NULL des lignes renvoyées ; en l'absence de ligne, FOR JSON renvoie toujours NULL." }
+    c: { en: "ABSENT ON NULL removes the content property from the user message, so the question still isn't sent.", fr: "ABSENT ON NULL supprime la propriété content du message user : la question n'est toujours pas envoyée." }
+    d: { en: "WITHOUT_ARRAY_WRAPPER only removes the brackets around the rows; it doesn't change the NULL result of an empty query.", fr: "WITHOUT_ARRAY_WRAPPER supprime seulement les crochets autour des lignes ; il ne change pas le résultat NULL d'une requête vide." }
+references:
+  - title: Generate and process RAG responses
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-rag-with-sql/5-generate-process-rag-responses
+  - title: JSON_OBJECT (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/json-object-transact-sql

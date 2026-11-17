@@ -1,0 +1,130 @@
+id: az305-cs2a-lamna-healthcare
+status: draft
+title:
+  en: Lamna Healthcare
+  fr: Lamna Healthcare
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lamna Healthcare operates nine hospitals and 40 clinics in Belgium and Switzerland. Its head office is in Ghent. It has a datacenter in Ghent and a smaller one in Lausanne.
+
+        Lamna Healthcare is moving its clinical applications to Azure virtual machines. The Belgian hospitals use the West Europe region. The Swiss hospitals will use the Switzerland North region.
+      fr: |
+        Lamna Healthcare exploite neuf hôpitaux et 40 cliniques en Belgique et en Suisse. Son siège est à Gand. L'entreprise dispose d'un centre de données à Gand et d'un autre, plus petit, à Lausanne.
+
+        Lamna Healthcare déplace ses applications cliniques vers des machines virtuelles Azure. Les hôpitaux belges utilisent la région West Europe. Les hôpitaux suisses utiliseront la région Switzerland North.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity.** An Active Directory Domain Services forest is synchronized to a Microsoft Entra tenant by Microsoft Entra Connect Sync. Password hash synchronization is the sign-in method. Every user has a Microsoft Entra ID P1 license.
+
+        **Ghent datacenter.** A VMware vSphere cluster runs 180 virtual machines (Windows Server and Linux). Lamna Healthcare will not renew its VMware licenses.
+
+        The patient record system, **CareRecord**, runs on virtual machine images that are certified by its vendor: no additional software or agent may be installed in the guest operating systems.
+
+        | CareRecord tier | Virtual machines | Description |
+        | --- | --- | --- |
+        | Web | 6 | Identical, stateless IIS servers |
+        | Interface engine | 2 | Exchange messages with laboratory analyzers and imaging devices over TCP. Both servers are active and hold no state. |
+        | Database | 2 | SQL Server 2022 in an Always On availability group |
+
+        **Lausanne datacenter.** A medical imaging archive named **ImageVault** runs on 12 Windows Server virtual machines. The servers are joined to the Active Directory domain and configured by Group Policy. The application authenticates users with Kerberos and queries the directory over LDAP.
+
+        **Azure.** A subscription named **Sub-Clinical** contains a hub virtual network in West Europe, connected to the Ghent datacenter by a site-to-site VPN, and a Log Analytics workspace named **law-lamna-we** in West Europe.
+      fr: |
+        **Identité.** Une forêt Active Directory Domain Services est synchronisée avec un locataire Microsoft Entra par Microsoft Entra Connect Sync. La synchronisation de hachage de mot de passe est la méthode de connexion. Chaque utilisateur dispose d'une licence Microsoft Entra ID P1.
+
+        **Centre de données de Gand.** Un cluster VMware vSphere exécute 180 machines virtuelles (Windows Server et Linux). Lamna Healthcare ne renouvellera pas ses licences VMware.
+
+        Le système de dossiers patients, **CareRecord**, s'exécute sur des images de machines virtuelles certifiées par son éditeur : aucun logiciel ni agent supplémentaire ne peut être installé dans les systèmes d'exploitation invités.
+
+        | Niveau de CareRecord | Machines virtuelles | Description |
+        | --- | --- | --- |
+        | Web | 6 | Serveurs IIS identiques et sans état |
+        | Moteur d'interface | 2 | Échangent des messages avec les analyseurs de laboratoire et les appareils d'imagerie en TCP. Les deux serveurs sont actifs et ne conservent aucun état. |
+        | Base de données | 2 | SQL Server 2022 dans un groupe de disponibilité Always On |
+
+        **Centre de données de Lausanne.** Une archive d'imagerie médicale nommée **ImageVault** s'exécute sur 12 machines virtuelles Windows Server. Les serveurs sont joints au domaine Active Directory et configurés par des stratégies de groupe. L'application authentifie les utilisateurs avec Kerberos et interroge l'annuaire en LDAP.
+
+        **Azure.** Un abonnement nommé **Sub-Clinical** contient un réseau virtuel hub dans West Europe, relié au centre de données de Gand par un VPN site à site, et un espace de travail Log Analytics nommé **law-lamna-we** dans West Europe.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Lamna Healthcare plans the following changes:
+
+        - Migrate the 180 virtual machines of the Ghent datacenter to Azure virtual machines in West Europe, starting with CareRecord.
+        - Deploy a hub-and-spoke network in which all the outbound internet traffic of the spoke virtual networks goes through a central firewall in the hub.
+        - Deploy a second landing zone in Switzerland North for the applications of the Swiss hospitals, and migrate ImageVault to Azure virtual machines in that region.
+        - Give each application team the Contributor role on the resource groups of its own application only.
+      fr: |
+        Lamna Healthcare prévoit les changements suivants :
+
+        - Migrer les 180 machines virtuelles du centre de données de Gand vers des machines virtuelles Azure dans West Europe, en commençant par CareRecord.
+        - Déployer un réseau hub-and-spoke dans lequel tout le trafic Internet sortant des réseaux virtuels spoke passe par un pare-feu central situé dans le hub.
+        - Déployer une seconde zone d'atterrissage dans Switzerland North pour les applications des hôpitaux suisses, et migrer ImageVault vers des machines virtuelles Azure dans cette région.
+        - Accorder à chaque équipe applicative le rôle Contributor sur les groupes de ressources de sa propre application uniquement.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Migration requirements**
+
+        - The virtual machines must be replicated to Azure while they keep running in Ghent.
+        - Before the final cutover, Lamna Healthcare must be able to check that a migrated virtual machine starts and works in Azure, without affecting the machine that still runs in Ghent.
+        - Administrative effort must be minimized.
+
+        **Backup requirements**
+
+        - The CareRecord virtual machines must be backed up by Azure Backup with a recovery point objective (RPO) of four hours.
+        - It must be possible to restore an entire virtual machine from a recovery point.
+
+        **Network security requirements**
+
+        - The spoke virtual networks may reach only an approved list of fully qualified domain names (FQDNs) on the internet.
+        - Outbound HTTPS traffic must be decrypted and inspected, and an intrusion detection and prevention system (IDPS) must block malicious traffic.
+        - Costs must be minimized.
+
+        **Directory requirements**
+
+        - After their migration, the ImageVault virtual machines must be domain-joined and configured by Group Policy, and the application must keep using Kerberos and LDAP with the existing user names and passwords.
+        - Lamna Healthcare must not deploy, manage or patch domain controllers in Azure.
+        - ImageVault must not depend on a network connection to the on-premises domain controllers.
+
+        **Logging requirements**
+
+        - The logs of the resources deployed in Switzerland North must be stored in Switzerland. The other logs must be stored in the European Union.
+        - Each application team must be able to query the logs of its own resources only.
+        - The number of Log Analytics workspaces and the administrative effort must be minimized.
+      fr: |
+        **Exigences relatives à la migration**
+
+        - Les machines virtuelles doivent être répliquées vers Azure pendant qu'elles continuent de fonctionner à Gand.
+        - Avant le basculement définitif, Lamna Healthcare doit pouvoir vérifier qu'une machine virtuelle migrée démarre et fonctionne dans Azure, sans affecter la machine qui s'exécute encore à Gand.
+        - L'effort d'administration doit être réduit au minimum.
+
+        **Exigences relatives à la sauvegarde**
+
+        - Les machines virtuelles de CareRecord doivent être sauvegardées par Sauvegarde Azure avec un objectif de point de récupération (RPO) de quatre heures.
+        - Il doit être possible de restaurer une machine virtuelle entière à partir d'un point de récupération.
+
+        **Exigences relatives à la sécurité du réseau**
+
+        - Les réseaux virtuels spoke ne peuvent atteindre sur Internet qu'une liste approuvée de noms de domaine complets (FQDN).
+        - Le trafic HTTPS sortant doit être déchiffré et inspecté, et un système de détection et de prévention des intrusions (IDPS) doit bloquer le trafic malveillant.
+        - Les coûts doivent être réduits au minimum.
+
+        **Exigences relatives à l'annuaire**
+
+        - Après leur migration, les machines virtuelles d'ImageVault doivent être jointes à un domaine et configurées par des stratégies de groupe, et l'application doit continuer d'utiliser Kerberos et LDAP avec les noms d'utilisateur et les mots de passe existants.
+        - Lamna Healthcare ne doit ni déployer, ni gérer, ni corriger de contrôleurs de domaine dans Azure.
+        - ImageVault ne doit pas dépendre d'une connexion réseau vers les contrôleurs de domaine locaux.
+
+        **Exigences relatives à la journalisation**
+
+        - Les journaux des ressources déployées dans Switzerland North doivent être stockés en Suisse. Les autres journaux doivent être stockés dans l'Union européenne.
+        - Chaque équipe applicative doit pouvoir interroger uniquement les journaux de ses propres ressources.
+        - Le nombre d'espaces de travail Log Analytics et l'effort d'administration doivent être réduits au minimum.

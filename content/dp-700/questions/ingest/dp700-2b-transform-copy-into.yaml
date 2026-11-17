@@ -1,0 +1,76 @@
+id: dp700-2b-transform-copy-into
+objective: "2.2.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric workspace named WS-Claims that has a workspace identity. WS-Claims contains a warehouse named DW-Claims that has a table named stg.Claims.
+
+    An Azure Data Lake Storage Gen2 account named stclaimsraw has a firewall that allows access only from trusted Fabric workspaces, and WS-Claims is allowed. The workspace identity has the Storage Blob Data Reader role on stclaimsraw. The intake/2026/11 folder contains comma-separated files with a header row.
+
+    You need a T-SQL statement, run by a scheduled pipeline, to load the files into stg.Claims. The statement must fail if any row has a different number of columns than stg.Claims.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Fabric nommé WS-Claims doté d'une identité d'espace de travail. WS-Claims contient un entrepôt nommé DW-Claims qui possède une table nommée stg.Claims.
+
+    Un compte Azure Data Lake Storage Gen2 nommé stclaimsraw dispose d'un pare-feu qui n'autorise que les espaces de travail Fabric approuvés, et WS-Claims est autorisé. L'identité d'espace de travail dispose du rôle Storage Blob Data Reader sur stclaimsraw. Le dossier intake/2026/11 contient des fichiers séparés par des virgules avec une ligne d'en-tête.
+
+    Une instruction T-SQL, exécutée par un pipeline planifié, doit charger les fichiers dans stg.Claims. L'instruction doit échouer si une ligne a un nombre de colonnes différent de celui de stg.Claims.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    COPY INTO stg.Claims
+    FROM 'https://stclaimsraw.dfs.core.windows.net/intake/2026/11/*.csv'
+    WITH (
+        FILE_TYPE = [[ft]],
+        FIRSTROW = 2,
+        MATCH_COLUMN_COUNT = [[mcc]],
+        CREDENTIAL = (IDENTITY = [[cred]])
+    );
+  slots:
+    - id: ft
+      options:
+        - { id: ft_csv, text: "'CSV'" }
+        - { id: ft_jsonl, text: "'JSONL'" }
+        - { id: ft_parquet, text: "'PARQUET'" }
+        - { id: ft_delim, text: "'DELIMITEDTEXT'" }
+    - id: mcc
+      options:
+        - { id: mcc_on, text: "'ON'" }
+        - { id: mcc_off, text: "'OFF'" }
+    - id: cred
+      options:
+        - { id: c_wi, text: "'Workspace Identity'" }
+        - { id: c_sas, text: "'Shared Access Signature'" }
+        - { id: c_key, text: "'Storage Account Key'" }
+        - { id: c_mi, text: "'Managed Identity'" }
+answer:
+  values: { ft: ft_csv, mcc: mcc_on, cred: c_wi }
+explanation:
+  correct:
+    en: |
+      Comma-separated files are loaded with FILE_TYPE = 'CSV'. MATCH_COLUMN_COUNT = 'ON' makes the statement fail when a row's column count differs from the target table (the default is OFF). A firewall-protected storage account accepts only Microsoft Entra ID or the workspace identity; the workspace identity authorizes access to the files without depending on the user who runs the pipeline.
+    fr: |
+      Des fichiers séparés par des virgules se chargent avec FILE_TYPE = 'CSV'. MATCH_COLUMN_COUNT = 'ON' fait échouer l'instruction quand le nombre de colonnes d'une ligne diffère de celui de la table cible (la valeur par défaut est OFF). Un compte de stockage protégé par un pare-feu n'accepte que Microsoft Entra ID ou l'identité d'espace de travail ; l'identité d'espace de travail autorise l'accès aux fichiers sans dépendre de l'utilisateur qui exécute le pipeline.
+  options:
+    ft_jsonl: { en: "JSONL is for JSON Lines files, not comma-separated files.", fr: "JSONL concerne les fichiers JSON Lines, pas les fichiers séparés par des virgules." }
+    ft_parquet: { en: "PARQUET is for Parquet files.", fr: "PARQUET concerne les fichiers Parquet." }
+    ft_delim: { en: "DELIMITEDTEXT isn't a FILE_TYPE value in Fabric: delimited files use 'CSV'.", fr: "DELIMITEDTEXT n'est pas une valeur de FILE_TYPE dans Fabric : les fichiers délimités utilisent 'CSV'." }
+    mcc_off: { en: "OFF is the default and doesn't fail on a column count mismatch.", fr: "OFF est la valeur par défaut et n'échoue pas en cas de nombre de colonnes différent." }
+    c_sas: { en: "A firewall-protected account doesn't accept SAS for COPY INTO.", fr: "Un compte protégé par un pare-feu n'accepte pas de SAS pour COPY INTO." }
+    c_key: { en: "A firewall-protected account doesn't accept the account key for COPY INTO.", fr: "Un compte protégé par un pare-feu n'accepte pas la clé de compte pour COPY INTO." }
+    c_mi: { en: "Managed Identity isn't a COPY INTO credential in Fabric.", fr: "Managed Identity n'est pas une information d'identification de COPY INTO dans Fabric." }
+references:
+  - title: COPY INTO (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/copy-into-transact-sql?view=fabric
+  - title: Ingest data into the warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/ingest-data

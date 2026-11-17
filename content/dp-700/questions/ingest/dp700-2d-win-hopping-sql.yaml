@@ -1,0 +1,65 @@
+id: dp700-2d-win-hopping-sql
+objective: "2.3.7"
+type: dropdown
+difficulty: 1
+status: draft
+shuffle: false
+stem:
+  en: |
+    You have an eventstream named **ES-Payments** that receives card transactions. Each event contains the `cardId` field and a `txTime` field that holds the time of the transaction. You add a SQL operator that has an input named **PaymentsInput** and an output named **CardActivity**.
+
+    Every 5 minutes, the operator must output, for each card, the number of transactions made during the previous 15 minutes.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un flux d'événements nommé **ES-Payments** qui reçoit des transactions par carte. Chaque événement contient le champ `cardId` et un champ `txTime` qui indique l'heure de la transaction. Vous ajoutez un opérateur SQL qui a une entrée nommée **PaymentsInput** et une sortie nommée **CardActivity**.
+
+    Toutes les 5 minutes, l'opérateur doit produire, pour chaque carte, le nombre de transactions effectuées au cours des 15 minutes précédentes.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT System.Timestamp() AS WindowEnd, cardId, COUNT(*) AS Transactions
+    INTO CardActivity
+    FROM PaymentsInput TIMESTAMP BY txTime
+    GROUP BY cardId, [[fn]](minute, [[size]], [[hop]])
+  slots:
+    - id: fn
+      options:
+        - { id: fnTumbling, text: TumblingWindow }
+        - { id: fnHopping, text: HoppingWindow }
+        - { id: fnSliding, text: SlidingWindow }
+        - { id: fnSession, text: SessionWindow }
+    - id: size
+      options:
+        - { id: size5, text: "5" }
+        - { id: size15, text: "15" }
+        - { id: size20, text: "20" }
+    - id: hop
+      options:
+        - { id: hop1, text: "1" }
+        - { id: hop5, text: "5" }
+        - { id: hop15, text: "15" }
+answer:
+  values: { fn: fnHopping, size: size15, hop: hop5 }
+explanation:
+  correct:
+    en: "A hopping window has a fixed size and moves forward by a fixed hop, so consecutive windows overlap and an event can be counted in several of them. `HoppingWindow(minute, 15, 5)` takes the time unit, then the window size (15 minutes of transactions), then the hop size (one result every 5 minutes). Results are stamped with the end time of each window."
+    fr: "Une fenêtre récurrente (hopping) a une taille fixe et avance d'un saut fixe : les fenêtres successives se chevauchent et un événement peut être compté dans plusieurs d'entre elles. `HoppingWindow(minute, 15, 5)` prend l'unité de temps, puis la taille de la fenêtre (15 minutes de transactions), puis la taille du saut (un résultat toutes les 5 minutes). Les résultats sont horodatés avec l'heure de fin de chaque fenêtre."
+  options:
+    fnTumbling: { en: "Tumbling windows don't overlap, so they can't cover 15 minutes while producing a result every 5 minutes.", fr: "Les fenêtres bascules (tumbling) ne se chevauchent pas : elles ne peuvent pas couvrir 15 minutes tout en produisant un résultat toutes les 5 minutes." }
+    fnSliding: { en: "A sliding window produces output only when an event enters or leaves the window, not every 5 minutes.", fr: "Une fenêtre glissante (sliding) ne produit un résultat que quand un événement entre dans la fenêtre ou en sort, pas toutes les 5 minutes." }
+    fnSession: { en: "A session window groups events separated by less than a timeout; its arguments are a timeout and a maximum duration.", fr: "Une fenêtre de session regroupe les événements séparés par moins qu'un délai ; ses arguments sont un délai d'expiration et une durée maximale." }
+    size5: { en: "A 5-minute window counts only the last 5 minutes of transactions.", fr: "Une fenêtre de 5 minutes ne compte que les 5 dernières minutes de transactions." }
+    hop15: { en: "A 15-minute hop produces a result every 15 minutes, not every 5 minutes.", fr: "Un saut de 15 minutes produit un résultat toutes les 15 minutes, pas toutes les 5 minutes." }
+references:
+  - title: Hopping Window
+    url: https://learn.microsoft.com/en-us/stream-analytics-query/hopping-window-azure-stream-analytics
+  - title: Introduction to Stream Analytics windowing functions
+    url: https://learn.microsoft.com/en-us/azure/stream-analytics/stream-analytics-window-functions

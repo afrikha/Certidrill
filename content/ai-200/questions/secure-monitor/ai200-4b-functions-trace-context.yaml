@@ -1,0 +1,94 @@
+id: ai200-4b-functions-trace-context
+objective: "4.2.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam hosts an HTTP-triggered reranking function in Azure Functions. The function app uses the Python v1 programming model and the Azure Monitor OpenTelemetry Distro.
+
+    The spans that the function creates appear as separate traces instead of being correlated with the incoming request tracked by the Functions host. You need the rerank span to continue the trace context of the invocation.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam héberge dans Azure Functions une fonction de reclassement déclenchée par HTTP. L'application de fonction utilise le modèle de programmation Python v1 et la distribution OpenTelemetry Azure Monitor.
+
+    Les étendues créées par la fonction apparaissent comme des traces distinctes au lieu d'être corrélées avec la requête entrante suivie par l'hôte Functions. L'étendue rerank doit poursuivre le contexte de trace de l'appel.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import azure.functions as func
+    from azure.monitor.opentelemetry import configure_azure_monitor
+    from opentelemetry import trace
+    from opentelemetry.propagate import extract, inject
+
+    configure_azure_monitor()
+
+    def main(req: func.HttpRequest, context) -> func.HttpResponse:
+        carrier = {
+            "traceparent": context.trace_context.[[tp]],
+            "tracestate": context.trace_context.Tracestate,
+        }
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span("rerank", [[arg]]=[[fn]](carrier)):
+            ...
+  slots:
+    - id: tp
+      options:
+        - { id: traceparent, text: Traceparent }
+        - { id: attributes, text: Attributes }
+        - { id: tracestate, text: Tracestate }
+    - id: arg
+      options:
+        - { id: context, text: context }
+        - { id: links, text: links }
+        - { id: attributes, text: attributes }
+    - id: fn
+      options:
+        - { id: extract, text: extract }
+        - { id: inject, text: inject }
+        - { id: dict, text: dict }
+answer:
+  values: { tp: traceparent, arg: context, fn: extract }
+explanation:
+  correct:
+    en: |-
+      Requests tracked by the Functions host aren't correlated automatically with the telemetry created in a Python function. You copy the W3C `traceparent` and `tracestate` values of `context.trace_context` into a carrier, turn it into an OpenTelemetry context with `extract()`, and pass that context in the `context` argument so that the new span becomes a child of the invocation.
+    fr: |-
+      Les requêtes suivies par l'hôte Functions ne sont pas corrélées automatiquement avec la télémétrie créée dans une fonction Python. Vous copiez les valeurs W3C `traceparent` et `tracestate` de `context.trace_context` dans un porteur (carrier), vous le convertissez en contexte OpenTelemetry avec `extract()`, puis vous passez ce contexte dans l'argument `context` pour que la nouvelle étendue devienne enfant de l'appel.
+  options:
+    attributes:
+      en: |-
+        Attributes holds additional trace attributes, not the traceparent value; as a span argument, attributes only adds custom properties.
+      fr: |-
+        Attributes contient des attributs de trace supplémentaires, pas la valeur traceparent ; en argument d'étendue, attributes ajoute seulement des propriétés personnalisées.
+    tracestate:
+      en: |-
+        The Tracestate value is already copied to the tracestate key; the traceparent key needs Traceparent, which carries the trace ID and the parent span ID.
+      fr: |-
+        La valeur Tracestate est déjà copiée dans la clé tracestate ; la clé traceparent attend Traceparent, qui porte l'ID de trace et l'ID de l'étendue parente.
+    links:
+      en: |-
+        Links relate the span to other spans without making it their child, so the span would still start a new trace.
+      fr: |-
+        Les liens associent l'étendue à d'autres étendues sans en faire leur enfant : l'étendue démarrerait toujours une nouvelle trace.
+    inject:
+      en: |-
+        inject writes the current context into a carrier for an outgoing call and returns nothing; it's used by the caller, not the callee.
+      fr: |-
+        inject écrit le contexte courant dans un porteur pour un appel sortant et ne renvoie rien ; il sert à l'appelant, pas à l'appelé.
+    dict:
+      en: |-
+        A plain dictionary isn't an OpenTelemetry context; the carrier must be parsed by the propagator with extract.
+      fr: |-
+        Un simple dictionnaire n'est pas un contexte OpenTelemetry ; le porteur doit être analysé par le propagateur avec extract.
+references:
+  - title: Azure Monitor Opentelemetry Distro client library for Python
+    url: https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-readme

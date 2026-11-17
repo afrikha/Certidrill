@@ -1,0 +1,80 @@
+id: dp420-3b-rag-retrieval-code
+objective: "3.1.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Health stores policy document chunks in an Azure Cosmos DB for NoSQL container partitioned by `/tenantId`. Each item contains `chunkText`, `sourceUrl` and a 1,536-dimension `embedding`. A RAG function written in Python receives the embedding of the user's question in `question_vector`.
+
+    The function must send the chat model the text and source of the five chunks most similar to the question, for the user's tenant only, at the lowest RU charge.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Health stocke des segments de documents de stratégie dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/tenantId`. Chaque élément contient `chunkText`, `sourceUrl` et une `embedding` de 1 536 dimensions. Une fonction RAG écrite en Python reçoit l'incorporation de la question de l'utilisateur dans `question_vector`.
+
+    La fonction doit envoyer au modèle de conversation le texte et la source des cinq segments les plus similaires à la question, pour le seul locataire de l'utilisateur, avec les frais en RU les plus faibles.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    chunks = container.query_items(
+        query="SELECT TOP 5 [[proj]] FROM c "
+              "WHERE c.tenantId = @t "
+              "ORDER BY [[order]]",
+        parameters=[{"name": "@t", "value": tenant_id},
+                    {"name": "@v", "value": question_vector}],
+        [[scope]])
+    context = "\n".join(f"{c['chunkText']} ({c['sourceUrl']})" for c in chunks)
+  slots:
+    - id: proj
+      options:
+        - { id: fields, text: "c.chunkText, c.sourceUrl" }
+        - { id: all, text: "*" }
+        - { id: vec, text: "c.embedding" }
+    - id: order
+      options:
+        - { id: vd, text: "VectorDistance(c.embedding, @v)" }
+        - { id: fts, text: "RANK FullTextScore(c.chunkText, @v)" }
+        - { id: ts, text: "c._ts DESC" }
+    - id: scope
+      options:
+        - { id: pk, text: "partition_key=tenant_id" }
+        - { id: cross, text: "enable_cross_partition_query=True" }
+        - { id: page, text: "max_item_count=5" }
+answer:
+  values: { proj: fields, order: vd, scope: pk }
+explanation:
+  correct:
+    en: "Projecting only chunkText and sourceUrl returns what the prompt needs without the large embedding arrays. ORDER BY VectorDistance with TOP 5 returns the five most similar chunks. Passing the tenant as partition_key runs the query against a single partition, which is cheaper than a cross-partition query."
+    fr: "Projeter seulement chunkText et sourceUrl renvoie ce dont le prompt a besoin sans les gros tableaux d'incorporation. ORDER BY VectorDistance avec TOP 5 renvoie les cinq segments les plus similaires. Passer le locataire comme partition_key exécute la requête sur une seule partition, ce qui coûte moins cher qu'une requête interpartitions."
+  options:
+    all:
+      en: "* also returns the 1,536-number embedding of every chunk, which the prompt does not need."
+      fr: "* renvoie aussi l'incorporation de 1 536 nombres de chaque segment, dont le prompt n'a pas besoin."
+    vec:
+      en: "The chat model needs the text of the chunks, not their vectors, and this projection omits the fields used to build the context."
+      fr: "Le modèle de conversation a besoin du texte des segments, pas de leurs vecteurs, et cette projection omet les champs utilisés pour construire le contexte."
+    fts:
+      en: "FullTextScore takes search terms, not a vector, so it cannot rank by similarity to the question embedding."
+      fr: "FullTextScore prend des termes de recherche, pas un vecteur : il ne peut pas classer par similarité avec l'incorporation de la question."
+    ts:
+      en: "Sorting by _ts returns the most recently modified chunks, not the most similar ones."
+      fr: "Trier par _ts renvoie les segments modifiés le plus récemment, pas les plus similaires."
+    cross:
+      en: "The tenant is known, so a cross-partition query adds requests and RU for nothing."
+      fr: "Le locataire est connu ; une requête interpartitions ajoute des requêtes et des RU pour rien."
+    page:
+      en: "max_item_count sets the page size; it does not target a partition."
+      fr: "max_item_count définit la taille de page ; il ne cible pas une partition."
+references:
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/vector-search

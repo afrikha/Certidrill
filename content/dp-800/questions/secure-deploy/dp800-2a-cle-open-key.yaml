@@ -1,0 +1,62 @@
+id: dp800-2a-cle-open-key
+objective: "2.1.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A SQL Server 2022 database named **Finance** stores card numbers in the `varbinary(256)` column **CardEnc** of **dbo.Payment**. The values were encrypted with `ENCRYPTBYKEY` and the symmetric key **KeyCards**, which is protected by the certificate **CertCards**. The database master key is protected by the service master key.
+
+    You create the following procedure:
+
+    ```text
+    CREATE PROCEDURE dbo.usp_GetCards
+    AS
+    SELECT PaymentID, CONVERT(varchar(19), DECRYPTBYKEY(CardEnc)) AS CardNumber
+    FROM dbo.Payment;
+    ```
+
+    Members of the **Billing** role have `EXECUTE` on the procedure, `CONTROL` on CertCards and `VIEW DEFINITION` on KeyCards. When they run the procedure, CardNumber is NULL for every row and no error is returned.
+
+    What should you add to the procedure before the SELECT statement?
+  fr: |
+    Une base de données SQL Server 2022 nommée **Finance** stocke des numéros de carte dans la colonne `varbinary(256)` **CardEnc** de **dbo.Payment**. Les valeurs ont été chiffrées avec `ENCRYPTBYKEY` et la clé symétrique **KeyCards**, protégée par le certificat **CertCards**. La clé principale de base de données est protégée par la clé principale du service.
+
+    Vous créez la procédure suivante :
+
+    ```text
+    CREATE PROCEDURE dbo.usp_GetCards
+    AS
+    SELECT PaymentID, CONVERT(varchar(19), DECRYPTBYKEY(CardEnc)) AS CardNumber
+    FROM dbo.Payment;
+    ```
+
+    Les membres du rôle **Billing** disposent de `EXECUTE` sur la procédure, de `CONTROL` sur CertCards et de `VIEW DEFINITION` sur KeyCards. Lorsqu'ils exécutent la procédure, CardNumber est NULL pour toutes les lignes et aucune erreur n'est renvoyée.
+
+    Que devez-vous ajouter à la procédure avant l'instruction SELECT ?
+body:
+  options:
+    - id: a
+      text: "OPEN MASTER KEY DECRYPTION BY PASSWORD = '<password>';"
+    - id: b
+      text: "GRANT UNMASK ON dbo.Payment (CardEnc) TO Billing;"
+    - id: c
+      text: "OPEN SYMMETRIC KEY KeyCards DECRYPTION BY CERTIFICATE CertCards;"
+    - id: d
+      text: "ALTER DATABASE Finance SET ENCRYPTION ON;"
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      DECRYPTBYKEY returns NULL, without an error, when the symmetric key that encrypted the data is not open in the current session. Opening KeyCards with its certificate before the SELECT lets DECRYPTBYKEY decrypt the values; the caller needs permissions on the key and the certificate, which Billing already has. You can close the key with CLOSE SYMMETRIC KEY at the end of the procedure.
+    fr: |
+      DECRYPTBYKEY renvoie NULL, sans erreur, lorsque la clé symétrique qui a chiffré les données n'est pas ouverte dans la session actuelle. Ouvrir KeyCards avec son certificat avant le SELECT permet à DECRYPTBYKEY de déchiffrer les valeurs ; l'appelant a besoin d'autorisations sur la clé et le certificat, dont Billing dispose déjà. Vous pouvez fermer la clé avec CLOSE SYMMETRIC KEY à la fin de la procédure.
+  options:
+    a: { en: "The database master key is already protected by the service master key and opens automatically; the symmetric key itself is still closed.", fr: "La clé principale de base de données est déjà protégée par la clé principale du service et s'ouvre automatiquement ; c'est la clé symétrique qui reste fermée." }
+    b: { en: "UNMASK applies to Dynamic Data Masking, not to values encrypted with a symmetric key.", fr: "UNMASK concerne le masquage dynamique des données, pas les valeurs chiffrées avec une clé symétrique." }
+    d: { en: "This enables transparent data encryption of the files, which has no effect on DECRYPTBYKEY.", fr: "Cette instruction active le chiffrement transparent des fichiers, sans effet sur DECRYPTBYKEY." }
+references:
+  - title: DECRYPTBYKEY (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/decryptbykey-transact-sql
+  - title: Encrypt a Column of Data
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/encryption/encrypt-a-column-of-data

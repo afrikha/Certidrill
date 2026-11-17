@@ -1,0 +1,73 @@
+id: ai300-2a-dist-pytorch-yaml
+objective: "2.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+shuffle: false
+stem:
+  en: |
+    You have a compute cluster named **gpu-cluster** in Azure Machine Learning. Each node is a Standard_NC24rs_v3 VM with four GPUs.
+
+    A training script uses PyTorch `DistributedDataParallel` and the standard `torch.distributed` environment variables. You need to run the script on three nodes, with one process per GPU.
+
+    How should you complete the command job YAML file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un cluster de calcul nommé **gpu-cluster** dans Azure Machine Learning. Chaque nœud est une machine virtuelle Standard_NC24rs_v3 dotée de quatre GPU.
+
+    Un script d'entraînement utilise `DistributedDataParallel` de PyTorch et les variables d'environnement standard de `torch.distributed`. Vous devez exécuter le script sur trois nœuds, avec un processus par GPU.
+
+    Comment devez-vous compléter le fichier YAML du travail de commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+    type: command
+    code: ./src
+    command: python train.py --epochs 30
+    environment: azureml:AzureML-acpt-pytorch-2.8-cuda12.6@latest
+    compute: azureml:gpu-cluster
+    distribution:
+      type: [[dtype]]
+      process_count_per_instance: [[ppi]]
+    resources:
+      instance_count: [[ic]]
+  slots:
+    - id: dtype
+      options:
+        - { id: d-ray, text: ray }
+        - { id: d-tf, text: tensorflow }
+        - { id: d-pt, text: pytorch }
+    - id: ppi
+      options:
+        - { id: p1, text: "1" }
+        - { id: p3, text: "3" }
+        - { id: p4, text: "4" }
+        - { id: p12, text: "12" }
+    - id: ic
+      options:
+        - { id: c1, text: "1" }
+        - { id: c3, text: "3" }
+        - { id: c4, text: "4" }
+        - { id: c12, text: "12" }
+answer:
+  values: { dtype: d-pt, ppi: p4, ic: c3 }
+explanation:
+  correct:
+    en: "With `type: pytorch`, Azure Machine Learning starts the processes and sets the `torch.distributed` variables, so no launcher is needed. `process_count_per_instance` should equal the number of GPUs per node (4), and `resources.instance_count` is the number of nodes (3), for a world size of 12."
+    fr: "Avec `type: pytorch`, Azure Machine Learning démarre les processus et définit les variables de `torch.distributed` : aucun lanceur n'est nécessaire. `process_count_per_instance` doit être égal au nombre de GPU par nœud (4), et `resources.instance_count` est le nombre de nœuds (3), soit une taille globale (world size) de 12."
+  options:
+    d-ray: { en: "ray starts a Ray cluster, not torch.distributed processes.", fr: "ray démarre un cluster Ray, pas des processus torch.distributed." }
+    d-tf: { en: "tensorflow sets TF_CONFIG for TensorFlow workers.", fr: "tensorflow définit TF_CONFIG pour des workers TensorFlow." }
+    p1: { en: "One process per node leaves three GPUs idle on each node.", fr: "Un processus par nœud laisse trois GPU inactifs sur chaque nœud." }
+    p12: { en: "12 is the total number of processes, not the number per node.", fr: "12 est le nombre total de processus, pas le nombre par nœud." }
+    c12: { en: "instance_count counts nodes, not GPUs.", fr: "instance_count compte les nœuds, pas les GPU." }
+references:
+  - title: Distributed GPU training guide (SDK v2)
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-train-distributed-gpu
+  - title: CLI (v2) command job YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-job-command

@@ -1,0 +1,89 @@
+id: dp600-cs3a-consolidated-messenger
+status: draft
+title:
+  en: Consolidated Messenger
+  fr: Consolidated Messenger
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Consolidated Messenger is a parcel delivery company that operates 120 depots in Spain and Portugal. The head office is in Madrid. An analytics team of six people builds the reporting platform in Microsoft Fabric.
+
+        Every parcel is scanned when it arrives at a depot, when it leaves for delivery and when it is delivered. Consolidated Messenger wants to combine the real-time scan data with the route data that it already analyzes in Fabric, and to move route planning to Fabric.
+      fr: |
+        Consolidated Messenger est une entreprise de livraison de colis qui exploite 120 dépôts en Espagne et au Portugal. Le siège est à Madrid. Une équipe d'analytique de six personnes construit la plateforme de reporting dans Microsoft Fabric.
+
+        Chaque colis est scanné à son arrivée dans un dépôt, à son départ en livraison et à sa livraison. Consolidated Messenger souhaite combiner les données de scan en temps réel avec les données de tournées qu'elle analyse déjà dans Fabric, et faire passer la planification des tournées dans Fabric.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Fabric.** The workspace **CM-Operations** is assigned to an F64 capacity. It contains the following items.
+
+        | Item | Type | Details |
+        | --- | --- | --- |
+        | EH-Tracking | Eventhouse | Contains the KQL database **TrackingDB**. OneLake availability is Disabled for the database and its tables. |
+        | Scans | Table in TrackingDB | ScanId, ParcelId, DepotId, ScanType (Received, OutForDelivery, Delivered or Exception), ScanTime (datetime). Contains two years of scans. The retention policy is three years. |
+        | ES-Scanners | Eventstream | Sends the events of the handheld scanners to the Scans table continuously. |
+        | LH-Operations | Lakehouse | Delta tables depots, drivers and route_kpi (RouteId, DepotId, RouteDate, DelayMinutes, Stops) |
+        | SM-Operations | Semantic model | Direct Lake model based on LH-Operations. It contains the measure [Routes] = COUNTROWS(route_kpi) and the measure **Late Routes**, defined as CALCULATE([Routes], FILTER(route_kpi, route_kpi[DelayMinutes] > 30)). |
+        | RPT-Routes | Report | Based on SM-Operations. Its pages have slicers on depots[DepotName] and on route_kpi[DelayMinutes]. |
+
+        **Route planning.** The route planning team plans the routes of the next day in Excel today. The team members write T-SQL only.
+      fr: |
+        **Fabric.** L'espace de travail **CM-Operations** est attribué à une capacité F64. Il contient les éléments suivants.
+
+        | Élément | Type | Détails |
+        | --- | --- | --- |
+        | EH-Tracking | Eventhouse | Contient la base de données KQL **TrackingDB**. La disponibilité OneLake (OneLake availability) est Disabled pour la base de données et ses tables. |
+        | Scans | Table de TrackingDB | ScanId, ParcelId, DepotId, ScanType (Received, OutForDelivery, Delivered ou Exception), ScanTime (datetime). Contient deux ans de scans. La stratégie de rétention est de trois ans. |
+        | ES-Scanners | Eventstream | Envoie en continu les événements des scanners portables vers la table Scans. |
+        | LH-Operations | Lakehouse | Tables Delta depots, drivers et route_kpi (RouteId, DepotId, RouteDate, DelayMinutes, Stops) |
+        | SM-Operations | Modèle sémantique | Modèle Direct Lake basé sur LH-Operations. Il contient la mesure [Routes] = COUNTROWS(route_kpi) et la mesure **Late Routes**, définie comme CALCULATE([Routes], FILTER(route_kpi, route_kpi[DelayMinutes] > 30)). |
+        | RPT-Routes | Rapport | Basé sur SM-Operations. Ses pages ont des segments sur depots[DepotName] et sur route_kpi[DelayMinutes]. |
+
+        **Planification des tournées.** L'équipe de planification prépare aujourd'hui dans Excel les tournées du lendemain. Les membres de l'équipe écrivent uniquement du T-SQL.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Consolidated Messenger identifies the following requirements.
+
+        **Data access**
+
+        1. The data engineers must be able to query the Scans data, including the two years of existing scans, from notebooks attached to LH-Operations. No pipeline, copy job or eventstream destination that copies the scans must be created.
+        2. A dashboard must list the parcels whose most recent scan is an Exception scan, with the depot and the time of that scan.
+        3. The planned routes must move to Fabric. The route planning team will load them every day by using stored procedures that write to three tables in a single transaction. The data will be used for reporting only; no operational application will read or write it.
+
+        **Semantic model**
+
+        4. Late Routes must be rewritten to perform better. It must keep returning the same results in RPT-Routes, including when a user filters route_kpi[DelayMinutes] by using the slicer.
+
+        **Workspace access**
+
+        5. Access to CM-Operations must follow the principle of least privilege:
+           - Lucia, the team lead, must be able to add analysts to the workspace as Contributors or Viewers. She must not be able to delete the workspace.
+           - The data engineers must be able to create and edit notebooks and write to the lakehouse tables.
+           - The depot managers must be able to view the reports and to query the lakehouse tables by using T-SQL through the SQL analytics endpoint only.
+           - Pablo, the platform owner, must be able to connect the workspace to an Azure DevOps Git repository.
+      fr: |
+        Consolidated Messenger a défini les exigences suivantes.
+
+        **Accès aux données**
+
+        1. Les ingénieurs données doivent pouvoir interroger les données Scans, y compris les deux ans de scans existants, depuis des notebooks attachés à LH-Operations. Aucun pipeline, copy job ou destination d'eventstream qui copie les scans ne doit être créé.
+        2. Un tableau de bord doit lister les colis dont le scan le plus récent est un scan Exception, avec le dépôt et l'heure de ce scan.
+        3. Les tournées planifiées doivent passer dans Fabric. L'équipe de planification les chargera chaque jour à l'aide de procédures stockées qui écrivent dans trois tables au sein d'une même transaction. Les données serviront uniquement au reporting ; aucune application opérationnelle ne les lira ni ne les écrira.
+
+        **Modèle sémantique**
+
+        4. Late Routes doit être réécrite pour être plus performante. Elle doit continuer de renvoyer les mêmes résultats dans RPT-Routes, y compris quand un utilisateur filtre route_kpi[DelayMinutes] à l'aide du segment.
+
+        **Accès à l'espace de travail**
+
+        5. L'accès à CM-Operations doit respecter le principe du privilège minimum :
+           - Lucia, la responsable d'équipe, doit pouvoir ajouter des analystes à l'espace de travail en tant que Contributors ou Viewers. Elle ne doit pas pouvoir supprimer l'espace de travail.
+           - Les ingénieurs données doivent pouvoir créer et modifier des notebooks et écrire dans les tables du lakehouse.
+           - Les responsables de dépôt doivent pouvoir consulter les rapports et interroger les tables du lakehouse en T-SQL, uniquement via le point de terminaison d'analytique SQL.
+           - Pablo, le responsable de la plateforme, doit pouvoir connecter l'espace de travail à un dépôt Git Azure DevOps.

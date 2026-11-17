@@ -1,0 +1,68 @@
+id: ai200-4b-azure-sdk-spans
+objective: "4.2.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip Toys runs a Flask order-assistant API that reads product vectors from Azure Cosmos DB for NoSQL with `azure-cosmos` and sends messages to Azure Service Bus with `azure-servicebus`. The API starts the distro with the following call:
+
+    ```text
+    configure_azure_monitor(
+        logger_name="wingtip.assistant",
+        instrumentation_options={"azure_sdk": {"enabled": False}},
+    )
+    ```
+
+    The end-to-end transaction view shows each Flask request, but no Cosmos DB or Service Bus dependency. You need these dependencies to appear in the same traces. The solution must minimize code changes.
+
+    What should you do?
+  fr: |
+    Wingtip Toys exécute une API Flask d'assistance aux commandes qui lit des vecteurs de produits dans Azure Cosmos DB for NoSQL avec `azure-cosmos` et envoie des messages à Azure Service Bus avec `azure-servicebus`. L'API démarre la distribution avec l'appel suivant :
+
+    ```text
+    configure_azure_monitor(
+        logger_name="wingtip.assistant",
+        instrumentation_options={"azure_sdk": {"enabled": False}},
+    )
+    ```
+
+    La vue des transactions de bout en bout montre chaque requête Flask, mais aucune dépendance Cosmos DB ou Service Bus. Vous devez faire apparaître ces dépendances dans les mêmes traces. La solution doit réduire au minimum les modifications du code.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Set the `OTEL_TRACES_SAMPLER` environment variable to `always_on`.", fr: "Définir la variable d'environnement `OTEL_TRACES_SAMPLER` sur `always_on`." }
+    - id: b
+      text: { en: "Wrap each Cosmos DB and Service Bus call in a span created with `kind=SpanKind.CLIENT`.", fr: "Encapsuler chaque appel Cosmos DB et Service Bus dans une étendue créée avec `kind=SpanKind.CLIENT`." }
+    - id: c
+      text: { en: "Remove the `azure_sdk` entry from `instrumentation_options`.", fr: "Supprimer l'entrée `azure_sdk` de `instrumentation_options`." }
+    - id: d
+      text: { en: "Set the `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` environment variable to an empty string.", fr: "Définir la variable d'environnement `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` sur une chaîne vide." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      The `azure_sdk` instrumentation (Azure Core Tracing OpenTelemetry) is enabled by default and creates spans for calls made by Azure SDK clients such as Cosmos DB and Service Bus. The code explicitly disables it; removing the entry restores the dependencies as children of the Flask request span with a one-line change.
+    fr: |-
+      L'instrumentation `azure_sdk` (Azure Core Tracing OpenTelemetry) est activée par défaut et crée des étendues pour les appels des clients du SDK Azure, comme Cosmos DB et Service Bus. Le code la désactive explicitement ; supprimer l'entrée rétablit les dépendances comme enfants de l'étendue de la requête Flask, avec une modification d'une ligne.
+  options:
+    a:
+      en: |-
+        The spans are never created because the instrumentation is disabled; sampling isn't the cause.
+      fr: |-
+        Les étendues ne sont jamais créées, car l'instrumentation est désactivée ; l'échantillonnage n'est pas en cause.
+    b:
+      en: |-
+        Manual spans around every call would work but require many code changes, whereas the bundled instrumentation only needs to be re-enabled.
+      fr: |-
+        Des étendues manuelles autour de chaque appel fonctionneraient, mais exigent de nombreuses modifications du code, alors qu'il suffit de réactiver l'instrumentation intégrée.
+    d:
+      en: |-
+        An empty list is already the default; it doesn't override the `instrumentation_options` that the code passes.
+      fr: |-
+        Une liste vide est déjà la valeur par défaut ; elle ne remplace pas les `instrumentation_options` passées par le code.
+references:
+  - title: Azure Monitor Opentelemetry Distro client library for Python
+    url: https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-readme

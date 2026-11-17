@@ -1,0 +1,80 @@
+id: dp750-3a-csv-rescued-data
+objective: "3.1.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank loads daily CSV extracts of card transactions from **/Volumes/woodgrove/raw/landing/cards/** with a notebook. You apply a defined schema named `card_schema`. Some files contain values that do not match the schema types, for example text in the `amount` column.
+
+    The solution must meet the following requirements:
+
+    - The read must never stop because of malformed data, and no row may be dropped.
+    - For each row, the values that do not match the schema must be captured in a separate column, together with the path of the source file. The other columns of the row must keep their parsed values.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank charge chaque jour des extractions CSV de transactions par carte depuis **/Volumes/woodgrove/raw/landing/cards/** avec un notebook. Vous appliquez un schéma défini nommé `card_schema`. Certains fichiers contiennent des valeurs qui ne correspondent pas aux types du schéma, par exemple du texte dans la colonne `amount`.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - La lecture ne doit jamais s'arrêter à cause de données mal formées, et aucune ligne ne doit être supprimée.
+    - Pour chaque ligne, les valeurs qui ne correspondent pas au schéma doivent être capturées dans une colonne distincte, avec le chemin du fichier source. Les autres colonnes de la ligne doivent conserver leurs valeurs analysées.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    df = (spark.read
+      .format("csv")
+      .option("header", "true")
+      .option("mode", [[mode]])
+      .option([[opt]], "_rescued_data")
+      .schema(card_schema)
+      .load("/Volumes/woodgrove/raw/landing/cards/"))
+  slots:
+    - id: mode
+      options:
+        - { id: permissive, text: '"PERMISSIVE"' }
+        - { id: dropmal, text: '"DROPMALFORMED"' }
+        - { id: failfast, text: '"FAILFAST"' }
+    - id: opt
+      options:
+        - { id: badpath, text: '"badRecordsPath"' }
+        - { id: rescued, text: '"rescuedDataColumn"' }
+        - { id: corrupt, text: '"columnNameOfCorruptRecord"' }
+answer:
+  values: { mode: permissive, opt: rescued }
+explanation:
+  correct:
+    en: |
+      The rescued data column captures values that are missing from the schema, do not match its data type or differ in case, as a JSON blob that includes the source file path, while the rest of the row is parsed normally. `PERMISSIVE` keeps every row; with the rescued data column, `DROPMALFORMED` would still drop incomplete or malformed CSV rows and `FAILFAST` would still stop on them.
+    fr: |
+      La colonne de données récupérées (rescued data column) capture les valeurs absentes du schéma, de type incorrect ou dont la casse diffère, sous forme de blob JSON qui inclut le chemin du fichier source, tandis que le reste de la ligne est analysé normalement. `PERMISSIVE` conserve toutes les lignes ; avec la colonne de données récupérées, `DROPMALFORMED` supprimerait toujours les lignes CSV incomplètes ou mal formées et `FAILFAST` s'arrêterait toujours sur elles.
+  options:
+    dropmal:
+      en: |
+        DROPMALFORMED drops rows that cannot be parsed, which breaks the requirement that no row may be dropped.
+      fr: |
+        DROPMALFORMED supprime les lignes qui ne peuvent pas être analysées, ce qui enfreint l'exigence de ne supprimer aucune ligne.
+    failfast:
+      en: |
+        FAILFAST aborts the read when malformed data is found.
+      fr: |
+        FAILFAST interrompt la lecture lorsque des données mal formées sont détectées.
+    badpath:
+      en: "`badRecordsPath` writes malformed rows to files at a path; those rows do not appear in the resulting DataFrame."
+      fr: "`badRecordsPath` écrit les lignes mal formées dans des fichiers à un chemin donné ; ces lignes n'apparaissent pas dans le DataFrame obtenu."
+    corrupt:
+      en: |
+        A corrupt record column stores the whole raw line of a malformed row, without the source file path, instead of only the values that failed to match.
+      fr: |
+        Une colonne d'enregistrements corrompus stocke la ligne brute complète d'une ligne mal formée, sans le chemin du fichier source, au lieu des seules valeurs non conformes.
+references:
+  - title: Read and write CSV files
+    url: https://learn.microsoft.com/en-us/azure/databricks/query/formats/csv

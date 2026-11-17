@@ -1,0 +1,91 @@
+id: dp420-cs3b-lucerne-publishing
+status: draft
+title:
+  en: Lucerne Publishing
+  fr: Lucerne Publishing
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lucerne Publishing publishes scientific journals. It sells a research assistant named **Scholar** to 220 universities. Scholar answers researchers' questions by retrieving passages and figures from the articles that each university licenses, and then sends them to a large language model (retrieval-augmented generation).
+
+        The Scholar API is written in Python with the `azure-cosmos` SDK and runs in an Azure Container Apps app named **ca-scholar** that has a system-assigned managed identity.
+      fr: |
+        Lucerne Publishing publie des revues scientifiques. Elle vend un assistant de recherche nommé **Scholar** à 220 universités. Scholar répond aux questions des chercheurs en récupérant des passages et des figures des articles dont chaque université détient la licence, puis les transmet à un grand modèle de langage (génération augmentée par récupération).
+
+        L'API Scholar est écrite en Python avec le SDK `azure-cosmos` et s'exécute dans une application Azure Container Apps nommée **ca-scholar** qui possède une identité managée affectée par le système.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Lucerne has an Azure Cosmos DB for NoSQL account named **cosmos-lucerne** in West Europe. Vector search is enabled on the account, and key-based authentication is disabled.
+
+        | Database | Container | Content | Partition key |
+        | --- | --- | --- | --- |
+        | research | chunks | Text chunk items (`type` = `chunk`): `documentId`, `tenantId`, `title`, `chunkText` (English), `textEmbedding`. Figure items (`type` = `figure`): `documentId`, `tenantId`, `caption`, `figureEmbedding` | `/documentId` |
+        | research | threads | Conversation messages, one item per message | Not decided yet |
+        | research | memories | Facts that Scholar extracts from past conversations, one item per fact | `/userId` |
+        | billing | invoices | Invoices of the universities | `/tenantId` |
+
+        The chunks container stores 4.2 million text chunks and 900,000 figures. Each item belongs to the collection of one university, identified by `tenantId`; the largest collection holds 600,000 text chunks.
+
+        The chunks container has a full-text policy and a full-text index on `/chunkText` (en-US). Its text vectors use the following configuration:
+
+        | Path | Data type | Dimensions | Distance function | Vector index |
+        | --- | --- | --- | --- | --- |
+        | /textEmbedding | float32 | 1,536 | cosine | diskANN |
+      fr: |
+        Lucerne dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-lucerne** dans West Europe. La recherche vectorielle est activée sur le compte, et l'authentification par clé est désactivée.
+
+        | Base de données | Conteneur | Contenu | Clé de partition |
+        | --- | --- | --- | --- |
+        | research | chunks | Éléments de segment de texte (`type` = `chunk`) : `documentId`, `tenantId`, `title`, `chunkText` (en anglais), `textEmbedding`. Éléments de figure (`type` = `figure`) : `documentId`, `tenantId`, `caption`, `figureEmbedding` | `/documentId` |
+        | research | threads | Messages des conversations, un élément par message | Pas encore choisie |
+        | research | memories | Faits que Scholar extrait des conversations passées, un élément par fait | `/userId` |
+        | billing | invoices | Factures des universités | `/tenantId` |
+
+        Le conteneur chunks stocke 4,2 millions de segments de texte et 900 000 figures. Chaque élément appartient à la collection d'une université, identifiée par `tenantId` ; la plus grande collection contient 600 000 segments de texte.
+
+        Le conteneur chunks possède une stratégie de texte intégral et un index de texte intégral sur `/chunkText` (en-US). Ses vecteurs de texte utilisent la configuration suivante :
+
+        | Chemin | Type de données | Dimensions | Fonction de distance | Index vectoriel |
+        | --- | --- | --- | --- | --- |
+        | /textEmbedding | float32 | 1 536 | cosine | diskANN |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Retrieval**
+
+        1. Lucerne will recreate the chunks container to add figure search. Figure embeddings are produced by an image model as 384-dimension float32 vectors that are compared by using the dot product.
+        2. Figure searches must return the exact nearest neighbors (100 percent recall).
+        3. Text vector searches currently miss relevant chunks. To improve their recall, Lucerne accepts a higher RU charge and latency, but these searches must keep using the diskANN index, and the indexing policy of the chunks container must not change again after it is recreated.
+        4. Researchers can restrict a search to the chunks that contain all the keywords that they type.
+
+        **Conversations and memory**
+
+        5. The threads container must support the following access patterns without querying all the physical partitions: read the latest messages of one thread; list all the threads of one user; let the administrators of a university query all the threads of their university. Some universities will store more than 20 GB of messages.
+        6. When a researcher starts a new thread, Scholar must retrieve the remembered facts that are relevant to the new question, even when the question uses different words than the stored facts.
+
+        **Security**
+
+        7. ca-scholar reads and writes items in every container of the research database. It must not be able to access the billing database.
+        8. Every identity must receive only the permissions it needs.
+      fr: |
+        **Recherche**
+
+        1. Lucerne va recréer le conteneur chunks pour ajouter la recherche de figures. Les incorporations (embeddings) des figures sont produites par un modèle d'image sous forme de vecteurs float32 de 384 dimensions, comparés au moyen du produit scalaire.
+        2. Les recherches de figures doivent renvoyer les plus proches voisins exacts (rappel de 100 %).
+        3. Les recherches vectorielles de texte manquent actuellement des segments pertinents. Pour améliorer leur rappel, Lucerne accepte un coût en RU et une latence plus élevés, mais ces recherches doivent continuer à utiliser l'index diskANN, et la stratégie d'indexation du conteneur chunks ne doit plus changer après sa recréation.
+        4. Les chercheurs peuvent limiter une recherche aux segments qui contiennent tous les mots clés qu'ils saisissent.
+
+        **Conversations et mémoire**
+
+        5. Le conteneur threads doit prendre en charge les modèles d'accès suivants sans interroger toutes les partitions physiques : lire les derniers messages d'une conversation ; lister toutes les conversations d'un utilisateur ; permettre aux administrateurs d'une université d'interroger toutes les conversations de leur université. Certaines universités stockeront plus de 20 Go de messages.
+        6. Quand un chercheur démarre une nouvelle conversation, Scholar doit récupérer les faits mémorisés qui sont pertinents pour la nouvelle question, même quand la question emploie d'autres mots que les faits stockés.
+
+        **Sécurité**
+
+        7. ca-scholar lit et écrit des éléments dans tous les conteneurs de la base de données research. Il ne doit pas pouvoir accéder à la base de données billing.
+        8. Chaque identité ne doit recevoir que les autorisations dont elle a besoin.

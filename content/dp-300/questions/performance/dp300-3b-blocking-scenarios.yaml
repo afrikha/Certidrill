@@ -1,0 +1,51 @@
+id: dp300-3b-blocking-scenarios
+objective: "3.2.3"
+type: dragdrop
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You investigate three blocking incidents in an Azure SQL Managed Instance database named **CrmDB**. In each incident, you identified the head blocker by using `sys.dm_exec_requests`, `sys.dm_exec_sessions` and `sys.dm_exec_input_buffer`.
+
+    You need to resolve each incident. The solution must address the cause of each incident.
+
+    Which action should you perform for each incident? To answer, drag the appropriate actions to the correct incidents. Each action may be used once or not at all.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous examinez trois incidents de blocage dans une base de données Azure SQL Managed Instance nommée **CrmDB**. Pour chaque incident, vous avez identifié le bloqueur de tête à l'aide de `sys.dm_exec_requests`, `sys.dm_exec_sessions` et `sys.dm_exec_input_buffer`.
+
+    Vous devez résoudre chaque incident. La solution doit traiter la cause de chaque incident.
+
+    Quelle action devez-vous effectuer pour chaque incident ? Pour répondre, faites glisser les actions appropriées vers les incidents correspondants. Chaque action peut être utilisée une fois ou pas du tout.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  reuse: false
+  items:
+    - { id: kill, text: { en: "Run `KILL` on the head blocker session.", fr: "Exécuter `KILL` sur la session du bloqueur de tête." } }
+    - { id: fetch, text: { en: "Change the application to read all the result rows or close the connection.", fr: "Modifier l'application pour qu'elle lise toutes les lignes du résultat ou ferme la connexion." } }
+    - { id: rollback, text: { en: "Add `IF @@TRANCOUNT > 0 ROLLBACK TRAN` to the application's error handler.", fr: "Ajouter `IF @@TRANCOUNT > 0 ROLLBACK TRAN` au gestionnaire d'erreurs de l'application." } }
+    - { id: rcsi, text: { en: "Enable read committed snapshot isolation on CrmDB.", fr: "Activer l'isolation de capture instantanée read committed sur CrmDB." } }
+    - { id: rebuild, text: { en: "Rebuild the indexes of the blocked table.", fr: "Reconstruire les index de la table bloquée." } }
+  targets:
+    - id: orphan
+      text: { en: "The head blocker is sleeping with an open transaction. The client computer that opened the session crashed an hour ago and isn't connected anymore.", fr: "Le bloqueur de tête est en veille avec une transaction ouverte. L'ordinateur client qui a ouvert la session est tombé en panne il y a une heure et n'est plus connecté." }
+    - id: rows
+      text: { en: "The head blocker is runnable. Its application displays only the first page of a large result set and stops reading the remaining rows.", fr: "Le bloqueur de tête est à l'état runnable. Son application n'affiche que la première page d'un grand jeu de résultats et cesse de lire les lignes restantes." }
+    - id: timeout
+      text: { en: "The head blocker is sleeping with an open transaction. Its last statement was cancelled by a command timeout, and the issue occurs every day.", fr: "Le bloqueur de tête est en veille avec une transaction ouverte. Sa dernière instruction a été annulée par un délai d'expiration de commande, et le problème se produit chaque jour." }
+answer:
+  mapping: { orphan: kill, rows: fetch, timeout: rollback }
+explanation:
+  correct:
+    en: |
+      An orphaned connection keeps its transaction until the session ends; since the client is gone, terminating the session with `KILL` rolls back the transaction and releases the locks. When the client doesn't fetch all the rows, the request stays open until the application reads the remaining rows or closes the connection. A timeout leaves the transaction open, so the recurring fix belongs in the application's error handling (or `SET XACT_ABORT ON`).
+    fr: |
+      Une connexion orpheline conserve sa transaction jusqu'à la fin de la session ; le client ayant disparu, terminer la session avec `KILL` restaure la transaction et libère les verrous. Quand le client ne lit pas toutes les lignes, la requête reste ouverte jusqu'à ce que l'application lise les lignes restantes ou ferme la connexion. Un dépassement de délai laisse la transaction ouverte : la correction durable se trouve dans la gestion des erreurs de l'application (ou `SET XACT_ABORT ON`).
+  options:
+    rcsi: { en: "RCSI stops readers from waiting for writers, but none of these head blockers is released by it, and the blocked sessions could be writers.", fr: "RCSI évite que les lecteurs attendent les écrivains, mais elle ne libère aucun de ces bloqueurs de tête, et les sessions bloquées peuvent être des écrivains." }
+    rebuild: { en: "An index rebuild doesn't end an open transaction; an offline rebuild would itself wait for and take locks.", fr: "Une reconstruction d'index ne met pas fin à une transaction ouverte ; une reconstruction hors connexion attendrait et prendrait elle-même des verrous." }
+references:
+  - title: Understand and resolve blocking problems
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/understand-resolve-blocking

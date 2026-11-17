@@ -1,0 +1,44 @@
+id: ai200-4a-restore-point-in-time
+objective: "4.1.2"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Relecloud's App Configuration store, appcs-relecloud, is in the Standard tier. Three days ago, an operator changed several `Chat:*` key-values, and the Python chat service has given poor answers since. The service watches a key named `Sentinel`, which isn't under `Chat:`, and calls `refresh()` in each request.
+
+    You need to return the `Chat:*` key-values to their state of 2026-11-14T08:00:00Z. You must review the changes before you apply them, and the service must apply the restored values without a restart.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Le magasin App Configuration de Relecloud, appcs-relecloud, est au niveau Standard. Il y a trois jours, un opérateur a modifié plusieurs clés-valeurs `Chat:*`, et le service de conversation Python donne de mauvaises réponses depuis. Le service surveille une clé nommée `Sentinel`, qui n'est pas sous `Chat:`, et appelle `refresh()` à chaque requête.
+
+    Vous devez ramener les clés-valeurs `Chat:*` à leur état du 2026-11-14T08:00:00Z. Vous devez examiner les modifications avant de les appliquer, et le service doit appliquer les valeurs restaurées sans redémarrage.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: dryrun, text: "az appconfig kv restore -n appcs-relecloud --key \"Chat:*\" --datetime \"2026-11-14T08:00:00Z\" --dry-run" }
+    - { id: restore, text: "az appconfig kv restore -n appcs-relecloud --key \"Chat:*\" --datetime \"2026-11-14T08:00:00Z\" --yes" }
+    - { id: sentinel, text: { en: "Update the value of the Sentinel key.", fr: "Mettre à jour la valeur de la clé Sentinel." } }
+    - { id: lock, text: "az appconfig kv lock -n appcs-relecloud --key Chat:Model --yes" }
+    - { id: restart, text: { en: "Restart every replica of the chat service.", fr: "Redémarrer chaque réplica du service de conversation." } }
+    - { id: export, text: "az appconfig kv export -n appcs-relecloud --key \"Chat:*\" -d file --path ./chat.json --format json" }
+answer:
+  sequence: [ dryrun, restore, sentinel ]
+explanation:
+  correct:
+    en: |
+      App Configuration keeps the change history of key-values (30 days in the Standard tier), and `az appconfig kv restore --datetime` returns them to a past state; `--dry-run` previews the changes without applying them. Sentinel isn't restored because it's outside `Chat:*`, so you update it afterwards to make every instance reload the restored values at its next `refresh()`.
+    fr: |
+      App Configuration conserve l'historique des modifications des clés-valeurs (30 jours au niveau Standard), et `az appconfig kv restore --datetime` les ramène à un état passé ; `--dry-run` affiche les modifications sans les appliquer. Sentinel n'est pas restaurée, car elle est hors de `Chat:*` : vous la mettez à jour ensuite pour que chaque instance recharge les valeurs restaurées à son prochain `refresh()`.
+  options:
+    lock: { en: "Locking Chat:Model would make the restore of that key-value fail, because a locked key-value can't be modified.", fr: "Verrouiller Chat:Model ferait échouer la restauration de cette clé-valeur, car une clé-valeur verrouillée ne peut pas être modifiée." }
+    restart: { en: "The requirement forbids a restart, and the sentinel already triggers the reload.", fr: "L'exigence interdit un redémarrage, et la sentinelle déclenche déjà le rechargement." }
+    export: { en: "Exporting the current values isn't required to restore a past state.", fr: "Exporter les valeurs actuelles n'est pas nécessaire pour restaurer un état passé." }
+references:
+  - title: az appconfig kv
+    url: https://learn.microsoft.com/en-us/cli/azure/appconfig/kv
+  - title: Azure App Configuration FAQ
+    url: https://learn.microsoft.com/en-us/azure/azure-app-configuration/faq

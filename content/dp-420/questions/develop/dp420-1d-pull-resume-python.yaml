@@ -1,0 +1,62 @@
+id: dp420-1d-pull-resume-python
+objective: "1.4.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A nightly Python job copies changes from an Azure Cosmos DB for NoSQL container to a data lake. The first run must read all the changes since the container was created. Each later run must resume exactly where the previous run stopped, so the job saves a token in a file at the end of each run.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un traitement Python nocturne copie les modifications d'un conteneur Azure Cosmos DB for NoSQL vers un lac de données. La première exécution doit lire toutes les modifications depuis la création du conteneur. Chaque exécution suivante doit reprendre exactement là où la précédente s'est arrêtée ; le traitement enregistre donc un jeton dans un fichier à la fin de chaque exécution.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    # First run
+    response_iterator = container.query_items_change_feed([[first]])
+    for doc in response_iterator:
+        lake.write(doc)
+    token = container.client_connection.last_response_headers.get([[header]])
+    save_token(token)
+
+    # Later runs
+    response_iterator = container.query_items_change_feed([[resume]]=load_token())
+    for doc in response_iterator:
+        lake.write(doc)
+  slots:
+    - id: first
+      options:
+        - { id: fbeg, text: "start_time=\"Beginning\"" }
+        - { id: fnow, text: "start_time=\"Now\"" }
+        - { id: favd, text: "mode=\"AllVersionsAndDeletes\"" }
+    - id: header
+      options:
+        - { id: hetag, text: "'etag'" }
+        - { id: hcharge, text: "'x-ms-request-charge'" }
+        - { id: hsession, text: "'x-ms-session-token'" }
+    - id: resume
+      options:
+        - { id: rcont, text: continuation }
+        - { id: rstart, text: start_time }
+        - { id: rrange, text: feed_range }
+answer:
+  values: { first: fbeg, header: hetag, resume: rcont }
+explanation:
+  correct:
+    en: "`start_time=\"Beginning\"` reads the change feed from the creation of the container (the default is `\"Now\"`). After the iteration, the continuation token is returned in the `etag` response header, and passing it as `continuation` resumes from that point; the token takes precedence over any start time and keeps the mode it was created with."
+    fr: "`start_time=\"Beginning\"` lit le flux de modification depuis la création du conteneur (la valeur par défaut est `\"Now\"`). Après l'itération, le jeton de continuation est renvoyé dans l'en-tête de réponse `etag`, et le transmettre dans `continuation` reprend à partir de ce point ; le jeton est prioritaire sur toute heure de début et conserve le mode avec lequel il a été créé."
+  options:
+    favd: { en: "All versions and deletes mode cannot read from the beginning of the container, and it starts from now by default.", fr: "Le mode toutes les versions et suppressions ne peut pas lire depuis le début du conteneur et démarre par défaut maintenant." }
+    hsession: { en: "The session token is used for Session consistency, not to resume the change feed.", fr: "Le jeton de session sert à la cohérence Session, pas à reprendre le flux de modification." }
+    rstart: { en: "A start time cannot resume at the exact position reached by the previous run.", fr: "Une heure de début ne permet pas de reprendre à la position exacte atteinte par l'exécution précédente." }
+references:
+  - title: Change Feed Pull Model - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-pull-model

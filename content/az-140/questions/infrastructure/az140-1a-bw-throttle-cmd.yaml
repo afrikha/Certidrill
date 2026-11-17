@@ -1,0 +1,67 @@
+id: az140-1a-bw-throttle-cmd
+objective: "1.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum users connect to the session hosts of an Azure Virtual Desktop host pool named **HP1** over an ExpressRoute circuit with a metered data plan. RDP Shortpath for managed networks is configured: the session hosts listen on the default UDP port.
+
+    You need to limit the outbound RDP traffic of each session host to about 10 Mbps.
+
+    How should you complete the PowerShell command that you run on each session host? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Les utilisateurs d'Adatum se connectent aux hôtes de session d'un pool d'hôtes Azure Virtual Desktop nommé **HP1** par un circuit ExpressRoute avec un forfait de données facturé à l'usage. RDP Shortpath pour les réseaux managés est configuré : les hôtes de session écoutent sur le port UDP par défaut.
+
+    Vous devez limiter le trafic RDP sortant de chaque hôte de session à environ 10 Mbit/s.
+
+    Comment devez-vous compléter la commande PowerShell que vous exécutez sur chaque hôte de session ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    New-NetQosPolicy -Name "RDP Shortpath for managed networks" `
+      -AppPathNameMatchCondition "svchost.exe" `
+      -IPProtocolMatchCondition [[proto]] `
+      [[port]] `
+      [[action]] 10mb `
+      -NetworkProfile All
+  slots:
+    - id: proto
+      options:
+        - { id: udp, text: UDP }
+        - { id: tcp, text: TCP }
+        - { id: both, text: Both }
+    - id: port
+      options:
+        - { id: src3390, text: "-IPSrcPortStartMatchCondition 3390 -IPSrcPortEndMatchCondition 3390" }
+        - { id: dst3390, text: "-IPDstPortStartMatchCondition 3390 -IPDstPortEndMatchCondition 3390" }
+        - { id: src3389, text: "-IPSrcPortStartMatchCondition 3389 -IPSrcPortEndMatchCondition 3389" }
+        - { id: dst443, text: "-IPDstPortStartMatchCondition 443 -IPDstPortEndMatchCondition 443" }
+    - id: action
+      options:
+        - { id: throttle, text: "-ThrottleRateActionBitsPerSecond" }
+        - { id: dscp, text: "-DSCPAction" }
+        - { id: weight, text: "-MinBandwidthWeightAction" }
+        - { id: prio, text: "-PriorityValue8021Action" }
+answer:
+  values: { proto: udp, port: src3390, action: throttle }
+explanation:
+  correct:
+    en: |
+      RDP Shortpath for managed networks carries the session over UDP from the session host listener, whose default port is 3390, so the outbound traffic of the session host has UDP source port 3390. `-ThrottleRateActionBitsPerSecond` sets the outbound throttle rate; Microsoft's example uses exactly this command with `10mb`.
+    fr: |
+      RDP Shortpath pour les réseaux managés transporte la session en UDP depuis l'écouteur de l'hôte de session, dont le port par défaut est 3390 : le trafic sortant de l'hôte de session a donc le port source UDP 3390. `-ThrottleRateActionBitsPerSecond` définit le débit sortant limité ; l'exemple de Microsoft utilise exactement cette commande avec `10mb`.
+  options:
+    tcp: { en: "Throttling isn't supported on the TCP reverse connect transport; Shortpath traffic is UDP.", fr: "La limitation n'est pas prise en charge sur le transport TCP reverse connect ; le trafic Shortpath est en UDP." }
+    dst3390: { en: "On outbound traffic from the session host, 3390 is the source port, not the destination port.", fr: "Pour le trafic sortant de l'hôte de session, 3390 est le port source, pas le port de destination." }
+    src3389: { en: "3389 is the classic RDP listener port; Azure Virtual Desktop doesn't use it for Shortpath.", fr: "3389 est le port d'écoute RDP classique ; Azure Virtual Desktop ne l'utilise pas pour Shortpath." }
+    dscp: { en: "-DSCPAction marks packets for prioritization; it doesn't limit bandwidth.", fr: "-DSCPAction marque les paquets pour la priorisation ; il ne limite pas la bande passante." }
+    weight: { en: "-MinBandwidthWeightAction sets a minimum bandwidth weight, not a maximum rate.", fr: "-MinBandwidthWeightAction définit un poids de bande passante minimale, pas un débit maximal." }
+references:
+  - title: Remote Desktop Protocol (RDP) bandwidth requirements
+    url: https://learn.microsoft.com/en-us/azure/virtual-desktop/rdp-bandwidth

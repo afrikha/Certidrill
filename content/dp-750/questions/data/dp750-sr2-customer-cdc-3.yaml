@@ -1,0 +1,50 @@
+id: dp750-sr2-customer-cdc-3
+objective: "3.2.4"
+type: series_yesno
+series: dp750-sr2-customer-cdc
+seriesOrder: 3
+difficulty: 2
+status: draft
+stem:
+  en: You use an AUTO CDC flow stored as SCD type 1.
+  fr: Vous utilisez un flux AUTO CDC stocké en SCD de type 1.
+body:
+  solution:
+    en: |
+      You add the following code to the pipeline.
+
+      ```sql
+      CREATE OR REFRESH STREAMING TABLE customers;
+
+      CREATE FLOW customers_cdc_flow AS AUTO CDC INTO customers
+      FROM stream(nw_prod.bronze.customers_cdc)
+      KEYS (customer_id)
+      APPLY AS DELETE WHEN operation = 'DELETE'
+      SEQUENCE BY event_ts
+      COLUMNS * EXCEPT (operation, event_ts)
+      STORED AS SCD TYPE 1;
+      ```
+    fr: |
+      Vous ajoutez le code suivant au pipeline.
+
+      ```sql
+      CREATE OR REFRESH STREAMING TABLE customers;
+
+      CREATE FLOW customers_cdc_flow AS AUTO CDC INTO customers
+      FROM stream(nw_prod.bronze.customers_cdc)
+      KEYS (customer_id)
+      APPLY AS DELETE WHEN operation = 'DELETE'
+      SEQUENCE BY event_ts
+      COLUMNS * EXCEPT (operation, event_ts)
+      STORED AS SCD TYPE 1;
+      ```
+answer: { value: true }
+explanation:
+  correct:
+    en: |
+      `AUTO CDC` upserts each change into the target streaming table by `customer_id` and orders the events by `event_ts`, so a late update with an older timestamp does not overwrite a newer one. `APPLY AS DELETE WHEN` removes deleted customers, `COLUMNS * EXCEPT` drops the two technical columns, and SCD type 1 keeps only the latest version of each key. `AUTO CDC` is supported because the pipeline is serverless.
+    fr: |
+      `AUTO CDC` applique chaque modification à la table de streaming cible par `customer_id` et ordonne les événements par `event_ts` : une mise à jour tardive avec un horodatage plus ancien n'écrase pas une plus récente. `APPLY AS DELETE WHEN` supprime les clients supprimés, `COLUMNS * EXCEPT` retire les deux colonnes techniques et le SCD de type 1 ne conserve que la dernière version de chaque clé. `AUTO CDC` est pris en charge, car le pipeline est serverless.
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

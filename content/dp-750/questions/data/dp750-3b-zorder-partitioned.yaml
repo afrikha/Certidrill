@@ -1,0 +1,52 @@
+id: dp750-3b-zorder-partitioned
+objective: "3.1.9"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a 40 TB Delta table named **fabrikam.logs.web_events** that is partitioned by `event_date`. Downstream jobs overwrite individual partitions, so the table must stay partitioned by `event_date`.
+
+    Most queries filter on `event_date` and on `user_id`, a high-cardinality column that is among the first 32 columns of the table. You need to improve data skipping for the filters on `user_id`.
+
+    What should you do?
+  fr: |
+    Fabrikam dispose d'une table Delta de 40 To nommée **fabrikam.logs.web_events**, partitionnée sur `event_date`. Des jobs en aval écrasent des partitions individuelles : la table doit donc rester partitionnée sur `event_date`.
+
+    La plupart des requêtes filtrent sur `event_date` et sur `user_id`, une colonne à cardinalité élevée qui fait partie des 32 premières colonnes de la table. Vous devez améliorer le saut de données pour les filtres sur `user_id`.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Run ALTER TABLE fabrikam.logs.web_events CLUSTER BY (user_id).", fr: "Exécuter ALTER TABLE fabrikam.logs.web_events CLUSTER BY (user_id)." } }
+    - { id: b, text: { en: "Schedule OPTIMIZE fabrikam.logs.web_events ZORDER BY (user_id).", fr: "Planifier OPTIMIZE fabrikam.logs.web_events ZORDER BY (user_id)." } }
+    - { id: c, text: { en: "Run ALTER TABLE fabrikam.logs.web_events REPLACE PARTITIONED BY WITH CLUSTER BY (event_date, user_id).", fr: "Exécuter ALTER TABLE fabrikam.logs.web_events REPLACE PARTITIONED BY WITH CLUSTER BY (event_date, user_id)." } }
+    - { id: d, text: { en: "Set the delta.enableDeletionVectors table property to true.", fr: "Définir la propriété de table delta.enableDeletionVectors sur true." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      Z-ordering can be combined with partitioning: OPTIMIZE ... ZORDER BY colocates rows with similar `user_id` values in the same files inside each partition, so data skipping works on that high-cardinality column, which has statistics. The partitioning on `event_date` is kept.
+    fr: |
+      L'ordre Z peut être combiné au partitionnement : OPTIMIZE ... ZORDER BY regroupe les lignes aux valeurs de `user_id` proches dans les mêmes fichiers à l'intérieur de chaque partition, si bien que le saut de données fonctionne sur cette colonne à cardinalité élevée, qui dispose de statistiques. Le partitionnement sur `event_date` est conservé.
+  options:
+    a:
+      en: |
+        Liquid clustering can be enabled only on an unpartitioned table.
+      fr: |
+        Le clustering liquide ne peut être activé que sur une table non partitionnée.
+    c:
+      en: |
+        REPLACE PARTITIONED BY WITH CLUSTER BY removes the partitioning, which the downstream jobs need.
+      fr: |
+        REPLACE PARTITIONED BY WITH CLUSTER BY supprime le partitionnement, dont les jobs en aval ont besoin.
+    d:
+      en: |
+        Deletion vectors speed up DELETE, UPDATE and MERGE; they don't colocate data for skipping.
+      fr: |
+        Les vecteurs de suppression accélèrent DELETE, UPDATE et MERGE ; ils ne regroupent pas les données pour le saut de données.
+references:
+  - title: Data skipping
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/data-skipping
+  - title: Use liquid clustering for tables
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/clustering

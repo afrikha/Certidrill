@@ -1,0 +1,74 @@
+id: dp800-cs4b-route-search
+objective: "1.3.6"
+type: dropdown
+caseStudy: dp800-cs4b-relecloud
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the query for the planners. The variables @from and @to contain the names of the departure station and the destination station.
+
+    You need to complete the query. The solution must meet the network planning requirements.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la requête destinée aux planificateurs. Les variables @from et @to contiennent les noms de la gare de départ et de la gare de destination.
+
+    Vous devez compléter la requête. La solution doit satisfaire les exigences de planification du réseau.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT CONCAT(q.FromStation, N' > ', q.Stops) AS Route, q.Segments
+    FROM (
+        SELECT s1.StationName AS FromStation,
+               [[agg]](s2.StationName, N' > ') WITHIN GROUP (GRAPH PATH) AS Stops,
+               COUNT(s2.StationId) WITHIN GROUP (GRAPH PATH) AS Segments,
+               [[last]](s2.StationName) WITHIN GROUP (GRAPH PATH) AS LastStation
+        FROM Rail.Station AS s1,
+             Rail.TrackTo FOR PATH AS t,
+             Rail.Station FOR PATH AS s2
+        WHERE MATCH(SHORTEST_PATH(s1[[pattern]]))
+          AND s1.StationName = @from
+    ) AS q
+    WHERE q.LastStation = @to;
+  slots:
+    - id: agg
+      options:
+        - { id: stringagg, text: STRING_AGG }
+        - { id: concatws, text: CONCAT_WS }
+        - { id: jsonagg, text: JSON_ARRAYAGG }
+    - id: last
+      options:
+        - { id: lastvalue, text: LAST_VALUE }
+        - { id: max, text: MAX }
+        - { id: firstvalue, text: FIRST_VALUE }
+    - id: pattern
+      options:
+        - { id: plus, text: "(-(t)->s2)+" }
+        - { id: upto3, text: "(-(t)->s2){1,3}" }
+        - { id: onehop, text: "-(t)->s2" }
+answer:
+  values: { agg: stringagg, last: lastvalue, pattern: plus }
+explanation:
+  correct:
+    en: |
+      In a SHORTEST_PATH pattern, the columns of the FOR PATH tables can be read only through graph path aggregates WITHIN GROUP (GRAPH PATH): STRING_AGG concatenates the station names in path order, and LAST_VALUE returns the last node, which the outer query compares with the destination. The + quantifier repeats the pattern one or more times with no upper limit, which meets "whatever the number of segments". SHORTEST_PATH counts hops, not LengthKm, which matches "fewest track segments".
+    fr: |
+      Dans un modèle SHORTEST_PATH, les colonnes des tables FOR PATH ne peuvent être lues que par les fonctions d'agrégation de chemin de graphe WITHIN GROUP (GRAPH PATH) : STRING_AGG concatène les noms des gares dans l'ordre du chemin, et LAST_VALUE renvoie le dernier nœud, que la requête externe compare à la destination. Le quantificateur + répète le modèle une ou plusieurs fois sans limite supérieure, ce qui satisfait « quel que soit le nombre de tronçons ». SHORTEST_PATH compte les sauts, pas LengthKm, ce qui correspond à « le moins de tronçons de voie ».
+  options:
+    concatws: { en: "CONCAT_WS isn't a graph path aggregate; only STRING_AGG, LAST_VALUE, SUM, COUNT, AVG, MIN and MAX accept WITHIN GROUP (GRAPH PATH).", fr: "CONCAT_WS n'est pas une fonction d'agrégation de chemin de graphe ; seules STRING_AGG, LAST_VALUE, SUM, COUNT, AVG, MIN et MAX acceptent WITHIN GROUP (GRAPH PATH)." }
+    jsonagg: { en: "JSON_ARRAYAGG isn't one of the graph path aggregates, and it doesn't take a separator.", fr: "JSON_ARRAYAGG ne fait pas partie des fonctions d'agrégation de chemin de graphe, et elle ne prend pas de séparateur." }
+    max: { en: "MAX is a valid graph path aggregate, but it returns the alphabetically greatest station name of the path, not the last station.", fr: "MAX est une fonction d'agrégation de chemin de graphe valide, mais elle renvoie le nom de gare le plus grand dans l'ordre alphabétique, pas la dernière gare." }
+    firstvalue: { en: "FIRST_VALUE isn't a graph path aggregate; LAST_VALUE is the function that returns the last node of the path.", fr: "FIRST_VALUE n'est pas une fonction d'agrégation de chemin de graphe ; LAST_VALUE est la fonction qui renvoie le dernier nœud du chemin." }
+    upto3: { en: "{1,3} stops after three segments, so destinations that need more segments are never found.", fr: "{1,3} s'arrête après trois tronçons : les destinations qui en nécessitent davantage ne sont jamais trouvées." }
+    onehop: { en: "SHORTEST_PATH needs an arbitrary-length pattern in parentheses followed by + or {1,n}; a single hop only reaches adjacent stations.", fr: "SHORTEST_PATH exige un modèle de longueur arbitraire entre parenthèses suivi de + ou de {1,n} ; un seul saut n'atteint que les gares adjacentes." }
+references:
+  - title: SHORTEST_PATH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/graphs/sql-graph-shortest-path

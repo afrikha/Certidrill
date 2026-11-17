@@ -1,0 +1,71 @@
+id: az400-5a-gh-failure-issue
+objective: "5.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware deploys an API by using a GitHub Actions workflow that has a job named **deploy**. The default permissions of the GITHUB_TOKEN in the repository are read-only.
+
+    You need to add a job that opens an issue in the same repository only when the deploy job fails. The job must authenticate with the GITHUB_TOKEN.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware déploie une API avec un workflow GitHub Actions qui comporte un travail nommé **deploy**. Les autorisations par défaut du GITHUB_TOKEN dans le dépôt sont en lecture seule.
+
+    Vous devez ajouter un travail qui ouvre une issue dans le même dépôt uniquement quand le travail deploy échoue. Le travail doit s'authentifier avec le GITHUB_TOKEN.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    open-issue:
+      [[dep]]: deploy
+      if: ${{ [[cond]] }}
+      runs-on: ubuntu-latest
+      permissions:
+        [[perm]]
+      steps:
+        - run: gh issue create --repo "$GITHUB_REPOSITORY" --title "Deployment failed" --body "$RUN_URL"
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  slots:
+    - id: dep
+      options:
+        - { id: dependson, text: dependsOn }
+        - { id: needs, text: needs }
+        - { id: after, text: after }
+    - id: cond
+      options:
+        - { id: always, text: always() }
+        - { id: success, text: success() }
+        - { id: failure, text: failure() }
+        - { id: cancelled, text: cancelled() }
+    - id: perm
+      options:
+        - { id: contents, text: "contents: write" }
+        - { id: issues, text: "issues: write" }
+        - { id: actions, text: "actions: read" }
+        - { id: pr, text: "pull-requests: write" }
+answer:
+  values: { dep: needs, cond: failure, perm: issues }
+explanation:
+  correct:
+    en: "needs makes the job depend on deploy. failure() returns true when an ancestor job has failed, and including it overrides the default success() check, so the job runs only after a failed deployment. Creating an issue with the GITHUB_TOKEN requires the `issues: write` permission, granted at job level because the default permissions are read-only."
+    fr: "needs rend le travail dépendant de deploy. failure() renvoie true quand un travail ancêtre a échoué, et sa présence remplace la vérification success() par défaut : le travail ne s'exécute qu'après un déploiement en échec. Créer une issue avec le GITHUB_TOKEN exige l'autorisation `issues: write`, accordée au niveau du travail parce que les autorisations par défaut sont en lecture seule."
+  options:
+    dependson: { en: "dependsOn is the Azure Pipelines keyword; GitHub Actions uses needs.", fr: "dependsOn est le mot clé d'Azure Pipelines ; GitHub Actions utilise needs." }
+    always: { en: "always() runs the job after every deployment, even a successful or canceled one.", fr: "always() exécute le travail après chaque déploiement, même réussi ou annulé." }
+    success: { en: "success() is the default and runs the job only when deploy succeeds.", fr: "success() est la valeur par défaut et n'exécute le travail que si deploy réussit." }
+    cancelled: { en: "cancelled() is true only when the workflow is canceled.", fr: "cancelled() n'est vrai que lorsque le workflow est annulé." }
+    contents: { en: "`contents: write` allows pushing commits and creating releases, not issues.", fr: "`contents: write` permet de pousser des commits et de créer des versions, pas des issues." }
+    pr: { en: "`pull-requests: write` covers pull requests, not issues.", fr: "`pull-requests: write` couvre les pull requests, pas les issues." }
+references:
+  - title: Expressions
+    url: https://docs.github.com/en/actions/reference/workflows-and-actions/expressions

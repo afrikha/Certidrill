@@ -1,0 +1,72 @@
+id: ai103-5a-web-api-skill
+objective: "5.1.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware has an Azure function that classifies text chunks against its internal product taxonomy. The function is protected by a Microsoft Entra app registration whose application ID is `5d2c7a10-8e4b-4f3a-9c61-2b7e0d4f9a31`. A batch of chunks can take up to 90 seconds to process.
+
+    You are adding the function to the skillset of an Azure AI Search index. The search service must authenticate by using its system-assigned managed identity, without keys.
+
+    How should you complete the skill definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'une fonction Azure qui classe des blocs de texte selon sa taxonomie interne de produits. La fonction est protégée par une inscription d'application Microsoft Entra dont l'ID d'application est `5d2c7a10-8e4b-4f3a-9c61-2b7e0d4f9a31`. Le traitement d'un lot de blocs peut prendre jusqu'à 90 secondes.
+
+    Vous ajoutez la fonction à l'ensemble de compétences d'un index Azure AI Search. Le service de recherche doit s'authentifier avec son identité managée affectée par le système, sans clé.
+
+    Comment devez-vous compléter la définition de la compétence ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "@odata.type": "[[type]]",
+      "uri": "https://func-litware-tagger.azurewebsites.net/api/classify",
+      "httpMethod": "POST",
+      "[[auth]]": "api://5d2c7a10-8e4b-4f3a-9c61-2b7e0d4f9a31",
+      "timeout": "[[timeout]]",
+      "context": "/document/pages/*",
+      "inputs": [ { "name": "text", "source": "/document/pages/*" } ],
+      "outputs": [ { "name": "category", "targetName": "category" } ]
+    }
+  slots:
+    - id: type
+      options:
+        - { id: webapi, text: "#Microsoft.Skills.Custom.WebApiSkill" }
+        - { id: aml, text: "#Microsoft.Skills.Custom.AmlSkill" }
+        - { id: chat, text: "#Microsoft.Skills.Custom.ChatCompletionSkill" }
+    - id: auth
+      options:
+        - { id: authResourceId, text: authResourceId }
+        - { id: authIdentity, text: authIdentity }
+        - { id: httpHeaders, text: httpHeaders }
+    - id: timeout
+      options:
+        - { id: pt30, text: "PT30S" }
+        - { id: pt120, text: "PT120S" }
+        - { id: pt300, text: "PT300S" }
+        - { id: n90, text: "90" }
+answer:
+  values: { type: webapi, auth: authResourceId, timeout: pt120 }
+explanation:
+  correct:
+    en: |
+      A Custom Web API skill (`#Microsoft.Skills.Custom.WebApiSkill`) calls any HTTPS endpoint. `authResourceId` holds the application ID of the app registration that scopes the managed identity token; when `authIdentity` is left empty, the system-assigned identity is used. `timeout` is an XSD duration between 1 and 230 seconds (default 30 seconds), so `PT120S` covers the 90-second batches.
+    fr: |
+      Une compétence Custom Web API (`#Microsoft.Skills.Custom.WebApiSkill`) appelle n'importe quel point de terminaison HTTPS. `authResourceId` contient l'ID d'application de l'inscription d'application qui définit l'étendue du jeton de l'identité managée ; lorsque `authIdentity` est laissé vide, l'identité affectée par le système est utilisée. `timeout` est une durée XSD comprise entre 1 et 230 secondes (30 secondes par défaut) : `PT120S` couvre donc les lots de 90 secondes.
+  options:
+    aml: { en: "The AML skill calls a model deployed in Foundry or Azure Machine Learning, not a custom function.", fr: "La compétence AML appelle un modèle déployé dans Foundry ou Azure Machine Learning, pas une fonction personnalisée." }
+    chat: { en: "ChatCompletionSkill is the GenAI Prompt skill, which calls a chat completion model.", fr: "ChatCompletionSkill est la compétence GenAI Prompt, qui appelle un modèle de complétion de conversation." }
+    authIdentity: { en: "authIdentity selects a managed identity (blank means system-assigned); it does not take the application ID of the target.", fr: "authIdentity sélectionne une identité managée (vide signifie affectée par le système) ; il ne prend pas l'ID d'application de la cible." }
+    httpHeaders: { en: "httpHeaders sends key-value pairs, such as a function key, with each request; it does not request a managed identity token.", fr: "httpHeaders envoie des paires clé-valeur, comme une clé de fonction, avec chaque requête ; il ne demande pas de jeton d'identité managée." }
+    pt30: { en: "30 seconds is the default and is shorter than the 90-second batches.", fr: "30 secondes est la valeur par défaut, plus courte que les lots de 90 secondes." }
+    pt300: { en: "The maximum timeout is 230 seconds.", fr: "Le délai d'expiration maximal est de 230 secondes." }
+    n90: { en: "The timeout must be an XSD dayTimeDuration such as PT90S, not a number.", fr: "Le délai d'expiration doit être une durée XSD dayTimeDuration telle que PT90S, pas un nombre." }
+references:
+  - title: Custom Web API skill in an Azure AI Search enrichment pipeline
+    url: https://learn.microsoft.com/en-us/azure/search/cognitive-search-custom-skill-web-api

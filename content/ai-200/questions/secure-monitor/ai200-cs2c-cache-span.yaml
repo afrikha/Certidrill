@@ -1,0 +1,81 @@
+id: ai200-cs2c-cache-span
+objective: "4.2.1"
+type: dropdown
+caseStudy: ai200-cs2c-blue-yonder
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are instrumenting the cache lookup of the portal with the OpenTelemetry API. The function runs while Flask handles an incoming request, which the distro already traces.
+
+    You need to meet the tracing requirement. How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous instrumentez la recherche dans le cache du portail avec l'API OpenTelemetry. La fonction s'exécute pendant que Flask traite une requête entrante, que la distribution trace déjà.
+
+    Vous devez satisfaire l'exigence relative au traçage. Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from opentelemetry import trace
+    from opentelemetry.trace import SpanKind
+
+    tracer = trace.get_tracer(__name__)
+
+    def cached_answer(key):
+        with tracer.[[start]]("cache-lookup", kind=[[kind]]) as span:
+            cached = r.getex(key, ex=1800)
+            span.[[attr]]("cache.hit", cached is not None)
+            return cached
+  slots:
+    - id: start
+      options:
+        - { id: current, text: start_as_current_span }
+        - { id: getcurrent, text: get_current_span }
+        - { id: setctx, text: set_span_in_context }
+    - id: kind
+      options:
+        - { id: client, text: SpanKind.CLIENT }
+        - { id: server, text: SpanKind.SERVER }
+        - { id: consumer, text: SpanKind.CONSUMER }
+    - id: attr
+      options:
+        - { id: setattr, text: set_attribute }
+        - { id: addevent, text: add_event }
+        - { id: setstatus, text: set_status }
+answer:
+  values: { start: current, kind: client, attr: setattr }
+explanation:
+  correct:
+    en: |
+      `start_as_current_span` creates a span named cache-lookup as a child of the current request span and makes it current inside the `with` block, so it appears in the same end-to-end transaction. Azure Monitor maps CLIENT, PRODUCER and INTERNAL spans to dependencies, and SERVER and CONSUMER spans to requests. Attributes set with `set_attribute` are exported as custom properties in customDimensions.
+    fr: |
+      `start_as_current_span` crée une étendue (span) nommée cache-lookup, enfant de l'étendue de la requête en cours, et la rend courante dans le bloc `with` : elle apparaît dans la même transaction de bout en bout. Azure Monitor mappe les étendues CLIENT, PRODUCER et INTERNAL vers les dépendances, et les étendues SERVER et CONSUMER vers les requêtes. Les attributs définis avec `set_attribute` sont exportés comme propriétés personnalisées dans customDimensions.
+  options:
+    getcurrent:
+      en: get_current_span is a function of the trace module that returns the span already in progress; it is not a tracer method and creates no span.
+      fr: get_current_span est une fonction du module trace qui renvoie l'étendue déjà en cours ; ce n'est pas une méthode du traceur et elle ne crée aucune étendue.
+    setctx:
+      en: set_span_in_context is a function of the trace module that puts an existing span in a context; it creates no span.
+      fr: set_span_in_context est une fonction du module trace qui place une étendue existante dans un contexte ; elle ne crée aucune étendue.
+    server:
+      en: A SERVER span is exported as a request, not as a dependency.
+      fr: Une étendue SERVER est exportée comme une requête, pas comme une dépendance.
+    consumer:
+      en: A CONSUMER span is exported as a request, not as a dependency.
+      fr: Une étendue CONSUMER est exportée comme une requête, pas comme une dépendance.
+    addevent:
+      en: add_event records a timestamped event inside the span, not a custom property of the dependency.
+      fr: add_event enregistre un événement horodaté dans l'étendue, pas une propriété personnalisée de la dépendance.
+    setstatus:
+      en: set_status sets the OK or error status of the span; it cannot carry a named custom property.
+      fr: set_status définit l'état OK ou erreur de l'étendue ; il ne peut pas porter de propriété personnalisée nommée.
+references:
+  - title: Add and Modify OpenTelemetry in Application Insights - Azure Monitor
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-add-modify
+  - title: Azure Monitor Opentelemetry Distro client library for Python
+    url: https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-readme

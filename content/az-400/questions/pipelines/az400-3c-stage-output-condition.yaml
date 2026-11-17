@@ -1,0 +1,81 @@
+id: az400-3c-stage-output-condition
+objective: "3.3.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso uses a multi-stage YAML pipeline to apply infrastructure changes. In stage **Plan**, job **Check** runs a step named **diff** that sets the output variable **changed** to true or false.
+
+    You need to meet the following requirements:
+
+    - Stage **Apply** runs only if Plan succeeded and changed is true.
+    - Job **Run** in stage Apply receives the value of changed in a job variable.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso utilise un pipeline YAML à phases multiples pour appliquer des modifications d'infrastructure. Dans la phase **Plan**, le travail **Check** exécute une étape nommée **diff** qui affecte true ou false à la variable de sortie **changed**.
+
+    Vous devez respecter les exigences suivantes :
+
+    - La phase **Apply** ne s'exécute que si Plan a réussi et que changed vaut true.
+    - Le travail **Run** de la phase Apply reçoit la valeur de changed dans une variable de travail.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    stages:
+    - stage: Plan
+      jobs:
+      - job: Check
+        steps:
+        - bash: echo "##vso[task.setvariable variable=changed;isOutput=true]true"
+          name: diff
+    - stage: Apply
+      dependsOn: Plan
+      condition: and(succeeded(), eq([[s1]], 'true'))
+      jobs:
+      - job: Run
+        variables:
+          planChanged: [[s2]]
+        steps:
+        - script: echo $(planChanged)
+  slots:
+    - id: s1
+      options:
+        - { id: depstage, text: "dependencies.Plan.outputs['Check.diff.changed']" }
+        - { id: nojob1, text: "dependencies.Plan.outputs['diff.changed']" }
+        - { id: depjob1, text: "dependencies.Check.outputs['diff.changed']" }
+        - { id: varref, text: "variables['diff.changed']" }
+    - id: s2
+      options:
+        - { id: stagedep2, text: "$[ stageDependencies.Plan.Check.outputs['diff.changed'] ]" }
+        - { id: depstage2, text: "$[ dependencies.Plan.outputs['Check.diff.changed'] ]" }
+        - { id: depjob2, text: "$[ dependencies.Check.outputs['diff.changed'] ]" }
+        - { id: tplstage, text: "${{ stageDependencies.Plan.Check.outputs['diff.changed'] }}" }
+answer:
+  values: { s1: depstage, s2: stagedep2 }
+explanation:
+  correct:
+    en: |
+      In a stage condition, the outputs of an earlier stage are read through the `dependencies` context with the job and step names in the key, `dependencies.Plan.outputs['Check.diff.changed']`. Inside a job of a later stage, the same output is read with `stageDependencies.<stage>.<job>.outputs['<step>.<variable>']` in a runtime expression.
+    fr: |
+      Dans la condition d'une phase, les sorties d'une phase précédente se lisent via le contexte `dependencies`, avec les noms du travail et de l'étape dans la clé : `dependencies.Plan.outputs['Check.diff.changed']`. Dans un travail d'une phase ultérieure, la même sortie se lit avec `stageDependencies.<phase>.<travail>.outputs['<étape>.<variable>']` dans une expression d'exécution.
+  options:
+    nojob1: { en: "At stage level, the key must include the job name before the step name: Check.diff.changed.", fr: "Au niveau de la phase, la clé doit inclure le nom du travail avant celui de l'étape : Check.diff.changed." }
+    depjob1: { en: "At stage level, dependencies is keyed by stage names, and Check is a job.", fr: "Au niveau de la phase, dependencies est indexé par noms de phases, et Check est un travail." }
+    varref: { en: "An output variable of another stage is not available in the variables collection.", fr: "Une variable de sortie d'une autre phase n'est pas disponible dans la collection variables." }
+    depstage2: { en: "Inside a job, dependencies only covers the jobs of the same stage; use stageDependencies across stages.", fr: "Dans un travail, dependencies ne couvre que les travaux de la même phase ; utilisez stageDependencies entre phases." }
+    depjob2: { en: "Job Check is in another stage, so it isn't a job dependency of Run.", fr: "Le travail Check est dans une autre phase : ce n'est pas une dépendance de travail de Run." }
+    tplstage: { en: "Template expressions are evaluated at compile time, before Plan has produced the value.", fr: "Les expressions de modèle sont évaluées à la compilation, avant que Plan ait produit la valeur." }
+references:
+  - title: Expressions
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/expressions
+  - title: Define variables
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/variables

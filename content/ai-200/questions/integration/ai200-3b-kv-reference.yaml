@@ -1,0 +1,56 @@
+id: ai200-3b-kv-reference
+objective: "3.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders has a Python function app named **func-nw-chat** with a system-assigned managed identity. The function code reads an API key from the environment variable `PARTNER_API_KEY`. The key is stored as the secret **partner-key** in a key vault named **kv-nw-ai** that uses Azure RBAC.
+
+    The key must not appear in plain text in the app settings, and the identity must receive the least privilege.
+
+    How should you complete the commands? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders dispose d'une application de fonction Python nommée **func-nw-chat** avec une identité managée affectée par le système. Le code de la fonction lit une clé d'API dans la variable d'environnement `PARTNER_API_KEY`. La clé est stockée comme secret **partner-key** dans un coffre de clés nommé **kv-nw-ai** qui utilise Azure RBAC.
+
+    La clé ne doit pas apparaître en clair dans les paramètres d'application, et l'identité doit recevoir le privilège minimum.
+
+    Comment devez-vous compléter les commandes ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az role assignment create --assignee <principal ID of func-nw-chat> \
+      --role "[[role]]" --scope <resource ID of kv-nw-ai>
+
+    az functionapp config appsettings set -g rg-nw -n func-nw-chat --settings \
+      "PARTNER_API_KEY=@Microsoft.KeyVault([[ref]]=https://kv-nw-ai.vault.azure.net/secrets/partner-key)"
+  slots:
+    - id: role
+      options:
+        - { id: user, text: "Key Vault Secrets User" }
+        - { id: officer, text: "Key Vault Secrets Officer" }
+        - { id: reader, text: "Key Vault Reader" }
+    - id: ref
+      options:
+        - { id: uri, text: "SecretUri" }
+        - { id: name, text: "SecretName" }
+        - { id: vault, text: "VaultName" }
+answer:
+  values: { role: user, ref: uri }
+explanation:
+  correct:
+    en: "A Key Vault reference has the form `@Microsoft.KeyVault(SecretUri=<full data-plane URI of the secret>)` or `@Microsoft.KeyVault(VaultName=...;SecretName=...)`. With Azure RBAC, the app identity needs the Key Vault Secrets User role to read the secret value; the code keeps reading the environment variable."
+    fr: "Une référence Key Vault a la forme `@Microsoft.KeyVault(SecretUri=<URI complet du secret dans le plan de données>)` ou `@Microsoft.KeyVault(VaultName=...;SecretName=...)`. Avec Azure RBAC, l'identité de l'application a besoin du rôle Key Vault Secrets User pour lire la valeur du secret ; le code continue de lire la variable d'environnement."
+  options:
+    officer: { en: "Secrets Officer can also manage secrets, which exceeds least privilege.", fr: "Secrets Officer peut aussi gérer les secrets, ce qui dépasse le privilège minimum." }
+    reader: { en: "Key Vault Reader reads vault metadata but not secret values.", fr: "Key Vault Reader lit les métadonnées du coffre, mais pas les valeurs des secrets." }
+    name: { en: "SecretName takes a secret name and must be combined with VaultName; it doesn't accept a URI.", fr: "SecretName prend un nom de secret et doit être combiné à VaultName ; il n'accepte pas d'URI." }
+    vault: { en: "VaultName takes the vault name, used with SecretName, not the secret URI.", fr: "VaultName prend le nom du coffre, utilisé avec SecretName, pas l'URI du secret." }
+references:
+  - title: Use Key Vault References as App Settings - Azure App Service
+    url: https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references

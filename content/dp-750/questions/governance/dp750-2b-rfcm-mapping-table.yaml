@@ -1,0 +1,74 @@
+id: dp750-2b-rfcm-mapping-table
+objective: "2.2.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind maps users to sales regions in a table named **sales.security.user_regions** that has the columns **user_name** and **region**. The **governance** group owns the table and the following function:
+
+    ```sql
+    CREATE FUNCTION sales.security.region_access(order_region STRING)
+    RETURN EXISTS (
+      SELECT 1 FROM sales.security.user_regions m
+      WHERE m.user_name = SESSION_USER() AND m.region = order_region
+    );
+
+    ALTER TABLE sales.core.orders SET ROW FILTER sales.security.region_access ON (region);
+    ```
+
+    Members of the **analysts** group have SELECT on **sales.core.orders**, and the required USE CATALOG and USE SCHEMA privileges, but no privilege on sales.security.user_regions.
+
+    What happens when an analyst queries sales.core.orders?
+  fr: |
+    Northwind associe les utilisateurs à des régions commerciales dans une table nommée **sales.security.user_regions** qui contient les colonnes **user_name** et **region**. Le groupe **governance** est propriétaire de la table et de la fonction suivante :
+
+    ```sql
+    CREATE FUNCTION sales.security.region_access(order_region STRING)
+    RETURN EXISTS (
+      SELECT 1 FROM sales.security.user_regions m
+      WHERE m.user_name = SESSION_USER() AND m.region = order_region
+    );
+
+    ALTER TABLE sales.core.orders SET ROW FILTER sales.security.region_access ON (region);
+    ```
+
+    Les membres du groupe **analysts** disposent de SELECT sur **sales.core.orders** et des privilèges USE CATALOG et USE SCHEMA nécessaires, mais d'aucun privilège sur sales.security.user_regions.
+
+    Que se passe-t-il lorsqu'un analyste interroge sales.core.orders ?
+body:
+  options:
+    - id: a
+      text: { en: "The query fails because the analyst has no SELECT privilege on the mapping table.", fr: "La requête échoue, car l'analyste ne dispose pas du privilège SELECT sur la table de correspondance." }
+    - id: b
+      text: { en: "The query returns only the rows of the regions mapped to the analyst.", fr: "La requête renvoie uniquement les lignes des régions associées à l'analyste." }
+    - id: c
+      text: { en: "The query returns only the rows of the regions mapped to the governance group.", fr: "La requête renvoie uniquement les lignes des régions associées au groupe governance." }
+    - id: d
+      text: { en: "The query returns all the rows because the analyst cannot read the mapping table.", fr: "La requête renvoie toutes les lignes, car l'analyste ne peut pas lire la table de correspondance." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      Row filter functions run with the definer's rights, so the subquery reads the mapping table with the privileges of its owner and the analyst needs no access to it. Functions that check the user context, such as SESSION_USER and IS_ACCOUNT_GROUP_MEMBER, are evaluated as the invoker, so the filter keeps the regions mapped to the analyst who runs the query.
+    fr: |
+      Les fonctions de filtre de lignes s'exécutent avec les droits de leur définisseur : la sous-requête lit la table de correspondance avec les privilèges de son propriétaire, et l'analyste n'a pas besoin d'y accéder. Les fonctions qui vérifient le contexte utilisateur, comme SESSION_USER et IS_ACCOUNT_GROUP_MEMBER, sont évaluées en tant qu'appelant : le filtre conserve les régions associées à l'analyste qui exécute la requête.
+  options:
+    a:
+      en: |
+        The mapping table is read with the definer's rights, so the analyst does not need SELECT on it.
+      fr: |
+        La table de correspondance est lue avec les droits du définisseur : l'analyste n'a pas besoin de SELECT sur celle-ci.
+    c:
+      en: |
+        SESSION_USER is evaluated as the invoker, not as the function owner.
+      fr: |
+        SESSION_USER est évaluée en tant qu'appelant, et non en tant que propriétaire de la fonction.
+    d:
+      en: |
+        A row filter never grants extra rows; rows are kept only when the function returns TRUE.
+      fr: |
+        Un filtre de lignes n'accorde jamais de lignes supplémentaires ; une ligne n'est conservée que si la fonction renvoie TRUE.
+references:
+  - title: Manually apply row filters and column masks
+    url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/manually-apply

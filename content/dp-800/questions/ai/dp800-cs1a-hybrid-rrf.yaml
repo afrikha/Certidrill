@@ -1,0 +1,91 @@
+id: dp800-cs1a-hybrid-rrf
+objective: "3.2.9"
+type: dropdown
+caseStudy: dp800-cs1a-adventure-works
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the product search query. The external model EmbedSmall exists in sqldb-catalog, and a vector index that uses the cosine metric exists on DescriptionVector. The solution must meet the search requirements.
+
+    How should you complete the Transact-SQL code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la requête de recherche de produits. Le modèle externe EmbedSmall existe dans sqldb-catalog, et un index vectoriel qui utilise la métrique cosinus existe sur DescriptionVector. La solution doit respecter les exigences de recherche.
+
+    Comment devez-vous compléter le code Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    DECLARE @text nvarchar(400) = N'XC-900 waterproof jacket for winter commuting';
+    DECLARE @qv VECTOR(1536) = AI_GENERATE_EMBEDDINGS(@text USE MODEL EmbedSmall);
+    DECLARE @k int = 60;
+
+    WITH keyword AS (
+        SELECT TOP (50) ft.[KEY] AS ProductID,
+               RANK() OVER (ORDER BY ft.[RANK] DESC) AS kw_rank
+        FROM FREETEXTTABLE(dbo.Products, Description, @text) AS ft
+        ORDER BY ft.[RANK] DESC
+    ),
+    semantic AS (
+        SELECT v.ProductID,
+               [[vecrank]] AS vec_rank
+        FROM (
+            SELECT TOP (50) WITH APPROXIMATE p.ProductID, r.distance
+            FROM VECTOR_SEARCH(TABLE = dbo.Products AS p, COLUMN = DescriptionVector,
+                               SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+            ORDER BY r.distance
+        ) AS v
+    )
+    SELECT TOP (20)
+           COALESCE(k.ProductID, s.ProductID) AS ProductID,
+           [[score]] AS rrf_score
+    FROM keyword AS k
+    [[join]] semantic AS s ON s.ProductID = k.ProductID
+    ORDER BY rrf_score DESC;
+  slots:
+    - id: vecrank
+      options:
+        - { id: rank-asc, text: "RANK() OVER (ORDER BY v.distance)" }
+        - { id: rank-desc, text: "RANK() OVER (ORDER BY v.distance DESC)" }
+        - { id: similarity, text: "1 - v.distance" }
+        - { id: ntile, text: "NTILE(4) OVER (ORDER BY v.distance)" }
+    - id: score
+      options:
+        - { id: rrf-coalesce, text: "COALESCE(1.0 / (@k + k.kw_rank), 0.0) + COALESCE(1.0 / (@k + s.vec_rank), 0.0)" }
+        - { id: rrf-int, text: "COALESCE(1 / (@k + k.kw_rank), 0) + COALESCE(1 / (@k + s.vec_rank), 0)" }
+        - { id: rrf-null, text: "1.0 / (@k + k.kw_rank) + 1.0 / (@k + s.vec_rank)" }
+        - { id: rank-sum, text: "COALESCE(k.kw_rank, 0) + COALESCE(s.vec_rank, 0)" }
+    - id: join
+      options:
+        - { id: inner, text: "INNER JOIN" }
+        - { id: left, text: "LEFT OUTER JOIN" }
+        - { id: full, text: "FULL OUTER JOIN" }
+        - { id: cross, text: "CROSS APPLY" }
+answer:
+  values: { vecrank: rank-asc, score: rrf-coalesce, join: full }
+explanation:
+  correct:
+    en: |
+      Reciprocal rank fusion works on positions, not on raw scores: the smallest cosine distance gets rank 1, so the vector list is ranked by distance ascending. Each list adds 1.0 / (k + rank), and COALESCE turns the term of a list that did not return the product into 0. A FULL OUTER JOIN keeps the products found by only one of the two searches, and the rank window function sits outside the TOP (N) WITH APPROXIMATE query block, as required.
+    fr: |
+      La fusion de classement réciproque utilise des positions, pas des scores bruts : la plus petite distance cosinus obtient le rang 1, la liste vectorielle est donc classée par distance croissante. Chaque liste ajoute 1.0 / (k + rang), et COALESCE ramène à 0 le terme d'une liste qui n'a pas renvoyé le produit. Une jointure FULL OUTER JOIN conserve les produits trouvés par une seule des deux recherches, et la fonction de fenêtre de classement se trouve en dehors du bloc de requête TOP (N) WITH APPROXIMATE, comme il se doit.
+  options:
+    rank-desc: { en: "Descending order gives rank 1 to the least similar product of the list.", fr: "L'ordre décroissant donne le rang 1 au produit le moins similaire de la liste." }
+    similarity: { en: "1 - distance is a similarity score; fusing it with full-text ranks compares two different scales, which the requirements forbid.", fr: "1 - distance est un score de similarité ; le fusionner avec des rangs de texte intégral compare deux échelles différentes, ce que les exigences interdisent." }
+    ntile: { en: "NTILE splits the list into four buckets, so 12 or 13 products share each value and the position is lost.", fr: "NTILE répartit la liste en quatre groupes : 12 ou 13 produits partagent chaque valeur et la position est perdue." }
+    rrf-int: { en: "With integer operands, 1 / (60 + rank) is an integer division that always returns 0.", fr: "Avec des opérandes entiers, 1 / (60 + rang) est une division entière qui renvoie toujours 0." }
+    rrf-null: { en: "For a product found by only one search, one rank is NULL and the whole sum becomes NULL.", fr: "Pour un produit trouvé par une seule recherche, un rang est NULL et toute la somme devient NULL." }
+    rank-sum: { en: "Adding ranks favors low numbers and, with a descending sort, puts the worst-ranked products first.", fr: "Additionner les rangs favorise les petits nombres et, avec un tri décroissant, place en tête les produits les moins bien classés." }
+    inner: { en: "An INNER JOIN keeps only products found by both searches.", fr: "Une jointure INNER JOIN ne conserve que les produits trouvés par les deux recherches." }
+    left: { en: "A LEFT OUTER JOIN drops the products found only by the vector search.", fr: "Une jointure LEFT OUTER JOIN supprime les produits trouvés uniquement par la recherche vectorielle." }
+    cross: { en: "CROSS APPLY with an ON clause is not valid syntax, and it would not keep products missing from the keyword list.", fr: "CROSS APPLY avec une clause ON n'est pas une syntaxe valide, et il ne conserverait pas les produits absents de la liste par mots clés." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

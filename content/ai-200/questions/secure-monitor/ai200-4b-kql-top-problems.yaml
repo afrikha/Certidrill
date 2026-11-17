@@ -1,0 +1,79 @@
+id: ai200-4b-kql-top-problems
+objective: "4.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders' ingestion API throws many similar exceptions from the same code location. Application Insights groups such exceptions under the same problem ID.
+
+    You need the five most frequent exception problems of the last day, each with the time of its most recent occurrence. Trace sampling is enabled.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'API d'ingestion de Northwind Traders lève de nombreuses exceptions similaires depuis le même emplacement du code. Application Insights regroupe ces exceptions sous le même ID de problème.
+
+    Vous avez besoin des cinq problèmes d'exception les plus fréquents de la dernière journée, chacun avec l'heure de sa dernière occurrence. L'échantillonnage des traces est activé.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    AppExceptions
+    | where TimeGenerated > ago(1d)
+    | summarize Occurrences = sum(ItemCount), LastSeen = [[last]](TimeGenerated) by [[key]]
+    | top 5 by Occurrences desc
+  slots:
+    - id: last
+      options:
+        - { id: max, text: max }
+        - { id: min, text: min }
+        - { id: any, text: take_any }
+    - id: key
+      options:
+        - { id: problem, text: ProblemId }
+        - { id: opid, text: OperationId }
+        - { id: id, text: Id }
+        - { id: count, text: ItemCount }
+answer:
+  values: { last: max, key: problem }
+explanation:
+  correct:
+    en: "`max(TimeGenerated)` returns the latest timestamp of each group, which is the most recent occurrence. `ProblemId` identifies the problem that groups similar exceptions, so grouping by it and summing `ItemCount` counts the occurrences of each problem, even with sampling."
+    fr: "`max(TimeGenerated)` renvoie l'horodatage le plus récent de chaque groupe, soit la dernière occurrence. `ProblemId` identifie le problème qui regroupe les exceptions similaires : regrouper sur cette colonne et additionner `ItemCount` compte les occurrences de chaque problème, même avec l'échantillonnage."
+  options:
+    min:
+      en: |-
+        min returns the first occurrence of the day, not the most recent one.
+      fr: |-
+        min renvoie la première occurrence de la journée, pas la plus récente.
+    any:
+      en: |-
+        take_any returns an arbitrary timestamp of the group.
+      fr: |-
+        take_any renvoie un horodatage arbitraire du groupe.
+    opid:
+      en: |-
+        OperationId groups by request, so the same problem would be split across many groups.
+      fr: |-
+        OperationId regroupe par requête : le même problème serait réparti dans de nombreux groupes.
+    id:
+      en: |-
+        Id is unique per exception item, so each group would hold a single exception.
+      fr: |-
+        Id est unique pour chaque élément d'exception : chaque groupe ne contiendrait qu'une exception.
+    count:
+      en: |-
+        ItemCount is the sampling weight of a row, not a problem identifier.
+      fr: |-
+        ItemCount est le poids d'échantillonnage d'une ligne, pas un identifiant de problème.
+references:
+  - title: Azure Monitor Logs reference - AppExceptions
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/appexceptions
+  - title: summarize operator
+    url: https://learn.microsoft.com/en-us/kusto/query/summarize-operator

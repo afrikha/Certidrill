@@ -1,0 +1,75 @@
+id: dp420-1b-occ-python
+objective: "1.2.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank's Python service debits prepaid accounts stored in an Azure Cosmos DB for NoSQL container partitioned by `/id`. Several instances of the service can debit the same account at the same time.
+
+    The replace must fail if the account changed after it was read, and the service must then retry the whole debit.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le service Python de Woodgrove Bank débite des comptes prépayés stockés dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/id`. Plusieurs instances du service peuvent débiter le même compte en même temps.
+
+    Le remplacement doit échouer si le compte a changé après sa lecture, et le service doit alors réessayer tout le débit.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.core import MatchConditions
+    from azure.cosmos import exceptions
+
+    account = container.read_item(item=account_id, partition_key=account_id)
+    account["balance"] -= amount
+
+    try:
+        container.replace_item(
+            item=account["id"],
+            body=account,
+            etag=[[tag]],
+            match_condition=MatchConditions.[[cond]],
+        )
+    except exceptions.[[ex]]:
+        retry_debit(account_id, amount)
+  slots:
+    - id: tag
+      options:
+        - { id: etag, text: 'account["_etag"]' }
+        - { id: rid, text: 'account["_rid"]' }
+        - { id: ts, text: 'account["_ts"]' }
+    - id: cond
+      options:
+        - { id: notmod, text: IfNotModified }
+        - { id: modified, text: IfModified }
+        - { id: uncond, text: Unconditionally }
+    - id: ex
+      options:
+        - { id: access, text: CosmosAccessConditionFailedError }
+        - { id: exists, text: CosmosResourceExistsError }
+        - { id: notfound, text: CosmosResourceNotFoundError }
+answer:
+  values: { tag: etag, cond: notmod, ex: access }
+explanation:
+  correct:
+    en: "The `_etag` system property identifies the version of the item read. With `match_condition=MatchConditions.IfNotModified`, the replace succeeds only if the item's current ETag still matches. Otherwise the service returns HTTP 412, which the SDK raises as `CosmosAccessConditionFailedError`."
+    fr: "La propriété système `_etag` identifie la version de l'élément lu. Avec `match_condition=MatchConditions.IfNotModified`, le remplacement ne réussit que si l'ETag actuel de l'élément correspond toujours. Sinon, le service renvoie le code HTTP 412, que le SDK lève sous la forme de `CosmosAccessConditionFailedError`."
+  options:
+    rid: { en: "_rid is the resource identifier; it does not change when the item is updated.", fr: "_rid est l'identificateur de ressource ; il ne change pas quand l'élément est mis à jour." }
+    ts: { en: "_ts is a timestamp, not an ETag that the service can compare.", fr: "_ts est un horodatage, pas un ETag que le service peut comparer." }
+    modified: { en: "IfModified applies the operation only if the item changed, which is the opposite of the requirement.", fr: "IfModified n'applique l'opération que si l'élément a changé, ce qui est l'inverse de l'exigence." }
+    uncond: { en: "Unconditionally applies no ETag check, so concurrent debits overwrite each other.", fr: "Unconditionally n'applique aucune vérification d'ETag : les débits simultanés s'écrasent mutuellement." }
+    exists: { en: "CosmosResourceExistsError corresponds to HTTP 409, not to a failed precondition.", fr: "CosmosResourceExistsError correspond au code HTTP 409, pas à une condition préalable non satisfaite." }
+    notfound: { en: "CosmosResourceNotFoundError corresponds to HTTP 404, raised when the item does not exist.", fr: "CosmosResourceNotFoundError correspond au code HTTP 404, levé quand l'élément n'existe pas." }
+references:
+  - title: azure.cosmos.ContainerProxy class
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy
+  - title: azure.cosmos.exceptions module
+    url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.exceptions

@@ -1,0 +1,102 @@
+id: ai200-1c-aks-service-test
+objective: "1.2.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Wingtip runs a chat front end in the **frontend** namespace and a vector search API in the **search** namespace of the same Azure Kubernetes Service (AKS) cluster. The API is exposed by the Service shown in the exhibit. The front end reports timeouts when it calls the API.
+
+    You plan to test the API from a temporary pod in the **frontend** namespace, in the same way as the front end calls it. If the request still times out, you will then check whether the Service has any ready pods behind it.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip exécute un front-end de conversation dans l'espace de noms **frontend** et une API de recherche vectorielle dans l'espace de noms **search** du même cluster Azure Kubernetes Service (AKS). L'API est exposée par le Service présenté dans la pièce. Le front-end signale des délais d'attente dépassés quand il appelle l'API.
+
+    Vous prévoyez de tester l'API depuis un pod temporaire de l'espace de noms **frontend**, de la même manière que le front-end l'appelle. Si la requête expire toujours, vous vérifierez ensuite si le Service a des pods prêts derrière lui.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+exhibits:
+  - id: service
+    title: { en: "Service manifest", fr: "Manifeste du Service" }
+    body: |
+      ```yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: vector-api
+        namespace: search
+      spec:
+        type: ClusterIP
+        selector:
+          app: vector-api
+        ports:
+          - port: 80
+            targetPort: 8080
+      ```
+body:
+  layout: code
+  language: bash
+  template: |
+    kubectl run net-test -it --rm --namespace frontend \
+      --image=mcr.microsoft.com/aks/fundamental/base-ubuntu:v0.0.11
+
+    # In the test pod
+    curl -v -m 5 http://[[host]]:[[port]]/health
+
+    # If the request times out
+    kubectl get [[obj]] vector-api --namespace search
+  slots:
+    - id: host
+      options:
+        - { id: fqdn, text: vector-api.search.svc.cluster.local }
+        - { id: short, text: vector-api }
+        - { id: wrongns, text: vector-api.frontend.svc.cluster.local }
+        - { id: swapped, text: search.vector-api.svc.cluster.local }
+    - id: port
+      options:
+        - { id: p80, text: "80" }
+        - { id: p8080, text: "8080" }
+        - { id: p443, text: "443" }
+    - id: obj
+      options:
+        - { id: endpoints, text: endpoints }
+        - { id: ingress, text: ingress }
+        - { id: deployment, text: deployment }
+        - { id: configmap, text: configmap }
+answer:
+  values: { host: fqdn, port: p80, obj: endpoints }
+explanation:
+  correct:
+    en: |
+      A Service in another namespace is reached as `<service>.<namespace>.svc.cluster.local`, and a caller uses the Service `port` (80); kube-proxy forwards to the `targetPort` (8080) of the pods. The endpoints of the Service list the IP addresses of the ready pods that match its selector, so an empty list explains the timeouts.
+    fr: |
+      Un Service d'un autre espace de noms se joint sous la forme `<service>.<namespace>.svc.cluster.local`, et l'appelant utilise le `port` du Service (80) ; kube-proxy transfère vers le `targetPort` (8080) des pods. Les points de terminaison du Service listent les adresses IP des pods prêts qui correspondent à son sélecteur : une liste vide explique les délais dépassés.
+  options:
+    short:
+      en: The short name resolves only from the namespace of the Service; the test pod runs in frontend.
+      fr: Le nom court n'est résolu que depuis l'espace de noms du Service ; le pod de test s'exécute dans frontend.
+    wrongns:
+      en: The Service is in the search namespace, not in frontend.
+      fr: Le Service se trouve dans l'espace de noms search, pas dans frontend.
+    swapped:
+      en: The DNS name starts with the Service name, followed by the namespace.
+      fr: Le nom DNS commence par le nom du Service, suivi de l'espace de noms.
+    p8080:
+      en: 8080 is the targetPort of the pods; the Service listens on port 80.
+      fr: 8080 est le targetPort des pods ; le Service écoute sur le port 80.
+    ingress:
+      en: The API is exposed by a ClusterIP Service, not by an Ingress resource.
+      fr: L'API est exposée par un Service ClusterIP, pas par une ressource Ingress.
+    deployment:
+      en: The deployment shows its own replica counts but not whether the Service selector matches those pods.
+      fr: Le déploiement affiche ses propres nombres de réplicas, mais pas si le sélecteur du Service correspond à ces pods.
+references:
+  - title: Troubleshoot connections to pods and services within an AKS cluster
+    url: https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/connectivity/troubleshoot-connection-pods-services-same-cluster
+  - title: Troubleshoot app connection issues in an AKS cluster
+    url: https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/connectivity/connection-issues-application-hosted-aks-cluster

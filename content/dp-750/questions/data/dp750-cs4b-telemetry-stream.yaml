@@ -1,0 +1,88 @@
+id: dp750-cs4b-telemetry-stream
+objective: "3.2.6"
+type: dropdown
+caseStudy: dp750-cs4b-fourth-coffee
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have created a Unity Catalog service credential named sc_evh_fc that meets the telemetry authentication requirement. You are writing the Python source of pl-telemetry that defines machine_telemetry_raw.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous avez créé des informations d'identification de service Unity Catalog nommées sc_evh_fc qui satisfont l'exigence d'authentification de la télémétrie. Vous écrivez le code source Python de pl-telemetry qui définit machine_telemetry_raw.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark import pipelines as dp
+
+    @dp.table
+    def machine_telemetry_raw():
+        return (
+            spark.[[reader]]
+            .format("[[fmt]]")
+            .option("kafka.bootstrap.servers", "evh-fc-telemetry.servicebus.windows.net:9093")
+            .option("subscribe", "[[topic]]")
+            .option("[[auth]]", "sc_evh_fc")
+            .load()
+        )
+  slots:
+    - id: reader
+      options:
+        - { id: read, text: read }
+        - { id: readstream, text: readStream }
+        - { id: table, text: table }
+    - id: fmt
+      options:
+        - { id: cloudfiles, text: cloudFiles }
+        - { id: eventhubs, text: eventhubs }
+        - { id: kafka, text: kafka }
+    - id: topic
+      options:
+        - { id: hub, text: machine-telemetry }
+        - { id: ns, text: evh-fc-telemetry }
+        - { id: default, text: $Default }
+    - id: auth
+      options:
+        - { id: jaas, text: kafka.sasl.jaas.config }
+        - { id: sc, text: databricks.serviceCredential }
+        - { id: protocol, text: kafka.security.protocol }
+answer:
+  values: { reader: readstream, fmt: kafka, topic: hub, auth: sc }
+explanation:
+  correct:
+    en: |
+      spark.readStream with the kafka format makes machine_telemetry_raw a streaming table that reads the Kafka endpoint of Event Hubs, where the event hub name is the Kafka topic. The databricks.serviceCredential option names the Unity Catalog service credential; when you use it, you must not set the SASL or security protocol options.
+    fr: |
+      spark.readStream avec le format kafka fait de machine_telemetry_raw une table de streaming qui lit le point de terminaison Kafka d'Event Hubs, où le nom du hub d'événements est le topic Kafka. L'option databricks.serviceCredential nomme les informations d'identification de service Unity Catalog ; quand vous l'utilisez, vous ne devez pas définir les options SASL ni de protocole de sécurité.
+  options:
+    reader:
+      en: |
+        spark.read performs a one-time batch read, and spark.table reads an existing table, not an event stream.
+      fr: |
+        spark.read effectue une lecture par lots ponctuelle, et spark.table lit une table existante, pas un flux d'événements.
+    fmt:
+      en: |
+        cloudFiles is Auto Loader for files in cloud storage; eventhubs belongs to a separate connector library, not to the built-in Kafka source that reads the Kafka endpoint.
+      fr: |
+        cloudFiles correspond à Auto Loader pour les fichiers du stockage cloud ; eventhubs appartient à une bibliothèque de connecteur distincte, pas à la source Kafka intégrée qui lit le point de terminaison Kafka.
+    topic:
+      en: |
+        evh-fc-telemetry is the namespace, already given in the bootstrap server, and $Default is a consumer group, not a topic.
+      fr: |
+        evh-fc-telemetry est l'espace de noms, déjà indiqué dans le serveur d'amorçage, et $Default est un groupe de consommateurs, pas un topic.
+    auth:
+      en: |
+        kafka.sasl.jaas.config and kafka.security.protocol configure SASL authentication with a secret, and they must not be set with a service credential.
+      fr: |
+        kafka.sasl.jaas.config et kafka.security.protocol configurent une authentification SASL avec un secret, et ils ne doivent pas être définis avec des informations d'identification de service.
+references:
+  - title: Authentication
+    url: https://learn.microsoft.com/en-us/azure/databricks/connect/streaming/kafka/authentication

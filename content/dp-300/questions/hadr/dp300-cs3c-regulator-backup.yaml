@@ -1,0 +1,63 @@
+id: dp300-cs3c-regulator-backup
+objective: "5.2.6"
+type: dropdown
+caseStudy: dp300-cs3c-trey-research
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to meet the compliance requirements for the quarterly backup of TrialData. The compressed backup is about 600 GB.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez satisfaire les exigences de conformité concernant la sauvegarde trimestrielle de TrialData. La sauvegarde compressée fait environ 600 Go.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE CREDENTIAL [https://sttreyexport.blob.core.windows.net/regulator]
+        WITH IDENTITY = [[identity]];
+    GO
+    BACKUP DATABASE TrialData
+    TO URL = 'https://sttreyexport.blob.core.windows.net/regulator/TrialData_1.bak',
+       URL = 'https://sttreyexport.blob.core.windows.net/regulator/TrialData_2.bak',
+       URL = 'https://sttreyexport.blob.core.windows.net/regulator/TrialData_3.bak',
+       URL = 'https://sttreyexport.blob.core.windows.net/regulator/TrialData_4.bak'
+    WITH [[option]], COMPRESSION, CHECKSUM;
+  slots:
+    - id: identity
+      options:
+        - { id: sas, text: "'SHARED ACCESS SIGNATURE', SECRET = '<SAS token>'" }
+        - { id: mi, text: "'Managed Identity'" }
+        - { id: key, text: "'sttreyexport', SECRET = '<storage account key>'" }
+    - id: option
+      options:
+        - { id: copyonly, text: "COPY_ONLY" }
+        - { id: diff, text: "DIFFERENTIAL" }
+        - { id: norecovery, text: "NORECOVERY" }
+        - { id: snapshot, text: "FILE_SNAPSHOT" }
+answer:
+  values: { identity: mi, option: copyonly }
+explanation:
+  correct:
+    en: |
+      SQL Managed Instance authenticates to Azure Storage for BACKUP TO URL with either a SAS token or its managed identity; the managed identity of MI-TRIALS already has Storage Blob Data Contributor on the container, so a credential named after the container URL with `IDENTITY = 'Managed Identity'` stores no secret. Because the instance takes automatic backups, user backups must be full `COPY_ONLY` backups, which do not affect the automated backup chain. TrialData uses customer-managed TDE, which allows a COPY_ONLY backup; four stripes keep each blob under the 195 GB limit.
+    fr: |
+      SQL Managed Instance s'authentifie auprès du Stockage Azure pour BACKUP TO URL avec un jeton SAS ou avec son identité managée ; l'identité managée de MI-TRIALS dispose déjà de Storage Blob Data Contributor sur le conteneur : des informations d'identification nommées d'après l'URL du conteneur avec `IDENTITY = 'Managed Identity'` ne stockent aucun secret. Comme l'instance effectue des sauvegardes automatiques, les sauvegardes utilisateur doivent être des sauvegardes complètes `COPY_ONLY`, qui n'affectent pas la chaîne de sauvegardes automatisées. TrialData utilise un TDE géré par le client, ce qui autorise une sauvegarde COPY_ONLY ; quatre bandes maintiennent chaque objet blob sous la limite de 195 Go.
+  options:
+    sas: { en: "A SAS credential stores the token as a secret on MI-TRIALS, which the requirements forbid.", fr: "Des informations d'identification SAS stockent le jeton comme secret sur MI-TRIALS, ce que les exigences interdisent." }
+    key: { en: "Storage account access keys are not supported for backup to URL on SQL Managed Instance, and the key would be a stored secret.", fr: "Les clés d'accès du compte de stockage ne sont pas prises en charge pour la sauvegarde vers une URL sur SQL Managed Instance, et la clé serait un secret stocké." }
+    diff: { en: "SQL Managed Instance supports only full COPY_ONLY user backups; differential backups are not supported.", fr: "SQL Managed Instance ne prend en charge que les sauvegardes utilisateur complètes COPY_ONLY ; les sauvegardes différentielles ne sont pas prises en charge." }
+    norecovery: { en: "NORECOVERY is a log backup option, and it is not supported on SQL Managed Instance.", fr: "NORECOVERY est une option de sauvegarde du journal, et elle n'est pas prise en charge sur SQL Managed Instance." }
+    snapshot: { en: "FILE_SNAPSHOT is not supported on SQL Managed Instance.", fr: "FILE_SNAPSHOT n'est pas pris en charge sur SQL Managed Instance." }
+references:
+  - title: T-SQL differences between SQL Server and Azure SQL Managed Instance
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/transact-sql-tsql-differences-sql-server
+  - title: CREATE CREDENTIAL (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-credential-transact-sql

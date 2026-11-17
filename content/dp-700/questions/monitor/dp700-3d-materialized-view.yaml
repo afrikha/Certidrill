@@ -1,0 +1,74 @@
+id: dp700-3d-materialized-view
+objective: "3.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a KQL database in a Fabric eventhouse. The database contains a table named Readings that stores three billion rows, with the columns SensorId, ReadingTime, Temperature and Humidity. New readings arrive every few seconds.
+
+    A Real-Time Dashboard shows the most recent reading of each sensor. Its query runs `summarize` over the whole Readings table at each refresh and is slow.
+
+    You need to precompute the result so that it stays up to date as data arrives. The result must include the readings that are already stored in Readings.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données KQL dans un eventhouse Fabric. La base contient une table nommée Readings qui stocke trois milliards de lignes, avec les colonnes SensorId, ReadingTime, Temperature et Humidity. De nouvelles mesures arrivent toutes les quelques secondes.
+
+    Un tableau de bord en temps réel affiche la mesure la plus récente de chaque capteur. Sa requête exécute `summarize` sur toute la table Readings à chaque actualisation et elle est lente.
+
+    Vous devez précalculer le résultat pour qu'il reste à jour à l'arrivée des données. Le résultat doit inclure les mesures déjà stockées dans Readings.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .create async materialized-view with ([[prop]]) LatestBySensor on table Readings
+    {
+        Readings
+        | summarize [[agg]](ReadingTime, *) by SensorId
+    }
+
+    [[fn]]('LatestBySensor')
+    | where SensorId == "S-104"
+  slots:
+    - id: prop
+      options:
+        - { id: backfill, text: backfill=true }
+        - { id: effective, text: effectiveDateTime=datetime(2026-11-01) }
+        - { id: autoschema, text: autoUpdateSchema=true }
+        - { id: lookback, text: lookback=1d }
+    - id: agg
+      options:
+        - { id: argmax, text: arg_max }
+        - { id: argmin, text: arg_min }
+        - { id: max, text: max }
+        - { id: takeany, text: take_any }
+    - id: fn
+      options:
+        - { id: mv, text: materialized_view }
+        - { id: ext, text: external_table }
+        - { id: db, text: database }
+answer:
+  values: { prop: backfill, agg: argmax, fn: mv }
+explanation:
+  correct:
+    en: "A materialized view keeps an aggregation up to date as data is ingested, so the dashboard reads a small precomputed result. Without backfill, the view only includes records ingested after its creation; backfill=true builds it from all existing records, which requires the async keyword. arg_max(ReadingTime, *) returns the whole row with the latest ReadingTime for each SensorId, and the materialized_view() function queries the view."
+    fr: "Une vue matérialisée maintient une agrégation à jour au fil de l'ingestion : le tableau de bord lit un petit résultat précalculé. Sans backfill, la vue ne contient que les enregistrements ingérés après sa création ; backfill=true la construit à partir de tous les enregistrements existants, ce qui impose le mot clé async. arg_max(ReadingTime, *) renvoie la ligne complète ayant le ReadingTime le plus récent pour chaque SensorId, et la fonction materialized_view() interroge la vue."
+  options:
+    effective: { en: "effectiveDateTime limits the backfill to records ingested after a date; it only applies with backfill=true and would skip older readings.", fr: "effectiveDateTime limite le remplissage aux enregistrements ingérés après une date ; il ne s'applique qu'avec backfill=true et ignorerait les mesures plus anciennes." }
+    autoschema: { en: "autoUpdateSchema handles schema changes of the source; it does not include existing records.", fr: "autoUpdateSchema gère les changements de schéma de la source ; il n'inclut pas les enregistrements existants." }
+    lookback: { en: "lookback limits the period in which duplicates or updates are expected; it does not backfill the view.", fr: "lookback limite la période dans laquelle des doublons ou des mises à jour sont attendus ; il ne remplit pas la vue." }
+    argmin: { en: "arg_min returns the oldest reading of each sensor.", fr: "arg_min renvoie la mesure la plus ancienne de chaque capteur." }
+    max: { en: "max(ReadingTime) returns only the latest time, not the other columns of that row.", fr: "max(ReadingTime) ne renvoie que l'heure la plus récente, pas les autres colonnes de cette ligne." }
+    takeany: { en: "take_any returns an arbitrary row, not the latest one.", fr: "take_any renvoie une ligne quelconque, pas la plus récente." }
+    ext: { en: "external_table() references data stored outside the database.", fr: "external_table() référence des données stockées hors de la base." }
+    db: { en: "database() references another database, not a view.", fr: "database() référence une autre base de données, pas une vue." }
+references:
+  - title: Create materialized view
+    url: https://learn.microsoft.com/en-us/kusto/management/materialized-views/materialized-view-create?view=microsoft-fabric

@@ -1,0 +1,133 @@
+id: sc100-cs3a-wide-world-importers
+status: draft
+title:
+  en: Wide World Importers
+  fr: Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers is an online retailer of home goods. It sells to consumers in Europe and North America through a web storefront, and it buys its products from about 300 suppliers.
+
+        The storefront was rebuilt as microservices on Azure last year. After a credential leak and an incident in which a malicious file uploaded by a compromised supplier account reached the order-processing system, the board asked the security architecture team to define the target security design of the platform.
+      fr: |
+        Wide World Importers est un détaillant en ligne d'articles pour la maison. Il vend à des particuliers en Europe et en Amérique du Nord via une vitrine web, et achète ses produits auprès d'environ 300 fournisseurs.
+
+        La vitrine a été reconstruite l'an dernier sous forme de microservices sur Azure. Après une fuite d'informations d'identification et un incident au cours duquel un fichier malveillant déposé depuis le compte compromis d'un fournisseur a atteint le système de traitement des commandes, le conseil d'administration a demandé à l'équipe d'architecture de sécurité de définir la conception de sécurité cible de la plateforme.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity**
+
+        Wide World Importers has a Microsoft Entra tenant named wideworldimporters.com. All employees have Microsoft 365 E5 licenses.
+
+        **Storefront platform**
+
+        | Component | Configuration |
+        | --- | --- |
+        | aks-store-weu, aks-store-eus | Azure Kubernetes Service (AKS) clusters in West Europe and East US. Each cluster runs the same 12 microservices, each in its own namespace. |
+        | kv-store-weu, kv-store-eus | Azure Key Vault vaults that store the connection secrets of the microservices |
+        | cosmos-catalog | Azure Cosmos DB account that stores the product catalog |
+        | stsupplierfiles | Storage account where suppliers upload product images and invoices. An Azure Functions app named **func-orders** processes each uploaded file. |
+
+        Today, the microservices read a shared client secret from a Kubernetes secret to authenticate to Microsoft Entra ID. Each regional cluster is published to the internet through its own public load balancer.
+
+        **Security tools**
+
+        Microsoft Defender for Cloud is enabled on all subscriptions, with the Defender CSPM, Defender for Containers and Defender for Storage plans. Malware scanning isn't enabled in Defender for Storage.
+
+        The security operations center (SOC) uses a Log Analytics workspace named **law-wwi-soc** with Microsoft Sentinel.
+
+        **Planned development**
+
+        A new checkout microservice will handle payments. Its data flows are documented, and no code has been written yet.
+
+        **Governance**
+
+        All the platform subscriptions are in a management group named **MG-Store**. Several resources don't have the **CostCenter** tag of their resource group.
+      fr: |
+        **Identité**
+
+        Wide World Importers dispose d'un locataire Microsoft Entra nommé wideworldimporters.com. Tous les employés disposent de licences Microsoft 365 E5.
+
+        **Plateforme de la vitrine**
+
+        | Composant | Configuration |
+        | --- | --- |
+        | aks-store-weu, aks-store-eus | Clusters Azure Kubernetes Service (AKS) dans les régions West Europe et East US. Chaque cluster exécute les mêmes 12 microservices, chacun dans son propre espace de noms. |
+        | kv-store-weu, kv-store-eus | Coffres Azure Key Vault qui stockent les secrets de connexion des microservices |
+        | cosmos-catalog | Compte Azure Cosmos DB qui stocke le catalogue de produits |
+        | stsupplierfiles | Compte de stockage dans lequel les fournisseurs déposent les images de produits et les factures. Une application Azure Functions nommée **func-orders** traite chaque fichier déposé. |
+
+        Aujourd'hui, les microservices lisent un secret client partagé dans un secret Kubernetes pour s'authentifier auprès de Microsoft Entra ID. Chaque cluster régional est publié sur Internet via son propre équilibreur de charge public.
+
+        **Outils de sécurité**
+
+        Microsoft Defender pour le cloud est activé sur tous les abonnements, avec les plans Defender CSPM, Defender for Containers et Defender for Storage. L'analyse des programmes malveillants n'est pas activée dans Defender for Storage.
+
+        Le centre des opérations de sécurité (SOC) utilise un espace de travail Log Analytics nommé **law-wwi-soc** avec Microsoft Sentinel.
+
+        **Développement prévu**
+
+        Un nouveau microservice de paiement des commandes traitera les paiements. Ses flux de données sont documentés et aucune ligne de code n'a encore été écrite.
+
+        **Gouvernance**
+
+        Tous les abonnements de la plateforme se trouvent dans un groupe d'administration nommé **MG-Store**. Plusieurs ressources n'ont pas l'étiquette **CostCenter** de leur groupe de ressources.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Checkout design requirements**
+
+        - Before development starts, the architects must identify the threats in the checkout data flows and their mitigations, by using a structured methodology from the Microsoft Security Development Lifecycle (SDL).
+
+        **Workload identity requirements**
+
+        - Each microservice must authenticate to Key Vault and Cosmos DB by using its own identity, and receive only the permissions it needs.
+        - No secret or certificate used for authentication may be stored in the clusters or in the code.
+
+        **Supplier file requirements**
+
+        - Every file uploaded to stsupplierfiles must be scanned for malware as soon as it's uploaded.
+        - func-orders must start processing a clean file as fast as possible after the scan.
+        - The invoices sent by one supplier's ERP system are encrypted on the client side before upload. They must stay encrypted.
+
+        **Kubernetes requirements**
+
+        - Requests to create privileged containers in aks-store-weu and aks-store-eus must be blocked.
+
+        **Governance requirements**
+
+        - Requests to create or update a storage account with public network access enabled must be rejected.
+        - Every new Key Vault must automatically get a diagnostic setting that sends its logs to law-wwi-soc.
+        - Every resource must have the CostCenter tag of its resource group. Existing resources must be brought into compliance by a remediation task.
+        - Use Azure Policy assignments at MG-Store.
+      fr: |
+        **Exigences relatives à la conception du paiement**
+
+        - Avant le début du développement, les architectes doivent identifier les menaces qui pèsent sur les flux de données du paiement ainsi que leurs atténuations, avec une méthodologie structurée issue du Microsoft Security Development Lifecycle (SDL).
+
+        **Exigences relatives aux identités de charge de travail**
+
+        - Chaque microservice doit s'authentifier auprès de Key Vault et de Cosmos DB avec sa propre identité, et ne recevoir que les autorisations dont il a besoin.
+        - Aucun secret ni certificat servant à l'authentification ne doit être stocké dans les clusters ou dans le code.
+
+        **Exigences relatives aux fichiers des fournisseurs**
+
+        - Chaque fichier déposé dans stsupplierfiles doit être analysé à la recherche de programmes malveillants dès son dépôt.
+        - func-orders doit commencer à traiter un fichier sain le plus rapidement possible après l'analyse.
+        - Les factures envoyées par le système ERP d'un fournisseur sont chiffrées côté client avant le dépôt. Elles doivent rester chiffrées.
+
+        **Exigences relatives à Kubernetes**
+
+        - Les requêtes de création de conteneurs privilégiés dans aks-store-weu et aks-store-eus doivent être bloquées.
+
+        **Exigences de gouvernance**
+
+        - Les requêtes de création ou de mise à jour d'un compte de stockage avec l'accès réseau public activé doivent être rejetées.
+        - Chaque nouveau coffre Key Vault doit recevoir automatiquement un paramètre de diagnostic qui envoie ses journaux à law-wwi-soc.
+        - Chaque ressource doit porter l'étiquette CostCenter de son groupe de ressources. Les ressources existantes doivent être mises en conformité par une tâche de correction.
+        - Utiliser des attributions Azure Policy au niveau de MG-Store.

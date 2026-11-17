@@ -1,0 +1,101 @@
+id: ai200-2c-pg-python-params
+objective: "2.2.5"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Wingtip Toys is writing the retrieval step of a product assistant in Python with psycopg 3 against Azure Database for PostgreSQL flexible server. The `question_vector` variable contains the question embedding as a list of 1,536 floats, and `product_line` contains a value typed by the user.
+
+    The code must meet the following requirements:
+
+    - Pass every value as a query parameter, to prevent SQL injection.
+    - Return the five most similar chunks of the product line as a list of rows.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys écrit l'étape de récupération d'un assistant produits en Python avec psycopg 3 sur Azure Database for PostgreSQL serveur flexible. La variable `question_vector` contient l'incorporation de la question sous forme de liste de 1 536 nombres à virgule flottante, et `product_line` contient une valeur saisie par l'utilisateur.
+
+    Le code doit respecter les exigences suivantes :
+
+    - Passer chaque valeur comme paramètre de requête, pour empêcher l'injection SQL.
+    - Renvoyer les cinq segments les plus similaires de la gamme de produits sous forme de liste de lignes.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    sql = """
+    SELECT content
+    FROM kb_chunks
+    WHERE product_line = [[line]]
+    ORDER BY embedding <=> [[vec]]
+    LIMIT 5
+    """
+    params = {"line": product_line, "q": str(question_vector)}
+    rows = conn.execute(sql, params).[[fetch]]()
+  slots:
+    - id: line
+      options:
+        - { id: quoted, text: "'%(line)s'" }
+        - { id: named, text: "%(line)s" }
+        - { id: braces, text: "{line}" }
+    - id: vec
+      options:
+        - { id: tovector, text: "%(q)s::vector" }
+        - { id: toreal, text: "%(q)s::real[]" }
+        - { id: totext, text: "%(q)s::text" }
+    - id: fetch
+      options:
+        - { id: fetchone, text: fetchone }
+        - { id: fetchmany, text: fetchmany }
+        - { id: fetchall, text: fetchall }
+answer:
+  values: { line: named, vec: tovector, fetch: fetchall }
+explanation:
+  correct:
+    en: |
+      psycopg replaces the named placeholder `%(line)s` with a parameter taken from the dictionary, so the user's value is never concatenated into the SQL text. The vector is sent as text and cast with `::vector` so that the pgvector `<=>` operator compares two vectors. `fetchall()` returns every row of the result, here up to five.
+    fr: |
+      psycopg remplace l'espace réservé nommé `%(line)s` par un paramètre issu du dictionnaire : la valeur de l'utilisateur n'est jamais concaténée dans le texte SQL. Le vecteur est envoyé sous forme de texte et converti avec `::vector` pour que l'opérateur `<=>` de pgvector compare deux vecteurs. `fetchall()` renvoie toutes les lignes du résultat, ici au plus cinq.
+  options:
+    quoted:
+      en: |
+        Don't quote placeholders: psycopg passes the value as a parameter, and the quotes break the statement.
+      fr: |
+        Il ne faut pas mettre les espaces réservés entre guillemets : psycopg passe la valeur comme paramètre, et les guillemets cassent l'instruction.
+    braces:
+      en: |
+        Braces are not a psycopg placeholder; the SQL statement would contain the literal text `{line}`.
+      fr: |
+        Les accolades ne sont pas un espace réservé de psycopg ; l'instruction SQL contiendrait le texte littéral `{line}`.
+    toreal:
+      en: |
+        A `real[]` array is not a `vector`, so the pgvector distance operator can't be applied.
+      fr: |
+        Un tableau `real[]` n'est pas un `vector` : l'opérateur de distance de pgvector ne peut pas s'appliquer.
+    totext:
+      en: |
+        Comparing a vector with a text value has no distance operator.
+      fr: |
+        Il n'existe pas d'opérateur de distance entre un vecteur et une valeur texte.
+    fetchone:
+      en: |
+        `fetchone()` returns only the first row.
+      fr: |
+        `fetchone()` ne renvoie que la première ligne.
+    fetchmany:
+      en: |
+        Without a size, `fetchmany()` returns one row (the default array size).
+      fr: |
+        Sans taille, `fetchmany()` renvoie une ligne (la taille de tableau par défaut).
+references:
+  - title: "Quickstart: Use Python to Connect and Query Data in Azure Database for PostgreSQL Flexible Server"
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/connect-python
+  - title: Vector Search in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/how-to-use-pgvector

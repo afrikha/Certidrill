@@ -1,0 +1,64 @@
+id: sc200-2c-timeline-kql-registry
+objective: "2.2.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The timeline of a device named **ws-fin-03.contoso.com** shows that a script created a value under the registry key `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
+
+    You need an advanced hunting query that lists, for the last three days, every registry change on ws-fin-03.contoso.com under a key path that includes `Microsoft\Windows\CurrentVersion\Run`, with the value name and the command line that the value will start.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    La chronologie d'un appareil nommé **ws-fin-03.contoso.com** montre qu'un script a créé une valeur sous la clé de Registre `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
+
+    Vous avez besoin d'une requête de repérage avancé qui liste, pour les trois derniers jours, chaque modification du Registre sur ws-fin-03.contoso.com sous un chemin de clé qui inclut `Microsoft\Windows\CurrentVersion\Run`, avec le nom de la valeur et la ligne de commande que la valeur lancera.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[tbl]]
+    | where Timestamp > ago(3d)
+    | where DeviceName == "ws-fin-03.contoso.com"
+    | where RegistryKey [[op]] @"Microsoft\Windows\CurrentVersion\Run"
+    | project Timestamp, ActionType, RegistryKey, RegistryValueName, [[val]], InitiatingProcessFileName
+  slots:
+    - id: tbl
+      options:
+        - { id: reg, text: DeviceRegistryEvents }
+        - { id: events, text: DeviceEvents }
+        - { id: proc, text: DeviceProcessEvents }
+        - { id: file, text: DeviceFileEvents }
+    - id: op
+      options:
+        - { id: contains, text: contains }
+        - { id: eq, text: "==" }
+        - { id: startswith, text: startswith }
+        - { id: notcontains, text: "!contains" }
+    - id: val
+      options:
+        - { id: data, text: RegistryValueData }
+        - { id: prev, text: PreviousRegistryValueData }
+        - { id: type, text: RegistryValueType }
+        - { id: cmd, text: InitiatingProcessCommandLine }
+answer:
+  values: { tbl: reg, op: contains, val: data }
+explanation:
+  correct:
+    en: "`DeviceRegistryEvents` records the creation and modification of registry entries. The full key starts with the hive (for example `HKEY_CURRENT_USER\\...`), so only `contains` matches a path segment in the middle. `RegistryValueData` holds the data written to the value, which is the command line that the Run key starts."
+    fr: "`DeviceRegistryEvents` enregistre la création et la modification des entrées du Registre. La clé complète commence par la ruche (par exemple `HKEY_CURRENT_USER\\...`) : seul `contains` trouve un segment de chemin situé au milieu. `RegistryValueData` contient la donnée écrite dans la valeur, c'est-à-dire la ligne de commande que la clé Run lance."
+  options:
+    eq: { en: "== requires the whole key to be equal to the segment, which never happens because the key starts with the hive.", fr: "== exige que toute la clé soit égale au segment, ce qui n'arrive jamais puisque la clé commence par la ruche." }
+    startswith: { en: "The key starts with the hive name, not with Microsoft\\Windows.", fr: "La clé commence par le nom de la ruche, pas par Microsoft\\Windows." }
+    prev: { en: "PreviousRegistryValueData is the data before a modification, empty for a new value.", fr: "PreviousRegistryValueData est la donnée avant une modification, vide pour une nouvelle valeur." }
+    cmd: { en: "InitiatingProcessCommandLine is the command line of the process that wrote the value (the script), not the command that the value starts.", fr: "InitiatingProcessCommandLine est la ligne de commande du processus qui a écrit la valeur (le script), pas la commande que la valeur lance." }
+references:
+  - title: DeviceRegistryEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceregistryevents-table

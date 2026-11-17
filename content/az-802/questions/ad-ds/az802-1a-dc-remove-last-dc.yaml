@@ -1,0 +1,59 @@
+id: az802-1a-dc-remove-last-dc
+objective: "1.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The **contoso.com** forest contains a child domain named **lab.contoso.com** that is no longer used. **DC9** is the only domain controller of lab.contoso.com and runs Windows Server 2025. All the resources of lab.contoso.com have been migrated.
+
+    You need to remove the lab.contoso.com domain, including its application directory partitions, and then remove the AD DS role binaries from DC9.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    La forêt **contoso.com** contient un domaine enfant nommé **lab.contoso.com** qui n'est plus utilisé. **DC9** est le seul contrôleur de domaine de lab.contoso.com et exécute Windows Server 2025. Toutes les ressources de lab.contoso.com ont été migrées.
+
+    Vous devez supprimer le domaine lab.contoso.com, y compris ses partitions d'annuaire d'application, puis supprimer de DC9 les fichiers binaires du rôle AD DS.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    # On DC9, signed in as a member of Enterprise Admins
+    Uninstall-ADDSDomainController [[last]] $true [[parts]] $true
+    # After the automatic restart
+    [[remove]] -Name AD-Domain-Services -IncludeManagementTools -Restart
+  slots:
+    - id: last
+      options:
+        - { id: ldc, text: -LastDomainControllerInDomain }
+        - { id: force, text: -ForceRemoval }
+        - { id: demote, text: -DemoteOperationMasterRole }
+    - id: parts
+      options:
+        - { id: rap, text: -RemoveApplicationPartitions }
+        - { id: rdd, text: -RemoveDnsDelegation }
+        - { id: demote2, text: -DemoteOperationMasterRole }
+    - id: remove
+      options:
+        - { id: uwf, text: Uninstall-WindowsFeature }
+        - { id: disable, text: Disable-WindowsOptionalFeature }
+        - { id: uaddsdc, text: Uninstall-ADDSDomainController }
+answer:
+  values: { last: ldc, parts: rap, remove: uwf }
+explanation:
+  correct:
+    en: "-LastDomainControllerInDomain confirms that DC9 is the last domain controller, so the demotion also removes the domain (this requires Enterprise Admins). -RemoveApplicationPartitions removes the application partitions hosted by the domain controller. Demotion does not remove the role binaries: after the restart, Uninstall-WindowsFeature removes AD-Domain-Services."
+    fr: "-LastDomainControllerInDomain confirme que DC9 est le dernier contrôleur de domaine : la rétrogradation supprime aussi le domaine (ce qui exige Enterprise Admins). -RemoveApplicationPartitions supprime les partitions d'application hébergées par le contrôleur de domaine. La rétrogradation ne supprime pas les fichiers binaires du rôle : après le redémarrage, Uninstall-WindowsFeature supprime AD-Domain-Services."
+  options:
+    force: { en: "-ForceRemoval is a last resort for a domain controller that cannot contact other domain controllers; it leaves orphaned metadata.", fr: "-ForceRemoval est un dernier recours pour un contrôleur de domaine qui ne peut pas joindre les autres ; il laisse des métadonnées orphelines." }
+    disable: { en: "Microsoft warns against removing AD DS with DISM tools, which can prevent the server from starting normally.", fr: "Microsoft déconseille de supprimer AD DS avec les outils DISM, ce qui peut empêcher le serveur de démarrer normalement." }
+    uaddsdc: { en: "DC9 is no longer a domain controller after the restart; the remaining task is to remove the role binaries.", fr: "DC9 n'est plus contrôleur de domaine après le redémarrage ; il reste à supprimer les fichiers binaires du rôle." }
+references:
+  - title: Demote domain controllers and domains
+    url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/deploy/demoting-domain-controllers-and-domains--level-200-

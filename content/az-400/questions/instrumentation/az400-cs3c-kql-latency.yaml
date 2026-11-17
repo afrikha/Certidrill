@@ -1,0 +1,83 @@
+id: az400-cs3c-kql-latency
+objective: "5.2.2"
+type: dropdown
+caseStudy: az400-cs3c-litware-energy
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to write a query in the log-meterhub workspace to meet the monitoring requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire une requête dans l'espace de travail log-meterhub pour satisfaire l'exigence de supervision.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated > ago(24h)
+    | summarize p95 = [[agg]] by Name, [[time]]
+    | where p95 > [[limit]]
+    | order by TimeGenerated asc, p95 desc
+  slots:
+    - id: table
+      options:
+        - { id: apprequests, text: "AppRequests" }
+        - { id: appdeps, text: "AppDependencies" }
+        - { id: appperf, text: "AppPerformanceCounters" }
+    - id: agg
+      options:
+        - { id: pct, text: "percentile(DurationMs, 95)" }
+        - { id: avg, text: "avg(DurationMs) * 0.95" }
+        - { id: max, text: "max(DurationMs)" }
+    - id: time
+      options:
+        - { id: bin1h, text: "TimeGenerated = bin(TimeGenerated, 1h)" }
+        - { id: bin1d, text: "TimeGenerated = bin(TimeGenerated, 1d)" }
+        - { id: raw, text: "TimeGenerated" }
+    - id: limit
+      options:
+        - { id: l2, text: "2" }
+        - { id: l2000, text: "2000" }
+        - { id: l2s, text: "2s" }
+answer:
+  values: { table: apprequests, agg: pct, time: bin1h, limit: l2000 }
+explanation:
+  correct:
+    en: |
+      In a Log Analytics workspace, the request telemetry of a workspace-based Application Insights resource is stored in the AppRequests table, where `Name` is the operation and `DurationMs` is the response time in milliseconds. `percentile(DurationMs, 95)` computes the 95th percentile, and grouping by `bin(TimeGenerated, 1h)` returns one value per operation and hour. Two seconds are 2,000 milliseconds.
+    fr: |
+      Dans un espace de travail Log Analytics, la télémétrie des requêtes d'une ressource Application Insights basée sur un espace de travail est stockée dans la table AppRequests, où `Name` est l'opération et `DurationMs` le temps de réponse en millisecondes. `percentile(DurationMs, 95)` calcule le 95e centile, et le regroupement par `bin(TimeGenerated, 1h)` renvoie une valeur par opération et par heure. Deux secondes font 2 000 millisecondes.
+  options:
+    appdeps:
+      en: |
+        AppDependencies contains the outgoing calls of the API to other services, not the response times of its own operations.
+      fr: |
+        AppDependencies contient les appels sortants de l'API vers d'autres services, pas les temps de réponse de ses propres opérations.
+    avg:
+      en: |
+        A fraction of the average is not a percentile; the 95th percentile can be far above the average when a few requests are slow.
+      fr: |
+        Une fraction de la moyenne n'est pas un centile ; le 95e centile peut être très supérieur à la moyenne quand quelques requêtes sont lentes.
+    raw:
+      en: |
+        Grouping by the raw timestamp creates one group per distinct time value instead of one per hour.
+      fr: |
+        Le regroupement par l'horodatage brut crée un groupe par valeur de temps distincte au lieu d'un groupe par heure.
+    l2s:
+      en: |
+        DurationMs is a number of milliseconds, so it must be compared with a number, not with a timespan literal.
+      fr: |
+        DurationMs est un nombre de millisecondes : il doit être comparé à un nombre, pas à un littéral timespan.
+references:
+  - title: Application Insights telemetry data model
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete
+  - title: percentile(), percentiles() (aggregation function)
+    url: https://learn.microsoft.com/en-us/kusto/query/percentiles-aggregation-function

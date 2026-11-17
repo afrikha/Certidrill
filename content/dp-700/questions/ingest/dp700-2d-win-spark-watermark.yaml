@@ -1,0 +1,70 @@
+id: dp700-2d-win-spark-watermark
+objective: "2.3.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric Spark job definition that reads turbine readings from an Azure event hub into a streaming DataFrame named `readings`. Each reading has the `TurbineId`, `EventTime` and `PowerKw` columns. Readings can arrive up to 10 minutes late.
+
+    You need to write to a Delta table named **power_15min** the average power of each turbine for consecutive, non-overlapping 15-minute windows based on `EventTime`. Each window must be written once, as a final result, and the state of closed windows must be dropped.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez dans Fabric d'une définition de travail Spark qui lit les mesures d'éoliennes d'un hub d'événements Azure dans un DataFrame de streaming nommé `readings`. Chaque mesure a les colonnes `TurbineId`, `EventTime` et `PowerKw`. Les mesures peuvent arriver jusqu'à 10 minutes en retard.
+
+    Vous devez écrire dans une table Delta nommée **power_15min** la puissance moyenne de chaque éolienne pour des fenêtres de 15 minutes consécutives et sans chevauchement, basées sur `EventTime`. Chaque fenêtre doit être écrite une seule fois, comme résultat définitif, et l'état des fenêtres fermées doit être abandonné.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    power = (readings
+        .[[late]]("EventTime", "10 minutes")
+        .groupBy([[win]], "TurbineId")
+        .agg(F.avg("PowerKw").alias("AvgPowerKw")))
+
+    (power.writeStream
+        .format("delta")
+        .outputMode([[mode]])
+        .option("checkpointLocation", "Files/checkpoints/power_15min")
+        .toTable("power_15min"))
+  slots:
+    - id: late
+      options:
+        - { id: ltWatermark, text: withWatermark }
+        - { id: ltDedup, text: dropDuplicates }
+        - { id: ltColumn, text: withColumn }
+    - id: win
+      options:
+        - { id: wnTumble, text: "F.window(\"EventTime\", \"15 minutes\")" }
+        - { id: wnHop, text: "F.window(\"EventTime\", \"15 minutes\", \"5 minutes\")" }
+        - { id: wnSession, text: "F.session_window(\"EventTime\", \"15 minutes\")" }
+    - id: mode
+      options:
+        - { id: mdComplete, text: "\"complete\"" }
+        - { id: mdUpdate, text: "\"update\"" }
+        - { id: mdAppend, text: "\"append\"" }
+answer:
+  values: { late: ltWatermark, win: wnTumble, mode: mdAppend }
+explanation:
+  correct:
+    en: "`withWatermark(\"EventTime\", \"10 minutes\")` tells Spark to wait 10 minutes past the latest event time seen before closing a window, then to drop its state. `window()` without a slide duration creates tumbling windows. In append mode, a window is written only after the watermark has passed its end, so each window is written once with its final value."
+    fr: "`withWatermark(\"EventTime\", \"10 minutes\")` indique à Spark d'attendre 10 minutes au-delà de la dernière heure d'événement observée avant de fermer une fenêtre, puis d'abandonner son état. `window()` sans durée de glissement crée des fenêtres bascules. En mode append, une fenêtre n'est écrite qu'une fois que le filigrane a dépassé sa fin : chaque fenêtre est donc écrite une seule fois avec sa valeur définitive."
+  options:
+    ltDedup: { en: "dropDuplicates removes duplicate rows; it doesn't define how long to wait for late data.", fr: "dropDuplicates supprime les lignes en double ; il ne définit pas combien de temps attendre les données tardives." }
+    ltColumn: { en: "withColumn adds or replaces a column; it doesn't declare a lateness threshold.", fr: "withColumn ajoute ou remplace une colonne ; il ne déclare pas de seuil de retard." }
+    wnHop: { en: "A slide duration shorter than the window creates overlapping (hopping) windows.", fr: "Une durée de glissement plus courte que la fenêtre crée des fenêtres qui se chevauchent (récurrentes)." }
+    wnSession: { en: "session_window groups events separated by less than a gap; its windows don't have a fixed 15-minute length.", fr: "session_window regroupe les événements séparés par moins qu'un intervalle ; ses fenêtres n'ont pas une durée fixe de 15 minutes." }
+    mdComplete: { en: "Complete mode rewrites the whole result at each trigger and never drops the aggregation state.", fr: "Le mode complete réécrit tout le résultat à chaque déclenchement et n'abandonne jamais l'état de l'agrégation." }
+    mdUpdate: { en: "Update mode writes partial results as they change, so a window can be written several times before it's final.", fr: "Le mode update écrit des résultats partiels à mesure qu'ils changent : une fenêtre peut être écrite plusieurs fois avant d'être définitive." }
+references:
+  - title: Apply watermarks to control data processing thresholds
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/watermarks

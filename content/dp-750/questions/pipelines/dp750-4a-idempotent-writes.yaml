@@ -1,0 +1,58 @@
+id: dp750-4a-idempotent-writes
+objective: "4.1.1"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip Toys has a notebook task that loads one day of sensor readings, identified by the **run_date** parameter, from **wingtip.bronze.readings** into the Delta table **wingtip.silver.readings**. Each reading has a unique **reading_id** and a **reading_day** column. The silver table contains several years of data.
+
+    The task has a retry policy. If the task fails after writing part of the data and is retried, the rerun must not create duplicate readings or remove the other days.
+
+    Which two write methods meet the requirement? Each correct answer presents a complete solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys dispose d'une tâche notebook qui charge une journée de relevés de capteurs, identifiée par le paramètre **run_date**, de **wingtip.bronze.readings** vers la table Delta **wingtip.silver.readings**. Chaque relevé possède un **reading_id** unique et une colonne **reading_day**. La table silver contient plusieurs années de données.
+
+    La tâche dispose d'une stratégie de nouvelles tentatives. Si la tâche échoue après avoir écrit une partie des données puis est relancée, la réexécution ne doit ni créer de relevés en double ni supprimer les autres journées.
+
+    Quelles sont les deux méthodes d'écriture qui répondent à l'exigence ? Chaque bonne réponse constitue une solution complète.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "MERGE INTO wingtip.silver.readings on reading_id, with WHEN MATCHED THEN UPDATE and WHEN NOT MATCHED THEN INSERT", fr: "MERGE INTO wingtip.silver.readings sur reading_id, avec WHEN MATCHED THEN UPDATE et WHEN NOT MATCHED THEN INSERT" } }
+    - { id: b, text: { en: "df.write.mode(\"append\").saveAsTable(\"wingtip.silver.readings\")", fr: "df.write.mode(\"append\").saveAsTable(\"wingtip.silver.readings\")" } }
+    - { id: c, text: { en: "df.write.mode(\"overwrite\").option(\"replaceWhere\", f\"reading_day = '{run_date}'\").saveAsTable(\"wingtip.silver.readings\")", fr: "df.write.mode(\"overwrite\").option(\"replaceWhere\", f\"reading_day = '{run_date}'\").saveAsTable(\"wingtip.silver.readings\")" } }
+    - { id: d, text: { en: "INSERT INTO wingtip.silver.readings SELECT * FROM wingtip.bronze.readings WHERE reading_day = :run_date", fr: "INSERT INTO wingtip.silver.readings SELECT * FROM wingtip.bronze.readings WHERE reading_day = :run_date" } }
+    - { id: e, text: { en: "df.write.mode(\"overwrite\").saveAsTable(\"wingtip.silver.readings\")", fr: "df.write.mode(\"overwrite\").saveAsTable(\"wingtip.silver.readings\")" } }
+answer: { optionIds: [ a, c ] }
+explanation:
+  correct:
+    en: |
+      A MERGE on the unique key updates the readings that were already written and inserts the missing ones, so a rerun gives the same result. An overwrite with `replaceWhere` atomically replaces only the rows of that day and leaves the other days unchanged, so a rerun replaces the partial data instead of adding to it.
+    fr: |
+      Un MERGE sur la clé unique met à jour les relevés déjà écrits et insère ceux qui manquent : une réexécution donne le même résultat. Un remplacement avec `replaceWhere` remplace de façon atomique les seules lignes de cette journée et laisse les autres journées intactes : une réexécution remplace les données partielles au lieu de s'y ajouter.
+  options:
+    b:
+      en: |
+        An append adds the readings again on every rerun, which creates duplicates.
+      fr: |
+        Un ajout réécrit les relevés à chaque réexécution, ce qui crée des doublons.
+    d:
+      en: |
+        INSERT INTO also appends rows, so the readings written before the failure are duplicated.
+      fr: |
+        INSERT INTO ajoute lui aussi des lignes : les relevés écrits avant l'échec sont dupliqués.
+    e:
+      en: |
+        An overwrite without a predicate replaces the whole table and removes every other day.
+      fr: |
+        Un remplacement sans prédicat remplace toute la table et supprime toutes les autres journées.
+references:
+  - title: Selectively overwrite data with Delta Lake
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/selective-overwrite
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

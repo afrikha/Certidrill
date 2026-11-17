@@ -1,0 +1,70 @@
+id: dp700-1c-audit-failed-access-query
+objective: "1.3.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named DW1. SQL audit logs are enabled on DW1 with the Object Was Accessed action group. You have the Audit permission on DW1.
+
+    You need a T-SQL query that lists, for November 2, 2026 (UTC), the object access attempts that failed their permission check, with the time, the login and the statement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé DW1. Les journaux d'audit SQL sont activés sur DW1 avec le groupe d'actions Object Was Accessed. Vous avez l'autorisation Audit sur DW1.
+
+    Vous avez besoin d'une requête T-SQL qui liste, pour le 2 novembre 2026 (UTC), les tentatives d'accès aux objets dont la vérification d'autorisation a échoué, avec l'heure, la connexion et l'instruction.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT event_time, server_principal_name, statement
+    FROM [[fn]](
+        'https://onelake.blob.fabric.microsoft.com/<workspaceId>/<warehouseId>/[[folder]]/sqldbauditlogs/',
+        DEFAULT, DEFAULT,
+        '2026-11-02T00:00:00Z', '2026-11-02T23:59:59Z')
+    WHERE [[col]] = 0;
+  slots:
+    - id: fn
+      options:
+        - { id: v2, text: sys.fn_get_audit_file_v2 }
+        - { id: perms, text: sys.fn_my_permissions }
+        - { id: history, text: queryinsights.exec_requests_history }
+        - { id: xe, text: sys.fn_xe_file_target_read_file }
+    - id: folder
+      options:
+        - { id: audit, text: Audit }
+        - { id: files, text: Files }
+        - { id: tables, text: Tables }
+        - { id: logs, text: Logs }
+    - id: col
+      options:
+        - { id: succeeded, text: succeeded }
+        - { id: actionid, text: action_id }
+        - { id: classtype, text: class_type }
+        - { id: sequence, text: sequence_number }
+answer:
+  values: { fn: v2, folder: audit, col: succeeded }
+explanation:
+  correct:
+    en: |
+      SQL audit events are stored as .XEL files under the Audit/sqldbauditlogs folder of the warehouse in OneLake and are read with sys.fn_get_audit_file_v2, whose last two arguments filter by start and end time. The succeeded column is 0 when the permission check of the action failed.
+    fr: |
+      Les événements d'audit SQL sont stockés sous forme de fichiers .XEL dans le dossier Audit/sqldbauditlogs de l'entrepôt dans OneLake et se lisent avec sys.fn_get_audit_file_v2, dont les deux derniers arguments filtrent par heure de début et de fin. La colonne succeeded vaut 0 quand la vérification d'autorisation de l'action a échoué.
+  options:
+    perms: { en: "sys.fn_my_permissions lists your own effective permissions on a securable, not audit events.", fr: "sys.fn_my_permissions liste vos propres autorisations effectives sur un élément sécurisable, pas des événements d'audit." }
+    history: { en: "Query insights views record completed queries for performance analysis, not audit events, and aren't functions that take a path.", fr: "Les vues Query insights enregistrent les requêtes terminées pour l'analyse des performances, pas des événements d'audit, et ne sont pas des fonctions qui prennent un chemin." }
+    xe: { en: "Fabric SQL audit logs are read with sys.fn_get_audit_file_v2, which supports the time-range arguments used here.", fr: "Les journaux d'audit SQL de Fabric se lisent avec sys.fn_get_audit_file_v2, qui prend en charge les arguments de plage horaire utilisés ici." }
+    files: { en: "The Files folder belongs to lakehouses; audit files are in the Audit folder.", fr: "Le dossier Files appartient aux lakehouses ; les fichiers d'audit sont dans le dossier Audit." }
+    actionid: { en: "action_id identifies the type of action and is a varchar code, not a success flag.", fr: "action_id identifie le type d'action et est un code varchar, pas un indicateur de réussite." }
+references:
+  - title: How to configure SQL audit logs
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/configure-sql-audit-logs
+  - title: sys.fn_get_audit_file_v2 (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-functions/sys-fn-get-audit-file-v2-transact-sql

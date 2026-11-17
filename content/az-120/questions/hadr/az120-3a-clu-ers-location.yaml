@@ -1,0 +1,50 @@
+id: az120-3a-clu-ers-location
+objective: "3.1.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind Traders runs the ASCS instance 00 and the ERS instance 02 of an SAP system named **NW1** in a two-node Pacemaker cluster on SLES. NW1 uses ENSA1. The cluster already contains these constraints:
+
+    ```text
+    colocation col_sap_NW1_no_both -5000: g-NW1_ERS g-NW1_ASCS
+    order ord_sap_NW1_first_start_ascs Optional: rsc_sap_NW1_ASCS00:start rsc_sap_NW1_ERS02:stop symmetrical=false
+    ```
+
+    When the ASCS instance fails, it must restart on the node where ERS runs, so that it can take over the replicated lock table.
+
+    Which constraint should you add?
+  fr: |
+    Northwind Traders exécute l'instance ASCS 00 et l'instance ERS 02 d'un système SAP nommé **NW1** dans un cluster Pacemaker à deux nœuds sur SLES. NW1 utilise ENSA1. Le cluster contient déjà ces contraintes :
+
+    ```text
+    colocation col_sap_NW1_no_both -5000: g-NW1_ERS g-NW1_ASCS
+    order ord_sap_NW1_first_start_ascs Optional: rsc_sap_NW1_ASCS00:start rsc_sap_NW1_ERS02:stop symmetrical=false
+    ```
+
+    En cas de défaillance, l'instance ASCS doit redémarrer sur le nœud où s'exécute l'ERS, afin de reprendre la table de verrous répliquée.
+
+    Quelle contrainte devez-vous ajouter ?
+body:
+  options:
+    - id: a
+      text: "colocation col_sap_NW1_together 2000: g-NW1_ASCS g-NW1_ERS"
+    - id: b
+      text: "location loc_sap_NW1_ascs_node0 rsc_sap_NW1_ASCS00 2000: nw1-cl-0"
+    - id: c
+      text: "order ord_sap_NW1_ers_first Mandatory: rsc_sap_NW1_ERS02:start rsc_sap_NW1_ASCS00:start"
+    - id: d
+      text: "location loc_sap_NW1_failover_to_ers rsc_sap_NW1_ASCS00 rule 2000: runs_ers_NW1 eq 1"
+answer: { optionId: d }
+explanation:
+  correct:
+    en: The ERS resource sets the node attribute runs_ers_NW1 to 1 on the node where it runs. A location rule on the ASCS resource with a positive score for that attribute makes the cluster start ASCS on the ERS node after a failure, where it takes over the replicated locks. The existing order constraint then stops ERS, and the negative colocation moves ERS to the other node.
+    fr: La ressource ERS définit l'attribut de nœud runs_ers_NW1 sur 1 sur le nœud où elle s'exécute. Une règle d'emplacement sur la ressource ASCS avec un score positif pour cet attribut fait démarrer l'ASCS sur le nœud ERS après une défaillance, où il reprend les verrous répliqués. La contrainte d'ordre existante arrête ensuite l'ERS, et la colocation négative déplace l'ERS vers l'autre nœud.
+  options:
+    a: { en: "A positive colocation would keep ASCS and ERS together permanently, which conflicts with the -5000 colocation and leaves no replica on another node.", fr: "Une colocation positive maintiendrait l'ASCS et l'ERS ensemble en permanence, ce qui contredit la colocation -5000 et ne laisse aucune réplique sur un autre nœud." }
+    c: { en: "A mandatory order on ERS start doesn't choose the node of ASCS and would block ASCS when ERS can't start.", fr: "Un ordre obligatoire sur le démarrage de l'ERS ne choisit pas le nœud de l'ASCS et bloquerait l'ASCS si l'ERS ne peut pas démarrer." }
+    b: { en: "A fixed node preference ignores where ERS currently runs, so ASCS could restart away from the replicated lock table.", fr: "Une préférence de nœud fixe ignore l'emplacement actuel de l'ERS ; l'ASCS pourrait donc redémarrer loin de la table de verrous répliquée." }
+references:
+  - title: Azure VMs high availability for SAP NetWeaver on SLES
+    url: https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-suse

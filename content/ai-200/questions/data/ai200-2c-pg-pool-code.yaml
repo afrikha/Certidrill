@@ -1,0 +1,89 @@
+id: ai200-2c-pg-pool-code
+objective: "2.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Trey Research runs a synchronous Python retrieval API on eight replicas. The API connects to an Azure Database for PostgreSQL flexible server named pg-trey, where the built-in PgBouncer is enabled. The `token` variable contains a Microsoft Entra access token.
+
+    The code must meet the following requirements:
+
+    - Send every connection through PgBouncer.
+    - Keep at most 25 connections open in each replica.
+    - Return each connection to the pool after use, even when the query raises an exception.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Trey Research exécute une API de récupération Python synchrone sur huit réplicas. L'API se connecte à un serveur flexible Azure Database for PostgreSQL nommé pg-trey, sur lequel le PgBouncer intégré est activé. La variable `token` contient un jeton d'accès Microsoft Entra.
+
+    Le code doit respecter les exigences suivantes :
+
+    - Faire passer chaque connexion par PgBouncer.
+    - Garder au plus 25 connexions ouvertes dans chaque réplica.
+    - Rendre chaque connexion au pool après usage, même quand la requête lève une exception.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import psycopg
+    from psycopg_pool import AsyncConnectionPool, ConnectionPool
+
+    pool = [[cls]](
+        conninfo="host=pg-trey.postgres.database.azure.com port=[[port]] "
+                 "dbname=rag user=rag-api sslmode=require",
+        kwargs={"password": token},
+        min_size=4,
+        max_size=[[max]],
+    )
+
+    def top_chunks(sql: str, params: dict) -> list:
+        with pool.[[ctx]]() as conn:
+            return conn.execute(sql, params).fetchall()
+  slots:
+    - id: cls
+      options:
+        - { id: sync, text: ConnectionPool }
+        - { id: async, text: AsyncConnectionPool }
+        - { id: connect, text: psycopg.connect }
+    - id: port
+      options:
+        - { id: p5432, text: "5432" }
+        - { id: p6432, text: "6432" }
+        - { id: p10000, text: "10000" }
+    - id: max
+      options:
+        - { id: m4, text: "4" }
+        - { id: m200, text: "200" }
+        - { id: m25, text: "25" }
+    - id: ctx
+      options:
+        - { id: connection, text: connection }
+        - { id: getconn, text: getconn }
+        - { id: open, text: open }
+answer:
+  values: { cls: sync, port: p6432, max: m25, ctx: connection }
+explanation:
+  correct:
+    en: |
+      `ConnectionPool` is the synchronous pool of psycopg_pool. The built-in PgBouncer listens on port 6432 with the same host name. `max_size` is the limit of each pool, so each of the eight replicas keeps at most 25 connections. `pool.connection()` is a context manager that lends a connection and returns it to the pool when the block ends, even after an exception.
+    fr: |
+      `ConnectionPool` est le pool synchrone de psycopg_pool. Le PgBouncer intégré écoute sur le port 6432 avec le même nom d'hôte. `max_size` est la limite de chaque pool : chacun des huit réplicas conserve au plus 25 connexions. `pool.connection()` est un gestionnaire de contexte qui prête une connexion et la rend au pool à la fin du bloc, même après une exception.
+  options:
+    async: { en: "AsyncConnectionPool is for asyncio code with `async with`, not for this synchronous API.", fr: "AsyncConnectionPool est destiné au code asyncio avec `async with`, pas à cette API synchrone." }
+    connect: { en: "`psycopg.connect` opens a single connection and doesn't accept pool sizes.", fr: "`psycopg.connect` ouvre une seule connexion et n'accepte pas de tailles de pool." }
+    p5432: { en: "Port 5432 connects directly to PostgreSQL and bypasses PgBouncer.", fr: "Le port 5432 se connecte directement à PostgreSQL et contourne PgBouncer." }
+    p10000: { en: "Port 10000 is used by Azure Managed Redis, not by PostgreSQL.", fr: "Le port 10000 est utilisé par Azure Managed Redis, pas par PostgreSQL." }
+    m4: { en: "4 is the minimum size; a maximum of 4 would make requests wait under load.", fr: "4 est la taille minimale ; un maximum de 4 ferait attendre les requêtes en charge." }
+    m200: { en: "200 is the total for eight replicas; `max_size` applies to each replica's pool.", fr: "200 est le total pour huit réplicas ; `max_size` s'applique au pool de chaque réplica." }
+    getconn: { en: "A connection taken with `getconn()` must be returned with `putconn()`; used in a `with` block, it is closed instead of returned.", fr: "Une connexion obtenue avec `getconn()` doit être rendue avec `putconn()` ; utilisée dans un bloc `with`, elle est fermée au lieu d'être rendue." }
+    open: { en: "`open()` opens the pool itself; it doesn't lend a connection.", fr: "`open()` ouvre le pool lui-même ; il ne prête pas de connexion." }
+references:
+  - title: PgBouncer in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-pgbouncer

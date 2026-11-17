@@ -1,0 +1,46 @@
+id: dp420-1c-impact-fan-out-query
+objective: "1.3.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Adatum stores customer items in an Azure Cosmos DB for NoSQL container partitioned by `/customerId`. The container has 25 physical partitions and uses the default indexing policy.
+
+    A login service runs the following query, which returns one item:
+
+    `SELECT * FROM c WHERE c.email = @email`
+
+    The query costs much more than a point read of the same item.
+
+    What is the most likely cause?
+  fr: |
+    Adatum stocke des éléments client dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/customerId`. Le conteneur compte 25 partitions physiques et utilise la stratégie d'indexation par défaut.
+
+    Un service de connexion exécute la requête suivante, qui renvoie un élément :
+
+    `SELECT * FROM c WHERE c.email = @email`
+
+    La requête coûte beaucoup plus qu'une lecture ponctuelle du même élément.
+
+    Quelle est la cause la plus probable ?
+body:
+  options:
+    - { id: a, text: { en: "The email property is not indexed by the default indexing policy", fr: "La propriété email n'est pas indexée par la stratégie d'indexation par défaut" } }
+    - { id: b, text: { en: "Queries always use Strong consistency, which doubles their RU cost", fr: "Les requêtes utilisent toujours la cohérence Strong, ce qui double leur coût en RU" } }
+    - { id: c, text: { en: "The query reads every item of the container to evaluate the filter", fr: "La requête lit chaque élément du conteneur pour évaluer le filtre" } }
+    - { id: d, text: { en: "The query does not filter on the partition key, so it runs on every physical partition", fr: "La requête ne filtre pas sur la clé de partition : elle s'exécute sur chaque partition physique" } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Without the partition key in the filter, the query is a cross-partition query that fans out to all 25 physical partitions. Each partition checks its index and adds roughly 2 to 3 RUs of overhead, so the total is much higher than a point read by id and partition key.
+    fr: |-
+      Sans la clé de partition dans le filtre, la requête est une requête entre partitions diffusée vers les 25 partitions physiques. Chaque partition consulte son index et ajoute environ 2 à 3 RU de surcharge : le total est bien supérieur à celui d'une lecture ponctuelle par id et clé de partition.
+  options:
+    a: { en: "The default indexing policy indexes every property, including email.", fr: "La stratégie d'indexation par défaut indexe toutes les propriétés, y compris email." }
+    c: { en: "The filter is served from the index on each partition; the items are not all scanned.", fr: "Le filtre est servi par l'index de chaque partition ; les éléments ne sont pas tous parcourus." }
+    b: { en: "Queries use the account's default consistency level or a weaker one set by the client.", fr: "Les requêtes utilisent le niveau de cohérence par défaut du compte ou un niveau plus faible défini par le client." }
+references:
+  - title: Partitioning and horizontal scaling in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning-overview

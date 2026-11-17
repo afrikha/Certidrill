@@ -1,0 +1,52 @@
+id: dp750-3b-cdc-delta-source
+objective: "3.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum updates the Delta table **adatum.silver.orders** with MERGE statements. A downstream streaming query reads the table with `spark.readStream.table("adatum.silver.orders")` and writes to **adatum.gold.orders_sync**.
+
+    Since the first MERGE, the streaming query fails because the source table was modified. The downstream table must receive the inserts, the updates and the deletes made to adatum.silver.orders.
+
+    What should you do?
+  fr: |
+    Adatum met à jour la table Delta **adatum.silver.orders** avec des instructions MERGE. Une requête de streaming en aval lit la table avec `spark.readStream.table("adatum.silver.orders")` et écrit dans **adatum.gold.orders_sync**.
+
+    Depuis le premier MERGE, la requête de streaming échoue, car la table source a été modifiée. La table en aval doit recevoir les insertions, les mises à jour et les suppressions effectuées dans adatum.silver.orders.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add .option(\"skipChangeCommits\", \"true\") to the streaming read.", fr: "Ajouter .option(\"skipChangeCommits\", \"true\") à la lecture en streaming." } }
+    - { id: b, text: { en: "Enable change data feed on adatum.silver.orders and add .option(\"readChangeFeed\", \"true\") to the streaming read.", fr: "Activer le flux de données modifiées sur adatum.silver.orders et ajouter .option(\"readChangeFeed\", \"true\") à la lecture en streaming." } }
+    - { id: c, text: { en: "Add .option(\"ignoreDeletes\", \"true\") to the streaming read.", fr: "Ajouter .option(\"ignoreDeletes\", \"true\") à la lecture en streaming." } }
+    - { id: d, text: { en: "Delete the checkpoint of the streaming query after each MERGE.", fr: "Supprimer le point de contrôle de la requête de streaming après chaque MERGE." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      A Delta streaming source accepts only appends, so updates and deletes make the stream fail. Change data feed records row-level inserts, updates and deletes, and a stream that reads it with readChangeFeed receives each change with its _change_type, which the downstream logic can apply.
+    fr: |
+      Une source de streaming Delta n'accepte que les ajouts : les mises à jour et les suppressions font échouer le flux. Le flux de données modifiées enregistre les insertions, mises à jour et suppressions au niveau des lignes, et un flux qui le lit avec readChangeFeed reçoit chaque modification avec son _change_type, que la logique en aval peut appliquer.
+  options:
+    a:
+      en: |
+        skipChangeCommits ignores the commits that change existing files, so updates and deletes never reach the downstream table.
+      fr: |
+        skipChangeCommits ignore les validations qui modifient des fichiers existants : les mises à jour et les suppressions n'atteignent jamais la table en aval.
+    c:
+      en: |
+        ignoreDeletes handles only full partition drops; MERGE updates still make the stream fail.
+      fr: |
+        ignoreDeletes ne gère que les suppressions de partitions entières ; les mises à jour par MERGE font toujours échouer le flux.
+    d:
+      en: |
+        Without a checkpoint, the stream starts over and reprocesses the whole table at each run, and deletes still aren't propagated.
+      fr: |
+        Sans point de contrôle, le flux repart de zéro et retraite toute la table à chaque exécution, et les suppressions ne sont toujours pas propagées.
+references:
+  - title: Delta Lake table streaming reads and writes
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/delta-lake
+  - title: Use change data feed on Azure Databricks
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/delta-change-data-feed

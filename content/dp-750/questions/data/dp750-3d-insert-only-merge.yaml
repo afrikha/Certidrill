@@ -1,0 +1,57 @@
+id: dp750-3d-insert-only-merge
+objective: "3.3.7"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware has a Delta table named **litware.silver.web_events**. An hourly Lakeflow job loads a batch of events from **litware.staging.web_events_batch** into the table. Inside each batch, every `event_id` value is unique, but the upstream system sometimes resends events that a previous batch already loaded.
+
+    A Structured Streaming query in another job reads litware.silver.web_events as a streaming source, so the table must only receive appended rows. No `event_id` value may appear twice in the table.
+
+    Which statement should the hourly job run?
+  fr: |
+    Litware dispose d'une table Delta nommée **litware.silver.web_events**. Un job Lakeflow horaire charge un lot d'événements de **litware.staging.web_events_batch** dans la table. Dans chaque lot, chaque valeur `event_id` est unique, mais le système en amont renvoie parfois des événements qu'un lot précédent a déjà chargés.
+
+    Une requête Structured Streaming d'un autre job lit litware.silver.web_events comme source de streaming : la table ne doit donc recevoir que des lignes ajoutées. Aucune valeur `event_id` ne doit apparaître deux fois dans la table.
+
+    Quelle instruction le job horaire doit-il exécuter ?
+body:
+  options:
+    - id: a
+      text: "`INSERT INTO litware.silver.web_events SELECT * FROM litware.staging.web_events_batch`"
+    - id: b
+      text: "`MERGE INTO litware.silver.web_events AS t USING litware.staging.web_events_batch AS s ON t.event_id = s.event_id WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *`"
+    - id: c
+      text: "`INSERT INTO litware.silver.web_events REPLACE USING (event_id) SELECT * FROM litware.staging.web_events_batch`"
+    - id: d
+      text: "`MERGE INTO litware.silver.web_events AS t USING litware.staging.web_events_batch AS s ON t.event_id = s.event_id WHEN NOT MATCHED THEN INSERT *`"
+answer:
+  optionId: d
+explanation:
+  correct:
+    en: |
+      An insert-only merge, with only a `WHEN NOT MATCHED THEN INSERT *` clause, inserts the events whose `event_id` isn't in the table yet and ignores the resent ones. Because it never updates or deletes rows, it only appends, so a streaming query can keep reading the table. The merge doesn't remove duplicates inside the batch itself, which the scenario already excludes.
+    fr: |
+      Une fusion en insertion seule, avec uniquement une clause `WHEN NOT MATCHED THEN INSERT *`, insère les événements dont l'`event_id` n'est pas encore dans la table et ignore ceux qui sont renvoyés. Comme elle ne met jamais à jour ni ne supprime de lignes, elle ne fait qu'ajouter, et une requête de streaming peut continuer à lire la table. La fusion ne supprime pas les doublons à l'intérieur du lot lui-même, ce que le scénario exclut déjà.
+  options:
+    a:
+      en: |
+        `INSERT INTO` appends the resent events again, so the same `event_id` appears twice.
+      fr: |
+        `INSERT INTO` ajoute de nouveau les événements renvoyés : le même `event_id` apparaît deux fois.
+    b:
+      en: |
+        The `WHEN MATCHED THEN UPDATE SET *` clause rewrites existing rows when an event is resent, so the table no longer receives appends only.
+      fr: |
+        La clause `WHEN MATCHED THEN UPDATE SET *` réécrit des lignes existantes quand un événement est renvoyé : la table ne reçoit plus uniquement des ajouts.
+    c:
+      en: |
+        `REPLACE USING` deletes the existing rows whose `event_id` matches before inserting the batch, so the table receives deletes, not only appends.
+      fr: |
+        `REPLACE USING` supprime les lignes existantes dont l'`event_id` correspond avant d'insérer le lot : la table reçoit des suppressions, pas uniquement des ajouts.
+references:
+  - title: Upsert into a Delta Lake table using merge
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge
+  - title: INSERT
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-dml-insert-into

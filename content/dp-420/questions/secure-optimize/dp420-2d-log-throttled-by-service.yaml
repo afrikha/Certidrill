@@ -1,0 +1,72 @@
+id: dp420-2d-log-throttled-by-service
+objective: "2.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind runs six microservices on the same Azure Kubernetes Service nodes, behind one NAT gateway. Each microservice creates its .NET `CosmosClient` in Direct mode and sets `CosmosClientOptions.ApplicationName` to its own name, such as `checkout-svc`.
+
+    The Azure Cosmos DB for NoSQL account sends the **DataPlaneRequests** category to a Log Analytics workspace in resource-specific mode.
+
+    You need a chart that shows, for the last 24 hours, the number of rate-limited requests of each microservice in 15-minute intervals.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind exécute six microservices sur les mêmes nœuds Azure Kubernetes Service, derrière une seule passerelle NAT. Chaque microservice crée son `CosmosClient` .NET en mode Direct et définit `CosmosClientOptions.ApplicationName` sur son propre nom, par exemple `checkout-svc`.
+
+    Le compte Azure Cosmos DB for NoSQL envoie la catégorie **DataPlaneRequests** vers un espace de travail Log Analytics en mode spécifique à la ressource.
+
+    Vous avez besoin d'un graphique qui montre, pour les dernières 24 heures, le nombre de requêtes limitées de chaque microservice par intervalles de 15 minutes.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated > ago(24h)
+    | where [[filter]]
+    | summarize Throttled = count() by [[col]], bin(TimeGenerated, 15m)
+    | render timechart
+  slots:
+    - id: table
+      options:
+        - { id: tdp, text: CDBDataPlaneRequests }
+        - { id: tpk, text: CDBPartitionKeyRUConsumption }
+        - { id: tqr, text: CDBQueryRuntimeStatistics }
+        - { id: tact, text: AzureActivity }
+    - id: filter
+      options:
+        - { id: f429, text: StatusCode == 429 }
+        - { id: f503, text: StatusCode == 503 }
+        - { id: f408, text: StatusCode == 408 }
+    - id: col
+      options:
+        - { id: cua, text: UserAgent }
+        - { id: cip, text: ClientIpAddress }
+        - { id: cop, text: OperationName }
+        - { id: ckey, text: KeyType }
+answer:
+  values: { table: tdp, filter: f429, col: cua }
+explanation:
+  correct:
+    en: |
+      CDBDataPlaneRequests has one row per data plane request with its StatusCode, and rate-limited requests return 429. ApplicationName sets a user-agent suffix that the service records in the UserAgent column, so grouping by UserAgent separates the microservices.
+    fr: |
+      CDBDataPlaneRequests contient une ligne par requête du plan de données avec son StatusCode, et les requêtes limitées renvoient 429. ApplicationName définit un suffixe d'agent utilisateur que le service enregistre dans la colonne UserAgent : regrouper par UserAgent sépare donc les microservices.
+  options:
+    tpk: { en: "CDBPartitionKeyRUConsumption records RU per logical partition key; it has no status code.", fr: "CDBPartitionKeyRUConsumption enregistre les RU par clé de partition logique ; elle n'a pas de code d'état." }
+    tact: { en: "AzureActivity holds control plane events from the activity log, not data plane requests.", fr: "AzureActivity contient les événements du plan de contrôle du journal d'activité, pas les requêtes du plan de données." }
+    f503: { en: "503 means the service is unavailable; rate limiting returns 429.", fr: "503 signifie que le service n'est pas disponible ; la limitation du débit renvoie 429." }
+    cip: { en: "All microservices leave through the same NAT gateway, so the client IP address doesn't tell them apart.", fr: "Tous les microservices sortent par la même passerelle NAT : l'adresse IP du client ne permet donc pas de les distinguer." }
+    cop: { en: "OperationName groups by operation type, such as Read or Query, not by application.", fr: "OperationName regroupe par type d'opération, comme Read ou Query, pas par application." }
+references:
+  - title: Azure Monitor Logs reference - CDBDataPlaneRequests
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cdbdataplanerequests
+  - title: CosmosClientOptions.ApplicationName Property (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.cosmosclientoptions.applicationname

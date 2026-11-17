@@ -1,0 +1,69 @@
+id: ai200-2a-idx-optin-tags
+objective: "2.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware stores web pages crawled for an AI search assistant in an Azure Cosmos DB for NoSQL container partitioned on `/tenantId`. Items are large and have many properties. Every query filters on `tenantId` and on one value of the `tags` array, for example `ARRAY_CONTAINS(c.tags, "pricing")`.
+
+    You need an indexing policy that indexes only `tenantId` and the elements of `tags`, so that writes consume as few RUs as possible.
+
+    How should you complete the policy? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware stocke des pages web explorées pour un assistant de recherche IA dans un conteneur Azure Cosmos DB for NoSQL partitionné sur `/tenantId`. Les éléments sont volumineux et ont de nombreuses propriétés. Chaque requête filtre sur `tenantId` et sur une valeur du tableau `tags`, par exemple `ARRAY_CONTAINS(c.tags, "pricing")`.
+
+    Vous avez besoin d'une stratégie d'indexation qui indexe uniquement `tenantId` et les éléments de `tags`, afin que les écritures consomment le moins de RU possible.
+
+    Comment devez-vous compléter la stratégie ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "indexingMode": "[[mode]]",
+      "automatic": true,
+      "includedPaths": [
+        { "path": "/tenantId/?" },
+        { "path": "[[tags]]" }
+      ],
+      "excludedPaths": [
+        { "path": "[[excluded]]" }
+      ]
+    }
+  slots:
+    - id: mode
+      options:
+        - { id: consistent, text: consistent }
+        - { id: none, text: none }
+        - { id: lazy, text: lazy }
+    - id: tags
+      options:
+        - { id: arr, text: '/tags/[]/?' }
+        - { id: scalar, text: '/tags/?' }
+        - { id: tuple, text: '/tags/{value}/?' }
+    - id: excluded
+      options:
+        - { id: all, text: '/*' }
+        - { id: tagsall, text: '/tags/*' }
+        - { id: etag, text: '/\"_etag\"/?' }
+answer:
+  values: { mode: consistent, tags: arr, excluded: all }
+explanation:
+  correct:
+    en: "With the opt-in strategy, you exclude the root path `/*` and include only the paths you query. `/tags/[]/?` addresses the scalar value of every element of the array. Consistent mode updates the index synchronously with each write, which queries need."
+    fr: "Avec la stratégie d'inclusion explicite, vous excluez le chemin racine `/*` et n'incluez que les chemins interrogés. `/tags/[]/?` désigne la valeur scalaire de chaque élément du tableau. Le mode consistent met à jour l'index de façon synchrone à chaque écriture, ce dont les requêtes ont besoin."
+  options:
+    none: { en: "Mode `none` disables indexing, so the filters couldn't use any index.", fr: "Le mode `none` désactive l'indexation : les filtres ne pourraient utiliser aucun index." }
+    lazy: { en: "Lazy mode can return incomplete query results and can't be selected without an exemption.", fr: "Le mode lazy peut renvoyer des résultats de requête incomplets et ne peut pas être sélectionné sans dérogation." }
+    scalar: { en: "`/?` targets a scalar value, but `tags` is an array; its elements are addressed with `[]`.", fr: "`/?` cible une valeur scalaire, mais `tags` est un tableau ; ses éléments se désignent avec `[]`." }
+    tuple: { en: "Tuple syntax lists several fields of array elements in braces and isn't needed for an array of strings.", fr: "La syntaxe de tuple liste plusieurs champs d'éléments de tableau entre accolades et n'est pas utile pour un tableau de chaînes." }
+    tagsall: { en: "Excluding `/tags/*` removes the path you need, and the policy must contain `/*` as an included or excluded path.", fr: "Exclure `/tags/*` supprime le chemin nécessaire, et la stratégie doit contenir `/*` comme chemin inclus ou exclu." }
+    etag: { en: "Every policy must include `/*` as an included or excluded path; excluding only `_etag` leaves the root path undefined.", fr: "Toute stratégie doit contenir `/*` comme chemin inclus ou exclu ; exclure seulement `_etag` laisse le chemin racine non défini." }
+references:
+  - title: Indexing policies - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/index-policy

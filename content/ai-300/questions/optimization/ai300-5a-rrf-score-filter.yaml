@@ -1,0 +1,52 @@
+id: ai300-5a-rrf-score-filter
+objective: "5.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank's RAG assistant used to send vector-only queries to an Azure AI Search index. The vector field uses the `cosine` metric. Client-side code drops every result whose `@search.score` is lower than 0.5, and this filter worked as expected.
+
+    The team changes the assistant to send hybrid queries: each request now contains a `search` string and one vector query on `contentVector` with `k` set to 50. Semantic ranking isn't used. Since the change, the client-side filter drops every result for every question.
+
+    What is the cause?
+  fr: |
+    L'assistant RAG de Woodgrove Bank envoyait des requêtes uniquement vectorielles à un index Azure AI Search. Le champ vectoriel utilise la métrique `cosine`. Un code côté client écarte chaque résultat dont `@search.score` est inférieur à 0,5, et ce filtre fonctionnait comme prévu.
+
+    L'équipe modifie l'assistant pour qu'il envoie des requêtes hybrides : chaque requête contient désormais une chaîne `search` et une requête vectorielle sur `contentVector` avec `k` défini sur 50. Le classement sémantique n'est pas utilisé. Depuis la modification, le filtre côté client écarte tous les résultats, pour toutes les questions.
+
+    Quelle est la cause ?
+body:
+  options:
+    - id: a
+      text: { en: "In a hybrid query, `@search.score` is returned only when semantic ranking is enabled; otherwise its value is 0.", fr: "Dans une requête hybride, `@search.score` n'est renvoyé que si le classement sémantique est activé ; sinon sa valeur est 0." }
+    - id: b
+      text: { en: "In a hybrid query, a `k` of 50 makes the vector query return matches whose cosine score is below 0.5.", fr: "Dans une requête hybride, un `k` de 50 fait renvoyer à la requête vectorielle des correspondances dont le score cosinus est inférieur à 0,5." }
+    - id: c
+      text: { en: "In a hybrid query, the service rescales the BM25 and cosine scores to a common range of 0 to 0.1 before it sorts the results.", fr: "Dans une requête hybride, le service ramène les scores BM25 et cosinus à une plage commune de 0 à 0,1 avant de trier les résultats." }
+    - id: d
+      text: { en: "In a hybrid query, `@search.score` is the RRF score, a sum of reciprocal ranks that stays far below 0.5 when two result sets are fused.", fr: "Dans une requête hybride, `@search.score` est le score RRF, une somme de rangs réciproques qui reste très inférieure à 0,5 lorsque deux jeux de résultats sont fusionnés." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      Hybrid results are merged with Reciprocal Rank Fusion. Each result set contributes 1/(rank + k), with an RRF constant such as 60, and the contributions are summed, so with two fused queries the score can't exceed about 2/61, roughly 0.033. With vector-only cosine queries, scores range from 0.333 to 1.00, which is why the 0.5 filter used to work. Learn advises thresholds for single vector queries, not for hybrid queries, because RRF scores are small and volatile.
+    fr: |
+      Les résultats hybrides sont fusionnés avec Reciprocal Rank Fusion. Chaque jeu de résultats apporte 1/(rang + k), avec une constante RRF comme 60, et les contributions sont additionnées : avec deux requêtes fusionnées, le score ne peut pas dépasser environ 2/61, soit à peu près 0,033. Avec des requêtes uniquement vectorielles en cosinus, les scores vont de 0,333 à 1,00, ce qui explique que le filtre à 0,5 fonctionnait. Learn recommande les seuils pour les requêtes vectorielles uniques, pas pour les requêtes hybrides, car les scores RRF sont faibles et volatils.
+  options:
+    c:
+      en: |
+        The service doesn't rescale BM25 or cosine scores; it replaces them with a rank-based RRF score.
+      fr: |
+        Le service ne remet pas à l'échelle les scores BM25 ou cosinus ; il les remplace par un score RRF fondé sur les rangs.
+    a:
+      en: "`@search.score` is always returned; semantic ranking adds a separate `@search.rerankerScore`."
+      fr: "`@search.score` est toujours renvoyé ; le classement sémantique ajoute un `@search.rerankerScore` distinct."
+    b:
+      en: "`k` sets how many nearest neighbors the vector query returns; even the best matches get a small fused score in a hybrid query."
+      fr: "`k` fixe le nombre de plus proches voisins renvoyés par la requête vectorielle ; même les meilleures correspondances obtiennent un faible score fusionné dans une requête hybride."
+references:
+  - title: Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF)
+    url: https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking
+  - title: Create a vector query in Azure AI Search
+    url: https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-query

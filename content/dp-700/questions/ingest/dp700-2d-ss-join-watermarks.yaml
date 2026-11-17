@@ -1,0 +1,62 @@
+id: dp700-2d-ss-join-watermarks
+objective: "2.3.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Spark job definition in Fabric that reads two streams from Azure event hubs: `orders`, which has an `OrderTime` column, and `payments`, which has a `PayTime` column. The job runs an inner stream-stream join on the following condition and appends the result to a Delta table named **paid_orders**.
+
+    `orders.OrderId == payments.OrderId` and `PayTime` between `OrderTime` and `OrderTime` plus one hour.
+
+    The job has been running for three weeks, and the memory used by the state of the query keeps growing. Payments never arrive more than 30 minutes after their event time.
+
+    You need to limit the state kept by the query without losing matches.
+
+    What should you do?
+  fr: |
+    Vous disposez dans Fabric d'une définition de travail Spark qui lit deux flux de hubs d'événements Azure : `orders`, qui a une colonne `OrderTime`, et `payments`, qui a une colonne `PayTime`. Le travail exécute une jointure interne entre flux sur la condition suivante et ajoute le résultat à une table Delta nommée **paid_orders**.
+
+    `orders.OrderId == payments.OrderId` et `PayTime` comprise entre `OrderTime` et `OrderTime` plus une heure.
+
+    Le travail s'exécute depuis trois semaines, et la mémoire utilisée par l'état de la requête ne cesse d'augmenter. Les paiements n'arrivent jamais plus de 30 minutes après leur heure d'événement.
+
+    Vous devez limiter l'état conservé par la requête sans perdre de correspondances.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Set spark.sql.streaming.multipleWatermarkPolicy to max.", fr: "Définir spark.sql.streaming.multipleWatermarkPolicy sur max." }
+    - id: b
+      text: { en: "Change the output mode of the query to complete.", fr: "Changer le mode de sortie de la requête en complete." }
+    - id: c
+      text: { en: "Add a one-hour processing-time trigger to the query.", fr: "Ajouter à la requête un déclencheur processingTime d'une heure." }
+    - id: d
+      text: { en: "Add withWatermark() on OrderTime in orders and on PayTime in payments.", fr: "Ajouter withWatermark() sur OrderTime dans orders et sur PayTime dans payments." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Without watermarks, a stream-stream join keeps every key of both sides in its state and tries to join them at each trigger. A watermark on the event-time column of each input, combined with the time-range condition already in the join, tells Spark when an order or a payment can no longer match, so the old state is discarded. A threshold of at least 30 minutes keeps all the late payments.
+    fr: |-
+      Sans filigrane, une jointure entre flux conserve dans son état toutes les clés des deux côtés et tente de les joindre à chaque déclenchement. Un filigrane (watermark) sur la colonne d'heure d'événement de chaque entrée, associé à la condition de plage de temps déjà présente dans la jointure, indique à Spark quand une commande ou un paiement ne peut plus correspondre : l'ancien état est alors abandonné. Un seuil d'au moins 30 minutes conserve tous les paiements tardifs.
+  options:
+    a:
+      en: |-
+        The multiple-watermark policy only chooses how several existing watermarks are combined; the query has no watermark, and max drops data from the slowest stream.
+      fr: |-
+        La stratégie de filigranes multiples choisit seulement comment combiner des filigranes existants ; la requête n'a aucun filigrane, et max abandonne des données du flux le plus lent.
+    b:
+      en: |-
+        Stream-stream joins support only the append output mode, and complete mode never drops state.
+      fr: |-
+        Les jointures entre flux ne prennent en charge que le mode de sortie append, et le mode complete n'abandonne jamais d'état.
+    c:
+      en: |-
+        A longer trigger interval groups more events per micro-batch, but the join state still has no limit.
+      fr: |-
+        Un intervalle de déclenchement plus long regroupe plus d'événements par micro-lot, mais l'état de la jointure reste sans limite.
+references:
+  - title: Apply watermarks to control data processing thresholds
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/watermarks

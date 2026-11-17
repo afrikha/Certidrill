@@ -1,0 +1,61 @@
+id: dp700-3a-queryinsights-cpu
+objective: "3.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum has a warehouse named DW_Ops. Nightly T-SQL stored procedures transform the staging tables of DW_Ops into dimension and fact tables. The capacity is often under pressure during the night.
+
+    You need a query that returns the 10 completed requests of the last seven days that used the most CPU time.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum dispose d'un entrepôt nommé DW_Ops. Des procédures stockées T-SQL nocturnes transforment les tables de transit de DW_Ops en tables de dimensions et de faits. La capacité est souvent sous pression pendant la nuit.
+
+    Vous avez besoin d'une requête qui renvoie les 10 requêtes terminées des sept derniers jours qui ont utilisé le plus de temps processeur.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP 10 distributed_statement_id, query_hash, label, command
+    FROM queryinsights.[[view]]
+    WHERE start_time >= DATEADD(DAY, -7, GETUTCDATE())
+    ORDER BY [[col]] DESC;
+  slots:
+    - id: view
+      options:
+        - { id: sessions, text: exec_sessions_history }
+        - { id: requests, text: exec_requests_history }
+        - { id: long, text: long_running_queries }
+        - { id: frequent, text: frequently_run_queries }
+    - id: col
+      options:
+        - { id: remote, text: data_scanned_remote_storage_mb }
+        - { id: median, text: median_total_elapsed_time_ms }
+        - { id: runs, text: number_of_successful_runs }
+        - { id: cpu, text: allocated_cpu_time_ms }
+answer:
+  values: { view: requests, col: cpu }
+explanation:
+  correct:
+    en: |
+      `queryinsights.exec_requests_history` returns one row per completed request, with its `start_time`, `distributed_statement_id`, `query_hash`, `label`, `command` and `allocated_cpu_time_ms`. Ordering by `allocated_cpu_time_ms` in descending order returns the requests that used the most CPU first.
+    fr: |
+      `queryinsights.exec_requests_history` renvoie une ligne par requête terminée, avec ses colonnes `start_time`, `distributed_statement_id`, `query_hash`, `label`, `command` et `allocated_cpu_time_ms`. Le tri par `allocated_cpu_time_ms` dans l'ordre décroissant renvoie d'abord les requêtes qui ont utilisé le plus de temps processeur.
+  options:
+    sessions: { en: "exec_sessions_history describes completed sessions, not individual requests.", fr: "exec_sessions_history décrit les sessions terminées, pas les requêtes individuelles." }
+    long: { en: "long_running_queries aggregates queries by execution time, with columns such as median_total_elapsed_time_ms.", fr: "long_running_queries agrège les requêtes par durée d'exécution, avec des colonnes comme median_total_elapsed_time_ms." }
+    frequent: { en: "frequently_run_queries aggregates queries by how often they run.", fr: "frequently_run_queries agrège les requêtes selon leur fréquence d'exécution." }
+    remote: { en: "data_scanned_remote_storage_mb ranks requests by data read from remote storage, not by CPU time.", fr: "data_scanned_remote_storage_mb classe les requêtes selon les données lues depuis le stockage distant, pas selon le temps processeur." }
+    median: { en: "median_total_elapsed_time_ms belongs to long_running_queries and measures elapsed time, not CPU.", fr: "median_total_elapsed_time_ms appartient à long_running_queries et mesure le temps écoulé, pas le temps processeur." }
+    runs: { en: "number_of_successful_runs belongs to frequently_run_queries.", fr: "number_of_successful_runs appartient à frequently_run_queries." }
+references:
+  - title: Query insights in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/query-insights

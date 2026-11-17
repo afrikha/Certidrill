@@ -1,0 +1,96 @@
+id: ai300-2a-sweep-yaml-complete
+objective: "2.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a sweep job YAML file for Azure Machine Learning. The training script `train.py` accepts a `--dropout` argument and logs the validation loss with `mlflow.log_metric("val_loss", loss)` after each epoch.
+
+    The sweep must:
+
+    - pass the sampled dropout value to the script;
+    - select the trial with the lowest validation loss;
+    - cancel trials whose metric falls outside a slack ratio of the best trial.
+
+    How should you complete the file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un fichier YAML de travail de balayage pour Azure Machine Learning. Le script d'entraînement `train.py` accepte un argument `--dropout` et enregistre la perte de validation avec `mlflow.log_metric("val_loss", loss)` après chaque époque.
+
+    Le balayage doit :
+
+    - passer la valeur de dropout échantillonnée au script ;
+    - sélectionner l'essai dont la perte de validation est la plus faible ;
+    - annuler les essais dont la métrique sort d'un ratio de tolérance par rapport au meilleur essai.
+
+    Comment devez-vous compléter le fichier ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/sweepJob.schema.json
+    type: sweep
+    trial:
+      code: ./src
+      command: >-
+        python train.py
+        --data ${{inputs.training_data}}
+        --dropout ${{[[ref]].dropout}}
+      environment: azureml:AzureML-sklearn-1.5@latest
+    inputs:
+      training_data:
+        type: uri_folder
+        path: azureml:reviews@latest
+    compute: azureml:cpu-cluster
+    sampling_algorithm: random
+    search_space:
+      dropout:
+        type: uniform
+        min_value: 0.1
+        max_value: 0.5
+    objective:
+      goal: minimize
+      primary_metric: [[metric]]
+    early_termination:
+      type: [[policy]]
+      slack_factor: 0.15
+      evaluation_interval: 1
+    limits:
+      max_total_trials: 30
+      max_concurrent_trials: 5
+  slots:
+    - id: ref
+      options:
+        - { id: r-inputs, text: inputs }
+        - { id: r-ss, text: search_space }
+        - { id: r-parent, text: parent.inputs }
+    - id: metric
+      options:
+        - { id: m-loss, text: loss }
+        - { id: m-metrics, text: metrics.val_loss }
+        - { id: m-val, text: val_loss }
+    - id: policy
+      options:
+        - { id: p-bandit, text: bandit }
+        - { id: p-median, text: median_stopping }
+        - { id: p-trunc, text: truncation_selection }
+answer:
+  values: { ref: r-ss, metric: m-val, policy: p-bandit }
+explanation:
+  correct:
+    en: "In a sweep, the trial command reads sampled values with `${{search_space.<name>}}`. `primary_metric` must exactly match the name that the script logs, here `val_loss`, with `goal: minimize`. The bandit policy cancels trials outside a slack ratio (`slack_factor`) or absolute amount (`slack_amount`) of the best trial."
+    fr: "Dans un balayage, la commande de l'essai lit les valeurs échantillonnées avec `${{search_space.<name>}}`. `primary_metric` doit correspondre exactement au nom que le script enregistre, ici `val_loss`, avec `goal: minimize`. La stratégie bandit annule les essais situés hors d'un ratio de tolérance (`slack_factor`) ou d'une marge absolue (`slack_amount`) par rapport au meilleur essai."
+  options:
+    r-inputs: { en: "${{inputs.<name>}} reads job inputs such as training_data, not the values sampled from the search space.", fr: "${{inputs.<name>}} lit des entrées du travail comme training_data, pas les valeurs échantillonnées dans l'espace de recherche." }
+    r-parent: { en: "parent.inputs is a pipeline binding used by steps of a pipeline job.", fr: "parent.inputs est une liaison de pipeline utilisée par les étapes d'un travail de pipeline." }
+    m-loss: { en: "The script logs val_loss, not loss; a name that doesn't match isn't found.", fr: "Le script enregistre val_loss, pas loss ; un nom qui ne correspond pas est introuvable." }
+    m-metrics: { en: "metrics.val_loss is MLflow search syntax; primary_metric takes the plain logged name.", fr: "metrics.val_loss est une syntaxe de recherche MLflow ; primary_metric prend le nom enregistré tel quel." }
+    p-median: { en: "median_stopping compares running averages with the median and takes no slack_factor.", fr: "median_stopping compare les moyennes courantes à la médiane et ne prend pas de slack_factor." }
+    p-trunc: { en: "truncation_selection cancels a percentage of the lowest trials and requires truncation_percentage.", fr: "truncation_selection annule un pourcentage des moins bons essais et exige truncation_percentage." }
+references:
+  - title: CLI (v2) sweep job YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-job-sweep

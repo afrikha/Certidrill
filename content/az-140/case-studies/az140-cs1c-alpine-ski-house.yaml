@@ -1,0 +1,73 @@
+id: az140-cs1c-alpine-ski-house
+status: draft
+title:
+  en: Alpine Ski House
+  fr: Alpine Ski House
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Alpine Ski House operates six ski resorts in Switzerland and Austria. It has 300 permanent employees and hires up to 900 seasonal employees directly each winter for the ticket offices, the equipment rental shops and the ski schools.
+
+        Partner travel agencies book stays for their customers by using SkiBook, Alpine's booking application. Alpine is moving SkiBook and its point-of-sale (POS) application to Azure Virtual Desktop.
+      fr: |
+        Alpine Ski House exploite six stations de ski en Suisse et en Autriche. L'entreprise compte 300 employés permanents et recrute directement jusqu'à 900 employés saisonniers chaque hiver pour les caisses, les magasins de location de matériel et les écoles de ski.
+
+        Des agences de voyages partenaires réservent des séjours pour leurs clients à l'aide de SkiBook, l'application de réservation d'Alpine. Alpine migre SkiBook et son application de point de vente (POS) vers Azure Virtual Desktop.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Alpine has a Microsoft Entra tenant named **alpineskihouse.com** with cloud-only user accounts and no on-premises Active Directory. Permanent employees have Microsoft 365 E3 licenses, and seasonal employees have Microsoft 365 F3 licenses. Alpine creates an account in its tenant for each of the 200 travel agency agents. The agents are not Alpine employees and have no Microsoft 365 license from Alpine.
+
+        SkiBook and the POS application are Win32 applications that require the session host and the user to be members of an Active Directory domain, because they use Kerberos authentication and Group Policy settings.
+
+        All the Azure resources are in a subscription named **Sub-Internal**. Alpine plans the following Azure Virtual Desktop resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | HP-Front | Host pool | Pooled, Windows 11 Enterprise multi-session, session hosts in Switzerland North. Application groups: **HP-Front-DAG** (desktop) and **RAG-Front** (RemoteApp: SkiBook and POS). |
+        | HP-Partners | Host pool | Pooled, Windows 11 Enterprise multi-session. Application group **RAG-Partners** (RemoteApp: SkiBook). |
+        | HP-Front-DR | Host pool | Pooled, session hosts in Germany West Central, minimal capacity, used only if Switzerland North is unavailable |
+        | WS-Alpine | Workspace | Contains the application groups of HP-Front |
+        | stalpprofchn | Storage account | Azure Files premium, Switzerland North, share **profiles** |
+        | stalpprofgwc | Storage account | Azure Files premium, Germany West Central, share **profiles** |
+
+        Front-desk staff connect from shared kiosk PCs that have a USB receipt printer.
+      fr: |
+        Alpine dispose d'un locataire Microsoft Entra nommé **alpineskihouse.com** avec des comptes d'utilisateur cloud uniquement et aucun Active Directory local. Les employés permanents disposent de licences Microsoft 365 E3 et les employés saisonniers de licences Microsoft 365 F3. Alpine crée dans son locataire un compte pour chacun des 200 agents des agences de voyages. Les agents ne sont pas des employés d'Alpine et ne disposent d'aucune licence Microsoft 365 fournie par Alpine.
+
+        SkiBook et l'application POS sont des applications Win32 qui exigent que l'hôte de session et l'utilisateur soient membres d'un domaine Active Directory, car elles utilisent l'authentification Kerberos et des paramètres de stratégie de groupe.
+
+        Toutes les ressources Azure se trouvent dans un abonnement nommé **Sub-Internal**. Alpine prévoit les ressources Azure Virtual Desktop suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | HP-Front | Pool d'hôtes | Regroupé (pooled), Windows 11 Entreprise multisession, hôtes de session dans la région Switzerland North. Groupes d'applications : **HP-Front-DAG** (bureau) et **RAG-Front** (RemoteApp : SkiBook et POS). |
+        | HP-Partners | Pool d'hôtes | Regroupé (pooled), Windows 11 Entreprise multisession. Groupe d'applications **RAG-Partners** (RemoteApp : SkiBook). |
+        | HP-Front-DR | Pool d'hôtes | Regroupé (pooled), hôtes de session dans la région Germany West Central, capacité minimale, utilisé uniquement si Switzerland North est indisponible |
+        | WS-Alpine | Espace de travail | Contient les groupes d'applications de HP-Front |
+        | stalpprofchn | Compte de stockage | Azure Files Premium, Switzerland North, partage **profiles** |
+        | stalpprofgwc | Compte de stockage | Azure Files Premium, Germany West Central, partage **profiles** |
+
+        Le personnel d'accueil se connecte depuis des PC kiosques partagés équipés d'une imprimante de tickets USB.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Alpine identifies the following requirements:
+
+        1. **Identity.** The session hosts must be joined to an Active Directory domain. Alpine does not want to deploy, update or back up domain controller VMs.
+        2. **Licensing.** Minimize licensing costs. The agents' access must be billed on an Azure invoice, and Alpine must not buy Microsoft 365 licenses for them. Employees must not be charged twice for Azure Virtual Desktop access.
+        3. **Front desk.** On HP-Front, users must not be able to copy data to or from the kiosk PCs by using drives, including USB drives plugged in during a session, or the clipboard. The receipt printers must be available in the sessions.
+        4. **Profiles.** Store FSLogix profile containers on the premium shares by using Cloud Cache. Each session host must write first to the share in its own region. A user must not open more than one session at a time with the same profile.
+        5. **Disaster recovery.** Use an active-passive design for HP-Front. During a failover, users must keep using WS-Alpine, and the domain services must remain available if Switzerland North is unavailable.
+      fr: |
+        Alpine a défini les exigences suivantes :
+
+        1. **Identité.** Les hôtes de session doivent être joints à un domaine Active Directory. Alpine ne veut pas déployer, mettre à jour ni sauvegarder de machines virtuelles contrôleurs de domaine.
+        2. **Licences.** Réduire au minimum les coûts de licence. L'accès des agents doit être facturé sur une facture Azure, et Alpine ne doit pas acheter de licences Microsoft 365 pour eux. Les employés ne doivent pas être facturés deux fois pour l'accès à Azure Virtual Desktop.
+        3. **Accueil.** Sur HP-Front, les utilisateurs ne doivent pas pouvoir copier de données vers ou depuis les PC kiosques au moyen des lecteurs, y compris les lecteurs USB branchés pendant une session, ni du presse-papiers. Les imprimantes de tickets doivent être disponibles dans les sessions.
+        4. **Profils.** Stocker les conteneurs de profil FSLogix sur les partages Premium à l'aide de Cloud Cache. Chaque hôte de session doit écrire en premier sur le partage de sa propre région. Un utilisateur ne doit pas ouvrir plus d'une session à la fois avec le même profil.
+        5. **Reprise d'activité.** Utiliser une conception actif-passif pour HP-Front. Pendant un basculement, les utilisateurs doivent continuer à utiliser WS-Alpine, et les services de domaine doivent rester disponibles si Switzerland North est indisponible.

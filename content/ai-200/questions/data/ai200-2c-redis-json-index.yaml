@@ -1,0 +1,82 @@
+id: ai200-2c-redis-json-index
+objective: "2.3.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys is building a semantic cache for a chat assistant on Azure Managed Redis with the RediSearch and RedisJSON modules. Each cached prompt is stored as a JSON document under a key that starts with `prompt:`. The `qv` variable contains the prompt embedding as a NumPy array of type `float32`, with 1,536 dimensions.
+
+    You need to create the index and store a document so that the document is indexed for vector search.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys crée un cache sémantique pour un assistant de conversation sur Azure Managed Redis avec les modules RediSearch et RedisJSON. Chaque invite mise en cache est stockée sous forme de document JSON sous une clé qui commence par `prompt:`. La variable `qv` contient l'incorporation de l'invite sous forme de tableau NumPy de type `float32`, avec 1 536 dimensions.
+
+    Vous devez créer l'index et stocker un document pour que celui-ci soit indexé pour la recherche vectorielle.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    schema = (
+        TagField("$.tenant", as_name="tenant"),
+        VectorField(
+            "[[path]]",
+            "HNSW",
+            {"TYPE": "FLOAT32", "DIM": 1536, "DISTANCE_METRIC": "COSINE"},
+            as_name="embedding",
+        ),
+    )
+    r.ft("idx:prompts").create_index(
+        schema,
+        definition=IndexDefinition(prefix=["[[prefix]]"], index_type=IndexType.JSON),
+    )
+
+    r.json().set("prompt:1001", "$", {
+        "tenant": "contoso",
+        "text": prompt_text,
+        "answer": answer_text,
+        "embedding": [[value]],
+    })
+  slots:
+    - id: path
+      options:
+        - { id: bare, text: "embedding" }
+        - { id: jsonpath, text: "$.embedding" }
+        - { id: nested, text: "$.prompt.embedding" }
+    - id: prefix
+      options:
+        - { id: pfx, text: "prompt:" }
+        - { id: pfxstar, text: "prompt:*" }
+        - { id: idxname, text: "idx:prompts" }
+    - id: value
+      options:
+        - { id: tolist, text: "qv.tolist()" }
+        - { id: tobytes, text: "qv.tobytes()" }
+        - { id: str, text: "str(qv)" }
+answer:
+  values: { path: jsonpath, prefix: pfx, value: tolist }
+explanation:
+  correct:
+    en: |
+      An index on JSON documents identifies each field by a JSONPath expression, here `$.embedding`, with `as_name` giving the name used in queries. The prefix is a plain key prefix, `prompt:`, without wildcards. In a JSON document, the vector is stored as an array of numbers, so the NumPy array is converted with `tolist()`.
+    fr: |
+      Un index sur des documents JSON identifie chaque champ par une expression JSONPath, ici `$.embedding`, et `as_name` donne le nom utilisé dans les requêtes. Le préfixe est un simple préfixe de clé, `prompt:`, sans caractère générique. Dans un document JSON, le vecteur est stocké sous forme de tableau de nombres : le tableau NumPy est donc converti avec `tolist()`.
+  options:
+    bare: { en: "On a JSON index, field identifiers are JSONPath expressions that start with `$`.", fr: "Dans un index JSON, les identificateurs de champs sont des expressions JSONPath qui commencent par `$`." }
+    nested: { en: "The document has no `prompt` object; the embedding is at the root.", fr: "Le document n'a pas d'objet `prompt` ; l'incorporation se trouve à la racine." }
+    pfxstar: { en: "Prefixes aren't patterns: `prompt:*` would match only keys that start with that literal text.", fr: "Les préfixes ne sont pas des modèles : `prompt:*` ne correspondrait qu'aux clés commençant par ce texte littéral." }
+    idxname: { en: "The index name isn't a key prefix; no document key starts with it.", fr: "Le nom de l'index n'est pas un préfixe de clé ; aucune clé de document ne commence par celui-ci." }
+    tobytes: { en: "Binary blobs are the vector format of hashes; JSON can't store raw bytes.", fr: "Les blobs binaires sont le format vectoriel des hachages ; JSON ne peut pas stocker d'octets bruts." }
+    str: { en: "The string representation of a NumPy array is text, not a JSON array of numbers.", fr: "La représentation sous forme de chaîne d'un tableau NumPy est du texte, pas un tableau JSON de nombres." }
+references:
+  - title: About Vector Embeddings and Vector Search in Azure Managed Redis
+    url: https://learn.microsoft.com/en-us/azure/redis/overview-vector-similarity
+  - title: Using Redis modules with Azure Managed Redis
+    url: https://learn.microsoft.com/en-us/azure/redis/redis-modules

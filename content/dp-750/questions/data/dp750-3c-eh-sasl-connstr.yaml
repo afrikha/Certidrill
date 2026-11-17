@@ -1,0 +1,92 @@
+id: dp750-3c-eh-sasl-connstr
+objective: "3.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank streams card payments to an event hub named **payments** in the Standard tier Azure Event Hubs namespace **evhns-woodgrove**. The connection string of a shared access policy that has only the Listen claim is stored in the secret **evh-payments-listen** of the secret scope **kv-woodgrove**.
+
+    You are writing a notebook that runs on a cluster in dedicated access mode and ingests the events into **woodgrove.bronze.payments** by using SAS authentication.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank diffuse les paiements par carte vers un hub d'événements nommé **payments** dans l'espace de noms Azure Event Hubs **evhns-woodgrove** de niveau Standard. La chaîne de connexion d'une stratégie d'accès partagé qui n'a que la revendication Listen est stockée dans le secret **evh-payments-listen** de l'étendue de secrets **kv-woodgrove**.
+
+    Vous écrivez un notebook qui s'exécute sur un cluster en mode d'accès dédié et ingère les événements dans **woodgrove.bronze.payments** au moyen de l'authentification SAS.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    conn = dbutils.secrets.get(scope="kv-woodgrove", key="evh-payments-listen")
+
+    events = (spark.readStream
+      .format("kafka")
+      .option("kafka.bootstrap.servers", "evhns-woodgrove.servicebus.windows.net:9093")
+      .option("subscribe", "payments")
+      .option("kafka.security.protocol", "[[proto]]")
+      .option("kafka.sasl.mechanism", "PLAIN")
+      .option("kafka.sasl.jaas.config",
+              "[[module]] required "
+              f'username="[[user]]" password="{conn}";')
+      .load())
+  slots:
+    - id: proto
+      options:
+        - { id: saslssl, text: SASL_SSL }
+        - { id: saslplain, text: SASL_PLAINTEXT }
+        - { id: ssl, text: SSL }
+    - id: module
+      options:
+        - { id: unshaded, text: org.apache.kafka.common.security.plain.PlainLoginModule }
+        - { id: shaded, text: kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule }
+        - { id: oauth, text: kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule }
+    - id: user
+      options:
+        - { id: root, text: RootManageSharedAccessKey }
+        - { id: default, text: $Default }
+        - { id: connstr, text: $ConnectionString }
+answer:
+  values: { proto: saslssl, module: shaded, user: connstr }
+explanation:
+  correct:
+    en: |
+      The Kafka endpoint of Event Hubs accepts SASL over TLS, so `kafka.security.protocol` is `SASL_SSL` with the `PLAIN` mechanism. On Azure Databricks, Kafka client classes referenced in authentication options must use the `kafkashaded.` prefix. With SAS authentication, the user name is the literal `$ConnectionString` and the password is the connection string read from the secret scope.
+    fr: |
+      Le point de terminaison Kafka d'Event Hubs accepte SASL sur TLS : `kafka.security.protocol` vaut donc `SASL_SSL`, avec le mécanisme `PLAIN`. Sur Azure Databricks, les classes du client Kafka référencées dans les options d'authentification doivent utiliser le préfixe `kafkashaded.`. Avec l'authentification SAS, le nom d'utilisateur est la chaîne littérale `$ConnectionString` et le mot de passe est la chaîne de connexion lue dans l'étendue de secrets.
+  options:
+    saslplain:
+      en: "`SASL_PLAINTEXT` sends the credentials without TLS; the Event Hubs Kafka endpoint requires `SASL_SSL`."
+      fr: "`SASL_PLAINTEXT` envoie les informations d'identification sans TLS ; le point de terminaison Kafka d'Event Hubs exige `SASL_SSL`."
+    ssl:
+      en: "`SSL` alone does not use SASL, so the `PLAIN` mechanism and the JAAS configuration would not be used."
+      fr: "`SSL` seul n'utilise pas SASL : le mécanisme `PLAIN` et la configuration JAAS ne seraient pas utilisés."
+    unshaded:
+      en: |
+        Unshaded Kafka class names are rejected on Azure Databricks; the class name must start with `kafkashaded.`.
+      fr: |
+        Les noms de classes Kafka non ombrés sont refusés sur Azure Databricks ; le nom de classe doit commencer par `kafkashaded.`.
+    oauth:
+      en: |
+        The OAuth bearer login module goes with the `OAUTHBEARER` mechanism and Microsoft Entra ID, not with `PLAIN` and a connection string.
+      fr: |
+        Le module de connexion OAuth bearer va avec le mécanisme `OAUTHBEARER` et Microsoft Entra ID, pas avec `PLAIN` et une chaîne de connexion.
+    root:
+      en: |
+        The policy name is part of the connection string; the SASL user name for SAS authentication is `$ConnectionString`.
+      fr: |
+        Le nom de la stratégie fait partie de la chaîne de connexion ; le nom d'utilisateur SASL pour l'authentification SAS est `$ConnectionString`.
+    default:
+      en: "`$Default` is the name of the default consumer group, not a SASL user name."
+      fr: "`$Default` est le nom du groupe de consommateurs par défaut, pas un nom d'utilisateur SASL."
+references:
+  - title: Use Azure Event Hubs as a pipeline data source
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/event-hubs
+  - title: Authentication
+    url: https://learn.microsoft.com/en-us/azure/databricks/connect/streaming/kafka/authentication

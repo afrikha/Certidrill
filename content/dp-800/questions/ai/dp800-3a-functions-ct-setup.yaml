@@ -1,0 +1,69 @@
+id: dp800-3a-functions-ct-setup
+objective: "3.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders has an Azure SQL database named SalesDb. You are deploying an Azure function that uses the Azure SQL trigger binding on dbo.Products to regenerate product embeddings outside the database engine.
+
+    The function connects with a managed identity mapped to a database user named func-embed. The az_func schema and the permissions of func-embed on it already exist.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders dispose d'une base de données Azure SQL nommée SalesDb. Vous déployez une fonction Azure qui utilise la liaison de déclencheur Azure SQL sur dbo.Products pour régénérer les incorporations des produits hors du moteur de base de données.
+
+    La fonction se connecte avec une identité managée associée à un utilisateur de base de données nommé func-embed. Le schéma az_func et les autorisations de func-embed sur ce schéma existent déjà.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER DATABASE SalesDb
+    SET [[dbopt]] = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON);
+    GO
+    ALTER TABLE dbo.Products
+    [[tblopt]];
+    GO
+    GRANT SELECT, [[perm]] ON dbo.Products TO [func-embed];
+  slots:
+    - id: dbopt
+      options:
+        - { id: ct, text: CHANGE_TRACKING }
+        - { id: qs, text: QUERY_STORE }
+        - { id: rcsi, text: READ_COMMITTED_SNAPSHOT }
+    - id: tblopt
+      options:
+        - { id: enct, text: ENABLE CHANGE_TRACKING }
+        - { id: trig, text: ENABLE TRIGGER ALL }
+        - { id: rebuild, text: REBUILD }
+    - id: perm
+      options:
+        - { id: vct, text: VIEW CHANGE TRACKING }
+        - { id: vdef, text: VIEW DEFINITION }
+        - { id: alter, text: ALTER }
+answer:
+  values: { dbopt: ct, tblopt: enct, perm: vct }
+explanation:
+  correct:
+    en: |
+      The Azure SQL trigger binding relies on Change Tracking, which must be enabled on the database (with its retention and cleanup settings) and then on the monitored table. The function's identity needs SELECT and VIEW CHANGE TRACKING on the table, in addition to the permissions it uses to create its leases table in the az_func schema.
+    fr: |
+      La liaison de déclencheur Azure SQL repose sur le suivi des modifications, qui doit être activé sur la base de données (avec ses paramètres de rétention et de nettoyage), puis sur la table surveillée. L'identité de la fonction a besoin de SELECT et de VIEW CHANGE TRACKING sur la table, en plus des autorisations qu'elle utilise pour créer sa table de baux dans le schéma az_func.
+  options:
+    qs: { en: "Query Store captures query plans and runtime statistics; it doesn't track row changes.", fr: "Le Magasin des requêtes capture les plans et les statistiques d'exécution des requêtes ; il ne suit pas les modifications de lignes." }
+    rcsi: { en: "READ_COMMITTED_SNAPSHOT changes the isolation behavior of reads; it records no changes.", fr: "READ_COMMITTED_SNAPSHOT modifie le comportement d'isolation des lectures ; il n'enregistre aucune modification." }
+    trig: { en: "The binding doesn't use DML triggers; it polls the change tracking information.", fr: "La liaison n'utilise pas de déclencheurs DML ; elle interroge les informations du suivi des modifications." }
+    rebuild: { en: "REBUILD rebuilds the table's storage; it doesn't enable change tracking.", fr: "REBUILD reconstruit le stockage de la table ; il n'active pas le suivi des modifications." }
+    vdef: { en: "VIEW DEFINITION exposes metadata, not the change tracking information that CHANGETABLE returns.", fr: "VIEW DEFINITION expose des métadonnées, pas les informations de suivi des modifications retournées par CHANGETABLE." }
+    alter: { en: "ALTER on the table grants far more than reading changes and isn't required by the binding.", fr: "ALTER sur la table accorde bien plus que la lecture des modifications et n'est pas exigé par la liaison." }
+references:
+  - title: Azure SQL trigger for Functions
+    url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-azure-sql-trigger
+  - title: Enable and Disable Change Tracking (SQL Server)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/enable-and-disable-change-tracking-sql-server

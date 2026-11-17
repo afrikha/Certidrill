@@ -1,0 +1,75 @@
+id: ai300-2a-job-yaml-bindings
+objective: "2.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a command job YAML file for Azure Machine Learning. The data asset **claims-images** is registered as a folder that contains 4 TB of images, more than the local disk of the GPU nodes. The training should start reading images without waiting for a copy of the data. The script must write the trained model to the job output named **model_dir**.
+
+    How should you complete the file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un fichier YAML de travail de commande pour Azure Machine Learning. La ressource de données **claims-images** est inscrite en tant que dossier qui contient 4 To d'images, plus que le disque local des nœuds GPU. L'entraînement doit commencer à lire les images sans attendre une copie des données. Le script doit écrire le modèle entraîné dans la sortie du travail nommée **model_dir**.
+
+    Comment devez-vous compléter le fichier ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+    type: command
+    code: ./src
+    command: >-
+      python train.py
+      --data ${{inputs.training_data}}
+      --model-dir [[out]]
+    inputs:
+      training_data:
+        type: [[itype]]
+        path: azureml:claims-images@latest
+        mode: [[mode]]
+    outputs:
+      model_dir:
+        type: uri_folder
+    environment: azureml:AzureML-acpt-pytorch-2.8-cuda12.6@latest
+    compute: azureml:gpu-cluster
+  slots:
+    - id: out
+      options:
+        - { id: o-inputs, text: "${{inputs.model_dir}}" }
+        - { id: o-outputs, text: "${{outputs.model_dir}}" }
+        - { id: o-parent, text: "${{parent.outputs.model_dir}}" }
+    - id: itype
+      options:
+        - { id: i-file, text: uri_file }
+        - { id: i-mltable, text: mltable }
+        - { id: i-folder, text: uri_folder }
+    - id: mode
+      options:
+        - { id: md-download, text: download }
+        - { id: md-ro, text: ro_mount }
+        - { id: md-rw, text: rw_mount }
+        - { id: md-upload, text: upload }
+answer:
+  values: { out: o-outputs, itype: i-folder, mode: md-ro }
+explanation:
+  correct:
+    en: "`${{outputs.<name>}}` gives the script the path of a job output. A registered folder is a `uri_folder` input. `ro_mount` streams the data read-only, which Microsoft recommends when the data doesn't fit on the local disk or when waiting for a full download would leave the GPUs idle."
+    fr: "`${{outputs.<name>}}` fournit au script le chemin d'une sortie du travail. Un dossier inscrit est une entrée `uri_folder`. `ro_mount` diffuse les données en lecture seule, ce que Microsoft recommande quand les données ne tiennent pas sur le disque local ou quand attendre un téléchargement complet laisserait les GPU inactifs."
+  options:
+    o-inputs: { en: "model_dir is declared under outputs, not inputs.", fr: "model_dir est déclaré sous outputs, pas sous inputs." }
+    o-parent: { en: "parent.outputs is a binding for steps of a pipeline job.", fr: "parent.outputs est une liaison pour les étapes d'un travail de pipeline." }
+    i-file: { en: "uri_file points to a single file, not a folder of images.", fr: "uri_file pointe vers un seul fichier, pas vers un dossier d'images." }
+    i-mltable: { en: "mltable describes tabular data with an MLTable file; the asset is a plain folder.", fr: "mltable décrit des données tabulaires avec un fichier MLTable ; la ressource est un simple dossier." }
+    md-download: { en: "download copies all the data to the local disk first, which doesn't fit and delays the start.", fr: "download copie d'abord toutes les données sur le disque local, ce qui ne tient pas et retarde le démarrage." }
+    md-rw: { en: "rw_mount is an output mode.", fr: "rw_mount est un mode de sortie." }
+    md-upload: { en: "upload is an output mode.", fr: "upload est un mode de sortie." }
+references:
+  - title: Access data in a job
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-read-write-data-v2
+  - title: CLI (v2) command job YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-job-command

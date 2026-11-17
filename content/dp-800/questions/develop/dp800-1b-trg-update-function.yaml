@@ -1,0 +1,72 @@
+id: dp800-1b-trg-update-function
+objective: "1.2.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Wingtip Toys. The following trigger sends price changes to a synchronization queue. The ListPrice column is defined as NOT NULL.
+
+    ```sql
+    CREATE OR ALTER TRIGGER Production.trg_Product_PriceSync
+    ON Production.Product
+    AFTER UPDATE
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF UPDATE(ListPrice)
+            INSERT INTO Sync.PriceQueue (ProductID, NewPrice, QueuedAt)
+            SELECT ProductID, ListPrice, SYSUTCDATETIME()
+            FROM inserted;
+    END;
+    ```
+
+    The product management application always updates every column of a product, including ListPrice, even when the user changes only the description. The queue receives rows for products whose price did not change.
+
+    You need to queue only the products whose price changed. The application must not be modified.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Wingtip Toys. Le déclencheur suivant envoie les modifications de prix vers une file de synchronisation. La colonne ListPrice est définie avec NOT NULL.
+
+    ```sql
+    CREATE OR ALTER TRIGGER Production.trg_Product_PriceSync
+    ON Production.Product
+    AFTER UPDATE
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF UPDATE(ListPrice)
+            INSERT INTO Sync.PriceQueue (ProductID, NewPrice, QueuedAt)
+            SELECT ProductID, ListPrice, SYSUTCDATETIME()
+            FROM inserted;
+    END;
+    ```
+
+    L'application de gestion des produits met toujours à jour toutes les colonnes d'un produit, y compris ListPrice, même quand l'utilisateur ne modifie que la description. La file reçoit des lignes pour des produits dont le prix n'a pas changé.
+
+    Vous devez mettre en file uniquement les produits dont le prix a changé. L'application ne doit pas être modifiée.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Join inserted to deleted on ProductID and queue only the rows whose ListPrice changed.", fr: "Joindre inserted à deleted sur ProductID et ne mettre en file que les lignes dont ListPrice a changé." } }
+    - { id: b, text: { en: "Change the trigger to INSTEAD OF UPDATE and keep the IF UPDATE(ListPrice) test.", fr: "Transformer le déclencheur en INSTEAD OF UPDATE et conserver le test IF UPDATE(ListPrice)." } }
+    - { id: c, text: { en: "Replace the IF UPDATE(ListPrice) test with a test of the COLUMNS_UPDATED() bit for the ListPrice column.", fr: "Remplacer le test IF UPDATE(ListPrice) par un test du bit de COLUMNS_UPDATED() correspondant à la colonne ListPrice." } }
+    - { id: d, text: { en: "Enable the RECURSIVE_TRIGGERS database option.", fr: "Activer l'option de base de données RECURSIVE_TRIGGERS." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      UPDATE(column) returns TRUE when the column appears in the SET list of the statement, even if its value remains unchanged. The deleted table holds the old values and inserted the new ones, so comparing them row by row keeps only the products whose price really changed, and the set-based join also handles multi-row updates.
+    fr: |
+      UPDATE(colonne) renvoie TRUE quand la colonne figure dans la liste SET de l'instruction, même si sa valeur reste inchangée. La table deleted contient les anciennes valeurs et inserted les nouvelles : les comparer ligne par ligne ne conserve que les produits dont le prix a réellement changé, et la jointure ensembliste gère aussi les mises à jour de plusieurs lignes.
+  options:
+    c: { en: "COLUMNS_UPDATED() reports the same information as UPDATE() for several columns: the columns targeted by the statement, not the values that changed.", fr: "COLUMNS_UPDATED() renvoie la même information qu'UPDATE() pour plusieurs colonnes : les colonnes ciblées par l'instruction, pas les valeurs qui ont changé." }
+    b: { en: "An INSTEAD OF trigger replaces the update, so the product changes would no longer be applied, and UPDATE() still reports the column as updated.", fr: "Un déclencheur INSTEAD OF remplace la mise à jour : les modifications des produits ne seraient plus appliquées, et UPDATE() signale toujours la colonne comme mise à jour." }
+    d: { en: "RECURSIVE_TRIGGERS lets a trigger fire itself again; it has no effect on which rows are queued.", fr: "RECURSIVE_TRIGGERS permet à un déclencheur de se déclencher à nouveau lui-même ; l'option n'a aucun effet sur les lignes mises en file." }
+references:
+  - title: UPDATE - Trigger Functions (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/update-trigger-functions-transact-sql
+  - title: CREATE TRIGGER (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-trigger-transact-sql

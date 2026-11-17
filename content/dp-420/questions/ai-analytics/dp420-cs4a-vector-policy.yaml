@@ -1,0 +1,75 @@
+id: dp420-cs4a-vector-policy
+objective: "3.1.3"
+type: dropdown
+caseStudy: dp420-cs4a-lamna-healthcare
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Lamna will recreate the chunks container with the same partition key, and then reload the data. The vector embedding policy of the new container declares the `/embedding` path with the existing embedding settings, and its full-text policy declares the `/chunkText` path in en-US.
+
+    You need to complete the indexing policy of the new container to meet the retrieval requirements.
+
+    How should you complete the indexing policy? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Lamna va recréer le conteneur chunks avec la même clé de partition, puis recharger les données. La stratégie d'embedding vectoriel du nouveau conteneur déclare le chemin `/embedding` avec les paramètres d'embedding existants, et sa stratégie de texte intégral déclare le chemin `/chunkText` en en-US.
+
+    Vous devez compléter la stratégie d'indexation du nouveau conteneur pour satisfaire les exigences de recherche.
+
+    Comment devez-vous compléter la stratégie d'indexation ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "indexingMode": "consistent",
+      "automatic": true,
+      "includedPaths": [ { "path": "/*" } ],
+      "excludedPaths": [ { "path": "/embedding/*" } ],
+      "[[ftindex]]": [ { "path": "/chunkText" } ],
+      "vectorIndexes": [
+        {
+          "path": "/embedding",
+          "type": "[[type]]",
+          "vectorIndexShardKey": [[shard]]
+        }
+      ]
+    }
+  slots:
+    - id: ftindex
+      options:
+        - { id: composite, text: compositeIndexes }
+        - { id: fulltext, text: fullTextIndexes }
+        - { id: spatial, text: spatialIndexes }
+    - id: type
+      options:
+        - { id: flat, text: flat }
+        - { id: qflat, text: quantizedFlat }
+        - { id: diskann, text: diskANN }
+    - id: shard
+      options:
+        - { id: arrhosp, text: "[\"/hospitalId\"]" }
+        - { id: strhosp, text: "\"/hospitalId\"" }
+        - { id: arrprot, text: "[\"/protocolId\"]" }
+answer:
+  values: { ftindex: fulltext, type: diskann, shard: arrhosp }
+explanation:
+  correct:
+    en: "`FullTextScore` needs a full-text index, declared in `fullTextIndexes` for the `/chunkText` path. Each hospital has more than 50,000 vectors, so `diskANN` gives the best recall at the lowest latency and RU cost; `flat` supports at most 505 dimensions. Setting `vectorIndexShardKey` to `[\"/hospitalId\"]` (a single path enclosed in an array) builds one smaller DiskANN index per hospital, so a search filtered on `hospitalId` evaluates only that hospital's vectors."
+    fr: "`FullTextScore` nécessite un index de texte intégral, déclaré dans `fullTextIndexes` pour le chemin `/chunkText`. Chaque hôpital possède plus de 50 000 vecteurs : `diskANN` offre donc le meilleur rappel avec la latence et la consommation de RU les plus faibles ; `flat` prend en charge 505 dimensions au maximum. Définir `vectorIndexShardKey` sur `[\"/hospitalId\"]` (un seul chemin placé dans un tableau) crée un index DiskANN plus petit par hôpital : une recherche filtrée sur `hospitalId` n'évalue que les vecteurs de cet hôpital."
+  options:
+    composite: { en: "Composite indexes serve ORDER BY on several properties, not full-text scoring.", fr: "Les index composites servent les ORDER BY sur plusieurs propriétés, pas le score de texte intégral." }
+    spatial: { en: "Spatial indexes serve geospatial queries.", fr: "Les index spatiaux servent les requêtes géospatiales." }
+    flat: { en: "flat supports at most 505 dimensions; the embeddings have 1,536.", fr: "flat prend en charge 505 dimensions au maximum ; les embeddings en ont 1 536." }
+    qflat: { en: "quantizedFlat is a brute-force search recommended when 50,000 vectors or fewer are in scope; each hospital has at least 120,000.", fr: "quantizedFlat est une recherche exhaustive recommandée quand 50 000 vecteurs ou moins sont concernés ; chaque hôpital en a au moins 120 000." }
+    strhosp: { en: "The shard key must be enclosed in an array, even when it contains a single path.", fr: "La clé de partitionnement de l'index doit être placée dans un tableau, même si elle ne contient qu'un chemin." }
+    arrprot: { en: "Sharding on protocolId does not restrict a search to the clinician's hospital.", fr: "Partitionner l'index sur protocolId ne limite pas une recherche à l'hôpital du clinicien." }
+references:
+  - title: Sharded DiskANN Focused Vector Search for Better Performance and Lower Cost - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/sharded-diskann
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search

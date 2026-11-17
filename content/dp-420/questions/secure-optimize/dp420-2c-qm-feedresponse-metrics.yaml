@@ -1,0 +1,73 @@
+id: dp420-2c-qm-feedresponse-metrics
+objective: "2.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An API named **ShopApi** uses the Azure Cosmos DB .NET SDK 3.40 to query a container named **orders**. One endpoint runs a cross-partition query that always returns several pages.
+
+    You need to log, for each call of the endpoint, the total server-side execution time and the total request charge of the query across all its pages.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Une API nommée **ShopApi** utilise le SDK .NET Azure Cosmos DB 3.40 pour interroger un conteneur nommé **orders**. Un point de terminaison exécute une requête entre partitions qui renvoie toujours plusieurs pages.
+
+    Vous devez journaliser, pour chaque appel du point de terminaison, le temps d'exécution total côté serveur et les frais de requête totaux de la requête sur l'ensemble de ses pages.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    QueryDefinition query = new QueryDefinition(
+        "SELECT * FROM o WHERE o.status = @status")
+        .WithParameter("@status", "shipped");
+    FeedIterator<Order> iterator = container.GetItemQueryIterator<Order>(query);
+
+    List<ServerSideCumulativeMetrics> pages = new List<ServerSideCumulativeMetrics>();
+    while (iterator.HasMoreResults)
+    {
+        FeedResponse<Order> page = await iterator.ReadNextAsync();
+        pages.Add(page.Diagnostics.[[get]]);
+    }
+
+    TimeSpan serverTime = pages.Aggregate(TimeSpan.Zero,
+        (sum, m) => sum + m.[[scope]].TotalTime);
+    double totalCharge = pages.Sum(m => m.[[charge]]);
+  slots:
+    - id: get
+      options:
+        - { id: qm, text: "GetQueryMetrics()" }
+        - { id: elapsed, text: "GetClientElapsedTime()" }
+        - { id: regions, text: "GetContactedRegions()" }
+        - { id: start, text: "GetStartTimeUtc()" }
+    - id: scope
+      options:
+        - { id: cumulative, text: CumulativeMetrics }
+        - { id: partitioned, text: PartitionedMetrics }
+        - { id: first, text: "PartitionedMetrics[0].ServerSideMetrics" }
+    - id: charge
+      options:
+        - { id: total, text: TotalRequestCharge }
+        - { id: size, text: CumulativeMetrics.RetrievedDocumentSize }
+        - { id: ratio, text: CumulativeMetrics.IndexHitRatio }
+        - { id: count, text: PartitionedMetrics.Count }
+answer:
+  values: { get: qm, scope: cumulative, charge: total }
+explanation:
+  correct:
+    en: "`Diagnostics.GetQueryMetrics()` returns a strongly typed `ServerSideCumulativeMetrics` object for one round trip (.NET SDK 3.36.0 or later). Its `CumulativeMetrics` property aggregates the backend metrics of every physical partition reached by that page, so summing `CumulativeMetrics.TotalTime` over all pages gives the total execution time. `TotalRequestCharge` is the request charge of the page, which you also sum across pages."
+    fr: "`Diagnostics.GetQueryMetrics()` renvoie un objet fortement typé `ServerSideCumulativeMetrics` pour un aller-retour (SDK .NET 3.36.0 ou ultérieur). Sa propriété `CumulativeMetrics` agrège les métriques back-end de toutes les partitions physiques atteintes par cette page : additionner `CumulativeMetrics.TotalTime` sur toutes les pages donne le temps d'exécution total. `TotalRequestCharge` correspond aux frais de requête de la page, que vous additionnez également."
+  options:
+    elapsed: { en: "GetClientElapsedTime() returns the end-to-end time seen by the client, including network time, not the backend execution metrics.", fr: "GetClientElapsedTime() renvoie le temps de bout en bout vu par le client, réseau compris, et non les métriques d'exécution back-end." }
+    partitioned: { en: "PartitionedMetrics is a list with one entry per physical partition; it has no TotalTime property of its own.", fr: "PartitionedMetrics est une liste comportant une entrée par partition physique ; elle n'a pas de propriété TotalTime propre." }
+    first: { en: "The first entry of PartitionedMetrics covers only one physical partition, so the sum would miss the others.", fr: "La première entrée de PartitionedMetrics ne couvre qu'une partition physique : la somme ignorerait les autres." }
+    size: { en: "RetrievedDocumentSize is the number of bytes loaded, not a charge in request units.", fr: "RetrievedDocumentSize est le nombre d'octets chargés, pas des frais en unités de requête." }
+references:
+  - title: Get SQL query execution metrics and analyze query performance using .NET SDK
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/query-metrics-performance

@@ -1,0 +1,82 @@
+id: az120-1c-rise-impl-cli-peering
+objective: "1.3.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam, Inc. connects its hub virtual network **vnet-hub-weu** (resource group **rg-hub**) to its RISE with SAP virtual network, which SAP manages in another Microsoft Entra tenant and subscription. You are signed in to Azure CLI with an account that has the required permissions in both tenants. The gateway transit settings are configured separately.
+
+    Later, Fabrikam will add the 10.20.0.0/16 range to the address space of vnet-hub-weu, and the RISE side must learn the new range.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam, Inc. connecte son réseau virtuel hub **vnet-hub-weu** (groupe de ressources **rg-hub**) à son réseau virtuel RISE with SAP, que SAP gère dans un autre locataire Microsoft Entra et un autre abonnement. Vous êtes connecté à Azure CLI avec un compte qui dispose des autorisations requises dans les deux locataires. Les paramètres de transit par passerelle sont configurés séparément.
+
+    Plus tard, Fabrikam ajoutera la plage 10.20.0.0/16 à l'espace d'adressage de vnet-hub-weu, et le côté RISE doit prendre en compte la nouvelle plage.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    # Peering from the Fabrikam hub to the RISE virtual network
+    az network vnet peering create --resource-group rg-hub \
+      --vnet-name vnet-hub-weu --name hub-to-rise \
+      --remote-vnet [[remote]] \
+      --allow-vnet-access
+
+    # After 10.20.0.0/16 is added to the address space of vnet-hub-weu
+    az network vnet peering [[after]] --resource-group rg-hub \
+      --vnet-name vnet-hub-weu --name hub-to-rise
+  slots:
+    - id: remote
+      options:
+        - { id: rid, text: "/subscriptions/<sap-subscription-id>/resourceGroups/<sap-rg>/providers/Microsoft.Network/virtualNetworks/vnet-rise-prd" }
+        - { id: name, text: "vnet-rise-prd" }
+        - { id: cidr, text: "10.50.0.0/22" }
+        - { id: tenant, text: "<sap-tenant-id>" }
+    - id: after
+      options:
+        - { id: sync, text: "sync" }
+        - { id: update, text: "update" }
+        - { id: create, text: "create" }
+        - { id: show, text: "show" }
+answer:
+  values: { remote: rid, after: sync }
+explanation:
+  correct:
+    en: |
+      `--remote-vnet` accepts a name only for a VNet in the same resource group; a VNet in SAP's subscription and tenant must be referenced by its full resource ID, which SAP provides. After you change the address space of a peered VNet, you must run `az network vnet peering sync` so the peering reflects the new ranges.
+    fr: |
+      `--remote-vnet` n'accepte un nom que pour un réseau virtuel du même groupe de ressources ; un réseau virtuel de l'abonnement et du locataire de SAP doit être référencé par son ID de ressource complet, fourni par SAP. Après avoir modifié l'espace d'adressage d'un réseau virtuel relié par peering, vous devez exécuter `az network vnet peering sync` pour que le peering prenne en compte les nouvelles plages.
+  options:
+    name:
+      en: |
+        A bare name is resolved in the local resource group, so it cannot identify a VNet in another subscription and tenant.
+      fr: |
+        Un nom seul est résolu dans le groupe de ressources local : il ne peut pas désigner un réseau virtuel d'un autre abonnement et d'un autre locataire.
+    cidr:
+      en: |
+        --remote-vnet takes a VNet name or ID, not an address range.
+      fr: |
+        --remote-vnet attend un nom ou un ID de réseau virtuel, pas une plage d'adresses.
+    tenant:
+      en: |
+        The tenant ID does not identify the remote virtual network.
+      fr: |
+        L'ID de locataire ne désigne pas le réseau virtuel distant.
+    update:
+      en: |
+        update changes peering properties such as access or transit flags; the documented operation after an address space change is sync.
+      fr: |
+        update modifie des propriétés du peering comme les indicateurs d'accès ou de transit ; l'opération documentée après une modification de l'espace d'adressage est sync.
+references:
+  - title: az network vnet peering
+    url: https://learn.microsoft.com/en-us/cli/azure/network/vnet/peering
+  - title: Azure Virtual Network peering
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-peering-overview

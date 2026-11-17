@@ -1,0 +1,52 @@
+id: dp420-2c-qm-lower-scan
+objective: "2.3.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A container named **customers** uses `/tenantId` as the partition key and the default indexing policy. The sign-in flow of your application runs the following query.
+
+    ```sql
+    SELECT * FROM c WHERE c.tenantId = @tenantId AND LOWER(c.email) = @email
+    ```
+
+    The query metrics of a typical execution show a Retrieved Document Count of 18,420, an Output Document Count of 1 and a request charge of 640 RUs.
+
+    You need to reduce the request charge of the query.
+
+    What should you do?
+  fr: |
+    Un conteneur nommé **customers** utilise `/tenantId` comme clé de partition et la stratégie d'indexation par défaut. Le flux de connexion de votre application exécute la requête suivante.
+
+    ```sql
+    SELECT * FROM c WHERE c.tenantId = @tenantId AND LOWER(c.email) = @email
+    ```
+
+    Les métriques de requête d'une exécution typique indiquent un Retrieved Document Count de 18 420, un Output Document Count de 1 et des frais de requête de 640 RU.
+
+    Vous devez réduire les frais de requête de cette requête.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Store the email address in lowercase when items are written, and filter with c.email = @email.", fr: "Stocker l'adresse e-mail en minuscules lors de l'écriture des éléments et filtrer avec c.email = @email." }
+    - id: b
+      text: { en: "Add a composite index on (/tenantId ASC, /email ASC) and keep the current query text.", fr: "Ajouter un index composite sur (/tenantId ASC, /email ASC) et conserver le texte actuel de la requête." }
+    - id: c
+      text: { en: "Set MaxConcurrency to -1 in QueryRequestOptions so that the SDK runs the query in parallel.", fr: "Définir MaxConcurrency sur -1 dans QueryRequestOptions pour que le SDK exécute la requête en parallèle." }
+    - id: d
+      text: { en: "Increase the provisioned throughput of the container so that the query has more RU/s.", fr: "Augmenter le débit provisionné du conteneur pour que la requête dispose de plus de RU/s." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "A Retrieved Document Count much higher than the Output Document Count means that part of the filter could not use the index and the engine loaded every item of the tenant. `LOWER()` in a `WHERE` clause isn't served by the index, so normalizing the casing at write time and comparing the stored value directly lets the equality filter use the range index on `/email`."
+    fr: "Un Retrieved Document Count très supérieur à l'Output Document Count signifie qu'une partie du filtre n'a pas pu utiliser l'index et que le moteur a chargé tous les éléments du locataire. `LOWER()` dans une clause `WHERE` n'est pas servi par l'index : normaliser la casse à l'écriture et comparer directement la valeur stockée permet au filtre d'égalité d'utiliser l'index de plage sur `/email`."
+  options:
+    b: { en: "The composite index cannot help while the filter still applies LOWER() to the property; the engine must still load each item.", fr: "L'index composite ne peut pas aider tant que le filtre applique LOWER() à la propriété : le moteur doit toujours charger chaque élément." }
+    c: { en: "Parallelism can reduce latency of cross-partition queries, but this query targets one partition key and the cost comes from the scan.", fr: "Le parallélisme peut réduire la latence des requêtes entre partitions, mais cette requête cible une seule valeur de clé de partition et le coût vient de l'analyse complète." }
+    d: { en: "More RU/s avoids throttling but does not change how many RUs each execution consumes.", fr: "Plus de RU/s évite la limitation du débit mais ne change pas le nombre de RU consommées par chaque exécution." }
+references:
+  - title: Troubleshoot query issues when using Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-query-performance

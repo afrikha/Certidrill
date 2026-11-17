@@ -1,0 +1,79 @@
+id: ai200-cs1b-wingtip
+status: draft
+title:
+  en: Wingtip Toys
+  fr: Wingtip Toys
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wingtip Toys is an online toy retailer that sells in 14 European countries from three warehouses. Its catalog contains about 120,000 products in 300 categories.
+
+        Wingtip Toys is adding a feature named **GiftFinder** to its website. A shopper describes a child and an occasion, and GiftFinder suggests products of the selected category whose descriptions are semantically close to the request.
+      fr: |
+        Wingtip Toys est un détaillant de jouets en ligne qui vend dans 14 pays européens à partir de trois entrepôts. Son catalogue contient environ 120 000 produits répartis dans 300 catégories.
+
+        Wingtip Toys ajoute à son site web une fonctionnalité nommée **GiftFinder**. Un client décrit un enfant et une occasion, et GiftFinder propose des produits de la catégorie sélectionnée dont la description est sémantiquement proche de la demande.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Wingtip Toys has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | aks-wingtip | Azure Kubernetes Service (AKS) cluster | OIDC issuer and Microsoft Entra Workload ID enabled; namespace **shop** |
+        | id-catalog | User-assigned managed identity | Data-plane roles on cosmos-wingtip and appcs-wingtip; federated identity credential for the subject `system:serviceaccount:shop:sa-catalog` |
+        | cosmos-wingtip | Azure Cosmos DB for NoSQL account | Default consistency level Session; vector search enabled; database **store** |
+        | products | Container in store | Partition key `/categoryId`; time to live **On (no default)**; each item has an `embedding` property (1,536 dimensions, cosine) covered by a vector index |
+        | func-wingtip | Function app (Python) | Function **sync-search**, triggered by the change feed of products with the lease container **leases**; function **reorder**, Event Grid trigger |
+        | egt-wingtip-stock | Event Grid custom topic | Receives events from the warehouse system |
+        | stwingtipdl | Storage account | Blob container **deadletters** |
+        | appcs-wingtip | Azure App Configuration store | Keys `catalog:SearchTopK` and `catalog:MinScore`, each with the labels **dev** and **prod**; feature flag **GiftFinder** |
+
+        The product API, named **catalog-api**, is a Python container that will run as a deployment in the shop namespace of aks-wingtip. sync-search copies the name, price and availability of each changed product to the GiftFinder recommendation store.
+
+        The warehouse system publishes events of the types `Wingtip.Stock.Low` and `Wingtip.Stock.Replenished` to egt-wingtip-stock. The subject of each event has the format `/warehouses/<region>/<sku>`, where the region is `eu`, `uk` or `nordics`.
+
+        Product managers update prices every hour, so the products container receives many more writes than any other container.
+      fr: |
+        Wingtip Toys dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | aks-wingtip | Cluster Azure Kubernetes Service (AKS) | Émetteur OIDC et Microsoft Entra Workload ID activés ; espace de noms **shop** |
+        | id-catalog | Identité managée affectée par l'utilisateur | Rôles de plan de données sur cosmos-wingtip et appcs-wingtip ; informations d'identification fédérées pour le sujet `system:serviceaccount:shop:sa-catalog` |
+        | cosmos-wingtip | Compte Azure Cosmos DB for NoSQL | Niveau de cohérence par défaut Session ; recherche vectorielle activée ; base de données **store** |
+        | products | Conteneur de store | Clé de partition `/categoryId` ; durée de vie **On (no default)** ; chaque élément a une propriété `embedding` (1 536 dimensions, cosinus) couverte par un index vectoriel |
+        | func-wingtip | Application de fonction (Python) | Fonction **sync-search**, déclenchée par le flux de modification de products avec le conteneur de baux **leases** ; fonction **reorder**, déclencheur Event Grid |
+        | egt-wingtip-stock | Rubrique personnalisée Event Grid | Reçoit les événements du système d'entrepôt |
+        | stwingtipdl | Compte de stockage | Conteneur d'objets blob **deadletters** |
+        | appcs-wingtip | Magasin Azure App Configuration | Clés `catalog:SearchTopK` et `catalog:MinScore`, chacune avec les étiquettes **dev** et **prod** ; indicateur de fonctionnalité **GiftFinder** |
+
+        L'API des produits, nommée **catalog-api**, est un conteneur Python qui s'exécutera sous la forme d'un déploiement dans l'espace de noms shop d'aks-wingtip. sync-search copie le nom, le prix et la disponibilité de chaque produit modifié dans le magasin de recommandations de GiftFinder.
+
+        Le système d'entrepôt publie des événements de types `Wingtip.Stock.Low` et `Wingtip.Stock.Replenished` dans egt-wingtip-stock. Le sujet de chaque événement a le format `/warehouses/<region>/<sku>`, où la région est `eu`, `uk` ou `nordics`.
+
+        Les chefs de produit mettent à jour les prix toutes les heures : le conteneur products reçoit beaucoup plus d'écritures que tous les autres conteneurs.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Wingtip Toys identifies the following requirements:
+
+        1. **Identity**: catalog-api must access cosmos-wingtip and appcs-wingtip as id-catalog by using Microsoft Entra Workload ID. No key, connection string or client secret may be stored in the cluster.
+        2. **GiftFinder search**: catalog-api returns the five products of the selected category that are the most similar to the request embedding, with their similarity score. The RU charge and the latency of each search must be minimized.
+        3. **Write cost**: the RU charge of the hourly price updates must be reduced without slowing down GiftFinder searches.
+        4. **Discontinued products**: when a product manager discontinues a product, sync-search must remove the product from the recommendation store, and the product must disappear from the products container within 24 hours.
+        5. **Restocking**: the reorder function must receive only the `Wingtip.Stock.Low` events of the warehouses in the `eu` region.
+        6. **Configuration**: catalog-api must load only the `catalog:` keys that have the **prod** label and read them without the `catalog:` prefix. It must also load the feature flag **GiftFinder**, which the marketing team uses to turn the feature on and off.
+      fr: |
+        Wingtip Toys a défini les exigences suivantes :
+
+        1. **Identité** : catalog-api doit accéder à cosmos-wingtip et à appcs-wingtip en tant qu'id-catalog à l'aide de Microsoft Entra Workload ID. Aucune clé, chaîne de connexion ni clé secrète client ne doit être stockée dans le cluster.
+        2. **Recherche GiftFinder** : catalog-api renvoie les cinq produits de la catégorie sélectionnée les plus similaires à l'incorporation de la demande, avec leur score de similarité. Les frais en RU et la latence de chaque recherche doivent être réduits au minimum.
+        3. **Coût des écritures** : les frais en RU des mises à jour horaires des prix doivent être réduits sans ralentir les recherches GiftFinder.
+        4. **Produits abandonnés** : quand un chef de produit abandonne un produit, sync-search doit retirer le produit du magasin de recommandations, et le produit doit disparaître du conteneur products dans un délai de 24 heures.
+        5. **Réapprovisionnement** : la fonction reorder ne doit recevoir que les événements `Wingtip.Stock.Low` des entrepôts de la région `eu`.
+        6. **Configuration** : catalog-api doit charger uniquement les clés `catalog:` qui ont l'étiquette **prod** et les lire sans le préfixe `catalog:`. Elle doit aussi charger l'indicateur de fonctionnalité **GiftFinder**, que l'équipe marketing utilise pour activer et désactiver la fonctionnalité.

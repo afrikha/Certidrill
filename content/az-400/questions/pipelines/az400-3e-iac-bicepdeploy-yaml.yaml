@@ -1,0 +1,105 @@
+id: az400-3e-iac-bicepdeploy-yaml
+objective: "3.5.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin deploys its infrastructure from an Azure Pipelines YAML pipeline with the **BicepDeploy@0** task. An environment named **infra-prod** has an approval check assigned to the platform leads.
+
+    The pipeline must meet the following requirements:
+
+    - The Preview stage shows the changes that the deployment would make, without changing any resource.
+    - The Deploy stage waits for the approval configured on infra-prod before it deploys.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin déploie son infrastructure depuis un pipeline YAML Azure Pipelines avec la tâche **BicepDeploy@0**. Un environnement nommé **infra-prod** possède une vérification d'approbation attribuée aux responsables de la plateforme.
+
+    Le pipeline doit respecter les exigences suivantes :
+
+    - La phase Preview montre les modifications que le déploiement effectuerait, sans modifier aucune ressource.
+    - La phase Deploy attend l'approbation configurée sur infra-prod avant de déployer.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    stages:
+    - stage: Preview
+      jobs:
+      - job: WhatIf
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+        - task: BicepDeploy@0
+          inputs:
+            type: deployment
+            operation: [[op]]
+            scope: resourceGroup
+            azureResourceManagerConnection: sc-infra-wif
+            subscriptionId: $(subscriptionId)
+            resourceGroupName: rg-tailspin-prod
+            templateFile: infra/main.bicep
+            parametersFile: infra/prod.bicepparam
+    - stage: Deploy
+      dependsOn: Preview
+      jobs:
+      - [[job]]: Infra
+        [[key]]: infra-prod
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - checkout: self
+              - task: BicepDeploy@0
+                inputs:
+                  type: deployment
+                  operation: create
+                  scope: resourceGroup
+                  azureResourceManagerConnection: sc-infra-wif
+                  subscriptionId: $(subscriptionId)
+                  resourceGroupName: rg-tailspin-prod
+                  templateFile: infra/main.bicep
+                  parametersFile: infra/prod.bicepparam
+  slots:
+    - id: op
+      options:
+        - { id: whatif, text: whatIf }
+        - { id: validate, text: validate }
+        - { id: create, text: create }
+        - { id: delete, text: delete }
+    - id: job
+      options:
+        - { id: deployment, text: deployment }
+        - { id: job, text: job }
+        - { id: template, text: template }
+    - id: key
+      options:
+        - { id: environment, text: environment }
+        - { id: workspace, text: workspace }
+        - { id: container, text: container }
+        - { id: services, text: services }
+answer:
+  values: { op: whatif, job: deployment, key: environment }
+explanation:
+  correct:
+    en: "The whatIf operation of BicepDeploy@0 predicts the resource changes without deploying. A deployment job that targets an environment with the `environment` keyword runs only after the checks of that environment, such as an approval, pass; the `runOnce` strategy belongs to deployment jobs."
+    fr: "L'opération whatIf de BicepDeploy@0 prédit les modifications de ressources sans déployer. Un travail de déploiement qui cible un environnement avec le mot clé `environment` ne s'exécute qu'après la réussite des vérifications de cet environnement, comme une approbation ; la stratégie `runOnce` est propre aux travaux de déploiement."
+  options:
+    validate: { en: "validate runs the preflight validation only; it doesn't list the changes.", fr: "validate exécute seulement la validation préalable ; il ne liste pas les modifications." }
+    create: { en: "create deploys the resources, which the Preview stage must not do.", fr: "create déploie les ressources, ce que la phase Preview ne doit pas faire." }
+    job: { en: "A regular job can't target an environment or use a deployment strategy.", fr: "Un travail standard ne peut ni cibler un environnement ni utiliser une stratégie de déploiement." }
+    workspace: { en: "workspace controls how the agent cleans the working directory.", fr: "workspace contrôle le nettoyage du répertoire de travail de l'agent." }
+references:
+  - title: Quickstart - Integrate Bicep with Azure Pipelines
+    url: https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/add-template-to-azure-pipelines
+  - title: BicepDeploy@0 - Bicep Deploy v0 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/bicep-deploy-v0

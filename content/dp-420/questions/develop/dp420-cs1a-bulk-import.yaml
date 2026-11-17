@@ -1,0 +1,73 @@
+id: dp420-cs1a-bulk-import
+objective: "1.2.4"
+type: dropdown
+caseStudy: dp420-cs1a-adventure-works
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are rewriting job-price-import. Each row of the supplier file is converted into a complete `Product` object.
+
+    You need to complete the code to meet the import requirement.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous réécrivez job-price-import. Chaque ligne du fichier fournisseur est convertie en un objet `Product` complet.
+
+    Vous devez compléter le code pour satisfaire l'exigence relative à l'importation.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    CosmosClient client = new(endpoint, new DefaultAzureCredential(), new CosmosClientOptions
+    {
+        [[option]] = true
+    });
+    Container products = client.GetContainer("store", "products");
+
+    List<Task> tasks = new();
+    foreach (Product product in productsFromFile)
+    {
+        tasks.Add(products.[[write]](product, new PartitionKey(product.category)));
+    }
+    await Task.[[wait]](tasks);
+  slots:
+    - id: option
+      options:
+        - { id: bulk, text: AllowBulkExecution }
+        - { id: content, text: EnableContentResponseOnWrite }
+        - { id: endpoint, text: LimitToEndpoint }
+    - id: write
+      options:
+        - { id: create, text: CreateItemAsync }
+        - { id: upsert, text: UpsertItemAsync }
+        - { id: replace, text: ReplaceItemAsync }
+        - { id: patch, text: PatchItemAsync }
+    - id: wait
+      options:
+        - { id: whenany, text: WhenAny }
+        - { id: waitany, text: WaitAny }
+        - { id: whenall, text: WhenAll }
+answer:
+  values: { option: bulk, write: upsert, wait: whenall }
+explanation:
+  correct:
+    en: "With `AllowBulkExecution = true`, the client groups the concurrent operations that the application issues into a small number of service calls per partition, which maximizes throughput. `UpsertItemAsync` creates the products that do not exist and replaces the ones that already exist. The pattern of bulk execution is to start one task per item and to await all of them with `Task.WhenAll`."
+    fr: "Avec `AllowBulkExecution = true`, le client regroupe les opérations simultanées émises par l'application dans un petit nombre d'appels de service par partition, ce qui maximise le débit. `UpsertItemAsync` crée les produits qui n'existent pas et remplace ceux qui existent déjà. Le modèle de l'exécution en bloc consiste à lancer une tâche par élément et à les attendre toutes avec `Task.WhenAll`."
+  options:
+    content: { en: "EnableContentResponseOnWrite only controls whether the item is returned in the response of a write; it does not group operations.", fr: "EnableContentResponseOnWrite contrôle seulement si l'élément est renvoyé dans la réponse d'une écriture ; il ne regroupe pas les opérations." }
+    endpoint: { en: "LimitToEndpoint restricts the client to the configured endpoint instead of discovering regional endpoints; it has no effect on grouping.", fr: "LimitToEndpoint limite le client au point de terminaison configuré au lieu de découvrir les points de terminaison régionaux ; il n'a aucun effet sur le regroupement." }
+    create: { en: "CreateItemAsync fails with 409 (Conflict) for the products that already exist.", fr: "CreateItemAsync échoue avec 409 (Conflict) pour les produits qui existent déjà." }
+    replace: { en: "ReplaceItemAsync fails with 404 (Not Found) for the products that do not exist yet; its signature also expects the item id.", fr: "ReplaceItemAsync échoue avec 404 (Not Found) pour les produits qui n'existent pas encore ; sa signature attend aussi l'id de l'élément." }
+    patch: { en: "PatchItemAsync updates selected properties of an existing item; it cannot create a product.", fr: "PatchItemAsync met à jour certaines propriétés d'un élément existant ; il ne peut pas créer de produit." }
+    whenany: { en: "WhenAny completes as soon as the first task finishes, so the job would end before the import is complete.", fr: "WhenAny se termine dès que la première tâche est terminée : le travail s'arrêterait avant la fin de l'importation." }
+    waitany: { en: "WaitAny blocks the thread until a single task finishes; it neither waits for all the writes nor returns an awaitable task.", fr: "WaitAny bloque le thread jusqu'à la fin d'une seule tâche ; elle n'attend pas toutes les écritures et ne renvoie pas de tâche attendable." }
+references:
+  - title: Bulk import to Azure Cosmos DB for NoSQL by using the .NET SDK
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/tutorial-dotnet-bulk-import

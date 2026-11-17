@@ -1,0 +1,75 @@
+id: az700-4b-sep-cli
+objective: "4.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware has a service endpoint policy named **sep-data** in a resource group named **RG-Net**. A subnet named **Subnet1** of a virtual network named **VNet1** must be allowed to reach only the storage account **stprosewaredata**, in the resource group **RG-Data**, through its service endpoint.
+
+    You need to complete the configuration by using the Azure CLI.
+
+    How should you complete the commands? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware dispose d'une stratégie de point de terminaison de service nommée **sep-data** dans un groupe de ressources nommé **RG-Net**. Un sous-réseau nommé **Subnet1** d'un réseau virtuel nommé **VNet1** ne doit pouvoir atteindre que le compte de stockage **stprosewaredata**, situé dans le groupe de ressources **RG-Data**, via son point de terminaison de service.
+
+    Vous devez terminer la configuration à l'aide d'Azure CLI.
+
+    Comment devez-vous compléter les commandes ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network service-endpoint policy-definition create \
+      --resource-group RG-Net \
+      --policy-name sep-data \
+      --name allow-stprosewaredata \
+      --service [[svc]] \
+      --service-resources [[res]]
+
+    az network vnet subnet update \
+      --resource-group RG-Net \
+      --vnet-name VNet1 \
+      --name Subnet1 \
+      --service-endpoints Microsoft.Storage \
+      [[assoc]] sep-data
+  slots:
+    - id: svc
+      options:
+        - { id: storage, text: Microsoft.Storage }
+        - { id: sql, text: Microsoft.Sql }
+        - { id: tag, text: Storage }
+    - id: res
+      options:
+        - { id: fqdn, text: stprosewaredata.blob.core.windows.net }
+        - { id: rg, text: /subscriptions/<subscription ID>/resourceGroups/RG-Data }
+        - { id: acct, text: /subscriptions/<subscription ID>/resourceGroups/RG-Data/providers/Microsoft.Storage/storageAccounts/stprosewaredata }
+    - id: assoc
+      options:
+        - { id: nsg, text: "--network-security-group" }
+        - { id: sep, text: "--service-endpoint-policy" }
+        - { id: rt, text: "--route-table" }
+answer:
+  values: { svc: storage, res: acct, assoc: sep }
+explanation:
+  correct:
+    en: |
+      Service endpoint policies support Azure Storage only, so the definition uses the service Microsoft.Storage. To allow a single account, `--service-resources` takes the full resource ID of the storage account. The policy is then associated with the subnet by `az network vnet subnet update --service-endpoint-policy`, on a subnet where the Microsoft.Storage endpoint is enabled.
+    fr: |
+      Les stratégies de point de terminaison de service ne prennent en charge que Stockage Azure : la définition utilise le service Microsoft.Storage. Pour autoriser un seul compte, `--service-resources` prend l'ID de ressource complet du compte de stockage. La stratégie est ensuite associée au sous-réseau par `az network vnet subnet update --service-endpoint-policy`, sur un sous-réseau où le point de terminaison Microsoft.Storage est activé.
+  options:
+    sql: { en: "Policies can't filter Azure SQL Database traffic; they apply to Azure Storage only.", fr: "Les stratégies ne peuvent pas filtrer le trafic Azure SQL Database ; elles s'appliquent uniquement à Stockage Azure." }
+    tag: { en: "Storage is an NSG service tag, not a service name of a policy definition.", fr: "Storage est une étiquette de service de NSG, pas un nom de service de définition de stratégie." }
+    fqdn: { en: "A policy definition lists resource IDs, not endpoint host names.", fr: "Une définition de stratégie répertorie des ID de ressource, pas des noms d'hôte de points de terminaison." }
+    rg: { en: "A resource group entry would allow every storage account in RG-Data, not only stprosewaredata.", fr: "Une entrée de groupe de ressources autoriserait tous les comptes de stockage de RG-Data, et pas seulement stprosewaredata." }
+    nsg: { en: "This parameter associates a network security group, not a service endpoint policy.", fr: "Ce paramètre associe un groupe de sécurité réseau, pas une stratégie de point de terminaison de service." }
+    rt: { en: "This parameter associates a route table, not a service endpoint policy.", fr: "Ce paramètre associe une table de routage, pas une stratégie de point de terminaison de service." }
+references:
+  - title: az network service-endpoint policy-definition
+    url: https://learn.microsoft.com/en-us/cli/azure/network/service-endpoint/policy-definition
+  - title: Create and associate service endpoint policies
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-service-endpoint-policies

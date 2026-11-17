@@ -1,0 +1,116 @@
+id: az305-cs1a-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a genomics company that sequences DNA samples for hospitals and pharmaceutical laboratories. The company has 350 employees. The head office and the only datacenter are in Basel, Switzerland.
+
+        Trey Research plans to close the Basel datacenter and to move its sequencing analysis platform to Azure.
+      fr: |
+        Trey Research est une société de génomique qui séquence des échantillons d'ADN pour des hôpitaux et des laboratoires pharmaceutiques. La société compte 350 employés. Le siège et l'unique centre de données se trouvent à Bâle, en Suisse.
+
+        Trey Research prévoit de fermer le centre de données de Bâle et de déplacer sa plateforme d'analyse de séquençage vers Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity and Azure**
+
+        The on-premises Active Directory Domain Services (AD DS) forest named treyresearch.com is synchronized with a Microsoft Entra tenant. Trey Research has one Azure subscription named **Sub-Research**. All Azure resources will be deployed to the Switzerland North region.
+
+        **Basel datacenter**
+
+        | Name | Description |
+        | --- | --- |
+        | HPC1 | A 160-node Linux cluster that runs alignment jobs. Each job processes one sample with a command-line tool, runs for two to five hours and doesn't communicate with the other jobs. A job writes a checkpoint every 10 minutes and can resume from its last checkpoint on any node. |
+        | NAS1 | An NFS file server that stores 60 TB of raw sequencing files. A file is never modified after it is written. |
+        | SQL1 | A server that runs SQL Server 2019 and hosts two databases named **LIMS** (800 GB) and **LIMS_Audit** for the laboratory information management system. The application relies on SQL Server Agent jobs, on CLR assemblies and on queries that join tables of both databases. |
+
+        The datacenter connects to the internet through a 200-Mbps link, which also carries a site-to-site VPN to Azure.
+      fr: |
+        **Identité et Azure**
+
+        La forêt Active Directory Domain Services (AD DS) locale nommée treyresearch.com est synchronisée avec un locataire Microsoft Entra. Trey Research dispose d'un abonnement Azure nommé **Sub-Research**. Toutes les ressources Azure seront déployées dans la région Switzerland North.
+
+        **Centre de données de Bâle**
+
+        | Nom | Description |
+        | --- | --- |
+        | HPC1 | Un cluster Linux de 160 nœuds qui exécute des travaux d'alignement. Chaque travail traite un échantillon avec un outil en ligne de commande, dure de deux à cinq heures et ne communique pas avec les autres travaux. Un travail écrit un point de contrôle toutes les 10 minutes et peut reprendre à partir de son dernier point de contrôle sur n'importe quel nœud. |
+        | NAS1 | Un serveur de fichiers NFS qui stocke 60 To de fichiers de séquençage bruts. Un fichier n'est jamais modifié après son écriture. |
+        | SQL1 | Un serveur qui exécute SQL Server 2019 et héberge deux bases de données nommées **LIMS** (800 Go) et **LIMS_Audit** pour le système de gestion des informations du laboratoire. L'application s'appuie sur des travaux SQL Server Agent, sur des assemblys CLR et sur des requêtes qui joignent des tables des deux bases de données. |
+
+        Le centre de données est relié à Internet par une liaison à 200 Mbit/s, qui transporte aussi un VPN de site à site vers Azure.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Trey Research plans to implement the following changes:
+
+        - Run the alignment jobs in Azure. A sequencing run submits up to 3,000 jobs within a few minutes. Several days can pass between two sequencing runs.
+        - Copy the files of NAS1 to Azure Blob Storage, then write the new raw sequencing files directly to Azure.
+        - Store the analysis reports produced by the alignment jobs in a blob container named **reports**.
+        - Migrate the LIMS and LIMS_Audit databases to Azure.
+      fr: |
+        Trey Research prévoit de mettre en œuvre les changements suivants :
+
+        - Exécuter les travaux d'alignement dans Azure. Une campagne de séquençage soumet jusqu'à 3 000 travaux en quelques minutes. Plusieurs jours peuvent s'écouler entre deux campagnes de séquençage.
+        - Copier les fichiers de NAS1 vers Stockage Blob Azure, puis écrire les nouveaux fichiers de séquençage bruts directement dans Azure.
+        - Stocker les rapports d'analyse produits par les travaux d'alignement dans un conteneur d'objets blob nommé **reports**.
+        - Migrer les bases de données LIMS et LIMS_Audit vers Azure.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Compute requirements**
+
+        - No compute resource must be billed between two sequencing runs.
+        - Trey Research doesn't want to deploy or operate a job scheduler.
+        - The cost of the compute resources must be minimized. The completion of a job can be delayed.
+
+        **Storage requirements**
+
+        - The files of NAS1 must be available in Azure within six weeks. The copy can use at most 50 Mbps of the internet link.
+        - Raw sequencing files are read frequently during the 60 days that follow their upload. After 60 days, a file is read less than once a year, and waiting up to 15 hours before the file can be read is acceptable. Raw sequencing files are kept for 10 years.
+        - Raw sequencing files must not be lost if the Switzerland North region is destroyed. Reading the files from another region is not required while Switzerland North is available.
+        - The analysis reports must not be modified or deleted for 10 years. Nobody, including the owners of the subscription, must be able to shorten this period.
+        - Storage costs must be minimized.
+
+        **Database requirements**
+
+        - LIMS and LIMS_Audit must be migrated with as few changes as possible to the application and to the databases.
+        - Trey Research doesn't want to install, patch or manage an operating system or the SQL Server software.
+
+        **Security requirements**
+
+        - The job scripts and the configuration of the compute nodes must contain no secret, key or shared access signature (SAS) token.
+        - A pool of compute nodes is created for each sequencing run and deleted when the run ends. The role assignments that give the nodes access to the storage accounts must not be created again for each run.
+      fr: |
+        **Exigences de calcul**
+
+        - Aucune ressource de calcul ne doit être facturée entre deux campagnes de séquençage.
+        - Trey Research ne veut ni déployer ni exploiter de planificateur de travaux.
+        - Le coût des ressources de calcul doit être réduit au minimum. La fin d'un travail peut être retardée.
+
+        **Exigences de stockage**
+
+        - Les fichiers de NAS1 doivent être disponibles dans Azure sous six semaines. La copie peut utiliser au plus 50 Mbit/s de la liaison Internet.
+        - Les fichiers de séquençage bruts sont lus fréquemment pendant les 60 jours qui suivent leur chargement. Après 60 jours, un fichier est lu moins d'une fois par an, et attendre jusqu'à 15 heures avant de pouvoir le lire est acceptable. Les fichiers de séquençage bruts sont conservés 10 ans.
+        - Les fichiers de séquençage bruts ne doivent pas être perdus si la région Switzerland North est détruite. Lire les fichiers depuis une autre région n'est pas exigé tant que Switzerland North est disponible.
+        - Les rapports d'analyse ne doivent être ni modifiés ni supprimés pendant 10 ans. Personne, y compris les propriétaires de l'abonnement, ne doit pouvoir raccourcir cette durée.
+        - Les coûts de stockage doivent être réduits au minimum.
+
+        **Exigences de base de données**
+
+        - LIMS et LIMS_Audit doivent être migrées avec le moins de modifications possible de l'application et des bases de données.
+        - Trey Research ne veut ni installer, ni corriger, ni gérer de système d'exploitation ou le logiciel SQL Server.
+
+        **Exigences de sécurité**
+
+        - Les scripts des travaux et la configuration des nœuds de calcul ne doivent contenir aucun secret, aucune clé et aucun jeton de signature d'accès partagé (SAS).
+        - Un pool de nœuds de calcul est créé pour chaque campagne de séquençage et supprimé à la fin de la campagne. Les attributions de rôles qui donnent aux nœuds l'accès aux comptes de stockage ne doivent pas être recréées à chaque campagne.

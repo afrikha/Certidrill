@@ -1,0 +1,68 @@
+id: dp700-2d-kql-mv-backfill
+objective: "2.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric eventhouse that contains a KQL database named **DB-Water**. A table named **PumpTelemetry** contains two years of readings and receives new readings continuously. Each reading has the `PumpId`, `Timestamp` and `Pressure` columns.
+
+    You need to create a materialized view named **PumpHourly** that contains the average pressure of each pump per hour, for both the existing and the new readings. The dashboard tiles that read PumpHourly must favor query performance and can tolerate a few minutes of delay.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse Fabric qui contient une base de données KQL nommée **DB-Water**. Une table nommée **PumpTelemetry** contient deux ans de mesures et reçoit de nouvelles mesures en continu. Chaque mesure a les colonnes `PumpId`, `Timestamp` et `Pressure`.
+
+    Vous devez créer une vue matérialisée nommée **PumpHourly** qui contient la pression moyenne de chaque pompe par heure, pour les mesures existantes comme pour les nouvelles. Les vignettes de tableau de bord qui lisent PumpHourly doivent privilégier les performances des requêtes et peuvent tolérer quelques minutes de retard.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .create async materialized-view with ([[prop]]) PumpHourly on table PumpTelemetry
+    {
+        PumpTelemetry
+        | summarize AvgPressure = avg(Pressure) by PumpId, [[grp]]
+    }
+
+    [[read]]
+    | where PumpId == "P-104"
+  slots:
+    - id: prop
+      options:
+        - { id: prLookback, text: lookback=1h }
+        - { id: prBackfill, text: backfill=true }
+        - { id: prAutoSchema, text: autoUpdateSchema=true }
+    - id: grp
+      options:
+        - { id: grRaw, text: Timestamp }
+        - { id: grBin, text: "bin(Timestamp, 1h)" }
+        - { id: grAgo, text: "Timestamp > ago(1h)" }
+    - id: read
+      options:
+        - { id: rdName, text: PumpHourly }
+        - { id: rdSource, text: PumpTelemetry }
+        - { id: rdFunc, text: "materialized_view(\"PumpHourly\")" }
+answer:
+  values: { prop: prBackfill, grp: grBin, read: rdFunc }
+explanation:
+  correct:
+    en: "By default, a new materialized view includes only the records ingested after its creation; `backfill=true` builds it from the existing records too, and `async` lets the command return while the backfill runs. `bin(Timestamp, 1h)` groups the readings into hourly intervals. `materialized_view(\"PumpHourly\")` reads only the materialized part, which performs better than querying the view by name, at the cost of possibly missing the latest records."
+    fr: "Par défaut, une nouvelle vue matérialisée n'inclut que les enregistrements ingérés après sa création ; `backfill=true` la construit aussi à partir des enregistrements existants, et `async` permet à la commande de rendre la main pendant le remplissage. `bin(Timestamp, 1h)` regroupe les mesures par intervalles d'une heure. `materialized_view(\"PumpHourly\")` ne lit que la partie matérialisée, plus performante que l'interrogation de la vue par son nom, au risque de manquer les enregistrements les plus récents."
+  options:
+    prLookback: { en: "lookback limits how far back the view looks for records with the same key; it doesn't include the existing data.", fr: "lookback limite l'antériorité des enregistrements de même clé recherchés par la vue ; il n'inclut pas les données existantes." }
+    prAutoSchema: { en: "autoUpdateSchema propagates source schema changes and is valid only for arg_max, arg_min or take_any views.", fr: "autoUpdateSchema propage les modifications du schéma source et n'est valide que pour les vues arg_max, arg_min ou take_any." }
+    grRaw: { en: "Grouping by the raw timestamp creates one group per distinct time instead of one per hour.", fr: "Regrouper par l'horodatage brut crée un groupe par instant distinct au lieu d'un groupe par heure." }
+    grAgo: { en: "A materialized view can't depend on now(), as ago() does; and a condition isn't an hourly grouping key.", fr: "Une vue matérialisée ne peut pas dépendre de now(), comme le fait ago() ; et une condition n'est pas une clé de regroupement horaire." }
+    rdName: { en: "Querying the view by name also processes the records not yet materialized; it's always fresh but slower.", fr: "Interroger la vue par son nom traite aussi les enregistrements pas encore matérialisés ; le résultat est toujours à jour mais plus lent." }
+    rdSource: { en: "Querying the source table returns raw readings, not the hourly averages.", fr: "Interroger la table source renvoie les mesures brutes, pas les moyennes horaires." }
+references:
+  - title: Create materialized view
+    url: https://learn.microsoft.com/en-us/kusto/management/materialized-views/materialized-view-create?view=microsoft-fabric
+  - title: Materialized views
+    url: https://learn.microsoft.com/en-us/kusto/management/materialized-views/materialized-view-overview?view=microsoft-fabric

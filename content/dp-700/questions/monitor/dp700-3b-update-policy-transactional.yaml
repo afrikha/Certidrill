@@ -1,0 +1,60 @@
+id: dp700-3b-update-policy-transactional
+objective: "3.2.4"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You have a Fabric workspace named Workspace1 that contains an eventhouse. The eventhouse contains a KQL database that has two tables named Orders_Raw and Orders_Silver, and a function named TransformOrders().
+
+    Last week, transient errors in the existing update policy left rows in Orders_Raw that never reached Orders_Silver, while the ingestions were reported as successful. You need to redefine the update policy so that Orders_Silver is populated from the rows ingested into Orders_Raw by TransformOrders(). If the policy fails, no data must be ingested into either table, and the ingestion must be reported as failed so that it can be retried.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Fabric nommé Workspace1 qui contient un eventhouse. L'eventhouse contient une base de données KQL qui comporte deux tables nommées Orders_Raw et Orders_Silver, ainsi qu'une fonction nommée TransformOrders().
+
+    La semaine dernière, des erreurs temporaires de la stratégie de mise à jour existante ont laissé dans Orders_Raw des lignes qui ne sont jamais arrivées dans Orders_Silver, alors que les ingestions étaient signalées comme réussies. Vous devez redéfinir la stratégie de mise à jour pour qu'Orders_Silver soit alimentée par TransformOrders() à partir des lignes ingérées dans Orders_Raw. Si la stratégie échoue, aucune donnée ne doit être ingérée dans l'une ou l'autre table, et l'ingestion doit être signalée en échec afin de pouvoir être relancée.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .alter table [[tgt]] policy update
+    @'[{"IsEnabled": true, "Source": "[[src]]", "Query": "TransformOrders()", "IsTransactional": [[tx]]}]'
+  slots:
+    - id: tgt
+      options:
+        - { id: tgt-raw, text: Orders_Raw }
+        - { id: tgt-silver, text: Orders_Silver }
+        - { id: tgt-fn, text: TransformOrders }
+    - id: src
+      options:
+        - { id: src-silver, text: Orders_Silver }
+        - { id: src-fn, text: TransformOrders }
+        - { id: src-raw, text: Orders_Raw }
+    - id: tx
+      options:
+        - { id: tx-true, text: "true" }
+        - { id: tx-false, text: "false" }
+answer:
+  values: { tgt: tgt-silver, src: src-raw, tx: tx-true }
+explanation:
+  correct:
+    en: |
+      An update policy is defined on the target table, and its Source property names the table whose ingestions trigger the query. With IsTransactional set to true, a failure of the policy prevents ingestion into both the source and the target, and the ingestion is reported as unsuccessful. The default, false, ingests into the source only and reports success, which caused last week's missing rows.
+    fr: |
+      Une stratégie de mise à jour est définie sur la table cible, et sa propriété Source désigne la table dont les ingestions déclenchent la requête. Avec IsTransactional défini sur true, un échec de la stratégie empêche l'ingestion dans la source comme dans la cible, et l'ingestion est signalée en échec. La valeur par défaut, false, n'ingère que dans la source et signale une réussite, ce qui a provoqué les lignes manquantes de la semaine dernière.
+  options:
+    tgt-raw: { en: "The policy belongs to the table that receives the transformed rows, Orders_Silver.", fr: "La stratégie appartient à la table qui reçoit les lignes transformées, Orders_Silver." }
+    tgt-fn: { en: "A function isn't a table and can't own an update policy.", fr: "Une fonction n'est pas une table et ne peut pas porter de stratégie de mise à jour." }
+    src-silver: { en: "A source equal to the target would make the policy circular.", fr: "Une source identique à la cible rendrait la stratégie circulaire." }
+    src-fn: { en: "Source names a table; the function is set in the Query property.", fr: "Source désigne une table ; la fonction est indiquée dans la propriété Query." }
+    tx-false: { en: "A non-transactional policy lets the source ingestion succeed when the policy fails.", fr: "Une stratégie non transactionnelle laisse l'ingestion source réussir quand la stratégie échoue." }
+references:
+  - title: Update policy overview
+    url: https://learn.microsoft.com/en-us/kusto/management/update-policy?view=microsoft-fabric

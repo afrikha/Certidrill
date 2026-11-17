@@ -1,0 +1,76 @@
+id: dp600-2c-denorm-pyspark-flatten
+objective: "2.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a lakehouse named **LH1** that contains the Delta tables **silver_product** (ProductID, ProductName, SubcategoryID) and **silver_subcategory** (SubcategoryID, SubcategoryName, CategoryName). Some products have no subcategory.
+
+    You are writing a notebook cell that builds a denormalized dimension table named **gold_dim_product**. The table must contain every product and only the four columns shown. When a product has no category, CategoryName must contain **None**.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse nommé **LH1** qui contient les tables Delta **silver_product** (ProductID, ProductName, SubcategoryID) et **silver_subcategory** (SubcategoryID, SubcategoryName, CategoryName). Certains produits n'ont pas de sous-catégorie.
+
+    Vous écrivez une cellule de notebook qui construit une table de dimension dénormalisée nommée **gold_dim_product**. La table doit contenir tous les produits et uniquement les quatre colonnes indiquées. Quand un produit n'a pas de catégorie, CategoryName doit contenir **None**.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import functions as F
+
+    products = spark.read.table("silver_product")
+    subcats = spark.read.table("silver_subcategory")
+
+    dim_product = (products
+        .join(subcats, on="SubcategoryID", how=[[how]])
+        .withColumn("CategoryName",
+                    F.[[fn]](F.col("CategoryName"), F.lit("None")))
+        .[[sel]]("ProductID", "ProductName", "SubcategoryName", "CategoryName"))
+
+    dim_product.write.mode("overwrite").saveAsTable("gold_dim_product")
+  slots:
+    - id: how
+      options:
+        - { id: left, text: "\"left\"" }
+        - { id: inner, text: "\"inner\"" }
+        - { id: anti, text: "\"left_anti\"" }
+        - { id: semi, text: "\"left_semi\"" }
+    - id: fn
+      options:
+        - { id: coalesce, text: coalesce }
+        - { id: when, text: when }
+        - { id: isnull, text: isnull }
+        - { id: greatest, text: greatest }
+    - id: sel
+      options:
+        - { id: select, text: select }
+        - { id: groupby, text: groupBy }
+        - { id: drop, text: drop }
+        - { id: dropdup, text: dropDuplicates }
+answer:
+  values: { how: left, fn: coalesce, sel: select }
+explanation:
+  correct:
+    en: "A `left` join keeps every product, including those with no matching subcategory, and adds the subcategory columns. `coalesce` returns the first non-null value, so CategoryName becomes `\"None\"` when it is null. `select` keeps only the four listed columns."
+    fr: "Une jointure `left` conserve tous les produits, y compris ceux sans sous-catégorie correspondante, et ajoute les colonnes de la sous-catégorie. `coalesce` renvoie la première valeur non null : CategoryName devient `\"None\"` quand il est null. `select` ne conserve que les quatre colonnes indiquées."
+  options:
+    inner: { en: "An inner join drops the products that have no subcategory.", fr: "Une jointure interne supprime les produits sans sous-catégorie." }
+    anti: { en: "left_anti returns only the products without a match, and none of the subcategory columns.", fr: "left_anti ne renvoie que les produits sans correspondance, et aucune colonne de la sous-catégorie." }
+    semi: { en: "left_semi returns only the products with a match, and none of the subcategory columns.", fr: "left_semi ne renvoie que les produits avec une correspondance, et aucune colonne de la sous-catégorie." }
+    when: { en: "when expects a Boolean condition as its first argument, not a column value and a default.", fr: "when attend une condition booléenne comme premier argument, pas une valeur de colonne et une valeur par défaut." }
+    isnull: { en: "isnull takes one column and returns a Boolean; it doesn't substitute a value.", fr: "isnull prend une seule colonne et renvoie un booléen ; il ne substitue aucune valeur." }
+    greatest: { en: "greatest returns the largest value of the columns, which would replace real category names that sort before `\"None\"`.", fr: "greatest renvoie la plus grande valeur des colonnes, ce qui remplacerait les vrais noms de catégorie classés avant `\"None\"`." }
+    groupby: { en: "groupBy returns grouped data that needs an aggregation and can't be saved as a table.", fr: "groupBy renvoie des données regroupées qui exigent une agrégation et ne peuvent pas être enregistrées comme table." }
+    drop: { en: "drop removes the listed columns instead of keeping them.", fr: "drop supprime les colonnes indiquées au lieu de les conserver." }
+    dropdup: { en: "dropDuplicates removes duplicate rows but keeps all the columns, including SubcategoryID.", fr: "dropDuplicates supprime les lignes en double mais conserve toutes les colonnes, y compris SubcategoryID." }
+references:
+  - title: "Lakehouse tutorial: Prepare and transform data in the lakehouse"
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/tutorial-lakehouse-data-preparation

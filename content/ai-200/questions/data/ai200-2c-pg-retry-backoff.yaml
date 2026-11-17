@@ -1,0 +1,71 @@
+id: ai200-2c-pg-retry-backoff
+objective: "2.2.6"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Fourth Coffee runs a read-only retrieval function against Azure Database for PostgreSQL flexible server. During maintenance and scale operations, the function receives transient connection errors.
+
+    You need to implement retries that follow the transient error guidance of Azure Database for PostgreSQL: wait before the first retry, increase the wait exponentially up to a maximum, and give up after six attempts.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fourth Coffee exécute une fonction de récupération en lecture seule sur Azure Database for PostgreSQL serveur flexible. Pendant les opérations de maintenance et de mise à l'échelle, la fonction reçoit des erreurs de connexion temporaires.
+
+    Vous devez implémenter des nouvelles tentatives qui suivent les recommandations d'Azure Database for PostgreSQL sur les erreurs temporaires : attendre avant la première nouvelle tentative, augmenter l'attente de façon exponentielle jusqu'à un maximum, et abandonner après six tentatives.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import itertools, time
+    import psycopg
+
+    def run_with_retry(pool, sql, params):
+        for attempt in [[loop]]:
+            try:
+                with pool.connection() as conn:
+                    return conn.execute(sql, params).fetchall()
+            except psycopg.OperationalError:
+                time.sleep(min([[first]] * 2 ** attempt, [[cap]]))
+        raise RuntimeError("Database unavailable")
+  slots:
+    - id: loop
+      options:
+        - { id: count, text: "itertools.count()" }
+        - { id: range6, text: "range(6)" }
+        - { id: iterint, text: "iter(int, 1)" }
+    - id: first
+      options:
+        - { id: w0, text: "0" }
+        - { id: w05, text: "0.5" }
+        - { id: w5, text: "5" }
+    - id: cap
+      options:
+        - { id: c60, text: "60" }
+        - { id: c5, text: "5" }
+        - { id: c600, text: "600" }
+answer:
+  values: { loop: range6, first: w5, cap: c60 }
+explanation:
+  correct:
+    en: |
+      Microsoft recommends waiting 5 seconds before the first retry, then increasing the wait exponentially up to 60 seconds, and setting a maximum number of retries after which the operation is considered failed. `range(6)` limits the loop to six attempts, and `min(5 * 2 ** attempt, 60)` gives waits of 5, 10, 20, 40 and then 60 seconds.
+    fr: |
+      Microsoft recommande d'attendre 5 secondes avant la première nouvelle tentative, puis d'augmenter l'attente de façon exponentielle jusqu'à 60 secondes, et de fixer un nombre maximal de nouvelles tentatives au-delà duquel l'opération est considérée comme ayant échoué. `range(6)` limite la boucle à six tentatives, et `min(5 * 2 ** attempt, 60)` donne des attentes de 5, 10, 20, 40 puis 60 secondes.
+  options:
+    count: { en: "`itertools.count()` never ends, so the function retries forever.", fr: "`itertools.count()` ne se termine jamais : la fonction réessaie indéfiniment." }
+    iterint: { en: "`iter(int, 1)` is an infinite iterator of zeros, so there is no limit and no backoff.", fr: "`iter(int, 1)` est un itérateur infini de zéros : il n'y a ni limite ni temporisation croissante." }
+    w0: { en: "A zero base never waits, which hammers the server while it recovers.", fr: "Une base nulle n'attend jamais, ce qui sollicite le serveur pendant sa récupération." }
+    w05: { en: "A half-second first wait is shorter than the recommended 5 seconds.", fr: "Une première attente d'une demi-seconde est plus courte que les 5 secondes recommandées." }
+    c5: { en: "A 5-second cap removes the exponential growth.", fr: "Un plafond de 5 secondes supprime la croissance exponentielle." }
+    c600: { en: "The recommended maximum wait is 60 seconds, not 10 minutes.", fr: "L'attente maximale recommandée est de 60 secondes, pas de 10 minutes." }
+references:
+  - title: Handle Transient Connectivity Errors
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-connectivity

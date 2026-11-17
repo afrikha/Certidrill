@@ -1,0 +1,50 @@
+id: ai200-2c-redis-semantic-range
+objective: "2.3.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Relecloud implements a semantic cache for a chat assistant in Azure Managed Redis. Previous prompts are indexed in `idx:prompts` with a vector field named `embedding` that uses the COSINE metric, together with the answers that the model returned.
+
+    For each new prompt, the code must reuse a cached answer only if a stored prompt has a cosine similarity of at least 0.9 with the new prompt. When no stored prompt qualifies, the query must return no document, so that the code calls the model.
+
+    Which query string should the code pass to `Query()`, with the prompt embedding as the `$vec` parameter?
+  fr: |
+    Relecloud implémente un cache sémantique pour un assistant de conversation dans Azure Managed Redis. Les invites précédentes sont indexées dans `idx:prompts` avec un champ vectoriel nommé `embedding` qui utilise la métrique COSINE, ainsi que les réponses renvoyées par le modèle.
+
+    Pour chaque nouvelle invite, le code doit réutiliser une réponse mise en cache uniquement si une invite stockée a une similarité cosinus d'au moins 0,9 avec la nouvelle invite. Quand aucune invite stockée ne convient, la requête ne doit renvoyer aucun document, afin que le code appelle le modèle.
+
+    Quelle chaîne de requête le code doit-il passer à `Query()`, avec l'incorporation de l'invite comme paramètre `$vec` ?
+body:
+  options:
+    - { id: a, text: "*=>[KNN 1 @embedding $vec AS score]" }
+    - { id: b, text: "@embedding:[VECTOR_RANGE 0.1 $vec]=>{$YIELD_DISTANCE_AS: score}" }
+    - { id: c, text: "@embedding:[VECTOR_RANGE 0.9 $vec]=>{$YIELD_DISTANCE_AS: score}" }
+    - { id: d, text: "*=>[KNN 1 @embedding $vec EF_RUNTIME 10 AS score]" }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      A vector range query returns only the documents within a distance radius of the query vector, and returns nothing when none is close enough. With the COSINE metric, distance = 1 − cosine similarity, so a similarity of at least 0.9 is a distance of at most 0.1. `$YIELD_DISTANCE_AS` returns that distance as `score`.
+    fr: |
+      Une requête de plage vectorielle ne renvoie que les documents situés dans un rayon de distance autour du vecteur de requête, et ne renvoie rien quand aucun n'est assez proche. Avec la métrique COSINE, distance = 1 − similarité cosinus : une similarité d'au moins 0,9 correspond à une distance d'au plus 0,1. `$YIELD_DISTANCE_AS` renvoie cette distance sous le nom `score`.
+  options:
+    a:
+      en: |
+        KNN 1 always returns the nearest prompt, even when it is far from the new prompt.
+      fr: |
+        KNN 1 renvoie toujours l'invite la plus proche, même quand elle est éloignée de la nouvelle invite.
+    c:
+      en: |
+        The radius is a distance, so 0.9 accepts prompts with a cosine similarity as low as 0.1.
+      fr: |
+        Le rayon est une distance : 0,9 accepte des invites dont la similarité cosinus ne dépasse pas 0,1.
+    d:
+      en: |
+        EF_RUNTIME sets the breadth of the HNSW search, not a distance threshold, so the nearest prompt is always returned.
+      fr: |
+        EF_RUNTIME définit l'étendue de la recherche HNSW, pas un seuil de distance : l'invite la plus proche est toujours renvoyée.
+references:
+  - title: About Vector Embeddings and Vector Search in Azure Managed Redis
+    url: https://learn.microsoft.com/en-us/azure/redis/overview-vector-similarity

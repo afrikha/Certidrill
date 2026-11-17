@@ -1,0 +1,43 @@
+id: dp600-2b-scd2-load-steps
+objective: "2.2.3"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named Warehouse1 that contains dbo.DimCustomer and dbo.FactSales. dbo.DimCustomer is an SCD type 2 dimension with a surrogate key, the business key CustomerID, and the columns Region, ValidFrom, ValidTo and IsCurrent. The nightly ETL process stages changed customers and new sales.
+
+    You need to process a change of Region for some customers and then load the new sales.
+
+    Which four actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé Warehouse1 qui contient dbo.DimCustomer et dbo.FactSales. dbo.DimCustomer est une dimension SCD de type 2 avec une clé de substitution, la clé métier CustomerID, et les colonnes Region, ValidFrom, ValidTo et IsCurrent. Le processus ETL nocturne place en staging les clients modifiés et les nouvelles ventes.
+
+    Vous devez traiter un changement de Region pour certains clients, puis charger les nouvelles ventes.
+
+    Quelles sont les quatre actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - { id: detect, text: { en: "Match the staged customers to dbo.DimCustomer on CustomerID and identify those whose Region changed.", fr: "Faire correspondre les clients en staging à dbo.DimCustomer sur CustomerID et identifier ceux dont la Region a changé." } }
+    - { id: expire, text: { en: "For each changed customer, set ValidTo to the processing date and IsCurrent to 0 on the current version.", fr: "Pour chaque client modifié, définir ValidTo sur la date de traitement et IsCurrent sur 0 dans la version actuelle." } }
+    - { id: insert, text: { en: "Insert a new version of each changed customer with a new surrogate key, ValidFrom set to the processing date, and IsCurrent set to 1.", fr: "Insérer une nouvelle version de chaque client modifié avec une nouvelle clé de substitution, ValidFrom défini sur la date de traitement et IsCurrent sur 1." } }
+    - { id: facts, text: { en: "Load the new sales into dbo.FactSales by looking up the surrogate key of the current version of each customer.", fr: "Charger les nouvelles ventes dans dbo.FactSales en recherchant la clé de substitution de la version actuelle de chaque client." } }
+    - { id: truncate, text: { en: "Truncate dbo.DimCustomer and reload all the customers from the source.", fr: "Tronquer dbo.DimCustomer et recharger tous les clients depuis la source." } }
+    - { id: overwrite, text: { en: "Update the Region of the current version of each changed customer.", fr: "Mettre à jour la Region de la version actuelle de chaque client modifié." } }
+    - { id: delete, text: { en: "Delete the previous version of each changed customer.", fr: "Supprimer la version précédente de chaque client modifié." } }
+answer:
+  sequence: [ detect, expire, insert, facts ]
+explanation:
+  correct:
+    en: |
+      Dimensions are processed before facts. For SCD type 2, the process matches source rows to the dimension on the business key, expires the current version (end date and current flag set to false), and inserts the new current version with a new surrogate key. The fact load then looks up the surrogate key of the current version, so new sales attach to the new region while past sales keep the old one.
+    fr: |
+      Les dimensions sont traitées avant les faits. Pour une SCD de type 2, le processus fait correspondre les lignes sources à la dimension sur la clé métier, fait expirer la version actuelle (date de fin et indicateur de version actuelle à false), puis insère la nouvelle version actuelle avec une nouvelle clé de substitution. Le chargement des faits recherche ensuite la clé de substitution de la version actuelle : les nouvelles ventes sont rattachées à la nouvelle région et les ventes passées gardent l'ancienne.
+  options:
+    truncate: { en: "Truncating a dimension with generated surrogate keys invalidates the keys stored in the fact table and loses the history.", fr: "Tronquer une dimension à clés de substitution générées invalide les clés stockées dans la table de faits et perd l'historique." }
+    overwrite: { en: "Overwriting the region in place is SCD type 1 behavior and loses history.", fr: "Écraser la région sur place correspond au type 1 et perd l'historique." }
+    delete: { en: "Past facts reference the previous version, so it must be kept.", fr: "Les faits passés référencent la version précédente : elle doit être conservée." }
+references:
+  - title: Load Tables in a Dimensional Model
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables

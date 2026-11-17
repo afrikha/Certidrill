@@ -1,0 +1,60 @@
+id: az400-3e-db-script-firewall
+objective: "3.4.8"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam deploys database changes to an Azure SQL logical server named **sql-fabrikam** by running `Invoke-Sqlcmd` in a PowerShell step of an Azure Pipelines job. The job runs on Microsoft-hosted agents. The server allows public network access only from the IP addresses listed in its firewall rules, and the setting **Allow Azure services and resources to access this server** is disabled.
+
+    The step fails because the agent can't connect to the server. Security requirements state that:
+
+    - the server must not accept connections from other customers' Azure resources;
+    - no firewall rule for the agent can remain on the server after the job ends.
+
+    What should you do?
+  fr: |
+    Fabrikam déploie les modifications de base de données vers un serveur logique Azure SQL nommé **sql-fabrikam** en exécutant `Invoke-Sqlcmd` dans une étape PowerShell d'un travail Azure Pipelines. Le travail s'exécute sur des agents hébergés par Microsoft. Le serveur n'autorise l'accès réseau public que depuis les adresses IP listées dans ses règles de pare-feu, et le paramètre **Autoriser les services et les ressources Azure à accéder à ce serveur** est désactivé.
+
+    L'étape échoue, car l'agent ne parvient pas à se connecter au serveur. Les exigences de sécurité sont les suivantes :
+
+    - le serveur ne doit pas accepter de connexions depuis les ressources Azure d'autres clients ;
+    - aucune règle de pare-feu pour l'agent ne doit subsister sur le serveur après la fin du travail.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Enable **Allow Azure services and resources to access this server** on sql-fabrikam."
+        fr: "Activer **Autoriser les services et les ressources Azure à accéder à ce serveur** sur sql-fabrikam."
+    - id: b
+      text:
+        en: "Add `AzurePowerShell@5` steps that create a firewall rule for the agent's public IP before the script and remove it with `condition: always()` after it."
+        fr: "Ajouter des étapes `AzurePowerShell@5` qui créent une règle de pare-feu pour l'IP publique de l'agent avant le script et la suppriment avec `condition: always()` après."
+    - id: c
+      text:
+        en: "Add permanent server-level firewall rules for all the published IP ranges of Microsoft-hosted agents in the organization's region."
+        fr: "Ajouter des règles de pare-feu permanentes au niveau du serveur pour toutes les plages d'adresses IP publiées des agents hébergés par Microsoft de la région."
+    - id: d
+      text:
+        en: "Add a database-level firewall rule for the agent's public IP address by running `sp_set_firewall_rule` in the script."
+        fr: "Ajouter une règle de pare-feu au niveau de la base de données pour l'adresse IP publique de l'agent en exécutant `sp_set_firewall_rule` dans le script."
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "The agent's public IP address must be allowed by the server firewall. A step before the deployment can read the agent's IP and create a rule with `New-AzSqlServerFirewallRule`, and a final step removes it with `Remove-AzSqlServerFirewallRule`. The `always()` condition makes the cleanup run even when the deployment script fails, so no rule is left behind."
+    fr: "L'adresse IP publique de l'agent doit être autorisée par le pare-feu du serveur. Une étape placée avant le déploiement peut lire l'IP de l'agent et créer une règle avec `New-AzSqlServerFirewallRule`, et une étape finale la supprime avec `Remove-AzSqlServerFirewallRule`. La condition `always()` exécute le nettoyage même si le script de déploiement échoue : aucune règle ne subsiste."
+  options:
+    a:
+      en: "This setting allows connections from all Azure services, including resources in other customers' subscriptions, which breaks the first requirement."
+      fr: "Ce paramètre autorise les connexions depuis tous les services Azure, y compris les ressources des abonnements d'autres clients, ce qui enfreint la première exigence."
+    c:
+      en: "Permanent rules for whole ranges of shared hosted agents stay on the server and open it to many machines that aren't yours."
+      fr: "Des règles permanentes pour des plages entières d'agents hébergés partagés restent sur le serveur et l'ouvrent à de nombreuses machines qui ne vous appartiennent pas."
+    d:
+      en: "The script can't connect to the database to run `sp_set_firewall_rule`, because the firewall already blocks the agent; database-level rules are created with Transact-SQL from an existing connection, after a server-level rule exists."
+      fr: "Le script ne peut pas se connecter à la base de données pour exécuter `sp_set_firewall_rule`, car le pare-feu bloque déjà l'agent ; les règles au niveau de la base de données se créent en Transact-SQL depuis une connexion existante, après la création d'une règle au niveau du serveur."
+references:
+  - title: Deploy to Azure SQL Database
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/targets/azure-sqldb

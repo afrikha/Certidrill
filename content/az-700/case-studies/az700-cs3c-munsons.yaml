@@ -1,0 +1,97 @@
+id: az700-cs3c-munsons
+status: draft
+title:
+  en: Munson's Pickles and Preserves Farm
+  fr: Munson's Pickles and Preserves Farm
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Munson's Pickles and Preserves Farm is a food manufacturer. Its headquarters and main datacenter are in Amsterdam, and it runs production plants in Europe. A new packaging plant is opening in Singapore.
+
+        Munson's runs its ERP system and its analytics platform in Azure. A network team of five engineers manages the hybrid network.
+      fr: |
+        Munson's Pickles and Preserves Farm est un fabricant agroalimentaire. Son siège et son centre de données principal sont à Amsterdam, et l'entreprise exploite des usines de production en Europe. Une nouvelle usine de conditionnement ouvre à Singapour.
+
+        Munson's exécute dans Azure son ERP et sa plateforme d'analytique. Une équipe réseau de cinq ingénieurs gère le réseau hybride.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **On-premises**
+
+        The Amsterdam datacenter uses **10.0.0.0/16**. It connects to Azure through an ExpressRoute circuit named **ER-AMS** (provider model, Standard SKU, 1 Gbps, peering location Amsterdam). Only Azure private peering is configured on ER-AMS. The datacenter's internet proxies filter the web traffic of all the company's users and servers.
+
+        Munson's owns the public range **198.51.100.0/24**, which is registered to it with RIPE NCC and isn't used yet.
+
+        **Azure (West Europe)**
+
+        | Virtual network | Address space | Contents |
+        | --- | --- | --- |
+        | Hub-VNet | 10.100.0.0/16 | GatewaySubnet with an ExpressRoute gateway named **GW-ER** (ErGw3AZ) connected to ER-AMS; subnet NVA with a third-party firewall named **NVA1** (10.100.2.4) that supports BGP and uses ASN 65020 |
+        | Spoke-ERP | 10.101.0.0/16 | ERP application and database VMs |
+        | Spoke-Analytics | 10.102.0.0/16 | Subnet Analytics with data science VMs; the subnet has a service endpoint for **Microsoft.Storage** |
+
+        Spoke-ERP and Spoke-Analytics are each peered with Hub-VNet and use GW-ER through gateway transit. No route table is associated with the subnets of the spokes.
+
+        | Storage account | Region | Use |
+        | --- | --- | --- |
+        | stmunsonsanalytics | West Europe | Analytics datasets, same subscription as the virtual networks |
+        | stmunsonsbackup | West Europe | Target of the datacenter backup servers |
+      fr: |
+        **Local**
+
+        Le centre de données d'Amsterdam utilise **10.0.0.0/16**. Il se connecte à Azure par un circuit ExpressRoute nommé **ER-AMS** (modèle fournisseur, référence SKU Standard, 1 Gbit/s, emplacement de peering Amsterdam). Seul le peering privé Azure est configuré sur ER-AMS. Les proxys Internet du centre de données filtrent le trafic web de tous les utilisateurs et serveurs de l'entreprise.
+
+        Munson's possède la plage publique **198.51.100.0/24**, enregistrée à son nom auprès du RIPE NCC et encore inutilisée.
+
+        **Azure (West Europe)**
+
+        | Réseau virtuel | Espace d'adressage | Contenu |
+        | --- | --- | --- |
+        | Hub-VNet | 10.100.0.0/16 | GatewaySubnet avec une passerelle ExpressRoute nommée **GW-ER** (ErGw3AZ) connectée à ER-AMS ; sous-réseau NVA avec un pare-feu tiers nommé **NVA1** (10.100.2.4) qui prend en charge BGP et utilise l'ASN 65020 |
+        | Spoke-ERP | 10.101.0.0/16 | Machines virtuelles de l'application et de la base de données ERP |
+        | Spoke-Analytics | 10.102.0.0/16 | Sous-réseau Analytics avec des machines virtuelles de science des données ; le sous-réseau possède un point de terminaison de service pour **Microsoft.Storage** |
+
+        Spoke-ERP et Spoke-Analytics sont chacun reliés à Hub-VNet par un peering et utilisent GW-ER par le transit de passerelle. Aucune table de routage n'est associée aux sous-réseaux des spokes.
+
+        | Compte de stockage | Région | Usage |
+        | --- | --- | --- |
+        | stmunsonsanalytics | West Europe | Jeux de données d'analytique, même abonnement que les réseaux virtuels |
+        | stmunsonsbackup | West Europe | Cible des serveurs de sauvegarde du centre de données |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Routing**
+
+        1. NVA1 terminates VPN tunnels to partners. It must advertise the partner prefixes to the VMs in Hub-VNet and in the spokes dynamically, without user-defined routes for those prefixes.
+        2. Internet-bound traffic from the VMs in the spokes must leave through the datacenter's internet proxies over ER-AMS.
+
+        **ExpressRoute**
+
+        3. The Singapore plant will get its own ExpressRoute circuit on a pair of dedicated 10-Gbps ports that connect directly into the Microsoft global network at the Singapore peering location.
+        4. The Amsterdam datacenter and the Singapore plant must exchange traffic over the Microsoft global network.
+        5. A new virtual network in Southeast Asia must be linked to ER-AMS.
+        6. The datacenter backup servers must send their backups to the public endpoint of stmunsonsbackup over ER-AMS instead of the internet. stmunsonsbackup must keep using its public endpoint.
+
+        **Data protection**
+
+        7. The data science VMs must be able to reach stmunsonsanalytics over the service endpoint, but no other storage account.
+      fr: |
+        **Routage**
+
+        1. NVA1 termine des tunnels VPN vers des partenaires. Elle doit publier dynamiquement les préfixes des partenaires vers les machines virtuelles de Hub-VNet et des spokes, sans itinéraire défini par l'utilisateur pour ces préfixes.
+        2. Le trafic à destination d'Internet issu des machines virtuelles des spokes doit sortir par les proxys Internet du centre de données en passant par ER-AMS.
+
+        **ExpressRoute**
+
+        3. L'usine de Singapour disposera de son propre circuit ExpressRoute sur une paire de ports dédiés de 10 Gbit/s qui se connectent directement au réseau mondial de Microsoft à l'emplacement de peering de Singapour.
+        4. Le centre de données d'Amsterdam et l'usine de Singapour doivent échanger du trafic par le réseau mondial de Microsoft.
+        5. Un nouveau réseau virtuel dans Southeast Asia doit être lié à ER-AMS.
+        6. Les serveurs de sauvegarde du centre de données doivent envoyer leurs sauvegardes au point de terminaison public de stmunsonsbackup par ER-AMS plutôt que par Internet. stmunsonsbackup doit continuer d'utiliser son point de terminaison public.
+
+        **Protection des données**
+
+        7. Les machines virtuelles de science des données doivent pouvoir atteindre stmunsonsanalytics par le point de terminaison de service, mais aucun autre compte de stockage.

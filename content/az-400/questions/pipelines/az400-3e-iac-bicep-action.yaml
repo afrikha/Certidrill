@@ -1,0 +1,89 @@
+id: az400-3e-iac-bicep-action
+objective: "3.5.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove keeps the Bicep files of its test environment in a GitHub repository. The resources are deployed to a resource group named **rg-web-test**.
+
+    You are writing a workflow that must meet the following requirements:
+
+    - Run for every pull request that targets the main branch.
+    - Show the changes that the Bicep files would make in rg-web-test, without deploying anything.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove conserve les fichiers Bicep de son environnement de test dans un dépôt GitHub. Les ressources sont déployées dans un groupe de ressources nommé **rg-web-test**.
+
+    Vous écrivez un flux de travail qui doit respecter les exigences suivantes :
+
+    - S'exécuter pour chaque demande de tirage qui cible la branche main.
+    - Montrer les modifications que les fichiers Bicep apporteraient à rg-web-test, sans rien déployer.
+
+    Comment devez-vous compléter le flux de travail ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    on:
+      [[event]]:
+        branches: [ main ]
+    permissions:
+      id-token: write
+      contents: read
+    jobs:
+      preview:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v7
+          - uses: azure/login@v3
+            with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          - uses: azure/bicep-deploy@v2
+            with:
+              type: deployment
+              operation: [[op]]
+              scope: [[scope]]
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+              resource-group-name: rg-web-test
+              parameters-file: ./infra/test.bicepparam
+  slots:
+    - id: event
+      options:
+        - { id: pr, text: pull_request }
+        - { id: push, text: push }
+        - { id: dispatch, text: workflow_dispatch }
+        - { id: run, text: workflow_run }
+    - id: op
+      options:
+        - { id: whatif, text: whatIf }
+        - { id: create, text: create }
+        - { id: validate, text: validate }
+    - id: scope
+      options:
+        - { id: rg, text: resourceGroup }
+        - { id: sub, text: subscription }
+        - { id: mg, text: managementGroup }
+        - { id: tenant, text: tenant }
+answer:
+  values: { event: pr, op: whatif, scope: rg }
+explanation:
+  correct:
+    en: "The `pull_request` event with a `branches` filter runs the workflow for pull requests whose base branch is main. The azure/bicep-deploy action with `operation: whatIf` previews the changes without deploying, and `scope: resourceGroup` with `resource-group-name` targets rg-web-test. The .bicepparam file references the Bicep file through its `using` statement."
+    fr: "L'événement `pull_request` avec un filtre `branches` exécute le flux de travail pour les demandes de tirage dont la branche de base est main. L'action azure/bicep-deploy avec `operation: whatIf` affiche un aperçu des modifications sans déployer, et `scope: resourceGroup` avec `resource-group-name` cible rg-web-test. Le fichier .bicepparam référence le fichier Bicep par son instruction `using`."
+  options:
+    push: { en: "push runs after commits reach main, not for pull requests.", fr: "push s'exécute après l'arrivée de commits sur main, pas pour les demandes de tirage." }
+    dispatch: { en: "workflow_dispatch runs only when someone starts the workflow manually.", fr: "workflow_dispatch ne s'exécute que lorsqu'une personne lance manuellement le flux de travail." }
+    create: { en: "create deploys the resources.", fr: "create déploie les ressources." }
+    validate: { en: "validate checks the deployment but doesn't list the resource changes.", fr: "validate vérifie le déploiement, mais ne liste pas les modifications de ressources." }
+    sub: { en: "The target is a resource group, not a subscription-level deployment.", fr: "La cible est un groupe de ressources, pas un déploiement au niveau de l'abonnement." }
+references:
+  - title: "Quickstart: Deploy Bicep files by using GitHub Actions"
+    url: https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-github-actions

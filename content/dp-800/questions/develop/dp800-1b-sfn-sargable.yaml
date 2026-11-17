@@ -1,0 +1,74 @@
+id: dp800-1b-sfn-sargable
+objective: "1.2.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Tailspin Toys. The Sales.Orders table contains 80 million rows and has a nonclustered index on the OrderDate column, which uses the date data type. The fiscal year of Tailspin Toys starts on July 1.
+
+    A report uses the following function and query.
+
+    ```sql
+    CREATE FUNCTION Sales.ufn_FiscalYear (@d date)
+    RETURNS int
+    WITH SCHEMABINDING
+    AS
+    BEGIN
+        RETURN YEAR(DATEADD(month, 6, @d));
+    END;
+    GO
+
+    SELECT OrderID, CustomerID, Amount
+    FROM Sales.Orders
+    WHERE Sales.ufn_FiscalYear(OrderDate) = 2026;
+    ```
+
+    The query scans the whole table. You need the query to use an index seek on OrderDate and return the same rows.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Tailspin Toys. La table Sales.Orders contient 80 millions de lignes et possède un index non cluster sur la colonne OrderDate, de type date. L'exercice fiscal de Tailspin Toys commence le 1er juillet.
+
+    Un rapport utilise la fonction et la requête suivantes.
+
+    ```sql
+    CREATE FUNCTION Sales.ufn_FiscalYear (@d date)
+    RETURNS int
+    WITH SCHEMABINDING
+    AS
+    BEGIN
+        RETURN YEAR(DATEADD(month, 6, @d));
+    END;
+    GO
+
+    SELECT OrderID, CustomerID, Amount
+    FROM Sales.Orders
+    WHERE Sales.ufn_FiscalYear(OrderDate) = 2026;
+    ```
+
+    La requête analyse toute la table. Vous devez faire en sorte que la requête utilise une recherche d'index sur OrderDate et renvoie les mêmes lignes.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add OPTION (RECOMPILE) to the query.", fr: "Ajouter OPTION (RECOMPILE) à la requête." } }
+    - { id: b, text: { en: "Alter the function and add WITH INLINE = ON.", fr: "Modifier la fonction et ajouter WITH INLINE = ON." } }
+    - { id: c, text: { en: "Rebuild the index on OrderDate.", fr: "Reconstruire l'index sur OrderDate." } }
+    - { id: d, text: { en: "Replace the predicate with OrderDate >= '20250701' AND OrderDate < '20260701'.", fr: "Remplacer le prédicat par OrderDate >= '20250701' AND OrderDate < '20260701'." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      A predicate that applies a function to a column is not SARGable: the optimizer cannot use the index on OrderDate to seek, so it evaluates the function for every row. Fiscal year 2026 runs from July 1, 2025 to June 30, 2026, so a range predicate on the column itself returns the same rows and allows an index seek.
+    fr: |
+      Un prédicat qui applique une fonction à une colonne n'est pas SARGable : l'optimiseur ne peut pas utiliser l'index sur OrderDate pour une recherche, il évalue donc la fonction pour chaque ligne. L'exercice fiscal 2026 va du 1er juillet 2025 au 30 juin 2026 : un prédicat de plage sur la colonne elle-même renvoie les mêmes lignes et permet une recherche d'index.
+  options:
+    a: { en: "Recompiling builds a new plan for each run, but the predicate still wraps the column in a function, so the plan still scans.", fr: "La recompilation crée un nouveau plan à chaque exécution, mais le prédicat enveloppe toujours la colonne dans une fonction : le plan reste une analyse." }
+    b: { en: "Inlining removes the row-by-row function call, but the inlined expression still applies to the column, so the index cannot be sought.", fr: "L'incorporation supprime l'appel de fonction ligne par ligne, mais l'expression incorporée s'applique toujours à la colonne : l'index ne peut pas servir à une recherche." }
+    c: { en: "Rebuilding the index removes fragmentation; it does not make a function-based predicate SARGable.", fr: "La reconstruction de l'index supprime la fragmentation ; elle ne rend pas SARGable un prédicat basé sur une fonction." }
+references:
+  - title: Scalar UDF Inlining
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/user-defined-functions/scalar-udf-inlining
+  - title: User-defined functions
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/user-defined-functions/user-defined-functions

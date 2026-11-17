@@ -1,0 +1,62 @@
+id: dp800-3c-rrf-integer-division
+objective: "3.2.9"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Listings. You wrote the following final step of a hybrid search query. The common table expressions return the ranks as int values.
+
+    ```sql
+    DECLARE @k int = 60;
+
+    SELECT TOP (10)
+           COALESCE(ks.ListingId, vs.ListingId) AS ListingId,
+           COALESCE(1 / (@k + ks.keyword_rank), 0)
+         + COALESCE(1 / (@k + vs.vector_rank), 0) AS rrf_score
+    FROM keyword_search AS ks
+    FULL OUTER JOIN vector_search AS vs
+        ON vs.ListingId = ks.ListingId
+    ORDER BY rrf_score DESC;
+    ```
+
+    The query returns 10 rows, but rrf_score is 0 for every row and the order of the results looks random.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Listings. Vous avez écrit l'étape finale suivante d'une requête de recherche hybride. Les expressions de table communes renvoient les rangs sous forme de valeurs int.
+
+    ```sql
+    DECLARE @k int = 60;
+
+    SELECT TOP (10)
+           COALESCE(ks.ListingId, vs.ListingId) AS ListingId,
+           COALESCE(1 / (@k + ks.keyword_rank), 0)
+         + COALESCE(1 / (@k + vs.vector_rank), 0) AS rrf_score
+    FROM keyword_search AS ks
+    FULL OUTER JOIN vector_search AS vs
+        ON vs.ListingId = ks.ListingId
+    ORDER BY rrf_score DESC;
+    ```
+
+    La requête renvoie 10 lignes, mais rrf_score vaut 0 pour chaque ligne et l'ordre des résultats semble aléatoire.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Replace the FULL OUTER JOIN with an INNER JOIN.", fr: "Remplacer le FULL OUTER JOIN par un INNER JOIN." } }
+    - { id: b, text: { en: "Set @k to 0 so that the first position scores 1.", fr: "Affecter 0 à @k pour que la première position obtienne 1." } }
+    - { id: c, text: { en: "Replace the numerator 1 with 1.0 in both terms.", fr: "Remplacer le numérateur 1 par 1.0 dans les deux termes." } }
+    - { id: d, text: { en: "Replace RANK() with ROW_NUMBER() in both CTEs.", fr: "Remplacer RANK() par ROW_NUMBER() dans les deux CTE." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "When both operands are integers, T-SQL performs an integer division, so 1 / (60 + rank) is always 0. Writing 1.0 makes the division decimal, and each term then returns a value such as 1/61 ≈ 0.0164 that can be added and sorted."
+    fr: "Quand les deux opérandes sont des entiers, T-SQL effectue une division entière : 1 / (60 + rang) vaut toujours 0. Écrire 1.0 rend la division décimale, et chaque terme renvoie alors une valeur comme 1/61 ≈ 0,0164 qui peut être additionnée et triée."
+  options:
+    a: { en: "The join type decides which rows are kept, not the value of the score; an INNER JOIN would also drop rows found by only one search.", fr: "Le type de jointure décide des lignes conservées, pas de la valeur du score ; un INNER JOIN supprimerait en plus les lignes trouvées par une seule recherche." }
+    b: { en: "With @k = 0, only rank 1 returns 1 and every other rank still returns 0 because the division stays an integer division.", fr: "Avec @k = 0, seul le rang 1 renvoie 1 et tous les autres rangs renvoient encore 0, car la division reste entière." }
+    d: { en: "ROW_NUMBER() also returns integers, so the division would still return 0.", fr: "ROW_NUMBER() renvoie aussi des entiers : la division renverrait toujours 0." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking

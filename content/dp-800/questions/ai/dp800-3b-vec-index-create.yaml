@@ -1,0 +1,81 @@
+id: dp800-3b-vec-index-create
+objective: "3.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains the following table. The table contains 400,000 rows, and every row has an embedding.
+
+    ```sql
+    CREATE TABLE dbo.Tickets
+    (
+        TicketID  int           NOT NULL PRIMARY KEY,
+        Body      nvarchar(max) NOT NULL,
+        Embedding VECTOR(1536)  NOT NULL
+    );
+    ```
+
+    The documentation of the embedding model recommends cosine similarity. You need to create an index for approximate nearest neighbor searches on Embedding. The index build must run in parallel on no more than four processors.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient la table suivante. La table contient 400 000 lignes, et chaque ligne possède une incorporation.
+
+    ```sql
+    CREATE TABLE dbo.Tickets
+    (
+        TicketID  int           NOT NULL PRIMARY KEY,
+        Body      nvarchar(max) NOT NULL,
+        Embedding VECTOR(1536)  NOT NULL
+    );
+    ```
+
+    La documentation du modèle d'incorporation recommande la similarité cosinus. Vous devez créer un index pour des recherches de plus proches voisins approximatifs sur Embedding. La création de l'index doit s'exécuter en parallèle sur quatre processeurs au plus.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    [[stmt]] vix_Tickets_Embedding
+    ON dbo.Tickets (Embedding)
+    WITH (METRIC = [[metric]], TYPE = 'DiskANN', [[dop]]);
+  slots:
+    - id: stmt
+      options:
+        - { id: vector, text: CREATE VECTOR INDEX }
+        - { id: nonclustered, text: CREATE NONCLUSTERED INDEX }
+        - { id: columnstore, text: CREATE NONCLUSTERED COLUMNSTORE INDEX }
+    - id: metric
+      options:
+        - { id: cosine, text: "'cosine'" }
+        - { id: dot, text: "'dot'" }
+        - { id: euclidean, text: "'euclidean'" }
+    - id: dop
+      options:
+        - { id: dop4, text: MAXDOP = 4 }
+        - { id: dop1, text: MAXDOP = 1 }
+        - { id: dop0, text: MAXDOP = 0 }
+answer:
+  values: { stmt: vector, metric: cosine, dop: dop4 }
+explanation:
+  correct:
+    en: |-
+      CREATE VECTOR INDEX builds a DiskANN index for approximate nearest neighbor search on a vector column. The metric is fixed at creation and should follow the model's recommendation, here cosine. MAXDOP greater than 1 caps the parallelism of the build at that number of processors.
+    fr: |-
+      CREATE VECTOR INDEX crée un index DiskANN pour la recherche de plus proches voisins approximatifs sur une colonne vectorielle. La métrique est fixée à la création et doit suivre la recommandation du modèle, ici cosine. Une valeur MAXDOP supérieure à 1 limite le parallélisme de la création à ce nombre de processeurs.
+  options:
+    nonclustered: { en: "B-tree indexes are not supported on vector columns.", fr: "Les index B-tree ne sont pas pris en charge sur les colonnes vectorielles." }
+    columnstore: { en: "Columnstore indexes are not supported on vector columns and do not provide nearest neighbor search.", fr: "Les index columnstore ne sont pas pris en charge sur les colonnes vectorielles et n'offrent pas de recherche de plus proches voisins." }
+    dot: { en: "The model recommends cosine similarity; dot gives the same ordering only for normalized vectors, which the scenario does not state.", fr: "Le modèle recommande la similarité cosinus ; dot ne donne le même classement que pour des vecteurs normalisés, ce que le scénario n'indique pas." }
+    euclidean: { en: "Euclidean distance takes magnitude into account and does not follow the model's recommendation.", fr: "La distance euclidienne tient compte de la magnitude et ne suit pas la recommandation du modèle." }
+    dop1: { en: "MAXDOP = 1 suppresses parallel plans, so the build would not run in parallel.", fr: "MAXDOP = 1 supprime les plans parallèles : la création ne s'exécuterait pas en parallèle." }
+    dop0: { en: "MAXDOP = 0 uses the server, database or workload group setting, which does not guarantee a limit of four processors.", fr: "MAXDOP = 0 utilise le paramètre du serveur, de la base de données ou du groupe de charges de travail, ce qui ne garantit pas une limite de quatre processeurs." }
+references:
+  - title: CREATE VECTOR INDEX (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-index-transact-sql

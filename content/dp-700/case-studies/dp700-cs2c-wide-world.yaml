@@ -1,0 +1,113 @@
+id: dp700-cs2c-wide-world
+status: draft
+title:
+  en: Wide World Importers
+  fr: Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers imports novelty goods by sea from 400 suppliers and distributes them to retailers. Its trade analytics platform runs in Microsoft Fabric.
+
+        Three teams work on the platform:
+
+        - The **warehouse team** develops in T-SQL only.
+        - The **data engineers** develop notebooks in PySpark and KQL queries.
+        - The **procurement analysts** do not write code.
+      fr: |
+        Wide World Importers importe par voie maritime des articles fantaisie auprès de 400 fournisseurs et les distribue à des détaillants. Sa plateforme d'analytique commerciale s'exécute dans Microsoft Fabric.
+
+        Trois équipes travaillent sur la plateforme :
+
+        - L'**équipe entrepôt** développe uniquement en T-SQL.
+        - Les **ingénieurs données** développent des notebooks en PySpark et des requêtes KQL.
+        - Les **analystes achats** n'écrivent pas de code.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Source systems**
+
+        - **WWI-ERP** is an Azure SQL database. Its table **Purchasing.Suppliers** has the primary key SupplierID. Its table **Warehouse.StockMovements** contains 1.2 billion rows and is not partitioned. It has a clustered index on **MovementId**, a bigint identity column whose values are evenly distributed. Ten of the 8,000 values of its **StockItemId** column account for 60 percent of the rows. Its **TransactionOccurredWhen** column (datetime2) is not indexed.
+        - An Azure Data Lake Storage Gen2 account named **stwwipartners** receives the JSON customs documents sent by the customs brokers.
+        - The procurement analysts maintain the port fees in a SharePoint Online list.
+
+        **Fabric**
+
+        Wide World Importers has an F64 capacity and the following workspaces.
+
+        | Workspace | Contents |
+        | --- | --- |
+        | WWI-Trade | Lakehouse **LH_Trade**, warehouse **WH_Trade**, pipeline **PL_Trade**, eventhouse **EH_Vessels** |
+        | WWI-Trade-Dev | Development copies of the WWI-Trade items. The workspace is connected to the **dev** branch of an Azure DevOps repository. Kenji, a data engineer, is an Admin of WWI-Trade-Dev. |
+
+        - LH_Trade has a shortcut named **customs_docs** in its Files section. The shortcut targets the folder **partners/customs** of stwwipartners.
+        - WH_Trade contains the table **dbo.Suppliers**, which has a SupplierID column, and staging tables loaded by PL_Trade.
+        - PL_Trade contains a new Copy activity named **Copy suppliers** that has not run yet. Its source query returns the rows of Purchasing.Suppliers that changed during the last 24 hours, and its destination is dbo.Suppliers. Its other destination settings and its staging settings still have their default values.
+        - PL_Trade also contains a Copy activity named **Copy stock movements**.
+        - An eventstream ingests the positions of the vessels into a table named **VesselPings** in EH_Vessels.
+
+        **Current issues**
+
+        - On Monday, the storage team moved the folder partners/customs of stwwipartners to **partners/archive/customs**. Since then, every read of Files/customs_docs in LH_Trade fails.
+        - Several times a month, Copy stock movements fails at 01:00 with a transient connection error, because WWI-ERP restarts for maintenance for up to 10 minutes. A manual rerun later always succeeds.
+        - Kenji changed the notebook **NB_Customs** in WWI-Trade-Dev without committing the change. Meanwhile, another data engineer merged a different change to NB_Customs into the dev branch. The Source control pane of WWI-Trade-Dev now shows NB_Customs with the status **Conflict**.
+      fr: |
+        **Systèmes sources**
+
+        - **WWI-ERP** est une base de données Azure SQL. Sa table **Purchasing.Suppliers** a pour clé primaire SupplierID. Sa table **Warehouse.StockMovements** contient 1,2 milliard de lignes et n'est pas partitionnée. Elle possède un index cluster sur **MovementId**, une colonne d'identité bigint dont les valeurs sont réparties uniformément. Dix des 8 000 valeurs de sa colonne **StockItemId** représentent 60 % des lignes. Sa colonne **TransactionOccurredWhen** (datetime2) n'est pas indexée.
+        - Un compte Azure Data Lake Storage Gen2 nommé **stwwipartners** reçoit les documents douaniers JSON envoyés par les commissionnaires en douane.
+        - Les analystes achats tiennent à jour les frais portuaires dans une liste SharePoint Online.
+
+        **Fabric**
+
+        Wide World Importers dispose d'une capacité F64 et des espaces de travail suivants.
+
+        | Espace de travail | Contenu |
+        | --- | --- |
+        | WWI-Trade | Lakehouse **LH_Trade**, entrepôt **WH_Trade**, pipeline **PL_Trade**, Eventhouse **EH_Vessels** |
+        | WWI-Trade-Dev | Copies de développement des éléments de WWI-Trade. L'espace de travail est connecté à la branche **dev** d'un dépôt Azure DevOps. Kenji, ingénieur données, est Admin de WWI-Trade-Dev. |
+
+        - LH_Trade possède un raccourci nommé **customs_docs** dans sa section Files. Le raccourci cible le dossier **partners/customs** de stwwipartners.
+        - WH_Trade contient la table **dbo.Suppliers**, qui a une colonne SupplierID, et des tables intermédiaires chargées par PL_Trade.
+        - PL_Trade contient une nouvelle activité Copy nommée **Copy suppliers**, qui ne s'est pas encore exécutée. Sa requête source renvoie les lignes de Purchasing.Suppliers modifiées au cours des dernières 24 heures, et sa destination est dbo.Suppliers. Ses autres paramètres de destination et ses paramètres de staging ont encore leurs valeurs par défaut.
+        - PL_Trade contient aussi une activité Copy nommée **Copy stock movements**.
+        - Un flux d'événements ingère les positions des navires dans une table nommée **VesselPings** dans EH_Vessels.
+
+        **Problèmes actuels**
+
+        - Lundi, l'équipe stockage a déplacé le dossier partners/customs de stwwipartners vers **partners/archive/customs**. Depuis, toutes les lectures de Files/customs_docs dans LH_Trade échouent.
+        - Plusieurs fois par mois, Copy stock movements échoue à 01:00 avec une erreur de connexion temporaire, car WWI-ERP redémarre pour maintenance pendant 10 minutes au maximum. Une réexécution manuelle plus tard réussit toujours.
+        - Kenji a modifié le notebook **NB_Customs** dans WWI-Trade-Dev sans valider (commit) la modification. Entre-temps, un autre ingénieur données a fusionné une autre modification de NB_Customs dans la branche dev. Le volet Source control de WWI-Trade-Dev affiche maintenant NB_Customs avec l'état **Conflict**.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Wide World Importers identifies the following requirements.
+
+        **Ingestion**
+
+        1. Copy suppliers must update the existing suppliers in dbo.Suppliers and insert the new ones, without creating duplicate rows. No other activity must be added for this purpose.
+        2. When Copy stock movements fails, it must be tried again automatically up to three times, with five minutes between attempts.
+        3. The full history of Warehouse.StockMovements must be loaded once into LH_Trade as fast as possible. The load must never open more than 50 concurrent sessions on WWI-ERP.
+        4. Each transformation must be developed with the tool that matches the skills of the team that owns it.
+
+        **Operations**
+
+        5. Access to the customs documents through LH_Trade must be restored. The documents must not be copied, and no document must be deleted.
+        6. Both Kenji's change and the change merged into the dev branch must be kept in NB_Customs.
+      fr: |
+        Wide World Importers a défini les exigences suivantes.
+
+        **Ingestion**
+
+        1. Copy suppliers doit mettre à jour les fournisseurs existants dans dbo.Suppliers et insérer les nouveaux, sans créer de lignes en double. Aucune autre activité ne doit être ajoutée à cette fin.
+        2. Quand Copy stock movements échoue, l'activité doit être relancée automatiquement jusqu'à trois fois, avec cinq minutes entre les tentatives.
+        3. L'historique complet de Warehouse.StockMovements doit être chargé une seule fois dans LH_Trade, le plus rapidement possible. Le chargement ne doit jamais ouvrir plus de 50 sessions simultanées sur WWI-ERP.
+        4. Chaque transformation doit être développée avec l'outil qui correspond aux compétences de l'équipe qui en est responsable.
+
+        **Exploitation**
+
+        5. L'accès aux documents douaniers via LH_Trade doit être rétabli. Les documents ne doivent pas être copiés, et aucun document ne doit être supprimé.
+        6. La modification de Kenji et la modification fusionnée dans la branche dev doivent toutes deux être conservées dans NB_Customs.

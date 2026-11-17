@@ -1,0 +1,78 @@
+id: ai200-2b-chunks-table
+objective: "2.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove is designing the storage of its RAG application on Azure Database for PostgreSQL. Each document in the source_documents table is split into chunks. Deleting a document must delete its chunks. Chunk attributes vary by document type and are queried with the containment operator `@>` through a GIN index. Embeddings come from a model that returns 1,536 dimensions and must be indexable with HNSW.
+
+    How should you complete the table definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove conçoit le stockage de son application RAG sur Azure Database for PostgreSQL. Chaque document de la table source_documents est découpé en segments. La suppression d'un document doit supprimer ses segments. Les attributs des segments varient selon le type de document et sont interrogés avec l'opérateur de contenance `@>` au moyen d'un index GIN. Les incorporations proviennent d'un modèle qui renvoie 1 536 dimensions et doivent pouvoir être indexées avec HNSW.
+
+    Comment devez-vous compléter la définition de la table ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE document_chunks (
+        id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        document_id integer NOT NULL
+                    REFERENCES source_documents(id) [[fk]],
+        chunk_index integer NOT NULL,
+        content     text NOT NULL,
+        attributes  [[attr]] DEFAULT '{}',
+        embedding   [[emb]],
+        UNIQUE (document_id, chunk_index)
+    );
+  slots:
+    - id: fk
+      options:
+        - { id: cascade, text: ON DELETE CASCADE }
+        - { id: setnull, text: ON DELETE SET NULL }
+        - { id: restrict, text: ON DELETE RESTRICT }
+        - { id: upcascade, text: ON UPDATE CASCADE }
+    - id: attr
+      options:
+        - { id: jsonb, text: jsonb }
+        - { id: json, text: json }
+        - { id: text, text: text }
+        - { id: xml, text: xml }
+    - id: emb
+      options:
+        - { id: v1536, text: vector(1536) }
+        - { id: vector, text: vector }
+        - { id: realarr, text: "real[]" }
+        - { id: bytea, text: bytea }
+answer:
+  values: { fk: cascade, attr: jsonb, emb: v1536 }
+explanation:
+  correct:
+    en: "`ON DELETE CASCADE` removes the chunks of a deleted document. jsonb stores dynamic attributes in a binary form that GIN indexes for `@>` containment. `vector(1536)` matches the model output, and a vector column needs a declared dimension to be indexed."
+    fr: "`ON DELETE CASCADE` supprime les segments d'un document supprimé. jsonb stocke les attributs dynamiques sous une forme binaire que GIN indexe pour la contenance `@>`. `vector(1536)` correspond à la sortie du modèle, et une colonne vectorielle doit avoir une dimension déclarée pour être indexée."
+  options:
+    setnull:
+      en: "SET NULL would try to put NULL into a NOT NULL column, and it would keep orphan chunks instead of deleting them."
+      fr: "SET NULL tenterait de placer NULL dans une colonne NOT NULL, et il conserverait des segments orphelins au lieu de les supprimer."
+    restrict:
+      en: "RESTRICT blocks the deletion of a document that still has chunks."
+      fr: "RESTRICT bloque la suppression d'un document qui a encore des segments."
+    json:
+      en: "The json type stores plain text and has no default GIN operator class, so `@>` cannot use a GIN index on it."
+      fr: "Le type json stocke du texte brut et n'a pas de classe d'opérateurs GIN par défaut : `@>` ne peut pas y utiliser d'index GIN."
+    vector:
+      en: "A vector column without a dimension can be stored but not indexed."
+      fr: "Une colonne vector sans dimension peut être stockée, mais pas indexée."
+    realarr:
+      en: "A PostgreSQL array has no pgvector distance operators or HNSW support."
+      fr: "Un tableau PostgreSQL n'a ni opérateurs de distance pgvector ni prise en charge de HNSW."
+references:
+  - title: Store and query embeddings with pgvector
+    url: https://learn.microsoft.com/en-us/training/modules/implement-vector-search-azure-database-postgresql/2-store-query-embeddings-pgvector
+  - title: Optimize data layout
+    url: https://learn.microsoft.com/en-us/training/modules/optimize-vector-search-azure-database-postgresql/4-optimize-data-layout

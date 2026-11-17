@@ -1,0 +1,70 @@
+id: sc200-2c-entity-kql-evidence
+objective: "2.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Several incidents of the last seven days in Microsoft Defender XDR contain alerts whose title includes the word "ransomware".
+
+    You need an advanced hunting query that lists the files that appear as evidence in those alerts, with the number of distinct alerts per file, starting with the file found in the most alerts.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Plusieurs incidents des sept derniers jours dans Microsoft Defender XDR contiennent des alertes dont le titre inclut le mot « ransomware ».
+
+    Vous avez besoin d'une requête de repérage avancé qui liste les fichiers figurant comme preuves dans ces alertes, avec le nombre d'alertes distinctes par fichier, en commençant par le fichier présent dans le plus d'alertes.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    let ids = AlertInfo
+    | where Timestamp > ago(7d)
+    | where Title has "ransomware"
+    | [[d1]] AlertId;
+    AlertEvidence
+    | where AlertId in (ids)
+    | where [[d2]](SHA256)
+    | summarize Alerts = dcount(AlertId) by SHA256, FileName
+    | [[d3]] Alerts desc
+  slots:
+    - id: d1
+      options:
+        - { id: distinct, text: distinct }
+        - { id: extend, text: extend }
+        - { id: count, text: count }
+        - { id: sort, text: sort by }
+    - id: d2
+      options:
+        - { id: notempty, text: isnotempty }
+        - { id: empty, text: isempty }
+        - { id: isnull, text: isnull }
+        - { id: tostr, text: tostring }
+    - id: d3
+      options:
+        - { id: order, text: order by }
+        - { id: top, text: top }
+        - { id: project, text: project }
+        - { id: summarize, text: summarize }
+answer:
+  values: { d1: distinct, d2: notempty, d3: order }
+explanation:
+  correct:
+    en: "`distinct AlertId` returns a single-column table of alert IDs that `in (ids)` can use. AlertInfo holds the alert titles, and AlertEvidence lists the files, IP addresses, URLs, users and devices associated with each alert; `isnotempty(SHA256)` keeps the evidence rows that describe a file. `order by Alerts desc` sorts the result from the highest count."
+    fr: "`distinct AlertId` renvoie une table d'une seule colonne d'ID d'alertes utilisable par `in (ids)`. AlertInfo contient les titres des alertes, et AlertEvidence liste les fichiers, adresses IP, URL, utilisateurs et appareils associés à chaque alerte ; `isnotempty(SHA256)` conserve les lignes de preuves qui décrivent un fichier. `order by Alerts desc` trie le résultat à partir du nombre le plus élevé."
+  options:
+    extend: { en: "extend AlertId keeps all the columns of AlertInfo, so the table can't be used with in.", fr: "extend AlertId conserve toutes les colonnes d'AlertInfo : la table ne peut pas être utilisée avec in." }
+    count: { en: "count returns the number of rows, not the list of alert IDs.", fr: "count renvoie le nombre de lignes, pas la liste des ID d'alertes." }
+    empty: { en: "isempty keeps the evidence rows without a file hash, such as users or IP addresses.", fr: "isempty conserve les lignes de preuves sans hachage de fichier, comme les utilisateurs ou les adresses IP." }
+    top: { en: "top requires a number of rows and the by keyword, for example top 10 by Alerts desc.", fr: "top exige un nombre de lignes et le mot clé by, par exemple top 10 by Alerts desc." }
+references:
+  - title: AlertEvidence table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertevidence-table
+  - title: Data tables in the Microsoft Defender advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-schema-tables

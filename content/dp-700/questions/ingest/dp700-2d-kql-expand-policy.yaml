@@ -1,0 +1,66 @@
+id: dp700-2d-kql-expand-policy
+objective: "2.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric eventhouse that contains a KQL database named **DB-Meters**. An eventstream ingests events into a table named **RawReadings** that has one column, `Payload`, of type `dynamic`. Each payload contains a `deviceId` property and a `readings` array; each element of the array has a `ts` property (an ISO 8601 date) and a `value` property.
+
+    You need a table named **Readings** (`DeviceId: string`, `Timestamp: datetime`, `Value: real`) to receive one row per element of `readings`, automatically, each time data is ingested into RawReadings.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un eventhouse Fabric qui contient une base de données KQL nommée **DB-Meters**. Un flux d'événements ingère des événements dans une table nommée **RawReadings** qui a une seule colonne, `Payload`, de type `dynamic`. Chaque charge utile contient une propriété `deviceId` et un tableau `readings` ; chaque élément du tableau a une propriété `ts` (une date ISO 8601) et une propriété `value`.
+
+    Une table nommée **Readings** (`DeviceId: string`, `Timestamp: datetime`, `Value: real`) doit recevoir une ligne par élément de `readings`, automatiquement, chaque fois que des données sont ingérées dans RawReadings.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    .create function ExpandReadings() {
+        RawReadings
+        | [[op]] r = Payload.readings
+        | project DeviceId = tostring(Payload.deviceId), Timestamp = [[conv]](r.ts), Value = todouble(r.value)
+    }
+
+    .alter table [[target]] policy update
+    @'[{"IsEnabled": true, "Source": "RawReadings", "Query": "ExpandReadings()", "IsTransactional": true}]'
+  slots:
+    - id: op
+      options:
+        - { id: opExtend, text: extend }
+        - { id: opMvExpand, text: mv-expand }
+        - { id: opProject, text: project }
+    - id: conv
+      options:
+        - { id: cvString, text: tostring }
+        - { id: cvTimespan, text: totimespan }
+        - { id: cvDatetime, text: todatetime }
+    - id: target
+      options:
+        - { id: tgReadings, text: Readings }
+        - { id: tgRaw, text: RawReadings }
+        - { id: tgFunc, text: ExpandReadings }
+answer:
+  values: { op: opMvExpand, conv: cvDatetime, target: tgReadings }
+explanation:
+  correct:
+    en: "`mv-expand` turns each element of the `readings` array into its own row, and `todatetime()` converts the `ts` value to the `datetime` type of the target column; the function output must match the target schema in column types and order. The update policy is set on the target table, Readings, and its `Source` property names the table whose ingestion triggers it."
+    fr: "`mv-expand` transforme chaque élément du tableau `readings` en une ligne distincte, et `todatetime()` convertit la valeur `ts` vers le type `datetime` de la colonne cible ; la sortie de la fonction doit correspondre au schéma de la cible en types et en ordre de colonnes. La stratégie de mise à jour se définit sur la table cible, Readings, et sa propriété `Source` désigne la table dont l'ingestion la déclenche."
+  options:
+    opExtend: { en: "extend adds the whole array as one column of the same row; it doesn't create one row per element.", fr: "extend ajoute tout le tableau dans une colonne de la même ligne ; il ne crée pas une ligne par élément." }
+    opProject: { en: "project keeps one output row per input row, so the readings array isn't split into rows.", fr: "project garde une ligne de sortie par ligne d'entrée : le tableau readings n'est pas découpé en lignes." }
+    cvString: { en: "tostring returns a string, which doesn't match the datetime type of the Timestamp column.", fr: "tostring renvoie une chaîne, qui ne correspond pas au type datetime de la colonne Timestamp." }
+    cvTimespan: { en: "totimespan returns a duration, not a point in time.", fr: "totimespan renvoie une durée, pas un instant." }
+    tgRaw: { en: "The policy is defined on the target table; RawReadings is the source named inside the policy.", fr: "La stratégie se définit sur la table cible ; RawReadings est la source indiquée dans la stratégie." }
+    tgFunc: { en: "ExpandReadings is the function that the policy runs, not a table that can hold a policy.", fr: "ExpandReadings est la fonction exécutée par la stratégie, pas une table qui peut porter une stratégie." }
+references:
+  - title: Update policy overview
+    url: https://learn.microsoft.com/en-us/kusto/management/update-policy?view=microsoft-fabric

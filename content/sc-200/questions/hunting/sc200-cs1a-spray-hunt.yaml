@@ -1,0 +1,64 @@
+id: sc200-cs1a-spray-hunt
+objective: "3.1.2"
+type: dropdown
+caseStudy: sc200-cs1a-lamna-healthcare
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to create an Advanced Hunting query in the Microsoft Defender portal that meets the hunting requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer une requête de repérage avancé dans le portail Microsoft Defender qui respecte l'exigence de chasse.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where Timestamp > ago(1d)
+    | where ActionType == "LogonFailed"
+    | summarize TargetAccounts = [[agg]] by IPAddress, [[window]]
+    | where TargetAccounts > 20
+  slots:
+    - id: table
+      options:
+        - { id: identity, text: IdentityLogonEvents }
+        - { id: device, text: DeviceLogonEvents }
+        - { id: directory, text: IdentityDirectoryEvents }
+        - { id: secevent, text: SecurityEvent }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount(AccountUpn) }
+        - { id: count, text: count() }
+        - { id: makeset, text: make_set(AccountUpn) }
+        - { id: argmax, text: "arg_max(Timestamp, AccountUpn)" }
+    - id: window
+      options:
+        - { id: bin, text: "bin(Timestamp, 1h)" }
+        - { id: ago, text: ago(1h) }
+        - { id: startofday, text: startofday(Timestamp) }
+answer:
+  values: { table: identity, agg: dcount, window: bin }
+explanation:
+  correct:
+    en: "IdentityLogonEvents contains the authentication activity against on-premises Active Directory captured by the Defender for Identity sensors on the domain controllers. dcount(AccountUpn) counts the distinct accounts each IP address failed to authenticate, and bin(Timestamp, 1h) groups the failures into one-hour windows, so the filter keeps the sources that targeted more than 20 accounts within an hour."
+    fr: "IdentityLogonEvents contient l'activité d'authentification auprès de l'Active Directory local capturée par les capteurs Defender pour Identity des contrôleurs de domaine. dcount(AccountUpn) compte les comptes distincts que chaque adresse IP n'a pas réussi à authentifier, et bin(Timestamp, 1h) regroupe les échecs par fenêtres d'une heure : le filtre garde les sources qui ont ciblé plus de 20 comptes en une heure."
+  options:
+    device: { en: "DeviceLogonEvents records sign-ins on the devices onboarded to Defender for Endpoint, not the authentications processed by the domain controllers for the whole domain.", fr: "DeviceLogonEvents enregistre les ouvertures de session sur les appareils intégrés à Defender pour point de terminaison, pas les authentifications traitées par les contrôleurs de domaine pour tout le domaine." }
+    directory: { en: "IdentityDirectoryEvents records changes and other events on directory objects, such as group membership or password changes, not authentication attempts.", fr: "IdentityDirectoryEvents enregistre les modifications et autres événements sur les objets de l'annuaire, comme les changements d'appartenance aux groupes ou de mot de passe, pas les tentatives d'authentification." }
+    secevent: { en: "SecurityEvent is a Microsoft Sentinel table that does not have the Timestamp, ActionType and AccountUpn columns used by the query, and Lamna collects only events 4625 and 4740 into it.", fr: "SecurityEvent est une table Microsoft Sentinel qui n'a pas les colonnes Timestamp, ActionType et AccountUpn utilisées par la requête, et Lamna n'y collecte que les événements 4625 et 4740." }
+    count: { en: "count() counts failed attempts, so a single account that fails 21 times would match; a spray is measured by the number of different accounts.", fr: "count() compte les tentatives échouées : un seul compte qui échoue 21 fois correspondrait. Une pulvérisation se mesure au nombre de comptes différents." }
+    makeset: { en: "make_set returns an array of accounts, which cannot be compared with the number 20.", fr: "make_set renvoie un tableau de comptes, qui ne peut pas être comparé au nombre 20." }
+    argmax: { en: "arg_max returns the latest row for each group, not a number of distinct accounts.", fr: "arg_max renvoie la ligne la plus récente de chaque groupe, pas un nombre de comptes distincts." }
+    ago: { en: "ago(1h) returns a single point in time; it does not split the results into one-hour windows.", fr: "ago(1h) renvoie un instant unique ; il ne découpe pas les résultats en fenêtres d'une heure." }
+    startofday: { en: "startofday groups the failures by calendar day, not into one-hour windows.", fr: "startofday regroupe les échecs par jour civil, pas par fenêtres d'une heure." }
+references:
+  - title: IdentityLogonEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitylogonevents-table

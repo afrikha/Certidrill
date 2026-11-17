@@ -1,0 +1,76 @@
+id: dp750-4a-parallel-bronze
+objective: "4.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware has a Lakeflow job that contains the following notebook tasks:
+
+    | Task | Reads | Writes | Duration |
+    | --- | --- | --- | --- |
+    | ingest_crm | CRM API | proseware.bronze.crm_accounts | 20 minutes |
+    | ingest_erp | ERP export files | proseware.bronze.erp_invoices | 25 minutes |
+    | build_silver | Both bronze tables | proseware.silver.account_invoices | 15 minutes |
+
+    The tasks are chained: ingest_crm, then ingest_erp, then build_silver.
+
+    You need to redesign the dependencies. The solution must meet the following requirements:
+
+    - Minimize the time before build_silver starts.
+    - build_silver must never run when one of the ingestion tasks failed.
+
+    What should you do?
+  fr: |
+    Proseware dispose d'un job Lakeflow qui contient les tâches notebook suivantes :
+
+    | Tâche | Lit | Écrit | Durée |
+    | --- | --- | --- | --- |
+    | ingest_crm | API du CRM | proseware.bronze.crm_accounts | 20 minutes |
+    | ingest_erp | Fichiers d'export de l'ERP | proseware.bronze.erp_invoices | 25 minutes |
+    | build_silver | Les deux tables bronze | proseware.silver.account_invoices | 15 minutes |
+
+    Les tâches sont enchaînées : ingest_crm, puis ingest_erp, puis build_silver.
+
+    Vous devez revoir les dépendances. La solution doit répondre aux exigences suivantes :
+
+    - Réduire au minimum le délai avant le démarrage de build_silver.
+    - build_silver ne doit jamais s'exécuter quand l'une des tâches d'ingestion a échoué.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Remove the dependency between the ingestion tasks, and make build_silver depend on both with Run if set to At least one succeeded.", fr: "Supprimer la dépendance entre les tâches d'ingestion, et faire dépendre build_silver des deux avec Run if défini sur At least one succeeded." }
+    - id: b
+      text: { en: "Keep the chain of the three tasks, and set the Run if condition of build_silver to None failed.", fr: "Conserver la chaîne des trois tâches, et définir la condition Run if de build_silver sur None failed." }
+    - id: c
+      text: { en: "Replace both ingestion tasks with one notebook task that runs the two ingestions one after the other.", fr: "Remplacer les deux tâches d'ingestion par une seule tâche notebook qui exécute les deux ingestions l'une après l'autre." }
+    - id: d
+      text: { en: "Remove the dependency between the ingestion tasks, and make build_silver depend on both with Run if set to All succeeded.", fr: "Supprimer la dépendance entre les tâches d'ingestion, et faire dépendre build_silver des deux avec Run if défini sur All succeeded." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      The two ingestions read independent sources, so they can run in parallel; build_silver then starts after 25 minutes instead of 45. With All succeeded, the default condition, build_silver runs only when both ingestion tasks succeeded; otherwise it ends as Upstream failed.
+    fr: |
+      Les deux ingestions lisent des sources indépendantes et peuvent donc s'exécuter en parallèle ; build_silver démarre alors après 25 minutes au lieu de 45. Avec All succeeded, la condition par défaut, build_silver ne s'exécute que si les deux tâches d'ingestion ont réussi ; sinon, elle se termine avec l'état Upstream failed.
+  options:
+    a:
+      en: |
+        At least one succeeded would run build_silver when one ingestion failed, which violates the second requirement.
+      fr: |
+        At least one succeeded exécuterait build_silver quand l'une des ingestions a échoué, ce qui enfreint la deuxième exigence.
+    b:
+      en: |
+        The chain keeps the ingestions sequential, so build_silver still waits 45 minutes.
+      fr: |
+        La chaîne laisse les ingestions séquentielles : build_silver attend toujours 45 minutes.
+    c:
+      en: |
+        Running the ingestions one after the other in one task doesn't reduce the wait and removes the separate retries and repair of each ingestion.
+      fr: |
+        Exécuter les ingestions l'une après l'autre dans une seule tâche ne réduit pas l'attente et supprime les nouvelles tentatives et la réparation séparées de chaque ingestion.
+references:
+  - title: Configure task dependencies
+    url: https://learn.microsoft.com/en-us/azure/databricks/jobs/run-if

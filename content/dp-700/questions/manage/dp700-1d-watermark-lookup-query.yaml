@@ -1,0 +1,84 @@
+id: dp700-1d-watermark-lookup-query
+objective: "1.4.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric pipeline named PL_Orders that loads new rows from an Azure SQL database table named dbo.Orders to a lakehouse. The database also contains a table named dbo.Watermark that stores the ModifiedDate value of the last loaded row.
+
+    PL_Orders must read the watermark, copy only the rows modified after it, and update the watermark only when the copy succeeds.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un pipeline Fabric nommé PL_Orders qui charge vers un lakehouse les nouvelles lignes d'une table de base de données Azure SQL nommée dbo.Orders. La base de données contient aussi une table nommée dbo.Watermark qui stocke la valeur ModifiedDate de la dernière ligne chargée.
+
+    PL_Orders doit lire le filigrane, copier uniquement les lignes modifiées après celui-ci et mettre à jour le filigrane uniquement quand la copie réussit.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: text
+  template:
+    en: |
+      Lookup activity "Get watermark"
+        Query: SELECT LastValue FROM dbo.Watermark WHERE TableName = 'Orders'
+        First row only: [[first]]
+
+      Copy data activity "Copy orders" (runs after Get watermark: On success)
+        Source query:
+          SELECT * FROM dbo.Orders
+          WHERE ModifiedDate > '@{activity('Get watermark').output.[[out]]}'
+
+      Stored procedure activity "Update watermark"
+        Runs after Copy orders: [[cond]]
+    fr: |
+      Activité Lookup "Get watermark"
+        Requête : SELECT LastValue FROM dbo.Watermark WHERE TableName = 'Orders'
+        First row only : [[first]]
+
+      Activité Copy data "Copy orders" (s'exécute après Get watermark : On success)
+        Requête source :
+          SELECT * FROM dbo.Orders
+          WHERE ModifiedDate > '@{activity('Get watermark').output.[[out]]}'
+
+      Activité Stored procedure "Update watermark"
+        S'exécute après Copy orders : [[cond]]
+  slots:
+    - id: first
+      options:
+        - { id: selected, text: { en: "Selected", fr: "Sélectionné" } }
+        - { id: cleared, text: { en: "Cleared", fr: "Désélectionné" } }
+    - id: out
+      options:
+        - { id: value, text: value.LastValue }
+        - { id: firstrow, text: firstRow.LastValue }
+        - { id: plain, text: LastValue }
+    - id: cond
+      options:
+        - { id: completion, text: On completion }
+        - { id: skip, text: On skip }
+        - { id: success, text: On success }
+answer:
+  values: { first: selected, out: firstrow, cond: success }
+explanation:
+  correct:
+    en: |
+      With First row only selected, the Lookup activity returns a single row in output.firstRow, so firstRow.LastValue returns the watermark; @{...} inserts it into the query text. The watermark update must depend on the On success path of the copy, which runs only when the copy succeeds.
+    fr: |
+      Avec First row only sélectionné, l'activité Lookup renvoie une seule ligne dans output.firstRow : firstRow.LastValue renvoie donc le filigrane, et @{...} l'insère dans le texte de la requête. La mise à jour du filigrane doit dépendre du chemin On success de la copie, qui ne s'exécute que lorsque la copie réussit.
+  options:
+    cleared: { en: "When First row only is cleared, the output is an array in output.value, not a single row.", fr: "Quand First row only est désélectionné, la sortie est un tableau dans output.value, pas une seule ligne." }
+    value: { en: "output.value is returned only when First row only is cleared, and it is an array, so value.LastValue does not reference a single value.", fr: "output.value n'est renvoyé que si First row only est désélectionné, et c'est un tableau : value.LastValue ne référence pas une valeur unique." }
+    plain: { en: "The columns of the returned row are under firstRow, not directly under output.", fr: "Les colonnes de la ligne renvoyée se trouvent sous firstRow, pas directement sous output." }
+    completion: { en: "On completion runs whether the copy succeeds or fails, so a failed copy would still move the watermark.", fr: "On completion s'exécute que la copie réussisse ou échoue : une copie en échec déplacerait quand même le filigrane." }
+    skip: { en: "On skip runs only when the copy does not run at all.", fr: "On skip ne s'exécute que lorsque la copie ne s'exécute pas du tout." }
+references:
+  - title: Lookup activity
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/lookup-activity
+  - title: Pipeline Canvas in Fabric Data Factory
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/pipeline-canvas-experience

@@ -1,0 +1,89 @@
+id: dp750-cs3a-proseware
+status: draft
+title:
+  en: Proseware
+  fr: Proseware
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Proseware operates 450 coffee shops in the Netherlands, Belgium and Germany. The head office is in Amsterdam. A data team of four engineers builds the data platform.
+
+        Proseware is building a lakehouse in Azure Databricks for sales analytics and for the maintenance of its espresso machines. Shop managers will ask questions about sales in natural language.
+      fr: |
+        Proseware exploite 450 cafés aux Pays-Bas, en Belgique et en Allemagne. Le siège est à Amsterdam. Une équipe de données de quatre ingénieurs construit la plateforme de données.
+
+        Proseware construit un lakehouse dans Azure Databricks pour l'analyse des ventes et pour la maintenance de ses machines à expresso. Les responsables de café poseront des questions sur les ventes en langage naturel.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure Databricks.** Proseware has a Premium workspace named **adb-pw-prod** in the West Europe region. The workspace is enabled for Unity Catalog and for serverless compute. The catalog **pw_prod** contains the schemas **raw**, **silver** and **gold**.
+
+        | Object | Type | Details |
+        | --- | --- | --- |
+        | pw_prod.silver.sales | Managed table | Receipt lines loaded every night by the Lakeflow pipeline pl-pos-sales, in several commits within about 10 minutes. The start time of the load varies. |
+        | pw_prod.silver.refunds | Managed table | Refunds loaded every night by the Lakeflow pipeline pl-pos-refunds, in several commits within about 10 minutes. The start time of the load varies. |
+        | pw_prod.gold.sales | Managed table | Cleansed receipt lines: receipt_id, shop_id, sold_at (TIMESTAMP), product_id, gross_amount, discount_amount |
+        | pw_prod.gold.shops | Managed table | shop_id, shop_name, area_name, status (OPEN, CLOSED or RENOVATION) |
+        | Shop Assistant | Genie agent (formerly Genie space) | Uses pw_prod.gold.sales and pw_prod.gold.shops; runs on the serverless SQL warehouse **wh-genie** |
+        | el-firmware | External location | URL abfss://firmware@stpwvendor.dfs.core.windows.net/logs |
+
+        **Storage.** stpwvendor is an Azure Data Lake Storage account in the Proseware subscription. Brewtech, the espresso machine vendor, writes the firmware log files of the machines (text files with the .log extension) to the logs folder of the firmware container by using its own service principal.
+
+        **Groups.** The account groups **shop-managers** and **maintenance-engineers** exist. shop-managers already have the CAN USE permission on wh-genie and the SELECT privilege on the tables used by Shop Assistant. maintenance-engineers already have the USE CATALOG privilege on pw_prod and the USE SCHEMA privilege on pw_prod.raw.
+      fr: |
+        **Azure Databricks.** Proseware dispose d'un espace de travail Premium nommé **adb-pw-prod** dans la région West Europe. L'espace de travail est activé pour Unity Catalog et pour le calcul serverless. Le catalogue **pw_prod** contient les schémas **raw**, **silver** et **gold**.
+
+        | Objet | Type | Détails |
+        | --- | --- | --- |
+        | pw_prod.silver.sales | Table managée | Lignes de ticket chargées chaque nuit par le pipeline Lakeflow pl-pos-sales, en plusieurs commits en une dizaine de minutes. L'heure de début du chargement varie. |
+        | pw_prod.silver.refunds | Table managée | Remboursements chargés chaque nuit par le pipeline Lakeflow pl-pos-refunds, en plusieurs commits en une dizaine de minutes. L'heure de début du chargement varie. |
+        | pw_prod.gold.sales | Table managée | Lignes de ticket nettoyées : receipt_id, shop_id, sold_at (TIMESTAMP), product_id, gross_amount, discount_amount |
+        | pw_prod.gold.shops | Table managée | shop_id, shop_name, area_name, status (OPEN, CLOSED ou RENOVATION) |
+        | Shop Assistant | Agent Genie (anciennement espace Genie) | Utilise pw_prod.gold.sales et pw_prod.gold.shops ; s'exécute sur l'entrepôt SQL serverless **wh-genie** |
+        | el-firmware | Emplacement externe | URL abfss://firmware@stpwvendor.dfs.core.windows.net/logs |
+
+        **Stockage.** stpwvendor est un compte Azure Data Lake Storage de l'abonnement de Proseware. Brewtech, le fabricant des machines à expresso, écrit les fichiers journaux de firmware des machines (fichiers texte d'extension .log) dans le dossier logs du conteneur firmware à l'aide de son propre principal de service.
+
+        **Groupes.** Les groupes de compte **shop-managers** et **maintenance-engineers** existent. shop-managers dispose déjà de l'autorisation CAN USE sur wh-genie et du privilège SELECT sur les tables utilisées par Shop Assistant. maintenance-engineers dispose déjà du privilège USE CATALOG sur pw_prod et du privilège USE SCHEMA sur pw_prod.raw.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Proseware identifies the following requirements.
+
+        **Shop Assistant**
+
+        1. "Net sales" must always be calculated as the sum of gross_amount minus discount_amount.
+        2. When a manager asks about "active shops", only the shops whose status is OPEN must be included.
+        3. Managers say "region" when they mean the area_name column.
+        4. The descriptions of pw_prod.gold.sales and of its columns must be visible in Catalog Explorer and to every Genie agent that uses the table. They must be maintained in the SQL scripts that define the table, which are stored in Git.
+
+        **Gold layer and jobs**
+
+        5. A table named **pw_prod.gold.daily_shop_sales** must contain the net sales per shop and per day. The results must be precomputed and refreshed every day at 05:00 UTC, without creating a job.
+        6. A job named **job-partner-export** must run once both pw_prod.silver.sales and pw_prod.silver.refunds have received new data. The job must start only after the last commit of a load. No compute must run while the job waits for the data.
+
+        **Firmware logs**
+
+        7. The members of maintenance-engineers must read the firmware log files from notebooks by using /Volumes paths. The files must stay in the firmware container where Brewtech writes them, access must be governed by Unity Catalog, and maintenance-engineers must not be able to modify or delete the files.
+      fr: |
+        Proseware a défini les exigences suivantes.
+
+        **Shop Assistant**
+
+        1. Les « ventes nettes » doivent toujours être calculées comme la somme de gross_amount moins discount_amount.
+        2. Quand un responsable pose une question sur les « cafés actifs », seuls les cafés dont le statut est OPEN doivent être inclus.
+        3. Les responsables disent « région » quand ils parlent de la colonne area_name.
+        4. Les descriptions de pw_prod.gold.sales et de ses colonnes doivent être visibles dans Catalog Explorer et pour chaque agent Genie qui utilise la table. Elles doivent être gérées dans les scripts SQL qui définissent la table, stockés dans Git.
+
+        **Couche gold et jobs**
+
+        5. Une table nommée **pw_prod.gold.daily_shop_sales** doit contenir les ventes nettes par café et par jour. Les résultats doivent être précalculés et actualisés chaque jour à 05:00 UTC, sans créer de job.
+        6. Un job nommé **job-partner-export** doit s'exécuter dès que pw_prod.silver.sales et pw_prod.silver.refunds ont toutes deux reçu de nouvelles données. Le job ne doit démarrer qu'après le dernier commit d'un chargement. Aucun calcul ne doit s'exécuter pendant que le job attend les données.
+
+        **Journaux de firmware**
+
+        7. Les membres de maintenance-engineers doivent lire les fichiers journaux de firmware depuis des notebooks à l'aide de chemins /Volumes. Les fichiers doivent rester dans le conteneur firmware où Brewtech les écrit, l'accès doit être régi par Unity Catalog, et maintenance-engineers ne doit pas pouvoir modifier ni supprimer les fichiers.

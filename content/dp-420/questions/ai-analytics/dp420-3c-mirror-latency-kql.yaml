@@ -1,0 +1,73 @@
+id: dp420-3c-mirror-latency-kql
+objective: "3.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso mirrors an Azure Cosmos DB for NoSQL database into a mirrored database item named sales-mirror. Workspace monitoring is enabled in the Fabric workspace.
+
+    You need a query that lists, for the last 24 hours, the mirrored tables whose ongoing replication of changes had batches that took more than five minutes to replicate.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso met en miroir une base de données Azure Cosmos DB for NoSQL dans un élément de base de données en miroir nommé sales-mirror. La surveillance de l'espace de travail est activée dans l'espace de travail Fabric.
+
+    Vous avez besoin d'une requête qui liste, pour les dernières 24 heures, les tables en miroir dont la réplication continue des modifications a eu des lots qui ont mis plus de cinq minutes à être répliqués.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where Timestamp > ago(24h)
+    | where ItemName == "sales-mirror" and OperationName == "[[op]]"
+    | summarize maxLatency = max([[metric]]) by SourceTableName
+    | where maxLatency > 300
+  slots:
+    - id: table
+      options:
+        - { id: mirror, text: MirroredDatabaseTableExecution }
+        - { id: dataplane, text: CDBDataPlaneRequests }
+        - { id: diag, text: AzureDiagnostics }
+        - { id: pkru, text: CDBPartitionKeyRUConsumption }
+    - id: op
+      options:
+        - { id: snapshot, text: Snapshotting }
+        - { id: replicating, text: Replicating }
+        - { id: reseed, text: StartReseeding }
+        - { id: addtable, text: AddTable }
+    - id: metric
+      options:
+        - { id: duration, text: DurationMs }
+        - { id: bytes, text: ProcessedBytes }
+        - { id: latency, text: ReplicatorBatchLatency }
+answer:
+  values: { table: mirror, op: replicating, metric: latency }
+explanation:
+  correct:
+    en: "With workspace monitoring enabled, mirrored database execution logs land in the `MirroredDatabaseTableExecution` table of the monitoring KQL database. `Replicating` is the operation of the ongoing change replication, as opposed to the initial snapshot. `ReplicatorBatchLatency` gives the time to replicate a batch in seconds, so the threshold of five minutes is 300."
+    fr: "Avec la surveillance de l'espace de travail activée, les journaux d'exécution des bases de données en miroir arrivent dans la table `MirroredDatabaseTableExecution` de la base de données KQL de surveillance. `Replicating` est l'opération de la réplication continue des modifications, par opposition à l'instantané initial. `ReplicatorBatchLatency` donne la durée de réplication d'un lot en secondes : le seuil de cinq minutes vaut donc 300."
+  options:
+    dataplane:
+      en: "`CDBDataPlaneRequests` holds the data plane requests of an Azure Cosmos DB account in Log Analytics, not the Fabric mirroring logs."
+      fr: "`CDBDataPlaneRequests` contient les requêtes du plan de données d'un compte Azure Cosmos DB dans Log Analytics, pas les journaux de mise en miroir de Fabric."
+    snapshot:
+      en: "`Snapshotting` covers the initial copy of the table, not the replication of later changes."
+      fr: "`Snapshotting` couvre la copie initiale de la table, pas la réplication des modifications ultérieures."
+    duration:
+      en: "`DurationMs` is documented as not applicable for this table, and it would be in milliseconds."
+      fr: "`DurationMs` est documenté comme non applicable pour cette table, et il serait en millisecondes."
+    bytes:
+      en: "`ProcessedBytes` measures the volume of data processed, not latency."
+      fr: "`ProcessedBytes` mesure le volume de données traitées, pas la latence."
+references:
+  - title: Mirrored database operation logs
+    url: https://learn.microsoft.com/en-us/fabric/mirroring/monitor-logs
+  - title: Monitor Fabric mirrored database replication
+    url: https://learn.microsoft.com/en-us/fabric/mirroring/monitor

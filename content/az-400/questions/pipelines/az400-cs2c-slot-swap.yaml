@@ -1,0 +1,88 @@
+id: az400-cs2c-slot-swap
+objective: "3.4.3"
+type: dropdown
+caseStudy: az400-cs2c-fourth-coffee
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are updating the deployment job of order-api-cd. The build publishes the application package in a pipeline artifact named **drop**.
+
+    You need to complete the job to meet the downtime requirement.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous mettez à jour le travail de déploiement d'order-api-cd. La build publie le package de l'application dans un artefact de pipeline nommé **drop**.
+
+    Vous devez compléter le travail pour respecter l'exigence relative aux interruptions de service.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    - deployment: DeployOrderApi
+      environment: production
+      pool:
+        vmImage: ubuntu-latest
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - task: AzureWebApp@1
+              inputs:
+                azureSubscription: 'sc-fc-prod'
+                appType: webAppLinux
+                appName: 'app-fc-order'
+                deployToSlotOrASE: true
+                resourceGroupName: 'rg-fc-order'
+                slotName: [[slot]]
+                package: '$(Pipeline.Workspace)/drop/order-api.zip'
+            - task: AzureAppServiceManage@0
+              inputs:
+                azureSubscription: 'sc-fc-prod'
+                Action: [[action]]
+                WebAppName: 'app-fc-order'
+                ResourceGroupName: 'rg-fc-order'
+                SourceSlot: [[source]]
+                SwapWithProduction: true
+  slots:
+    - id: slot
+      options:
+        - { id: prod, text: "'production'" }
+        - { id: staging, text: "'staging'" }
+        - { id: app, text: "'app-fc-order'" }
+    - id: action
+      options:
+        - { id: restart, text: "'Restart Azure App Service'" }
+        - { id: preview, text: "'Start Swap With Preview'" }
+        - { id: swap, text: "'Swap Slots'" }
+        - { id: complete, text: "'Complete Swap'" }
+    - id: source
+      options:
+        - { id: srcstaging, text: "'staging'" }
+        - { id: srcprod, text: "'production'" }
+        - { id: srcapp, text: "'app-fc-order'" }
+answer:
+  values: { slot: staging, action: swap, source: srcstaging }
+explanation:
+  correct:
+    en: The package is deployed to the staging slot, which doesn't receive production traffic. The Swap Slots action with staging as the source slot and Swap with Production enabled swaps staging into production; App Service warms up the instances of the source slot before switching the routing, so production has no downtime.
+    fr: Le package est déployé dans l'emplacement staging, qui ne reçoit pas le trafic de production. L'action Swap Slots, avec staging comme emplacement source et l'échange avec la production activé, échange staging avec production ; App Service préchauffe les instances de l'emplacement source avant de basculer le routage, si bien que la production ne subit aucune interruption.
+  options:
+    prod: { en: "Deploying directly to production restarts the live app; slotName also can't target the production slot when deployToSlotOrASE is true.", fr: "Déployer directement en production redémarre l'application active ; slotName ne peut d'ailleurs pas cibler l'emplacement de production quand deployToSlotOrASE vaut true." }
+    app: { en: "app-fc-order is the name of the app, not of a slot.", fr: "app-fc-order est le nom de l'application, pas celui d'un emplacement." }
+    restart: { en: "Restarting the app causes downtime and deploys nothing to production.", fr: "Redémarrer l'application provoque une interruption et ne déploie rien en production." }
+    preview: { en: "Start Swap With Preview only applies the production settings to the source slot; the swap isn't finished until Complete Swap runs.", fr: "Start Swap With Preview applique seulement les paramètres de production à l'emplacement source ; l'échange n'est terminé qu'après l'exécution de Complete Swap." }
+    srcprod: { en: "Production is the target of the swap when Swap with Production is enabled, not its source.", fr: "La production est la cible de l'échange quand l'échange avec la production est activé, pas sa source." }
+    srcapp: { en: "app-fc-order is the name of the app, not of a slot.", fr: "app-fc-order est le nom de l'application, pas celui d'un emplacement." }
+    complete: { en: "Complete Swap finishes a swap started with preview; no swap is in progress here.", fr: "Complete Swap termine un échange démarré avec aperçu ; aucun échange n'est en cours ici." }
+references:
+  - title: AzureAppServiceManage@0 - Azure App Service manage v0 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/azure-app-service-manage-v0
+  - title: AzureWebApp@1 - Azure Web App v1 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/azure-web-app-v1

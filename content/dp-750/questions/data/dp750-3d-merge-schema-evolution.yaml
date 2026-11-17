@@ -1,0 +1,94 @@
+id: dp750-3d-merge-schema-evolution
+objective: "3.4.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys upserts customer changes from **tailspin.staging.customer_updates** into the Delta table **tailspin.silver.customers**. The staging table now contains a new column named `preferred_language` that the silver table doesn't have.
+
+    You need to complete the statement to meet the following requirements:
+
+    - `preferred_language` must be added to tailspin.silver.customers by this statement only.
+    - Every column of the matched customers, including `preferred_language`, must be updated.
+    - New customers must be inserted with all their columns.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys applique les modifications des clients de **tailspin.staging.customer_updates** à la table Delta **tailspin.silver.customers** par des opérations upsert. La table intermédiaire contient désormais une nouvelle colonne nommée `preferred_language` que la table silver ne possède pas.
+
+    Vous devez compléter l'instruction pour satisfaire les exigences suivantes :
+
+    - `preferred_language` doit être ajoutée à tailspin.silver.customers par cette seule instruction.
+    - Toutes les colonnes des clients correspondants, y compris `preferred_language`, doivent être mises à jour.
+    - Les nouveaux clients doivent être insérés avec toutes leurs colonnes.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    MERGE [[evo]] INTO tailspin.silver.customers AS t
+    USING tailspin.staging.customer_updates AS s
+    ON t.customer_id = s.customer_id
+    WHEN MATCHED THEN [[upd]]
+    WHEN NOT MATCHED THEN [[ins]];
+  slots:
+    - id: evo
+      options:
+        - { id: byname, text: "BY NAME" }
+        - { id: evolution, text: "WITH SCHEMA EVOLUTION" }
+        - { id: none, text: { en: "(no keyword)", fr: "(aucun mot clé)" } }
+    - id: upd
+      options:
+        - { id: except, text: "UPDATE SET * EXCEPT (preferred_language)" }
+        - { id: one, text: "UPDATE SET t.preferred_language = s.preferred_language" }
+        - { id: all, text: "UPDATE SET *" }
+    - id: ins
+      options:
+        - { id: all, text: "INSERT *" }
+        - { id: except, text: "INSERT * EXCEPT (preferred_language)" }
+        - { id: key, text: "INSERT (customer_id) VALUES (s.customer_id)" }
+answer:
+  values: { evo: evolution, upd: all, ins: all }
+explanation:
+  correct:
+    en: |
+      `MERGE WITH SCHEMA EVOLUTION` enables schema evolution for this statement only. With evolution, a source column missing from the target is added when an action uses `UPDATE SET *` or `INSERT *`, or assigns it by name. `UPDATE SET *` updates every column of the matched rows, including the new one, and `INSERT *` inserts new customers with all their columns.
+    fr: |
+      `MERGE WITH SCHEMA EVOLUTION` active l'évolution du schéma pour cette seule instruction. Avec l'évolution, une colonne source absente de la cible est ajoutée quand une action utilise `UPDATE SET *` ou `INSERT *`, ou l'affecte par son nom. `UPDATE SET *` met à jour toutes les colonnes des lignes correspondantes, y compris la nouvelle, et `INSERT *` insère les nouveaux clients avec toutes leurs colonnes.
+  options:
+    byname:
+      en: |
+        `BY NAME` is a clause of `INSERT`, not of `MERGE`, and it doesn't enable schema evolution.
+      fr: |
+        `BY NAME` est une clause d'`INSERT`, pas de `MERGE`, et elle n'active pas l'évolution du schéma.
+    none:
+      en: |
+        Without schema evolution, `UPDATE SET *` and `INSERT *` require the source and target to have the same columns, so the statement fails.
+      fr: |
+        Sans évolution du schéma, `UPDATE SET *` et `INSERT *` exigent que la source et la cible aient les mêmes colonnes : l'instruction échoue.
+    except:
+      en: |
+        With schema evolution, `EXCEPT` columns are excluded from the action and from evolution, so `preferred_language` wouldn't be written by this action.
+      fr: |
+        Avec l'évolution du schéma, les colonnes `EXCEPT` sont exclues de l'action et de l'évolution : `preferred_language` ne serait pas écrite par cette action.
+    one:
+      en: |
+        This action adds and updates only `preferred_language`; the other columns of the matched customers aren't updated.
+      fr: |
+        Cette action ajoute et met à jour uniquement `preferred_language` ; les autres colonnes des clients correspondants ne sont pas mises à jour.
+    key:
+      en: |
+        This action inserts only the key, so the other columns of new customers are NULL or their default.
+      fr: |
+        Cette action n'insère que la clé : les autres colonnes des nouveaux clients reçoivent NULL ou leur valeur par défaut.
+references:
+  - title: MERGE INTO
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/delta-merge-into
+  - title: Update table schemas with schema evolution
+    url: https://learn.microsoft.com/en-us/azure/databricks/tables/update-schema

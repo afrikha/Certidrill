@@ -1,0 +1,85 @@
+id: az140-1e-bicep-gallery-ref
+objective: "1.5.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You deploy Azure Virtual Desktop session hosts with a Bicep file. The session hosts must be created from the image definition **win11-multi** in the Azure Compute Gallery **galAvd**, which is in the resource group **rg-images** of the same subscription. The image definition is generation 2 with the security type `TrustedLaunchSupported`.
+
+    You need to complete the file so that:
+
+    - each deployment uses the newest image version that isn't excluded from latest;
+    - the session hosts are Trusted launch virtual machines.
+
+    How should you complete the file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous déployez des hôtes de session Azure Virtual Desktop avec un fichier Bicep. Les hôtes de session doivent être créés à partir de la définition d'image **win11-multi** de la galerie Azure Compute Gallery **galAvd**, qui se trouve dans le groupe de ressources **rg-images** du même abonnement. La définition d'image est de génération 2, avec le type de sécurité `TrustedLaunchSupported`.
+
+    Vous devez compléter le fichier pour que :
+
+    - chaque déploiement utilise la version d'image la plus récente qui n'est pas exclue de la dernière version ;
+    - les hôtes de session soient des machines virtuelles Trusted launch.
+
+    Comment devez-vous compléter le fichier ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource sessionHost 'Microsoft.Compute/virtualMachines@2026-04-01' = {
+      name: 'avd-sh-0'
+      location: 'westeurope'
+      properties: {
+        hardwareProfile: { vmSize: 'Standard_D4s_v5' }
+        securityProfile: {
+          securityType: [[sec]]
+          uefiSettings: { secureBootEnabled: true, vTpmEnabled: true }
+        }
+        storageProfile: {
+          imageReference: {
+            [[prop]]: resourceId('rg-images', [[type]], 'galAvd', 'win11-multi')
+          }
+        }
+        // osProfile and networkProfile omitted
+      }
+    }
+  slots:
+    - id: sec
+      options:
+        - { id: tl, text: "'TrustedLaunch'" }
+        - { id: cvm, text: "'ConfidentialVM'" }
+        - { id: std, text: "'Standard'" }
+    - id: prop
+      options:
+        - { id: version, text: version }
+        - { id: id, text: id }
+        - { id: shared, text: sharedGalleryImageId }
+        - { id: community, text: communityGalleryImageId }
+    - id: type
+      options:
+        - { id: images, text: "'Microsoft.Compute/galleries/images'" }
+        - { id: versions, text: "'Microsoft.Compute/galleries/images/versions'" }
+        - { id: managed, text: "'Microsoft.Compute/images'" }
+answer:
+  values: { sec: tl, prop: id, type: images }
+explanation:
+  correct:
+    en: An image in a gallery of your own subscription is always referenced with the `id` property. When the ID is the image definition (`Microsoft.Compute/galleries/images`) without a version, Azure deploys the latest version at deployment time. `securityType` set to `TrustedLaunch` with Secure Boot and vTPM creates Trusted launch VMs, which a Gen2 definition that supports Trusted launch allows.
+    fr: "Une image d'une galerie de votre propre abonnement est toujours référencée avec la propriété `id`. Quand l'ID désigne la définition d'image (`Microsoft.Compute/galleries/images`) sans version, Azure déploie la dernière version au moment du déploiement. `securityType` défini sur `TrustedLaunch` avec le démarrage sécurisé et le vTPM crée des machines virtuelles Trusted launch, ce que permet une définition Gen2 qui prend en charge Trusted launch."
+  options:
+    cvm: { en: "ConfidentialVM creates confidential VMs, which need a definition and a VM size that support them.", fr: "ConfidentialVM crée des machines virtuelles confidentielles, qui exigent une définition et une taille de machine virtuelle compatibles." }
+    std: { en: "Standard disables the UEFI settings, so the VMs wouldn't be Trusted launch VMs.", fr: "Standard désactive les paramètres UEFI : les machines virtuelles ne seraient pas Trusted launch." }
+    version: { en: "The version property is for Marketplace images; gallery images always use the id property.", fr: "La propriété version sert aux images de la Place de marché ; les images de galerie utilisent toujours la propriété id." }
+    shared: { en: "sharedGalleryImageId is the unique ID of an image shared with you through a direct shared gallery.", fr: "sharedGalleryImageId est l'ID unique d'une image partagée avec vous par une galerie partagée directe." }
+    community: { en: "communityGalleryImageId is the unique ID of an image published in a community gallery.", fr: "communityGalleryImageId est l'ID unique d'une image publiée dans une galerie communautaire." }
+    versions: { en: "An image version ID needs a version name and pins that version instead of following the latest one.", fr: "Un ID de version d'image exige un nom de version et fige cette version au lieu de suivre la dernière." }
+    managed: { en: "Microsoft.Compute/images is a managed image, which has no versions and isn't stored in a gallery.", fr: "Microsoft.Compute/images est une image managée, sans versions et non stockée dans une galerie." }
+references:
+  - title: Create a VM from a generalized image version
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/vm-generalized-image-version
+  - title: Deploy a virtual machine with Trusted Launch enabled
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch-portal

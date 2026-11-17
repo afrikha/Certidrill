@@ -1,0 +1,76 @@
+id: dp300-1b-backup-to-url-script
+objective: "1.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+shuffle: false
+stem:
+  en: |
+    You have an on-premises SQL Server 2019 instance named **SQL1** that hosts a database named SalesDb, and an Azure SQL managed instance named **MI1**. SalesDb isn't encrypted. A nightly backup job on SQL1 takes full and log backups of SalesDb to local disks.
+
+    You plan an offline migration of SalesDb to MI1 through the Blob Storage container **migration** of the storage account stfabrikam, by using a SAS token. The migration must not affect the backup chain of the nightly job.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une instance SQL Server 2019 locale nommée **SQL1** qui héberge une base de données nommée SalesDb, et d'une instance managée Azure SQL nommée **MI1**. SalesDb n'est pas chiffrée. Un travail de sauvegarde nocturne sur SQL1 effectue des sauvegardes complètes et de journal de SalesDb sur des disques locaux.
+
+    Vous prévoyez une migration hors connexion de SalesDb vers MI1 via le conteneur Stockage Blob **migration** du compte de stockage stfabrikam, à l'aide d'un jeton SAS. La migration ne doit pas affecter la chaîne de sauvegarde du travail nocturne.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    -- On SQL1 and on MI1
+    CREATE CREDENTIAL [https://stfabrikam.blob.core.windows.net/migration]
+        WITH IDENTITY = [[identity]],
+        SECRET = '<SAS token without the leading ?>';
+
+    -- On SQL1
+    BACKUP DATABASE [SalesDb]
+        TO URL = 'https://stfabrikam.blob.core.windows.net/migration/SalesDb.bak'
+        WITH [[option]], CHECKSUM;
+
+    -- On MI1
+    [[restore]] DATABASE [SalesDb]
+        FROM URL = 'https://stfabrikam.blob.core.windows.net/migration/SalesDb.bak';
+  slots:
+    - id: identity
+      options:
+        - { id: i_name, text: "'stfabrikam'" }
+        - { id: i_sas, text: "'SHARED ACCESS SIGNATURE'" }
+        - { id: i_token, text: "'SAS TOKEN'" }
+    - id: option
+      options:
+        - { id: o_diff, text: DIFFERENTIAL }
+        - { id: o_norec, text: NORECOVERY }
+        - { id: o_copy, text: COPY_ONLY }
+    - id: restore
+      options:
+        - { id: r_restore, text: RESTORE }
+        - { id: r_create, text: CREATE }
+        - { id: r_alter, text: ALTER }
+answer:
+  values: { identity: i_sas, option: o_copy, restore: r_restore }
+explanation:
+  correct:
+    en: |
+      A credential that uses a SAS token is named after the container URL and has the identity `'SHARED ACCESS SIGNATURE'`, with the token, without the `?`, as its secret. `COPY_ONLY` takes a full backup that doesn't interfere with the existing backup sequence of the nightly job. On the managed instance, the only way to restore a native backup is `RESTORE DATABASE ... FROM URL`.
+    fr: |
+      Un identifiant qui utilise un jeton SAS porte le nom de l'URL du conteneur et a pour identité `'SHARED ACCESS SIGNATURE'`, avec le jeton, sans le `?`, comme secret. `COPY_ONLY` effectue une sauvegarde complète qui n'interfère pas avec la séquence de sauvegarde du travail nocturne. Sur l'instance managée, la seule façon de restaurer une sauvegarde native est `RESTORE DATABASE ... FROM URL`.
+  options:
+    i_name: { en: "A storage account name as identity is the access key form; SQL Managed Instance accepts only a SAS or a managed identity.", fr: "Le nom du compte de stockage comme identité correspond à la forme avec clé d'accès ; SQL Managed Instance n'accepte qu'une SAS ou une identité managée." }
+    i_token: { en: "The identity of a SAS credential must be exactly SHARED ACCESS SIGNATURE.", fr: "L'identité d'un identifiant SAS doit être exactement SHARED ACCESS SIGNATURE." }
+    o_diff: { en: "A differential backup depends on the last full backup of the nightly chain and can't be restored alone on MI1.", fr: "Une sauvegarde différentielle dépend de la dernière sauvegarde complète de la chaîne nocturne et ne peut pas être restaurée seule sur MI1." }
+    o_norec: { en: "NORECOVERY is a log backup option that leaves the source in a restoring state; it doesn't protect the backup chain.", fr: "NORECOVERY est une option de sauvegarde de journal qui laisse la source en état de restauration ; elle ne protège pas la chaîne de sauvegarde." }
+    r_create: { en: "CREATE DATABASE can't read a .bak file; native backups are restored with RESTORE.", fr: "CREATE DATABASE ne peut pas lire un fichier .bak ; les sauvegardes natives se restaurent avec RESTORE." }
+    r_alter: { en: "ALTER DATABASE changes an existing database; it doesn't restore a backup.", fr: "ALTER DATABASE modifie une base existante ; il ne restaure pas de sauvegarde." }
+references:
+  - title: T-SQL differences between SQL Server and Azure SQL Managed Instance
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/transact-sql-tsql-differences-sql-server
+  - title: "Migration overview: SQL Server to Azure SQL Managed Instance"
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/migration-guides/managed-instance/sql-server-to-managed-instance-overview

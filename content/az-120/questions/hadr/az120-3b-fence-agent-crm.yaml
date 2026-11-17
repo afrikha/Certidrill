@@ -1,0 +1,65 @@
+id: az120-3b-fence-agent-crm
+objective: "3.1.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank runs SAP HANA in a two-node Pacemaker cluster on SLES. The cluster node names are **hn1-db-0** and **hn1-db-1**, and the Azure VM names are **vm-hn1-db0** and **vm-hn1-db1**. Each VM has a system-assigned managed identity that has the Linux Fence Agent custom role on both VMs.
+
+    You need to configure the Azure fence agent by following Microsoft's guidance.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank exécute SAP HANA dans un cluster Pacemaker à deux nœuds sur SLES. Les noms des nœuds du cluster sont **hn1-db-0** et **hn1-db-1**, et les noms des machines virtuelles Azure sont **vm-hn1-db0** et **vm-hn1-db1**. Chaque machine virtuelle dispose d'une identité managée affectée par le système qui possède le rôle personnalisé Linux Fence Agent sur les deux machines virtuelles.
+
+    Vous devez configurer l'agent de clôture Azure en suivant les recommandations de Microsoft.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    sudo crm configure primitive rsc_st_azure stonith:fence_azure_arm params msi=true \
+       resourceGroup="rg-hn1-prd" subscriptionId="<subscription id>" \
+       pcmk_host_map="[[map]]" \
+       power_timeout=240 pcmk_reboot_timeout=900 pcmk_monitor_timeout=120 \
+       pcmk_monitor_retries=4 pcmk_action_limit=3 pcmk_delay_max=15 \
+       meta failure-timeout=120s op monitor interval=3600 timeout=120
+
+    sudo crm configure property stonith-enabled=true
+    sudo crm configure property stonith-timeout=[[timeout]]
+  slots:
+    - id: map
+      options:
+        - { id: nodevm, text: "hn1-db-0:vm-hn1-db0;hn1-db-1:vm-hn1-db1" }
+        - { id: vmnode, text: "vm-hn1-db0:hn1-db-0;vm-hn1-db1:hn1-db-1" }
+        - { id: nodes, text: "hn1-db-0;hn1-db-1" }
+        - { id: vms, text: "vm-hn1-db0;vm-hn1-db1" }
+    - id: timeout
+      options:
+        - { id: t60, text: "60" }
+        - { id: t210, text: "210" }
+        - { id: t900, text: "900" }
+        - { id: t30000, text: "30000" }
+answer:
+  values: { map: nodevm, timeout: t900 }
+explanation:
+  correct:
+    en: |
+      The pcmk_host_map parameter maps each cluster node name to the name of its Azure VM, in the form node:vm separated by semicolons, so that the fence agent powers off the right VM. With the Azure fence agent, Microsoft's guide sets the stonith-timeout cluster property to 900 seconds, consistent with pcmk_reboot_timeout=900.
+    fr: |
+      Le paramètre pcmk_host_map associe chaque nom de nœud du cluster au nom de sa machine virtuelle Azure, sous la forme nœud:vm séparée par des points-virgules, afin que l'agent de clôture arrête la bonne machine virtuelle. Avec l'agent de clôture Azure, le guide de Microsoft définit la propriété de cluster stonith-timeout sur 900 secondes, en cohérence avec pcmk_reboot_timeout=900.
+  options:
+    vmnode: { en: "The order is reversed: the cluster node name comes first, then the Azure VM name.", fr: "L'ordre est inversé : le nom du nœud du cluster vient en premier, puis le nom de la machine virtuelle Azure." }
+    nodes: { en: "A list of node names alone doesn't tell the agent which Azure VM to power off.", fr: "Une simple liste de noms de nœuds n'indique pas à l'agent quelle machine virtuelle Azure arrêter." }
+    vms: { en: "A list of VM names alone doesn't map the cluster nodes to the VMs.", fr: "Une simple liste de noms de machines virtuelles n'associe pas les nœuds du cluster aux machines virtuelles." }
+    t210: { en: "210 seconds is the stonith-timeout that Microsoft's guide uses with SBD fencing.", fr: "210 secondes est la valeur de stonith-timeout que le guide de Microsoft utilise avec la clôture SBD." }
+    t30000: { en: "30000 is the corosync token value, in milliseconds, not the stonith-timeout.", fr: "30000 est la valeur du jeton corosync, en millisecondes, pas celle de stonith-timeout." }
+references:
+  - title: Set up Pacemaker on SUSE Linux Enterprise Server in Azure
+    url: https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-suse-pacemaker

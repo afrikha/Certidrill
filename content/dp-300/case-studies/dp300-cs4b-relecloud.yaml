@@ -1,0 +1,95 @@
+id: dp300-cs4b-relecloud
+status: draft
+title:
+  en: Relecloud
+  fr: Relecloud
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Relecloud sells tickets for concerts, festivals and sports events in 14 European countries. Traffic is low most of the time and peaks sharply when tickets for a major event go on sale.
+
+        The ticketing platform was built in Azure. A team of two database administrators (DBAs) and a platform team that writes Azure CLI scripts support it.
+      fr: |
+        Relecloud vend des billets pour des concerts, des festivals et des événements sportifs dans 14 pays européens. Le trafic est faible la plupart du temps et connaît des pics brutaux à l'ouverture des ventes d'un événement majeur.
+
+        La plateforme de billetterie a été conçue dans Azure. Une équipe de deux administrateurs de bases de données (DBA) et une équipe plateforme qui écrit des scripts Azure CLI la prennent en charge.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Databases**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | sql-rc-prod | Logical server in North Europe. Microsoft Entra admin configured. Public network access is enabled, with server-level IP firewall rules for the Relecloud offices. |
+        | TicketsDB | Database on sql-rc-prod. Hyperscale, provisioned compute, 16 vCores, one high availability replica, not zone redundant. Backup storage redundancy: locally redundant. Point-in-time restore retention: 7 days. READ_COMMITTED_SNAPSHOT is ON. |
+        | sql-rc-partner | Logical server in North Europe that has no databases. |
+        | sql-rc-dr | Logical server in West Europe that has no databases. |
+
+        **Applications**
+
+        - The ticketing web application, **app-rc-tickets**, runs in Azure App Service. It uses virtual network integration with the subnet **snet-apps** of the virtual network **vnet-rc** in North Europe.
+        - app-rc-tickets connects to TicketsDB by using the server name `sql-rc-prod.database.windows.net`.
+      fr: |
+        **Bases de données**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | sql-rc-prod | Serveur logique dans la région North Europe. Administrateur Microsoft Entra configuré. L'accès au réseau public est activé, avec des règles de pare-feu IP au niveau du serveur pour les bureaux de Relecloud. |
+        | TicketsDB | Base de données sur sql-rc-prod. Hyperscale, calcul provisionné, 16 vCores, un réplica de haute disponibilité, non redondante interzone. Redondance du stockage de sauvegarde : localement redondant. Rétention de la restauration à un point dans le temps : 7 jours. READ_COMMITTED_SNAPSHOT est à ON. |
+        | sql-rc-partner | Serveur logique dans la région North Europe, sans base de données. |
+        | sql-rc-dr | Serveur logique dans la région West Europe, sans base de données. |
+
+        **Applications**
+
+        - L'application web de billetterie, **app-rc-tickets**, s'exécute dans Azure App Service. Elle utilise l'intégration au réseau virtuel avec le sous-réseau **snet-apps** du réseau virtuel **vnet-rc** dans la région North Europe.
+        - app-rc-tickets se connecte à TicketsDB avec le nom de serveur `sql-rc-prod.database.windows.net`.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Data access**
+
+        1. Proseware, a marketing analytics partner, will query TicketsDB data from its own BI tool by using a SQL authentication login named **pw-login**. The queries of Proseware must run on compute that is separate from the primary workload and sized independently at 4 vCores. pw-login must be able to connect only through sql-rc-partner and must never be able to connect to the primary database.
+
+        **Availability and recovery**
+
+        2. If the compute of the TicketsDB primary fails, TicketsDB must fail over automatically within North Europe.
+        3. A readable secondary of TicketsDB must exist in West Europe for disaster recovery.
+        4. One backup of TicketsDB per week must be kept for three years for financial audits.
+
+        **New database**
+
+        5. The platform team will deploy a new database named **EventsEU** on sql-rc-prod by using an Azure CLI script. EventsEU will use 8 vCores and must support named replicas, remain available if an availability zone of North Europe fails, and be restorable to West Europe by using geo-restore. Costs must be minimized.
+
+        **Network**
+
+        6. app-rc-tickets must connect to sql-rc-prod through a private IP address in vnet-rc. The public endpoint of sql-rc-prod must reject every connection, even if someone adds a firewall rule later by mistake. The connection strings of app-rc-tickets must not change.
+
+        **Performance**
+
+        7. During on-sale peaks, purchase transactions wait on locks. The DBAs must identify the last statement run by each session that blocks other sessions, including blocking sessions that are idle with an open transaction.
+      fr: |
+        **Accès aux données**
+
+        1. Proseware, un partenaire d'analytique marketing, interrogera les données de TicketsDB depuis son propre outil décisionnel à l'aide d'une connexion d'authentification SQL nommée **pw-login**. Les requêtes de Proseware doivent s'exécuter sur une capacité de calcul distincte de la charge de travail principale et dimensionnée indépendamment à 4 vCores. pw-login ne doit pouvoir se connecter que via sql-rc-partner et ne doit jamais pouvoir se connecter à la base de données primaire.
+
+        **Disponibilité et récupération**
+
+        2. Si le calcul du primaire de TicketsDB tombe en panne, TicketsDB doit basculer automatiquement au sein de la région North Europe.
+        3. Un secondaire accessible en lecture de TicketsDB doit exister dans la région West Europe pour la reprise d'activité.
+        4. Une sauvegarde de TicketsDB par semaine doit être conservée pendant trois ans pour les audits financiers.
+
+        **Nouvelle base de données**
+
+        5. L'équipe plateforme déploiera une nouvelle base de données nommée **EventsEU** sur sql-rc-prod à l'aide d'un script Azure CLI. EventsEU utilisera 8 vCores et doit prendre en charge les réplicas nommés, rester disponible en cas de défaillance d'une zone de disponibilité de la région North Europe et pouvoir être restaurée dans la région West Europe par géorestauration. Les coûts doivent être réduits au minimum.
+
+        **Réseau**
+
+        6. app-rc-tickets doit se connecter à sql-rc-prod via une adresse IP privée dans vnet-rc. Le point de terminaison public de sql-rc-prod doit rejeter toutes les connexions, même si quelqu'un ajoute plus tard une règle de pare-feu par erreur. Les chaînes de connexion d'app-rc-tickets ne doivent pas changer.
+
+        **Performances**
+
+        7. Pendant les pics d'ouverture des ventes, les transactions d'achat attendent des verrous. Les DBA doivent identifier la dernière instruction exécutée par chaque session qui bloque d'autres sessions, y compris les sessions bloquantes inactives qui ont une transaction ouverte.

@@ -1,0 +1,70 @@
+id: az400-cs1b-rating-certificate
+objective: "4.2.3"
+type: dropdown
+caseStudy: az400-cs1b-humongous-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You upload rating-client.pfx to **Pipelines > Library > Secure files** and authorize only the YAML pipeline of the claims portal to use it.
+
+    You need to complete the integration test steps so that the tests receive the path of the certificate file.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous chargez rating-client.pfx dans **Pipelines > Library > Secure files** et vous autorisez uniquement le pipeline YAML du portail des sinistres à l'utiliser.
+
+    Vous devez compléter les étapes des tests d'intégration pour que les tests reçoivent le chemin du fichier de certificat.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    steps:
+    - task: [[task]]
+      name: ratingCert
+      inputs:
+        secureFile: 'rating-client.pfx'
+    - task: DotNetCoreCLI@2
+      displayName: Integration tests
+      inputs:
+        command: test
+        projects: 'tests/Claims.IntegrationTests/*.csproj'
+      env:
+        RATING_CERT_PATH: [[path]]
+  slots:
+    - id: task
+      options:
+        - { id: dlsecure, text: DownloadSecureFile@1 }
+        - { id: dlartifact, text: DownloadPipelineArtifact@2 }
+        - { id: keyvault, text: AzureKeyVault@2 }
+        - { id: copy, text: CopyFiles@2 }
+    - id: path
+      options:
+        - { id: tempdir, text: $(Agent.TempDirectory) }
+        - { id: sources, text: $(Build.SourcesDirectory)/rating-client.pfx }
+        - { id: output, text: $(ratingCert.secureFilePath) }
+        - { id: input, text: $(secureFile) }
+answer:
+  values: { task: dlsecure, path: output }
+explanation:
+  correct:
+    en: |
+      Secure files are stored encrypted in the library and can be used only from a pipeline task, the Download secure file task (DownloadSecureFile@1). The task downloads the file on the agent, and the following steps read its location through the secureFilePath output variable prefixed by the step name, here `$(ratingCert.secureFilePath)`.
+    fr: |
+      Les fichiers sécurisés sont stockés chiffrés dans la bibliothèque et ne peuvent être utilisés que par une tâche de pipeline, la tâche de téléchargement de fichier sécurisé (DownloadSecureFile@1). La tâche télécharge le fichier sur l'agent, et les étapes suivantes lisent son emplacement avec la variable de sortie secureFilePath préfixée par le nom de l'étape, ici `$(ratingCert.secureFilePath)`.
+  options:
+    dlartifact: { en: "DownloadPipelineArtifact@2 downloads artifacts published by a pipeline, not files of the secure files library.", fr: "DownloadPipelineArtifact@2 télécharge des artefacts publiés par un pipeline, pas des fichiers de la bibliothèque de fichiers sécurisés." }
+    keyvault: { en: "AzureKeyVault@2 reads secrets from an Azure key vault; the certificate is in the secure files library.", fr: "AzureKeyVault@2 lit des secrets dans un coffre de clés Azure ; le certificat se trouve dans la bibliothèque de fichiers sécurisés." }
+    copy: { en: "CopyFiles@2 copies files that are already on the agent; it cannot read the secure files library.", fr: "CopyFiles@2 copie des fichiers déjà présents sur l'agent ; il ne peut pas lire la bibliothèque de fichiers sécurisés." }
+    tempdir: { en: "Agent.TempDirectory is a folder, not the path of the downloaded file.", fr: "Agent.TempDirectory est un dossier, pas le chemin du fichier téléchargé." }
+    sources: { en: "The certificate is not in the repository, so it is not in the sources directory.", fr: "Le certificat n'est pas dans le dépôt : il ne se trouve pas dans le répertoire des sources." }
+    input: { en: "secureFile is a task input, not a variable that holds the downloaded path.", fr: "secureFile est une entrée de la tâche, pas une variable qui contient le chemin du fichier téléchargé." }
+references:
+  - title: Use secure files
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/library/secure-files

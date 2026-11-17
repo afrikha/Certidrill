@@ -1,0 +1,74 @@
+id: dp300-cs4a-medical-audit
+objective: "2.3.2"
+type: dropdown
+caseStudy: dp300-cs4a-humongous-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Underwriting has moved to MI-PROD. A diagnostic setting of MI-PROD sends the SQLSecurityAuditEvents category to law-claims.
+
+    You need to meet the audit requirement for dbo.MedicalReports.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Underwriting a été déplacée vers MI-PROD. Un paramètre de diagnostic de MI-PROD envoie la catégorie SQLSecurityAuditEvents vers law-claims.
+
+    Vous devez satisfaire l'exigence d'audit de dbo.MedicalReports.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    USE master;
+    GO
+    CREATE SERVER AUDIT AuditMedical
+        TO [[target]];
+    GO
+    ALTER SERVER AUDIT AuditMedical WITH (STATE = ON);
+    GO
+    USE Underwriting;
+    GO
+    CREATE [[scope]] AUDIT SPECIFICATION MedicalReportsAccess
+        FOR SERVER AUDIT AuditMedical
+        ADD ([[actions]] ON OBJECT::dbo.MedicalReports BY public)
+        WITH (STATE = ON);
+  slots:
+    - id: target
+      options:
+        - { id: t_file, text: "FILE (FILEPATH = 'D:\\Audit\\')" }
+        - { id: t_url, text: "URL (PATH = 'https://stclaimsdiag.blob.core.windows.net/audit')" }
+        - { id: t_monitor, text: EXTERNAL_MONITOR }
+        - { id: t_applog, text: APPLICATION_LOG }
+    - id: scope
+      options:
+        - { id: s_server, text: SERVER }
+        - { id: s_database, text: DATABASE }
+    - id: actions
+      options:
+        - { id: a_select, text: SELECT }
+        - { id: a_selupd, text: "SELECT, UPDATE" }
+        - { id: a_upddel, text: "UPDATE, DELETE" }
+answer:
+  values: { target: t_monitor, scope: s_database, actions: a_selupd }
+explanation:
+  correct:
+    en: |
+      On SQL Managed Instance, a server audit whose target is `EXTERNAL_MONITOR` sends its records to the destinations of the diagnostic setting that collects SQLSecurityAuditEvents, here the Log Analytics workspace law-claims. Actions on one object, such as `SELECT, UPDATE ON OBJECT::dbo.MedicalReports BY public`, are added to a database audit specification created in Underwriting. `BY public` covers every user, because every user is a member of public.
+    fr: |
+      Sur SQL Managed Instance, un audit de serveur dont la cible est `EXTERNAL_MONITOR` envoie ses enregistrements aux destinations du paramètre de diagnostic qui collecte SQLSecurityAuditEvents, ici l'espace de travail Log Analytics law-claims. Les actions sur un objet, comme `SELECT, UPDATE ON OBJECT::dbo.MedicalReports BY public`, s'ajoutent à une spécification d'audit de la base de données créée dans Underwriting. `BY public` couvre tous les utilisateurs, car chaque utilisateur est membre de public.
+  options:
+    t_file: { en: "SQL Managed Instance doesn't write audit files to a local disk; it audits to Azure Storage or to an external monitor.", fr: "SQL Managed Instance n'écrit pas de fichiers d'audit sur un disque local ; il audite vers Stockage Azure ou vers un moniteur externe." }
+    t_url: { en: "TO URL writes .xel files to a blob container, not to the Log Analytics workspace that the security team queries.", fr: "TO URL écrit des fichiers .xel dans un conteneur d'objets blob, pas dans l'espace de travail Log Analytics qu'interroge l'équipe de sécurité." }
+    t_applog: { en: "The Windows application log isn't a target that the security team can query in law-claims.", fr: "Le journal des applications Windows n'est pas une cible que l'équipe de sécurité peut interroger dans law-claims." }
+    s_server: { en: "A server audit specification contains server-level action groups; actions on a specific table belong to a database audit specification.", fr: "Une spécification d'audit du serveur contient des groupes d'actions de niveau serveur ; les actions sur une table précise relèvent d'une spécification d'audit de la base de données." }
+    a_select: { en: "SELECT alone doesn't audit the UPDATE statements that the requirement includes.", fr: "SELECT seul n'audite pas les instructions UPDATE que l'exigence inclut." }
+    a_upddel: { en: "This list doesn't audit the SELECT statements.", fr: "Cette liste n'audite pas les instructions SELECT." }
+references:
+  - title: Configure Auditing - Azure SQL Managed Instance
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/auditing-configure

@@ -1,0 +1,72 @@
+id: az400-cs3a-kql-dependencies
+objective: "5.2.3"
+type: dropdown
+caseStudy: az400-cs3a-wingtip-shipping
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to write a query in the Logs page of appi-portcall to meet the monitoring requirement. The query must return the five external services that berth-api failed to call most often during the last 24 hours. The role name of the berth-api telemetry is **berth-api**.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire une requête dans la page Journaux de appi-portcall pour satisfaire l'exigence de supervision. La requête doit renvoyer les cinq services externes que berth-api a le plus souvent échoué à appeler au cours des dernières 24 heures. Le nom de rôle de la télémétrie de berth-api est **berth-api**.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where timestamp > ago(24h)
+    | where cloud_RoleName == "berth-api" and [[filter]]
+    | summarize failedCalls = count() by [[group]]
+    | top 5 by failedCalls desc
+  slots:
+    - id: table
+      options:
+        - { id: deps, text: "dependencies" }
+        - { id: reqs, text: "requests" }
+        - { id: exc, text: "exceptions" }
+        - { id: traces, text: "traces" }
+    - id: filter
+      options:
+        - { id: fail, text: "success == false" }
+        - { id: code, text: "resultCode == \"200\"" }
+        - { id: http, text: "type == \"HTTP\"" }
+    - id: group
+      options:
+        - { id: target, text: "target" }
+        - { id: opid, text: "operation_Id" }
+        - { id: role, text: "cloud_RoleInstance" }
+answer:
+  values: { table: deps, filter: fail, group: target }
+explanation:
+  correct:
+    en: |
+      Outgoing calls from berth-api to other services are recorded as dependency telemetry in the `dependencies` table, and each record has a `success` Boolean and a `target` field that holds the called server or host. Filtering on `success == false` and counting by `target` gives the number of failed calls per external service, and `top 5` keeps the five highest values.
+    fr: |
+      Les appels sortants de berth-api vers d'autres services sont enregistrés comme télémétrie de dépendance dans la table `dependencies`, et chaque enregistrement a un booléen `success` et un champ `target` qui contient le serveur ou l'hôte appelé. Le filtre `success == false` et le comptage par `target` donnent le nombre d'appels en échec par service externe, et `top 5` conserve les cinq valeurs les plus élevées.
+  options:
+    reqs:
+      en: |
+        The requests table records the incoming requests that berth-api receives, not the calls it makes to other services.
+      fr: |
+        La table requests enregistre les requêtes entrantes que reçoit berth-api, pas les appels qu'il fait vers d'autres services.
+    http:
+      en: |
+        Filtering on the dependency type keeps successful and failed HTTP calls alike.
+      fr: |
+        Le filtre sur le type de dépendance conserve indifféremment les appels HTTP réussis et en échec.
+    opid:
+      en: |
+        Grouping by operation ID counts failures per end-to-end operation, not per called service.
+      fr: |
+        Le regroupement par ID d'opération compte les échecs par opération de bout en bout, pas par service appelé.
+references:
+  - title: Application Insights telemetry data model
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete

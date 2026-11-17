@@ -1,0 +1,73 @@
+id: dp750-3a-generated-partition
+objective: "3.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam is creating the Delta table **fabrikam.iot.readings**. It will hold about 300 TB, with roughly 2 TB of new readings per day, and the team has decided to partition it by day.
+
+    The solution must meet the following requirements:
+
+    - Writers provide only `reading_ts`; the partition value must be derived automatically.
+    - Queries that filter only on `reading_ts` must benefit from partition pruning.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam crée la table Delta **fabrikam.iot.readings**. Elle contiendra environ 300 To, avec à peu près 2 To de nouvelles mesures par jour, et l'équipe a décidé de la partitionner par jour.
+
+    La solution doit répondre aux exigences suivantes :
+
+    - Les rédacteurs ne fournissent que `reading_ts` ; la valeur de partition doit être dérivée automatiquement.
+    - Les requêtes qui filtrent uniquement sur `reading_ts` doivent bénéficier de l'élagage de partition.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE fabrikam.iot.readings (
+      device_id STRING,
+      reading_ts TIMESTAMP,
+      temperature DOUBLE,
+      reading_date DATE [[gen]]
+    )
+    [[layout]];
+  slots:
+    - id: gen
+      options:
+        - { id: identity, text: "GENERATED ALWAYS AS IDENTITY" }
+        - { id: castdate, text: "GENERATED ALWAYS AS (CAST(reading_ts AS DATE))" }
+        - { id: default, text: "DEFAULT current_date()" }
+    - id: layout
+      options:
+        - { id: partts, text: "PARTITIONED BY (reading_ts)" }
+        - { id: clusterdate, text: "CLUSTER BY (reading_date)" }
+        - { id: partdate, text: "PARTITIONED BY (reading_date)" }
+        - { id: partdevice, text: "PARTITIONED BY (device_id)" }
+answer:
+  values: { gen: castdate, layout: partdate }
+explanation:
+  correct:
+    en: |
+      A generated column computes `reading_date` from `reading_ts`, so writers do not supply it, and partitioning on that date column gives one partition per day. Delta Lake automatically generates partition filters when a query filters on the base timestamp column, so filters on `reading_ts` still get partition pruning.
+    fr: |
+      Une colonne générée calcule `reading_date` à partir de `reading_ts` : les rédacteurs n'ont pas à la fournir, et le partitionnement sur cette colonne de date produit une partition par jour. Delta Lake génère automatiquement des filtres de partition lorsqu'une requête filtre sur la colonne d'horodatage de base : les filtres sur `reading_ts` bénéficient donc toujours de l'élagage de partition.
+  options:
+    gen:
+      en: |
+        An identity column produces sequential integers, not a date; `current_date()` returns the load date, not the date of the reading.
+      fr: |
+        Une colonne d'identité produit des entiers séquentiels, pas une date ; `current_date()` renvoie la date de chargement, pas la date de la mesure.
+    layout:
+      en: |
+        Partitioning on the timestamp or on `device_id` creates huge numbers of small partitions, and CLUSTER BY defines liquid clustering, not the daily partitioning the team chose.
+      fr: |
+        Partitionner sur l'horodatage ou sur `device_id` crée un très grand nombre de petites partitions, et CLUSTER BY définit un clustering liquide, pas le partitionnement quotidien choisi par l'équipe.
+references:
+  - title: Design and implement a data partitioning scheme
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-data-modeling-unity-catalog/5-design-data-partitioning-scheme

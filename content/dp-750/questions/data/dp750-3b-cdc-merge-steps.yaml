@@ -1,0 +1,54 @@
+id: dp750-3b-cdc-merge-steps
+objective: "3.2.4"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank receives a CDC feed in the Delta table **woodgrove.bronze.account_cdc**. Each record has an `account_id`, the data columns, an `operation` column (`INSERT`, `UPDATE` or `DELETE`) and an increasing `change_seq`. A micro-batch can contain several changes for the same account.
+
+    You must apply the feed to the table **woodgrove.silver.accounts**, which keeps only the current state of each account, by using a notebook with Structured Streaming instead of a Lakeflow pipeline.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Woodgrove Bank reçoit un flux CDC dans la table Delta **woodgrove.bronze.account_cdc**. Chaque enregistrement comporte un `account_id`, les colonnes de données, une colonne `operation` (`INSERT`, `UPDATE` ou `DELETE`) et un `change_seq` croissant. Un micro-lot peut contenir plusieurs modifications pour le même compte.
+
+    Vous devez appliquer le flux à la table **woodgrove.silver.accounts**, qui ne conserve que l'état actuel de chaque compte, à l'aide d'un notebook avec Structured Streaming plutôt qu'avec un pipeline Lakeflow.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: read, text: { en: "Read woodgrove.bronze.account_cdc with spark.readStream and write with foreachBatch and a checkpoint location.", fr: "Lire woodgrove.bronze.account_cdc avec spark.readStream et écrire avec foreachBatch et un emplacement de point de contrôle." } }
+    - { id: dedup, text: { en: "In the foreachBatch function, keep only the change with the highest change_seq for each account_id.", fr: "Dans la fonction foreachBatch, ne conserver que la modification ayant le change_seq le plus élevé pour chaque account_id." } }
+    - { id: merge, text: { en: "In the same function, run a MERGE that deletes, updates or inserts the target rows according to the operation column.", fr: "Dans la même fonction, exécuter un MERGE qui supprime, met à jour ou insère les lignes cibles selon la colonne operation." } }
+    - { id: arrival, text: { en: "Sort the micro-batch by ingestion time and apply each change with a separate UPDATE statement.", fr: "Trier le micro-lot par heure d'ingestion et appliquer chaque modification avec une instruction UPDATE distincte." } }
+    - { id: complete, text: { en: "Set the output mode to complete so that the target table is rewritten at each micro-batch.", fr: "Définir le mode de sortie sur complete pour que la table cible soit réécrite à chaque micro-lot." } }
+    - { id: union, text: { en: "Union each change with a copy that has a null merge key so that a new version is inserted.", fr: "Unir chaque modification à une copie dont la clé de fusion est nulle afin d'insérer une nouvelle version." } }
+answer:
+  sequence: [ read, dedup, merge ]
+explanation:
+  correct:
+    en: |
+      Outside a pipeline, a CDC feed is applied with MERGE inside a foreachBatch function of a streaming write that has its own checkpoint. A MERGE fails when several source rows match the same target row, and you must order the changes yourself, so each micro-batch is first reduced to the latest change per key by change_seq. The MERGE then applies the delete, update or insert, and it must be idempotent because a restart can replay a batch.
+    fr: |
+      Hors d'un pipeline, un flux CDC est appliqué avec MERGE dans une fonction foreachBatch d'une écriture en streaming dotée de son propre point de contrôle. Un MERGE échoue quand plusieurs lignes sources correspondent à la même ligne cible, et vous devez ordonner les modifications vous-même : chaque micro-lot est donc d'abord réduit à la dernière modification par clé selon change_seq. Le MERGE applique ensuite la suppression, la mise à jour ou l'insertion, et il doit être idempotent, car un redémarrage peut rejouer un lot.
+  options:
+    arrival:
+      en: |
+        Arrival order isn't the order of the changes in the source; only the sequence column gives the correct final state.
+      fr: |
+        L'ordre d'arrivée n'est pas l'ordre des modifications dans la source ; seule la colonne de séquence donne l'état final correct.
+    complete:
+      en: |
+        Complete mode works only with streaming aggregations, and it doesn't apply changes to existing rows.
+      fr: |
+        Le mode complete ne fonctionne qu'avec des agrégations en streaming, et il n'applique pas de modifications aux lignes existantes.
+    union:
+      en: |
+        The null-key union inserts new versions for SCD type 2; this table keeps only the current state.
+      fr: |
+        L'union avec une clé nulle insère de nouvelles versions pour le SCD de type 2 ; cette table ne conserve que l'état actuel.
+references:
+  - title: Delta Lake table streaming reads and writes
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/delta-lake

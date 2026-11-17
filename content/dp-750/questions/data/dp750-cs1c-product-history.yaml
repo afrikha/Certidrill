@@ -1,0 +1,69 @@
+id: dp750-cs1c-product-history
+objective: "3.1.6"
+type: dropdown
+caseStudy: dp750-cs1c-best-for-you-organics
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the SQL source file of the pipeline that maintains bfyo_prod.silver.dim_product.
+
+    How should you complete the code to meet the product dimension requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le fichier source SQL du pipeline qui alimente bfyo_prod.silver.dim_product.
+
+    Comment devez-vous compléter le code pour respecter les exigences de la dimension produit ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR REFRESH STREAMING TABLE bfyo_prod.silver.dim_product;
+
+    CREATE FLOW products_flow AS AUTO CDC INTO
+      bfyo_prod.silver.dim_product
+    FROM
+      [[source]]
+    KEYS
+      (product_id)
+    APPLY AS DELETE WHEN
+      op = "D"
+    SEQUENCE BY
+      [[seq]]
+    COLUMNS * EXCEPT
+      (op, change_seq)
+    STORED AS
+      [[scd]];
+  slots:
+    - id: source
+      options:
+        - { id: stream, text: "stream(bfyo_prod.bronze.products_cdc)" }
+        - { id: batch, text: "bfyo_prod.bronze.products_cdc" }
+        - { id: tablechanges, text: "table_changes('bfyo_prod.bronze.products_cdc', 0)" }
+    - id: seq
+      options:
+        - { id: changeseq, text: "change_seq" }
+        - { id: productid, text: "product_id" }
+        - { id: now, text: "current_timestamp()" }
+    - id: scd
+      options:
+        - { id: type1, text: "SCD TYPE 1" }
+        - { id: type2, text: "SCD TYPE 2" }
+answer:
+  values: { source: stream, seq: changeseq, scd: type2 }
+explanation:
+  correct:
+    en: "An AUTO CDC flow reads its source as a stream, `stream(<table>)`, so each update processes only the new change records. SEQUENCE BY must name a column that orders the changes of a key, here change_seq. SCD type 2 keeps every version of a row and adds the `__START_AT` and `__END_AT` columns that give the period during which each version was valid."
+    fr: "Un flux AUTO CDC lit sa source en streaming, `stream(<table>)`, de sorte que chaque mise à jour ne traite que les nouveaux enregistrements de modification. SEQUENCE BY doit désigner une colonne qui ordonne les modifications d'une clé, ici change_seq. Le SCD de type 2 conserve toutes les versions d'une ligne et ajoute les colonnes `__START_AT` et `__END_AT`, qui donnent la période de validité de chaque version."
+  options:
+    batch: { en: "Without stream(), the flow would not read products_cdc incrementally as a streaming source.", fr: "Sans stream(), le flux ne lirait pas products_cdc de façon incrémentielle comme une source de streaming." }
+    tablechanges: { en: "table_changes() reads the Delta change data feed of a table; the CDC records are already the rows of products_cdc.", fr: "table_changes() lit le flux de données modifiées Delta d'une table ; les enregistrements CDC sont déjà les lignes de products_cdc." }
+    productid: { en: "product_id is the key; it doesn't order the successive changes of the same product.", fr: "product_id est la clé ; il n'ordonne pas les modifications successives d'un même produit." }
+    now: { en: "The processing time doesn't reflect the order in which the ERP made the changes.", fr: "L'heure de traitement ne reflète pas l'ordre dans lequel l'ERP a effectué les modifications." }
+    type1: { en: "SCD type 1 overwrites each product with its latest values and keeps no history.", fr: "Le SCD de type 1 remplace chaque produit par ses dernières valeurs et ne conserve aucun historique." }
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

@@ -1,0 +1,70 @@
+id: sc200-1b-ar-kql-closed
+objective: "1.1.10"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Wingtip Toys uses Microsoft Sentinel. Automation rules close some incidents automatically. The SecurityIncident table contains one record each time an incident is created or updated.
+
+    You need a query that shows, per day over the last 30 days, the number of incidents whose current state is Closed and whose last change was made by an automation rule.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip Toys utilise Microsoft Sentinel. Des règles d'automatisation ferment certains incidents automatiquement. La table SecurityIncident contient un enregistrement chaque fois qu'un incident est créé ou mis à jour.
+
+    Vous avez besoin d'une requête qui affiche, par jour sur les 30 derniers jours, le nombre d'incidents dont l'état actuel est Closed et dont la dernière modification a été faite par une règle d'automatisation.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    SecurityIncident
+    | where TimeGenerated > ago(30d)
+    | summarize [[agg]](LastModifiedTime, *) by IncidentNumber
+    | where Status == "Closed" and ModifiedBy [[op]] "Automation"
+    | summarize ClosedByAutomation = count() by [[grp]]
+    | render timechart
+  slots:
+    - id: agg
+      options:
+        - { id: argmax, text: arg_max }
+        - { id: argmin, text: arg_min }
+        - { id: max, text: max }
+        - { id: any, text: take_any }
+    - id: op
+      options:
+        - { id: contains, text: contains }
+        - { id: notcontains, text: "!contains" }
+        - { id: in, text: in }
+    - id: grp
+      options:
+        - { id: bin, text: "bin(ClosedTime, 1d)" }
+        - { id: raw, text: ClosedTime }
+        - { id: span, text: 1d }
+        - { id: ago, text: ago(1d) }
+answer:
+  values: { agg: argmax, op: contains, grp: bin }
+explanation:
+  correct:
+    en: |
+      Because each update adds a record, arg_max(LastModifiedTime, *) by IncidentNumber keeps the latest record, that is the current state, of each incident. `ModifiedBy contains "Automation"` identifies changes made by automation rules, as in Microsoft's audit query. bin(ClosedTime, 1d) groups the closed incidents per day for the time chart.
+    fr: |
+      Comme chaque mise à jour ajoute un enregistrement, arg_max(LastModifiedTime, *) by IncidentNumber conserve le dernier enregistrement, c'est-à-dire l'état actuel, de chaque incident. `ModifiedBy contains "Automation"` identifie les modifications faites par les règles d'automatisation, comme dans la requête d'audit de Microsoft. bin(ClosedTime, 1d) regroupe les incidents fermés par jour pour le graphique temporel.
+  options:
+    argmin: { en: "arg_min returns the first record of each incident, its state at creation.", fr: "arg_min renvoie le premier enregistrement de chaque incident, son état à la création." }
+    max: { en: "max takes a single expression and doesn't return the other columns of the record.", fr: "max ne prend qu'une expression et ne renvoie pas les autres colonnes de l'enregistrement." }
+    any: { en: "take_any returns an arbitrary record, not the latest state.", fr: "take_any renvoie un enregistrement quelconque, pas le dernier état." }
+    notcontains: { en: "!contains keeps the incidents that automation didn't change.", fr: "!contains conserve les incidents qui n'ont pas été modifiés par l'automatisation." }
+    in: { en: "in tests equality with the values of a list, so it misses the ModifiedBy values that only contain the word Automation.", fr: "in teste l'égalité avec les valeurs d'une liste : il manque les valeurs de ModifiedBy qui contiennent seulement le mot Automation." }
+    raw: { en: "Grouping on the raw timestamp creates one group per distinct time, not per day.", fr: "Regrouper sur l'horodatage brut crée un groupe par heure distincte, pas par jour." }
+references:
+  - title: Create and use Microsoft Sentinel automation rules to manage response
+    url: https://learn.microsoft.com/en-us/azure/sentinel/create-manage-use-automation-rules
+  - title: arg_max() (aggregation function)
+    url: https://learn.microsoft.com/en-us/kusto/query/arg-max-aggregation-function

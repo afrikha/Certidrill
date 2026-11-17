@@ -1,0 +1,98 @@
+id: ai300-3a-cmk-bicep
+objective: "3.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove deploys a Foundry resource named **foundry-wdc** by using Bicep. The resource must have both a system-assigned identity and the existing user-assigned identity **uami-cmk**. Data at rest must be encrypted with the key **foundry-key** stored in the key vault **kv-wdc**, which uami-cmk can already use.
+
+    How should you complete the Bicep code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove déploie une ressource Foundry nommée **foundry-wdc** à l'aide de Bicep. La ressource doit avoir à la fois une identité affectée par le système et l'identité affectée par l'utilisateur existante **uami-cmk**. Les données au repos doivent être chiffrées avec la clé **foundry-key** stockée dans le coffre de clés **kv-wdc**, que uami-cmk peut déjà utiliser.
+
+    Comment devez-vous compléter le code Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+      name: 'uami-cmk'
+    }
+
+    resource foundry 'Microsoft.CognitiveServices/accounts@2026-07-01' = {
+      name: 'foundry-wdc'
+      location: location
+      kind: 'AIServices'
+      sku: { name: 'S0' }
+      identity: {
+        type: [[idt]]
+        userAssignedIdentities: {
+          '${uami.id}': {}
+        }
+      }
+      properties: {
+        customSubDomainName: 'foundry-wdc'
+        allowProjectManagement: true
+        encryption: {
+          keySource: [[ks]]
+          keyVaultProperties: {
+            keyVaultUri: 'https://kv-wdc.vault.azure.net/'
+            keyName: 'foundry-key'
+            keyVersion: keyVersion
+            identityClientId: [[ic]]
+          }
+        }
+      }
+    }
+  slots:
+    - id: idt
+      options:
+        - { id: ua, text: "'UserAssigned'" }
+        - { id: sa, text: "'SystemAssigned'" }
+        - { id: both, text: "'SystemAssigned, UserAssigned'" }
+        - { id: none, text: "'None'" }
+    - id: ks
+      options:
+        - { id: kv, text: "'Microsoft.KeyVault'" }
+        - { id: cs, text: "'Microsoft.CognitiveServices'" }
+        - { id: st, text: "'Microsoft.Storage'" }
+    - id: ic
+      options:
+        - { id: client, text: uami.properties.clientId }
+        - { id: principal, text: uami.properties.principalId }
+        - { id: rid, text: uami.id }
+        - { id: tenant, text: uami.properties.tenantId }
+answer:
+  values: { idt: both, ks: kv, ic: client }
+explanation:
+  correct:
+    en: |
+      `'SystemAssigned, UserAssigned'` attaches both identities. `keySource: 'Microsoft.KeyVault'` selects customer-managed keys from Key Vault (`'Microsoft.CognitiveServices'` means Microsoft-managed keys). `identityClientId` is the client ID of the user-assigned identity that accesses the key.
+    fr: |
+      `'SystemAssigned, UserAssigned'` associe les deux identités. `keySource: 'Microsoft.KeyVault'` sélectionne des clés gérées par le client dans Key Vault (`'Microsoft.CognitiveServices'` correspond aux clés gérées par Microsoft). `identityClientId` est l'ID client de l'identité affectée par l'utilisateur qui accède à la clé.
+  options:
+    idt:
+      en: |
+        `'UserAssigned'` omits the required system-assigned identity, `'SystemAssigned'` omits uami-cmk, and `'None'` attaches no identity.
+      fr: |
+        `'UserAssigned'` omet l'identité affectée par le système requise, `'SystemAssigned'` omet uami-cmk et `'None'` n'associe aucune identité.
+    ks:
+      en: |
+        `'Microsoft.CognitiveServices'` keeps Microsoft-managed keys, and `'Microsoft.Storage'` isn't a key source of this resource type.
+      fr: |
+        `'Microsoft.CognitiveServices'` conserve les clés gérées par Microsoft, et `'Microsoft.Storage'` n'est pas une source de clés de ce type de ressource.
+    ic:
+      en: |
+        The property expects the client ID, not the principal (object) ID, the resource ID or the tenant ID.
+      fr: |
+        La propriété attend l'ID client, pas l'ID de principal (objet), l'ID de ressource ni l'ID de locataire.
+references:
+  - title: Microsoft.CognitiveServices accounts
+    url: https://learn.microsoft.com/en-us/azure/templates/microsoft.cognitiveservices/accounts
+  - title: Configure customer-managed keys for Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/foundry/concepts/encryption-keys-portal

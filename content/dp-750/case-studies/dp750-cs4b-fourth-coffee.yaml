@@ -1,0 +1,77 @@
+id: dp750-cs4b-fourth-coffee
+status: draft
+title:
+  en: Fourth Coffee
+  fr: Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee runs 900 coffee shops in Europe. Every shop has connected espresso machines that send a telemetry reading every ten seconds. Suppliers send updated ingredient prices several times a day.
+
+        Fourth Coffee uses Azure Databricks to monitor its machines in near real time and to compute the cost of every drink. A team of three data engineers manages the platform.
+      fr: |
+        Fourth Coffee exploite 900 cafés en Europe. Chaque café possède des machines à expresso connectées qui envoient une mesure de télémétrie toutes les dix secondes. Les fournisseurs envoient des prix d'ingrédients mis à jour plusieurs fois par jour.
+
+        Fourth Coffee utilise Azure Databricks pour surveiller ses machines en quasi-temps réel et calculer le coût de chaque boisson. Une équipe de trois ingénieurs de données gère la plateforme.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure Databricks.** Fourth Coffee has a Premium workspace named **adb-fc-prod** in the West Europe region. The workspace is enabled for Unity Catalog and serverless compute. The catalog **fc_prod** contains the schemas **bronze**, **silver** and **gold**.
+
+        **Telemetry.** The machines send their readings to an event hub named **machine-telemetry** in an Azure Event Hubs Standard namespace named **evh-fc-telemetry**. A reading contains machine_id, event_ts, water_temp_c and pressure_bar. A pipeline named **pl-telemetry** (Lakeflow Spark Declarative Pipelines, serverless, default catalog fc_prod, default schema bronze) is being developed. It will read the event hub through its Kafka endpoint into the streaming table **machine_telemetry_raw**, and then build a table named **machine_readings**.
+
+        **Supplier prices.** Suppliers upload CSV files to the Unity Catalog external location **ext_supplier_drop**. A delivery contains 5 to 20 files uploaded within 10 minutes, with at most two minutes between two files of the same delivery. Deliveries arrive at unpredictable times, at least two hours apart.
+
+        **Price job.** A Lakeflow job named **job_supplier_prices** contains four tasks:
+
+        | Task | Depends on | Status of the last run |
+        | --- | --- | --- |
+        | ingest_prices | — | Succeeded after 45 minutes |
+        | validate_prices | ingest_prices | Succeeded |
+        | enrich_products | ingest_prices | Failed |
+        | publish_gold | validate_prices, enrich_products | Skipped |
+
+        An engineer has fixed the bug in the enrich_products notebook.
+
+        **History table.** The managed Delta table **fc_prod.silver.machine_events** is 40 TB and is partitioned by machine_id. It contains many small files. Most queries filter on machine_id and a range of event_ts.
+      fr: |
+        **Azure Databricks.** Fourth Coffee dispose d'un espace de travail Premium nommé **adb-fc-prod** dans la région West Europe. L'espace de travail est activé pour Unity Catalog et le calcul serverless. Le catalogue **fc_prod** contient les schémas **bronze**, **silver** et **gold**.
+
+        **Télémétrie.** Les machines envoient leurs mesures à un hub d'événements nommé **machine-telemetry** dans un espace de noms Azure Event Hubs Standard nommé **evh-fc-telemetry**. Une mesure contient machine_id, event_ts, water_temp_c et pressure_bar. Un pipeline nommé **pl-telemetry** (Lakeflow Spark Declarative Pipelines, serverless, catalogue par défaut fc_prod, schéma par défaut bronze) est en cours de développement. Il lira le hub d'événements via son point de terminaison Kafka dans la table de streaming **machine_telemetry_raw**, puis construira une table nommée **machine_readings**.
+
+        **Prix fournisseurs.** Les fournisseurs déposent des fichiers CSV dans l'emplacement externe Unity Catalog **ext_supplier_drop**. Une livraison contient 5 à 20 fichiers déposés en 10 minutes au plus, avec au maximum deux minutes entre deux fichiers d'une même livraison. Les livraisons arrivent à des heures imprévisibles, à au moins deux heures d'intervalle.
+
+        **Job de prix.** Un job Lakeflow nommé **job_supplier_prices** contient quatre tâches :
+
+        | Tâche | Dépend de | État de la dernière exécution |
+        | --- | --- | --- |
+        | ingest_prices | — | Réussie après 45 minutes |
+        | validate_prices | ingest_prices | Réussie |
+        | enrich_products | ingest_prices | Échec |
+        | publish_gold | validate_prices, enrich_products | Ignorée |
+
+        Un ingénieur a corrigé le bogue du notebook enrich_products.
+
+        **Table d'historique.** La table Delta managée **fc_prod.silver.machine_events** fait 40 To et est partitionnée par machine_id. Elle contient de nombreux petits fichiers. La plupart des requêtes filtrent sur machine_id et sur une plage de event_ts.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Fourth Coffee identifies the following requirements:
+
+        1. **Telemetry authentication.** pl-telemetry must authenticate to evh-fc-telemetry by using an Azure managed identity. No secret, key or connection string must be stored in Azure Databricks or in Azure Key Vault. The identity must only be able to read events.
+        2. **Data quality.** In machine_readings, readings where water_temp_c is null must not be written. Readings where pressure_bar is outside the range 7 to 11 must be written, and their number must appear in the data quality metrics. A reading with a null machine_id must stop the update.
+        3. **Price job trigger.** job_supplier_prices must start automatically once per delivery, after the last file of the delivery has arrived. No fixed schedule and no custom polling code must be used.
+        4. **Recovery.** The last run of job_supplier_prices must be completed with the least compute. ingest_prices and validate_prices must not run again.
+        5. **Data layout.** A new table named **fc_prod.silver.machine_events_v2** will replace machine_events. Queries that filter on machine_id and event_ts must read fewer files. The engineers must be able to change the layout columns later without rewriting the existing data.
+      fr: |
+        Fourth Coffee a défini les exigences suivantes :
+
+        1. **Authentification de la télémétrie.** pl-telemetry doit s'authentifier auprès d'evh-fc-telemetry au moyen d'une identité managée Azure. Aucun secret, aucune clé et aucune chaîne de connexion ne doivent être stockés dans Azure Databricks ni dans Azure Key Vault. L'identité ne doit pouvoir que lire les événements.
+        2. **Qualité des données.** Dans machine_readings, les mesures dont water_temp_c est null ne doivent pas être écrites. Les mesures dont pressure_bar est hors de la plage 7 à 11 doivent être écrites, et leur nombre doit apparaître dans les métriques de qualité des données. Une mesure dont machine_id est null doit arrêter la mise à jour.
+        3. **Déclenchement du job de prix.** job_supplier_prices doit démarrer automatiquement une fois par livraison, après l'arrivée du dernier fichier de la livraison. Aucune planification fixe et aucun code d'interrogation personnalisé ne doivent être utilisés.
+        4. **Reprise.** La dernière exécution de job_supplier_prices doit être menée à bien avec le moins de calcul possible. ingest_prices et validate_prices ne doivent pas s'exécuter de nouveau.
+        5. **Disposition des données.** Une nouvelle table nommée **fc_prod.silver.machine_events_v2** remplacera machine_events. Les requêtes qui filtrent sur machine_id et event_ts doivent lire moins de fichiers. Les ingénieurs doivent pouvoir changer plus tard les colonnes de disposition sans réécrire les données existantes.

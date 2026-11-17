@@ -1,0 +1,74 @@
+id: dp800-1d-raiserror-xact-abort
+objective: "1.3.8"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have the following stored procedure in an Azure SQL database.
+
+    ```sql
+    CREATE OR ALTER PROCEDURE Inventory.usp_ReserveStock
+        @ProductID int, @Qty int
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+            UPDATE Inventory.Stock SET OnHand -= @Qty WHERE ProductID = @ProductID;
+            IF EXISTS (SELECT 1 FROM Inventory.Stock WHERE ProductID = @ProductID AND OnHand < 0)
+                RAISERROR(N'Insufficient stock.', 16, 1);
+        COMMIT TRANSACTION;
+    END;
+    ```
+
+    During testing, the caller receives the "Insufficient stock." error, but the negative stock value is committed. The procedure is called by an application login that isn't a member of any server role.
+
+    You need to ensure that when the stock becomes negative, the whole transaction is rolled back and the caller receives an error. The solution must minimize changes to the procedure.
+
+    What should you do?
+  fr: |
+    Vous disposez de la procédure stockée suivante dans une base de données Azure SQL.
+
+    ```sql
+    CREATE OR ALTER PROCEDURE Inventory.usp_ReserveStock
+        @ProductID int, @Qty int
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+            UPDATE Inventory.Stock SET OnHand -= @Qty WHERE ProductID = @ProductID;
+            IF EXISTS (SELECT 1 FROM Inventory.Stock WHERE ProductID = @ProductID AND OnHand < 0)
+                RAISERROR(N'Insufficient stock.', 16, 1);
+        COMMIT TRANSACTION;
+    END;
+    ```
+
+    Pendant les tests, l'appelant reçoit l'erreur « Insufficient stock. », mais la valeur de stock négative est validée. La procédure est appelée par une connexion d'application qui n'est membre d'aucun rôle serveur.
+
+    Vous devez vous assurer que, quand le stock devient négatif, toute la transaction est annulée et l'appelant reçoit une erreur. La solution doit réduire au minimum les modifications de la procédure.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add WITH SETERROR to the RAISERROR statement.", fr: "Ajouter WITH SETERROR à l'instruction RAISERROR." } }
+    - { id: b, text: { en: "Add WITH NOWAIT to the RAISERROR statement.", fr: "Ajouter WITH NOWAIT à l'instruction RAISERROR." } }
+    - { id: c, text: { en: "Replace the RAISERROR statement with THROW 50001, N'Insufficient stock.', 1;", fr: "Remplacer l'instruction RAISERROR par THROW 50001, N'Insufficient stock.', 1;" } }
+    - { id: d, text: { en: "Change the severity of the RAISERROR statement to 20 and add WITH LOG.", fr: "Passer la gravité de l'instruction RAISERROR à 20 et ajouter WITH LOG." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      RAISERROR doesn't honor SET XACT_ABORT: outside a TRY block, execution continues with the next statement, so COMMIT TRANSACTION runs. THROW honors SET XACT_ABORT ON: the transaction is rolled back and, because there is no TRY...CATCH, the batch ends and the caller receives error 50001.
+    fr: |
+      RAISERROR ne respecte pas SET XACT_ABORT : en dehors d'un bloc TRY, l'exécution continue avec l'instruction suivante, donc COMMIT TRANSACTION s'exécute. THROW respecte SET XACT_ABORT ON : la transaction est annulée et, comme il n'y a pas de TRY...CATCH, le lot se termine et l'appelant reçoit l'erreur 50001.
+  options:
+    a: { en: "WITH SETERROR only sets @@ERROR and ERROR_NUMBER; the transaction is still committed.", fr: "WITH SETERROR définit seulement @@ERROR et ERROR_NUMBER : la transaction est toujours validée." }
+    b: { en: "WITH NOWAIT only sends the message to the client immediately.", fr: "WITH NOWAIT envoie seulement le message au client immédiatement." }
+    d: { en: "Severities 19 to 25 require WITH LOG and membership in sysadmin or the ALTER TRACE permission, which the application login doesn't have.", fr: "Les gravités 19 à 25 exigent WITH LOG et l'appartenance à sysadmin ou l'autorisation ALTER TRACE, que la connexion d'application n'a pas." }
+references:
+  - title: THROW (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/language-elements/throw-transact-sql
+  - title: SET XACT_ABORT (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/set-xact-abort-transact-sql

@@ -1,0 +1,76 @@
+id: dp800-3c-json-path-root
+objective: "3.3.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains the tables dbo.Orders and dbo.Customers. OrderDate is a date column. A RAG procedure must send the last 10 orders of a customer to a language model in the following shape.
+
+    ```json
+    {"orders":[{"order":{"number":"SO1001","date":"2026-10-02"},"customer":{"name":"Contoso Pharmacy"}}]}
+    ```
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient les tables dbo.Orders et dbo.Customers. OrderDate est une colonne de type date. Une procédure RAG doit envoyer les 10 dernières commandes d'un client à un modèle de langage sous la forme suivante.
+
+    ```json
+    {"orders":[{"order":{"number":"SO1001","date":"2026-10-02"},"customer":{"name":"Contoso Pharmacy"}}]}
+    ```
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SET @context = (
+        SELECT TOP (10)
+            o.OrderNumber AS [[alias]],
+            o.OrderDate   AS [order.date],
+            c.Name        AS [customer.name]
+        FROM dbo.Orders AS o
+        JOIN dbo.Customers AS c ON c.CustomerId = o.CustomerId
+        WHERE o.CustomerId = @customerId
+        ORDER BY o.OrderDate DESC
+        FOR [[mode]], [[option]]
+    );
+  slots:
+    - id: alias
+      options:
+        - { id: dotted, text: "[order.number]" }
+        - { id: underscore, text: "[order_number]" }
+        - { id: plural, text: "[orders.number]" }
+        - { id: flat, text: "[number]" }
+    - id: mode
+      options:
+        - { id: path, text: JSON PATH }
+        - { id: auto, text: JSON AUTO }
+        - { id: xml, text: XML PATH }
+    - id: option
+      options:
+        - { id: root, text: "ROOT('orders')" }
+        - { id: rootsingular, text: "ROOT('order')" }
+        - { id: nowrap, text: WITHOUT_ARRAY_WRAPPER }
+        - { id: nulls, text: INCLUDE_NULL_VALUES }
+answer:
+  values: { alias: dotted, mode: path, option: root }
+explanation:
+  correct:
+    en: "FOR JSON PATH builds nested objects from dot-separated aliases, so [order.number] and [order.date] become properties of an order object. ROOT('orders') wraps the array of rows in a top-level property named orders, which tells the model what the data is."
+    fr: "FOR JSON PATH construit des objets imbriqués à partir d'alias séparés par des points : [order.number] et [order.date] deviennent des propriétés d'un objet order. ROOT('orders') enveloppe le tableau de lignes dans une propriété de premier niveau nommée orders, ce qui indique au modèle de quelles données il s'agit."
+  options:
+    underscore: { en: "An underscore creates a flat property named order_number instead of a nested object.", fr: "Un trait de soulignement crée une propriété plate nommée order_number au lieu d'un objet imbriqué." }
+    plural: { en: "orders.number would create a separate orders object in each row, apart from the order object.", fr: "orders.number créerait un objet orders distinct dans chaque ligne, à côté de l'objet order." }
+    auto: { en: "FOR JSON AUTO infers the structure from the tables of the query; you control the nesting with aliases only in PATH mode.", fr: "FOR JSON AUTO déduit la structure des tables de la requête ; vous ne contrôlez l'imbrication par les alias qu'en mode PATH." }
+    xml: { en: "FOR XML PATH returns XML, not JSON.", fr: "FOR XML PATH renvoie du XML, pas du JSON." }
+    nowrap: { en: "WITHOUT_ARRAY_WRAPPER removes the array, which is wrong for 10 rows and doesn't add the orders property.", fr: "WITHOUT_ARRAY_WRAPPER supprime le tableau, ce qui est incorrect pour 10 lignes et n'ajoute pas la propriété orders." }
+references:
+  - title: Format query results as JSON with FOR JSON
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/json/format-query-results-as-json-with-for-json-sql-server
+  - title: Prepare retrieval context for augmentation
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-rag-with-sql/3-prepare-retrieval-context-augmentation

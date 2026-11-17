@@ -1,0 +1,86 @@
+id: dp420-3b-conv-state-etag
+objective: "3.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders runs several instances of a planning agent that share the task state of a thread. The state is one item, of type `taskState`, in the thread's partition of an Azure Cosmos DB for NoSQL container. Two instances sometimes update the state at the same time, and one instance's completed steps are lost.
+
+    You need to ensure that an instance never overwrites a version of the state that it has not read. When a conflict occurs, the instance reloads the state and retries.
+
+    How should you complete the C# code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders exécute plusieurs instances d'un agent de planification qui partagent l'état des tâches d'un thread. L'état est un seul élément, de type `taskState`, dans la partition du thread d'un conteneur Azure Cosmos DB for NoSQL. Deux instances mettent parfois l'état à jour en même temps, et les étapes terminées par une instance sont perdues.
+
+    Vous devez garantir qu'une instance n'écrase jamais une version de l'état qu'elle n'a pas lue. En cas de conflit, l'instance recharge l'état et réessaie.
+
+    Comment devez-vous compléter le code C# ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    ItemResponse<TaskState> read = await container.ReadItemAsync<TaskState>(stateId, new PartitionKey(threadId));
+    TaskState state = read.Resource;
+    state.CompletedSteps.Add(step);
+    try
+    {
+        await container.ReplaceItemAsync(state, stateId, new PartitionKey(threadId),
+            new ItemRequestOptions { [[opt]] = read.[[tag]] });
+    }
+    catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.[[code]])
+    {
+        // Reload the state and retry
+    }
+  slots:
+    - id: opt
+      options:
+        - { id: ifmatch, text: IfMatchEtag }
+        - { id: ifnone, text: IfNoneMatchEtag }
+        - { id: session, text: SessionToken }
+    - id: tag
+      options:
+        - { id: etag, text: ETag }
+        - { id: activity, text: ActivityId }
+        - { id: charge, text: RequestCharge }
+    - id: code
+      options:
+        - { id: pre, text: PreconditionFailed }
+        - { id: conflict, text: Conflict }
+        - { id: throttle, text: TooManyRequests }
+        - { id: notmod, text: NotModified }
+answer:
+  values: { opt: ifmatch, tag: etag, code: pre }
+explanation:
+  correct:
+    en: "Every update changes the item's _etag. Passing the ETag read earlier as IfMatchEtag makes the replace conditional; if another instance has updated the state in the meantime, the server rejects the replace with HTTP 412 Precondition Failed, and the instance reloads the state and retries."
+    fr: "Chaque mise à jour modifie le _etag de l'élément. Passer l'ETag lu précédemment comme IfMatchEtag rend le remplacement conditionnel ; si une autre instance a mis l'état à jour entre-temps, le serveur rejette le remplacement avec l'erreur HTTP 412 Precondition Failed, et l'instance recharge l'état et réessaie."
+  options:
+    ifnone:
+      en: "IfNoneMatchEtag is used to check whether a refetch is needed, not to make an update conditional on the version read."
+      fr: "IfNoneMatchEtag sert à vérifier si une nouvelle lecture est nécessaire, pas à conditionner une mise à jour à la version lue."
+    session:
+      en: "A session token gives read-your-writes consistency; it does not prevent lost updates."
+      fr: "Un jeton de session offre la cohérence lecture de ses propres écritures ; il n'empêche pas les mises à jour perdues."
+    activity:
+      en: "ActivityId identifies the request for diagnostics, not the version of the item."
+      fr: "ActivityId identifie la requête pour les diagnostics, pas la version de l'élément."
+    charge:
+      en: "RequestCharge is the RU cost of the read."
+      fr: "RequestCharge est le coût en RU de la lecture."
+    conflict:
+      en: "409 Conflict is returned when an item with the same id is created twice, not when an ETag check fails."
+      fr: "L'erreur 409 Conflict est renvoyée quand un élément de même id est créé deux fois, pas quand une vérification d'ETag échoue."
+    throttle:
+      en: "429 means the request exceeded the provisioned throughput; it is retried by the SDK and is unrelated to concurrency."
+      fr: "L'erreur 429 signifie que la requête a dépassé le débit provisionné ; le SDK la réessaie, et elle n'a aucun rapport avec l'accès concurrentiel."
+    notmod:
+      en: "304 Not Modified answers a read with If-None-Match, not a conditional replace."
+      fr: "L'état 304 Not Modified répond à une lecture avec If-None-Match, pas à un remplacement conditionnel."
+references:
+  - title: Database Transactions and Optimistic Concurrency Control - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/database-transactions-optimistic-concurrency

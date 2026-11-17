@@ -1,0 +1,69 @@
+id: ai200-2a-vec-search-query
+objective: "2.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders has a RAG chatbot that stores manual chunks in an Azure Cosmos DB for NoSQL container partitioned on `/tenantId`, with a vector index on `/embedding`. The variable `tenant_id` holds the tenant of the signed-in user, and `query_vector` holds the embedding of the user's question.
+
+    The retrieval code must return the five most similar French chunks of that tenant only, at the lowest RU cost.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders dispose d'un chatbot RAG qui stocke des segments de manuels dans un conteneur Azure Cosmos DB for NoSQL partitionné sur `/tenantId`, avec un index vectoriel sur `/embedding`. La variable `tenant_id` contient le locataire de l'utilisateur connecté, et `query_vector` contient l'incorporation de la question de l'utilisateur.
+
+    Le code de récupération doit renvoyer les cinq segments en français les plus similaires de ce locataire uniquement, au coût en RU le plus faible.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    results = container.query_items(
+        query="""SELECT [[top]] c.id, c.text,
+                        VectorDistance(c.embedding, @v) AS score
+                 FROM c
+                 WHERE c.lang = @lang
+                 ORDER BY [[order]]""",
+        parameters=[{"name": "@v", "value": query_vector},
+                    {"name": "@lang", "value": "fr"}],
+        partition_key=[[pk]])
+  slots:
+    - id: top
+      options:
+        - { id: top5, text: TOP 5 }
+        - { id: top5000, text: TOP 5000 }
+        - { id: distinct, text: DISTINCT }
+    - id: order
+      options:
+        - { id: vd, text: 'VectorDistance(c.embedding, @v)' }
+        - { id: ts, text: c._ts DESC }
+        - { id: id, text: c.id }
+    - id: pk
+      options:
+        - { id: tenant, text: tenant_id }
+        - { id: path, text: '"/tenantId"' }
+        - { id: vector, text: query_vector }
+answer:
+  values: { top: top5, order: vd, pk: tenant }
+explanation:
+  correct:
+    en: "Learn requires a `TOP N` clause in vector queries; without a small N the search returns many more results and costs more RUs. `ORDER BY VectorDistance(...)` ranks the chunks from most to least similar, and `partition_key=tenant_id` (the partition key value) scopes the search to the tenant's logical partition."
+    fr: "Learn exige une clause `TOP N` dans les requêtes vectorielles ; sans N réduit, la recherche renvoie beaucoup plus de résultats et coûte plus de RU. `ORDER BY VectorDistance(...)` classe les segments du plus similaire au moins similaire, et `partition_key=tenant_id` (la valeur de la clé de partition) limite la recherche à la partition logique du locataire."
+  options:
+    top5000: { en: "The app needs five chunks; a large N increases RU and latency.", fr: "L'application a besoin de cinq segments ; un N élevé augmente les RU et la latence." }
+    distinct: { en: "DISTINCT removes duplicates but doesn't limit the number of results.", fr: "DISTINCT supprime les doublons mais ne limite pas le nombre de résultats." }
+    ts: { en: "Sorting by timestamp ignores similarity.", fr: "Trier par horodatage ignore la similarité." }
+    id: { en: "Sorting by ID ignores similarity.", fr: "Trier par ID ignore la similarité." }
+    path: { en: "partition_key expects the value of the partition key, not its path.", fr: "partition_key attend la valeur de la clé de partition, pas son chemin." }
+    vector: { en: "The query vector is a parameter of VectorDistance, not a partition key value.", fr: "Le vecteur de requête est un paramètre de VectorDistance, pas une valeur de clé de partition." }
+references:
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search
+  - title: VECTORDISTANCE - Query Language for Cosmos DB (in Azure and Fabric)
+    url: https://learn.microsoft.com/en-us/cosmos-db/query/vectordistance

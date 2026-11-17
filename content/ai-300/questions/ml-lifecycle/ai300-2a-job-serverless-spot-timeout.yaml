@@ -1,0 +1,82 @@
+id: ai300-2a-job-serverless-spot-timeout
+objective: "2.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing a command job YAML file for a nightly retraining job in Azure Machine Learning. The job runs on serverless compute, so the file has no `compute` key.
+
+    The job must meet the following requirements:
+
+    - Use preemptible VMs to minimize cost. The job can wait or be interrupted.
+    - Be canceled if it runs for more than one hour.
+
+    How should you complete the file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un fichier YAML de travail de commande pour un travail de réentraînement nocturne dans Azure Machine Learning. Le travail s'exécute sur un calcul serverless : le fichier n'a pas de clé `compute`.
+
+    Le travail doit répondre aux exigences suivantes :
+
+    - Utiliser des machines virtuelles préemptibles pour réduire les coûts au minimum. Le travail peut attendre ou être interrompu.
+    - Être annulé s'il s'exécute plus d'une heure.
+
+    Comment devez-vous compléter le fichier ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+    type: command
+    code: ./src
+    command: python retrain.py --data ${{inputs.sales}}
+    inputs:
+      sales:
+        type: uri_folder
+        path: azureml:sales-daily@latest
+    environment: azureml:AzureML-sklearn-1.5@latest
+    resources:
+      instance_type: Standard_E8s_v3
+      instance_count: 1
+    queue_settings:
+      job_tier: [[tier]]
+    limits:
+      [[lkey]]: [[lval]]
+  slots:
+    - id: tier
+      options:
+        - { id: tier-std, text: standard }
+        - { id: tier-spot, text: spot }
+        - { id: tier-prem, text: premium }
+    - id: lkey
+      options:
+        - { id: k-trial, text: trial_timeout }
+        - { id: k-minutes, text: timeout_minutes }
+        - { id: k-timeout, text: timeout }
+    - id: lval
+      options:
+        - { id: v-60, text: "60" }
+        - { id: v-1h, text: 1h }
+        - { id: v-3600, text: "3600" }
+answer:
+  values: { tier: tier-spot, lkey: k-timeout, lval: v-3600 }
+explanation:
+  correct:
+    en: "The `spot` job tier runs the job on preemptible (low-priority) VMs at a lower cost; `standard` uses dedicated VMs. In a command job, `limits.timeout` is the maximum run time in seconds, after which the job is canceled, so one hour is `3600`."
+    fr: "Le niveau de travail `spot` exécute le travail sur des machines virtuelles préemptibles (de faible priorité) à moindre coût ; `standard` utilise des machines virtuelles dédiées. Dans un travail de commande, `limits.timeout` est la durée maximale d'exécution en secondes, au-delà de laquelle le travail est annulé : une heure correspond à `3600`."
+  options:
+    tier-std: { en: "standard uses dedicated VMs, which cost more.", fr: "standard utilise des machines virtuelles dédiées, plus coûteuses." }
+    tier-prem: { en: "premium isn't the preemptible tier.", fr: "premium n'est pas le niveau préemptible." }
+    k-trial: { en: "trial_timeout is a limit of sweep jobs.", fr: "trial_timeout est une limite des travaux de balayage." }
+    k-minutes: { en: "timeout_minutes is an AutoML limit.", fr: "timeout_minutes est une limite d'AutoML." }
+    v-60: { en: "The value is in seconds: 60 cancels the job after one minute.", fr: "La valeur est en secondes : 60 annule le travail au bout d'une minute." }
+    v-1h: { en: "limits.timeout is an integer number of seconds, not a duration string.", fr: "limits.timeout est un nombre entier de secondes, pas une chaîne de durée." }
+references:
+  - title: CLI (v2) command job YAML schema
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-job-command
+  - title: Model training on serverless compute
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-use-serverless-compute

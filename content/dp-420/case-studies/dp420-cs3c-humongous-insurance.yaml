@@ -1,0 +1,113 @@
+id: dp420-cs3c-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance develops **ClaimsHub**, a SaaS claims management platform used by 160 insurance brokers in Europe. To isolate the data of each broker, every broker has its own Azure Cosmos DB for NoSQL account.
+
+        The ClaimsHub API is an ASP.NET Core application that uses the Azure Cosmos DB .NET SDK. A call center handles policyholder calls for the brokers, and a team of actuaries uses Microsoft Fabric notebooks.
+      fr: |
+        Humongous Insurance développe **ClaimsHub**, une plateforme SaaS de gestion des sinistres utilisée par 160 courtiers en assurance en Europe. Pour isoler les données de chaque courtier, chacun dispose de son propre compte Azure Cosmos DB for NoSQL.
+
+        L'API ClaimsHub est une application ASP.NET Core qui utilise le SDK .NET d'Azure Cosmos DB. Un centre d'appels traite les appels des assurés pour les courtiers, et une équipe d'actuaires utilise des notebooks Microsoft Fabric.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        The 160 broker accounts are spread over two subscriptions named **Sub-Brokers-A** and **Sub-Brokers-B**. All the containers use autoscale throughput.
+
+        | Account group | Number of accounts | Regions | Write configuration |
+        | --- | --- | --- | --- |
+        | Standard | 120 | France Central | Single-region writes |
+        | Resilient | 30 | France Central (write), Germany West Central (read) | Single-region writes |
+        | Premium | 10 | France Central, Germany West Central | Multi-region writes |
+
+        Every account contains a database named **claimsdb** with two containers:
+
+        | Container | Content | Partition key |
+        | --- | --- | --- |
+        | claims | Claim items (`type` = `claim`) and payment items (`type` = `payment`) of each policy. Claim items contain `policyholder.email`, `policyholder.iban` and `attachmentCount`. | `/policyId` |
+        | riskscores | One risk score item per claim, with `id` set to the claim ID | `/claimId` |
+
+        All the accounts use periodic backup mode. The call-center application connects to the accounts by using account keys.
+      fr: |
+        Les 160 comptes des courtiers sont répartis sur deux abonnements nommés **Sub-Brokers-A** et **Sub-Brokers-B**. Tous les conteneurs utilisent un débit avec mise à l'échelle automatique (autoscale).
+
+        | Groupe de comptes | Nombre de comptes | Régions | Configuration d'écriture |
+        | --- | --- | --- | --- |
+        | Standard | 120 | France Central | Écritures dans une seule région |
+        | Resilient | 30 | France Central (écriture), Germany West Central (lecture) | Écritures dans une seule région |
+        | Premium | 10 | France Central, Germany West Central | Écritures multirégions |
+
+        Chaque compte contient une base de données nommée **claimsdb** avec deux conteneurs :
+
+        | Conteneur | Contenu | Clé de partition |
+        | --- | --- | --- |
+        | claims | Éléments de sinistre (`type` = `claim`) et éléments de paiement (`type` = `payment`) de chaque police. Les éléments de sinistre contiennent `policyholder.email`, `policyholder.iban` et `attachmentCount`. | `/policyId` |
+        | riskscores | Un élément de score de risque par sinistre, avec `id` égal à l'ID du sinistre | `/claimId` |
+
+        Tous les comptes utilisent le mode de sauvegarde périodique. L'application du centre d'appels se connecte aux comptes avec les clés de compte.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Throughput**
+
+        1. The accounts must share RU/s so that a broker whose traffic peaks can use throughput that other brokers do not use. Every account must be able to draw RU/s from a pool.
+
+        **Claims processing**
+
+        2. Two adjusters can edit the same claim at the same time. An update must never overwrite a change that was saved after the adjuster loaded the claim.
+        3. Approving a claim changes the status of the claim item and creates a payment item. Both writes must succeed or fail together.
+        4. A one-time job must import 2 million legacy claims as fast as possible.
+        5. When a document is attached to a claim, `attachmentCount` must be incremented without sending the whole claim item.
+
+        **Security**
+
+        6. Call-center agents must see `policyholder.email` and `policyholder.iban` masked. Fraud investigators must see them unmasked. The stored data must not change.
+
+        **Audit**
+
+        7. In the first phase of the audit project, an audit service must receive every create, update and delete of the claims containers of the Standard accounts, including the intermediate updates of an item between two reads.
+        8. The audit service is stopped for up to 21 days during the yearly audit freeze. When it restarts, it must catch up without losing any change.
+
+        **Analytics**
+
+        9. The actuaries compute risk scores in a Fabric notebook and write them to the riskscores container of each broker account. Each run must update the existing scores and create the missing ones, and the writes must use at most 20 percent of the throughput of riskscores.
+
+        **General**
+
+        10. Costs must be minimized.
+      fr: |
+        **Débit**
+
+        1. Les comptes doivent partager des RU/s afin qu'un courtier dont le trafic atteint un pic puisse utiliser le débit que les autres courtiers n'utilisent pas. Chaque compte doit pouvoir puiser des RU/s dans un pool.
+
+        **Traitement des sinistres**
+
+        2. Deux gestionnaires peuvent modifier le même sinistre en même temps. Une mise à jour ne doit jamais écraser une modification enregistrée après que le gestionnaire a chargé le sinistre.
+        3. L'approbation d'un sinistre modifie le statut de l'élément de sinistre et crée un élément de paiement. Les deux écritures doivent réussir ou échouer ensemble.
+        4. Un traitement ponctuel doit importer 2 millions de sinistres hérités le plus rapidement possible.
+        5. Quand un document est joint à un sinistre, `attachmentCount` doit être incrémenté sans envoyer l'élément de sinistre complet.
+
+        **Sécurité**
+
+        6. Les agents du centre d'appels doivent voir `policyholder.email` et `policyholder.iban` masqués. Les enquêteurs anti-fraude doivent les voir en clair. Les données stockées ne doivent pas être modifiées.
+
+        **Audit**
+
+        7. Dans la première phase du projet d'audit, un service d'audit doit recevoir chaque création, mise à jour et suppression des conteneurs claims des comptes Standard, y compris les mises à jour intermédiaires d'un élément entre deux lectures.
+        8. Le service d'audit est arrêté jusqu'à 21 jours pendant le gel annuel des audits. À son redémarrage, il doit rattraper son retard sans perdre aucune modification.
+
+        **Analytique**
+
+        9. Les actuaires calculent des scores de risque dans un notebook Fabric et les écrivent dans le conteneur riskscores de chaque compte de courtier. Chaque exécution doit mettre à jour les scores existants et créer ceux qui manquent, et les écritures doivent utiliser au plus 20 % du débit de riskscores.
+
+        **Général**
+
+        10. Les coûts doivent être réduits au minimum.

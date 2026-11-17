@@ -1,0 +1,54 @@
+id: dp700-3c-load-maintain-order
+objective: "3.3.2"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric lakehouse named LH_Sales that contains a Delta table named fact_sales. A Power BI semantic model in Direct Lake mode reads fact_sales. Every night, a pipeline appends new rows to fact_sales, and the table accumulates small files.
+
+    You need to redesign the pipeline so that after each nightly load, fact_sales is compacted with V-Order before the semantic model picks up the new data. The solution must use pipeline activities only and minimize development effort.
+
+    Which three activities should the pipeline run in sequence? To answer, move the appropriate activities from the list of activities to the answer area and arrange them in the correct order.
+  fr: |
+    Vous disposez d'un lakehouse Fabric nommé LH_Sales qui contient une table Delta nommée fact_sales. Un modèle sémantique Power BI en mode Direct Lake lit fact_sales. Chaque nuit, un pipeline ajoute de nouvelles lignes à fact_sales, et la table accumule de petits fichiers.
+
+    Vous devez reconcevoir le pipeline pour qu'après chaque chargement nocturne, fact_sales soit compactée avec V-Order avant que le modèle sémantique prenne en compte les nouvelles données. La solution ne doit utiliser que des activités de pipeline et réduire au minimum l'effort de développement.
+
+    Quelles sont les trois activités que le pipeline doit exécuter dans l'ordre ? Pour répondre, déplacez les activités appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: copy, text: { en: "A Copy activity that appends the new rows to fact_sales", fr: "Une activité Copy qui ajoute les nouvelles lignes à fact_sales" } }
+    - { id: maint, text: { en: "A Lakehouse Maintenance activity that runs OPTIMIZE with V-Order on fact_sales", fr: "Une activité Lakehouse Maintenance qui exécute OPTIMIZE avec V-Order sur fact_sales" } }
+    - { id: refresh, text: { en: "A Semantic model refresh activity for the Direct Lake model", fr: "Une activité Semantic model refresh pour le modèle Direct Lake" } }
+    - { id: vacuum, text: { en: "A Lakehouse Maintenance activity that runs VACUUM on fact_sales before the load", fr: "Une activité Lakehouse Maintenance qui exécute VACUUM sur fact_sales avant le chargement" } }
+    - { id: wait, text: { en: "A Wait activity of 15 minutes after the Copy activity", fr: "Une activité Wait de 15 minutes après l'activité Copy" } }
+    - { id: dataflow, text: { en: "A Dataflow activity that runs a Dataflow Gen2 to rewrite fact_sales", fr: "Une activité Dataflow qui exécute un Dataflow Gen2 pour réécrire fact_sales" } }
+answer:
+  sequence: [copy, maint, refresh]
+explanation:
+  correct:
+    en: |
+      The load comes first, because it creates the new small files. The Lakehouse Maintenance activity (preview) then runs OPTIMIZE with V-Order on the table in the same pipeline, so the compaction is chained to the load. Refreshing the Direct Lake semantic model last makes it pick up the compacted version of the table.
+    fr: |
+      Le chargement vient en premier, car il crée les nouveaux petits fichiers. L'activité Lakehouse Maintenance (préversion) exécute ensuite OPTIMIZE avec V-Order sur la table dans le même pipeline : le compactage est enchaîné au chargement. Actualiser le modèle sémantique Direct Lake en dernier lui fait prendre en compte la version compactée de la table.
+  options:
+    vacuum:
+      en: |
+        VACUUM removes unreferenced files to reclaim storage; it does not compact the files and does not speed up reads.
+      fr: |
+        VACUUM supprime les fichiers non référencés pour libérer du stockage ; il ne compacte pas les fichiers et n'accélère pas les lectures.
+    wait:
+      en: |
+        Dependencies already start the next activity when the previous one succeeds; a fixed wait only lengthens the pipeline.
+      fr: |
+        Les dépendances démarrent déjà l'activité suivante quand la précédente réussit ; une attente fixe ne fait qu'allonger le pipeline.
+    dataflow:
+      en: |
+        Rewriting the table with a dataflow is more development effort and does not run OPTIMIZE; Dataflow Gen2 writes need separate maintenance.
+      fr: |
+        Réécrire la table avec un dataflow demande plus d'effort de développement et n'exécute pas OPTIMIZE ; les écritures Dataflow Gen2 exigent une maintenance séparée.
+references:
+  - title: Delta Table Maintenance in Microsoft Fabric
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/lakehouse-table-maintenance

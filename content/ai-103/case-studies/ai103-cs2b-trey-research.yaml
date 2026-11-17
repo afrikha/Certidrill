@@ -1,0 +1,67 @@
+id: ai103-cs2b-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a pharmaceutical research company that runs clinical trials at sites in eight European countries. About 200 people work in clinical operations.
+
+        Trey Research is building **protocol-assistant**, a Foundry agent that answers questions about trial protocols, trial reports and laboratory results. A team of six developers writes the solution in Python by using the `azure-ai-projects` SDK.
+      fr: |
+        Trey Research est une société de recherche pharmaceutique qui mène des essais cliniques sur des sites de huit pays européens. Environ 200 personnes travaillent dans les opérations cliniques.
+
+        Trey Research développe **protocol-assistant**, un agent Foundry qui répond aux questions sur les protocoles d'essai, les rapports d'essai et les résultats de laboratoire. Une équipe de six développeurs écrit la solution en Python à l'aide du SDK `azure-ai-projects`.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Trey Research has a Microsoft Foundry resource named **trey-foundry** that contains a project named **clinical-prj**. The agents are prompt agents of Foundry Agent Service.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | chat-main | Model deployment | Chat model used by protocol-assistant |
+        | summarize-chat | Model deployment | gpt-5.1 reasoning model, called by using the Chat Completions API |
+        | trey-search | Azure AI Search service | Index **trial-reports** with vector fields, a semantic configuration and a filterable field named **site_country**. Public network access is disabled; a private endpoint is in the virtual network **vnet-research** |
+        | trey-search | Project connection | Connection of clinical-prj to the trey-search service |
+        | func-registry | Azure Functions app | Hosts the **compound-registry** API. Protected by Microsoft Entra authentication, application ID URI `api://trey-registry`. A call can take up to two minutes |
+        | lims-mcp | Remote MCP server | Exposes 14 tools of the laboratory information management system, including get_sample, get_result, list_samples, update_result and delete_sample |
+
+        The trial reports are indexed into **trial-reports** by an indexer of trey-search. The search service has a system-assigned managed identity.
+      fr: |
+        Trey Research dispose d'une ressource Microsoft Foundry nommée **trey-foundry** qui contient un projet nommé **clinical-prj**. Les agents sont des agents d'invite de Foundry Agent Service.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | chat-main | Déploiement de modèle | Modèle de conversation utilisé par protocol-assistant |
+        | summarize-chat | Déploiement de modèle | Modèle de raisonnement gpt-5.1, appelé avec l'API Chat Completions |
+        | trey-search | Service Azure AI Search | Index **trial-reports** avec des champs vectoriels, une configuration sémantique et un champ filtrable nommé **site_country**. L'accès réseau public est désactivé ; un point de terminaison privé se trouve dans le réseau virtuel **vnet-research** |
+        | trey-search | Connexion de projet | Connexion de clinical-prj au service trey-search |
+        | func-registry | Application Azure Functions | Héberge l'API **compound-registry**. Protégée par l'authentification Microsoft Entra, URI d'ID d'application `api://trey-registry`. Un appel peut durer jusqu'à deux minutes |
+        | lims-mcp | Serveur MCP distant | Expose 14 outils du système de gestion des informations de laboratoire, dont get_sample, get_result, list_samples, update_result et delete_sample |
+
+        Les rapports d'essai sont indexés dans **trial-reports** par un indexeur de trey-search. Le service de recherche dispose d'une identité managée affectée par le système.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Trey Research identifies the following requirements:
+
+        1. **Compound codes.** During indexing, the legacy compound codes found in each report must be replaced by their current registry ID, which only compound-registry can provide. No key or secret may be stored in the skillset.
+        2. **Grounding.** protocol-assistant-de, the version of protocol-assistant for the German sites, must use the trial-reports index for every answer and must only retrieve documents whose site_country value is DE.
+        3. **Network.** Public network access to trey-search must stay disabled.
+        4. **Safety summaries.** summarize-chat produces safety summaries of long protocols. For some protocols, the response has a status of incomplete and contains no visible text.
+        5. **Laboratory data.** protocol-assistant must be able to call get_sample, get_result and list_samples of lims-mcp without approval prompts. It must not be able to call any other tool of lims-mcp.
+        6. **Ingestion quality.** A test run of the indexer with the compound-registry skill indexed 12,000 reports. The execution history shows warnings for 310 reports, which were indexed without registry IDs. During the run, the logs of func-registry show HTTP 429 (Too Many Requests) responses; the same calls succeed when they are sent again later. The skill uses the default values of `batchSize` and `degreeOfParallelism`. All the reports must be enriched during the next runs.
+      fr: |
+        Trey Research a défini les exigences suivantes :
+
+        1. **Codes des composés.** Pendant l'indexation, les anciens codes de composés trouvés dans chaque rapport doivent être remplacés par leur ID actuel du registre, que seule l'API compound-registry peut fournir. Aucune clé ni aucun secret ne doit être stocké dans l'ensemble de compétences.
+        2. **Ancrage.** protocol-assistant-de, la version de protocol-assistant destinée aux sites allemands, doit utiliser l'index trial-reports pour chaque réponse et ne doit récupérer que les documents dont la valeur site_country est DE.
+        3. **Réseau.** L'accès réseau public à trey-search doit rester désactivé.
+        4. **Synthèses de sécurité.** summarize-chat produit des synthèses de sécurité de protocoles longs. Pour certains protocoles, la réponse a l'état incomplete et ne contient aucun texte visible.
+        5. **Données de laboratoire.** protocol-assistant doit pouvoir appeler get_sample, get_result et list_samples de lims-mcp sans demande d'approbation. Il ne doit pouvoir appeler aucun autre outil de lims-mcp.
+        6. **Qualité de l'ingestion.** Une exécution de test de l'indexeur avec la compétence compound-registry a indexé 12 000 rapports. L'historique d'exécution affiche des avertissements pour 310 rapports, qui ont été indexés sans ID du registre. Pendant l'exécution, les journaux de func-registry montrent des réponses HTTP 429 (Too Many Requests) ; les mêmes appels réussissent quand ils sont renvoyés plus tard. La compétence utilise les valeurs par défaut de `batchSize` et de `degreeOfParallelism`. Tous les rapports doivent être enrichis lors des prochaines exécutions.

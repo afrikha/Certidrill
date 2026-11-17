@@ -1,0 +1,79 @@
+id: ai200-2c-redis-vector-schema
+objective: "2.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware stores four million document chunks as hashes in Azure Managed Redis with the RediSearch module. The embeddings come from an in-house model that outputs 1,024-dimension vectors that aren't normalized and are designed to be compared by cosine similarity.
+
+    The search index must meet the following requirements:
+
+    - Low query latency matters more than exhaustive precision.
+    - Distances must match the way the model is designed to be compared.
+
+    How should you complete the schema? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware stocke quatre millions de segments de documents sous forme de hachages dans Azure Managed Redis avec le module RediSearch. Les incorporations proviennent d'un modèle interne qui produit des vecteurs de 1 024 dimensions, non normalisés, conçus pour être comparés par similarité cosinus.
+
+    L'index de recherche doit respecter les exigences suivantes :
+
+    - Une faible latence des requêtes compte davantage qu'une précision exhaustive.
+    - Les distances doivent correspondre à la façon dont le modèle est conçu pour être comparé.
+
+    Comment devez-vous compléter le schéma ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    schema = (
+        TextField("content"),
+        TagField("tenant"),
+        VectorField(
+            "embedding",
+            "[[algo]]",
+            {"TYPE": "FLOAT32", "DIM": [[dim]], "DISTANCE_METRIC": "[[metric]]"},
+        ),
+    )
+    r.ft("idx:chunks").create_index(
+        schema,
+        definition=IndexDefinition(prefix=["chunk:"], index_type=IndexType.HASH),
+    )
+  slots:
+    - id: algo
+      options:
+        - { id: flat, text: FLAT }
+        - { id: hnsw, text: HNSW }
+        - { id: knn, text: KNN }
+    - id: dim
+      options:
+        - { id: d1024, text: "1024" }
+        - { id: d1536, text: "1536" }
+        - { id: d4096, text: "4096" }
+    - id: metric
+      options:
+        - { id: ip, text: IP }
+        - { id: l2, text: L2 }
+        - { id: cosine, text: COSINE }
+answer:
+  values: { algo: hnsw, dim: d1024, metric: cosine }
+explanation:
+  correct:
+    en: |
+      HNSW is an approximate nearest neighbor index that suits large datasets where low latency matters more than exhaustive precision. `DIM` must equal the number of dimensions of the stored vectors, here 1,024. The metric must match how the model is designed to be compared, so the index uses `COSINE`.
+    fr: |
+      HNSW est un index approximatif des plus proches voisins adapté aux grands jeux de données pour lesquels une faible latence compte davantage qu'une précision exhaustive. `DIM` doit être égal au nombre de dimensions des vecteurs stockés, ici 1 024. La métrique doit correspondre à la façon dont le modèle est conçu pour être comparé : l'index utilise donc `COSINE`.
+  options:
+    flat: { en: "FLAT is an exact brute-force index, slower on four million vectors.", fr: "FLAT est un index exhaustif exact, plus lent sur quatre millions de vecteurs." }
+    knn: { en: "KNN is the query clause that returns the top K results, not an index algorithm.", fr: "KNN est la clause de requête qui renvoie les K meilleurs résultats, pas un algorithme d'index." }
+    d1536: { en: "The model outputs 1,024 dimensions; vectors of another size don't match the index.", fr: "Le modèle produit 1 024 dimensions ; des vecteurs d'une autre taille ne correspondent pas à l'index." }
+    d4096: { en: "The model outputs 1,024 dimensions; vectors of another size don't match the index.", fr: "Le modèle produit 1 024 dimensions ; des vecteurs d'une autre taille ne correspondent pas à l'index." }
+    ip: { en: "Inner product ranks like cosine only for normalized vectors, and these vectors aren't normalized.", fr: "Le produit scalaire ne classe comme le cosinus que des vecteurs normalisés, et ces vecteurs ne le sont pas." }
+    l2: { en: "Euclidean distance doesn't match the cosine comparison the model is designed for.", fr: "La distance euclidienne ne correspond pas à la comparaison cosinus pour laquelle le modèle est conçu." }
+references:
+  - title: About Vector Embeddings and Vector Search in Azure Managed Redis
+    url: https://learn.microsoft.com/en-us/azure/redis/overview-vector-similarity

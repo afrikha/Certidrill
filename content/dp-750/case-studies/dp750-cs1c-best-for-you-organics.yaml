@@ -1,0 +1,127 @@
+id: dp750-cs1c-best-for-you-organics
+status: draft
+title:
+  en: Best For You Organics
+  fr: Best For You Organics
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Best For You Organics is a chain of 214 organic grocery stores in Canada. Every night, a replenishment process forecasts the demand of each store and publishes the orders sent to the suppliers.
+
+        A data engineering team of six people develops the lakehouse on Azure Databricks. The team stores all its code in a Git repository and deploys it with Databricks Asset Bundles (Declarative Automation Bundles on Microsoft Learn).
+      fr: |
+        Best For You Organics est une chaîne de 214 épiceries biologiques au Canada. Chaque nuit, un processus de réapprovisionnement prévoit la demande de chaque magasin et publie les commandes envoyées aux fournisseurs.
+
+        Une équipe d'ingénierie des données de six personnes développe le lakehouse sur Azure Databricks. L'équipe stocke tout son code dans un dépôt Git et le déploie avec les bundles de ressources Databricks (Declarative Automation Bundles sur Microsoft Learn).
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Best For You Organics has the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-bfyo-dev | Azure Databricks workspace | Premium plan, enabled for Unity Catalog; development |
+        | adb-bfyo-prod | Azure Databricks workspace | Premium plan, enabled for Unity Catalog; production |
+        | bfyo_prod | Unity Catalog catalog | Schemas **bronze**, **silver** and **gold** |
+        | psql-bfyo-loyalty | Azure Database for PostgreSQL flexible server | Database **loyalty**, updated continuously by the loyalty card application |
+        | sp-bfyo-deploy | Microsoft Entra service principal | Added to adb-bfyo-prod; used by the CI/CD pipeline |
+        | nightly-replenishment | Lakeflow job in adb-bfyo-prod | Five tasks, described below |
+
+        The ERP system writes every change to the product catalog to the table **bfyo_prod.bronze.products_cdc**, which contains the columns product_id, name, category, unit_price, op (**U** for an insert or update, **D** for a delete) and change_seq, a number that increases with each change.
+
+        The tasks of nightly-replenishment run in the following order:
+
+        1. **ingest_pos** loads the sales of the day from the point-of-sale systems (about 90 minutes).
+        2. **clean_sales** and **clean_inventory** both depend on ingest_pos.
+        3. **forecast** depends on clean_sales and clean_inventory.
+        4. **publish** depends on forecast.
+
+        In the last run of nightly-replenishment, ingest_pos and clean_sales succeeded, clean_inventory failed because of a bug in its notebook, and forecast and publish did not run. A data engineer has since fixed the notebook of clean_inventory.
+
+        The account-level group **store-analysts** has the following grants:
+
+        ```sql
+        GRANT USE CATALOG ON CATALOG bfyo_prod TO `store-analysts`;
+        GRANT BROWSE ON CATALOG bfyo_prod TO `store-analysts`;
+        GRANT SELECT ON SCHEMA bfyo_prod.gold TO `store-analysts`;
+        ```
+      fr: |
+        Best For You Organics dispose des ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-bfyo-dev | Espace de travail Azure Databricks | Plan Premium, activé pour Unity Catalog ; développement |
+        | adb-bfyo-prod | Espace de travail Azure Databricks | Plan Premium, activé pour Unity Catalog ; production |
+        | bfyo_prod | Catalogue Unity Catalog | Schémas **bronze**, **silver** et **gold** |
+        | psql-bfyo-loyalty | Serveur flexible Azure Database pour PostgreSQL | Base de données **loyalty**, mise à jour en continu par l'application de carte de fidélité |
+        | sp-bfyo-deploy | Principal de service Microsoft Entra | Ajouté à adb-bfyo-prod ; utilisé par le pipeline CI/CD |
+        | nightly-replenishment | Job Lakeflow dans adb-bfyo-prod | Cinq tâches, décrites ci-dessous |
+
+        L'ERP écrit chaque modification du catalogue de produits dans la table **bfyo_prod.bronze.products_cdc**, qui contient les colonnes product_id, name, category, unit_price, op (**U** pour une insertion ou une mise à jour, **D** pour une suppression) et change_seq, un nombre qui augmente à chaque modification.
+
+        Les tâches de nightly-replenishment s'exécutent dans l'ordre suivant :
+
+        1. **ingest_pos** charge les ventes du jour depuis les systèmes de point de vente (environ 90 minutes).
+        2. **clean_sales** et **clean_inventory** dépendent toutes deux d'ingest_pos.
+        3. **forecast** dépend de clean_sales et de clean_inventory.
+        4. **publish** dépend de forecast.
+
+        Lors de la dernière exécution de nightly-replenishment, ingest_pos et clean_sales ont réussi, clean_inventory a échoué à cause d'un bogue dans son notebook, et forecast et publish ne se sont pas exécutées. Un ingénieur données a depuis corrigé le notebook de clean_inventory.
+
+        Le groupe de niveau compte **store-analysts** dispose des autorisations suivantes :
+
+        ```sql
+        GRANT USE CATALOG ON CATALOG bfyo_prod TO `store-analysts`;
+        GRANT BROWSE ON CATALOG bfyo_prod TO `store-analysts`;
+        GRANT SELECT ON SCHEMA bfyo_prod.gold TO `store-analysts`;
+        ```
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Product dimension**
+
+        - The table **bfyo_prod.silver.dim_product** must keep every past version of each product, with the period during which each version was valid, so that sales can be analyzed at the price that applied at the time.
+        - The pipeline that maintains dim_product must use Lakeflow Spark Declarative Pipelines (Lakeflow pipelines) and process only the new rows of products_cdc.
+
+        **Loyalty data**
+
+        - The analysts must query the loyalty tables from Azure Databricks together with the sales tables.
+        - The loyalty data must not be copied into the lakehouse, and queries must always return the current data of psql-bfyo-loyalty.
+
+        **Operations**
+
+        - When a run of nightly-replenishment fails, the team must be able to complete it without running again the tasks that succeeded.
+        - A new job named **store-close** must run the notebook **close_store** once for each store code returned by the task **list_stores**.
+        - In store-close, the task **publish_report** must run only when the task value row_count of the task **validate** is greater than 0; otherwise the task **notify_empty** must run.
+        - In store-close, the task **cleanup** must run after the tasks **load_sales** and **load_stock** finish, whatever their result. The task **alert_ops** must run only if at least one of these two tasks fails.
+
+        **Deployment**
+
+        - When an engineer deploys the bundle to the **dev** target, the deployed jobs must be prefixed with the engineer's name and their schedules must be paused.
+        - The **prod** target must be deployed only from the **main** branch, and the deployed jobs must run as sp-bfyo-deploy.
+      fr: |
+        **Dimension produit**
+
+        - La table **bfyo_prod.silver.dim_product** doit conserver toutes les versions passées de chaque produit, avec la période de validité de chaque version, pour que les ventes puissent être analysées au prix en vigueur à l'époque.
+        - Le pipeline qui alimente dim_product doit utiliser les pipelines déclaratifs Lakeflow Spark (pipelines Lakeflow) et ne traiter que les nouvelles lignes de products_cdc.
+
+        **Données de fidélité**
+
+        - Les analystes doivent interroger les tables de fidélité depuis Azure Databricks avec les tables de ventes.
+        - Les données de fidélité ne doivent pas être copiées dans le lakehouse, et les requêtes doivent toujours renvoyer les données actuelles de psql-bfyo-loyalty.
+
+        **Exploitation**
+
+        - Quand une exécution de nightly-replenishment échoue, l'équipe doit pouvoir la terminer sans réexécuter les tâches qui ont réussi.
+        - Un nouveau job nommé **store-close** doit exécuter le notebook **close_store** une fois pour chaque code de magasin renvoyé par la tâche **list_stores**.
+        - Dans store-close, la tâche **publish_report** ne doit s'exécuter que si la valeur de tâche row_count de la tâche **validate** est supérieure à 0 ; sinon, la tâche **notify_empty** doit s'exécuter.
+        - Dans store-close, la tâche **cleanup** doit s'exécuter après la fin des tâches **load_sales** et **load_stock**, quel que soit leur résultat. La tâche **alert_ops** ne doit s'exécuter que si au moins l'une de ces deux tâches échoue.
+
+        **Déploiement**
+
+        - Quand un ingénieur déploie le bundle sur la cible **dev**, les jobs déployés doivent être préfixés par le nom de l'ingénieur et leurs planifications doivent être suspendues.
+        - La cible **prod** ne doit être déployée qu'à partir de la branche **main**, et les jobs déployés doivent s'exécuter en tant que sp-bfyo-deploy.

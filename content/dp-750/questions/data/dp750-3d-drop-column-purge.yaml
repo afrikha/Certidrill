@@ -1,0 +1,49 @@
+id: dp750-3d-drop-column-purge
+objective: "3.4.3"
+type: ordering
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam has a large Delta table named **fabrikam.silver.suppliers** that doesn't use column mapping. The source system stopped sending the column `legacy_tax_ref`, which contains sensitive values.
+
+    You need to remove `legacy_tax_ref` from the table schema without rewriting the table at the time of the schema change. Later, the values of the column must be physically removed from the storage of the table.
+
+    Which four actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Fabrikam dispose d'une grande table Delta nommée **fabrikam.silver.suppliers** qui n'utilise pas le mappage de colonnes. Le système source n'envoie plus la colonne `legacy_tax_ref`, qui contient des valeurs sensibles.
+
+    Vous devez retirer `legacy_tax_ref` du schéma de la table sans réécrire la table au moment de la modification du schéma. Ensuite, les valeurs de la colonne doivent être supprimées physiquement du stockage de la table.
+
+    Quelles sont les quatre actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 4
+  actions:
+    - { id: mapping, text: { en: "Run `ALTER TABLE ... SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name')`.", fr: "Exécuter `ALTER TABLE ... SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name')`." } }
+    - { id: drop, text: { en: "Run `ALTER TABLE ... DROP COLUMN legacy_tax_ref`.", fr: "Exécuter `ALTER TABLE ... DROP COLUMN legacy_tax_ref`." } }
+    - { id: reorg, text: { en: "Run `REORG TABLE ... APPLY (PURGE)`.", fr: "Exécuter `REORG TABLE ... APPLY (PURGE)`." } }
+    - { id: vacuum, text: { en: "Run `VACUUM` on the table.", fr: "Exécuter `VACUUM` sur la table." } }
+    - { id: overwrite, text: { en: "Rewrite the table without the column by using the `overwriteSchema` option.", fr: "Réécrire la table sans la colonne à l'aide de l'option `overwriteSchema`." } }
+    - { id: automerge, text: { en: "Set `spark.databricks.delta.schema.autoMerge.enabled` to `true`.", fr: "Définir `spark.databricks.delta.schema.autoMerge.enabled` sur `true`." } }
+answer:
+  sequence: [ mapping, drop, reorg, vacuum ]
+explanation:
+  correct:
+    en: |
+      Dropping a column requires column mapping, so you enable it first. `DROP COLUMN` is then a metadata-only change: the values stay in the data files. `REORG TABLE ... APPLY (PURGE)` rewrites the files without the dropped column, and `VACUUM` deletes the old files that the table no longer references, once they are older than the retention threshold.
+    fr: |
+      La suppression d'une colonne nécessite le mappage de colonnes : vous l'activez donc d'abord. `DROP COLUMN` est ensuite une modification des seules métadonnées : les valeurs restent dans les fichiers de données. `REORG TABLE ... APPLY (PURGE)` réécrit les fichiers sans la colonne supprimée, et `VACUUM` supprime les anciens fichiers que la table ne référence plus, une fois qu'ils dépassent le seuil de rétention.
+  options:
+    overwrite:
+      en: |
+        Rewriting the table with `overwriteSchema` changes the schema by rewriting all the data, which the requirement excludes.
+      fr: |
+        Réécrire la table avec `overwriteSchema` modifie le schéma en réécrivant toutes les données, ce que l'exigence exclut.
+    automerge:
+      en: |
+        Automatic schema merging adds columns during writes; it doesn't drop a column.
+      fr: |
+        La fusion automatique du schéma ajoute des colonnes pendant les écritures ; elle ne supprime pas de colonne.
+references:
+  - title: Update table schemas with schema evolution
+    url: https://learn.microsoft.com/en-us/azure/databricks/tables/update-schema

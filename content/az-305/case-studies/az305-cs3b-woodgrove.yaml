@@ -1,0 +1,132 @@
+id: az305-cs3b-woodgrove
+status: draft
+title:
+  en: Woodgrove Bank
+  fr: Woodgrove Bank
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Woodgrove Bank is a retail bank that serves 1.2 million customers in the United States. The bank has 4,500 employees, including 600 loan officers, and its head office is in Chicago.
+
+        Customers apply for mortgages on a web portal, where they upload supporting documents such as pay slips and tax returns. Woodgrove Bank is redesigning this loan portal to make it more secure and to prepare it for growth.
+      fr: |
+        Woodgrove Bank est une banque de détail qui sert 1,2 million de clients aux États-Unis. La banque compte 4 500 employés, dont 600 conseillers en prêts, et son siège est à Chicago.
+
+        Les clients déposent leurs demandes de prêt immobilier sur un portail web, où ils chargent des pièces justificatives telles que des bulletins de salaire et des déclarations de revenus. Woodgrove Bank revoit la conception de ce portail de prêts pour le rendre plus sûr et le préparer à la croissance.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity.** An Active Directory Domain Services (AD DS) forest named woodgrovebank.com is synchronized with a Microsoft Entra tenant by Microsoft Entra Connect Sync. Employees sign in to cloud applications through a farm of four Active Directory Federation Services (AD FS) servers. In AD DS, the accounts of branch employees are restricted by sign-in hours, and the human resources department disables the accounts of employees who leave.
+
+        **Azure.** A subscription named **Sub-Loans** contains the following resources, all in the East US 2 region:
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | app-loans | App Service web app | Premium v3 plan, three instances. Its app settings contain, in clear text, a SQL connection string with a password, a storage account key and the API key of a credit bureau. |
+        | LoansDB | Azure SQL Database | General Purpose, 8 vCores, 420 GB. The **Applicants** table contains Social Security numbers and bank account numbers. |
+        | stloandocs | Storage account | General-purpose v2, LRS. The **documents** container holds 14 TB of loan documents. |
+
+        **Known issues**
+
+        - The loan officers run long reporting queries on LoansDB that slow the portal down during business hours.
+        - LoansDB grows faster than expected and is forecast to reach 9 TB within three years.
+        - The credit bureau only supports authentication with the API key that it issues. The key is replaced every 90 days.
+        - The credit bureau accepts calls only from the public IP addresses that Woodgrove Bank has declared. Last year, the outbound IP addresses of app-loans changed after the App Service plan was scaled to another pricing tier, and the calls were rejected for two days.
+      fr: |
+        **Identité.** Une forêt Active Directory Domain Services (AD DS) nommée woodgrovebank.com est synchronisée avec un locataire Microsoft Entra par Microsoft Entra Connect Sync. Les employés se connectent aux applications cloud par une batterie de quatre serveurs Active Directory Federation Services (AD FS). Dans AD DS, les comptes des employés des agences sont limités par des heures de connexion, et le service des ressources humaines désactive les comptes des employés qui partent.
+
+        **Azure.** Un abonnement nommé **Sub-Loans** contient les ressources suivantes, toutes dans la région East US 2 :
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | app-loans | Application web App Service | Plan Premium v3, trois instances. Ses paramètres d'application contiennent, en clair, une chaîne de connexion SQL avec un mot de passe, une clé de compte de stockage et la clé d'API d'un bureau de crédit. |
+        | LoansDB | Azure SQL Database | General Purpose, 8 vCores, 420 Go. La table **Applicants** contient des numéros de sécurité sociale et des numéros de compte bancaire. |
+        | stloandocs | Compte de stockage | Usage général v2, LRS. Le conteneur **documents** contient 14 To de documents de prêt. |
+
+        **Problèmes connus**
+
+        - Les conseillers en prêts exécutent sur LoansDB de longues requêtes de reporting qui ralentissent le portail pendant les heures de bureau.
+        - LoansDB grossit plus vite que prévu et devrait atteindre 9 To d'ici trois ans.
+        - Le bureau de crédit ne prend en charge que l'authentification par la clé d'API qu'il émet. La clé est remplacée tous les 90 jours.
+        - Le bureau de crédit n'accepte que les appels venant des adresses IP publiques que Woodgrove Bank a déclarées. L'an dernier, les adresses IP sortantes d'app-loans ont changé après un changement de niveau tarifaire du plan App Service, et les appels ont été rejetés pendant deux jours.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Woodgrove Bank plans the following changes:
+
+        - Decommission the AD FS servers.
+        - Remove every credential from the configuration of app-loans.
+        - Move LoansDB to a configuration that supports its growth and its reporting workload.
+        - Give app-loans a stable outbound IP address.
+        - Reconfigure stloandocs to meet the new availability and compliance requirements.
+      fr: |
+        Woodgrove Bank prévoit les changements suivants :
+
+        - Mettre hors service les serveurs AD FS.
+        - Retirer toutes les informations d'identification de la configuration d'app-loans.
+        - Déplacer LoansDB vers une configuration qui prend en charge sa croissance et sa charge de reporting.
+        - Donner à app-loans une adresse IP sortante stable.
+        - Reconfigurer stloandocs pour satisfaire les nouvelles exigences de disponibilité et de conformité.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Business requirements**
+
+        - Minimize administrative and development effort: use platform features instead of custom code.
+        - Minimize costs whenever several solutions meet the technical requirements.
+
+        **Identity and security requirements**
+
+        1. The passwords of the employees must still be validated by the on-premises domain controllers, so that the sign-in hours and the disabled state of an AD DS account apply at each sign-in. No federation server may remain.
+        2. app-loans must access LoansDB and stloandocs without any password, key or other secret being stored anywhere.
+        3. The API key of the credit bureau must be removed from the app settings and from the code. When the key is replaced, app-loans must start using the new key without being redeployed.
+        4. Help desk agents who query the Applicants table must see only the last four digits of the Social Security numbers. The application queries must not change.
+        5. Database administrators must never be able to read the bank account numbers in clear text.
+        6. The files and the backups of LoansDB must be encrypted with a key that Woodgrove Bank controls and can revoke.
+
+        **Database requirements**
+
+        7. LoansDB must be able to grow to 9 TB as a single database, without changes to the application.
+        8. The reporting queries of the loan officers must run on a readable replica in East US 2. The compute size of this replica must be set independently of the compute size of the primary.
+
+        **Network requirements**
+
+        9. The calls from app-loans to the credit bureau must always come from the same public IP address, whatever the scaling operations on the App Service plan. The traffic doesn't have to be inspected or filtered.
+
+        **Document requirements**
+
+        10. The documents of a loan that is disputed in court must be protected against modification and deletion until the legal department releases them. The duration of a dispute isn't known in advance.
+        11. Loan documents must stay available without interruption if an availability zone of East US 2 fails. If the whole region is unavailable, they must remain readable without waiting for a failover.
+      fr: |
+        **Exigences métier**
+
+        - Réduire au minimum l'effort d'administration et de développement : utiliser des fonctionnalités de plateforme plutôt que du code personnalisé.
+        - Réduire les coûts au minimum chaque fois que plusieurs solutions satisfont les exigences techniques.
+
+        **Exigences d'identité et de sécurité**
+
+        1. Les mots de passe des employés doivent toujours être validés par les contrôleurs de domaine locaux, afin que les heures de connexion et l'état désactivé d'un compte AD DS s'appliquent à chaque connexion. Aucun serveur de fédération ne doit subsister.
+        2. app-loans doit accéder à LoansDB et à stloandocs sans qu'aucun mot de passe, clé ou autre secret ne soit stocké où que ce soit.
+        3. La clé d'API du bureau de crédit doit être retirée des paramètres d'application et du code. Lorsque la clé est remplacée, app-loans doit commencer à utiliser la nouvelle clé sans être redéployée.
+        4. Les agents du support technique qui interrogent la table Applicants ne doivent voir que les quatre derniers chiffres des numéros de sécurité sociale. Les requêtes de l'application ne doivent pas changer.
+        5. Les administrateurs de bases de données ne doivent jamais pouvoir lire les numéros de compte bancaire en clair.
+        6. Les fichiers et les sauvegardes de LoansDB doivent être chiffrés avec une clé que Woodgrove Bank contrôle et peut révoquer.
+
+        **Exigences relatives à la base de données**
+
+        7. LoansDB doit pouvoir atteindre 9 To en restant une base de données unique, sans modification de l'application.
+        8. Les requêtes de reporting des conseillers en prêts doivent s'exécuter sur un réplica lisible dans East US 2. La taille de calcul de ce réplica doit être définie indépendamment de celle du réplica principal.
+
+        **Exigences réseau**
+
+        9. Les appels d'app-loans vers le bureau de crédit doivent toujours provenir de la même adresse IP publique, quelles que soient les opérations de mise à l'échelle du plan App Service. Le trafic n'a pas à être inspecté ni filtré.
+
+        **Exigences relatives aux documents**
+
+        10. Les documents d'un prêt contesté en justice doivent être protégés contre la modification et la suppression jusqu'à ce que le service juridique les libère. La durée d'un litige n'est pas connue à l'avance.
+        11. Les documents de prêt doivent rester disponibles sans interruption si une zone de disponibilité d'East US 2 tombe en panne. Si la région entière est indisponible, ils doivent rester lisibles sans attendre un basculement.

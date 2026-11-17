@@ -1,0 +1,40 @@
+id: dp420-1c-impact-logical-partition-throttle
+objective: "1.3.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip runs a flash-sale application on Azure Cosmos DB for NoSQL. The **inventory** container is partitioned by `/productId`, has 40,000 RU/s of manual throughput and four physical partitions. Burst capacity is not enabled.
+
+    During a sale, requests for a single product need 15,000 RU/s, while the rest of the container uses 8,000 RU/s.
+
+    What happens to the requests for the sale product?
+  fr: |
+    Wingtip exécute une application de ventes flash sur Azure Cosmos DB for NoSQL. Le conteneur **inventory** est partitionné par `/productId`, dispose de 40 000 RU/s de débit manuel et de quatre partitions physiques. La capacité de rafale n'est pas activée.
+
+    Pendant une vente, les requêtes d'un seul produit nécessitent 15 000 RU/s, alors que le reste du conteneur utilise 8 000 RU/s.
+
+    Qu'advient-il des requêtes portant sur le produit en vente ?
+body:
+  options:
+    - { id: a, text: { en: "They all succeed because the container still has unused throughput", fr: "Elles réussissent toutes, car le conteneur dispose encore de débit inutilisé" } }
+    - { id: b, text: { en: "Some are rate-limited with HTTP 429 because one partition key value cannot exceed 10,000 RU/s", fr: "Certaines sont limitées avec un code HTTP 429, car une valeur de clé de partition ne peut pas dépasser 10 000 RU/s" } }
+    - { id: c, text: { en: "They all succeed after the service splits the product's logical partition across two physical partitions", fr: "Elles réussissent toutes une fois que le service a réparti la partition logique du produit sur deux partitions physiques" } }
+    - { id: d, text: { en: "Some are rate-limited with HTTP 429, and so are the requests for every other product", fr: "Certaines sont limitées avec un code HTTP 429, de même que les requêtes de tous les autres produits" } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Throughput is divided evenly across the physical partitions (here 10,000 RU/s each), and all the items of one partition key value live in one logical partition, which is limited to 10,000 RU/s. The excess requests for the hot product receive 429 responses even though the container as a whole is far from its 40,000 RU/s.
+    fr: |-
+      Le débit est réparti uniformément entre les partitions physiques (ici 10 000 RU/s chacune), et tous les éléments d'une valeur de clé de partition se trouvent dans une partition logique, limitée à 10 000 RU/s. Les requêtes excédentaires du produit chaud reçoivent des réponses 429, alors que le conteneur dans son ensemble est loin de ses 40 000 RU/s.
+  options:
+    a: { en: "Unused throughput of other physical partitions is not lent to the hot one.", fr: "Le débit inutilisé des autres partitions physiques n'est pas prêté à la partition chaude." }
+    c: { en: "A logical partition is never split; only physical partitions split, and one logical partition always stays on one physical partition.", fr: "Une partition logique n'est jamais fractionnée ; seules les partitions physiques se fractionnent, et une partition logique reste toujours sur une seule partition physique." }
+    d: { en: "Products on the other physical partitions keep their own share of the throughput and are not throttled.", fr: "Les produits des autres partitions physiques conservent leur part du débit et ne sont pas limités." }
+references:
+  - title: Partitioning and horizontal scaling in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning-overview
+  - title: Diagnose and troubleshoot "Request rate too large" (429) exceptions
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-request-rate-too-large

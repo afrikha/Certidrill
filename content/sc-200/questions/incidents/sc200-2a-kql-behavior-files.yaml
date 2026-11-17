@@ -1,0 +1,69 @@
+id: sc200-2a-kql-behavior-files
+objective: "2.1.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso, Ltd. uses Microsoft Purview Data Loss Prevention (DLP) and Microsoft Defender XDR. The built-in alert tuning rule for DLP signals is enabled, so DLP signals are recorded as behaviors.
+
+    You need an advanced hunting query that lists the behaviors of the last seven days together with the names of the files they involve. Behaviors that involve no file must not be returned.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso, Ltd. utilise la protection contre la perte de données (DLP) de Microsoft Purview et Microsoft Defender XDR. La règle de réglage d'alerte intégrée pour les signaux DLP est activée : les signaux DLP sont donc enregistrés comme comportements.
+
+    Vous avez besoin d'une requête de repérage avancé qui liste les comportements des sept derniers jours avec le nom des fichiers concernés. Les comportements qui ne concernent aucun fichier ne doivent pas être renvoyés.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    BehaviorInfo
+    | where Timestamp > ago(7d)
+    | join kind=[[kind]] (
+        [[tbl]]
+        | where isnotempty(FileName)
+      ) on [[key]]
+    | project Timestamp, Description, AccountUpn, FileName
+  slots:
+    - id: kind
+      options:
+        - { id: inner, text: inner }
+        - { id: leftouter, text: leftouter }
+        - { id: leftanti, text: leftanti }
+        - { id: fullouter, text: fullouter }
+    - id: tbl
+      options:
+        - { id: entities, text: BehaviorEntities }
+        - { id: evidence, text: AlertEvidence }
+        - { id: dsb, text: DataSecurityBehaviors }
+    - id: key
+      options:
+        - { id: bid, text: BehaviorId }
+        - { id: upn, text: AccountUpn }
+        - { id: report, text: ReportId }
+answer:
+  values: { kind: inner, tbl: entities, key: bid }
+explanation:
+  correct:
+    en: |
+      The DLP signals remain in the BehaviorInfo and BehaviorEntities tables: BehaviorInfo holds one row per behavior, and BehaviorEntities holds the entities of each behavior, including the files, linked by BehaviorId. An inner join keeps only the behaviors that have a matching file row on the right side.
+    fr: |
+      Les signaux DLP restent dans les tables BehaviorInfo et BehaviorEntities : BehaviorInfo contient une ligne par comportement, et BehaviorEntities contient les entités de chaque comportement, dont les fichiers, reliées par BehaviorId. Une jointure inner ne conserve que les comportements qui ont une ligne de fichier correspondante à droite.
+  options:
+    leftouter: { en: "leftouter also returns the behaviors without any file, with an empty FileName.", fr: "leftouter renvoie aussi les comportements sans fichier, avec un FileName vide." }
+    leftanti: { en: "leftanti returns only the behaviors that have no file, the opposite of the requirement.", fr: "leftanti ne renvoie que les comportements sans fichier, soit l'inverse de l'exigence." }
+    fullouter: { en: "fullouter also returns unmatched rows from both sides.", fr: "fullouter renvoie aussi les lignes sans correspondance des deux côtés." }
+    evidence: { en: "AlertEvidence holds the entities of alerts, and DLP signals no longer generate alerts.", fr: "AlertEvidence contient les entités des alertes, et les signaux DLP ne génèrent plus d'alertes." }
+    upn: { en: "Joining on AccountUpn would attach every file of the user to every behavior of that user.", fr: "Une jointure sur AccountUpn associerait chaque fichier de l'utilisateur à chacun de ses comportements." }
+references:
+  - title: Investigate data loss alerts with Microsoft Defender XDR
+    url: https://learn.microsoft.com/en-us/defender-xdr/dlp-investigate-alerts-defender
+  - title: BehaviorEntities table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-behaviorentities-table

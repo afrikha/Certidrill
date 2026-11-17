@@ -1,0 +1,100 @@
+id: dp700-cs4b-copy-into
+objective: "2.1.1"
+type: dropdown
+caseStudy: dp700-cs4b-fourth-coffee
+difficulty: 2
+status: draft
+stem:
+  en: |
+    On November 17, 2026, PL_LoadPOS runs the following statement in WH_Sales to load the point-of-sale files.
+
+    You need to complete the statement to meet the ingestion requirement for stg.POS.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le 17 novembre 2026, PL_LoadPOS exécute l'instruction suivante dans WH_Sales pour charger les fichiers des points de vente.
+
+    Vous devez compléter l'instruction pour satisfaire l'exigence d'ingestion concernant stg.POS.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    COPY INTO stg.POS
+    FROM [[path]]
+    WITH (
+        FILE_TYPE = 'CSV',
+        [[first]],
+        [[errors]],
+        ERRORFILE = 'https://stfcpos.blob.core.windows.net/pos-rejects/',
+        ERRORFILE_CREDENTIAL = (IDENTITY = 'Shared Access Signature', SECRET = '****')
+    );
+  slots:
+    - id: path
+      options:
+        - { id: p_day, text: "'https://stfcpos.blob.core.windows.net/pos-drop/2026/11/16/*.csv'" }
+        - { id: p_month, text: "'https://stfcpos.blob.core.windows.net/pos-drop/2026/11/*'" }
+        - { id: p_root, text: "'https://stfcpos.blob.core.windows.net/pos-drop/*.csv'" }
+        - { id: p_onelake, text: "'https://onelake.dfs.fabric.microsoft.com/pos-drop/2026/11/16/*.csv'" }
+    - id: first
+      options:
+        - { id: f1, text: "FIRSTROW = 1" }
+        - { id: f2, text: "FIRSTROW = 2" }
+        - { id: fmatch, text: "MATCH_COLUMN_COUNT = 'ON'" }
+    - id: errors
+      options:
+        - { id: e0, text: "MAXERRORS = 0" }
+        - { id: e50, text: "MAXERRORS = 50" }
+        - { id: e500, text: "MAXERRORS = 500" }
+answer:
+  values: { path: p_day, first: f2, errors: e50 }
+explanation:
+  correct:
+    en: |
+      The files of the previous day are in the folder pos-drop/2026/11/16/, so a wildcard on that folder loads only them, which is an incremental load by folder. FIRSTROW = 2 skips the header row of every file. MAXERRORS = 50 lets the load reject up to 50 rows, written with their reasons to the ERRORFILE location, before the statement fails.
+    fr: |
+      Les fichiers de la veille se trouvent dans le dossier pos-drop/2026/11/16/ : un caractère générique sur ce dossier ne charge qu'eux, ce qui constitue un chargement incrémentiel par dossier. FIRSTROW = 2 ignore la ligne d'en-tête de chaque fichier. MAXERRORS = 50 permet au chargement de rejeter jusqu'à 50 lignes, écrites avec leur motif à l'emplacement ERRORFILE, avant que l'instruction échoue.
+  options:
+    p_month:
+      en: |
+        This path targets the whole month, so the files of the previous days would be loaded again.
+      fr: |
+        Ce chemin cible tout le mois : les fichiers des jours précédents seraient chargés de nouveau.
+    p_root:
+      en: |
+        The files are stored in date folders, not at the root of pos-drop, and this path does not select the previous day.
+      fr: |
+        Les fichiers sont stockés dans des dossiers de date, pas à la racine de pos-drop, et ce chemin ne sélectionne pas la veille.
+    p_onelake:
+      en: |
+        The files are in an Azure Storage account, not in OneLake, and a OneLake path must contain the workspace and item IDs.
+      fr: |
+        Les fichiers se trouvent dans un compte Stockage Azure, pas dans OneLake, et un chemin OneLake doit contenir les ID de l'espace de travail et de l'élément.
+    f1:
+      en: |
+        FIRSTROW = 1 is the default and reads the header row as data.
+      fr: |
+        FIRSTROW = 1 est la valeur par défaut et lit la ligne d'en-tête comme une donnée.
+    fmatch:
+      en: |
+        MATCH_COLUMN_COUNT checks the number of columns of each row; it does not skip the header row.
+      fr: |
+        MATCH_COLUMN_COUNT vérifie le nombre de colonnes de chaque ligne ; il n'ignore pas la ligne d'en-tête.
+    e0:
+      en: |
+        MAXERRORS = 0, the default, fails the load at the first rejected row.
+      fr: |
+        MAXERRORS = 0, la valeur par défaut, fait échouer le chargement dès la première ligne rejetée.
+    e500:
+      en: |
+        MAXERRORS = 500 would let a load with more than 50 malformed rows succeed.
+      fr: |
+        MAXERRORS = 500 laisserait réussir un chargement qui contient plus de 50 lignes mal formées.
+references:
+  - title: COPY INTO (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/copy-into-transact-sql?view=fabric

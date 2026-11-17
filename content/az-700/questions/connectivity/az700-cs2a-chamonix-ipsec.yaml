@@ -1,0 +1,73 @@
+id: az700-cs2a-chamonix-ipsec
+objective: "2.1.6"
+type: dropdown
+caseStudy: az700-cs2a-alpine-ski-house
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A local network gateway named **lng-chamonix** is created for the Chamonix resort. You need to create the connection between VGW-Hub and lng-chamonix. The solution must meet the Chamonix requirements.
+
+    How should you complete the Azure PowerShell script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Une passerelle de réseau local nommée **lng-chamonix** est créée pour la station de Chamonix. Vous devez créer la connexion entre VGW-Hub et lng-chamonix. La solution doit respecter les exigences relatives à Chamonix.
+
+    Comment devez-vous compléter le script Azure PowerShell ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $policy = New-AzIpsecPolicy -IkeEncryption AES256 -IkeIntegrity SHA256 -DhGroup DHGroup14 `
+      -IpsecEncryption GCMAES256 -IpsecIntegrity [[integ]] -PfsGroup [[pfs]] `
+      -SALifeTimeSeconds 27000 -SADataSizeKilobytes 102400000
+
+    $vgw = Get-AzVirtualNetworkGateway -Name VGW-Hub -ResourceGroupName rg-network
+    $lng = Get-AzLocalNetworkGateway -Name lng-chamonix -ResourceGroupName rg-network
+
+    New-AzVirtualNetworkGatewayConnection -Name cn-chamonix -ResourceGroupName rg-network `
+      -Location francecentral -VirtualNetworkGateway1 $vgw -LocalNetworkGateway2 $lng `
+      -ConnectionType IPsec -SharedKey $psk -IpsecPolicies $policy [[selectors]]
+  slots:
+    - id: integ
+      options:
+        - { id: sha256, text: SHA256 }
+        - { id: gcm256, text: GCMAES256 }
+        - { id: gcm128, text: GCMAES128 }
+        - { id: sha1, text: SHA1 }
+    - id: pfs
+      options:
+        - { id: pfs24, text: PFS24 }
+        - { id: pfs2, text: PFS2 }
+        - { id: none, text: None }
+        - { id: pfs2048, text: PFS2048 }
+    - id: selectors
+      options:
+        - { id: bgp, text: "-EnableBgp $True" }
+        - { id: ikev1, text: "-ConnectionProtocol IKEv1" }
+        - { id: pbts, text: "-UsePolicyBasedTrafficSelectors $True" }
+        - { id: privip, text: "-UseLocalAzureIpAddress" }
+answer:
+  values: { integ: gcm256, pfs: pfs2048, selectors: pbts }
+explanation:
+  correct:
+    en: |
+      When IPsec encryption uses GCMAES, IPsec integrity must use the same GCMAES algorithm and key length, so GCMAES256. PFS2048 is the PFS group that corresponds to DH group 14 (2048-bit MODP). A route-based gateway connects to a policy-based device by enabling policy-based traffic selectors on the connection, which requires a custom IPsec/IKE policy and an IKEv2 device; such a site reaches only the virtual network of the gateway, which is enough for Chamonix.
+    fr: |
+      Quand le chiffrement IPsec utilise GCMAES, l'intégrité IPsec doit utiliser le même algorithme GCMAES avec la même longueur de clé, donc GCMAES256. PFS2048 est le groupe PFS qui correspond au groupe DH 14 (MODP 2048 bits). Une passerelle basée sur des routes se connecte à un périphérique basé sur des stratégies en activant les sélecteurs de trafic basés sur des stratégies sur la connexion, ce qui exige une stratégie IPsec/IKE personnalisée et un périphérique IKEv2 ; un tel site n'atteint que le réseau virtuel de la passerelle, ce qui suffit pour Chamonix.
+  options:
+    sha256: { en: "SHA256 is a valid IPsec integrity algorithm, but not with GCMAES256 encryption: both must be the same GCMAES algorithm.", fr: "SHA256 est un algorithme d'intégrité IPsec valide, mais pas avec le chiffrement GCMAES256 : les deux doivent utiliser le même algorithme GCMAES." }
+    gcm128: { en: "The GCMAES key length for integrity must match the 256-bit encryption algorithm.", fr: "La longueur de clé GCMAES de l'intégrité doit correspondre à l'algorithme de chiffrement de 256 bits." }
+    pfs24: { en: "PFS24 corresponds to DH group 24, not group 14.", fr: "PFS24 correspond au groupe DH 24, pas au groupe 14." }
+    none: { en: "None disables perfect forward secrecy, which the requirement asks for.", fr: "None désactive la confidentialité persistante parfaite, que l'exigence demande." }
+    bgp: { en: "A policy-based device doesn't run BGP over the tunnel; this switch doesn't create policy-based traffic selectors.", fr: "Un périphérique basé sur des stratégies n'exécute pas BGP dans le tunnel ; ce paramètre ne crée pas de sélecteurs de trafic basés sur des stratégies." }
+    ikev1: { en: "The Chamonix firewall uses IKEv2, and IKEv1 doesn't make the connection policy-based.", fr: "Le pare-feu de Chamonix utilise IKEv2, et IKEv1 ne rend pas la connexion basée sur des stratégies." }
+    privip: { en: "This switch makes the connection use the gateway's private IP address over ExpressRoute private peering; it doesn't change the traffic selectors.", fr: "Ce paramètre fait utiliser l'adresse IP privée de la passerelle sur le peering privé ExpressRoute ; il ne modifie pas les sélecteurs de trafic." }
+references:
+  - title: "Configure custom IPsec/IKE connection policies for S2S VPN and VNet-to-VNet: Azure portal"
+    url: https://learn.microsoft.com/en-us/azure/vpn-gateway/ipsec-ike-policy-howto
+  - title: Connect a VPN gateway to multiple on-premises policy-based VPN devices
+    url: https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-connect-multiple-policybased-rm-ps

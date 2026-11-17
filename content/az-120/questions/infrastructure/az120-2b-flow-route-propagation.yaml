@@ -1,0 +1,69 @@
+id: az120-2b-flow-route-propagation
+objective: "2.2.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum has a hub virtual network that contains an ExpressRoute gateway and an Azure Firewall instance with the private IP address **10.0.1.4**. The SAP spoke virtual network is peered with the hub and uses the hub gateway (gateway transit). The on-premises prefixes, such as 192.168.0.0/16, are learned over ExpressRoute by BGP.
+
+    You need to configure a route table for the SAP application subnet so that:
+
+    - internet-bound traffic goes through the firewall;
+    - traffic to the on-premises networks keeps going directly to the ExpressRoute gateway.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum dispose d'un réseau virtuel hub qui contient une passerelle ExpressRoute et une instance du Pare-feu Azure d'adresse IP privée **10.0.1.4**. Le réseau virtuel spoke SAP est relié au hub par peering et utilise la passerelle du hub (transit par passerelle). Les préfixes locaux, comme 192.168.0.0/16, sont appris par BGP via ExpressRoute.
+
+    Vous devez configurer une table de routage pour le sous-réseau des applications SAP afin que :
+
+    - le trafic à destination d'Internet passe par le pare-feu ;
+    - le trafic vers les réseaux locaux continue d'aller directement à la passerelle ExpressRoute.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network route-table create --resource-group rg-sap-spoke --name rt-sap-app \
+      --location westeurope [[prop]]
+
+    az network route-table route create --resource-group rg-sap-spoke \
+      --route-table-name rt-sap-app --name default-to-fw \
+      --address-prefix [[pfx]] --next-hop-type [[hop]] \
+      --next-hop-ip-address 10.0.1.4
+  slots:
+    - id: prop
+      options:
+        - { id: keep, text: "--disable-bgp-route-propagation false" }
+        - { id: off, text: "--disable-bgp-route-propagation true" }
+    - id: pfx
+      options:
+        - { id: any, text: 0.0.0.0/0 }
+        - { id: onp, text: 192.168.0.0/16 }
+        - { id: hub, text: 10.0.0.0/16 }
+    - id: hop
+      options:
+        - { id: va, text: VirtualAppliance }
+        - { id: gw, text: VirtualNetworkGateway }
+        - { id: inet, text: Internet }
+        - { id: local, text: VnetLocal }
+answer:
+  values: { prop: keep, pfx: any, hop: va }
+explanation:
+  correct:
+    en: "A user-defined route for 0.0.0.0/0 with next hop type VirtualAppliance and the firewall's private IP overrides the system route to the internet. Gateway route propagation must stay enabled so that the BGP routes for the on-premises prefixes are still added to the subnet; being more specific than 0.0.0.0/0, they keep on-premises traffic on the ExpressRoute gateway."
+    fr: "Un itinéraire défini par l'utilisateur 0.0.0.0/0 avec le type de tronçon suivant VirtualAppliance et l'adresse IP privée du pare-feu remplace l'itinéraire système vers Internet. La propagation des itinéraires de passerelle doit rester activée pour que les itinéraires BGP des préfixes locaux soient toujours ajoutés au sous-réseau ; plus spécifiques que 0.0.0.0/0, ils maintiennent le trafic local sur la passerelle ExpressRoute."
+  options:
+    off: { en: "With propagation disabled, the on-premises BGP routes aren't added, so on-premises traffic would follow 0.0.0.0/0 to the firewall.", fr: "Si la propagation est désactivée, les itinéraires BGP locaux ne sont pas ajoutés : le trafic local suivrait 0.0.0.0/0 vers le pare-feu." }
+    onp: { en: "Sending 192.168.0.0/16 to the firewall would force on-premises traffic through it, the opposite of the requirement.", fr: "Envoyer 192.168.0.0/16 vers le pare-feu y ferait passer le trafic local, contrairement à l'exigence." }
+    gw: { en: "The next hop must be the firewall IP; a VirtualNetworkGateway next hop doesn't take a next hop IP address.", fr: "Le tronçon suivant doit être l'adresse IP du pare-feu ; un tronçon VirtualNetworkGateway n'accepte pas d'adresse IP de tronçon suivant." }
+    inet: { en: "Internet as next hop sends traffic straight out, bypassing the firewall.", fr: "Le tronçon Internet envoie le trafic directement vers l'extérieur, sans passer par le pare-feu." }
+references:
+  - title: Azure virtual network traffic routing
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview

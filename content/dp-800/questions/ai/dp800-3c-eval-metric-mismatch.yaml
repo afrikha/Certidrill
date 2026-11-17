@@ -1,0 +1,66 @@
+id: dp800-3c-eval-metric-mismatch
+objective: "3.2.10"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.Docs with 2 million rows. You created the following index.
+
+    ```sql
+    CREATE VECTOR INDEX vix_Docs_Embedding
+    ON dbo.Docs (Embedding)
+    WITH (METRIC = 'cosine', TYPE = 'DiskANN');
+    ```
+
+    The following query takes several seconds. Its execution plan shows a scan of dbo.Docs, and the query returns a warning.
+
+    ```sql
+    SELECT TOP (10) WITH APPROXIMATE d.DocId, r.distance
+    FROM VECTOR_SEARCH(TABLE = dbo.Docs AS d, COLUMN = Embedding,
+                       SIMILAR_TO = @q, METRIC = 'euclidean') AS r
+    ORDER BY r.distance;
+    ```
+
+    The search must use cosine distance, as recommended for the embedding model. You need to reduce the duration of the query.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.Docs de 2 millions de lignes. Vous avez créé l'index suivant.
+
+    ```sql
+    CREATE VECTOR INDEX vix_Docs_Embedding
+    ON dbo.Docs (Embedding)
+    WITH (METRIC = 'cosine', TYPE = 'DiskANN');
+    ```
+
+    La requête suivante prend plusieurs secondes. Son plan d'exécution montre une analyse de dbo.Docs, et la requête renvoie un avertissement.
+
+    ```sql
+    SELECT TOP (10) WITH APPROXIMATE d.DocId, r.distance
+    FROM VECTOR_SEARCH(TABLE = dbo.Docs AS d, COLUMN = Embedding,
+                       SIMILAR_TO = @q, METRIC = 'euclidean') AS r
+    ORDER BY r.distance;
+    ```
+
+    La recherche doit utiliser la distance cosinus, comme le recommande le modèle d'incorporation. Vous devez réduire la durée de la requête.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add TOP_N = 10 to the VECTOR_SEARCH arguments.", fr: "Ajouter TOP_N = 10 aux arguments de VECTOR_SEARCH." } }
+    - { id: b, text: { en: "Replace VECTOR_SEARCH with an ORDER BY on VECTOR_DISTANCE.", fr: "Remplacer VECTOR_SEARCH par un ORDER BY sur VECTOR_DISTANCE." } }
+    - { id: c, text: { en: "Recreate the vector index with MAXDOP = 8.", fr: "Recréer l'index vectoriel avec MAXDOP = 8." } }
+    - { id: d, text: { en: "Change the METRIC argument of the query to 'cosine'.", fr: "Remplacer l'argument METRIC de la requête par 'cosine'." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "VECTOR_SEARCH uses an ANN index only if an index with the same metric exists on the column. Otherwise it raises a warning and runs an exact kNN scan. Using METRIC = 'cosine' in the query matches the index and meets the cosine requirement."
+    fr: "VECTOR_SEARCH n'utilise un index ANN que s'il existe un index de même métrique sur la colonne. Sinon, il renvoie un avertissement et exécute une analyse kNN exacte. Utiliser METRIC = 'cosine' dans la requête correspond à l'index et respecte l'exigence de distance cosinus."
+  options:
+    a: { en: "TOP_N is deprecated and isn't supported with latest-version vector indexes (Msg 42274); it doesn't fix the metric.", fr: "TOP_N est déconseillé et n'est pas pris en charge avec les index vectoriels de dernière version (Msg 42274) ; il ne corrige pas la métrique." }
+    b: { en: "VECTOR_DISTANCE computes an exact search over every qualifying row, which is still a full scan.", fr: "VECTOR_DISTANCE calcule une recherche exacte sur toutes les lignes éligibles, ce qui reste une analyse complète." }
+    c: { en: "MAXDOP only controls the parallelism of the index build; the query still uses another metric than the index.", fr: "MAXDOP ne contrôle que le parallélisme de la création de l'index ; la requête utilise toujours une autre métrique que l'index." }
+references:
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

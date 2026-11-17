@@ -1,0 +1,44 @@
+id: ai200-1a-acr-lock-purge-sequence
+objective: "1.1.1"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The Standard tier Azure container registry **crtailspin** contains hundreds of old tags in the `chat/api` repository. Production runs `chat/api:5.1.0-b977`, which is more than 90 days old.
+
+    You need to delete the tags older than 90 days and the untagged manifests of the repository. The production image must survive the cleanup, and you must review the exact list of artifacts to be deleted before anything is deleted.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Le registre de conteneurs Azure de niveau Standard **crtailspin** contient des centaines d'anciennes balises dans le dépôt `chat/api`. La production exécute `chat/api:5.1.0-b977`, qui date de plus de 90 jours.
+
+    Vous devez supprimer les balises de plus de 90 jours et les manifestes non balisés du dépôt. L'image de production doit survivre au nettoyage, et vous devez examiner la liste exacte des artefacts à supprimer avant toute suppression.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: lock, text: { en: "Run `az acr repository update --name crtailspin --image chat/api:5.1.0-b977 --write-enabled false`.", fr: "Exécuter `az acr repository update --name crtailspin --image chat/api:5.1.0-b977 --write-enabled false`." } }
+    - { id: dry, text: { en: "Run `acr purge --filter 'chat/api:.*' --ago 90d --untagged --dry-run` with `az acr run`.", fr: "Exécuter `acr purge --filter 'chat/api:.*' --ago 90d --untagged --dry-run` avec `az acr run`." } }
+    - { id: purge, text: { en: "Run `acr purge --filter 'chat/api:.*' --ago 90d --untagged` with `az acr run`.", fr: "Exécuter `acr purge --filter 'chat/api:.*' --ago 90d --untagged` avec `az acr run`." } }
+    - { id: locked, text: { en: "Run `acr purge --filter 'chat/api:.*' --ago 90d --untagged --include-locked` with `az acr run`.", fr: "Exécuter `acr purge --filter 'chat/api:.*' --ago 90d --untagged --include-locked` avec `az acr run`." } }
+    - { id: retention, text: { en: "Run `az acr config retention update --registry crtailspin --status enabled --days 90 --type UntaggedManifests`.", fr: "Exécuter `az acr config retention update --registry crtailspin --status enabled --days 90 --type UntaggedManifests`." } }
+    - { id: untag, text: { en: "Run `az acr repository untag --name crtailspin --image chat/api:5.1.0-b977`.", fr: "Exécuter `az acr repository untag --name crtailspin --image chat/api:5.1.0-b977`." } }
+answer:
+  sequence: [ lock, dry, purge ]
+explanation:
+  correct:
+    en: |
+      Lock the production image first: acr purge skips artifacts whose write-enabled or delete-enabled attribute is false. A dry run then shows exactly what would be deleted, with the lock already taken into account, and the same command without --dry-run performs the cleanup. Purged data can't be recovered.
+    fr: |
+      Verrouillez d'abord l'image de production : acr purge ignore les artefacts dont l'attribut write-enabled ou delete-enabled vaut false. Une exécution à blanc (--dry-run) montre ensuite exactement ce qui serait supprimé, verrou compris, puis la même commande sans --dry-run effectue le nettoyage. Les données purgées ne sont pas récupérables.
+  options:
+    locked: { en: "--include-locked unlocks and deletes locked artifacts, so the production image would be deleted.", fr: "--include-locked déverrouille et supprime les artefacts verrouillés : l'image de production serait supprimée." }
+    retention: { en: "The retention policy requires Premium and only handles untagged manifests, not old tags.", fr: "La stratégie de rétention nécessite Premium et ne traite que les manifestes non balisés, pas les anciennes balises." }
+    untag: { en: "Removing the production tag would leave an untagged manifest that the purge deletes.", fr: "Retirer la balise de production laisserait un manifeste non balisé que la purge supprimerait." }
+references:
+  - title: Automatically purge images from an Azure container registry (preview)
+    url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-auto-purge
+  - title: Lock a container image in an Azure container registry
+    url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-image-lock

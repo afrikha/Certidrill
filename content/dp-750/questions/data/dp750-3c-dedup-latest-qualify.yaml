@@ -1,0 +1,84 @@
+id: dp750-3c-dedup-latest-qualify
+objective: "3.3.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso receives every change to a customer profile as a new row in **contoso.bronze.customer_updates**. A customer can have several rows, and two rows of the same customer can have the same **updated_at** value.
+
+    You need a query that returns exactly one row per customer: the most recent update.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso reçoit chaque modification d'un profil client sous forme de nouvelle ligne dans **contoso.bronze.customer_updates**. Un client peut avoir plusieurs lignes, et deux lignes d'un même client peuvent avoir la même valeur **updated_at**.
+
+    Vous avez besoin d'une requête qui renvoie exactement une ligne par client : la mise à jour la plus récente.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT *
+    FROM contoso.bronze.customer_updates
+    [[clause]] [[fn]] OVER (PARTITION BY customer_id
+                           ORDER BY [[ord]]) = 1;
+  slots:
+    - id: clause
+      options:
+        - { id: where, text: WHERE }
+        - { id: having, text: HAVING }
+        - { id: qualify, text: QUALIFY }
+    - id: fn
+      options:
+        - { id: rank, text: rank() }
+        - { id: rownum, text: row_number() }
+        - { id: dense, text: dense_rank() }
+    - id: ord
+      options:
+        - { id: desc, text: updated_at DESC }
+        - { id: asc, text: updated_at ASC }
+        - { id: cust, text: customer_id }
+answer:
+  values: { clause: qualify, fn: rownum, ord: desc }
+explanation:
+  correct:
+    en: |
+      QUALIFY filters the results of window functions, so it can keep only the rows whose window value is 1. `row_number()` numbers the rows of each partition 1, 2, 3 and never repeats a number, so ties on `updated_at` still return a single row. Ordering by `updated_at DESC` gives number 1 to the most recent update of each customer.
+    fr: |
+      QUALIFY filtre les résultats des fonctions de fenêtrage : il peut donc ne garder que les lignes dont la valeur de fenêtre vaut 1. `row_number()` numérote les lignes de chaque partition 1, 2, 3 sans jamais répéter un numéro : les égalités sur `updated_at` renvoient donc toujours une seule ligne. Le tri sur `updated_at DESC` donne le numéro 1 à la mise à jour la plus récente de chaque client.
+  options:
+    where:
+      en: |
+        WHERE is evaluated before window functions, so it cannot filter on a window function result.
+      fr: |
+        WHERE est évalué avant les fonctions de fenêtrage : il ne peut pas filtrer sur le résultat d'une fonction de fenêtrage.
+    having:
+      en: |
+        HAVING filters the groups of a GROUP BY on aggregate values, not the results of window functions.
+      fr: |
+        HAVING filtre les groupes d'un GROUP BY sur des valeurs d'agrégats, pas les résultats des fonctions de fenêtrage.
+    rank:
+      en: "`rank()` gives the same rank to ties, so two updates with the same timestamp would both be ranked 1."
+      fr: "`rank()` attribue le même rang aux égalités : deux mises à jour au même horodatage seraient toutes deux classées 1."
+    dense:
+      en: "`dense_rank()` also gives the same rank to ties and would return several rows for a customer."
+      fr: "`dense_rank()` attribue lui aussi le même rang aux égalités et renverrait plusieurs lignes pour un client."
+    asc:
+      en: |
+        Ascending order gives number 1 to the oldest update.
+      fr: |
+        L'ordre croissant donne le numéro 1 à la mise à jour la plus ancienne.
+    cust:
+      en: |
+        Every row of a partition has the same customer_id, so this order picks an arbitrary row.
+      fr: |
+        Toutes les lignes d'une partition ont le même customer_id : cet ordre choisit une ligne arbitraire.
+references:
+  - title: QUALIFY clause
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-qry-select-qualify

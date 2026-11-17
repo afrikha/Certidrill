@@ -1,0 +1,83 @@
+id: ai300-5b-multi-grader-json
+objective: "5.2.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys fine-tunes o4-mini with reinforcement fine-tuning (RFT). The model returns structured output with a `summary` field and a `priority` field.
+
+    The reward must combine two criteria: the similarity of `summary` to the reference summary, measured with the longest common subsequence, and an exact match of `priority`. The priority must weigh 70 percent of the reward.
+
+    How should you complete the grader definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys effectue le réglage précis par renforcement (RFT) d'o4-mini. Le modèle renvoie une sortie structurée avec un champ `summary` et un champ `priority`.
+
+    La récompense doit combiner deux critères : la similarité de `summary` avec le résumé de référence, mesurée par la plus longue sous-séquence commune, et une correspondance exacte de `priority`. La priorité doit peser 70 % de la récompense.
+
+    Comment devez-vous compléter la définition de l'évaluateur (grader) ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "name": "ticket_grader",
+      "type": [[ptype]],
+      "graders": {
+        "summary_similarity": {
+          "name": "summary_similarity",
+          "type": "text_similarity",
+          "input": "{{sample.output_json.summary}}",
+          "reference": "{{item.summary}}",
+          "evaluation_metric": [[metric]]
+        },
+        "priority_check": {
+          "name": "priority_check",
+          "type": "string_check",
+          "input": "{{sample.output_json.priority}}",
+          "reference": "{{item.priority}}",
+          "operation": "eq"
+        }
+      },
+      [[key]]: "0.3 * summary_similarity + 0.7 * priority_check"
+    }
+  slots:
+    - id: ptype
+      options:
+        - { id: python, text: "\"python\"" }
+        - { id: multi, text: "\"multi\"" }
+        - { id: scoremodel, text: "\"score_model\"" }
+    - id: metric
+      options:
+        - { id: cosine, text: "\"cosine\"" }
+        - { id: fuzzy, text: "\"fuzzy_match\"" }
+        - { id: rougel, text: "\"rouge_l\"" }
+        - { id: bleu, text: "\"bleu\"" }
+    - id: key
+      options:
+        - { id: calc, text: "\"calculate_output\"" }
+        - { id: range, text: "\"range\"" }
+        - { id: operation, text: "\"operation\"" }
+answer:
+  values: { ptype: multi, metric: rougel, key: calc }
+explanation:
+  correct:
+    en: |
+      A `multi` grader combines named child graders, and its `calculate_output` expression computes the final reward from their scores, here with a 0.7 weight on the priority check. The `text_similarity` grader measures the longest common subsequence with `rouge_l`.
+    fr: |
+      Un évaluateur `multi` combine des évaluateurs enfants nommés, et son expression `calculate_output` calcule la récompense finale à partir de leurs scores, ici avec un poids de 0,7 sur la vérification de la priorité. L'évaluateur `text_similarity` mesure la plus longue sous-séquence commune avec `rouge_l`.
+  options:
+    python: { en: "A `python` grader needs a `source` that defines `grade(sample, item)`; it doesn't take child graders.", fr: "Un évaluateur `python` a besoin d'un `source` qui définit `grade(sample, item)` ; il n'accepte pas d'évaluateurs enfants." }
+    scoremodel: { en: "A `score_model` grader asks a grading model to apply a rubric; it doesn't combine child graders.", fr: "Un évaluateur `score_model` demande à un modèle évaluateur d'appliquer une grille ; il ne combine pas d'évaluateurs enfants." }
+    cosine: { en: "Microsoft documents `cosine` for evaluations, not for RFT graders.", fr: "Microsoft réserve `cosine` aux évaluations, pas aux évaluateurs RFT." }
+    fuzzy: { en: "`fuzzy_match` is a supported metric, but it isn't the longest common subsequence.", fr: "`fuzzy_match` est une métrique prise en charge, mais ce n'est pas la plus longue sous-séquence commune." }
+    bleu: { en: "BLEU measures n-gram precision, not the longest common subsequence.", fr: "BLEU mesure la précision des n-grammes, pas la plus longue sous-séquence commune." }
+    range: { en: "`range` sets the score range of a `score_model` grader.", fr: "`range` définit la plage de scores d'un évaluateur `score_model`." }
+    operation: { en: "`operation` belongs to `string_check` graders (`eq`, `ne`, `like`, `ilike`).", fr: "`operation` appartient aux évaluateurs `string_check` (`eq`, `ne`, `like`, `ilike`)." }
+references:
+  - title: Fine-tune a model with reinforcement fine-tuning in Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reinforcement-fine-tuning

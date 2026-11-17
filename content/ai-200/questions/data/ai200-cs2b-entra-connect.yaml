@@ -1,0 +1,74 @@
+id: ai200-cs2b-entra-connect
+objective: "2.2.1"
+type: dropdown
+caseStudy: ai200-cs2b-trey-research
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the code that opens the connection from litscan-api to pg-trey by using psycopg. The environment variable `PGUSER` contains the name of the database role of the managed identity.
+
+    You need to meet the database access requirement. How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le code qui ouvre la connexion de litscan-api vers pg-trey à l'aide de psycopg. La variable d'environnement `PGUSER` contient le nom du rôle de base de données de l'identité managée.
+
+    Vous devez satisfaire l'exigence relative à l'accès à la base de données. Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    import psycopg
+    from azure.identity import ManagedIdentityCredential
+
+    credential = ManagedIdentityCredential()
+
+    def connect():
+        token = credential.get_token([[scope]])
+        return psycopg.connect(
+            host="pg-trey.postgres.database.azure.com",
+            dbname="literature",
+            user=os.environ["PGUSER"],
+            password=[[password]],
+            sslmode="require")
+  slots:
+    - id: scope
+      options:
+        - { id: ossrdbms, text: "\"https://ossrdbms-aad.database.windows.net/.default\"" }
+        - { id: sql, text: "\"https://database.windows.net/.default\"" }
+        - { id: arm, text: "\"https://management.azure.com/.default\"" }
+    - id: password
+      options:
+        - { id: tokenstr, text: token.token }
+        - { id: tokenobj, text: token }
+        - { id: expires, text: str(token.expires_on) }
+answer:
+  values: { scope: ossrdbms, password: tokenstr }
+explanation:
+  correct:
+    en: |
+      Microsoft Entra authentication to Azure Database for PostgreSQL uses access tokens issued for the `https://ossrdbms-aad.database.windows.net` resource, requested with the `/.default` scope. The client sends the token string, `token.token`, as the password of the database role, so no password is stored. The token expires, so the function requests a token for each new connection; the credential object is created once so that its token cache is reused.
+    fr: |
+      L'authentification Microsoft Entra auprès d'Azure Database for PostgreSQL utilise des jetons d'accès émis pour la ressource `https://ossrdbms-aad.database.windows.net`, demandés avec l'étendue `/.default`. Le client envoie la chaîne du jeton, `token.token`, comme mot de passe du rôle de base de données : aucun mot de passe n'est stocké. Le jeton expire : la fonction demande donc un jeton pour chaque nouvelle connexion, et l'objet credential est créé une seule fois pour que son cache de jetons soit réutilisé.
+  options:
+    sql:
+      en: This scope issues tokens for Azure SQL Database, which pg-trey does not accept.
+      fr: Cette étendue délivre des jetons pour Azure SQL Database, que pg-trey n'accepte pas.
+    arm:
+      en: This scope issues tokens for Azure Resource Manager (control plane), not for signing in to the database.
+      fr: Cette étendue délivre des jetons pour Azure Resource Manager (plan de contrôle), pas pour se connecter à la base de données.
+    tokenobj:
+      en: get_token returns an AccessToken object; psycopg expects the token string in its token attribute.
+      fr: get_token renvoie un objet AccessToken ; psycopg attend la chaîne du jeton, qui se trouve dans son attribut token.
+    expires:
+      en: expires_on is the expiration time of the token, not the token itself.
+      fr: expires_on est l'heure d'expiration du jeton, pas le jeton lui-même.
+references:
+  - title: "Quickstart: Use Python to Connect and Query Data in Azure Database for PostgreSQL Flexible Server"
+    url: https://learn.microsoft.com/en-us/azure/postgresql/connectivity/connect-python
+  - title: Use Microsoft Entra ID Authentication in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/security/security-entra-configure

@@ -1,0 +1,52 @@
+id: az700-5b-fw-rules-processing-hotarea
+objective: "5.2.5"
+type: hotarea
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An Azure Firewall named **FW1** is associated with a firewall policy named **FWP1**. FWP1 has no parent policy, and threat intelligence is in Alert only mode. All the spoke subnets route their traffic to FW1.
+
+    FWP1 contains the rule collections shown in the following table. RCG-Apps has the priority 150 and RCG-Core has the priority 300.
+
+    Answer each prompt by selecting the rule collection that processes the connection.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un Pare-feu Azure nommé **FW1** est associé à une stratégie de pare-feu nommée **FWP1**. FWP1 n'a pas de stratégie parente, et le renseignement sur les menaces est en mode Alert only. Tous les sous-réseaux spokes routent leur trafic vers FW1.
+
+    FWP1 contient les collections de règles figurant dans le tableau suivant. RCG-Apps a la priorité 150 et RCG-Core a la priorité 300.
+
+    Répondez à chaque consigne en sélectionnant la collection de règles qui traite la connexion.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text: { en: "HTTPS from 10.1.3.4 to `www.social.example`", fr: "HTTPS de 10.1.3.4 vers `www.social.example`" }
+    - id: p2
+      text: { en: "SSH (TCP 22) from 10.1.5.10 to 10.2.0.20", fr: "SSH (TCP 22) de 10.1.5.10 vers 10.2.0.20" }
+  grid:
+    header: [{ en: "Rule collection group", fr: "Groupe de collections de règles" }, { en: "Rule collection", fr: "Collection de règles" }, Type, { en: "Priority", fr: "Priorité" }, Action, { en: "Rule", fr: "Règle" }]
+    rows:
+      - [{ text: RCG-Apps }, { text: AC-DenySocial, area: acdeny }, { text: { en: Application, fr: Application } }, { text: "160" }, { text: Deny }, { text: { en: "Source 10.1.0.0/16, Https:443, target FQDN *.social.example", fr: "Source 10.1.0.0/16, Https:443, FQDN cible *.social.example" } }]
+      - [{ text: RCG-Apps }, { text: NC-AllowSSH, area: ncssh }, { text: { en: Network, fr: Réseau } }, { text: "170" }, { text: Allow }, { text: { en: "Source 10.1.5.0/24, TCP, destination 10.2.0.0/16, port 22", fr: "Source 10.1.5.0/24, TCP, destination 10.2.0.0/16, port 22" } }]
+      - [{ text: RCG-Apps }, { text: AC-AllowUpdates, area: acupd }, { text: { en: Application, fr: Application } }, { text: "180" }, { text: Allow }, { text: { en: "Source 10.2.0.0/16, Https:443, target FQDN *.update.example", fr: "Source 10.2.0.0/16, Https:443, FQDN cible *.update.example" } }]
+      - [{ text: RCG-Core }, { text: NC-AllowWeb, area: ncweb }, { text: { en: Network, fr: Réseau } }, { text: "310" }, { text: Allow }, { text: { en: "Source 10.1.0.0/16, TCP, destination *, port 443", fr: "Source 10.1.0.0/16, TCP, destination *, port 443" } }]
+      - [{ text: RCG-Core }, { text: NC-DenySSH, area: ncdenyssh }, { text: { en: Network, fr: Réseau } }, { text: "320" }, { text: Deny }, { text: { en: "Source *, TCP, destination 10.2.0.0/16, port 22", fr: "Source *, TCP, destination 10.2.0.0/16, port 22" } }]
+answer:
+  values: { p1: ncweb, p2: ncssh }
+explanation:
+  correct:
+    en: |
+      The firewall evaluates all network rules before any application rule, whatever the priorities of the rule collection groups and collections, and a match stops processing. For p1, NC-AllowWeb matches TCP 443 to any destination, so the connection is allowed before AC-DenySocial is ever evaluated. For p2, the network collections are processed by group priority, then collection priority: NC-AllowSSH in RCG-Apps (150) matches before NC-DenySSH in RCG-Core (300).
+    fr: |
+      Le pare-feu évalue toutes les règles de réseau avant toute règle d'application, quelles que soient les priorités des groupes de collections et des collections, et une correspondance arrête le traitement. Pour p1, NC-AllowWeb correspond à TCP 443 vers n'importe quelle destination : la connexion est autorisée avant même l'évaluation d'AC-DenySocial. Pour p2, les collections de réseau sont traitées par priorité de groupe, puis par priorité de collection : NC-AllowSSH dans RCG-Apps (150) correspond avant NC-DenySSH dans RCG-Core (300).
+  options:
+    acdeny: { en: "Its group has the lower priority number, but application rules are only evaluated when no network rule matches.", fr: "Son groupe a le plus petit numéro de priorité, mais les règles d'application ne sont évaluées que si aucune règle de réseau ne correspond." }
+    ncdenyssh: { en: "RCG-Core (300) is processed after RCG-Apps (150), where NC-AllowSSH already matched.", fr: "RCG-Core (300) est traité après RCG-Apps (150), où NC-AllowSSH a déjà correspondu." }
+references:
+  - title: Azure Firewall rule processing logic
+    url: https://learn.microsoft.com/en-us/azure/firewall/rule-processing
+  - title: Azure Firewall Policy rule sets
+    url: https://learn.microsoft.com/en-us/azure/firewall/policy-rule-sets

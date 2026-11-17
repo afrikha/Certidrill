@@ -1,0 +1,82 @@
+id: ai200-4b-kql-aks-error-pods
+objective: "4.2.2"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Adatum runs its embedding workers in the **rag** namespace of an Azure Kubernetes Service (AKS) cluster. Container insights collects the container logs into the `ContainerLogV2` table.
+
+    You need the five pods of the rag namespace that wrote the most error-level log lines during the last hour.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum exécute ses workers d'embeddings dans l'espace de noms **rag** d'un cluster Azure Kubernetes Service (AKS). Container insights collecte les journaux de conteneurs dans la table `ContainerLogV2`.
+
+    Vous avez besoin des cinq pods de l'espace de noms rag qui ont écrit le plus de lignes de journal de niveau erreur au cours de la dernière heure.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    ContainerLogV2
+    | where TimeGenerated > ago(1h)
+    | where [[ns]] == "rag" and LogLevel == "[[level]]"
+    | summarize Errors = count() by PodName
+    | [[top]] 5 by Errors desc
+  slots:
+    - id: ns
+      options:
+        - { id: podns, text: PodNamespace }
+        - { id: container, text: ContainerName }
+        - { id: computer, text: Computer }
+    - id: level
+      options:
+        - { id: upper, text: ERROR }
+        - { id: lower, text: error }
+        - { id: stderr, text: stderr }
+    - id: top
+      options:
+        - { id: top, text: top }
+        - { id: take, text: take }
+        - { id: distinct, text: distinct }
+answer:
+  values: { ns: podns, level: upper, top: top }
+explanation:
+  correct:
+    en: "`PodNamespace` holds the Kubernetes namespace of the pod. `LogLevel` takes values such as CRITICAL, ERROR, WARNING and INFO, and `==` is case-sensitive, so the value must be uppercase. `top 5 by Errors desc` returns the five pods with the highest counts."
+    fr: "`PodNamespace` contient l'espace de noms Kubernetes du pod. `LogLevel` prend des valeurs comme CRITICAL, ERROR, WARNING et INFO, et `==` respecte la casse : la valeur doit être en majuscules. `top 5 by Errors desc` renvoie les cinq pods ayant les nombres les plus élevés."
+  options:
+    container:
+      en: |-
+        ContainerName is the name of the container, not of its namespace.
+      fr: |-
+        ContainerName est le nom du conteneur, pas de son espace de noms.
+    computer:
+      en: |-
+        Computer is the node that generated the log.
+      fr: |-
+        Computer est le nœud qui a généré le journal.
+    lower:
+      en: "== is case-sensitive and LogLevel values are uppercase."
+      fr: "== respecte la casse et les valeurs de LogLevel sont en majuscules."
+    stderr:
+      en: |-
+        stderr is a value of LogSource, not of LogLevel.
+      fr: |-
+        stderr est une valeur de LogSource, pas de LogLevel.
+    take:
+      en: |-
+        take returns arbitrary rows and doesn't accept a by clause.
+      fr: |-
+        take renvoie des lignes arbitraires et n'accepte pas de clause by.
+references:
+  - title: Azure Monitor Logs reference - ContainerLogV2
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/containerlogv2
+  - title: top operator
+    url: https://learn.microsoft.com/en-us/kusto/query/top-operator

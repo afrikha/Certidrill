@@ -1,0 +1,91 @@
+id: az140-cs2c-humongous
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is an insurance company. It employs 900 claims agents who work in two contact centers, 40 underwriters, and a help desk team.
+
+        Humongous also sells access to a quoting application named **QuoteNow** to 1,200 independent brokerages. The brokers are customers of Humongous, not employees.
+
+        Humongous is subject to strict financial regulations and has completed the first phase of its Azure Virtual Desktop deployment.
+      fr: |
+        Humongous Insurance est une compagnie d'assurance. Elle emploie 900 gestionnaires de sinistres répartis dans deux centres de contact, 40 souscripteurs et une équipe de support technique.
+
+        Humongous vend également l'accès à une application de devis nommée **QuoteNow** à 1 200 cabinets de courtage indépendants. Les courtiers sont des clients de Humongous, pas des employés.
+
+        Humongous est soumise à une réglementation financière stricte et a terminé la première phase de son déploiement Azure Virtual Desktop.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity.** Humongous has an AD DS domain synchronized to Microsoft Entra ID. The domain controllers run in Azure. All the session hosts are AD DS joined.
+
+        **Subscriptions.** **Sub-Internal** contains the internal workloads. **Sub-Brokers** is a new subscription reserved for QuoteNow. Neither subscription is enrolled in per-user access pricing.
+
+        **Network.** Both contact centers connect to a hub virtual network in East US 2 through ExpressRoute. All claims agents connect from a contact center.
+
+        **Azure Virtual Desktop resources.**
+
+        | Resource | Subscription | Region | Configuration |
+        | --- | --- | --- | --- |
+        | HP-Claims | Sub-Internal | East US 2 | Pooled, Windows 11 Enterprise multi-session, claims agents |
+        | HP-Claims-DR | Sub-Internal | Central US | Pooled, same image as HP-Claims, no users assigned |
+        | HP-Underwrite | Sub-Internal | East US 2 | Pooled, Windows 11 Enterprise multi-session, underwriters |
+        | HP-Legacy | Sub-Internal | East US 2 | Pooled, Windows Server 2022, publishes a rating engine as a RemoteApp to the claims agents |
+        | WS-Internal | Sub-Internal | East US 2 | Workspace for the internal application groups |
+
+        The pooled session hosts are re-created every week from a golden image in Azure Compute Gallery. Each re-created session host keeps its name.
+
+        **Profiles.** FSLogix profile containers use the **VHDLocations** setting with the share `\\sthiprofeus2.file.core.windows.net\profiles`. A second share, `\\sthiprofcus.file.core.windows.net\profiles`, exists in Central US. Both storage accounts are joined to AD DS.
+
+        **Licensing.** Claims agents and underwriters have Microsoft 365 E3 licenses. Humongous has Microsoft Defender for Endpoint Plan 2 licenses for all session hosts.
+      fr: |
+        **Identité.** Humongous dispose d'un domaine AD DS synchronisé avec Microsoft Entra ID. Les contrôleurs de domaine s'exécutent dans Azure. Tous les hôtes de session sont joints à AD DS.
+
+        **Abonnements.** **Sub-Internal** contient les charges de travail internes. **Sub-Brokers** est un nouvel abonnement réservé à QuoteNow. Aucun des deux abonnements n'est inscrit à la tarification de l'accès par utilisateur.
+
+        **Réseau.** Les deux centres de contact se connectent à un réseau virtuel hub dans East US 2 par ExpressRoute. Tous les gestionnaires de sinistres se connectent depuis un centre de contact.
+
+        **Ressources Azure Virtual Desktop.**
+
+        | Ressource | Abonnement | Région | Configuration |
+        | --- | --- | --- | --- |
+        | HP-Claims | Sub-Internal | East US 2 | Pooled, Windows 11 Enterprise multi-session, gestionnaires de sinistres |
+        | HP-Claims-DR | Sub-Internal | Central US | Pooled, même image que HP-Claims, aucun utilisateur attribué |
+        | HP-Underwrite | Sub-Internal | East US 2 | Pooled, Windows 11 Enterprise multi-session, souscripteurs |
+        | HP-Legacy | Sub-Internal | East US 2 | Pooled, Windows Server 2022, publie un moteur de tarification en tant que RemoteApp pour les gestionnaires de sinistres |
+        | WS-Internal | Sub-Internal | East US 2 | Espace de travail des groupes d'applications internes |
+
+        Les hôtes de session des pools Pooled sont recréés chaque semaine à partir d'une image de référence dans Azure Compute Gallery. Chaque hôte de session recréé conserve son nom.
+
+        **Profils.** Les conteneurs de profils FSLogix utilisent le paramètre **VHDLocations** avec le partage `\\sthiprofeus2.file.core.windows.net\profiles`. Un second partage, `\\sthiprofcus.file.core.windows.net\profiles`, existe dans Central US. Les deux comptes de stockage sont joints à AD DS.
+
+        **Licences.** Les gestionnaires de sinistres et les souscripteurs disposent de licences Microsoft 365 E3. Humongous dispose de licences Microsoft Defender for Endpoint Plan 2 pour tous les hôtes de session.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Humongous identifies the following requirements:
+
+        1. **Private access.** For HP-Claims, the initial feed discovery, the feed download and the session traffic must use private endpoints. Public network access to WS-Internal and HP-Claims must be disabled.
+        2. **Regional resilience.** If East US 2 becomes unavailable, claims agents must connect to HP-Claims-DR and find their current profile. While both regions are available, each profile change must be written to both shares without a separate replication job.
+        3. **Endpoint protection.** Every pooled session host must be onboarded to Defender for Endpoint and must appear as a single device entry, even after it is re-created.
+        4. **Underwriting data.** The memory of the HP-Underwrite session hosts must be encrypted and protected from the Azure host and hypervisor, and their OS disk encryption keys must be bound to each VM.
+        5. **Broker billing.** Humongous must pay only for the brokers who connect to QuoteNow in a given month. Internal users must not generate per-user access charges.
+        6. **Help desk.** The members of a group named **GRP-Helpdesk** must be able to send messages to HP-Claims users and sign them out, but must not be able to change drain mode.
+        7. **Compliance.** All the users must be correctly licensed, and every permission must follow the principle of least privilege.
+      fr: |
+        Humongous a défini les exigences suivantes :
+
+        1. **Accès privé.** Pour HP-Claims, la découverte initiale du flux, le téléchargement du flux et le trafic des sessions doivent utiliser des points de terminaison privés. L'accès réseau public à WS-Internal et HP-Claims doit être désactivé.
+        2. **Résilience régionale.** Si East US 2 devient indisponible, les gestionnaires de sinistres doivent se connecter à HP-Claims-DR et retrouver leur profil à jour. Tant que les deux régions sont disponibles, chaque modification de profil doit être écrite sur les deux partages sans tâche de réplication distincte.
+        3. **Protection des points de terminaison.** Chaque hôte de session des pools Pooled doit être intégré à Defender for Endpoint et apparaître comme une seule entrée d'appareil, même après avoir été recréé.
+        4. **Données de souscription.** La mémoire des hôtes de session HP-Underwrite doit être chiffrée et protégée de l'hôte Azure et de l'hyperviseur, et les clés de chiffrement de leur disque de système d'exploitation doivent être liées à chaque machine virtuelle.
+        5. **Facturation des courtiers.** Humongous ne doit payer que pour les courtiers qui se connectent à QuoteNow au cours d'un mois donné. Les utilisateurs internes ne doivent générer aucun frais d'accès par utilisateur.
+        6. **Support technique.** Les membres d'un groupe nommé **GRP-Helpdesk** doivent pouvoir envoyer des messages aux utilisateurs de HP-Claims et fermer leur session, mais ne doivent pas pouvoir changer le mode drainage.
+        7. **Conformité.** Tous les utilisateurs doivent disposer des licences appropriées, et chaque autorisation doit respecter le principe du moindre privilège.

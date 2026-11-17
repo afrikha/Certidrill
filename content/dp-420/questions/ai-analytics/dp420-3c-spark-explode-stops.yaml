@@ -1,0 +1,80 @@
+id: dp420-3c-spark-explode-stops
+objective: "3.3.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware mirrors a shipments container into Microsoft Fabric. A lakehouse named lh_logistics has a OneLake shortcut to the mirrored `shipments` table, in which the `stops` array of each shipment is a JSON string.
+
+    A data engineer writes a PySpark notebook that returns one row per stop. Shipments that have no stop yet must still be returned once, with NULL stop values. Reading the data must not consume request units (RUs).
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware met en miroir un conteneur shipments dans Microsoft Fabric. Un lakehouse nommé lh_logistics dispose d'un raccourci OneLake vers la table en miroir `shipments`, dans laquelle le tableau `stops` de chaque expédition est une chaîne JSON.
+
+    Un ingénieur données écrit un notebook PySpark qui renvoie une ligne par étape. Les expéditions qui n'ont encore aucune étape doivent quand même être renvoyées une fois, avec des valeurs d'étape NULL. La lecture des données ne doit pas consommer d'unités de requête (RU).
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    stops_schema = ArrayType(StructType([
+        StructField("city", StringType()),
+        StructField("arrivedAt", TimestampType())
+    ]))
+
+    shipments = spark.sql("SELECT id, carrier, stops FROM [[source]]")
+
+    result = (shipments
+        .withColumn("stop", [[explodeFn]]([[parseFn]](col("stops"), stops_schema)))
+        .select("id", "carrier", "stop.city", "stop.arrivedAt"))
+    display(result)
+  slots:
+    - id: source
+      options:
+        - { id: lakehouse, text: lh_logistics.shipments }
+        - { id: catalog, text: cosmosCatalog.logistics.shipments }
+        - { id: monitoring, text: MirroredDatabaseTableExecution }
+    - id: explodeFn
+      options:
+        - { id: explode, text: explode }
+        - { id: outer, text: explode_outer }
+        - { id: flatten, text: flatten }
+        - { id: collect, text: collect_list }
+    - id: parseFn
+      options:
+        - { id: fromjson, text: from_json }
+        - { id: tojson, text: to_json }
+        - { id: getjson, text: get_json_object }
+        - { id: schemaof, text: schema_of_json }
+answer:
+  values: { source: lakehouse, explodeFn: outer, parseFn: fromjson }
+explanation:
+  correct:
+    en: "The lakehouse shortcut points to the mirrored Delta table in OneLake, so the read runs on Fabric capacity and consumes no RUs. `from_json` parses the JSON string into an array of structs by using the schema, and `explode_outer` returns one row per element while keeping the rows whose array is null or empty, with NULL values."
+    fr: "Le raccourci du lakehouse pointe vers la table Delta en miroir dans OneLake : la lecture s'exécute donc sur la capacité Fabric et ne consomme aucune RU. `from_json` analyse la chaîne JSON en un tableau de structures à l'aide du schéma, et `explode_outer` renvoie une ligne par élément tout en conservant les lignes dont le tableau est null ou vide, avec des valeurs NULL."
+  options:
+    catalog:
+      en: "The Cosmos catalog of the Spark connector reads the operational container, which consumes RUs."
+      fr: "Le catalogue Cosmos du connecteur Spark lit le conteneur opérationnel, ce qui consomme des RU."
+    explode:
+      en: "`explode` drops the rows whose array is null or empty, so shipments without stops would disappear."
+      fr: "`explode` supprime les lignes dont le tableau est null ou vide : les expéditions sans étape disparaîtraient donc."
+    flatten:
+      en: "`flatten` merges an array of arrays into a single array; it doesn't create one row per element."
+      fr: "`flatten` fusionne un tableau de tableaux en un seul tableau ; il ne crée pas une ligne par élément."
+    tojson:
+      en: "`to_json` converts a struct or array into a JSON string, the opposite of what is needed."
+      fr: "`to_json` convertit une structure ou un tableau en chaîne JSON, l'inverse de ce qui est nécessaire."
+    getjson:
+      en: "`get_json_object` extracts a single value as a string by using a path; it doesn't return a typed array to explode."
+      fr: "`get_json_object` extrait une seule valeur sous forme de chaîne à l'aide d'un chemin ; il ne renvoie pas de tableau typé à développer."
+references:
+  - title: "How to: Access mirrored Azure Cosmos DB data in Lakehouse and notebooks from Microsoft Fabric"
+    url: https://learn.microsoft.com/en-us/fabric/mirroring/azure-cosmos-db-lakehouse-notebooks

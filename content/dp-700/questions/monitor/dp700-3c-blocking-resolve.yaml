@@ -1,0 +1,68 @@
+id: dp700-3c-blocking-resolve
+objective: "3.2.6"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are a member of the Admin role of a Fabric workspace that contains a warehouse named DW_Finance.
+
+    A report query on dbo.GeneralLedger has been running for 40 minutes, although it usually completes in seconds. You query the dynamic management views and find the following:
+
+    - In sys.dm_exec_requests, the report query has blocking_session_id = 87.
+    - In sys.dm_exec_sessions, session 87 has the status sleeping and open_transaction_count = 1.
+    - Session 87 belongs to a data engineer who ran an UPDATE on dbo.GeneralLedger in the query editor an hour ago.
+
+    You need to unblock the report query.
+
+    Which two actions should you perform? Each correct answer presents a complete solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous êtes membre du rôle Admin d'un espace de travail Fabric qui contient un entrepôt nommé DW_Finance.
+
+    Une requête de rapport sur dbo.GeneralLedger s'exécute depuis 40 minutes, alors qu'elle se termine d'habitude en quelques secondes. Vous interrogez les vues de gestion dynamique et vous constatez ce qui suit :
+
+    - Dans sys.dm_exec_requests, la requête du rapport a blocking_session_id = 87.
+    - Dans sys.dm_exec_sessions, la session 87 a l'état sleeping et open_transaction_count = 1.
+    - La session 87 appartient à un ingénieur données qui a exécuté un UPDATE sur dbo.GeneralLedger dans l'éditeur de requête il y a une heure.
+
+    Vous devez débloquer la requête du rapport.
+
+    Quelles sont les deux actions à effectuer ? Chaque bonne réponse constitue une solution complète.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "Ask the data engineer to run COMMIT or ROLLBACK in session 87.", fr: "Demander à l'ingénieur données d'exécuter COMMIT ou ROLLBACK dans la session 87." } }
+    - { id: b, text: { en: "Run KILL 87 in DW_Finance.", fr: "Exécuter KILL 87 dans DW_Finance." } }
+    - { id: c, text: { en: "Add SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED to the report query.", fr: "Ajouter SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED à la requête du rapport." } }
+    - { id: d, text: { en: "Run UPDATE STATISTICS on dbo.GeneralLedger.", fr: "Exécuter UPDATE STATISTICS sur dbo.GeneralLedger." } }
+    - { id: e, text: { en: "Add OPTION (FORCE DISTRIBUTED PLAN) to the report query.", fr: "Ajouter OPTION (FORCE DISTRIBUTED PLAN) à la requête du rapport." } }
+answer: { optionIds: [a, b] }
+explanation:
+  correct:
+    en: |
+      Session 87 is idle but still holds an open transaction, and the warehouse locks the whole table for DML, so the report waits on its lock. Ending the transaction with COMMIT or ROLLBACK releases the lock, which is the preferred fix. As a last resort, a member of the workspace Admin role can run KILL 87, which rolls back the transaction and releases the locks.
+    fr: |
+      La session 87 est inactive mais garde une transaction ouverte, et l'entrepôt verrouille toute la table pour le DML : le rapport attend donc ce verrou. Terminer la transaction par COMMIT ou ROLLBACK libère le verrou, ce qui est la correction à privilégier. En dernier recours, un membre du rôle Admin de l'espace de travail peut exécuter KILL 87, qui annule la transaction et libère les verrous.
+  options:
+    c:
+      en: |
+        The warehouse applies snapshot isolation to every transaction; a different isolation level set in T-SQL is ignored.
+      fr: |
+        L'entrepôt applique l'isolement de capture instantanée à chaque transaction ; un autre niveau d'isolation défini en T-SQL est ignoré.
+    d:
+      en: |
+        Statistics affect query plans. They do not release the lock held by session 87, and the update itself needs to access the table.
+      fr: |
+        Les statistiques influencent les plans de requête. Elles ne libèrent pas le verrou détenu par la session 87, et leur mise à jour doit elle-même accéder à la table.
+    e:
+      en: |
+        This hint changes how the plan is built for non-scalable operations. A plan change does not remove a lock wait.
+      fr: |
+        Cet indicateur change la construction du plan pour les opérations non scalables. Un changement de plan ne supprime pas une attente de verrou.
+references:
+  - title: Troubleshoot Query Blocking in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/troubleshoot-query-blocking

@@ -1,0 +1,86 @@
+id: dp420-1e-kit-csharp-repo
+objective: "1.5.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam stores orders in an Azure Cosmos DB for NoSQL container named **orders** in the database **sales**. The partition key is `/customerId`, and the `id` of each item is the order ID. The `CosmosClient` is registered once as a singleton.
+
+    Your AI coding assistant uses the Azure Cosmos DB Agent Kit to review the following repository class. You need to apply its recommendations:
+
+    - `GetOrderAsync` must return one order at the lowest request unit (RU) cost.
+    - `ListOrders` must return only the `id`, `status` and `total` properties of one customer's orders, without a cross-partition query, and must be safe against injection.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam stocke des commandes dans un conteneur Azure Cosmos DB for NoSQL nommé **orders** de la base de données **sales**. La clé de partition est `/customerId`, et l'`id` de chaque élément est l'ID de la commande. Le `CosmosClient` est inscrit une seule fois comme singleton.
+
+    Votre assistant de codage IA utilise Azure Cosmos DB Agent Kit pour réviser la classe de dépôt suivante. Vous devez appliquer ses recommandations :
+
+    - `GetOrderAsync` doit renvoyer une commande au coût en unités de requête (RU) le plus bas ;
+    - `ListOrders` doit renvoyer uniquement les propriétés `id`, `status` et `total` des commandes d'un client, sans requête entre partitions, et doit être protégée contre l'injection.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    public class OrderRepository(CosmosClient client)
+    {
+        private readonly Container _orders = client.GetContainer("sales", "orders");
+
+        public async Task<Order> GetOrderAsync(string orderId, string customerId)
+        {
+            ItemResponse<Order> response = await _orders.[[read]];
+            return response.Resource;
+        }
+
+        public FeedIterator<OrderSummary> ListOrders(string customerId)
+        {
+            QueryDefinition query = new QueryDefinition([[sql]])
+                .WithParameter("@customerId", customerId);
+            return _orders.GetItemQueryIterator<OrderSummary>(query,
+                requestOptions: new QueryRequestOptions { PartitionKey = [[pk]] });
+        }
+    }
+  slots:
+    - id: read
+      options:
+        - { id: byid, text: "ReadItemAsync<Order>(orderId, new PartitionKey(customerId))" }
+        - { id: swapped, text: "ReadItemAsync<Order>(customerId, new PartitionKey(orderId))" }
+        - { id: stream, text: "ReadItemStreamAsync(orderId, new PartitionKey(customerId))" }
+    - id: sql
+      options:
+        - { id: star, text: "\"SELECT * FROM c WHERE c.customerId = @customerId\"" }
+        - { id: concat, text: "$\"SELECT c.id, c.status, c.total FROM c WHERE c.customerId = '{customerId}'\"" }
+        - { id: proj, text: "\"SELECT c.id, c.status, c.total FROM c WHERE c.customerId = @customerId\"" }
+    - id: pk
+      options:
+        - { id: none, text: PartitionKey.None }
+        - { id: path, text: "new PartitionKey(\"/customerId\")" }
+        - { id: value, text: new PartitionKey(customerId) }
+answer:
+  values: { read: byid, sql: proj, pk: value }
+explanation:
+  correct:
+    en: |
+      A point read with ReadItemAsync, the item id and the partition key value is the cheapest way to fetch one item, and it returns the typed ItemResponse. The parameterized query projects only the three needed properties, which reduces the payload and can lower the RU charge, and the @customerId parameter avoids injection. Setting PartitionKey to the customer's value in QueryRequestOptions keeps the query in a single logical partition.
+    fr: |
+      Une lecture de point avec ReadItemAsync, l'id de l'élément et la valeur de clé de partition est le moyen le moins coûteux de récupérer un élément, et elle renvoie l'ItemResponse typée. La requête paramétrée ne projette que les trois propriétés nécessaires, ce qui réduit la taille des données renvoyées et peut réduire la charge en RU, et le paramètre @customerId évite l'injection. Définir PartitionKey sur la valeur du client dans QueryRequestOptions maintient la requête dans une seule partition logique.
+  options:
+    swapped: { en: "The arguments are reversed: the first argument is the item id and the second is the partition key value.", fr: "Les arguments sont inversés : le premier est l'id de l'élément et le second la valeur de clé de partition." }
+    stream: { en: "ReadItemStreamAsync returns a ResponseMessage, not an ItemResponse<Order>, so the code does not compile.", fr: "ReadItemStreamAsync renvoie un ResponseMessage, et non un ItemResponse<Order> : le code ne se compile pas." }
+    star: { en: "SELECT * returns every property instead of the three that the requirement asks for.", fr: "SELECT * renvoie toutes les propriétés au lieu des trois demandées par l'exigence." }
+    concat: { en: "String interpolation puts the input into the query text, which allows injection and leaves the parameter unused.", fr: "L'interpolation de chaîne place l'entrée dans le texte de la requête, ce qui permet l'injection et laisse le paramètre inutilisé." }
+    none: { en: "PartitionKey.None targets items without a partition key value, not the customer's partition.", fr: "PartitionKey.None cible les éléments sans valeur de clé de partition, pas la partition du client." }
+    path: { en: "A PartitionKey takes the value of the key, not the path of the partition key definition.", fr: "Un PartitionKey prend la valeur de la clé, pas le chemin de la définition de clé de partition." }
+references:
+  - title: Optimize Request Cost - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/optimize-cost-reads-writes
+  - title: Use the Azure Cosmos DB Agent Kit - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agent-kit/usage

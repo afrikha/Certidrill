@@ -1,0 +1,76 @@
+id: dp420-3c-spark-change-feed
+objective: "3.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin Toys writes game events to an Azure Cosmos DB for NoSQL container named events. A Spark structured streaming job in a Microsoft Fabric notebook must copy new events to a container named eventsByPlayer, which is partitioned by player.
+
+    The job must process only the events written after it starts for the first time, and each micro-batch must contain about 100,000 items at most. The connection settings are in `cfg`.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys écrit des événements de jeu dans un conteneur Azure Cosmos DB for NoSQL nommé events. Un travail de streaming structuré Spark dans un notebook Microsoft Fabric doit copier les nouveaux événements dans un conteneur nommé eventsByPlayer, partitionné par joueur.
+
+    Le travail ne doit traiter que les événements écrits après son premier démarrage, et chaque micro-lot doit contenir au plus 100 000 éléments environ. Les paramètres de connexion se trouvent dans `cfg`.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    read_cfg = dict(cfg)
+    read_cfg["spark.cosmos.container"] = "events"
+    read_cfg["spark.cosmos.changeFeed.startFrom"] = "[[startFrom]]"
+    read_cfg["[[batchSetting]]"] = "100000"
+
+    events = spark.readStream.format("[[sourceFormat]]").options(**read_cfg).load()
+
+    write_cfg = dict(cfg)
+    write_cfg["spark.cosmos.container"] = "eventsByPlayer"
+    (events.writeStream.format("cosmos.oltp").outputMode("append")
+        .option("checkpointLocation", "Files/checkpoints/events")
+        .options(**write_cfg).start())
+  slots:
+    - id: startFrom
+      options:
+        - { id: now, text: Now }
+        - { id: beginning, text: Beginning }
+        - { id: latest, text: LatestVersion }
+    - id: batchSetting
+      options:
+        - { id: hint, text: spark.cosmos.changeFeed.itemCountPerTriggerHint }
+        - { id: maxitem, text: spark.cosmos.read.maxItemCount }
+        - { id: concurrency, text: spark.cosmos.write.point.maxConcurrency }
+    - id: sourceFormat
+      options:
+        - { id: cf, text: cosmos.oltp.changeFeed }
+        - { id: oltp, text: cosmos.oltp }
+        - { id: deltafmt, text: delta }
+answer:
+  values: { startFrom: now, batchSetting: hint, sourceFormat: cf }
+explanation:
+  correct:
+    en: "The `cosmos.oltp.changeFeed` format reads the change feed of a container as a streaming source. `startFrom` set to `Now` skips the existing items, and it applies only to the first start because a restarted query resumes from its checkpoint. `itemCountPerTriggerHint` caps the approximate number of items per micro-batch; without it, the first micro-batch processes all available changes."
+    fr: "Le format `cosmos.oltp.changeFeed` lit le flux de modification d'un conteneur comme source de streaming. `startFrom` défini sur `Now` ignore les éléments existants, et ne s'applique qu'au premier démarrage, car une requête redémarrée reprend à partir de son point de contrôle. `itemCountPerTriggerHint` plafonne le nombre approximatif d'éléments par micro-lot ; sans lui, le premier micro-lot traite toutes les modifications disponibles."
+  options:
+    beginning:
+      en: "`Beginning` replays the container's history, including the events written before the job started."
+      fr: "`Beginning` relit l'historique du conteneur, y compris les événements écrits avant le démarrage du travail."
+    latest:
+      en: "`LatestVersion` is a value of `spark.cosmos.changeFeed.mode`, not a starting point."
+      fr: "`LatestVersion` est une valeur de `spark.cosmos.changeFeed.mode`, pas un point de départ."
+    maxitem:
+      en: "`spark.cosmos.read.maxItemCount` sets the page size of each request, not the size of a streaming micro-batch."
+      fr: "`spark.cosmos.read.maxItemCount` définit la taille de page de chaque requête, pas la taille d'un micro-lot de streaming."
+    oltp:
+      en: "`cosmos.oltp` reads the current items of the container in batch, not its change feed as a stream."
+      fr: "`cosmos.oltp` lit les éléments actuels du conteneur en mode batch, pas son flux de modification en streaming."
+references:
+  - title: Change feed with Apache Spark
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-spark

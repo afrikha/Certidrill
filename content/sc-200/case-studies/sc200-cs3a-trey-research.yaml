@@ -1,0 +1,77 @@
+id: sc200-cs3a-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a pharmaceutical research company that operates three laboratories. A security operations center (SOC) of five analysts and two detection engineers monitors the company.
+
+        Trey Research has a Microsoft 365 E5 subscription. The SOC uses the Microsoft Defender portal and a Microsoft Sentinel workspace named **law-trey-soc** in a resource group named **RG-SOC**. The workspace is onboarded to the Defender portal, and the Microsoft Sentinel data lake is enabled.
+      fr: |
+        Trey Research est une société de recherche pharmaceutique qui exploite trois laboratoires. Un centre des opérations de sécurité (SOC) composé de cinq analystes et de deux ingénieurs de détection surveille l'entreprise.
+
+        Trey Research dispose d'un abonnement Microsoft 365 E5. Le SOC utilise le portail Microsoft Defender et un espace de travail Microsoft Sentinel nommé **law-trey-soc** dans un groupe de ressources nommé **RG-SOC**. L'espace de travail est intégré au portail Defender et le data lake Microsoft Sentinel est activé.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        | Name | Type | Configuration |
+        | --- | --- | --- |
+        | LNX-FWD1 | On-premises Linux server | rsyslog log forwarder, Azure Arc-enabled, Azure Monitor Agent installed |
+        | FW1, FW2 | Firewalls | Send CEF messages to LNX-FWD1 on the local4 facility. The facility cannot be changed. |
+        | ICTRL1 to ICTRL12 | Lab instrument controllers (Linux appliances) | Send standard Syslog messages to LNX-FWD1 on the local4 facility |
+        | WEC1 | On-premises Windows Server 2022 | Windows Event Collector that receives the Security log of the lab servers by using Windows Event Forwarding (WEF). Azure Arc-enabled. |
+        | LAB-SRV01 to LAB-SRV30 | On-premises Windows Server 2022 | Isolated lab network with no internet access. They can reach WEC1 only. |
+        | LABWS-001 to LABWS-400 | Windows 11 lab workstations | Onboarded to Microsoft Defender for Endpoint |
+
+        The firewalls generate about 900 GB of logs per day.
+
+        Permissions:
+
+        - The analysts have the Microsoft Sentinel Responder role on RG-SOC and a Defender for Endpoint custom role named **SOC Analyst** that includes basic live response capabilities only.
+        - The detection engineers have the Microsoft Sentinel Contributor role on RG-SOC. They have no Microsoft Entra roles.
+
+        In the Defender for Endpoint advanced features, live response is turned on and unsigned script execution is turned off.
+      fr: |
+        | Nom | Type | Configuration |
+        | --- | --- | --- |
+        | LNX-FWD1 | Serveur Linux local | Redirecteur de journaux rsyslog, compatible Azure Arc, agent Azure Monitor installé |
+        | FW1, FW2 | Pare-feu | Envoient des messages CEF à LNX-FWD1 sur la facility local4. La facility ne peut pas être modifiée. |
+        | ICTRL1 à ICTRL12 | Contrôleurs d'instruments de laboratoire (appliances Linux) | Envoient des messages Syslog standard à LNX-FWD1 sur la facility local4 |
+        | WEC1 | Windows Server 2022 local | Collecteur d'événements Windows qui reçoit le journal Security des serveurs de laboratoire par le transfert d'événements Windows (WEF). Compatible Azure Arc. |
+        | LAB-SRV01 à LAB-SRV30 | Windows Server 2022 local | Réseau de laboratoire isolé, sans accès à Internet. Ils peuvent joindre uniquement WEC1. |
+        | LABWS-001 à LABWS-400 | Postes de travail de laboratoire Windows 11 | Intégrés à Microsoft Defender pour point de terminaison |
+
+        Les pare-feu génèrent environ 900 Go de journaux par jour.
+
+        Autorisations :
+
+        - Les analystes disposent du rôle Microsoft Sentinel Responder sur RG-SOC et d'un rôle personnalisé Defender pour point de terminaison nommé **SOC Analyst** qui inclut uniquement les fonctionnalités de réponse dynamique de base.
+        - Les ingénieurs de détection disposent du rôle Microsoft Sentinel Contributor sur RG-SOC. Ils n'ont aucun rôle Microsoft Entra.
+
+        Dans les fonctionnalités avancées de Defender pour point de terminaison, la réponse dynamique (live response) est activée et l'exécution de scripts non signés est désactivée.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Trey Research identifies the following requirements:
+
+        1. **Firewall and instrument logs**: the messages of FW1, FW2 and the instrument controllers must be ingested into law-trey-soc through LNX-FWD1. Each message must be ingested only once.
+        2. **Lab servers**: the Security events of LAB-SRV01 to LAB-SRV30 must be collected through WEC1. No software can be installed on the lab servers.
+        3. **Firewall retention**: the raw firewall logs must be kept for two years at the lowest possible cost. They are not used by analytics rules or hunting queries.
+        4. **Denied connections**: an analytics rule must be able to query an hourly table, in the Analytics tier, that contains the number of denied connections per source IP address. The detection engineers must create this table by using the permissions they already have.
+        5. **Live response**: during investigations, the analysts must be able to download files from the lab workstations and run the vendor-signed PowerShell script **Check-LabDrivers.ps1** on them. Permissions must follow the principle of least privilege.
+        6. **Hunting**: the SOC must identify the accounts that sign in interactively to more than 10 lab workstations within the same clock hour.
+      fr: |
+        Trey Research a défini les exigences suivantes :
+
+        1. **Journaux des pare-feu et des instruments** : les messages de FW1, FW2 et des contrôleurs d'instruments doivent être ingérés dans law-trey-soc par l'intermédiaire de LNX-FWD1. Chaque message ne doit être ingéré qu'une seule fois.
+        2. **Serveurs de laboratoire** : les événements Security de LAB-SRV01 à LAB-SRV30 doivent être collectés par l'intermédiaire de WEC1. Aucun logiciel ne peut être installé sur les serveurs de laboratoire.
+        3. **Rétention des pare-feu** : les journaux bruts des pare-feu doivent être conservés deux ans au coût le plus bas possible. Ils ne sont utilisés ni par des règles d'analytique ni par des requêtes de chasse.
+        4. **Connexions refusées** : une règle d'analytique doit pouvoir interroger une table horaire, dans le niveau Analytics, qui contient le nombre de connexions refusées par adresse IP source. Les ingénieurs de détection doivent créer cette table avec les autorisations dont ils disposent déjà.
+        5. **Réponse dynamique** : pendant les investigations, les analystes doivent pouvoir télécharger des fichiers depuis les postes de travail de laboratoire et y exécuter le script PowerShell **Check-LabDrivers.ps1**, signé par l'éditeur. Les autorisations doivent respecter le principe du moindre privilège.
+        6. **Chasse** : le SOC doit identifier les comptes qui se connectent de manière interactive à plus de 10 postes de travail de laboratoire au cours d'une même heure d'horloge.

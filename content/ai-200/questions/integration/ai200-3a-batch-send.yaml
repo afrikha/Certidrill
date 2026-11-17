@@ -1,0 +1,101 @@
+id: ai200-3a-batch-send
+objective: "3.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware splits each uploaded document into thousands of chunks. A Python ingestion job sends one Service Bus message per chunk to a queue named **chunks** so that embedding workers can process them.
+
+    The job must send the messages in as few calls as possible, never exceed the size limit of a single send, and store no secret in its code or configuration. The job runs with a managed identity that has the Azure Service Bus Data Sender role on the queue.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware découpe chaque document chargé en milliers de segments. Une tâche d'ingestion Python envoie un message Service Bus par segment à une file d'attente nommée **chunks** pour que des workers de vectorisation les traitent.
+
+    La tâche doit envoyer les messages en un minimum d'appels, ne jamais dépasser la taille limite d'un envoi, et ne stocker aucun secret dans son code ni dans sa configuration. La tâche s'exécute avec une identité managée qui dispose du rôle Azure Service Bus Data Sender sur la file d'attente.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.servicebus import ServiceBusClient, ServiceBusMessage
+
+    client = ServiceBusClient("sb-proseware.servicebus.windows.net", [[cred]])
+
+    with client.get_queue_sender(queue_name="chunks") as sender:
+        batch = sender.[[create]]()
+        for chunk in chunks:
+            msg = ServiceBusMessage(chunk.to_json(), content_type="application/json")
+            try:
+                batch.add_message(msg)
+            except ValueError:
+                sender.send_messages(batch)
+                batch = sender.create_message_batch()
+                batch.add_message(msg)
+        sender.[[final]](batch)
+  slots:
+    - id: cred
+      options:
+        - { id: dac, text: DefaultAzureCredential() }
+        - { id: named, text: "AzureNamedKeyCredential(\"sender\", os.environ[\"SB_KEY\"])" }
+        - { id: sas, text: "AzureSasCredential(os.environ[\"SB_SAS\"])" }
+    - id: create
+      options:
+        - { id: batch, text: create_message_batch }
+        - { id: schedule, text: schedule_messages }
+        - { id: send, text: send_messages }
+    - id: final
+      options:
+        - { id: sendfinal, text: send_messages }
+        - { id: cancel, text: cancel_scheduled_messages }
+        - { id: batchfinal, text: create_message_batch }
+answer:
+  values: { cred: dac, create: batch, final: sendfinal }
+explanation:
+  correct:
+    en: |
+      DefaultAzureCredential uses the managed identity, so no key or SAS token is stored. create_message_batch returns a batch sized to the limit of the tier; add_message raises ValueError when the next message doesn't fit, so the code sends the full batch and starts a new one. The last, partly filled batch must still be sent with send_messages after the loop.
+    fr: |
+      DefaultAzureCredential utilise l'identité managée : aucune clé ni aucun jeton SAS n'est stocké. create_message_batch renvoie un lot dimensionné selon la limite du niveau ; add_message lève ValueError quand le message suivant ne tient pas, le code envoie alors le lot plein et en commence un nouveau. Le dernier lot, partiellement rempli, doit encore être envoyé avec send_messages après la boucle.
+  options:
+    named:
+      en: |
+        A shared access key read from an environment variable is still a secret stored in the configuration.
+      fr: |
+        Une clé d'accès partagé lue dans une variable d'environnement reste un secret stocké dans la configuration.
+    sas:
+      en: |
+        A SAS token is a secret too, and it expires.
+      fr: |
+        Un jeton SAS est lui aussi un secret, et il expire.
+    schedule:
+      en: |
+        schedule_messages enqueues messages at a given time; it doesn't create a batch object.
+      fr: |
+        schedule_messages place des messages en file d'attente à une heure donnée ; il ne crée pas d'objet lot.
+    send:
+      en: |
+        send_messages without arguments sends nothing and doesn't return a batch.
+      fr: |
+        send_messages sans argument n'envoie rien et ne renvoie pas de lot.
+    cancel:
+      en: |
+        cancel_scheduled_messages takes sequence numbers of scheduled messages; the last batch would never be sent.
+      fr: |
+        cancel_scheduled_messages prend des numéros de séquence de messages planifiés ; le dernier lot ne serait jamais envoyé.
+    batchfinal:
+      en: |
+        Creating another batch leaves the messages of the last batch unsent.
+      fr: |
+        Créer un autre lot laisse les messages du dernier lot non envoyés.
+references:
+  - title: azure.servicebus.ServiceBusSender class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.servicebussender
+  - title: Get started with Azure Service Bus topics (Python)
+    url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-python-how-to-use-topics-subscriptions

@@ -1,0 +1,73 @@
+id: dp300-2b-cle-encrypt-script
+objective: "2.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named **Procurement** that contains a table named Finance.Supplier. The table has a column named Iban of type nvarchar(34).
+
+    You need to encrypt the Iban values by using column-level encryption with a symmetric key protected by a certificate. The encrypted values must be stored in a new column named IbanEnc.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée **Procurement** qui contient une table nommée Finance.Supplier. La table possède une colonne nommée Iban de type nvarchar(34).
+
+    Vous devez chiffrer les valeurs Iban à l'aide du chiffrement au niveau des colonnes avec une clé symétrique protégée par un certificat. Les valeurs chiffrées doivent être stockées dans une nouvelle colonne nommée IbanEnc.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE MASTER KEY ENCRYPTION BY PASSWORD = 'Str0ng!Db#Master26';
+    CREATE CERTIFICATE PayCert WITH SUBJECT = 'Supplier IBAN';
+    CREATE SYMMETRIC KEY PayKey WITH ALGORITHM = AES_256
+      ENCRYPTION BY [[prot]] PayCert;
+
+    ALTER TABLE Finance.Supplier ADD IbanEnc [[type]];
+
+    OPEN SYMMETRIC KEY PayKey DECRYPTION BY CERTIFICATE PayCert;
+    UPDATE Finance.Supplier
+    SET IbanEnc = [[fn]](KEY_GUID('PayKey'), Iban);
+    CLOSE SYMMETRIC KEY PayKey;
+  slots:
+    - id: prot
+      options:
+        - { id: srvcert, text: SERVER CERTIFICATE }
+        - { id: cert, text: CERTIFICATE }
+        - { id: asym, text: ASYMMETRIC KEY }
+    - id: type
+      options:
+        - { id: nvarchar, text: nvarchar(256) }
+        - { id: guid, text: uniqueidentifier }
+        - { id: varbinary, text: varbinary(256) }
+    - id: fn
+      options:
+        - { id: bycert, text: ENCRYPTBYCERT }
+        - { id: bykey, text: ENCRYPTBYKEY }
+        - { id: hash, text: HASHBYTES }
+        - { id: pass, text: ENCRYPTBYPASSPHRASE }
+answer:
+  values: { prot: cert, type: varbinary, fn: bykey }
+explanation:
+  correct:
+    en: "In the key hierarchy, the symmetric key is protected with ENCRYPTION BY CERTIFICATE. ENCRYPTBYKEY returns varbinary (up to 8,000 bytes), so the target column must be varbinary. ENCRYPTBYKEY takes the GUID of the open symmetric key, returned by KEY_GUID, and the cleartext."
+    fr: "Dans la hiérarchie des clés, la clé symétrique est protégée par ENCRYPTION BY CERTIFICATE. ENCRYPTBYKEY renvoie un varbinary (jusqu'à 8 000 octets) : la colonne cible doit donc être de type varbinary. ENCRYPTBYKEY prend le GUID de la clé symétrique ouverte, renvoyé par KEY_GUID, et le texte clair."
+  options:
+    srvcert: { en: "SERVER CERTIFICATE is the syntax of CREATE DATABASE ENCRYPTION KEY for TDE, not of CREATE SYMMETRIC KEY.", fr: "SERVER CERTIFICATE est la syntaxe de CREATE DATABASE ENCRYPTION KEY pour TDE, pas celle de CREATE SYMMETRIC KEY." }
+    asym: { en: "PayCert is a certificate, not an asymmetric key.", fr: "PayCert est un certificat, pas une clé asymétrique." }
+    nvarchar: { en: "The ciphertext is binary data; storing it in a character column is not appropriate.", fr: "Le texte chiffré est une donnée binaire ; il n'est pas approprié de le stocker dans une colonne de type caractère." }
+    guid: { en: "uniqueidentifier stores a 16-byte GUID; it cannot hold the ciphertext returned by ENCRYPTBYKEY.", fr: "uniqueidentifier stocke un GUID de 16 octets ; il ne peut pas contenir le texte chiffré renvoyé par ENCRYPTBYKEY." }
+    bycert: { en: "ENCRYPTBYCERT encrypts with a certificate's public key and expects a certificate ID, not a symmetric key GUID.", fr: "ENCRYPTBYCERT chiffre avec la clé publique d'un certificat et attend un ID de certificat, pas le GUID d'une clé symétrique." }
+    hash: { en: "HASHBYTES computes a one-way hash; the values could never be decrypted.", fr: "HASHBYTES calcule un hachage unidirectionnel ; les valeurs ne pourraient jamais être déchiffrées." }
+    pass: { en: "ENCRYPTBYPASSPHRASE derives a key from a passphrase; it does not use PayKey.", fr: "ENCRYPTBYPASSPHRASE dérive une clé d'une phrase secrète ; il n'utilise pas PayKey." }
+references:
+  - title: Encrypt a column of data
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/encryption/encrypt-a-column-of-data
+  - title: ENCRYPTBYKEY (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/encryptbykey-transact-sql

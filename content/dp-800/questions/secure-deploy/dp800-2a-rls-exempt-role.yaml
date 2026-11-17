@@ -1,0 +1,60 @@
+id: dp800-2a-rls-exempt-role
+objective: "2.1.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL Database. The following function is used by an enabled security policy as the filter predicate of **dbo.Shipment**.
+
+    ```text
+    CREATE FUNCTION Security.fn_RegionPredicate (@Region nvarchar(20))
+        RETURNS TABLE
+        WITH SCHEMABINDING
+    AS
+        RETURN SELECT 1 AS fn_result
+        WHERE @Region = CAST(SESSION_CONTEXT(N'Region') AS nvarchar(20));
+    ```
+
+    Members of the database role **ReportingAdmins** connect with SQL Server Management Studio, which doesn't set a session context. They see no rows in dbo.Shipment.
+
+    ReportingAdmins members must see every row. The filtering must not change for other users, and the security policy must stay enabled. What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL Database. La fonction suivante est utilisée par une stratégie de sécurité activée comme prédicat de filtre de **dbo.Shipment**.
+
+    ```text
+    CREATE FUNCTION Security.fn_RegionPredicate (@Region nvarchar(20))
+        RETURNS TABLE
+        WITH SCHEMABINDING
+    AS
+        RETURN SELECT 1 AS fn_result
+        WHERE @Region = CAST(SESSION_CONTEXT(N'Region') AS nvarchar(20));
+    ```
+
+    Les membres du rôle de base de données **ReportingAdmins** se connectent avec SQL Server Management Studio, qui ne définit pas de contexte de session. Ils ne voient aucune ligne dans dbo.Shipment.
+
+    Les membres de ReportingAdmins doivent voir toutes les lignes. Le filtrage ne doit pas changer pour les autres utilisateurs, et la stratégie de sécurité doit rester activée. Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Grant ALTER ANY SECURITY POLICY to ReportingAdmins.", fr: "Accorder ALTER ANY SECURITY POLICY à ReportingAdmins." }
+    - id: b
+      text: { en: "Add the members of ReportingAdmins to the db_owner role.", fr: "Ajouter les membres de ReportingAdmins au rôle db_owner." }
+    - id: c
+      text: { en: "Grant SELECT on Security.fn_RegionPredicate to ReportingAdmins.", fr: "Accorder SELECT sur Security.fn_RegionPredicate à ReportingAdmins." }
+    - id: d
+      text: { en: "Add OR IS_MEMBER('ReportingAdmins') = 1 to the WHERE clause of the predicate.", fr: "Ajouter OR IS_MEMBER('ReportingAdmins') = 1 à la clause WHERE du prédicat." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      A security policy applies to every user, including db_owner members, unless the predicate itself allows them. Adding OR IS_MEMBER('ReportingAdmins') = 1 returns a row from the predicate for members of that role, so they see every row while other users keep the region filter. Because the function is bound to the policy, you drop the predicate from the policy (or use a new function) before you change it.
+    fr: |
+      Une stratégie de sécurité s'applique à tous les utilisateurs, y compris les membres de db_owner, sauf si le prédicat lui-même les autorise. Ajouter OR IS_MEMBER('ReportingAdmins') = 1 fait renvoyer une ligne par le prédicat pour les membres de ce rôle : ils voient toutes les lignes, alors que les autres utilisateurs gardent le filtre par région. Comme la fonction est liée à la stratégie, vous retirez le prédicat de la stratégie (ou utilisez une nouvelle fonction) avant de la modifier.
+  options:
+    a: { en: "This permission lets them create, alter or disable policies, but it doesn't change what the predicate returns while the policy stays enabled.", fr: "Cette autorisation leur permet de créer, modifier ou désactiver des stratégies, mais ne change pas ce que renvoie le prédicat tant que la stratégie reste activée." }
+    b: { en: "RLS also applies to db_owner members; they would still see no rows.", fr: "RLS s'applique aussi aux membres de db_owner : ils ne verraient toujours aucune ligne." }
+    c: { en: "With a schema-bound policy, users don't need permissions on the function, and granting them doesn't change the filter result.", fr: "Avec une stratégie liée au schéma, les utilisateurs n'ont pas besoin d'autorisations sur la fonction, et les leur accorder ne change pas le résultat du filtre." }
+references:
+  - title: Row-level security
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/row-level-security

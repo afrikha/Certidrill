@@ -1,0 +1,94 @@
+id: az700-cs2c-fourth-coffee
+status: draft
+title:
+  en: |
+    Fourth Coffee
+  fr: |
+    Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee is a chain of 900 coffee shops in Europe. Customers order and pay in advance from a mobile app and from the website **order.fourthcoffee.com**.
+
+        Delivery companies collect orders from the shops. Fourth Coffee is opening an API that reports the status of the orders to these companies, and a portal for its suppliers.
+      fr: |
+        Fourth Coffee est une chaîne de 900 cafés en Europe. Les clients commandent et paient à l'avance depuis une application mobile et depuis le site web **order.fourthcoffee.com**.
+
+        Des entreprises de livraison viennent chercher les commandes dans les cafés. Fourth Coffee ouvre une API qui indique l'état des commandes à ces entreprises, ainsi qu'un portail destiné à ses fournisseurs.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Fourth Coffee has an Azure subscription named **Sub-Orders** that contains the following resources in the West Europe region.
+
+        | Name | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Orders | Virtual network | 10.80.0.0/16; subnets snet-agw (10.80.0.0/24), snet-web (10.80.1.0/24), snet-api (10.80.2.0/24), snet-pls (10.80.3.0/24) |
+        | appgw-orders | Application Gateway | WAF_v2 SKU in snet-agw, autoscaling from 2 to 10 instances, public frontend IP address pip-agw |
+        | vmss-orders | Virtual machine scale set | In snet-web; 4 to 20 instances that host the ordering website and the mobile app backend over HTTPS |
+        | lb-out | Load balancer | Public Standard load balancer whose backend pool contains vmss-orders; used only for outbound connections, with an outbound rule |
+        | lb-status | Load balancer | Internal Standard load balancer, frontend 10.80.2.10, rule TCP 443; backend pool configured by network interface with VM-API1 and VM-API2 in snet-api |
+
+        The configuration of appgw-orders is the following:
+
+        - Listener **lst-orders**: multi-site, host name order.fourthcoffee.com, HTTPS on port 443 of pip-agw.
+        - Routing rule **rr-orders**: from lst-orders to the backend pool vmss-orders, with the backend settings **bs-orders** (HTTPS, port 443, host name order.fourthcoffee.com).
+        - A WAF policy named **wafpol-orders** is associated with appgw-orders.
+
+        The certificates of the vmss-orders instances are issued by **FC-Root-CA**, the enterprise certification authority of Fourth Coffee, and their common name is order.fourthcoffee.com.
+      fr: |
+        Fourth Coffee dispose d'un abonnement Azure nommé **Sub-Orders** qui contient les ressources suivantes dans la région West Europe.
+
+        | Nom | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Orders | Réseau virtuel | 10.80.0.0/16 ; sous-réseaux snet-agw (10.80.0.0/24), snet-web (10.80.1.0/24), snet-api (10.80.2.0/24), snet-pls (10.80.3.0/24) |
+        | appgw-orders | Application Gateway | Référence SKU WAF_v2 dans snet-agw, mise à l'échelle automatique de 2 à 10 instances, adresse IP frontale publique pip-agw |
+        | vmss-orders | Groupe de machines virtuelles identiques | Dans snet-web ; de 4 à 20 instances qui hébergent le site de commande et le back-end de l'application mobile en HTTPS |
+        | lb-out | Équilibreur de charge | Équilibreur de charge public Standard dont le pool principal contient vmss-orders ; utilisé uniquement pour les connexions sortantes, avec une règle de trafic sortant |
+        | lb-status | Équilibreur de charge | Équilibreur de charge interne Standard, adresse frontale 10.80.2.10, règle TCP 443 ; pool principal configuré par interface réseau avec VM-API1 et VM-API2 dans snet-api |
+
+        La configuration de appgw-orders est la suivante :
+
+        - Écouteur **lst-orders** : multisite, nom d'hôte order.fourthcoffee.com, HTTPS sur le port 443 de pip-agw.
+        - Règle de routage **rr-orders** : de lst-orders vers le pool principal vmss-orders, avec les paramètres de back-end **bs-orders** (HTTPS, port 443, nom d'hôte order.fourthcoffee.com).
+        - Une stratégie WAF nommée **wafpol-orders** est associée à appgw-orders.
+
+        Les certificats des instances de vmss-orders sont émis par **FC-Root-CA**, l'autorité de certification d'entreprise de Fourth Coffee, et leur nom commun est order.fourthcoffee.com.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Fourth Coffee plans the following changes:
+
+        - Publish a supplier portal named **suppliers.fourthcoffee.com** through appgw-orders. The portal runs on a new backend pool named **vmss-suppliers**.
+        - Create a WAF policy named **wafpol-suppliers** that contains exclusions for the large XML documents that the suppliers upload.
+        - Publish the order status API that runs behind lb-status to the delivery companies by using a Private Link service named **pls-status**. The NAT IP addresses of pls-status will come from snet-pls.
+      fr: |
+        Fourth Coffee prévoit les changements suivants :
+
+        - Publier un portail fournisseurs nommé **suppliers.fourthcoffee.com** par appgw-orders. Le portail s'exécute sur un nouveau pool principal nommé **vmss-suppliers**.
+        - Créer une stratégie WAF nommée **wafpol-suppliers** qui contient des exclusions pour les gros documents XML que les fournisseurs chargent.
+        - Publier l'API d'état des commandes, qui s'exécute derrière lb-status, auprès des entreprises de livraison au moyen d'un service Private Link nommé **pls-status**. Les adresses IP NAT de pls-status proviendront de snet-pls.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Fourth Coffee identifies the following requirements:
+
+        1. Traffic between appgw-orders and vmss-orders must be encrypted with TLS, and appgw-orders must validate the certificates of the instances.
+        2. The ordering application must receive in the X-Forwarded-For header the client IP addresses without port numbers, including the addresses of any upstream proxy. This change must apply only to the requests of order.fourthcoffee.com.
+        3. The supplier portal must use the same public IP address and port as the ordering website. Only the supplier portal must be protected by wafpol-suppliers.
+        4. The delivery companies connect from their own virtual networks, in their own Microsoft Entra tenants. Their address spaces might overlap with VNet-Orders. They must not use virtual network peering or VPN. Connection requests from the subscriptions of contracted delivery companies must be approved automatically.
+        5. Each instance of vmss-orders must be able to use 8,000 SNAT ports for its connections to the payment providers. The number of public IP addresses must be minimized.
+        6. Administrative effort must be minimized.
+      fr: |
+        Fourth Coffee a défini les exigences suivantes :
+
+        1. Le trafic entre appgw-orders et vmss-orders doit être chiffré avec TLS, et appgw-orders doit valider les certificats des instances.
+        2. L'application de commande doit recevoir dans l'en-tête X-Forwarded-For les adresses IP des clients sans numéro de port, y compris les adresses des éventuels proxys en amont. Cette modification ne doit s'appliquer qu'aux requêtes de order.fourthcoffee.com.
+        3. Le portail fournisseurs doit utiliser la même adresse IP publique et le même port que le site de commande. Seul le portail fournisseurs doit être protégé par wafpol-suppliers.
+        4. Les entreprises de livraison se connectent depuis leurs propres réseaux virtuels, dans leurs propres locataires Microsoft Entra. Leurs espaces d'adressage peuvent chevaucher VNet-Orders. Elles ne doivent utiliser ni peering de réseaux virtuels ni VPN. Les demandes de connexion des abonnements des entreprises de livraison sous contrat doivent être approuvées automatiquement.
+        5. Chaque instance de vmss-orders doit pouvoir utiliser 8 000 ports SNAT pour ses connexions vers les prestataires de paiement. Le nombre d'adresses IP publiques doit être réduit au minimum.
+        6. L'effort d'administration doit être réduit au minimum.

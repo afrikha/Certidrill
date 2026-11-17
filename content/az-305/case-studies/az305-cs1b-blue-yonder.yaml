@@ -1,0 +1,146 @@
+id: az305-cs1b-blue-yonder
+status: draft
+title:
+  en: Blue Yonder Airlines
+  fr: Blue Yonder Airlines
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Blue Yonder Airlines is a low-cost airline based in Dublin. It carries 12 million passengers a year between Europe and North America.
+
+        Blue Yonder sells tickets through a booking website, a mobile app and 300 partner travel agencies. All its applications already run in Azure, in a single region.
+      fr: |
+        Blue Yonder Airlines est une compagnie aérienne à bas coûts basée à Dublin. Elle transporte 12 millions de passagers par an entre l'Europe et l'Amérique du Nord.
+
+        Blue Yonder vend ses billets par un site web de réservation, une application mobile et 300 agences de voyages partenaires. Toutes ses applications s'exécutent déjà dans Azure, dans une seule région.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Blue Yonder has a Microsoft Entra tenant named blueyonderairlines.com that contains the accounts of its employees, and an Azure subscription named **Sub-Booking**. All resources are in the West Europe region.
+
+        | Name | Type | Description |
+        | --- | --- | --- |
+        | app-booking | App Service web app, Premium v3 plan | The booking website and the API used by the mobile app |
+        | sqldb-bookings | Azure SQL Database, General Purpose service tier | Bookings and seat inventory; used only by app-booking |
+        | app-partners | App Service web app | A REST API called by the partner travel agencies; all agencies send the same API key |
+
+        **Problem statements**
+
+        - An outage of West Europe made the booking website unavailable for five hours.
+        - Bulk requests from one travel agency slowed the partner API down for every agency. Blue Yonder was unable to identify or limit the agency.
+        - Customer accounts are stored in a table of sqldb-bookings, with passwords hashed by the application.
+      fr: |
+        Blue Yonder dispose d'un locataire Microsoft Entra nommé blueyonderairlines.com, qui contient les comptes de ses employés, et d'un abonnement Azure nommé **Sub-Booking**. Toutes les ressources sont dans la région West Europe.
+
+        | Nom | Type | Description |
+        | --- | --- | --- |
+        | app-booking | Application web App Service, plan Premium v3 | Le site web de réservation et l'API utilisée par l'application mobile |
+        | sqldb-bookings | Azure SQL Database, niveau de service General Purpose | Réservations et inventaire des sièges ; utilisée uniquement par app-booking |
+        | app-partners | Application web App Service | Une API REST appelée par les agences de voyages partenaires ; toutes les agences envoient la même clé d'API |
+
+        **Problèmes constatés**
+
+        - Une panne de West Europe a rendu le site web de réservation indisponible pendant cinq heures.
+        - Des requêtes en masse d'une agence de voyages ont ralenti l'API partenaires pour toutes les agences. Blue Yonder n'a pu ni identifier ni limiter l'agence.
+        - Les comptes des clients sont stockés dans une table de sqldb-bookings, avec des mots de passe hachés par l'application.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Blue Yonder plans to implement the following changes:
+
+        - Deploy app-booking to the East US 2 region as well. Both regions will serve customers at the same time.
+        - Convert the seat inventory tables of sqldb-bookings into memory-optimized tables (In-Memory OLTP) to absorb the peaks of ticket sales.
+        - Create a ticketing service that issues tickets from the ticketing requests sent by app-booking.
+        - Collect the events sent by the baggage scanners of 90 airports, up to 20,000 events per second.
+        - Generate each boarding pass as a PDF file in a blob container named **boarding-passes**.
+        - Create a loyalty program whose member profiles and point balances are stored in an Azure Cosmos DB for NoSQL account.
+        - Replace the customer accounts table with an identity service.
+        - Publish the partner API through an API gateway.
+      fr: |
+        Blue Yonder prévoit de mettre en œuvre les changements suivants :
+
+        - Déployer app-booking également dans la région East US 2. Les deux régions serviront les clients en même temps.
+        - Convertir les tables d'inventaire des sièges de sqldb-bookings en tables optimisées en mémoire (In-Memory OLTP) pour absorber les pics de vente de billets.
+        - Créer un service de billetterie qui émet les billets à partir des demandes d'émission envoyées par app-booking.
+        - Collecter les événements envoyés par les lecteurs de bagages de 90 aéroports, jusqu'à 20 000 événements par seconde.
+        - Générer chaque carte d'embarquement sous forme de fichier PDF dans un conteneur d'objets blob nommé **boarding-passes**.
+        - Créer un programme de fidélité dont les profils des membres et les soldes de points sont stockés dans un compte Azure Cosmos DB for NoSQL.
+        - Remplacer la table des comptes clients par un service d'identité.
+        - Publier l'API partenaires par l'intermédiaire d'une passerelle d'API.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Booking website**
+
+        - A customer must be sent to the healthy region that offers the lowest network latency.
+        - TLS connections must be terminated, and web attacks such as SQL injection must be blocked, at the edge of the Microsoft network, before a request reaches an Azure region.
+        - The number of services to deploy must be minimized.
+
+        **Bookings database**
+
+        - sqldb-bookings must support the memory-optimized tables.
+        - If West Europe fails, sqldb-bookings must be online in East US 2 within 15 minutes.
+        - The connection strings of app-booking must not be modified after a failover.
+
+        **Messages and events**
+
+        - The ticketing requests of a booking must be processed in the order in which they were sent. A request that is sent twice within 10 minutes must be processed only once. A request whose processing fails 10 times must be set aside for analysis.
+        - The baggage scan events will be read by a tracking service and by an analytics pipeline. Each reader must receive every event, read at its own pace, and be able to read the events of the last three days again.
+        - When a boarding pass is created in the boarding-passes container, an Azure function must be called to send it by email. The function must not poll the container.
+
+        **Loyalty program**
+
+        - The loyalty service runs in West Europe and in East US 2. Each instance must write to the database in its own region. If a region fails, the instance of the other region must keep writing without any action from an administrator.
+        - A member who has just earned points must see the new balance in the following reads that the same client session of the loyalty service performs.
+
+        **Partner API**
+
+        - Each travel agency must have its own key and its own call quota.
+        - The travel agencies must sign up, read the documentation of the API and obtain their key in a self-service portal.
+        - The API gateway must be a single service instance that has gateways in West Europe and in East US 2, so that the travel agencies are still served if one region fails.
+
+        **Customer identities**
+
+        - Customers must create their account themselves, with an email address or with a Google account.
+        - The customer accounts must not be stored in the directory that contains the employee accounts.
+        - The sign-up and sign-in pages must use the visual identity of Blue Yonder.
+      fr: |
+        **Site web de réservation**
+
+        - Un client doit être dirigé vers la région saine qui offre la latence réseau la plus faible.
+        - Les connexions TLS doivent être terminées, et les attaques web telles que l'injection SQL doivent être bloquées, à la périphérie du réseau Microsoft, avant qu'une requête n'atteigne une région Azure.
+        - Le nombre de services à déployer doit être réduit au minimum.
+
+        **Base de données des réservations**
+
+        - sqldb-bookings doit prendre en charge les tables optimisées en mémoire.
+        - Si West Europe tombe en panne, sqldb-bookings doit être en ligne dans East US 2 en moins de 15 minutes.
+        - Les chaînes de connexion d'app-booking ne doivent pas être modifiées après un basculement.
+
+        **Messages et événements**
+
+        - Les demandes d'émission d'une réservation doivent être traitées dans l'ordre de leur envoi. Une demande envoyée deux fois en moins de 10 minutes ne doit être traitée qu'une fois. Une demande dont le traitement échoue 10 fois doit être mise de côté pour analyse.
+        - Les événements de lecture des bagages seront lus par un service de suivi et par un pipeline d'analyse. Chaque lecteur doit recevoir tous les événements, lire à son propre rythme et pouvoir relire les événements des trois derniers jours.
+        - Quand une carte d'embarquement est créée dans le conteneur boarding-passes, une fonction Azure doit être appelée pour l'envoyer par e-mail. La fonction ne doit pas interroger le conteneur à intervalles réguliers.
+
+        **Programme de fidélité**
+
+        - Le service de fidélité s'exécute dans West Europe et dans East US 2. Chaque instance doit écrire dans la base de données de sa propre région. Si une région tombe en panne, l'instance de l'autre région doit continuer d'écrire sans aucune action d'un administrateur.
+        - Un membre qui vient de gagner des points doit voir son nouveau solde dans les lectures suivantes effectuées par la même session cliente du service de fidélité.
+
+        **API partenaires**
+
+        - Chaque agence de voyages doit disposer de sa propre clé et de son propre quota d'appels.
+        - Les agences de voyages doivent s'inscrire, lire la documentation de l'API et obtenir leur clé dans un portail en libre-service.
+        - La passerelle d'API doit être une seule instance de service dotée de passerelles dans West Europe et dans East US 2, afin que les agences de voyages restent servies si une région tombe en panne.
+
+        **Identités des clients**
+
+        - Les clients doivent créer eux-mêmes leur compte, avec une adresse e-mail ou avec un compte Google.
+        - Les comptes des clients ne doivent pas être stockés dans l'annuaire qui contient les comptes des employés.
+        - Les pages d'inscription et de connexion doivent utiliser l'identité visuelle de Blue Yonder.

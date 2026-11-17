@@ -1,0 +1,76 @@
+id: dp800-3c-extract-return-codes
+objective: "3.3.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database. A stored procedure calls a chat completions deployment by using sp_invoke_external_rest_endpoint and stores the return value in @rc.
+
+    You need to complete the error handling of the procedure:
+
+    - When the call succeeds, assign the answer to @answer.
+    - When the deployment throttles the request, raise a "try again later" error.
+    - For any other failure, return the HTTP status and its description.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL. Une procédure stockée appelle un déploiement de complétions de conversation avec sp_invoke_external_rest_endpoint et stocke la valeur de retour dans @rc.
+
+    Vous devez compléter la gestion des erreurs de la procédure :
+
+    - Quand l'appel réussit, affecter la réponse à @answer.
+    - Quand le déploiement limite la requête, lever une erreur « réessayez plus tard ».
+    - Pour tout autre échec, renvoyer le statut HTTP et sa description.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    IF @rc = [[ok]]
+        SET @answer = JSON_VALUE(@response, '$.result.choices[0].message.content');
+    ELSE IF @rc = [[busy]]
+        THROW 50002, 'The model is busy. Try again later.', 1;
+    ELSE
+        SELECT @rc AS HttpStatus,
+               JSON_VALUE(@response, [[desc]]) AS Description;
+  slots:
+    - id: ok
+      options:
+        - { id: zero, text: "0" }
+        - { id: two-hundred, text: "200" }
+        - { id: one, text: "1" }
+    - id: busy
+      options:
+        - { id: tooMany, text: "429" }
+        - { id: unauth, text: "401" }
+        - { id: reqTimeout, text: "408" }
+        - { id: forbidden, text: "403" }
+    - id: desc
+      options:
+        - { id: response, text: "'$.response.status.http.description'" }
+        - { id: result, text: "'$.result.status.http.description'" }
+        - { id: root, text: "'$.status.http.description'" }
+answer:
+  values: { ok: zero, busy: tooMany, desc: response }
+explanation:
+  correct:
+    en: "The return value of sp_invoke_external_rest_endpoint is 0 when the HTTP status is 2xx; otherwise it is the HTTP status code itself. Throttling is HTTP 429 (Too Many Requests). The HTTP metadata is in the response part of the envelope, at $.response.status.http.description."
+    fr: "La valeur de retour de sp_invoke_external_rest_endpoint vaut 0 quand le statut HTTP est 2xx ; sinon, elle vaut le code de statut HTTP lui-même. La limitation correspond à HTTP 429 (Too Many Requests). Les métadonnées HTTP se trouvent dans la partie response de l'enveloppe, dans $.response.status.http.description."
+  options:
+    two-hundred: { en: "A successful call returns 0, not 200, so the answer would never be assigned.", fr: "Un appel réussi renvoie 0, pas 200 : la réponse ne serait jamais affectée." }
+    unauth: { en: "401 and 403 indicate a credential or permission problem, not throttling.", fr: "401 et 403 indiquent un problème d'informations d'identification ou d'autorisation, pas une limitation." }
+    forbidden: { en: "401 and 403 indicate a credential or permission problem, not throttling.", fr: "401 et 403 indiquent un problème d'informations d'identification ou d'autorisation, pas une limitation." }
+    reqTimeout: { en: "408 is Request Timeout, not throttling.", fr: "408 correspond à Request Timeout, pas à une limitation." }
+    result: { en: "result holds the body returned by the endpoint, not the HTTP status of the call.", fr: "result contient le corps renvoyé par le point de terminaison, pas le statut HTTP de l'appel." }
+    root: { en: "The status is nested under response in the envelope; this path returns NULL.", fr: "Le statut est imbriqué sous response dans l'enveloppe ; ce chemin renvoie NULL." }
+references:
+  - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql
+  - title: Generate and process RAG responses
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-rag-with-sql/5-generate-process-rag-responses

@@ -1,0 +1,48 @@
+id: dp750-4d-skew-join-threshold
+objective: "4.4.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam runs a nightly notebook task on classic job compute. The task joins **fabrikam.sales.silver.pos_lines** (2.4 TB) with **fabrikam.sales.silver.loyalty_events** (900 GB) on `customer_id` by using a sort merge join. Adaptive query execution (AQE) is enabled with its default settings.
+
+    In the Spark UI, the longest stage is the join stage. Its Summary Metrics show a **Max** task duration of 22 minutes and a **75th percentile** of 35 seconds. The largest shuffle partition of the stage is about 180 MB, and the median partition size is 4 MB.
+
+    You need to reduce the duration of the stage. The solution must not change the transformation logic of the notebook or the size of the cluster.
+
+    What should you do?
+  fr: |
+    Fabrikam exécute chaque nuit une tâche de notebook sur un calcul de jobs classique. La tâche joint **fabrikam.sales.silver.pos_lines** (2,4 To) et **fabrikam.sales.silver.loyalty_events** (900 Go) sur `customer_id` avec une jointure de tri-fusion (sort merge join). L'exécution adaptative des requêtes (AQE) est activée avec ses paramètres par défaut.
+
+    Dans l'interface utilisateur Spark, l'étape la plus longue est l'étape de jointure. Ses Summary Metrics affichent une durée de tâche **Max** de 22 minutes et un **75th percentile** de 35 secondes. La plus grande partition de shuffle de l'étape fait environ 180 Mo, et la taille médiane des partitions est de 4 Mo.
+
+    Vous devez réduire la durée de l'étape. La solution ne doit modifier ni la logique de transformation du notebook ni la taille du cluster.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Set spark.sql.shuffle.partitions to 2000 for the task.", fr: "Définir spark.sql.shuffle.partitions sur 2000 pour la tâche." } }
+    - { id: b, text: { en: "Set spark.sql.adaptive.skewJoin.enabled to true for the task.", fr: "Définir spark.sql.adaptive.skewJoin.enabled sur true pour la tâche." } }
+    - { id: c, text: { en: "Set spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes to 128MB for the task.", fr: "Définir spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes sur 128MB pour la tâche." } }
+    - { id: d, text: { en: "Set spark.databricks.io.cache.enabled to true for the task.", fr: "Définir spark.databricks.io.cache.enabled sur true pour la tâche." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: The Max task duration is far more than 50 % above the 75th percentile, so the stage is skewed. AQE splits a skewed partition of a sort merge join only when it exceeds both the skew factor (5 × the median, here 20 MB) and the size threshold (256 MB by default); the 180 MB partition is below the threshold, so AQE leaves it alone. Lowering skewedPartitionThresholdInBytes under 180 MB lets AQE split it without changing the code or the cluster.
+    fr: "La durée Max dépasse de bien plus de 50 % le 75th percentile : l'étape est déséquilibrée. AQE ne scinde une partition déséquilibrée d'une jointure de tri-fusion que si elle dépasse à la fois le facteur de déséquilibrage (5 × la médiane, soit 20 Mo) et le seuil de taille (256 Mo par défaut) ; la partition de 180 Mo est sous le seuil, AQE ne la traite donc pas. Abaisser skewedPartitionThresholdInBytes sous 180 Mo permet à AQE de la scinder sans modifier le code ni le cluster."
+  options:
+    a:
+      en: All the rows of a hot key hash to the same partition, so more shuffle partitions do not split the skewed one.
+      fr: Toutes les lignes d'une clé dominante sont envoyées dans la même partition ; plus de partitions de shuffle ne scindent donc pas la partition déséquilibrée.
+    b:
+      en: Skew join handling is already enabled by default; the partition is left alone because it is below the size threshold, not because the feature is off.
+      fr: La gestion des jointures déséquilibrées est déjà activée par défaut ; la partition n'est pas traitée parce qu'elle est sous le seuil de taille, pas parce que la fonctionnalité est désactivée.
+    d:
+      en: The disk cache speeds up repeated reads of Parquet files; it does not change how shuffle data is distributed among tasks.
+      fr: Le cache disque accélère les lectures répétées de fichiers Parquet ; il ne change pas la répartition des données de shuffle entre les tâches.
+references:
+  - title: Adaptive query execution
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/aqe
+  - title: Skew and spill
+    url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/long-spark-stage-page

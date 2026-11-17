@@ -1,0 +1,77 @@
+id: ai200-cs1c-schedule-crew
+objective: "3.2.1"
+type: dropdown
+caseStudy: ai200-cs1c-litware
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You are writing schedule_crew in func-litware. `plan_crew()` returns the dispatch plan of a work order as a dictionary.
+
+    You need to meet the crew scheduling requirement. How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez schedule_crew dans func-litware. `plan_crew()` renvoie le plan d'intervention d'un ordre de travail sous forme de dictionnaire.
+
+    Vous devez satisfaire l'exigence relative à la planification des équipes. Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import json
+    import azure.functions as func
+
+    app = func.FunctionApp()
+
+    @app.[[trigger]](arg_name="msg",
+                     topic_name="work-orders",
+                     [[sub]]="scheduling",
+                     connection="ServiceBusConnection")
+    @app.service_bus_queue_output(arg_name="dispatch",
+                                  queue_name="crew-dispatch",
+                                  connection="ServiceBusConnection")
+    def schedule_crew(msg: func.ServiceBusMessage, dispatch: [[outtype]]):
+        order = json.loads(msg.get_body().decode("utf-8"))
+        dispatch.[[call]](json.dumps(plan_crew(order)))
+  slots:
+    - id: trigger
+      options:
+        - { id: queuetrig, text: service_bus_queue_trigger }
+        - { id: topictrig, text: service_bus_topic_trigger }
+        - { id: egtrig, text: event_grid_trigger }
+    - id: sub
+      options:
+        - { id: subname, text: subscription_name }
+        - { id: queuename, text: queue_name }
+    - id: outtype
+      options:
+        - { id: outstr, text: "func.Out[str]" }
+        - { id: sbmsg, text: func.ServiceBusMessage }
+        - { id: plainstr, text: str }
+    - id: call
+      options:
+        - { id: set, text: set }
+        - { id: get, text: get }
+answer:
+  values: { trigger: topictrig, sub: subname, outtype: outstr, call: set }
+explanation:
+  correct:
+    en: |
+      A topic subscription is read with `service_bus_topic_trigger`, which takes the topic name and the `subscription_name`. In the Python v2 model, an output binding parameter is typed `func.Out[...]`, and the function writes the message to crew-dispatch by calling `set()` on it. On success, the runtime completes the trigger message.
+    fr: |
+      Un abonnement de rubrique se lit avec `service_bus_topic_trigger`, qui prend le nom de la rubrique et `subscription_name`. Dans le modèle Python v2, un paramètre de liaison de sortie est de type `func.Out[...]`, et la fonction écrit le message dans crew-dispatch en appelant `set()` sur ce paramètre. En cas de succès, le runtime termine le message du déclencheur.
+  options:
+    queuetrig: { en: "service_bus_queue_trigger reads a queue; it has no topic or subscription parameters.", fr: "service_bus_queue_trigger lit une file d'attente ; il n'a pas de paramètres de rubrique ni d'abonnement." }
+    egtrig: { en: "An Event Grid trigger receives Event Grid events, not Service Bus messages.", fr: "Un déclencheur Event Grid reçoit des événements Event Grid, pas des messages Service Bus." }
+    queuename: { en: "queue_name identifies a queue; a topic trigger needs the subscription name.", fr: "queue_name identifie une file d'attente ; un déclencheur de rubrique a besoin du nom de l'abonnement." }
+    sbmsg: { en: "func.ServiceBusMessage is the type of the received trigger message, not of an output binding.", fr: "func.ServiceBusMessage est le type du message reçu par le déclencheur, pas d'une liaison de sortie." }
+    plainstr: { en: "A plain str parameter cannot return a value to the runtime; output bindings use func.Out.", fr: "Un paramètre str simple ne peut pas renvoyer de valeur au runtime ; les liaisons de sortie utilisent func.Out." }
+    get: { en: "get() reads the current value of the output; set() assigns the message to send.", fr: "get() lit la valeur actuelle de la sortie ; set() affecte le message à envoyer." }
+references:
+  - title: Azure Service Bus trigger for Azure Functions
+    url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-service-bus-trigger?pivots=programming-language-python
+  - title: Azure Service Bus output binding for Azure Functions
+    url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-service-bus-output?pivots=programming-language-python

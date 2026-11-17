@@ -1,0 +1,72 @@
+id: dp700-cs2b-brand-month
+objective: "2.2.8"
+type: dropdown
+caseStudy: dp700-cs2b-munsons
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to create dbo.SalesByBrandMonth in WH_Sales to meet the reporting requirement.
+
+    How should you complete the T-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer dbo.SalesByBrandMonth dans WH_Sales pour satisfaire l'exigence de reporting.
+
+    Comment devez-vous compléter l'instruction T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE TABLE dbo.SalesByBrandMonth
+    AS
+    SELECT
+        COALESCE(b.BrandName, 'Unassigned') AS BrandName,
+        d.CalendarMonth,
+        SUM(f.NetRevenue) AS NetRevenue,
+        SUM(f.Units) AS Units
+    FROM dbo.FactSales AS f
+    INNER JOIN dbo.DimDate AS d ON d.DateKey = f.DateKey
+    INNER JOIN dbo.DimProduct AS p ON p.ProductKey = f.ProductKey
+    [[join]] dbo.DimBrand AS b ON b.BrandKey = p.BrandKey
+    [[grp]]
+        COALESCE(b.BrandName, 'Unassigned'),
+        d.CalendarMonth
+    [[flt]] SUM(f.Units) > 0;
+  slots:
+    - id: join
+      options:
+        - { id: inner, text: INNER JOIN }
+        - { id: left, text: LEFT OUTER JOIN }
+        - { id: cross, text: CROSS JOIN }
+    - id: grp
+      options:
+        - { id: groupby, text: GROUP BY }
+        - { id: orderby, text: ORDER BY }
+        - { id: partition, text: PARTITION BY }
+    - id: flt
+      options:
+        - { id: where, text: WHERE }
+        - { id: having, text: HAVING }
+        - { id: on, text: AND }
+answer:
+  values: { join: left, grp: groupby, flt: having }
+explanation:
+  correct:
+    en: |
+      The co-packed products have a NULL BrandKey, so only a LEFT OUTER JOIN to dbo.DimBrand keeps their sales; COALESCE then returns 'Unassigned' for them. GROUP BY produces one row per brand and month for the SUM aggregates. A condition on an aggregate, such as SUM(f.Units) > 0, is evaluated after grouping and must be written in HAVING. Fabric Data Warehouse supports CREATE TABLE AS SELECT (CTAS) to create and load the table in one statement.
+    fr: |
+      Les produits sous-traités ont un BrandKey NULL : seule une jointure LEFT OUTER JOIN vers dbo.DimBrand conserve leurs ventes, et COALESCE renvoie alors 'Unassigned' pour eux. GROUP BY produit une ligne par marque et par mois pour les agrégats SUM. Une condition sur un agrégat, comme SUM(f.Units) > 0, est évaluée après le regroupement et doit figurer dans HAVING. Fabric Data Warehouse prend en charge CREATE TABLE AS SELECT (CTAS) pour créer et charger la table en une seule instruction.
+  options:
+    inner: { en: "An inner join drops the sales of the products whose BrandKey is NULL, so Unassigned would never appear.", fr: "Une jointure interne supprime les ventes des produits dont BrandKey est NULL : Unassigned n'apparaîtrait jamais." }
+    cross: { en: "A cross join does not accept an ON clause and would combine every sale with every brand.", fr: "Une jointure croisée n'accepte pas de clause ON et combinerait chaque vente avec chaque marque." }
+    orderby: { en: "ORDER BY sorts rows but does not group them, so the SUM aggregates could not be computed per brand and month.", fr: "ORDER BY trie les lignes sans les regrouper : les agrégats SUM ne pourraient pas être calculés par marque et par mois." }
+    partition: { en: "PARTITION BY belongs to the OVER clause of window functions; it is not a clause of the SELECT statement.", fr: "PARTITION BY appartient à la clause OVER des fonctions de fenêtrage ; ce n'est pas une clause de l'instruction SELECT." }
+    where: { en: "WHERE filters rows before grouping and cannot contain an aggregate function.", fr: "WHERE filtre les lignes avant le regroupement et ne peut pas contenir de fonction d'agrégation." }
+    on: { en: "AND cannot follow a GROUP BY list; the filter on the aggregate needs a HAVING clause.", fr: "AND ne peut pas suivre une liste GROUP BY ; le filtre sur l'agrégat exige une clause HAVING." }
+references:
+  - title: Tables in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/tables

@@ -1,0 +1,70 @@
+id: dp420-1d-avad-python
+objective: "1.4.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A Python service keeps a search index synchronized with an Azure Cosmos DB for NoSQL container named **products**. All versions and deletes mode is enabled on the account, and the installed SDK version supports it. The service starts without a saved continuation token.
+
+    For each change, the service must remove deleted products from the index and upsert the other changes.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un service Python maintient un index de recherche synchronisé avec un conteneur Azure Cosmos DB for NoSQL nommé **products**. Le mode toutes les versions et suppressions est activé sur le compte, et la version installée du SDK le prend en charge. Le service démarre sans jeton de continuation enregistré.
+
+    Pour chaque modification, le service doit supprimer de l'index les produits supprimés et mettre à jour ou insérer (upsert) les autres modifications.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    iterator = container.query_items_change_feed(
+        mode="AllVersionsAndDeletes",
+        start_time=[[start]])
+
+    for change in iterator:
+        metadata = change["metadata"]
+        if metadata["operationType"] == "delete":
+            index.delete(document_id=[[deleted]])
+        else:
+            index.upsert([[current]])
+  slots:
+    - id: start
+      options:
+        - { id: tnow, text: "\"Now\"" }
+        - { id: tbeg, text: "\"Beginning\"" }
+        - { id: tdate, text: "datetime.now(timezone.utc) - timedelta(days=1)" }
+    - id: deleted
+      options:
+        - { id: dmeta, text: "metadata[\"id\"]" }
+        - { id: dcur, text: "change[\"current\"][\"id\"]" }
+        - { id: dprev, text: "change[\"previous\"][\"id\"]" }
+    - id: current
+      options:
+        - { id: ccur, text: "change[\"current\"]" }
+        - { id: cmeta, text: "change[\"metadata\"]" }
+        - { id: cprev, text: "change[\"previous\"]" }
+answer:
+  values: { start: tnow, deleted: dmeta, current: ccur }
+explanation:
+  correct:
+    en: |
+      Without a continuation token, all versions and deletes mode starts from `"Now"`; reading from the beginning or from a past time is not supported. A create or replace change carries the item in `"current"`, while a delete change has no `"current"` and reports the id and partition key of the deleted item in `"metadata"`.
+    fr: |
+      Sans jeton de continuation, le mode toutes les versions et suppressions démarre avec `"Now"` ; la lecture depuis le début ou depuis un instant passé n'est pas prise en charge. Une modification de création ou de remplacement contient l'élément dans `"current"`, tandis qu'une suppression n'a pas de `"current"` et indique l'id et la clé de partition de l'élément supprimé dans `"metadata"`.
+  options:
+    tbeg: { en: "Starting from the beginning is not supported in this mode.", fr: "Le démarrage au début n'est pas pris en charge dans ce mode." }
+    dcur: { en: "A delete change does not include the current version of the item.", fr: "Une modification de suppression ne contient pas la version actuelle de l'élément." }
+    dprev: { en: "The previous version of deleted or updated items is currently not available.", fr: "La version précédente des éléments supprimés ou mis à jour n'est actuellement pas disponible." }
+    cmeta: { en: "metadata holds the operation type, lsn and crts, not the item's properties.", fr: "metadata contient le type d'opération, lsn et crts, pas les propriétés de l'élément." }
+references:
+  - title: Change Feed Modes - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-modes
+  - title: Change Feed Pull Model - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/change-feed-pull-model

@@ -1,0 +1,86 @@
+id: dp300-5b-ag-create-tsql
+objective: "5.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have three Azure virtual machines that run SQL Server 2022 Enterprise and belong to the same Windows Server failover cluster: **SQLVM1** and **SQLVM2** in West Europe, and **SQLVM3** in North Europe. Database mirroring endpoints exist on all three instances.
+
+    You need to create an availability group named **AG1** for a database named **Claims** that meets the following requirements:
+
+    - SQLVM1 and SQLVM2 fail over automatically without data loss.
+    - Replication to SQLVM3 must not delay commits on the primary.
+    - The secondary databases must be initialized without a manual backup and restore.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez de trois machines virtuelles Azure qui exécutent SQL Server 2022 Enterprise et appartiennent au même cluster de basculement Windows Server : **SQLVM1** et **SQLVM2** en West Europe, et **SQLVM3** en North Europe. Des points de terminaison de mise en miroir de bases de données existent sur les trois instances.
+
+    Vous devez créer pour une base de données nommée **Claims** un groupe de disponibilité nommé **AG1** qui satisfait les exigences suivantes :
+
+    - SQLVM1 et SQLVM2 basculent automatiquement sans perte de données.
+    - La réplication vers SQLVM3 ne doit pas retarder les validations sur le réplica primaire.
+    - Les bases de données secondaires doivent être initialisées sans sauvegarde ni restauration manuelles.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    -- On SQLVM1
+    CREATE AVAILABILITY GROUP [AG1]
+    FOR DATABASE [Claims]
+    REPLICA ON
+      N'SQLVM1' WITH (ENDPOINT_URL = N'TCP://sqlvm1.contoso.com:5022',
+        AVAILABILITY_MODE = SYNCHRONOUS_COMMIT, FAILOVER_MODE = AUTOMATIC, SEEDING_MODE = AUTOMATIC),
+      N'SQLVM2' WITH (ENDPOINT_URL = N'TCP://sqlvm2.contoso.com:5022',
+        AVAILABILITY_MODE = SYNCHRONOUS_COMMIT, FAILOVER_MODE = AUTOMATIC, SEEDING_MODE = AUTOMATIC),
+      N'SQLVM3' WITH (ENDPOINT_URL = N'TCP://sqlvm3.contoso.com:5022',
+        AVAILABILITY_MODE = [[mode]], FAILOVER_MODE = [[fm]], SEEDING_MODE = AUTOMATIC);
+
+    -- On SQLVM2 and SQLVM3
+    ALTER AVAILABILITY GROUP [AG1] [[join]];
+    ALTER AVAILABILITY GROUP [AG1] [[grant]];
+  slots:
+    - id: mode
+      options:
+        - { id: sync, text: SYNCHRONOUS_COMMIT }
+        - { id: async, text: ASYNCHRONOUS_COMMIT }
+        - { id: cfgonly, text: CONFIGURATION_ONLY }
+    - id: fm
+      options:
+        - { id: automatic, text: AUTOMATIC }
+        - { id: external, text: EXTERNAL }
+        - { id: manual, text: MANUAL }
+    - id: join
+      options:
+        - { id: join, text: JOIN }
+        - { id: failover, text: FAILOVER }
+        - { id: offline, text: OFFLINE }
+    - id: grant
+      options:
+        - { id: deny, text: DENY CREATE ANY DATABASE }
+        - { id: grantcad, text: GRANT CREATE ANY DATABASE }
+        - { id: force, text: FORCE_FAILOVER_ALLOW_DATA_LOSS }
+answer:
+  values: { mode: async, fm: manual, join: join, grant: grantcad }
+explanation:
+  correct:
+    en: |
+      A remote DR replica uses `ASYNCHRONOUS_COMMIT` so that the primary doesn't wait for it, and an asynchronous replica supports only `MANUAL` failover (automatic failover requires synchronous commit). Each secondary instance joins the group with `ALTER AVAILABILITY GROUP ... JOIN`, and automatic seeding requires `GRANT CREATE ANY DATABASE` to the availability group on each secondary.
+    fr: |
+      Un réplica de récupération d'urgence distant utilise `ASYNCHRONOUS_COMMIT` pour que le réplica primaire ne l'attende pas, et un réplica asynchrone ne prend en charge que le basculement `MANUAL` (le basculement automatique exige la validation synchrone). Chaque instance secondaire rejoint le groupe avec `ALTER AVAILABILITY GROUP ... JOIN`, et l'amorçage automatique exige `GRANT CREATE ANY DATABASE` au groupe de disponibilité sur chaque réplica secondaire.
+  options:
+    sync: { en: "Synchronous commit makes the primary wait for SQLVM3 across regions, which delays commits.", fr: "La validation synchrone fait attendre SQLVM3 par le réplica primaire entre régions, ce qui retarde les validations." }
+    cfgonly: { en: "CONFIGURATION_ONLY isn't valid in a WSFC availability group, and such a replica holds no copy of the user databases.", fr: "CONFIGURATION_ONLY n'est pas valide dans un groupe de disponibilité WSFC, et un tel réplica ne contient aucune copie des bases utilisateur." }
+    automatic: { en: "Automatic failover is supported only between synchronous-commit replicas.", fr: "Le basculement automatique n'est pris en charge qu'entre réplicas à validation synchrone." }
+    external: { en: "EXTERNAL is used with CLUSTER_TYPE = EXTERNAL, when an external cluster manager controls failover, not with a WSFC.", fr: "EXTERNAL s'utilise avec CLUSTER_TYPE = EXTERNAL, quand un gestionnaire de cluster externe contrôle le basculement, pas avec un WSFC." }
+    deny: { en: "Denying CREATE ANY DATABASE prevents automatic seeding from creating the secondary database.", fr: "Refuser CREATE ANY DATABASE empêche l'amorçage automatique de créer la base secondaire." }
+references:
+  - title: CREATE AVAILABILITY GROUP (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-availability-group-transact-sql

@@ -1,0 +1,76 @@
+id: dp420-3c-tsql-nested-packages
+objective: "3.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind Traders mirrors a shipments container into Microsoft Fabric. Each item has a `packages` array. Each package has a `packageId` and an `items` array, and each entry of `items` has a `sku`. Some packages have no `items` property.
+
+    In the SQL analytics endpoint, you need a query that returns one row per shipment, package and SKU. Packages without items must still be returned, with a NULL SKU.
+
+    How should you complete the T-SQL query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders met en miroir un conteneur shipments dans Microsoft Fabric. Chaque élément a un tableau `packages`. Chaque colis a un `packageId` et un tableau `items`, et chaque entrée d'`items` a une propriété `sku`. Certains colis n'ont pas de propriété `items`.
+
+    Dans le point de terminaison d'analytique SQL, vous avez besoin d'une requête qui renvoie une ligne par expédition, colis et SKU. Les colis sans articles doivent quand même être renvoyés, avec un SKU NULL.
+
+    Comment devez-vous compléter la requête T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT s.id, p.packageId, i.sku
+    FROM dbo.shipments AS s
+    CROSS APPLY OPENJSON(s.packages) WITH (
+        packageId varchar(50)   '$.packageId',
+        items     [[itemsType]]
+    ) AS p
+    [[apply]] OPENJSON([[source]]) WITH (
+        sku       varchar(40)   '$.sku'
+    ) AS i;
+  slots:
+    - id: itemsType
+      options:
+        - { id: asjson, text: "nvarchar(max) AS JSON" }
+        - { id: varcharmax, text: "varchar(max) '$.items'" }
+        - { id: first, text: "nvarchar(max) '$.items[0]'" }
+    - id: apply
+      options:
+        - { id: outer, text: OUTER APPLY }
+        - { id: cross, text: CROSS APPLY }
+        - { id: join, text: LEFT JOIN }
+    - id: source
+      options:
+        - { id: pitems, text: p.items }
+        - { id: sitems, text: s.items }
+        - { id: spackages, text: s.packages }
+answer:
+  values: { itemsType: asjson, apply: outer, source: pitems }
+explanation:
+  correct:
+    en: "Nested arrays of a mirrored container arrive as JSON strings. In the first `OPENJSON`, `nvarchar(max) AS JSON` returns the `items` array of each package as a JSON fragment that a second `OPENJSON` can expand, applied to `p.items`. `OUTER APPLY` keeps the packages for which the second `OPENJSON` returns no row, like a left join, with a NULL SKU."
+    fr: "Les tableaux imbriqués d'un conteneur en miroir arrivent sous forme de chaînes JSON. Dans le premier `OPENJSON`, `nvarchar(max) AS JSON` renvoie le tableau `items` de chaque colis sous forme de fragment JSON qu'un second `OPENJSON`, appliqué à `p.items`, peut développer. `OUTER APPLY` conserve les colis pour lesquels le second `OPENJSON` ne renvoie aucune ligne, comme une jointure externe gauche, avec un SKU NULL."
+  options:
+    varcharmax:
+      en: "Without `AS JSON`, a path that points to an array or an object returns NULL, so the items couldn't be expanded."
+      fr: "Sans `AS JSON`, un chemin qui pointe vers un tableau ou un objet renvoie NULL : les articles ne pourraient donc pas être développés."
+    first:
+      en: "The path `$.items[0]` returns only the first item, and without `AS JSON` an object value returns NULL."
+      fr: "Le chemin `$.items[0]` ne renvoie que le premier article, et sans `AS JSON` une valeur objet renvoie NULL."
+    cross:
+      en: "`CROSS APPLY` drops the packages for which `OPENJSON` returns no row, which violates the requirement."
+      fr: "`CROSS APPLY` supprime les colis pour lesquels `OPENJSON` ne renvoie aucune ligne, ce qui enfreint l'exigence."
+    join:
+      en: "A join can't reference a column of the preceding row source inside a table-valued function; that correlation requires `APPLY`."
+      fr: "Une jointure ne peut pas référencer une colonne de la source de lignes précédente dans une fonction table ; cette corrélation exige `APPLY`."
+    sitems:
+      en: "`items` is a property of each package, not of the shipment, so it is reached through the alias `p`."
+      fr: "`items` est une propriété de chaque colis, pas de l'expédition : on l'atteint donc par l'alias `p`."
+references:
+  - title: "How to: Query nested data in Microsoft Fabric mirrored databases from Azure Cosmos DB"
+    url: https://learn.microsoft.com/en-us/fabric/mirroring/azure-cosmos-db-how-to-query-nested

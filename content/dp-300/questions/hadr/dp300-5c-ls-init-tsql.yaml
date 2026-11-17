@@ -1,0 +1,69 @@
+id: dp300-5c-ls-init-tsql
+objective: "5.3.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a database named **SalesDb** on an Azure virtual machine named **SQLVM1**. SalesDb uses the SIMPLE recovery model.
+
+    You plan to configure log shipping from SQLVM1 to **SQLVM2**. The secondary database will use No recovery mode and will be initialized manually from a full backup. Point-in-time restore must remain possible to any moment covered by a log backup of SalesDb. If SQLVM1 is lost, SalesDb on SQLVM2 must be brought online.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données nommée **SalesDb** sur une machine virtuelle Azure nommée **SQLVM1**. SalesDb utilise le mode de récupération SIMPLE.
+
+    Vous prévoyez de configurer la copie des journaux de transaction de SQLVM1 vers **SQLVM2**. La base secondaire utilisera le mode No recovery et sera initialisée manuellement à partir d'une sauvegarde complète. La restauration à un point dans le temps doit rester possible à tout moment couvert par une sauvegarde du journal de SalesDb. En cas de perte de SQLVM1, SalesDb sur SQLVM2 doit être mise en ligne.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    -- On SQLVM1
+    ALTER DATABASE SalesDb SET RECOVERY [[rm]];
+    BACKUP DATABASE SalesDb TO DISK = N'\\FS1\logship\SalesDb.bak';
+
+    -- On SQLVM2, to initialize the secondary database
+    RESTORE DATABASE SalesDb FROM DISK = N'\\FS1\logship\SalesDb.bak' WITH [[init]];
+
+    -- On SQLVM2, if SQLVM1 is lost
+    RESTORE DATABASE SalesDb WITH [[final]];
+  slots:
+    - id: rm
+      options:
+        - { id: full, text: FULL }
+        - { id: bulk, text: BULK_LOGGED }
+        - { id: simple, text: SIMPLE }
+    - id: init
+      options:
+        - { id: norec1, text: NORECOVERY }
+        - { id: rec1, text: RECOVERY }
+        - { id: checksum, text: CHECKSUM }
+    - id: final
+      options:
+        - { id: norec2, text: NORECOVERY }
+        - { id: rec2, text: RECOVERY }
+        - { id: replace, text: REPLACE }
+answer:
+  values: { rm: full, init: norec1, final: rec2 }
+explanation:
+  correct:
+    en: Log shipping needs the FULL or BULK_LOGGED recovery model, and only FULL guarantees point-in-time restore for every log backup. The secondary is initialized WITH NORECOVERY so that it stays in the restoring state and can receive the log backups. When the primary is lost, RESTORE DATABASE ... WITH RECOVERY recovers the secondary and brings it online.
+    fr: La copie des journaux de transaction exige le mode de récupération FULL ou BULK_LOGGED, et seul FULL garantit la restauration à un point dans le temps pour chaque sauvegarde du journal. Le secondaire est initialisé WITH NORECOVERY pour rester en état de restauration et recevoir les sauvegardes du journal. En cas de perte du primaire, RESTORE DATABASE ... WITH RECOVERY récupère le secondaire et le met en ligne.
+  options:
+    bulk: { en: "With BULK_LOGGED, a log backup that contains minimally logged operations can't be used for a point-in-time restore.", fr: "Avec BULK_LOGGED, une sauvegarde du journal qui contient des opérations journalisées de façon minimale ne permet pas de restauration à un point dans le temps." }
+    simple: { en: "SIMPLE doesn't allow log backups, so log shipping can't work.", fr: "SIMPLE n'autorise pas les sauvegardes du journal : la copie des journaux ne peut pas fonctionner." }
+    rec1: { en: "Restoring the full backup WITH RECOVERY brings the secondary online, so no log backup can be restored after it.", fr: "Restaurer la sauvegarde complète WITH RECOVERY met le secondaire en ligne : aucune sauvegarde du journal ne peut plus être restaurée ensuite." }
+    checksum: { en: "CHECKSUM verifies the backup checksums; without NORECOVERY, the restore recovers the database.", fr: "CHECKSUM vérifie les sommes de contrôle de la sauvegarde ; sans NORECOVERY, la restauration récupère la base." }
+    norec2: { en: "At failover, NORECOVERY would leave the database in the restoring state, unavailable to users.", fr: "Lors du basculement, NORECOVERY laisserait la base en état de restauration, inaccessible aux utilisateurs." }
+    replace: { en: "REPLACE overwrites an existing database during a restore from a backup; it doesn't recover a database.", fr: "REPLACE écrase une base existante lors d'une restauration à partir d'une sauvegarde ; il ne récupère pas une base." }
+references:
+  - title: Configure Log Shipping (SQL Server)
+    url: https://learn.microsoft.com/en-us/sql/database-engine/log-shipping/configure-log-shipping-sql-server
+  - title: Fail Over to a Log Shipping Secondary (SQL Server)
+    url: https://learn.microsoft.com/en-us/sql/database-engine/log-shipping/fail-over-to-a-log-shipping-secondary-sql-server

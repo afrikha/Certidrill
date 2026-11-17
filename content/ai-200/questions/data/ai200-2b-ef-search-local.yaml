@@ -1,0 +1,68 @@
+id: ai200-2b-ef-search-local
+objective: "2.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware's research assistant uses an HNSW index on Azure Database for PostgreSQL. For "deep research" requests only, the search must examine 200 candidates. All other requests run on the same pooled connections and must keep the default setting.
+
+    How should you complete the code that runs a deep research search? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'assistant de recherche de Litware utilise un index HNSW sur Azure Database for PostgreSQL. Pour les seules requêtes « recherche approfondie », la recherche doit examiner 200 candidats. Toutes les autres requêtes s'exécutent sur les mêmes connexions mises en pool et doivent conserver le paramètre par défaut.
+
+    Comment devez-vous compléter le code qui exécute une recherche approfondie ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    BEGIN;
+    [[set]] [[param]] = 200;
+    SELECT id, content
+    FROM chunks
+    ORDER BY embedding <=> %s::vector
+    LIMIT 50;
+    COMMIT;
+  slots:
+    - id: set
+      options:
+        - { id: local, text: SET LOCAL }
+        - { id: session, text: SET SESSION }
+        - { id: system, text: ALTER SYSTEM SET }
+    - id: param
+      options:
+        - { id: efsearch, text: hnsw.ef_search }
+        - { id: efcons, text: hnsw.ef_construction }
+        - { id: probes, text: ivfflat.probes }
+        - { id: lvalue, text: diskann.l_value_is }
+answer:
+  values: { set: local, param: efsearch }
+explanation:
+  correct:
+    en: "`hnsw.ef_search` sets the size of the candidate list of an HNSW search (default 40) and should be at least the LIMIT. `SET LOCAL` applies it only until the end of the current transaction, so the pooled connection goes back to the default for the next request."
+    fr: "`hnsw.ef_search` définit la taille de la liste de candidats d'une recherche HNSW (40 par défaut) et doit être au moins égal à LIMIT. `SET LOCAL` l'applique uniquement jusqu'à la fin de la transaction en cours : la connexion mise en pool revient au paramètre par défaut pour la requête suivante."
+  options:
+    session:
+      en: "SET SESSION keeps the value after COMMIT, so the next request on the same pooled connection inherits 200."
+      fr: "SET SESSION conserve la valeur après COMMIT : la requête suivante sur la même connexion mise en pool hérite de 200."
+    system:
+      en: "ALTER SYSTEM would change the default for the whole server, and server parameters of a flexible server are managed through Azure."
+      fr: "ALTER SYSTEM modifierait la valeur par défaut de tout le serveur, et les paramètres d'un serveur flexible se gèrent par Azure."
+    efcons:
+      en: "ef_construction is an index build option, not a query-time setting."
+      fr: "ef_construction est une option de construction de l'index, pas un paramètre de requête."
+    probes:
+      en: "ivfflat.probes applies to IVFFlat indexes, not HNSW."
+      fr: "ivfflat.probes s'applique aux index IVFFlat, pas à HNSW."
+    lvalue:
+      en: "diskann.l_value_is applies to DiskANN indexes, not HNSW."
+      fr: "diskann.l_value_is s'applique aux index DiskANN, pas à HNSW."
+references:
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector
+  - title: Tune PostgreSQL for pgvector
+    url: https://learn.microsoft.com/en-us/training/modules/optimize-vector-search-azure-database-postgresql/2-tune-postgresql-pgvector

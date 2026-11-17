@@ -1,0 +1,67 @@
+id: sc200-2a-kql-cloudaudit-proxy
+objective: "2.1.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam, Inc. uses Microsoft Defender for Cloud and Microsoft Defender XDR. A Defender for Cloud alert reports suspicious Azure Resource Manager operations performed through an anonymous proxy.
+
+    You need an advanced hunting query that, for the last seven days, returns each client IP address that is a known anonymous proxy and that performed delete operations on Azure Resource Manager, with the number of different resources it deleted.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam, Inc. utilise Microsoft Defender pour le cloud et Microsoft Defender XDR. Une alerte de Defender pour le cloud signale des opérations Azure Resource Manager suspectes effectuées via un proxy anonyme.
+
+    Vous avez besoin d'une requête de repérage avancé qui, pour les sept derniers jours, renvoie chaque adresse IP cliente qui est un proxy anonyme connu et qui a effectué des opérations de suppression sur Azure Resource Manager, avec le nombre de ressources différentes qu'elle a supprimées.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    CloudAuditEvents
+    | where Timestamp > ago(7d)
+    | where DataSource == [[src]]
+    | where [[proxy]]
+    | where ActionType == "Delete"
+    | summarize Resources = [[agg]](ResourceId) by IPAddress
+  slots:
+    - id: src
+      options:
+        - { id: azure, text: '"Azure"' }
+        - { id: k8s, text: '"Kubernetes Audit"' }
+        - { id: aws, text: '"AWS"' }
+    - id: proxy
+      options:
+        - { id: flag, text: IsAnonymousProxy == true }
+        - { id: isp, text: isnotempty(Isp) }
+        - { id: ua, text: UserAgent has "proxy" }
+        - { id: country, text: isempty(CountryCode) }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+        - { id: set, text: make_set }
+        - { id: max, text: max }
+answer:
+  values: { src: azure, proxy: flag, agg: dcount }
+explanation:
+  correct:
+    en: |
+      CloudAuditEvents is populated by Defender for Cloud with control plane events; DataSource is Azure for Azure Resource Manager (Kubernetes Audit, AWS and GCP for the other sources). The IsAnonymousProxy column flags IP addresses that belong to a known anonymous proxy. dcount(ResourceId) returns the number of distinct resources per IP address.
+    fr: |
+      CloudAuditEvents est alimentée par Defender pour le cloud avec les événements du plan de contrôle ; DataSource vaut Azure pour Azure Resource Manager (Kubernetes Audit, AWS et GCP pour les autres sources). La colonne IsAnonymousProxy signale les adresses IP qui appartiennent à un proxy anonyme connu. dcount(ResourceId) renvoie le nombre de ressources distinctes par adresse IP.
+  options:
+    k8s: { en: "Kubernetes Audit is the data source of Kubernetes control plane events, not Azure Resource Manager.", fr: "Kubernetes Audit est la source des événements du plan de contrôle Kubernetes, pas d'Azure Resource Manager." }
+    isp: { en: "Almost every IP address has an ISP; this filter doesn't identify proxies.", fr: "Presque toutes les adresses IP ont un FAI ; ce filtre n'identifie pas les proxys." }
+    ua: { en: "The user agent describes the client application and doesn't reliably reveal an anonymous proxy.", fr: "L'agent utilisateur décrit l'application cliente et ne révèle pas de façon fiable un proxy anonyme." }
+    count: { en: "count() counts the delete events, so a resource deleted twice is counted twice.", fr: "count() compte les événements de suppression : une ressource supprimée deux fois est comptée deux fois." }
+    set: { en: "make_set returns the list of resources, not their number.", fr: "make_set renvoie la liste des ressources, pas leur nombre." }
+references:
+  - title: CloudAuditEvents table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudauditevents-table

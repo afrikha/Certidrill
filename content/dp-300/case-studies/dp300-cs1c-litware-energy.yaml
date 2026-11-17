@@ -1,0 +1,113 @@
+id: dp300-cs1c-litware-energy
+status: draft
+title:
+  en: Litware Energy
+  fr: Litware Energy
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Litware Energy is an electricity distribution company. It collects readings from 3.5 million smart meters and bills the customers of several energy retailers.
+
+        Litware runs its central databases on SQL Server on Azure virtual machines and keeps SQL Server instances in 12 regional control centers.
+      fr: |
+        Litware Energy est une entreprise de distribution d'électricité. Elle collecte les relevés de 3,5 millions de compteurs communicants et facture les clients de plusieurs fournisseurs d'énergie.
+
+        Litware exécute ses bases de données centrales sur SQL Server sur des machines virtuelles Azure et conserve des instances SQL Server dans 12 centres de contrôle régionaux.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Azure**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | SQLVM1, SQLVM2 | Virtual machines in West Europe. Size Standard_E16bds_v5, which includes a local temporary SSD. Windows Server 2022 and SQL Server 2022 Enterprise. |
+        | AG1 | Always On availability group. SQLVM1 is the primary replica. SQLVM2 is a synchronous-commit, readable secondary replica used for reporting. |
+        | stlitwarebak | Storage account with a container named **backups**. |
+
+        AG1 contains two databases:
+
+        - **MeterData** (9 TB). The **dbo.Readings** table is partitioned by month on the ReadingDate column by using the partition function **pfMonthly** (RANGE RIGHT, one boundary on the first day of each month) and the partition scheme **psMonthly**. All partitions are on the filegroup **fgReadings**. The lowest boundary is 2023-12-01, so partition 1 contains the readings of November 2023, the oldest month. The rightmost partition, for dates on or after 2027-01-01, is always kept empty. An empty, non-partitioned table named **dbo.ReadingsStage**, with the same structure and indexes as dbo.Readings, exists on fgReadings.
+        - **CustomerBilling** (300 GB). The **dbo.Customers** table stores the customers' bank account numbers in a column named **IBAN**.
+
+        Reports run on SQLVM2 under a SQL Server login named **ReportSvc**.
+
+        **Regional control centers**
+
+        Each regional control center runs SQL Server 2022 Standard on Windows Server 2022. The servers connect to Azure by using a site-to-site VPN and are connected to Azure Arc, with the Azure extension for SQL Server installed. The current SQL Server licenses expire in June 2027.
+
+        **Planned changes**
+
+        Litware plans to add a third replica named **SQLVM3** to AG1. SQLVM3 will have the same size as SQLVM1. The data files and the log files will be placed on separate Premium SSD P40 (2 TiB) data disks.
+      fr: |
+        **Azure**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | SQLVM1, SQLVM2 | Machines virtuelles dans la région West Europe. Taille Standard_E16bds_v5, qui inclut un SSD temporaire local. Windows Server 2022 et SQL Server 2022 Enterprise. |
+        | AG1 | Groupe de disponibilité Always On. SQLVM1 est le réplica principal. SQLVM2 est un réplica secondaire accessible en lecture, en mode de validation synchrone, utilisé pour les rapports. |
+        | stlitwarebak | Compte de stockage avec un conteneur nommé **backups**. |
+
+        AG1 contient deux bases de données :
+
+        - **MeterData** (9 To). La table **dbo.Readings** est partitionnée par mois sur la colonne ReadingDate à l'aide de la fonction de partition **pfMonthly** (RANGE RIGHT, une limite au premier jour de chaque mois) et du schéma de partition **psMonthly**. Toutes les partitions se trouvent sur le groupe de fichiers **fgReadings**. La limite la plus basse est 2023-12-01 : la partition 1 contient les relevés de novembre 2023, le mois le plus ancien. La partition la plus à droite, pour les dates à partir du 2027-01-01, est toujours maintenue vide. Une table vide non partitionnée nommée **dbo.ReadingsStage**, de même structure et avec les mêmes index que dbo.Readings, existe sur fgReadings.
+        - **CustomerBilling** (300 Go). La table **dbo.Customers** stocke les numéros de compte bancaire des clients dans une colonne nommée **IBAN**.
+
+        Les rapports s'exécutent sur SQLVM2 sous une connexion SQL Server nommée **ReportSvc**.
+
+        **Centres de contrôle régionaux**
+
+        Chaque centre de contrôle régional exécute SQL Server 2022 Standard sur Windows Server 2022. Les serveurs se connectent à Azure par un VPN site à site et sont connectés à Azure Arc, avec l'extension Azure pour SQL Server installée. Les licences SQL Server actuelles expirent en juin 2027.
+
+        **Changements prévus**
+
+        Litware prévoit d'ajouter à AG1 un troisième réplica nommé **SQLVM3**. SQLVM3 aura la même taille que SQLVM1. Les fichiers de données et les fichiers journaux seront placés sur des disques de données Premium SSD P40 (2 Tio) distincts.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Data management**
+
+        1. On 1 December 2026, the oldest month of dbo.Readings must be moved out of the table as a metadata-only operation, the boundary that it leaves must be removed, and a boundary must be added for 2027-02-01 so that the rightmost partition stays empty. The same procedure will then run every month.
+        2. The storage of SQLVM3 must follow the Microsoft performance and durability best practices for SQL Server on Azure virtual machines.
+
+        **Backup**
+
+        3. Weekly full backups of MeterData, about 4 TB after compression, must be written from SQLVM1 to the backups container by using a shared access signature (SAS) token. The storage account key must not be stored on any server.
+
+        **Security**
+
+        4. The IBAN values must be encrypted so that the administrators of the virtual machines and the DBAs never see the plaintext. The customer service application must still find customers by running parameterized queries such as `WHERE IBAN LIKE @pattern`.
+
+        **Performance**
+
+        5. On SQLVM2, the queries of ReportSvc must never use more than 25 percent of the CPU, even when no other workload is running, so that the redo of AG1 always has CPU available.
+
+        **Regional control centers**
+
+        6. From July 2027, SQL Server in the regional control centers must be billed monthly through Azure according to usage, without buying new licenses.
+        7. The security operations team must receive alerts about potential SQL injection and anomalous database access on the regional control center instances.
+      fr: |
+        **Gestion des données**
+
+        1. Le 1er décembre 2026, le mois le plus ancien de dbo.Readings doit être sorti de la table par une opération portant uniquement sur les métadonnées, la limite qu'il laisse doit être supprimée et une limite doit être ajoutée pour le 2027-02-01 afin que la partition la plus à droite reste vide. La même procédure s'exécutera ensuite chaque mois.
+        2. Le stockage de SQLVM3 doit suivre les bonnes pratiques Microsoft de performances et de durabilité pour SQL Server sur des machines virtuelles Azure.
+
+        **Sauvegarde**
+
+        3. Les sauvegardes complètes hebdomadaires de MeterData, environ 4 To après compression, doivent être écrites depuis SQLVM1 dans le conteneur backups à l'aide d'un jeton de signature d'accès partagé (SAS). La clé du compte de stockage ne doit être stockée sur aucun serveur.
+
+        **Sécurité**
+
+        4. Les valeurs IBAN doivent être chiffrées de sorte que les administrateurs des machines virtuelles et les DBA n'en voient jamais le texte clair. L'application du service client doit toujours pouvoir trouver des clients en exécutant des requêtes paramétrables telles que `WHERE IBAN LIKE @pattern`.
+
+        **Performances**
+
+        5. Sur SQLVM2, les requêtes de ReportSvc ne doivent jamais utiliser plus de 25 % du processeur, même quand aucune autre charge de travail ne s'exécute, afin que la restauration par progression (redo) d'AG1 dispose toujours de processeur.
+
+        **Centres de contrôle régionaux**
+
+        6. À partir de juillet 2027, SQL Server dans les centres de contrôle régionaux doit être facturé mensuellement via Azure selon l'utilisation, sans achat de nouvelles licences.
+        7. L'équipe des opérations de sécurité doit recevoir des alertes sur les injections SQL potentielles et les accès anormaux aux bases de données des instances des centres de contrôle régionaux.

@@ -1,0 +1,56 @@
+id: dp800-3b-hy-score-scales
+objective: "3.2.8"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A developer at Litware implements a hybrid search over the dbo.Documents table of an Azure SQL database. The query joins the results of CONTAINSTABLE and VECTOR_SEARCH on the document key and computes a combined score as follows.
+
+    ```sql
+    ft.[RANK] + vs.distance AS score
+    ...
+    ORDER BY score DESC;
+    ```
+
+    The vector search uses the cosine metric. Testers report that the results are almost identical to a full-text search alone and that semantically close documents are ranked low.
+
+    You need to fix the way the two result lists are combined.
+
+    What should you do?
+  fr: |
+    Un développeur de Litware implémente une recherche hybride sur la table dbo.Documents d'une base de données Azure SQL. La requête joint les résultats de CONTAINSTABLE et de VECTOR_SEARCH sur la clé du document et calcule un score combiné comme suit.
+
+    ```sql
+    ft.[RANK] + vs.distance AS score
+    ...
+    ORDER BY score DESC;
+    ```
+
+    La recherche vectorielle utilise la métrique cosinus. Les testeurs signalent que les résultats sont presque identiques à ceux d'une recherche en texte intégral seule et que les documents proches par le sens sont mal classés.
+
+    Vous devez corriger la façon dont les deux listes de résultats sont combinées.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Normalize the stored vectors with VECTOR_NORMALIZE so that distance and RANK use the same scale.", fr: "Normaliser les vecteurs stockés avec VECTOR_NORMALIZE pour que distance et RANK utilisent la même échelle." } }
+    - { id: b, text: { en: "Rank the rows by their position in each list, and combine the positions with reciprocal rank fusion (RRF).", fr: "Classer les lignes selon leur position dans chaque liste, et combiner les positions avec la fusion de classement réciproque (RRF)." } }
+    - { id: c, text: { en: "Replace CONTAINSTABLE with FREETEXTTABLE so that RANK uses the same range as cosine distance.", fr: "Remplacer CONTAINSTABLE par FREETEXTTABLE pour que RANK utilise la même plage que la distance cosinus." } }
+    - { id: d, text: { en: "Subtract the distance from RANK instead of adding it, and keep ORDER BY score DESC.", fr: "Soustraire la distance de RANK au lieu de l'ajouter, et conserver ORDER BY score DESC." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      RANK ranges from 0 through 1000 and a higher value is better, while cosine distance ranges from 0 to 2 and a lower value is better, so adding them lets RANK dominate and even rewards distant documents. RRF ignores the raw scores and sums 1/(k + rank) for each list, which needs no score normalization and lets neither source dominate.
+    fr: |-
+      RANK va de 0 à 1 000 et une valeur plus élevée est meilleure, alors que la distance cosinus va de 0 à 2 et qu'une valeur plus faible est meilleure : les additionner laisse RANK dominer et récompense même les documents éloignés. RRF ignore les scores bruts et additionne 1/(k + rang) pour chaque liste, ce qui ne demande aucune normalisation des scores et ne laisse dominer aucune source.
+  options:
+    a: { en: "Normalizing vectors changes their length, not the range of the cosine distance or of RANK.", fr: "Normaliser les vecteurs change leur longueur, pas la plage de la distance cosinus ni celle de RANK." }
+    c: { en: "FREETEXTTABLE also returns a relevance RANK where higher is better; the scales still differ.", fr: "FREETEXTTABLE renvoie lui aussi un RANK de pertinence où plus grand est meilleur ; les échelles restent différentes." }
+    d: { en: "Subtracting fixes the direction of the distance but RANK, up to 1000, still dominates a distance of at most 2.", fr: "La soustraction corrige le sens de la distance, mais RANK, jusqu'à 1 000, domine toujours une distance d'au plus 2." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking
+  - title: CONTAINSTABLE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-functions/containstable-transact-sql

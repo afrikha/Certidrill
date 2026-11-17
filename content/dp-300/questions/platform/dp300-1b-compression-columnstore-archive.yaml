@@ -1,0 +1,69 @@
+id: dp300-1b-compression-columnstore-archive
+objective: "1.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+shuffle: false
+stem:
+  en: |
+    You have an Azure SQL managed instance that hosts a database named **MeteringDb**. The table dbo.Readings has a clustered columnstore index and is partitioned by month into 12 partitions. Partitions 1 to 9 contain old data that is queried a few times a year. Partitions 10 to 12 are queried continuously by dashboards.
+
+    You need to minimize the storage used by partitions 1 to 9. The solution must not degrade the performance of the queries on partitions 10 to 12.
+
+    How should you complete the Transact-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une instance managée Azure SQL qui héberge une base de données nommée **MeteringDb**. La table dbo.Readings possède un index columnstore cluster et est partitionnée par mois en 12 partitions. Les partitions 1 à 9 contiennent d'anciennes données interrogées quelques fois par an. Les partitions 10 à 12 sont interrogées en continu par des tableaux de bord.
+
+    Vous devez réduire au minimum le stockage utilisé par les partitions 1 à 9. La solution ne doit pas dégrader les performances des requêtes sur les partitions 10 à 12.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE dbo.Readings
+        REBUILD PARTITION = [[scope]] WITH (
+            DATA_COMPRESSION = [[old]] ON PARTITIONS (1 TO 9),
+            DATA_COMPRESSION = [[recent]] ON PARTITIONS (10 TO 12)
+        );
+  slots:
+    - id: scope
+      options:
+        - { id: s1, text: "1" }
+        - { id: sall, text: ALL }
+        - { id: s12, text: "12" }
+    - id: old
+      options:
+        - { id: o_page, text: PAGE }
+        - { id: o_cs, text: COLUMNSTORE }
+        - { id: o_arch, text: COLUMNSTORE_ARCHIVE }
+        - { id: o_row, text: ROW }
+    - id: recent
+      options:
+        - { id: r_arch, text: COLUMNSTORE_ARCHIVE }
+        - { id: r_cs, text: COLUMNSTORE }
+        - { id: r_page, text: PAGE }
+        - { id: r_none, text: NONE }
+answer:
+  values: { scope: sall, old: o_arch, recent: r_cs }
+explanation:
+  correct:
+    en: |
+      To set different compression on several partitions in one statement, rebuild with `PARTITION = ALL` and list the partitions in each `ON PARTITIONS` clause. `COLUMNSTORE_ARCHIVE` adds archival compression, which saves the most space but slows queries, so it suits the rarely read partitions. `COLUMNSTORE` keeps standard columnstore compression on the active partitions.
+    fr: |
+      Pour définir des compressions différentes sur plusieurs partitions en une instruction, reconstruisez avec `PARTITION = ALL` et indiquez les partitions dans chaque clause `ON PARTITIONS`. `COLUMNSTORE_ARCHIVE` ajoute la compression d'archivage, qui économise le plus d'espace mais ralentit les requêtes : elle convient aux partitions rarement lues. `COLUMNSTORE` conserve la compression columnstore standard sur les partitions actives.
+  options:
+    s1: { en: "A single partition number can't be combined with ON PARTITIONS lists that cover other partitions.", fr: "Un numéro de partition unique ne peut pas être combiné avec des listes ON PARTITIONS qui couvrent d'autres partitions." }
+    s12: { en: "A single partition number can't be combined with ON PARTITIONS lists that cover other partitions.", fr: "Un numéro de partition unique ne peut pas être combiné avec des listes ON PARTITIONS qui couvrent d'autres partitions." }
+    o_page: { en: "ROW and PAGE apply to rowstore data; columnstore data always uses columnstore compression.", fr: "ROW et PAGE s'appliquent aux données rowstore ; les données columnstore utilisent toujours la compression columnstore." }
+    o_row: { en: "ROW and PAGE apply to rowstore data; columnstore data always uses columnstore compression.", fr: "ROW et PAGE s'appliquent aux données rowstore ; les données columnstore utilisent toujours la compression columnstore." }
+    o_cs: { en: "COLUMNSTORE keeps the current compression and doesn't reduce the storage of the old partitions.", fr: "COLUMNSTORE conserve la compression actuelle et ne réduit pas le stockage des anciennes partitions." }
+    r_arch: { en: "Archival compression slows queries, which would degrade the dashboards.", fr: "La compression d'archivage ralentit les requêtes, ce qui dégraderait les tableaux de bord." }
+    r_none: { en: "Columnstore compression can't be turned off; NONE doesn't apply to a columnstore index.", fr: "La compression columnstore ne peut pas être désactivée ; NONE ne s'applique pas à un index columnstore." }
+references:
+  - title: Data compression
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/data-compression/data-compression

@@ -1,0 +1,75 @@
+id: dp800-cs2c-vector-index
+objective: "3.2.3"
+type: dropdown
+caseStudy: dp800-cs2c-fabrikam-residences
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to prepare dbo.Listings for the vector search. The solution must meet the search requirements.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez préparer dbo.Listings pour la recherche vectorielle. La solution doit satisfaire les exigences de recherche.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE dbo.Listings
+        ADD DescriptionVector [[type]] NULL;
+    GO
+
+    UPDATE dbo.Listings
+    SET DescriptionVector = [[gen]]
+    WHERE DescriptionVector IS NULL;
+    GO
+
+    CREATE VECTOR INDEX vix_Listings_Description
+        ON dbo.Listings (DescriptionVector)
+        WITH (METRIC = [[metric]], TYPE = 'DiskANN');
+  slots:
+    - id: type
+      options:
+        - { id: v1536, text: VECTOR(1536) }
+        - { id: v3072, text: VECTOR(3072) }
+        - { id: vbin, text: varbinary(max) }
+        - { id: json, text: json }
+    - id: gen
+      options:
+        - { id: aigen, text: "AI_GENERATE_EMBEDDINGS(Description USE MODEL ListingEmbeddings)" }
+        - { id: cast, text: "CAST(Description AS VECTOR(1536))" }
+        - { id: norm, text: "VECTOR_NORMALIZE(Description, 'norm2')" }
+        - { id: chunks, text: "AI_GENERATE_CHUNKS(SOURCE = Description, CHUNK_TYPE = FIXED, CHUNK_SIZE = 1536)" }
+    - id: metric
+      options:
+        - { id: cosine, text: "'cosine'" }
+        - { id: dot, text: "'dot'" }
+        - { id: euclidean, text: "'euclidean'" }
+answer:
+  values: { type: v1536, gen: aigen, metric: cosine }
+explanation:
+  correct:
+    en: |
+      A vector index can only be created on a column of the vector data type, and the dimension count must match the 1,536 dimensions returned by the model. AI_GENERATE_EMBEDDINGS calls the external model ListingEmbeddings to turn each description into an embedding. VECTOR_SEARCH uses an ANN index only if one exists on the same column with the same metric, so the index must use cosine like the existing query.
+    fr: |
+      Un index vectoriel ne peut être créé que sur une colonne de type de données vector, et le nombre de dimensions doit correspondre aux 1 536 dimensions renvoyées par le modèle. AI_GENERATE_EMBEDDINGS appelle le modèle externe ListingEmbeddings pour transformer chaque description en incorporation. VECTOR_SEARCH n'utilise un index ANN que s'il en existe un sur la même colonne avec la même métrique : l'index doit donc utiliser cosine, comme la requête existante.
+  options:
+    v3072: { en: "The model returns 1,536 dimensions, so 1,536-element embeddings cannot be stored in a VECTOR(3072) column.", fr: "Le modèle renvoie 1 536 dimensions : des incorporations de 1 536 éléments ne peuvent pas être stockées dans une colonne VECTOR(3072)." }
+    vbin: { en: "CREATE VECTOR INDEX requires a column of the vector type.", fr: "CREATE VECTOR INDEX exige une colonne de type vector." }
+    json: { en: "A json column can hold an array but cannot be indexed by CREATE VECTOR INDEX.", fr: "Une colonne json peut contenir un tableau, mais elle ne peut pas être indexée par CREATE VECTOR INDEX." }
+    cast: { en: "Casting converts a JSON array of numbers to a vector; it does not compute an embedding from text.", fr: "La conversion transforme un tableau JSON de nombres en vecteur ; elle ne calcule pas d'incorporation à partir d'un texte." }
+    norm: { en: "VECTOR_NORMALIZE scales an existing vector; it does not accept text and does not call a model.", fr: "VECTOR_NORMALIZE met à l'échelle un vecteur existant ; elle n'accepte pas de texte et n'appelle aucun modèle." }
+    chunks: { en: "AI_GENERATE_CHUNKS is a table-valued function that splits text into chunks; it returns no embedding.", fr: "AI_GENERATE_CHUNKS est une fonction table qui découpe du texte en blocs ; elle ne renvoie aucune incorporation." }
+    dot: { en: "An index created with the dot metric would not be used by a query that specifies METRIC = 'cosine'.", fr: "Un index créé avec la métrique dot ne serait pas utilisé par une requête qui indique METRIC = 'cosine'." }
+    euclidean: { en: "An index created with the euclidean metric would not be used by a query that specifies METRIC = 'cosine'.", fr: "Un index créé avec la métrique euclidean ne serait pas utilisé par une requête qui indique METRIC = 'cosine'." }
+references:
+  - title: CREATE VECTOR INDEX (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-vector-index-transact-sql
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

@@ -1,0 +1,83 @@
+id: dp600-cs2b-dimstudent-dedup
+objective: "2.2.7"
+type: dropdown
+caseStudy: dp600-cs2b-bellows-college
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the stored procedure that reloads dbo.DimStudent.
+
+    How should you complete the T-SQL code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la procédure stockée qui recharge dbo.DimStudent.
+
+    Comment devez-vous compléter le code T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE PROCEDURE dbo.usp_LoadDimStudent
+    AS
+    BEGIN
+        TRUNCATE TABLE dbo.DimStudent;
+
+        INSERT INTO dbo.DimStudent (StudentId, FullName, ProgramCode, FacultyCode)
+        SELECT StudentId, FullName, ProgramCode, FacultyCode
+        FROM (
+            SELECT StudentId, FullName, ProgramCode, FacultyCode,
+                   [[fn]] OVER (PARTITION BY [[part]] ORDER BY ModifiedDate DESC) AS rn
+            FROM SIS_Mirror.dbo.StudentHistory
+        ) AS Ranked
+        WHERE [[filter]];
+    END;
+  slots:
+    - id: fn
+      options:
+        - { id: rank, text: "RANK()" }
+        - { id: dense, text: "DENSE_RANK()" }
+        - { id: rownumber, text: "ROW_NUMBER()" }
+    - id: part
+      options:
+        - { id: student, text: "StudentId" }
+        - { id: modified, text: "ModifiedDate" }
+        - { id: faculty, text: "FacultyCode" }
+    - id: filter
+      options:
+        - { id: gt1, text: "rn > 1" }
+        - { id: eq1, text: "rn = 1" }
+        - { id: isnull, text: "rn IS NULL" }
+answer:
+  values: { fn: rownumber, part: student, filter: eq1 }
+explanation:
+  correct:
+    en: "Partitioning by StudentId numbers the versions of each student separately, and ordering by ModifiedDate DESC gives the number 1 to the most recent version. ROW_NUMBER() assigns distinct numbers even when two rows have the same ModifiedDate, so `rn = 1` keeps exactly one row per student. The procedure reads the mirrored data with a three-part name, because SIS_Mirror is in the same workspace as WH-Academic."
+    fr: "Le partitionnement par StudentId numérote séparément les versions de chaque étudiant, et le tri par ModifiedDate DESC donne le numéro 1 à la version la plus récente. ROW_NUMBER() attribue des numéros distincts même quand deux lignes ont la même ModifiedDate : `rn = 1` conserve donc exactement une ligne par étudiant. La procédure lit les données mises en miroir avec un nom en trois parties, car SIS_Mirror se trouve dans le même espace de travail que WH-Academic."
+  options:
+    rank:
+      en: "RANK() gives the same number to rows with the same ModifiedDate, so a bulk correction would keep two rows numbered 1 for the same student."
+      fr: "RANK() donne le même numéro aux lignes qui ont la même ModifiedDate : une correction de masse conserverait donc deux lignes numérotées 1 pour le même étudiant."
+    dense:
+      en: "DENSE_RANK() also gives the same number to ties, so duplicates would remain."
+      fr: "DENSE_RANK() donne lui aussi le même numéro aux ex aequo : des doublons subsisteraient."
+    modified:
+      en: "Partitioning by ModifiedDate numbers the rows of each date instead of the versions of each student."
+      fr: "Le partitionnement par ModifiedDate numérote les lignes de chaque date au lieu des versions de chaque étudiant."
+    faculty:
+      en: "Partitioning by FacultyCode would keep only one student per faculty."
+      fr: "Le partitionnement par FacultyCode ne conserverait qu'un étudiant par faculté."
+    gt1:
+      en: "`rn > 1` keeps the older versions and discards the most recent one."
+      fr: "`rn > 1` conserve les anciennes versions et écarte la plus récente."
+    isnull:
+      en: "A ranking function never returns NULL, so no row would be inserted."
+      fr: "Une fonction de classement ne retourne jamais NULL : aucune ligne ne serait insérée."
+references:
+  - title: ROW_NUMBER (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/row-number-transact-sql
+  - title: T-SQL Surface Area in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/tsql-surface-area

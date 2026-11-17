@@ -1,0 +1,61 @@
+id: dp300-3b-dmv-resource-stats-week
+objective: "3.2.4"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You have an Azure SQL logical server named **sql-contoso** that hosts a single database named **SalesDB**.
+
+    You plan to move SalesDB to a smaller compute size. You need a query that returns the average and maximum CPU utilization of SalesDB for the last seven days.
+
+    How should you complete the Transact-SQL query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un serveur logique Azure SQL nommé **sql-contoso** qui héberge une base de données unique nommée **SalesDB**.
+
+    Vous prévoyez de passer SalesDB à une taille de calcul inférieure. Vous avez besoin d'une requête qui renvoie l'utilisation moyenne et maximale du processeur de SalesDB au cours des sept derniers jours.
+
+    Comment devez-vous compléter la requête Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    -- Run while connected to the [[db]] database
+    SELECT database_name,
+           AVG(avg_cpu_percent) AS avg_cpu,
+           MAX(avg_cpu_percent) AS max_cpu
+    FROM [[view]]
+    WHERE database_name = 'SalesDB'
+      AND start_time > DATEADD(day, -7, GETDATE())
+    GROUP BY database_name;
+  slots:
+    - id: db
+      options:
+        - { id: master, text: master }
+        - { id: sales, text: SalesDB }
+        - { id: tempdb, text: tempdb }
+    - id: view
+      options:
+        - { id: rs, text: sys.resource_stats }
+        - { id: dmrs, text: sys.dm_db_resource_stats }
+        - { id: srs, text: sys.server_resource_stats }
+        - { id: eprs, text: sys.elastic_pool_resource_stats }
+answer:
+  values: { db: master, view: rs }
+explanation:
+  correct:
+    en: "`sys.resource_stats` lives in the `master` database of the logical server. It collects the resource use of each database every 5 minutes and keeps about 14 days, which covers a seven-day analysis; its `database_name` and `start_time` columns filter the rows."
+    fr: "`sys.resource_stats` se trouve dans la base `master` du serveur logique. Elle collecte l'utilisation des ressources de chaque base toutes les 5 minutes et conserve environ 14 jours, ce qui couvre une analyse sur sept jours ; ses colonnes `database_name` et `start_time` filtrent les lignes."
+  options:
+    sales: { en: "`sys.resource_stats` must be queried from `master`, not from the user database.", fr: "`sys.resource_stats` doit être interrogée depuis `master`, pas depuis la base utilisateur." }
+    tempdb: { en: "The resource history of the server's databases isn't exposed in `tempdb`.", fr: "L'historique des ressources des bases du serveur n'est pas exposé dans `tempdb`." }
+    dmrs: { en: "`sys.dm_db_resource_stats` keeps only about one hour of data, and it has no `database_name` column because it describes the current database.", fr: "`sys.dm_db_resource_stats` ne conserve qu'environ une heure de données et n'a pas de colonne `database_name`, car elle décrit la base courante." }
+    srs: { en: "`sys.server_resource_stats` reports the resource use of an Azure SQL managed instance, not of a database on a logical server.", fr: "`sys.server_resource_stats` indique l'utilisation des ressources d'une instance managée Azure SQL, pas d'une base sur un serveur logique." }
+    eprs: { en: "`sys.elastic_pool_resource_stats` describes elastic pools; SalesDB is a single database.", fr: "`sys.elastic_pool_resource_stats` décrit les pools élastiques ; SalesDB est une base de données unique." }
+references:
+  - title: Monitor performance using dynamic management views
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/monitoring-with-dmvs

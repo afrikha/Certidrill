@@ -1,0 +1,42 @@
+id: az802-4a-split-brain-order
+objective: "4.1.5"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A DNS server named DNS1 hosts the zone contoso.com. DNS1 has an internal network interface with the IP address 10.0.0.53 and an internet-facing interface with the IP address 208.84.0.53. The default zone scope contains an A record named www.career with the address 10.0.0.39.
+
+    You need internet clients that query 208.84.0.53 to receive the address 65.55.39.10 for www.career.contoso.com. Internal clients must keep receiving 10.0.0.39.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Un serveur DNS nommé DNS1 héberge la zone contoso.com. DNS1 possède une interface réseau interne d'adresse IP 10.0.0.53 et une interface exposée à Internet d'adresse IP 208.84.0.53. L'étendue de zone par défaut contient un enregistrement A nommé www.career d'adresse 10.0.0.39.
+
+    Les clients internet qui interrogent 208.84.0.53 doivent recevoir l'adresse 65.55.39.10 pour www.career.contoso.com. Les clients internes doivent continuer à recevoir 10.0.0.39.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: scope, text: "Add-DnsServerZoneScope -ZoneName \"contoso.com\" -Name \"external\"" }
+    - { id: record, text: "Add-DnsServerResourceRecord -ZoneName \"contoso.com\" -A -Name \"www.career\" -IPv4Address \"65.55.39.10\" -ZoneScope \"external\"" }
+    - { id: policy, text: "Add-DnsServerQueryResolutionPolicy -Name \"SplitBrainZonePolicy\" -Action ALLOW -ServerInterfaceIP \"EQ,208.84.0.53\" -ZoneScope \"external,1\" -ZoneName \"contoso.com\"" }
+    - { id: subnet, text: "Add-DnsServerClientSubnet -Name \"InternetSubnet\" -IPv4Subnet \"208.84.0.0/24\"" }
+    - { id: rscope, text: "Add-DnsServerRecursionScope -Name \"external\" -EnableRecursion $false" }
+    - { id: default, text: "Add-DnsServerResourceRecord -ZoneName \"contoso.com\" -A -Name \"www.career\" -IPv4Address \"65.55.39.10\"" }
+answer:
+  sequence: [ scope, record, policy ]
+explanation:
+  correct:
+    en: |
+      The external answer lives in its own zone scope, so you create the scope, then add the external record to it. The query resolution policy references the scope and matches the queries received on the internet-facing interface; queries received on 10.0.0.53 match no policy and are answered from the default scope.
+    fr: |
+      La réponse externe se trouve dans sa propre étendue de zone : vous créez l'étendue, puis vous y ajoutez l'enregistrement externe. La stratégie de résolution de requêtes référence l'étendue et correspond aux requêtes reçues sur l'interface exposée à Internet ; les requêtes reçues sur 10.0.0.53 ne correspondent à aucune stratégie et reçoivent une réponse de l'étendue par défaut.
+  options:
+    subnet: { en: "The criterion is the server interface, so no client subnet is needed; the subnet 208.84.0.0/24 wouldn't match internet clients anyway.", fr: "Le critère est l'interface du serveur : aucun sous-réseau client n'est nécessaire, et le sous-réseau 208.84.0.0/24 ne correspondrait de toute façon pas aux clients internet." }
+    rscope: { en: "A recursion scope controls recursion for names the server doesn't host; it doesn't provide a different record for www.career.", fr: "Une étendue de récursivité contrôle la récursivité pour les noms que le serveur n'héberge pas ; elle ne fournit pas d'autre enregistrement pour www.career." }
+    default: { en: "Without -ZoneScope, the record would be added to the default scope and returned to internal clients too.", fr: "Sans -ZoneScope, l'enregistrement serait ajouté à l'étendue par défaut et renvoyé aussi aux clients internes." }
+references:
+  - title: Use DNS Policy for Split-Brain DNS in Active Directory
+    url: https://learn.microsoft.com/en-us/windows-server/networking/dns/deploy/dns-sb-with-ad

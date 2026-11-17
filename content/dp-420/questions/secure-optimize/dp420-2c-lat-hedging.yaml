@@ -1,0 +1,72 @@
+id: dp420-2c-lat-hedging
+objective: "2.3.4"
+type: dropdown
+difficulty: 3
+status: draft
+shuffle: false
+stem:
+  en: |
+    Adatum has an Azure Cosmos DB for NoSQL account replicated to North Europe, West Europe and UK South. A pricing API in North Europe must keep its P99 read latency low even when one region temporarily responds slowly. Some extra RU cost is acceptable.
+
+    You need to configure the .NET client so that:
+
+    - reads go to North Europe, then West Europe, then UK South, in that order of preference
+    - if the first region hasn't answered a read after 250 ms, a parallel request is sent to the second region
+    - if neither has answered 50 ms later, a parallel request is sent to the third region
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum dispose d'un compte Azure Cosmos DB for NoSQL répliqué dans North Europe, West Europe et UK South. Une API de tarification située dans North Europe doit conserver une latence de lecture P99 faible même lorsqu'une région répond temporairement lentement. Un surcoût en RU est acceptable.
+
+    Vous devez configurer le client .NET de sorte que :
+
+    - les lectures soient envoyées vers North Europe, puis West Europe, puis UK South, dans cet ordre de préférence
+    - si la première région n'a pas répondu à une lecture au bout de 250 ms, une requête parallèle soit envoyée à la deuxième région
+    - si aucune n'a répondu 50 ms plus tard, une requête parallèle soit envoyée à la troisième région
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    CosmosClient client = new CosmosClientBuilder(connectionString)
+        .[[regions]](new List<string> { "North Europe", "West Europe", "UK South" })
+        .WithAvailabilityStrategy(
+            AvailabilityStrategy.CrossRegionHedgingStrategy(
+                threshold: TimeSpan.FromMilliseconds([[threshold]]),
+                thresholdStep: TimeSpan.FromMilliseconds([[step]])))
+        .Build();
+  slots:
+    - id: regions
+      options:
+        - { id: region, text: WithApplicationRegion }
+        - { id: preferred, text: WithApplicationPreferredRegions }
+        - { id: gateway, text: WithConnectionModeGateway }
+    - id: threshold
+      options:
+        - { id: t50, text: "50" }
+        - { id: t250, text: "250" }
+        - { id: t300, text: "300" }
+    - id: step
+      options:
+        - { id: s50, text: "50" }
+        - { id: s250, text: "250" }
+        - { id: s300, text: "300" }
+answer:
+  values: { regions: preferred, threshold: t250, step: s50 }
+explanation:
+  correct:
+    en: "The threshold-based availability strategy (hedging) sends parallel read requests to the secondary regions defined in `ApplicationPreferredRegions` and accepts the fastest response. The SDK waits for `threshold` (250 ms) before sending a request to the second region, then adds `thresholdStep` (50 ms) before each additional region, so the third request leaves at 300 ms. It reduces tail latency at the cost of extra RUs while thresholds are breached."
+    fr: "La stratégie de disponibilité basée sur un seuil (hedging) envoie des requêtes de lecture parallèles aux régions secondaires définies dans `ApplicationPreferredRegions` et accepte la réponse la plus rapide. Le SDK attend `threshold` (250 ms) avant d'envoyer une requête à la deuxième région, puis ajoute `thresholdStep` (50 ms) avant chaque région supplémentaire : la troisième requête part donc à 300 ms. Elle réduit la latence de queue au prix de RU supplémentaires tant que les seuils sont dépassés."
+  options:
+    region: { en: "WithApplicationRegion takes a single region and orders the others by proximity; it can't enforce this explicit list.", fr: "WithApplicationRegion prend une seule région et classe les autres par proximité ; elle ne peut pas imposer cette liste explicite." }
+    gateway: { en: "WithConnectionModeGateway sets the connection mode; it doesn't define region preferences.", fr: "WithConnectionModeGateway définit le mode de connexion ; elle ne définit pas les préférences de région." }
+    t300: { en: "300 ms is when the third request is sent; the threshold is the delay before the second request.", fr: "300 ms correspond à l'envoi de la troisième requête ; le seuil est le délai avant la deuxième requête." }
+    s250: { en: "The step is the additional delay after the threshold, not the threshold itself.", fr: "Le pas est le délai supplémentaire après le seuil, pas le seuil lui-même." }
+references:
+  - title: Performance tips for Azure Cosmos DB and .NET
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/performance-tips-dotnet-sdk-v3

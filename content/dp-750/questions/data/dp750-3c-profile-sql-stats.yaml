@@ -1,0 +1,89 @@
+id: dp750-3c-profile-sql-stats
+objective: "3.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin Toys wants a SQL query, run each night on a SQL warehouse, that profiles the table **tailspin.bronze.customers** before it is cleansed.
+
+    The query must return the following values:
+
+    - The number of rows in which **email** is null.
+    - The number of distinct values of **country**. An approximate value is acceptable to reduce the cost of the query.
+    - The median of **lifetime_value**.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys souhaite une requête SQL, exécutée chaque nuit sur un entrepôt SQL, qui profile la table **tailspin.bronze.customers** avant son nettoyage.
+
+    La requête doit renvoyer les valeurs suivantes :
+
+    - Le nombre de lignes dans lesquelles **email** est null.
+    - Le nombre de valeurs distinctes de **country**. Une valeur approximative est acceptable pour réduire le coût de la requête.
+    - La médiane de **lifetime_value**.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT count(*)    AS row_count,
+           [[nulls]]   AS null_emails,
+           [[distinct]] AS distinct_countries,
+           [[median]]  AS median_lifetime_value
+    FROM tailspin.bronze.customers;
+  slots:
+    - id: nulls
+      options:
+        - { id: countcol, text: count(email) }
+        - { id: eqnull, text: count_if(email = NULL) }
+        - { id: isnull, text: count_if(email IS NULL) }
+    - id: distinct
+      options:
+        - { id: approx, text: approx_count_distinct(country) }
+        - { id: countcountry, text: count(country) }
+        - { id: notnull, text: count_if(country IS NOT NULL) }
+    - id: median
+      options:
+        - { id: avg, text: avg(lifetime_value) }
+        - { id: pct, text: "percentile_approx(lifetime_value, 0.5)" }
+        - { id: stddev, text: stddev(lifetime_value) }
+answer:
+  values: { nulls: isnull, distinct: approx, median: pct }
+explanation:
+  correct:
+    en: |
+      `count_if` returns the number of rows for which its Boolean expression is true, and `email IS NULL` is true for each null. `approx_count_distinct` estimates the number of distinct values at a lower cost than an exact distinct count. `percentile_approx` with 0.5 returns the median.
+    fr: |
+      `count_if` renvoie le nombre de lignes pour lesquelles son expression booléenne est vraie, et `email IS NULL` est vraie pour chaque null. `approx_count_distinct` estime le nombre de valeurs distinctes pour un coût inférieur à celui d'un comptage exact. `percentile_approx` avec 0,5 renvoie la médiane.
+  options:
+    countcol:
+      en: "`count(email)` counts the non-null values, the opposite of what is needed."
+      fr: "`count(email)` compte les valeurs non null, l'inverse de ce qui est demandé."
+    eqnull:
+      en: "`email = NULL` is never true, so the result is always 0; use `IS NULL`."
+      fr: "`email = NULL` n'est jamais vraie : le résultat vaut toujours 0 ; utilisez `IS NULL`."
+    countcountry:
+      en: "`count(country)` counts every non-null value, duplicates included."
+      fr: "`count(country)` compte toutes les valeurs non null, doublons compris."
+    notnull:
+      en: |
+        This expression also counts every non-null value, duplicates included.
+      fr: |
+        Cette expression compte elle aussi toutes les valeurs non null, doublons compris.
+    avg:
+      en: "`avg` returns the mean, which outliers can pull away from the median."
+      fr: "`avg` renvoie la moyenne, que des valeurs aberrantes peuvent éloigner de la médiane."
+    stddev:
+      en: "`stddev` measures the spread of the values, not their central value."
+      fr: "`stddev` mesure la dispersion des valeurs, pas leur valeur centrale."
+references:
+  - title: count_if aggregate function
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/functions/count_if
+  - title: approx_count_distinct aggregate function
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/functions/approx_count_distinct

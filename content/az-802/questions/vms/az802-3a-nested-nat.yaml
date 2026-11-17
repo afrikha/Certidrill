@@ -1,0 +1,62 @@
+id: az802-3a-nested-nat
+objective: "3.1.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Your company rents a virtual machine named **VM11** from a hosting provider. Nested virtualization is enabled for VM11, and the Hyper-V role is installed in VM11. The hosting provider does not allow MAC address spoofing.
+
+    You need to give the virtual machines that run inside VM11 outbound network access through the network adapter of VM11. The nested virtual machines will use the 192.168.100.0/24 address range.
+
+    You plan to run the following commands in VM11.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Votre entreprise loue une machine virtuelle nommée **VM11** auprès d'un hébergeur. La virtualisation imbriquée est activée pour VM11, et le rôle Hyper-V est installé dans VM11. L'hébergeur n'autorise pas l'usurpation d'adresses MAC.
+
+    Vous devez donner aux machines virtuelles qui s'exécutent dans VM11 un accès réseau sortant par la carte réseau de VM11. Les machines virtuelles imbriquées utiliseront la plage d'adresses 192.168.100.0/24.
+
+    Vous prévoyez d'exécuter les commandes suivantes dans VM11.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    New-VMSwitch -Name VmNAT -SwitchType [[sw]]
+    New-NetNat -Name LocalNAT [[pfx]] "192.168.100.0/24"
+    Get-NetAdapter "vEthernet (VmNAT)" | New-NetIPAddress -IPAddress 192.168.100.1 -AddressFamily IPv4 -PrefixLength 24
+  slots:
+    - id: sw
+      options:
+        - { id: external, text: "External" }
+        - { id: internal, text: "Internal" }
+        - { id: private, text: "Private" }
+    - id: pfx
+      options:
+        - { id: ext, text: "-ExternalIPInterfaceAddressPrefix" }
+        - { id: rd, text: "-InternalRoutingDomainId" }
+        - { id: int, text: "-InternalIPInterfaceAddressPrefix" }
+answer:
+  values: { sw: internal, pfx: int }
+explanation:
+  correct:
+    en: |
+      When MAC address spoofing is not possible, for example in a public cloud, nested virtual machines use NAT inside the first-level VM. You create an internal switch, which gives VM11 a vEthernet adapter on the nested network, then create a NAT object whose internal interface prefix is the nested range, and assign 192.168.100.1 to the vEthernet adapter. The nested VMs use 192.168.100.1 as their default gateway.
+    fr: |
+      Quand l'usurpation d'adresses MAC est impossible, par exemple dans un cloud public, les machines virtuelles imbriquées utilisent la NAT dans la machine virtuelle de premier niveau. Vous créez un commutateur interne, qui donne à VM11 une carte vEthernet sur le réseau imbriqué, puis un objet NAT dont le préfixe de l'interface interne est la plage imbriquée, et vous attribuez 192.168.100.1 à la carte vEthernet. Les machines virtuelles imbriquées utilisent 192.168.100.1 comme passerelle par défaut.
+  options:
+    external: { en: "An external switch bridges the nested VMs onto the physical adapter of VM11, which needs MAC address spoofing.", fr: "Un commutateur externe relie les machines virtuelles imbriquées à la carte de VM11, ce qui exige l'usurpation d'adresses MAC." }
+    private: { en: "A private switch gives no vEthernet adapter to VM11, so VM11 cannot route the nested traffic.", fr: "Un commutateur privé ne donne aucune carte vEthernet à VM11 : VM11 ne peut pas router le trafic imbriqué." }
+    ext: { en: "The external prefix describes the network that the NAT connects to, not the nested 192.168.100.0/24 range.", fr: "Le préfixe externe décrit le réseau auquel la NAT se connecte, pas la plage imbriquée 192.168.100.0/24." }
+    rd: { en: "-InternalRoutingDomainId expects the GUID of a routing domain, not an address prefix.", fr: "-InternalRoutingDomainId attend le GUID d'un domaine de routage, pas un préfixe d'adresse." }
+references:
+  - title: Run Hyper-V in a Virtual Machine with Nested Virtualization
+    url: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/enable-nested-virtualization
+  - title: New-NetNat (NetNat)
+    url: https://learn.microsoft.com/en-us/powershell/module/netnat/new-netnat

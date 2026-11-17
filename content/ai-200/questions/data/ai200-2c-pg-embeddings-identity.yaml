@@ -1,0 +1,70 @@
+id: ai200-2c-pg-embeddings-identity
+objective: "2.2.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam stores product chunks in an Azure Database for PostgreSQL flexible server database where the `vector` and `azure_ai` extensions are installed. The embedding model `text-embedding-3-small` is deployed with the deployment name `emb-prod` in an Azure OpenAI resource named fabrikam-oai.
+
+    The system-assigned managed identity of the server is enabled and has access to fabrikam-oai. No API key may be stored in the database.
+
+    You need to generate the missing embeddings of the `product_chunks` table in SQL.
+
+    How should you complete the script? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam stocke des segments de produits dans une base de données Azure Database for PostgreSQL serveur flexible où les extensions `vector` et `azure_ai` sont installées. Le modèle d'incorporation `text-embedding-3-small` est déployé avec le nom de déploiement `emb-prod` dans une ressource Azure OpenAI nommée fabrikam-oai.
+
+    L'identité managée affectée par le système du serveur est activée et a accès à fabrikam-oai. Aucune clé API ne doit être stockée dans la base de données.
+
+    Vous devez générer en SQL les incorporations manquantes de la table `product_chunks`.
+
+    Comment devez-vous compléter le script ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT azure_ai.set_setting('[[endpoint]]', 'https://fabrikam-oai.openai.azure.com');
+    SELECT azure_ai.set_setting('[[auth]]', 'managed-identity');
+
+    UPDATE product_chunks
+    SET embedding = azure_openai.create_embeddings([[deployment]], content)::vector
+    WHERE embedding IS NULL;
+  slots:
+    - id: endpoint
+      options:
+        - { id: cogep, text: "azure_cognitive.endpoint" }
+        - { id: oaiep, text: "azure_openai.endpoint" }
+        - { id: mlep, text: "azure_ml.scoring_endpoint" }
+    - id: auth
+      options:
+        - { id: authtype, text: "azure_openai.auth_type" }
+        - { id: subkey, text: "azure_openai.subscription_key" }
+        - { id: cogauth, text: "azure_cognitive.auth_type" }
+    - id: deployment
+      options:
+        - { id: model, text: "'text-embedding-3-small'" }
+        - { id: resource, text: "'fabrikam-oai'" }
+        - { id: depname, text: "'emb-prod'" }
+answer:
+  values: { endpoint: oaiep, auth: authtype, deployment: depname }
+explanation:
+  correct:
+    en: "The `azure_openai.endpoint` key stores the Azure OpenAI endpoint, and `azure_openai.auth_type` set to `managed-identity` makes the extension authenticate with the server's managed identity instead of a subscription key. `azure_openai.create_embeddings` takes the deployment name as its first argument, so the call uses `'emb-prod'`."
+    fr: "La clé `azure_openai.endpoint` stocke le point de terminaison Azure OpenAI, et `azure_openai.auth_type` défini sur `managed-identity` fait en sorte que l'extension s'authentifie avec l'identité managée du serveur au lieu d'une clé d'abonnement. `azure_openai.create_embeddings` prend le nom du déploiement comme premier argument : l'appel utilise donc `'emb-prod'`."
+  options:
+    cogep: { en: "This key configures the Azure AI Language (Cognitive Services) endpoint, not Azure OpenAI.", fr: "Cette clé configure le point de terminaison Azure AI Language (Cognitive Services), pas Azure OpenAI." }
+    mlep: { en: "This key configures an Azure Machine Learning online endpoint.", fr: "Cette clé configure un point de terminaison en ligne Azure Machine Learning." }
+    subkey: { en: "This key stores an API key, which the requirements forbid; `managed-identity` is a value of the auth_type key.", fr: "Cette clé stocke une clé API, ce que les exigences interdisent ; `managed-identity` est une valeur de la clé auth_type." }
+    cogauth: { en: "This key sets the authentication of the Cognitive Services functions, not of the Azure OpenAI functions.", fr: "Cette clé définit l'authentification des fonctions Cognitive Services, pas celle des fonctions Azure OpenAI." }
+    model: { en: "The function expects the deployment name, which differs from the model name here.", fr: "La fonction attend le nom du déploiement, qui diffère ici du nom du modèle." }
+    resource: { en: "The resource name is part of the endpoint, not the deployment argument.", fr: "Le nom de la ressource fait partie du point de terminaison, ce n'est pas l'argument de déploiement." }
+references:
+  - title: azure_ai Extension in Azure Database for PostgreSQL flexible server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/generative-ai-azure-overview
+  - title: Generate Vector Embeddings with Azure OpenAI
+    url: https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/generative-ai-azure-openai

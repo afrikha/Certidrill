@@ -1,0 +1,105 @@
+id: dp700-cs2a-blue-yonder
+status: draft
+title:
+  en: Blue Yonder Airlines
+  fr: Blue Yonder Airlines
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Blue Yonder Airlines is a regional airline that operates 60 aircraft from its base in Lyon. The engineering department monitors the health of the aircraft engines and plans their maintenance.
+
+        A team of four data engineers builds the engine-health platform in Microsoft Fabric. The maintenance planning team still runs its workflows on an on-premises Apache Airflow server that must be retired.
+      fr: |
+        Blue Yonder Airlines est une compagnie aérienne régionale qui exploite 60 avions depuis sa base de Lyon. Le service technique surveille l'état des moteurs des avions et planifie leur maintenance.
+
+        Une équipe de quatre ingénieurs données construit la plateforme de suivi des moteurs dans Microsoft Fabric. L'équipe de planification de la maintenance exécute encore ses workflows sur un serveur Apache Airflow local qui doit être mis hors service.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Telemetry**
+
+        During each flight, the aircraft send engine sensor messages over a satellite link to an event hub named **egt-telemetry** in an Azure Event Hubs namespace. Each JSON message contains TailNumber, FlightId, SensorTime (the UTC time of the measurement), EgtC (exhaust gas temperature, in °C) and N1Pct. Because of the satellite link, a message can reach the event hub up to eight minutes after its SensorTime.
+
+        **Fabric**
+
+        Blue Yonder has an F64 capacity. The workspace **BYA-Fleet** contains the following items.
+
+        | Item | Type | Details |
+        | --- | --- | --- |
+        | LH-Fleet | Lakehouse | Delta tables **egt_raw**, **egt_5min** and **aircraft_status** |
+        | SJD-Telemetry | Spark job definition | Reads egt-telemetry by using Spark structured streaming, parses the JSON messages into a streaming DataFrame named **parsed**, and appends the rows to egt_raw. A retry policy is enabled. |
+        | NB-FleetStats | Notebook | Batch notebook that joins and aggregates egt_raw and other Delta tables of LH-Fleet. It runs for about two hours. |
+        | ENV-Fleet | Environment | Fabric Runtime 1.3. Attached to SJD-Telemetry and NB-FleetStats. |
+
+        Between 06:00 and 09:00, scheduled Spark jobs use all the Spark cores of the capacity. During this period, the data engineers often start NB-FleetStats interactively to reprocess past days, and the runs fail with the following error: `[TooManyRequestsForCapacity] HTTP Response code 430`.
+
+        **Maintenance planning**
+
+        The maintenance planning team has 25 Airflow DAGs. Some DAGs run every 15 minutes, others once a night. The DAGs will be moved to an Apache Airflow job in BYA-Fleet.
+      fr: |
+        **Télémétrie**
+
+        Pendant chaque vol, les avions envoient des messages de capteurs moteur par liaison satellite à un hub d'événements nommé **egt-telemetry** dans un espace de noms Azure Event Hubs. Chaque message JSON contient TailNumber, FlightId, SensorTime (heure UTC de la mesure), EgtC (température des gaz d'échappement, en °C) et N1Pct. À cause de la liaison satellite, un message peut arriver dans le hub d'événements jusqu'à huit minutes après son SensorTime.
+
+        **Fabric**
+
+        Blue Yonder dispose d'une capacité F64. L'espace de travail **BYA-Fleet** contient les éléments suivants.
+
+        | Élément | Type | Détails |
+        | --- | --- | --- |
+        | LH-Fleet | Lakehouse | Tables Delta **egt_raw**, **egt_5min** et **aircraft_status** |
+        | SJD-Telemetry | Définition de tâche Spark | Lit egt-telemetry avec le streaming structuré Spark, analyse les messages JSON dans un DataFrame de streaming nommé **parsed** et ajoute les lignes à egt_raw. Une stratégie de nouvelle tentative est activée. |
+        | NB-FleetStats | Notebook | Notebook de traitement par lots qui joint et agrège egt_raw et d'autres tables Delta de LH-Fleet. Il s'exécute pendant environ deux heures. |
+        | ENV-Fleet | Environnement | Fabric Runtime 1.3. Attaché à SJD-Telemetry et à NB-FleetStats. |
+
+        Entre 06:00 et 09:00, des tâches Spark planifiées utilisent tous les cœurs Spark de la capacité. Pendant cette période, les ingénieurs données lancent souvent NB-FleetStats de manière interactive pour retraiter des jours passés, et les exécutions échouent avec l'erreur suivante : `[TooManyRequestsForCapacity] HTTP Response code 430`.
+
+        **Planification de la maintenance**
+
+        L'équipe de planification de la maintenance dispose de 25 DAG Airflow. Certains DAG s'exécutent toutes les 15 minutes, d'autres une fois par nuit. Les DAG seront déplacés vers un travail Apache Airflow dans BYA-Fleet.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Blue Yonder identifies the following requirements.
+
+        **Streaming**
+
+        1. SJD-Telemetry must write to egt_5min the average EgtC of each aircraft for consecutive, non-overlapping five-minute windows based on SensorTime. Messages that arrive up to eight minutes late must be included. Each window must be written to egt_5min once and never updated afterwards, at most 15 minutes after the end of the window.
+        2. aircraft_status must contain one row per TailNumber with the most recent reading of the aircraft. SJD-Telemetry must keep it up to date continuously.
+
+        **Batch processing**
+
+        3. The reprocessing runs of NB-FleetStats must not fail when the Spark cores of the capacity are in use. They must start automatically as soon as cores are available. The capacity must not be scaled up.
+        4. The duration of NB-FleetStats must be reduced without changing its code.
+
+        **Access**
+
+        5. The members of a Microsoft Entra group named **MxPlanners** must be able to query egt_5min by using T-SQL from SQL Server Management Studio. They must not be able to read the data of LH-Fleet through Spark or the OneLake APIs, and they must not see the other items of BYA-Fleet.
+
+        **Orchestration**
+
+        6. The Airflow runtime must be available at all times, so that the DAG runs never wait for the runtime to resume. This is a production workload.
+      fr: |
+        Blue Yonder a défini les exigences suivantes.
+
+        **Streaming**
+
+        1. SJD-Telemetry doit écrire dans egt_5min la moyenne d'EgtC de chaque avion pour des fenêtres consécutives de cinq minutes, sans chevauchement, basées sur SensorTime. Les messages qui arrivent jusqu'à huit minutes en retard doivent être pris en compte. Chaque fenêtre doit être écrite une seule fois dans egt_5min, sans jamais être mise à jour ensuite, au plus tard 15 minutes après la fin de la fenêtre.
+        2. aircraft_status doit contenir une ligne par TailNumber avec le relevé le plus récent de l'avion. SJD-Telemetry doit la tenir à jour en continu.
+
+        **Traitement par lots**
+
+        3. Les exécutions de retraitement de NB-FleetStats ne doivent pas échouer quand les cœurs Spark de la capacité sont utilisés. Elles doivent démarrer automatiquement dès que des cœurs sont disponibles. La capacité ne doit pas être augmentée.
+        4. La durée de NB-FleetStats doit être réduite sans modifier son code.
+
+        **Accès**
+
+        5. Les membres d'un groupe Microsoft Entra nommé **MxPlanners** doivent pouvoir interroger egt_5min en T-SQL depuis SQL Server Management Studio. Ils ne doivent pas pouvoir lire les données de LH-Fleet via Spark ou les API OneLake, et ils ne doivent pas voir les autres éléments de BYA-Fleet.
+
+        **Orchestration**
+
+        6. Le runtime Airflow doit être disponible en permanence, afin que les exécutions des DAG n'attendent jamais la reprise du runtime. Il s'agit d'une charge de travail de production.

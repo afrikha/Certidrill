@@ -1,0 +1,53 @@
+id: ai200-cs1b-giftfinder-query
+objective: "2.1.3"
+type: single
+caseStudy: ai200-cs1b-wingtip
+difficulty: 3
+status: draft
+stem:
+  en: |
+    In catalog-api, `container` is the `ContainerProxy` of products, `cat` is the selected category ID and `q` is the request embedding. The options refer to the following query text, named `Q`: `"SELECT TOP 5 c.id, c.name, VectorDistance(c.embedding, @q) AS score FROM c WHERE c.categoryId = @cat ORDER BY VectorDistance(c.embedding, @q)"`.
+
+    You need to meet the GiftFinder search requirement. Which code should you use?
+  fr: |
+    Dans catalog-api, `container` est le `ContainerProxy` de products, `cat` l'ID de la catégorie sélectionnée et `q` l'incorporation de la demande. Les options font référence au texte de requête suivant, nommé `Q` : `"SELECT TOP 5 c.id, c.name, VectorDistance(c.embedding, @q) AS score FROM c WHERE c.categoryId = @cat ORDER BY VectorDistance(c.embedding, @q)"`.
+
+    Vous devez satisfaire l'exigence relative à la recherche GiftFinder. Quel code devez-vous utiliser ?
+body:
+  options:
+    - id: a
+      text:
+        en: "`Q`, run by `container.query_items()` with the `@q` and `@cat` parameters and `partition_key=cat`"
+        fr: "`Q`, exécutée par `container.query_items()` avec les paramètres `@q` et `@cat` et `partition_key=cat`"
+    - id: b
+      text:
+        en: "`Q` without `TOP 5`, run by `container.query_items()` with the same parameters, `max_item_count=5` and `partition_key=cat`"
+        fr: "`Q` sans `TOP 5`, exécutée par `container.query_items()` avec les mêmes paramètres, `max_item_count=5` et `partition_key=cat`"
+    - id: c
+      text:
+        en: "`Q` without the `WHERE` clause, run with `enable_cross_partition_query=True`, then keep the results whose `categoryId` equals `cat`"
+        fr: "`Q` sans la clause `WHERE`, exécutée avec `enable_cross_partition_query=True`, puis conserver les résultats dont `categoryId` est égal à `cat`"
+    - id: d
+      text:
+        en: "`SELECT c.id, c.name, c.embedding FROM c` run with `partition_key=cat`, then compute the cosine similarity of each item with `q` in Python and keep the top five"
+        fr: "`SELECT c.id, c.name, c.embedding FROM c` exécutée avec `partition_key=cat`, puis calculer la similarité cosinus de chaque élément avec `q` en Python et conserver les cinq meilleurs"
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      `VectorDistance` in both the projection and the `ORDER BY` clause returns the similarity score and ranks the items by using the vector index. `TOP 5` keeps the engine from returning more results than needed, and passing `partition_key=cat` (with the matching filter) runs the query in a single logical partition instead of fanning out, which minimizes RU and latency.
+    fr: |
+      `VectorDistance` dans la projection et dans la clause `ORDER BY` renvoie le score de similarité et classe les éléments à l'aide de l'index vectoriel. `TOP 5` évite que le moteur renvoie plus de résultats que nécessaire, et passer `partition_key=cat` (avec le filtre correspondant) exécute la requête dans une seule partition logique au lieu de la distribuer, ce qui réduit au minimum les RU et la latence.
+  options:
+    b:
+      en: "`max_item_count` sets the page size, not the number of results; without `TOP N` the vector search tries to return many more results and costs more RU."
+      fr: "`max_item_count` définit la taille de page, pas le nombre de résultats ; sans `TOP N`, la recherche vectorielle tente de renvoyer beaucoup plus de résultats et coûte plus de RU."
+    c:
+      en: "The query fans out to every partition, and the five closest products overall may not belong to the selected category, so fewer than five results can remain."
+      fr: "La requête est distribuée à toutes les partitions, et les cinq produits les plus proches de l'ensemble du catalogue peuvent ne pas appartenir à la catégorie sélectionnée : il peut rester moins de cinq résultats."
+    d:
+      en: "Reading every embedding of the category and ranking them in the client ignores the vector index and transfers far more data, which increases both RU and latency."
+      fr: "Lire toutes les incorporations de la catégorie et les classer dans le client ignore l'index vectoriel et transfère beaucoup plus de données, ce qui augmente les RU et la latence."
+references:
+  - title: Vector search in Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/vector-search

@@ -1,0 +1,78 @@
+id: dp420-cs1a-catalog-sync-feed
+objective: "1.4.4"
+type: dropdown
+caseStudy: dp420-cs1a-adventure-works
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing app-catalog-sync. The methods `RemoveFromSearchAsync` and `PublishAsync` already exist.
+
+    You need to complete the code to meet the catalog synchronization requirement.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez app-catalog-sync. Les méthodes `RemoveFromSearchAsync` et `PublishAsync` existent déjà.
+
+    Vous devez compléter le code pour satisfaire l'exigence relative à la synchronisation du catalogue.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    Container products = client.GetContainer("store", "products");
+    Container leases = client.GetContainer("store", "leases");
+
+    ChangeFeedProcessor processor = products
+        .[[builder]]<Product>(processorName: "catalog-sync", onChangesDelegate: HandleChangesAsync)
+        .WithInstanceName(Environment.MachineName)
+        .WithLeaseContainer(leases)
+        .Build();
+    await processor.StartAsync();
+
+    static async Task HandleChangesAsync(ChangeFeedProcessorContext context,
+        IReadOnlyCollection<[[itemType]]> changes, CancellationToken cancellationToken)
+    {
+        foreach (var change in changes)
+        {
+            if (change.Metadata.OperationType == ChangeFeedOperationType.[[operation]])
+                await RemoveFromSearchAsync(change);
+            else
+                await PublishAsync(change.Current);
+        }
+    }
+  slots:
+    - id: builder
+      options:
+        - { id: latest, text: GetChangeFeedProcessorBuilder }
+        - { id: avad, text: GetChangeFeedProcessorBuilderWithAllVersionsAndDeletes }
+        - { id: estimator, text: GetChangeFeedEstimatorBuilder }
+    - id: itemType
+      options:
+        - { id: product, text: Product }
+        - { id: feeditem, text: ChangeFeedItem<Product> }
+        - { id: response, text: ItemResponse<Product> }
+    - id: operation
+      options:
+        - { id: create, text: Create }
+        - { id: replace, text: Replace }
+        - { id: delete, text: Delete }
+answer:
+  values: { builder: avad, itemType: feeditem, operation: delete }
+explanation:
+  correct:
+    en: "Only the all versions and deletes mode returns every intermediate update and the deletions; it requires continuous backup, and both are already configured on cosmos-aw-store. Its builder is `GetChangeFeedProcessorBuilderWithAllVersionsAndDeletes`, and the delegate receives `ChangeFeedItem<Product>` objects that expose `Metadata.OperationType` and `Current`. The delegate removes the product from the search index when the operation type is `Delete`. In this mode the processor starts from the time it first starts (no `WithStartTime` to read the past)."
+    fr: "Seul le mode toutes les versions et suppressions renvoie chaque mise à jour intermédiaire et les suppressions ; il nécessite la sauvegarde continue, et les deux sont déjà configurés sur cosmos-aw-store. Son générateur est `GetChangeFeedProcessorBuilderWithAllVersionsAndDeletes`, et le délégué reçoit des objets `ChangeFeedItem<Product>` qui exposent `Metadata.OperationType` et `Current`. Le délégué retire le produit de l'index de recherche quand le type d'opération est `Delete`. Dans ce mode, le processeur commence à la date de son premier démarrage (pas de `WithStartTime` pour lire le passé)."
+  options:
+    latest: { en: "The latest version mode returns only the most recent version of each changed item and never returns deletions.", fr: "Le mode de la version la plus récente ne renvoie que la dernière version de chaque élément modifié et ne renvoie jamais les suppressions." }
+    estimator: { en: "The change feed estimator measures the pending work of a processor; it does not deliver the changes.", fr: "L'estimateur du flux de modification mesure le travail en attente d'un processeur ; il ne fournit pas les modifications." }
+    product: { en: "A plain Product has no Metadata property; the all versions and deletes delegate receives ChangeFeedItem<Product>.", fr: "Un simple Product n'a pas de propriété Metadata ; le délégué du mode toutes les versions et suppressions reçoit des ChangeFeedItem<Product>." }
+    replace: { en: "Replace identifies an update; removing the product from the search index on each update would delete products that still exist.", fr: "Replace identifie une mise à jour ; retirer le produit de l'index de recherche à chaque mise à jour supprimerait des produits qui existent toujours." }
+references:
+  - title: Change feed processor in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/change-feed-processor

@@ -1,0 +1,101 @@
+id: dp300-cs3b-bellows-college
+status: draft
+title:
+  en: Bellows College
+  fr: Bellows College
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Bellows College is a private university that has 28,000 students on three campuses in the United States.
+
+        The student information system of the college runs on SQL Server on Azure virtual machines. Two database administrators (DBAs) manage the SQL Server instances.
+      fr: |
+        Bellows College est une université privée qui compte 28 000 étudiants répartis sur trois campus aux États-Unis.
+
+        Le système d'information des étudiants de l'université s'exécute sur SQL Server sur des machines virtuelles Azure. Deux administrateurs de bases de données (DBA) gèrent les instances SQL Server.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Servers**
+
+        | Server | Configuration |
+        | --- | --- |
+        | SIS-VM1 | Azure virtual machine in East US. 16 vCPUs on a single NUMA node, 128 GiB of memory. Windows Server 2022 and SQL Server 2022 Enterprise. |
+        | SIS-VM2 | Same configuration as SIS-VM1. |
+
+        SQL Server was installed manually on both servers with the default settings. The Database Engine service runs as the domain account **BC\svc-sql**, which has no user rights other than the rights granted by SQL Server Setup by default.
+
+        **Availability group**
+
+        An Always On availability group named **AG-SIS** contains the **SIS** database (900 GB, full recovery model). SIS-VM1 is the primary replica. SIS-VM2 is a synchronous-commit secondary replica that is readable.
+
+        **Workloads**
+
+        - During heavy registration periods, the error log of SIS-VM1 reports that a significant part of the SQL Server process memory has been paged out by Windows.
+        - The members of the monitoring team belong to an AD DS group named **BC\SIS-Monitoring**. The group has no login on either server.
+        - A SQL Server Agent job named **IndexMaint** exists on SIS-VM1 and SIS-VM2 with the same definition. It has no schedule yet.
+      fr: |
+        **Serveurs**
+
+        | Serveur | Configuration |
+        | --- | --- |
+        | SIS-VM1 | Machine virtuelle Azure dans la région East US. 16 processeurs virtuels sur un seul nœud NUMA, 128 Gio de mémoire. Windows Server 2022 et SQL Server 2022 Enterprise. |
+        | SIS-VM2 | Même configuration que SIS-VM1. |
+
+        SQL Server a été installé manuellement sur les deux serveurs avec les paramètres par défaut. Le service Moteur de base de données s'exécute sous le compte de domaine **BC\svc-sql**, qui ne dispose d'aucun droit utilisateur autre que ceux accordés par défaut par le programme d'installation de SQL Server.
+
+        **Groupe de disponibilité**
+
+        Un groupe de disponibilité Always On nommé **AG-SIS** contient la base de données **SIS** (900 Go, mode de récupération complète). SIS-VM1 est le réplica principal. SIS-VM2 est un réplica secondaire en mode de validation synchrone, accessible en lecture.
+
+        **Charges de travail**
+
+        - Pendant les périodes d'inscription chargées, le journal des erreurs de SIS-VM1 signale qu'une part importante de la mémoire du processus SQL Server a été paginée par Windows.
+        - Les membres de l'équipe de supervision appartiennent à un groupe AD DS nommé **BC\SIS-Monitoring**. Le groupe n'a de connexion sur aucun des deux serveurs.
+        - Un travail SQL Server Agent nommé **IndexMaint** existe sur SIS-VM1 et SIS-VM2 avec la même définition. Il n'a pas encore de planification.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Server configuration requirements**
+
+        1. The growth of the data files of SIS must not wait for the new space to be filled with zeros.
+        2. The max degree of parallelism of both servers must follow the Microsoft recommendation for their processor configuration.
+        3. Windows must no longer be able to page out the memory of the SQL Server buffer pool.
+
+        **Maintenance requirements**
+
+        4. IndexMaint must run every Saturday and every Sunday at 23:30 on both servers. Its job step must do work only on the server that is the primary replica of SIS at that time, so that the job keeps working after a failover.
+        5. Every night, a check that has a small overhead must detect torn pages and checksum failures in SIS. Once a month, a complete check, including the logical consistency of the database, must run.
+
+        **Backup requirements**
+
+        6. SIS must be backed up with a weekly full backup, a daily differential backup and a log backup every 15 minutes. A restore must use the last full backup, the last differential backup and the log backups taken after it.
+        7. Backup work must be offloaded from SIS-VM1 whenever SQL Server 2022 supports it. The log backups must continue if SIS-VM2 is unavailable.
+
+        **Security requirements**
+
+        8. The members of BC\SIS-Monitoring must be able to query the performance-related dynamic management views of SQL Server on the server that hosts the primary replica of SIS, including after a failover. They must get no other permission. The principle of least privilege must be applied.
+      fr: |
+        **Exigences de configuration des serveurs**
+
+        1. La croissance des fichiers de données de SIS ne doit pas attendre que le nouvel espace soit rempli de zéros.
+        2. Le degré maximal de parallélisme des deux serveurs doit suivre la recommandation de Microsoft pour leur configuration de processeurs.
+        3. Windows ne doit plus pouvoir paginer la mémoire du pool de mémoires tampons de SQL Server.
+
+        **Exigences de maintenance**
+
+        4. IndexMaint doit s'exécuter chaque samedi et chaque dimanche à 23 h 30 sur les deux serveurs. Son étape de travail ne doit agir que sur le serveur qui est à ce moment le réplica principal de SIS, afin que le travail continue de fonctionner après un basculement.
+        5. Chaque nuit, une vérification à faible surcharge doit détecter les pages déchirées et les erreurs de somme de contrôle dans SIS. Une fois par mois, une vérification complète, qui inclut la cohérence logique de la base de données, doit s'exécuter.
+
+        **Exigences de sauvegarde**
+
+        6. SIS doit être sauvegardée par une sauvegarde complète hebdomadaire, une sauvegarde différentielle quotidienne et une sauvegarde du journal toutes les 15 minutes. Une restauration doit utiliser la dernière sauvegarde complète, la dernière sauvegarde différentielle et les sauvegardes du journal effectuées après celle-ci.
+        7. Le travail de sauvegarde doit être déchargé de SIS-VM1 chaque fois que SQL Server 2022 le permet. Les sauvegardes du journal doivent continuer si SIS-VM2 est indisponible.
+
+        **Exigences de sécurité**
+
+        8. Les membres de BC\SIS-Monitoring doivent pouvoir interroger les vues de gestion dynamique de SQL Server liées aux performances sur le serveur qui héberge le réplica principal de SIS, y compris après un basculement. Ils ne doivent obtenir aucune autre autorisation. Le principe des privilèges minimum doit être appliqué.

@@ -1,0 +1,68 @@
+id: dp300-cs1c-partition-window
+objective: "1.2.4"
+type: dropdown
+caseStudy: dp300-cs1c-litware-energy
+difficulty: 3
+status: draft
+shuffle: false
+stem:
+  en: |
+    You need to perform the monthly partition maintenance of dbo.Readings on 1 December 2026 to meet the data management requirements.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez effectuer la maintenance mensuelle des partitions de dbo.Readings le 1er décembre 2026 pour satisfaire les exigences de gestion des données.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE dbo.Readings
+        [[out]] PARTITION 1 TO dbo.ReadingsStage;
+    GO
+    ALTER PARTITION FUNCTION pfMonthly()
+        MERGE RANGE ([[boundary]]);
+    GO
+    ALTER PARTITION SCHEME psMonthly
+        NEXT USED fgReadings;
+    GO
+    ALTER PARTITION FUNCTION pfMonthly()
+        [[add]] RANGE ('2027-02-01');
+  slots:
+    - id: out
+      options:
+        - { id: out_merge, text: MERGE }
+        - { id: out_split, text: SPLIT }
+        - { id: out_switch, text: SWITCH }
+    - id: boundary
+      options:
+        - { id: b1101, text: "'2023-11-01'" }
+        - { id: b1201, text: "'2023-12-01'" }
+        - { id: b0101, text: "'2024-01-01'" }
+    - id: add
+      options:
+        - { id: add_split, text: SPLIT }
+        - { id: add_merge, text: MERGE }
+        - { id: add_switch, text: SWITCH }
+answer:
+  values: { out: out_switch, boundary: b1201, add: add_split }
+explanation:
+  correct:
+    en: |
+      `ALTER TABLE ... SWITCH PARTITION 1 TO dbo.ReadingsStage` moves November 2023 to the empty staging table on the same filegroup as a metadata-only operation. With RANGE RIGHT, partition 1 holds the values lower than the lowest boundary, 2023-12-01, so merging that boundary removes the now empty partition. After `NEXT USED` designates the filegroup for the new partition, `SPLIT RANGE ('2027-02-01')` splits the empty rightmost partition, which also involves no data movement.
+    fr: |
+      `ALTER TABLE ... SWITCH PARTITION 1 TO dbo.ReadingsStage` déplace novembre 2023 vers la table intermédiaire vide du même groupe de fichiers, par une opération portant uniquement sur les métadonnées. Avec RANGE RIGHT, la partition 1 contient les valeurs inférieures à la limite la plus basse, 2023-12-01 : fusionner cette limite supprime la partition désormais vide. Une fois que `NEXT USED` a désigné le groupe de fichiers de la nouvelle partition, `SPLIT RANGE ('2027-02-01')` divise la partition la plus à droite, qui est vide, ce qui n'entraîne pas non plus de déplacement de données.
+  options:
+    out_merge: { en: "MERGE is an option of ALTER PARTITION FUNCTION; it does not move a partition to another table.", fr: "MERGE est une option d'ALTER PARTITION FUNCTION ; il ne déplace pas une partition vers une autre table." }
+    out_split: { en: "SPLIT is an option of ALTER PARTITION FUNCTION and adds a boundary.", fr: "SPLIT est une option d'ALTER PARTITION FUNCTION et ajoute une limite." }
+    b1101: { en: "2023-11-01 is not a boundary of pfMonthly: the lowest boundary is 2023-12-01.", fr: "2023-11-01 n'est pas une limite de pfMonthly : la limite la plus basse est 2023-12-01." }
+    b0101: { en: "Merging 2024-01-01 would combine December 2023 and January 2024, two partitions that contain data, and leave the empty partition 1 in place.", fr: "Fusionner 2024-01-01 combinerait décembre 2023 et janvier 2024, deux partitions qui contiennent des données, et laisserait en place la partition 1 vide." }
+    add_merge: { en: "MERGE removes a boundary; a new boundary is added with SPLIT.", fr: "MERGE supprime une limite ; une nouvelle limite s'ajoute avec SPLIT." }
+references:
+  - title: ALTER PARTITION FUNCTION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-partition-function-transact-sql

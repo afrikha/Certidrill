@@ -1,0 +1,60 @@
+id: dp300-1b-partition-aligned-index
+objective: "1.2.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure virtual machine that runs SQL Server 2022 and hosts a database named **SalesDb**. The table dbo.Orders is partitioned by year on the OrderDate column by using the partition scheme psYear. Each year is stored on its own filegroup. dbo.Orders has the following indexes:
+
+    - a clustered primary key on (OrderDate, OrderId), created on psYear (OrderDate);
+    - a nonclustered index named IX_Orders_Customer on CustomerId, created ON [PRIMARY].
+
+    A table named dbo.OrdersArchive is empty, has the same columns and the same indexes as dbo.Orders, and is stored on fg2022, the filegroup of partition 1 of dbo.Orders.
+
+    The following statement fails.
+
+    ```sql
+    ALTER TABLE dbo.Orders SWITCH PARTITION 1 TO dbo.OrdersArchive;
+    ```
+
+    You need to ensure that the statement succeeds.
+
+    What should you do first?
+  fr: |
+    Vous disposez d'une machine virtuelle Azure qui exécute SQL Server 2022 et héberge une base de données nommée **SalesDb**. La table dbo.Orders est partitionnée par année sur la colonne OrderDate à l'aide du schéma de partition psYear. Chaque année est stockée dans son propre groupe de fichiers. dbo.Orders possède les index suivants :
+
+    - une clé primaire cluster sur (OrderDate, OrderId), créée sur psYear (OrderDate) ;
+    - un index non cluster nommé IX_Orders_Customer sur CustomerId, créé ON [PRIMARY].
+
+    Une table nommée dbo.OrdersArchive est vide, possède les mêmes colonnes et les mêmes index que dbo.Orders, et est stockée sur fg2022, le groupe de fichiers de la partition 1 de dbo.Orders.
+
+    L'instruction suivante échoue.
+
+    ```sql
+    ALTER TABLE dbo.Orders SWITCH PARTITION 1 TO dbo.OrdersArchive;
+    ```
+
+    Vous devez faire en sorte que l'instruction réussisse.
+
+    Que devez-vous faire en premier ?
+body:
+  options:
+    - { id: a, text: { en: "Set LOCK_ESCALATION to AUTO on dbo.Orders.", fr: "Définir LOCK_ESCALATION sur AUTO pour dbo.Orders." } }
+    - { id: b, text: { en: "Re-create IX_Orders_Customer on psYear (OrderDate).", fr: "Recréer IX_Orders_Customer sur psYear (OrderDate)." } }
+    - { id: c, text: { en: "Merge the boundary between partition 1 and partition 2.", fr: "Fusionner la limite entre la partition 1 et la partition 2." } }
+    - { id: d, text: { en: "Apply PAGE compression to dbo.OrdersArchive.", fr: "Appliquer la compression PAGE à dbo.OrdersArchive." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: IX_Orders_Customer is not aligned with the table because it was created on PRIMARY instead of the partition scheme. A switch requires the corresponding indexes or index partitions of the source and target to be in the same filegroup, and aligned indexes are what allow efficient partition switching. Re-creating the index on psYear (OrderDate), for example with DROP_EXISTING = ON, places its partition 1 on fg2022.
+    fr: "IX_Orders_Customer n'est pas aligné sur la table, car il a été créé sur PRIMARY au lieu du schéma de partition. Un basculement de partition (SWITCH) exige que les index ou partitions d'index correspondants de la source et de la cible soient dans le même groupe de fichiers, et ce sont les index alignés qui permettent un basculement de partition efficace. Recréer l'index sur psYear (OrderDate), par exemple avec DROP_EXISTING = ON, place sa partition 1 sur fg2022."
+  options:
+    a: { en: "LOCK_ESCALATION = AUTO lets locks escalate to the partition; it doesn't fix the index placement.", fr: "LOCK_ESCALATION = AUTO permet aux verrous de s'escalader vers la partition ; cela ne corrige pas l'emplacement de l'index." }
+    c: { en: "Merging partitions moves rows between partitions and doesn't make the nonclustered index aligned.", fr: "Fusionner des partitions déplace des lignes entre partitions et ne rend pas l'index non cluster aligné." }
+    d: { en: "The compression of the switched partition must match; adding PAGE compression only to the target would create a new mismatch.", fr: "La compression de la partition basculée doit correspondre ; ajouter la compression PAGE à la seule cible créerait une nouvelle différence." }
+references:
+  - title: Partitioned tables and indexes
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/partitions/partitioned-tables-and-indexes
+  - title: ALTER TABLE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql

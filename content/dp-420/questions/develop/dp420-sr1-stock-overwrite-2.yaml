@@ -1,0 +1,70 @@
+id: dp420-sr1-stock-overwrite-2
+objective: "1.2.6"
+type: series_yesno
+series: dp420-sr1-stock-overwrite
+seriesOrder: 2
+difficulty: 2
+status: draft
+stem:
+  en: You pass the ETag of the read response in the request options of the replace.
+  fr: Vous transmettez l'ETag de la réponse de lecture dans les options de requête du remplacement.
+body:
+  solution:
+    en: |
+      You update the worker as follows:
+
+      ```csharp
+      ItemResponse<StockItem> read = await container.ReadItemAsync<StockItem>(
+          id: itemId,
+          partitionKey: new PartitionKey(warehouseId));
+
+      StockItem item = read.Resource;
+      item.Available = ApplyRules(item);
+
+      try
+      {
+          await container.ReplaceItemAsync(
+              item,
+              item.Id,
+              new PartitionKey(warehouseId),
+              new ItemRequestOptions { IfMatchEtag = read.ETag });
+      }
+      catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
+      {
+          // Read the item again and retry
+      }
+      ```
+    fr: |
+      Vous modifiez le worker comme suit :
+
+      ```csharp
+      ItemResponse<StockItem> read = await container.ReadItemAsync<StockItem>(
+          id: itemId,
+          partitionKey: new PartitionKey(warehouseId));
+
+      StockItem item = read.Resource;
+      item.Available = ApplyRules(item);
+
+      try
+      {
+          await container.ReplaceItemAsync(
+              item,
+              item.Id,
+              new PartitionKey(warehouseId),
+              new ItemRequestOptions { IfMatchEtag = read.ETag });
+      }
+      catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
+      {
+          // Read the item again and retry
+      }
+      ```
+answer: { value: true }
+explanation:
+  correct:
+    en: The server regenerates the `_etag` of an item on every update. With `IfMatchEtag` set to the ETag returned by the read, the replace succeeds only if the item still has that version; otherwise the service returns HTTP 412 (Precondition Failed), which the SDK raises as a `CosmosException` that the worker catches to read the item again and retry.
+    fr: "Le serveur régénère la valeur `_etag` d'un élément à chaque mise à jour. Avec `IfMatchEtag` défini sur l'ETag renvoyé par la lecture, le remplacement réussit uniquement si l'élément a toujours cette version ; sinon, le service renvoie un échec de condition préalable HTTP 412, que le SDK lève sous la forme d'une `CosmosException` interceptée par le worker pour relire l'élément et réessayer."
+references:
+  - title: Database Transactions and Optimistic Concurrency Control - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/database-transactions-optimistic-concurrency
+  - title: ItemRequestOptions Class (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.itemrequestoptions

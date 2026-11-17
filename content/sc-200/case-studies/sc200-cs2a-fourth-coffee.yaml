@@ -1,0 +1,127 @@
+id: sc200-cs2a-fourth-coffee
+status: draft
+title:
+  en: "Fourth Coffee"
+  fr: "Fourth Coffee"
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee roasts and packages coffee in three plants and sells it to retailers in 20 countries. It has 4,000 employees.
+
+        A security operations center (SOC) monitors the company from the head office. The SOC has four Microsoft Entra security groups:
+
+        | Group | Members |
+        | --- | --- |
+        | SOC-T1 | Tier 1 analysts who triage, assign and close incidents |
+        | SOC-ENG | Security engineers who create analytics rules and workbooks |
+        | SOC-AUTO | Automation specialists who run playbooks on incidents when needed. Another team writes and maintains the playbooks. |
+        | AUDIT | Internal auditors who review the SOC's work |
+      fr: |
+        Fourth Coffee torréfie et conditionne du café dans trois usines et le vend à des distributeurs dans 20 pays. L'entreprise compte 4 000 employés.
+
+        Un centre des opérations de sécurité (SOC) surveille l'entreprise depuis le siège. Le SOC dispose de quatre groupes de sécurité Microsoft Entra :
+
+        | Groupe | Membres |
+        | --- | --- |
+        | SOC-T1 | Analystes de niveau 1 qui trient, attribuent et ferment les incidents |
+        | SOC-ENG | Ingénieurs sécurité qui créent les règles d'analytique et les classeurs |
+        | SOC-AUTO | Spécialistes de l'automatisation qui exécutent des playbooks sur les incidents quand c'est nécessaire. Une autre équipe écrit et maintient les playbooks. |
+        | AUDIT | Auditeurs internes qui contrôlent le travail du SOC |
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity**
+
+        Fourth Coffee has an on-premises Active Directory Domain Services (AD DS) domain named fourthcoffee.com, synchronized to Microsoft Entra ID by Microsoft Entra Connect. A Microsoft Defender for Identity sensor runs on each of the six domain controllers.
+
+        **Devices**
+
+        All Windows devices are onboarded to Microsoft Defender for Endpoint. The 140 on-premises servers run Windows Server 2022 and are also Azure Arc-enabled servers. The Defender for Endpoint device groups are configured as follows:
+
+        | Device group | Rank | Matching rule | Automation level |
+        | --- | --- | --- | --- |
+        | DG-Roasting | 1 | Tag equals **Roasting** | Semi - Approval required for all folders |
+        | DG-Servers | 2 | OS platform is Windows Server | No automated response |
+        | Ungrouped devices (default) | Last | (none) | Full - remediate threats automatically |
+
+        The roasting-line control workstations and one server named ROAST-SRV1 have the **Roasting** tag.
+
+        The Defender for Endpoint advanced features are set as follows: **Live Response** is On, **Live response for servers** is Off, and **Live response unsigned script execution** is Off.
+
+        **Network**
+
+        | Source | Description |
+        | --- | --- |
+        | FW-EDGE1, FW-EDGE2 | Perimeter firewalls. They send Common Event Format (CEF) messages on the syslog facility **local4**. |
+        | BADGE1 | Linux badge-access system. It sends standard syslog messages on the facility **local7**. |
+        | LNX-FWD1 | On-premises Linux server, Azure Arc-enabled, running rsyslog. It is the designated log forwarder. |
+
+        **Microsoft Sentinel**
+
+        A Microsoft Sentinel workspace named **law-fc-soc** is onboarded to the Microsoft Defender portal. The existing analytics rules for Windows servers query the **SecurityEvent** table. No Windows server sends events to law-fc-soc yet.
+      fr: |
+        **Identité**
+
+        Fourth Coffee dispose d'un domaine Active Directory Domain Services (AD DS) local nommé fourthcoffee.com, synchronisé avec Microsoft Entra ID par Microsoft Entra Connect. Un capteur Microsoft Defender pour Identity s'exécute sur chacun des six contrôleurs de domaine.
+
+        **Appareils**
+
+        Tous les appareils Windows sont intégrés à Microsoft Defender pour point de terminaison. Les 140 serveurs locaux exécutent Windows Server 2022 et sont aussi des serveurs Azure Arc. Les groupes d'appareils Defender pour point de terminaison sont configurés ainsi :
+
+        | Groupe d'appareils | Rang | Règle de correspondance | Niveau d'automatisation |
+        | --- | --- | --- | --- |
+        | DG-Roasting | 1 | Balise égale à **Roasting** | Semi - Approval required for all folders |
+        | DG-Servers | 2 | Plateforme du système d'exploitation Windows Server | No automated response |
+        | Ungrouped devices (default) | Dernier | (aucune) | Full - remediate threats automatically |
+
+        Les postes de pilotage des lignes de torréfaction et un serveur nommé ROAST-SRV1 portent la balise **Roasting**.
+
+        Les fonctionnalités avancées de Defender pour point de terminaison sont configurées ainsi : **Live Response** est sur On, **Live response for servers** est sur Off et **Live response unsigned script execution** est sur Off.
+
+        **Réseau**
+
+        | Source | Description |
+        | --- | --- |
+        | FW-EDGE1, FW-EDGE2 | Pare-feu périmétriques. Ils envoient des messages Common Event Format (CEF) sur la facility syslog **local4**. |
+        | BADGE1 | Système Linux de contrôle d'accès par badge. Il envoie des messages syslog standard sur la facility **local7**. |
+        | LNX-FWD1 | Serveur Linux local, compatible Azure Arc, qui exécute rsyslog. C'est le redirecteur de journaux désigné. |
+
+        **Microsoft Sentinel**
+
+        Un espace de travail Microsoft Sentinel nommé **law-fc-soc** est intégré au portail Microsoft Defender. Les règles d'analytique existantes pour les serveurs Windows interrogent la table **SecurityEvent**. Aucun serveur Windows n'envoie encore d'événements à law-fc-soc.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Data collection**
+
+        1. The firewall and badge-access events must be collected through LNX-FWD1 only. Each event must be ingested only once.
+        2. From the 140 servers, collect only the Windows Security events with IDs 4624, 4625 and 4688, into the table that the existing analytics rules use. Ingestion cost must be minimized.
+
+        **Access**
+
+        3. Each SOC group must receive only the Microsoft Sentinel permissions it needs (principle of least privilege).
+
+        **Investigation and response**
+
+        4. When Defender for Identity raises an alert that involves a server, an analyst must be able to run a signed PowerShell script named Get-RoastAudit.ps1 on the server and download the file that the script produces.
+        5. The SOC must identify the accounts that signed in over the network to more than 10 different devices within any one-hour window during the last seven days.
+        6. The device group configuration must not be changed during the current quarter.
+      fr: |
+        **Collecte des données**
+
+        1. Les événements des pare-feu et du contrôle d'accès par badge doivent être collectés uniquement par LNX-FWD1. Chaque événement ne doit être ingéré qu'une seule fois.
+        2. Sur les 140 serveurs, collecter uniquement les événements de sécurité Windows d'ID 4624, 4625 et 4688, dans la table qu'utilisent les règles d'analytique existantes. Le coût d'ingestion doit être réduit au minimum.
+
+        **Accès**
+
+        3. Chaque groupe du SOC ne doit recevoir que les autorisations Microsoft Sentinel dont il a besoin (principe du moindre privilège).
+
+        **Investigation et réponse**
+
+        4. Quand Defender pour Identity déclenche une alerte qui concerne un serveur, un analyste doit pouvoir exécuter sur le serveur un script PowerShell signé nommé Get-RoastAudit.ps1, puis télécharger le fichier que produit le script.
+        5. Le SOC doit identifier les comptes qui se sont connectés par le réseau à plus de 10 appareils différents dans une même fenêtre d'une heure au cours des sept derniers jours.
+        6. La configuration des groupes d'appareils ne doit pas être modifiée pendant le trimestre en cours.

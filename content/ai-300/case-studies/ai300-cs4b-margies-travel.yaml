@@ -1,0 +1,98 @@
+id: ai300-cs4b-margies-travel
+status: draft
+title:
+  en: Margie's Travel
+  fr: Margie's Travel
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Margie's Travel is an online travel agency based in Chicago. It sells hotel stays and package tours in 40 countries.
+
+        Margie's Travel has built a trip assistant that answers customer questions about hotels, cancellation conditions and travel policies. The assistant uses retrieval-augmented generation (RAG): it retrieves passages from an Azure AI Search index and sends them with the question to a chat model. A GenAIOps team of three engineers operates the solution.
+      fr: |
+        Margie's Travel est une agence de voyages en ligne basée à Chicago. Elle vend des séjours à l'hôtel et des circuits dans 40 pays.
+
+        Margie's Travel a créé un assistant de voyage qui répond aux questions des clients sur les hôtels, les conditions d'annulation et les politiques de voyage. L'assistant utilise la génération augmentée par récupération (RAG) : il récupère des passages dans un index Azure AI Search et les envoie avec la question à un modèle de conversation. Une équipe GenAIOps de trois ingénieurs exploite la solution.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Margie's Travel has the following Azure resources in the East US 2 region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | aif-margie | Microsoft Foundry resource | Project **trip-assistant**; model deployments **chat-main** (chat model) and **embed-main** (embedding model) |
+        | srch-margie | Azure AI Search service | Standard tier; API access control set to the default (API keys); semantic ranker enabled |
+        | travel-idx | Search index on srch-margie | Fields **chunk** (searchable text), **chunkVector** (vector field with a vectorizer that calls embed-main), **hotelCode** (searchable text), **title**; semantic configuration **travel-semantic** |
+        | idx-travel-docs | Indexer on srch-margie | Skillset with a Text Split skill: `textSplitMode: pages`, `maximumPageLength: 2000`, `pageOverlapLength: 0` |
+        | app-margie-assist | Azure App Service web app | Python application with a system-assigned managed identity; calls chat-main through the Microsoft Foundry SDK (`azure-ai-projects`) |
+        | appi-margie | Application Insights resource | Connected to the trip-assistant project for tracing |
+
+        The GenAIOps team keeps an evaluation dataset named **eval-trips.jsonl** in the trip-assistant project. Each line contains the columns **question**, **retrieved_passages**, **answer** (the response produced by the assistant) and **reference_answer** (written by a travel expert).
+      fr: |
+        Margie's Travel dispose des ressources Azure suivantes dans la région East US 2.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | aif-margie | Ressource Microsoft Foundry | Projet **trip-assistant** ; déploiements de modèles **chat-main** (modèle de conversation) et **embed-main** (modèle d'incorporation) |
+        | srch-margie | Service Azure AI Search | Niveau Standard ; contrôle d'accès à l'API réglé sur la valeur par défaut (clés API) ; classeur sémantique activé |
+        | travel-idx | Index de recherche sur srch-margie | Champs **chunk** (texte pouvant faire l'objet d'une recherche), **chunkVector** (champ vectoriel avec un vectoriseur qui appelle embed-main), **hotelCode** (texte pouvant faire l'objet d'une recherche), **title** ; configuration sémantique **travel-semantic** |
+        | idx-travel-docs | Indexeur sur srch-margie | Ensemble de compétences avec une compétence Text Split : `textSplitMode: pages`, `maximumPageLength: 2000`, `pageOverlapLength: 0` |
+        | app-margie-assist | Application web Azure App Service | Application Python avec une identité managée affectée par le système ; appelle chat-main au moyen du SDK Microsoft Foundry (`azure-ai-projects`) |
+        | appi-margie | Ressource Application Insights | Connectée au projet trip-assistant pour le traçage |
+
+        L'équipe GenAIOps conserve dans le projet trip-assistant un jeu de données d'évaluation nommé **eval-trips.jsonl**. Chaque ligne contient les colonnes **question**, **retrieved_passages**, **answer** (la réponse produite par l'assistant) et **reference_answer** (rédigée par un expert du voyage).
+  - key: problems
+    title: { en: "Problem statements", fr: "Problèmes constatés" }
+    body:
+      en: |
+        - Customers often type a hotel code such as **CHI-0427** together with a question in natural language. Pure vector search ranks hotels with similar descriptions above the hotel whose code was typed.
+        - Cancellation conditions often run across a page boundary of the Text Split skill. Neither of the two resulting chunks contains the complete conditions, and the assistant gives incomplete answers.
+        - app-margie-assist currently queries travel-idx with a query API key stored in its application settings.
+      fr: |
+        - Les clients saisissent souvent un code d'hôtel comme **CHI-0427** avec une question en langage naturel. La recherche purement vectorielle classe les hôtels dont la description est proche au-dessus de l'hôtel dont le code a été saisi.
+        - Les conditions d'annulation chevauchent souvent une limite de page de la compétence Text Split. Aucun des deux blocs obtenus ne contient les conditions complètes, et l'assistant donne des réponses incomplètes.
+        - app-margie-assist interroge actuellement travel-idx avec une clé API de requête stockée dans ses paramètres d'application.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Security**
+
+        - app-margie-assist must authenticate to srch-margie by using its managed identity. No API key may be used by any client of srch-margie. The principle of least privilege must be applied.
+
+        **Retrieval**
+
+        - Queries must combine keyword matching and vector similarity, and the merged results must be reranked by the semantic ranker.
+        - The application must not compute query embeddings itself.
+        - Each chunk must include the end of the previous chunk. The maximum chunk length must not increase.
+
+        **Evaluation**
+
+        - Before each release, the team must run a cloud evaluation of eval-trips.jsonl that detects answers containing information not supported by the retrieved passages, and that measures whether the retrieved passages are relevant to the question.
+
+        **Observability**
+
+        - The team must be able to inspect each production request as a trace in the Foundry portal.
+        - Prompt and response content must not be recorded in production traces.
+      fr: |
+        **Sécurité**
+
+        - app-margie-assist doit s'authentifier auprès de srch-margie avec son identité managée. Aucun client de srch-margie ne doit utiliser de clé API. Le principe du moindre privilège doit être appliqué.
+
+        **Récupération**
+
+        - Les requêtes doivent combiner la correspondance par mots clés et la similarité vectorielle, et les résultats fusionnés doivent être reclassés par le classeur sémantique.
+        - L'application ne doit pas calculer elle-même les incorporations des requêtes.
+        - Chaque bloc doit inclure la fin du bloc précédent. La longueur maximale des blocs ne doit pas augmenter.
+
+        **Évaluation**
+
+        - Avant chaque mise en production, l'équipe doit exécuter une évaluation cloud d'eval-trips.jsonl qui détecte les réponses contenant des informations non étayées par les passages récupérés, et qui mesure si les passages récupérés sont pertinents pour la question.
+
+        **Observabilité**
+
+        - L'équipe doit pouvoir examiner chaque requête de production sous forme de trace dans le portail Foundry.
+        - Le contenu des invites et des réponses ne doit pas être enregistré dans les traces de production.

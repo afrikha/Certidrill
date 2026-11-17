@@ -1,0 +1,76 @@
+id: az700-4a-dns-cli-zone-group
+objective: "4.1.5"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Wingtip has a private endpoint named **pe-sql-sales** for an Azure SQL Database logical server in a virtual network named **VNet-Sales**. No DNS configuration exists for the endpoint yet.
+
+    You need to configure DNS so that virtual machines in VNet-Sales resolve the server name to the private endpoint IP address, and the record is managed automatically with the private endpoint.
+
+    How should you complete the Azure CLI script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip dispose d'un point de terminaison privé nommé **pe-sql-sales** pour un serveur logique Azure SQL Database dans un réseau virtuel nommé **VNet-Sales**. Aucune configuration DNS n'existe encore pour ce point de terminaison.
+
+    Vous devez configurer le DNS pour que les machines virtuelles de VNet-Sales résolvent le nom du serveur vers l'adresse IP du point de terminaison privé, et que l'enregistrement soit géré automatiquement avec le point de terminaison privé.
+
+    Comment devez-vous compléter le script Azure CLI ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    zone=[[zone]]
+
+    az network private-dns zone create \
+      --resource-group RG-Sales --name $zone
+
+    az network private-dns [[link]] create \
+      --resource-group RG-Sales --zone-name $zone \
+      --name link-vnet-sales --virtual-network VNet-Sales \
+      --registration-enabled false
+
+    az network private-endpoint [[grp]] create \
+      --resource-group RG-Sales --endpoint-name pe-sql-sales \
+      --name default --private-dns-zone $zone --zone-name sql
+  slots:
+    - id: zone
+      options:
+        - { id: pl, text: privatelink.database.windows.net }
+        - { id: pub, text: database.windows.net }
+        - { id: cosmos, text: privatelink.documents.azure.com }
+        - { id: pg, text: privatelink.postgres.database.azure.com }
+    - id: link
+      options:
+        - { id: vnet, text: link vnet }
+        - { id: rsa, text: record-set a }
+        - { id: rscname, text: record-set cname }
+    - id: grp
+      options:
+        - { id: zg, text: dns-zone-group }
+        - { id: ipc, text: ip-config }
+        - { id: asg, text: asg }
+answer:
+  values: { zone: pl, link: vnet, grp: zg }
+explanation:
+  correct:
+    en: |
+      Azure SQL Database private endpoints use the `privatelink.database.windows.net` zone. `az network private-dns link vnet create` links the zone to VNet-Sales so that its VMs see the zone, and `az network private-endpoint dns-zone-group create` attaches the zone to the private endpoint, which creates the A record and keeps it in sync with the endpoint.
+    fr: |
+      Les points de terminaison privés d'Azure SQL Database utilisent la zone `privatelink.database.windows.net`. `az network private-dns link vnet create` lie la zone à VNet-Sales pour que ses machines virtuelles la voient, et `az network private-endpoint dns-zone-group create` attache la zone au point de terminaison privé, ce qui crée l'enregistrement A et le synchronise avec le point de terminaison.
+  options:
+    pub: { en: "A zone named after the public zone would break resolution of every other SQL server.", fr: "Une zone portant le nom de la zone publique casserait la résolution de tous les autres serveurs SQL." }
+    cosmos: { en: "This zone is for Azure Cosmos DB for NoSQL.", fr: "Cette zone est celle d'Azure Cosmos DB for NoSQL." }
+    pg: { en: "This zone is for Azure Database for PostgreSQL flexible server.", fr: "Cette zone est celle d'Azure Database pour PostgreSQL serveur flexible." }
+    rsa: { en: "A manual A record isn't managed with the endpoint, and it isn't created with --virtual-network.", fr: "Un enregistrement A manuel n'est pas géré avec le point de terminaison, et il ne se crée pas avec --virtual-network." }
+    ipc: { en: "IP configurations define the endpoint's addresses, not its DNS records.", fr: "Les configurations IP définissent les adresses du point de terminaison, pas ses enregistrements DNS." }
+    asg: { en: "Application security groups are used by NSG rules, not by DNS.", fr: "Les groupes de sécurité d'application servent aux règles NSG, pas au DNS." }
+references:
+  - title: "Quickstart: Create a private endpoint by using the Azure CLI"
+    url: https://learn.microsoft.com/en-us/azure/private-link/create-private-endpoint-cli
+  - title: Azure Private Endpoint private DNS zone values
+    url: https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-dns

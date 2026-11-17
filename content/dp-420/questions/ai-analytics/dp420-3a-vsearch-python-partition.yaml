@@ -1,0 +1,60 @@
+id: dp420-3a-vsearch-python-partition
+objective: "3.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind runs a store assistant in Python with the `azure-cosmos` SDK. The **catalog** container has the partition key `/storeId`, a vector embedding policy and a diskANN index on `/embedding`. The function `embed(text)` returns a list of 1,536 floats generated with the same model as the stored vectors.
+
+    You need to complete the code so that it returns the five items of the user's store, `store_id`, that are the most similar to the question. The query must consume as few RUs as possible.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind exécute un assistant de magasin en Python avec le SDK `azure-cosmos`. Le conteneur **catalog** a la clé de partition `/storeId`, une stratégie d'incorporation vectorielle et un index diskANN sur `/embedding`. La fonction `embed(text)` renvoie une liste de 1 536 valeurs float générée avec le même modèle que les vecteurs stockés.
+
+    Vous devez compléter le code pour qu'il renvoie les cinq éléments du magasin de l'utilisateur, `store_id`, les plus similaires à la question. La requête doit consommer le moins de RU possible.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    question_vector = embed(question)
+    results = container.query_items(
+        query="SELECT TOP 5 c.id, c.title, VectorDistance(c.embedding, @v) AS score "
+              "FROM c ORDER BY VectorDistance(c.embedding, @v)",
+        parameters=[{"name": "@v", "value": [[vec]]}],
+        [[scope]]
+    )
+  slots:
+    - id: vec
+      options:
+        - { id: nested, text: "[question_vector]" }
+        - { id: flatvec, text: question_vector }
+        - { id: text, text: question }
+    - id: scope
+      options:
+        - { id: cross, text: enable_cross_partition_query=True }
+        - { id: maxitems, text: max_item_count=5 }
+        - { id: pk, text: partition_key=store_id }
+answer:
+  values: { vec: flatvec, scope: pk }
+explanation:
+  correct:
+    en: "VectorDistance expects one-dimensional arrays, so the parameter is the flat list returned by embed. The partition_key argument scopes the query to the store's partition: only that store's items are returned, and the vector search runs on one partition instead of fanning out to all of them."
+    fr: "VectorDistance attend des tableaux à une dimension : le paramètre est la liste plate renvoyée par embed. L'argument partition_key limite la requête à la partition du magasin : seuls les éléments de ce magasin sont renvoyés, et la recherche vectorielle s'exécute sur une seule partition au lieu de toutes."
+  options:
+    nested: { en: "Wrapping the vector in another list creates a two-dimensional array; VectorDistance then returns no score and no error.", fr: "Envelopper le vecteur dans une autre liste crée un tableau à deux dimensions ; VectorDistance ne renvoie alors ni score ni erreur." }
+    text: { en: "VectorDistance compares vectors; the question text must be embedded first.", fr: "VectorDistance compare des vecteurs ; le texte de la question doit d'abord être incorporé." }
+    cross: { en: "A cross-partition query searches every store and returns items from other stores.", fr: "Une requête inter-partitions parcourt tous les magasins et renvoie des éléments d'autres magasins." }
+    maxitems: { en: "max_item_count sets the page size; it doesn't restrict the query to the user's store.", fr: "max_item_count définit la taille de page ; il ne limite pas la requête au magasin de l'utilisateur." }
+references:
+  - title: Index and Query Vector Data in Python - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-python-vector-index-query
+  - title: VECTORDISTANCE - Query Language for Cosmos DB (in Azure and Fabric)
+    url: https://learn.microsoft.com/en-us/cosmos-db/query/vectordistance

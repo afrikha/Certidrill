@@ -1,0 +1,69 @@
+id: ai200-cs2b-trey-research
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a pharmaceutical research company. Its scientists follow about 4,000 new scientific papers every week.
+
+        Trey Research is building **LitScan**, a Python service that ingests new papers, stores their embeddings, and lets the scientists find the papers that are the most similar to a research question.
+      fr: |
+        Trey Research est une société de recherche pharmaceutique. Ses chercheurs suivent environ 4 000 nouveaux articles scientifiques par semaine.
+
+        Trey Research développe **LitScan**, un service Python qui ingère les nouveaux articles, stocke leurs incorporations et permet aux chercheurs de trouver les articles les plus similaires à une question de recherche.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Trey Research has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | crtrey | Azure Container Registry | Repository **litscan** |
+        | cae-trey | Azure Container Apps environment | Sends the logs to a Log Analytics workspace |
+        | litscan-api | Container app in cae-trey | Search API; image from crtrey; system-assigned managed identity |
+        | func-trey-ingest | Function app | Python; Flex Consumption plan; Service Bus trigger on the queue **new-papers**; system-assigned managed identity; host storage account **stfunctrey** |
+        | pg-trey | Azure Database for PostgreSQL flexible server | General Purpose compute tier, 8 vCores; database **literature**; Microsoft Entra authentication enabled |
+
+        The build pipeline pushes every patch build of LitScan version 2.4 to crtrey with the tag `litscan:2.4`, which other teams use as the base image of their own tools. litscan-api is deployed with the image `crtrey.azurecr.io/litscan:2.4`. After a scale-out last week, the replicas of litscan-api were running different builds.
+
+        A database role for the managed identity of litscan-api already exists on pg-trey. The application settings of func-trey-ingest contain `AzureWebJobsStorage`, set to a connection string that includes the account key of stfunctrey.
+
+        The papers table stores 3,072-dimension embeddings in a column named `embedding_large` of type `vector(3072)`. The developers plan to add a column named `embedding` of type `vector(1536)` that stores shorter embeddings of the same papers.
+      fr: |
+        Trey Research dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | crtrey | Azure Container Registry | Référentiel **litscan** |
+        | cae-trey | Environnement Azure Container Apps | Envoie les journaux vers un espace de travail Log Analytics |
+        | litscan-api | Application conteneur dans cae-trey | API de recherche ; image provenant de crtrey ; identité managée affectée par le système |
+        | func-trey-ingest | Application de fonction | Python ; plan Consommation flexible ; déclencheur Service Bus sur la file d'attente **new-papers** ; identité managée affectée par le système ; compte de stockage hôte **stfunctrey** |
+        | pg-trey | Serveur flexible Azure Database for PostgreSQL | Niveau de calcul Usage général, 8 vCores ; base de données **literature** ; authentification Microsoft Entra activée |
+
+        Le pipeline de génération envoie chaque build de correctif de la version 2.4 de LitScan vers crtrey avec la balise `litscan:2.4`, que d'autres équipes utilisent comme image de base de leurs propres outils. litscan-api est déployée avec l'image `crtrey.azurecr.io/litscan:2.4`. Après une montée en charge (scale-out) la semaine dernière, les réplicas de litscan-api exécutaient des builds différents.
+
+        Un rôle de base de données pour l'identité managée de litscan-api existe déjà sur pg-trey. Les paramètres d'application de func-trey-ingest contiennent `AzureWebJobsStorage`, défini sur une chaîne de connexion qui inclut la clé de compte de stfunctrey.
+
+        La table papers stocke des incorporations de 3 072 dimensions dans une colonne nommée `embedding_large` de type `vector(3072)`. Les développeurs prévoient d'ajouter une colonne nommée `embedding` de type `vector(1536)` qui stocke des incorporations plus courtes des mêmes articles.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Trey Research identifies the following requirements:
+
+        1. **Image versions**: all the replicas of litscan-api must run the same build, including after a scale-out. The `litscan:2.4` tag must keep receiving every patch build for the other teams.
+        2. **Database access**: litscan-api must authenticate to pg-trey by using its managed identity. No database password may be stored anywhere.
+        3. **Search latency**: the HNSW index of the `embedding` column will grow to about 40 GB, and the whole index must stay in memory to keep the search latency low. The number of vCores of pg-trey must not change.
+        4. **Host storage**: func-trey-ingest must connect to stfunctrey without any account key or connection string, by using its managed identity.
+      fr: |
+        Trey Research a défini les exigences suivantes :
+
+        1. **Versions des images** : tous les réplicas de litscan-api doivent exécuter le même build, y compris après une montée en charge. La balise `litscan:2.4` doit continuer à recevoir chaque build de correctif pour les autres équipes.
+        2. **Accès à la base de données** : litscan-api doit s'authentifier auprès de pg-trey à l'aide de son identité managée. Aucun mot de passe de base de données ne doit être stocké, où que ce soit.
+        3. **Latence de recherche** : l'index HNSW de la colonne `embedding` atteindra environ 40 Go, et l'index entier doit rester en mémoire pour que la latence de recherche reste faible. Le nombre de vCores de pg-trey ne doit pas changer.
+        4. **Stockage hôte** : func-trey-ingest doit se connecter à stfunctrey sans clé de compte ni chaîne de connexion, à l'aide de son identité managée.

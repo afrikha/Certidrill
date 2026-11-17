@@ -1,0 +1,90 @@
+id: az400-3c-expr-syntax
+objective: "3.3.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing an Azure Pipelines YAML pipeline for a .NET service at Contoso. The pipeline has a boolean runtime parameter named **runTests**. Job **Build** computes a semantic version and publishes it as an output variable. Job **Package** must use that version.
+
+    You need to complete the pipeline so that:
+
+    - the test step is not part of the run when runTests is false;
+    - job Package receives the version computed by job Build;
+    - the script of job Package prints the version.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un pipeline YAML Azure Pipelines pour un service .NET chez Contoso. Le pipeline a un paramètre d'exécution booléen nommé **runTests**. Le travail **Build** calcule une version sémantique et la publie dans une variable de sortie. Le travail **Package** doit utiliser cette version.
+
+    Vous devez compléter le pipeline pour que :
+
+    - l'étape de test ne fasse pas partie de l'exécution quand runTests vaut false ;
+    - le travail Package reçoive la version calculée par le travail Build ;
+    - le script du travail Package affiche la version.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    parameters:
+    - name: runTests
+      type: boolean
+      default: true
+
+    jobs:
+    - job: Build
+      steps:
+      - bash: echo "##vso[task.setvariable variable=semver;isOutput=true]2.4.$(Build.BuildId)"
+        name: ver
+      - [[s1]]:
+        - script: dotnet test
+    - job: Package
+      dependsOn: Build
+      variables:
+        semver: [[s2]]
+      steps:
+      - script: echo "Packaging version [[s3]]"
+  slots:
+    - id: s1
+      options:
+        - { id: ifparam, text: "${{ if eq(parameters.runTests, true) }}" }
+        - { id: ifvar, text: "${{ if eq(variables.runTests, true) }}" }
+        - { id: ifruntime, text: "$[ eq(parameters.runTests, true) ]" }
+    - id: s2
+      options:
+        - { id: depruntime, text: "$[ dependencies.Build.outputs['ver.semver'] ]" }
+        - { id: deptemplate, text: "${{ dependencies.Build.outputs['ver.semver'] }}" }
+        - { id: stagedep, text: "$[ stageDependencies.Build.outputs['ver.semver'] ]" }
+        - { id: macrostep, text: "$(ver.semver)" }
+    - id: s3
+      options:
+        - { id: macro, text: "$(semver)" }
+        - { id: tplvar, text: "${{ variables.semver }}" }
+        - { id: stepmacro, text: "$(ver.semver)" }
+answer:
+  values: { s1: ifparam, s2: depruntime, s3: macro }
+explanation:
+  correct:
+    en: |
+      Runtime parameters are resolved at compile time, so a `${{ if }}` template expression on the parameter inserts or removes the test step before the run starts. An output variable of another job in the same stage is read with a runtime expression, `$[ dependencies.Build.outputs['ver.semver'] ]`, which needs `dependsOn: Build`. The resulting job variable is then expanded in the script with the macro syntax `$(semver)`.
+    fr: |
+      Les paramètres d'exécution sont résolus à la compilation ; une expression de modèle `${{ if }}` sur le paramètre insère ou retire donc l'étape de test avant le début de l'exécution. Une variable de sortie d'un autre travail de la même phase se lit avec une expression d'exécution, `$[ dependencies.Build.outputs['ver.semver'] ]`, qui exige `dependsOn: Build`. La variable de travail obtenue est ensuite développée dans le script avec la syntaxe macro `$(semver)`.
+  options:
+    ifvar: { en: "runTests is a parameter, not a variable: the expression compares an empty value and the test step is never inserted.", fr: "runTests est un paramètre, pas une variable : l'expression compare une valeur vide et l'étape de test n'est jamais insérée." }
+    ifruntime: { en: "Runtime expressions are only allowed on the right side of a definition; they can't be used as a key to insert steps.", fr: "Les expressions d'exécution ne sont autorisées qu'à droite d'une définition ; elles ne peuvent pas servir de clé pour insérer des étapes." }
+    deptemplate: { en: "Template expressions are evaluated at compile time, before job Build has produced its output.", fr: "Les expressions de modèle sont évaluées à la compilation, avant que le travail Build ait produit sa sortie." }
+    stagedep: { en: "stageDependencies reads outputs from a job of a previous stage and needs the stage name; both jobs are in the same stage here.", fr: "stageDependencies lit les sorties d'un travail d'une phase précédente et exige le nom de la phase ; ici, les deux travaux sont dans la même phase." }
+    macrostep: { en: "The step.variable form only works inside the job that produced the output.", fr: "La forme étape.variable ne fonctionne qu'à l'intérieur du travail qui a produit la sortie." }
+    tplvar: { en: "At compile time the variable only contains the unevaluated runtime expression, not the version.", fr: "À la compilation, la variable ne contient que l'expression d'exécution non évaluée, pas la version." }
+    stepmacro: { en: "The step.variable form isn't defined in job Package, so the macro is printed as is.", fr: "La forme étape.variable n'est pas définie dans le travail Package : la macro est affichée telle quelle." }
+references:
+  - title: Define variables
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/variables
+  - title: Runtime parameters
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/runtime-parameters

@@ -1,0 +1,78 @@
+id: az140-cs3c-cloud-cache
+objective: "3.1.4"
+type: dropdown
+caseStudy: az140-cs3c-relecloud
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The SMB volumes for the designers' profiles are available at the following paths:
+
+    - West Europe: `\\anfweu-cad.relecloud.com\cadprofiles`
+    - North Europe: `\\anfneu-cad.relecloud.com\cadprofiles`
+
+    You need to configure FSLogix on the HP-CAD-WEU session hosts to meet the profile requirements.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Les volumes SMB des profils des concepteurs sont disponibles aux chemins suivants :
+
+    - West Europe : `\\anfweu-cad.relecloud.com\cadprofiles`
+    - North Europe : `\\anfneu-cad.relecloud.com\cadprofiles`
+
+    Vous devez configurer FSLogix sur les hôtes de session de HP-CAD-WEU pour satisfaire les exigences relatives aux profils.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $key = 'HKLM:\SOFTWARE\FSLogix\Profiles'
+    New-ItemProperty -Path $key -Name Enabled -PropertyType DWord -Value 1
+    New-ItemProperty -Path $key -Name [[loc]] -PropertyType String `
+      -Value 'type=smb,connectionString=[[first]];type=smb,connectionString=[[second]]'
+    New-ItemProperty -Path $key -Name [[clear]] -PropertyType DWord -Value 1
+  slots:
+    - id: loc
+      options:
+        - { id: vhd, text: VHDLocations }
+        - { id: ccd, text: CCDLocations }
+        - { id: redir, text: RedirXMLSourceFolder }
+    - id: first
+      options:
+        - { id: weu, text: '\\anfweu-cad.relecloud.com\cadprofiles' }
+        - { id: neu, text: '\\anfneu-cad.relecloud.com\cadprofiles' }
+        - { id: cache, text: 'C:\ProgramData\FSLogix\Cache' }
+    - id: second
+      options:
+        - { id: weu, text: '\\anfweu-cad.relecloud.com\cadprofiles' }
+        - { id: neu, text: '\\anfneu-cad.relecloud.com\cadprofiles' }
+        - { id: cache, text: 'C:\ProgramData\FSLogix\Cache' }
+    - id: clear
+      options:
+        - { id: healthy, text: HealthyProvidersRequiredForRegister }
+        - { id: deletelocal, text: DeleteLocalProfileWhenVHDShouldApply }
+        - { id: clearcache, text: ClearCacheOnLogoff }
+answer:
+  values: { loc: ccd, first: weu, second: neu, clear: clearcache }
+explanation:
+  correct:
+    en: |
+      Cloud Cache uses the CCDLocations value instead of VHDLocations (never set both). The first reachable provider in the list is the active write target, and FSLogix replicates asynchronously to the other providers, so profile data reaches both regions without storage replication. Because of this order, HP-CAD-WEU lists the West Europe volume first; HP-CAD-NEU would use the reverse order. ClearCacheOnLogoff set to 1 removes the local cache when the user signs out.
+    fr: |
+      Cloud Cache utilise la valeur CCDLocations à la place de VHDLocations (ne jamais définir les deux). Le premier fournisseur joignable de la liste est la cible d'écriture active, et FSLogix réplique de façon asynchrone vers les autres fournisseurs : les données de profil atteignent les deux régions sans réplication du stockage. Du fait de cet ordre, HP-CAD-WEU place le volume de West Europe en premier, et HP-CAD-NEU utiliserait l'ordre inverse. ClearCacheOnLogoff défini sur 1 supprime le cache local quand l'utilisateur ferme sa session.
+  options:
+    vhd: { en: "VHDLocations configures a standard profile container without Cloud Cache; FSLogix doesn't write to several locations with it.", fr: "VHDLocations configure un conteneur de profil standard sans Cloud Cache ; FSLogix n'écrit pas dans plusieurs emplacements avec cette valeur." }
+    redir: { en: "RedirXMLSourceFolder points to the folder of the redirections.xml file; it doesn't define profile locations.", fr: "RedirXMLSourceFolder indique le dossier du fichier redirections.xml ; il ne définit pas les emplacements de profils." }
+    cache: { en: "The local cache isn't a provider: Cloud Cache creates it automatically on the session host.", fr: "Le cache local n'est pas un fournisseur : Cloud Cache le crée automatiquement sur l'hôte de session." }
+    healthy: { en: "HealthyProvidersRequiredForRegister prevents creating a local cache when a provider is unhealthy; it doesn't clear the cache at sign-out.", fr: "HealthyProvidersRequiredForRegister empêche la création d'un cache local quand un fournisseur n'est pas sain ; il ne vide pas le cache à la fermeture de session." }
+    deletelocal: { en: "DeleteLocalProfileWhenVHDShouldApply deletes an existing local Windows profile so the container applies; it doesn't remove the Cloud Cache local cache.", fr: "DeleteLocalProfileWhenVHDShouldApply supprime un profil Windows local existant pour que le conteneur s'applique ; il ne supprime pas le cache local de Cloud Cache." }
+references:
+  - title: "Tutorial: Configure profile containers with Cloud Cache"
+    url: https://learn.microsoft.com/en-us/fslogix/tutorial-cloud-cache-containers
+  - title: Multiregion BCDR for Azure Virtual Desktop
+    url: https://learn.microsoft.com/en-us/azure/architecture/example-scenario/azure-virtual-desktop/azure-virtual-desktop-multi-region-bcdr

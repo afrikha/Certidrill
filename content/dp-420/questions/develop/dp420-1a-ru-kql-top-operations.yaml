@@ -1,0 +1,60 @@
+id: dp420-1a-ru-kql-top-operations
+objective: "1.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has an Azure Cosmos DB for NoSQL account whose diagnostic settings send the DataPlaneRequests logs to a Log Analytics workspace in resource-specific tables. The **orders** container regularly reaches its provisioned RU/s.
+
+    You need a query that shows the five types of operation that consumed the most RUs in total in the **orders** container during the last 24 hours.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'un compte Azure Cosmos DB for NoSQL dont les paramètres de diagnostic envoient les journaux DataPlaneRequests vers un espace de travail Log Analytics, dans des tables propres aux ressources. Le conteneur **orders** atteint régulièrement ses RU/s approvisionnées.
+
+    Vous avez besoin d'une requête qui affiche les cinq types d'opération qui ont consommé le plus de RU au total dans le conteneur **orders** au cours des dernières 24 heures.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    CDBDataPlaneRequests
+    | where TimeGenerated > ago(1d)
+    | where CollectionName == "orders"
+    | summarize TotalRU = [[agg]](RequestCharge) by [[by]]
+    | top 5 by TotalRU desc
+  slots:
+    - id: agg
+      options:
+        - { id: max, text: max }
+        - { id: dcount, text: dcount }
+        - { id: sum, text: sum }
+        - { id: avg, text: avg }
+    - id: by
+      options:
+        - { id: partition, text: PartitionId }
+        - { id: op, text: OperationName }
+        - { id: activity, text: ActivityId }
+        - { id: status, text: StatusCode }
+answer:
+  values: { agg: sum, by: op }
+explanation:
+  correct:
+    en: |
+      Each row of `CDBDataPlaneRequests` is one request with its `RequestCharge`. Summing the charge by `OperationName` gives the total RUs consumed by each type of operation, and `top 5 by TotalRU desc` keeps the five largest totals.
+    fr: |
+      Chaque ligne de `CDBDataPlaneRequests` correspond à une requête et à sa `RequestCharge`. La somme de la charge par `OperationName` donne le total des RU consommées par type d'opération, et `top 5 by TotalRU desc` conserve les cinq totaux les plus élevés.
+  options:
+    avg: { en: "The average charge per request ignores how many requests of each type ran.", fr: "La charge moyenne par requête ignore le nombre de requêtes de chaque type." }
+    max: { en: "The maximum shows the single most expensive request, not the total consumption.", fr: "Le maximum indique la requête la plus coûteuse, pas la consommation totale." }
+    activity: { en: "ActivityId identifies a single request, so grouping by it gives one row per request.", fr: "ActivityId identifie une seule requête : grouper sur cette colonne donne une ligne par requête." }
+    partition: { en: "Grouping by PartitionId shows the consumption per physical partition, not per type of operation.", fr: "Grouper par PartitionId montre la consommation par partition physique, pas par type d'opération." }
+references:
+  - title: Azure Monitor Logs reference - CDBDataPlaneRequests
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cdbdataplanerequests

@@ -1,0 +1,66 @@
+id: dp420-2c-al-cli-throttling
+objective: "2.3.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You manage an Azure Cosmos DB account whose resource ID is stored in the variable `COSMOS_ACCOUNT_ID`. An action group already exists.
+
+    You need to create, by using the Azure CLI, an alert that fires when more than 200 requests to the container named **orders** are rate limited (status code 429) during the last 10 minutes. The rule must be evaluated every minute.
+
+    How should you complete the command? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous gérez un compte Azure Cosmos DB dont l'ID de ressource est stocké dans la variable `COSMOS_ACCOUNT_ID`. Un groupe d'actions existe déjà.
+
+    Vous devez créer, avec Azure CLI, une alerte qui se déclenche lorsque plus de 200 requêtes adressées au conteneur nommé **orders** sont limitées (code d'état 429) au cours des 10 dernières minutes. La règle doit être évaluée chaque minute.
+
+    Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az monitor metrics alert create \
+      --name cosmos-orders-throttling \
+      --resource-group rg-data \
+      --scopes "$COSMOS_ACCOUNT_ID" \
+      --condition "[[agg]] TotalRequests > 200 where StatusCode [[op]] 429 and CollectionName includes orders" \
+      --window-size [[win]] \
+      --evaluation-frequency 1m \
+      --action "$ACTION_GROUP_ID"
+  slots:
+    - id: agg
+      options:
+        - { id: avg, text: avg }
+        - { id: count, text: count }
+        - { id: min, text: min }
+    - id: op
+      options:
+        - { id: includes, text: includes }
+        - { id: excludes, text: excludes }
+        - { id: eq, text: "=" }
+    - id: win
+      options:
+        - { id: w1, text: 1m }
+        - { id: w10, text: 10m }
+        - { id: w1h, text: 1h }
+answer:
+  values: { agg: count, op: includes, win: w10 }
+explanation:
+  correct:
+    en: "The Total Requests metric (`TotalRequests`) counts requests and supports the Count aggregation, with dimensions such as StatusCode and CollectionName. In the `--condition` syntax, dimensions are filtered with `where DIMENSION includes VALUE` and combined with `and`. `--window-size` is the aggregation window (here 10 minutes, the default is 5m), while `--evaluation-frequency` sets how often the rule runs."
+    fr: "La métrique Total Requests (`TotalRequests`) compte les requêtes et prend en charge l'agrégation Count, avec des dimensions comme StatusCode et CollectionName. Dans la syntaxe de `--condition`, les dimensions sont filtrées avec `where DIMENSION includes VALUE` et combinées avec `and`. `--window-size` est la fenêtre d'agrégation (ici 10 minutes, la valeur par défaut étant 5m), tandis que `--evaluation-frequency` définit la fréquence d'exécution de la règle."
+  options:
+    avg: { en: "Total Requests is a count of requests; only the Count aggregation applies to it.", fr: "Total Requests est un nombre de requêtes ; seule l'agrégation Count s'y applique." }
+    excludes: { en: "excludes would count every request except the rate-limited ones.", fr: "excludes compterait toutes les requêtes sauf celles qui sont limitées." }
+    eq: { en: "Dimension filters use the includes or excludes keywords, not an equals sign.", fr: "Les filtres de dimension utilisent les mots clés includes ou excludes, pas un signe égal." }
+    w1: { en: "A 1-minute window would count only the requests of the last minute.", fr: "Une fenêtre de 1 minute ne compterait que les requêtes de la dernière minute." }
+references:
+  - title: az monitor metrics alert
+    url: https://learn.microsoft.com/en-us/cli/azure/monitor/metrics/alert
+  - title: Azure Cosmos DB monitoring data reference
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-reference

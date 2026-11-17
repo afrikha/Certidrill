@@ -1,0 +1,66 @@
+id: ai200-2b-psql-token
+objective: "2.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin runs schema migrations from a pipeline agent. The agent is signed in to the Azure CLI as a service principal that has a Microsoft Entra role named **sp-migrations** on an Azure Database for PostgreSQL flexible server named **pg-tailspin**.
+
+    The migration step must authenticate with a Microsoft Entra access token and must not store any password.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin exécute des migrations de schéma depuis un agent de pipeline. L'agent est connecté à Azure CLI en tant que principal de service disposant d'un rôle Microsoft Entra nommé **sp-migrations** sur un serveur flexible Azure Database for PostgreSQL nommé **pg-tailspin**.
+
+    L'étape de migration doit s'authentifier avec un jeton d'accès Microsoft Entra et ne doit stocker aucun mot de passe.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    export [[var]]=$(az account get-access-token \
+      --resource-type [[rt]] --query "[accessToken]" -o tsv)
+
+    psql "host=pg-tailspin.postgres.database.azure.com port=5432 dbname=catalog user=sp-migrations sslmode=require" \
+      -f 001_schema.sql
+  slots:
+    - id: var
+      options:
+        - { id: pgpassword, text: PGPASSWORD }
+        - { id: pguser, text: PGUSER }
+        - { id: pgsslmode, text: PGSSLMODE }
+        - { id: azuretoken, text: AZURE_ACCESS_TOKEN }
+    - id: rt
+      options:
+        - { id: ossrdbms, text: oss-rdbms }
+        - { id: arm, text: arm }
+        - { id: msgraph, text: ms-graph }
+        - { id: batch, text: batch }
+answer:
+  values: { var: pgpassword, rt: ossrdbms }
+explanation:
+  correct:
+    en: "`az account get-access-token --resource-type oss-rdbms` returns a token for the open-source database resource (`https://ossrdbms-aad.database.windows.net`). psql does not understand Microsoft Entra authentication: it works because the token is passed as the password, here through the `PGPASSWORD` environment variable."
+    fr: "`az account get-access-token --resource-type oss-rdbms` renvoie un jeton pour la ressource des bases de données open source (`https://ossrdbms-aad.database.windows.net`). psql ne connaît pas l'authentification Microsoft Entra : elle fonctionne parce que le jeton est transmis comme mot de passe, ici par la variable d'environnement `PGPASSWORD`."
+  options:
+    pguser:
+      en: "The user name is already in the connection string; the token is the password, not the user."
+      fr: "Le nom d'utilisateur figure déjà dans la chaîne de connexion ; le jeton est le mot de passe, pas l'utilisateur."
+    azuretoken:
+      en: "psql does not read this variable, so the token would never be sent."
+      fr: "psql ne lit pas cette variable : le jeton ne serait jamais envoyé."
+    arm:
+      en: "An Azure Resource Manager token is for the management plane; the database rejects it."
+      fr: "Un jeton Azure Resource Manager est destiné au plan de gestion ; la base de données le refuse."
+    msgraph:
+      en: "A Microsoft Graph token is for the Graph API, not for signing in to the database."
+      fr: "Un jeton Microsoft Graph est destiné à l'API Graph, pas à la connexion à la base de données."
+references:
+  - title: Use Microsoft Entra ID Authentication in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/security/security-entra-configure

@@ -1,0 +1,50 @@
+id: ai200-3a-eg-ttl-attempts
+objective: "3.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin has an event subscription that delivers "flight delay predicted" events to a webhook. The retry policy is set with `--max-delivery-attempts 10 --event-ttl 30`, and a blob container is configured as the dead-letter destination.
+
+    The webhook is down for two hours and answers every request with HTTP 503.
+
+    What happens to an event that is published at the start of the outage?
+  fr: |
+    Tailspin dispose d'un abonnement aux événements qui remet des événements « retard de vol prévu » à un webhook. La stratégie de nouvelle tentative est définie avec `--max-delivery-attempts 10 --event-ttl 30`, et un conteneur d'objets blob est configuré comme destination de lettres mortes.
+
+    Le webhook est indisponible pendant deux heures et répond à chaque requête par HTTP 503.
+
+    Que devient un événement publié au début de la panne ?
+body:
+  options:
+    - { id: a, text: { en: "Event Grid tries to deliver it 10 times, and then dead-letters it, regardless of the 30-minute time to live.", fr: "Event Grid tente de le remettre 10 fois, puis le place en lettres mortes, quelle que soit la durée de vie de 30 minutes." } }
+    - { id: b, text: { en: "Event Grid retries it until the 30-minute time to live expires, after about six attempts, and then dead-letters it.", fr: "Event Grid le retente jusqu'à l'expiration de la durée de vie de 30 minutes, après environ six tentatives, puis le place en lettres mortes." } }
+    - { id: c, text: { en: "Event Grid retries it for 24 hours, the maximum time to live, and delivers it when the webhook recovers.", fr: "Event Grid le retente pendant 24 heures, la durée de vie maximale, et le remet quand le webhook est rétabli." } }
+    - { id: d, text: { en: "Event Grid dead-letters it immediately because 503 responses are not retried.", fr: "Event Grid le place immédiatement en lettres mortes, car les réponses 503 ne sont pas retentées." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      Delivery stops when the first of the two limits is reached. The exponential backoff (10 seconds, 30 seconds, 1 minute, 5 minutes, 10 minutes, 30 minutes...) fits only about six attempts in 30 minutes, so the time to live expires before the tenth attempt. Because a dead-letter destination is configured, the event is written to the blob container, about five minutes after the last attempt.
+    fr: |
+      La remise s'arrête dès que la première des deux limites est atteinte. Le backoff exponentiel (10 secondes, 30 secondes, 1 minute, 5 minutes, 10 minutes, 30 minutes...) ne permet qu'environ six tentatives en 30 minutes : la durée de vie expire donc avant la dixième tentative. Comme une destination de lettres mortes est configurée, l'événement est écrit dans le conteneur d'objets blob, environ cinq minutes après la dernière tentative.
+  options:
+    a:
+      en: |
+        The 10-attempt limit is never reached, because the 30-minute time to live ends delivery first.
+      fr: |
+        La limite de 10 tentatives n'est jamais atteinte, car la durée de vie de 30 minutes met fin à la remise avant.
+    c:
+      en: |
+        The subscription sets its own time to live of 30 minutes, which replaces the default of 1,440 minutes.
+      fr: |
+        L'abonnement définit sa propre durée de vie de 30 minutes, qui remplace la valeur par défaut de 1 440 minutes.
+    d:
+      en: |
+        503 is retried; only codes such as 400, 401, 403 and 413 for webhooks are not retried.
+      fr: |
+        Le code 503 est retenté ; seuls des codes comme 400, 401, 403 et 413 pour les webhooks ne sont pas retentés.
+references:
+  - title: Azure Event Grid Delivery and Retry Explained
+    url: https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry

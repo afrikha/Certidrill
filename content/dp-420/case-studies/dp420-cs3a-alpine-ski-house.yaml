@@ -1,0 +1,107 @@
+id: dp420-cs3a-alpine-ski-house
+status: draft
+title:
+  en: Alpine Ski House
+  fr: Alpine Ski House
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Alpine Ski House operates 14 ski resorts in Switzerland, France and Canada. Skiers use RFID ski passes that are scanned at 320 lift gates.
+
+        Alpine Ski House is rebuilding its pass platform, named **PassPulse**, on Azure Cosmos DB for NoSQL. The PassPulse services are written in C# (.NET 8) and run on an Azure Kubernetes Service (AKS) cluster. A team of analysts uses Microsoft Fabric.
+      fr: |
+        Alpine Ski House exploite 14 stations de ski en Suisse, en France et au Canada. Les skieurs utilisent des forfaits RFID qui sont scannés à 320 portiques de remontées mécaniques.
+
+        Alpine Ski House reconstruit sa plateforme de forfaits, nommée **PassPulse**, sur Azure Cosmos DB for NoSQL. Les services PassPulse sont écrits en C# (.NET 8) et s'exécutent sur un cluster Azure Kubernetes Service (AKS). Une équipe d'analystes utilise Microsoft Fabric.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Alpine Ski House has an Azure Cosmos DB for NoSQL account named **cosmos-ash-prod** with the following configuration:
+
+        | Setting | Value |
+        | --- | --- |
+        | Write region | Switzerland North (single-region writes) |
+        | Read regions | West Europe, Canada Central |
+        | Default consistency level | Bounded staleness |
+        | Backup mode | Continuous (7-day tier) |
+        | Key-based authentication | Disabled (`disableLocalAuth` set to `true`) |
+        | Throughput | Autoscale on each container |
+
+        The account contains a database named **passpulse** with the following containers:
+
+        | Container | Content | Partition key |
+        | --- | --- | --- |
+        | scans | One item per gate scan: `id`, `passId`, `gateId`, `resortId`, `scannedAt` | Not decided yet |
+        | passdays | One item per pass and per day: `id`, `passId`, `resortId`, `day`, and an embedded `rides` array whose elements contain `liftId` and `scannedAt` | `/passId` |
+        | leases | Empty, created for change feed processing | `/id` |
+
+        The PassPulse services use version 3.45.0 of the Azure Cosmos DB .NET SDK (Microsoft.Azure.Cosmos) and authenticate by using managed identities.
+      fr: |
+        Alpine Ski House dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-ash-prod** avec la configuration suivante :
+
+        | Paramètre | Valeur |
+        | --- | --- |
+        | Région d'écriture | Switzerland North (écritures dans une seule région) |
+        | Régions de lecture | West Europe, Canada Central |
+        | Niveau de cohérence par défaut | Bounded staleness (obsolescence limitée) |
+        | Mode de sauvegarde | Continu (niveau 7 jours) |
+        | Authentification par clé | Désactivée (`disableLocalAuth` défini sur `true`) |
+        | Débit | Mise à l'échelle automatique (autoscale) sur chaque conteneur |
+
+        Le compte contient une base de données nommée **passpulse** avec les conteneurs suivants :
+
+        | Conteneur | Contenu | Clé de partition |
+        | --- | --- | --- |
+        | scans | Un élément par passage au portique : `id`, `passId`, `gateId`, `resortId`, `scannedAt` | Pas encore choisie |
+        | passdays | Un élément par forfait et par jour : `id`, `passId`, `resortId`, `day`, et un tableau incorporé `rides` dont les éléments contiennent `liftId` et `scannedAt` | `/passId` |
+        | leases | Vide, créé pour le traitement du flux de modification | `/id` |
+
+        Les services PassPulse utilisent la version 3.45.0 du SDK .NET d'Azure Cosmos DB (Microsoft.Azure.Cosmos) et s'authentifient avec des identités managées.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Scans**
+
+        1. During the morning rush, the gates write up to 25,000 scans per second, spread over about 900,000 active passes. The writes must be distributed evenly across physical partitions.
+        2. Customer service must retrieve all the scans of one pass for the season by using a single-partition query.
+        3. Customer service reports that its query on scans, which filters on `passId` and `resortId` and sorts by `scannedAt`, consumes too many RUs. The developers must identify the indexes that could lower its RU charge.
+
+        **Usage projection**
+
+        4. A service named **usage-projector** must build the passdays items from the changes of scans. It runs on several AKS pods and stores its leases in the leases container.
+        5. When usage-projector is deployed for the first time, it must also process the scans that are already stored in the container.
+
+        **Availability**
+
+        6. If a physical partition becomes unavailable in Switzerland North, writes to that partition must fail over automatically to another region without failing over the whole account.
+        7. The only consistency guarantee that the PassPulse services rely on is that a client always reads its own writes.
+
+        **Analytics**
+
+        8. The analysts must query passdays from Microsoft Fabric with T-SQL in near real time. The analytics queries must not consume the RUs provisioned for cosmos-ash-prod.
+        9. Every identity must receive only the permissions it needs.
+      fr: |
+        **Passages**
+
+        1. Pendant l'affluence du matin, les portiques écrivent jusqu'à 25 000 passages par seconde, répartis sur environ 900 000 forfaits actifs. Les écritures doivent être réparties uniformément entre les partitions physiques.
+        2. Le service client doit récupérer tous les passages d'un forfait pour la saison au moyen d'une requête sur une seule partition.
+        3. Le service client signale que sa requête sur scans, qui filtre sur `passId` et `resortId` et trie par `scannedAt`, consomme trop de RU. Les développeurs doivent identifier les index qui pourraient réduire son coût en RU.
+
+        **Projection de l'utilisation**
+
+        4. Un service nommé **usage-projector** doit construire les éléments de passdays à partir des modifications de scans. Il s'exécute sur plusieurs pods AKS et stocke ses baux dans le conteneur leases.
+        5. Lors de son premier déploiement, usage-projector doit aussi traiter les passages déjà stockés dans le conteneur.
+
+        **Disponibilité**
+
+        6. Si une partition physique devient indisponible dans Switzerland North, les écritures vers cette partition doivent basculer automatiquement vers une autre région sans faire basculer l'ensemble du compte.
+        7. La seule garantie de cohérence sur laquelle reposent les services PassPulse est qu'un client lit toujours ses propres écritures.
+
+        **Analytique**
+
+        8. Les analystes doivent interroger passdays depuis Microsoft Fabric en T-SQL, en quasi-temps réel. Les requêtes analytiques ne doivent pas consommer les RU provisionnées pour cosmos-ash-prod.
+        9. Chaque identité ne doit recevoir que les autorisations dont elle a besoin.

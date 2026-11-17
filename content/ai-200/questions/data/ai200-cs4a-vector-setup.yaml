@@ -1,0 +1,49 @@
+id: ai200-cs4a-vector-setup
+objective: "2.2.3"
+type: ordering
+caseStudy: ai200-cs4a-woodgrove
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are preparing psql-woodgrove for the similarity search of complaint-api before go-live.
+
+    You need to meet the complaint history and similarity search requirements. Which five actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Vous préparez psql-woodgrove pour la recherche de similarité de complaint-api avant la mise en service.
+
+    Vous devez satisfaire les exigences relatives à l'historique des réclamations et à la recherche de similarité. Quelles sont les cinq actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 5
+  actions:
+    - { id: allow, text: { en: "Run `az postgres flexible-server parameter set` to add `vector` to the `azure.extensions` parameter of psql-woodgrove.", fr: "Exécuter `az postgres flexible-server parameter set` pour ajouter `vector` au paramètre `azure.extensions` de psql-woodgrove." } }
+    - { id: create, text: { en: "Connect to the complaints database and run `CREATE EXTENSION vector;`.", fr: "Se connecter à la base de données complaints et exécuter `CREATE EXTENSION vector;`." } }
+    - { id: table, text: { en: "Create the complaint_history table with an `embedding vector(1536)` column.", fr: "Créer la table complaint_history avec une colonne `embedding vector(1536)`." } }
+    - { id: load, text: { en: "Import the 1.8 million resolved complaints and their embeddings into complaint_history.", fr: "Importer les 1,8 million de réclamations résolues et leurs incorporations dans complaint_history." } }
+    - { id: index, text: { en: "Run `CREATE INDEX ON complaint_history USING ivfflat (embedding vector_cosine_ops) WITH (lists = 1340);`.", fr: "Exécuter `CREATE INDEX ON complaint_history USING ivfflat (embedding vector_cosine_ops) WITH (lists = 1340);`." } }
+    - { id: pgvector, text: { en: "Connect to the complaints database and run `CREATE EXTENSION pgvector;`.", fr: "Se connecter à la base de données complaints et exécuter `CREATE EXTENSION pgvector;`." } }
+    - { id: l2index, text: { en: "Run `CREATE INDEX ON complaint_history USING ivfflat (embedding vector_l2_ops) WITH (lists = 1340);`.", fr: "Exécuter `CREATE INDEX ON complaint_history USING ivfflat (embedding vector_l2_ops) WITH (lists = 1340);`." } }
+answer:
+  sequence: [ allow, create, table, load, index ]
+explanation:
+  correct:
+    en: |
+      An extension must be allowed in the `azure.extensions` server parameter before `CREATE EXTENSION` can install it, and it's installed separately in each database. The `vector` type exists only after that, so the table comes next. IVFFlat builds its lists from the rows that are already in the table, so you import the 1.8 million complaints first and then create the index; with more than a million rows, `lists` starts at about the square root of the row count. The cosine distance needs the `vector_cosine_ops` operator class, which serves queries that use `<=>`.
+    fr: |
+      Une extension doit être autorisée dans le paramètre de serveur `azure.extensions` avant que `CREATE EXTENSION` puisse l'installer, et elle s'installe séparément dans chaque base de données. Le type `vector` n'existe qu'ensuite : la table vient donc après. IVFFlat construit ses listes à partir des lignes déjà présentes dans la table : vous importez d'abord les 1,8 million de réclamations, puis vous créez l'index ; au-delà d'un million de lignes, `lists` part d'environ la racine carrée du nombre de lignes. La distance cosinus exige la classe d'opérateurs `vector_cosine_ops`, qui sert les requêtes utilisant `<=>`.
+  options:
+    pgvector:
+      en: |
+        The project is known as pgvector, but the extension is named `vector`: `CREATE EXTENSION pgvector` fails.
+      fr: |
+        Le projet est connu sous le nom pgvector, mais l'extension s'appelle `vector` : `CREATE EXTENSION pgvector` échoue.
+    l2index:
+      en: |
+        An index built with `vector_l2_ops` serves Euclidean distance queries (`<->`), not the cosine distance queries of complaint-api.
+      fr: |
+        Un index généré avec `vector_l2_ops` sert les requêtes de distance euclidienne (`<->`), pas les requêtes de distance cosinus de complaint-api.
+references:
+  - title: Vector Search in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-use-pgvector
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

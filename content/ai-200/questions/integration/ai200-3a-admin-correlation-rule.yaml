@@ -1,0 +1,102 @@
+id: ai200-3a-admin-correlation-rule
+objective: "3.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Lamna Healthcare publishes lab results analyzed by an AI model to a Service Bus topic named **lab-results**. Each message has an application property named `severity`. A deployment script written in Python creates the subscription **critical** for the on-call alerting service. The script runs under an identity that has the Azure Service Bus Data Owner role.
+
+    The subscription must receive only the messages whose `severity` is `critical`, by using the most efficient filter type.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Lamna Healthcare publie des résultats d'analyses médicales interprétés par un modèle d'IA dans une rubrique Service Bus nommée **lab-results**. Chaque message possède une propriété d'application nommée `severity`. Un script de déploiement écrit en Python crée l'abonnement **critical** pour le service d'alerte d'astreinte. Le script s'exécute sous une identité qui dispose du rôle Azure Service Bus Data Owner.
+
+    L'abonnement ne doit recevoir que les messages dont `severity` vaut `critical`, à l'aide du type de filtre le plus efficace.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.identity import DefaultAzureCredential
+    from azure.servicebus.management import (
+        ServiceBusAdministrationClient, CorrelationRuleFilter, SqlRuleFilter, TrueRuleFilter)
+
+    admin = ServiceBusAdministrationClient("sb-lamna.servicebus.windows.net", DefaultAzureCredential())
+
+    admin.create_subscription("lab-results", "critical")
+    admin.create_rule("lab-results", "critical", "critical-only",
+                      filter=[[flt]])
+    admin.[[op]]("lab-results", "critical", [[rule]])
+  slots:
+    - id: flt
+      options:
+        - { id: corrprops, text: "CorrelationRuleFilter(properties={\"severity\": \"critical\"})" }
+        - { id: corrlabel, text: "CorrelationRuleFilter(label=\"critical\")" }
+        - { id: sql, text: "SqlRuleFilter(\"severity = 'critical'\")" }
+        - { id: trueflt, text: TrueRuleFilter() }
+    - id: op
+      options:
+        - { id: deleterule, text: delete_rule }
+        - { id: updaterule, text: update_rule }
+        - { id: deletesub, text: delete_subscription }
+    - id: rule
+      options:
+        - { id: default, text: "\"$Default\"" }
+        - { id: own, text: "\"critical-only\"" }
+        - { id: truefilter, text: "\"TrueFilter\"" }
+answer:
+  values: { flt: corrprops, op: deleterule, rule: default }
+explanation:
+  correct:
+    en: |
+      A correlation filter tests equality and is the most efficient filter; application properties go in its properties dictionary. create_subscription adds the $Default rule with a true filter, so the script must call delete_rule on $Default, otherwise the subscription still receives every message.
+    fr: |
+      Un filtre de corrélation teste l'égalité et c'est le filtre le plus efficace ; les propriétés d'application se placent dans son dictionnaire properties. create_subscription ajoute la règle $Default avec un filtre vrai : le script doit appeler delete_rule sur $Default, sinon l'abonnement reçoit encore tous les messages.
+  options:
+    corrlabel:
+      en: |
+        label matches the subject (label) system property of the message, not the severity application property.
+      fr: |
+        label correspond à la propriété système subject (label) du message, pas à la propriété d'application severity.
+    sql:
+      en: |
+        The SQL filter selects the same messages but lowers throughput more than a correlation filter.
+      fr: |
+        Le filtre SQL sélectionne les mêmes messages mais réduit davantage le débit qu'un filtre de corrélation.
+    trueflt:
+      en: |
+        TrueRuleFilter selects every message.
+      fr: |
+        TrueRuleFilter sélectionne tous les messages.
+    updaterule:
+      en: |
+        Updating a rule keeps it in place; the default rule would still accept every message.
+      fr: |
+        La mise à jour d'une règle la conserve ; la règle par défaut accepterait toujours tous les messages.
+    deletesub:
+      en: |
+        delete_subscription removes the whole subscription and takes no rule name.
+      fr: |
+        delete_subscription supprime tout l'abonnement et ne prend pas de nom de règle.
+    own:
+      en: |
+        Deleting critical-only removes the filter you just created and leaves the true filter of $Default.
+      fr: |
+        Supprimer critical-only retire le filtre que vous venez de créer et laisse le filtre vrai de $Default.
+    truefilter:
+      en: |
+        TrueFilter is a filter type, not the name of the default rule, which is $Default.
+      fr: |
+        TrueFilter est un type de filtre, pas le nom de la règle par défaut, qui est $Default.
+references:
+  - title: azure.servicebus.management.ServiceBusAdministrationClient class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.management.servicebusadministrationclient
+  - title: azure.servicebus.management.CorrelationRuleFilter class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.management.correlationrulefilter

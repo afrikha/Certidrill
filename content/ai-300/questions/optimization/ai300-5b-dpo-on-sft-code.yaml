@@ -1,0 +1,73 @@
+id: ai300-5b-dpo-on-sft-code
+objective: "5.2.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum fine-tuned gpt-4.1-mini with supervised fine-tuning (SFT) in a Microsoft Foundry project. The SFT job is stored in the variable `sft_job`, and the resulting model is deployed under the deployment name **claims-sft**.
+
+    You now need to run direct preference optimization (DPO) on top of the SFT model by using a preference file named `prefs.jsonl`.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum a effectué le réglage précis supervisé (SFT) de gpt-4.1-mini dans un projet Microsoft Foundry. Le travail SFT est stocké dans la variable `sft_job`, et le modèle obtenu est déployé sous le nom de déploiement **claims-sft**.
+
+    Vous devez maintenant exécuter une optimisation directe des préférences (DPO) sur le modèle SFT à l'aide d'un fichier de préférences nommé `prefs.jsonl`.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    client = project.get_openai_client()
+
+    prefs = client.files.create(file=open("prefs.jsonl", "rb"), purpose=[[purpose]])
+    client.files.wait_for_processing(prefs.id)
+
+    dpo_job = client.fine_tuning.jobs.create(
+        model=[[model]],
+        training_file=prefs.id,
+        method={"type": [[mtype]]},
+        extra_body={"trainingType": "GlobalStandard"},
+    )
+  slots:
+    - id: purpose
+      options:
+        - { id: ft, text: "\"fine-tune\"" }
+        - { id: batch, text: "\"batch\"" }
+        - { id: userdata, text: "\"user_data\"" }
+    - id: model
+      options:
+        - { id: depname, text: "\"claims-sft\"" }
+        - { id: ftmodel, text: sft_job.fine_tuned_model }
+        - { id: jobid, text: sft_job.id }
+        - { id: base, text: "\"gpt-4.1-mini\"" }
+    - id: mtype
+      options:
+        - { id: sup, text: "\"supervised\"" }
+        - { id: reinf, text: "\"reinforcement\"" }
+        - { id: dpo, text: "\"dpo\"" }
+answer:
+  values: { purpose: ft, model: ftmodel, mtype: dpo }
+explanation:
+  correct:
+    en: |
+      Training files are uploaded with `purpose="fine-tune"`. To run DPO on an SFT result, the `model` value must be the fine-tuned model identifier, which the job exposes as `fine_tuned_model`, not the deployment name. The DPO method is selected with `method={"type": "dpo"}`.
+    fr: |
+      Les fichiers d'entraînement sont chargés avec `purpose="fine-tune"`. Pour exécuter DPO sur le résultat d'un SFT, la valeur de `model` doit être l'identificateur du modèle ajusté, que le travail expose dans `fine_tuned_model`, et non le nom du déploiement. La méthode DPO se sélectionne avec `method={"type": "dpo"}`.
+  options:
+    depname: { en: "Microsoft documents that you must pass the fine-tuned model identifier, not its deployment name.", fr: "Microsoft précise qu'il faut passer l'identificateur du modèle ajusté, et non son nom de déploiement." }
+    jobid: { en: "The job ID identifies the training job, not the model it produced.", fr: "L'ID du travail identifie le travail d'entraînement, pas le modèle qu'il a produit." }
+    base: { en: "The base model would discard the SFT training instead of building on it.", fr: "Le modèle de base ignorerait l'entraînement SFT au lieu de s'appuyer dessus." }
+    sup: { en: "`supervised` runs another SFT job, which can't use preference pairs.", fr: "`supervised` exécute un nouveau travail SFT, qui ne peut pas exploiter des paires de préférences." }
+    reinf: { en: "`reinforcement` needs a grader, not preference pairs.", fr: "`reinforcement` nécessite un évaluateur (grader), pas des paires de préférences." }
+references:
+  - title: Fine-tune a model with direct preference optimization in Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/fine-tuning-direct-preference-optimization
+  - title: Fine-tune a model with supervised fine-tuning in Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/fine-tuning

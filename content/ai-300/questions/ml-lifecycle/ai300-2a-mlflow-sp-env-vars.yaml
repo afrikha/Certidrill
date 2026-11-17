@@ -1,0 +1,70 @@
+id: ai300-2a-mlflow-sp-env-vars
+objective: "2.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure Machine Learning workspace named **mlw-fabrikam**.
+
+    A Python script runs every night on an on-premises Linux server and logs metrics to mlw-fabrikam by using MLflow. The server has no Azure CLI and no managed identity. The script must authenticate as a service principal by using a client secret that it reads from Azure Key Vault, without any interactive prompt.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Azure Machine Learning nommé **mlw-fabrikam**.
+
+    Un script Python s'exécute chaque nuit sur un serveur Linux local et enregistre des métriques dans mlw-fabrikam avec MLflow. Le serveur n'a ni Azure CLI ni identité managée. Le script doit s'authentifier en tant que principal de service avec un secret client qu'il lit dans Azure Key Vault, sans aucune invite interactive.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    import mlflow
+
+    os.environ["AZURE_TENANT_ID"] = tenant_id
+    os.environ["[[cid]]"] = client_id
+    os.environ["[[sec]]"] = client_secret   # value read from Azure Key Vault
+
+    mlflow.[[fn]](tracking_uri)             # azureml://... URI of mlw-fabrikam
+    mlflow.set_experiment("nightly-retrain")
+    mlflow.log_metric("rows_scored", row_count)
+  slots:
+    - id: cid
+      options:
+        - { id: cid-ok, text: AZURE_CLIENT_ID }
+        - { id: cid-cloud, text: AZUREML_CURRENT_CLOUD }
+        - { id: cid-uri, text: MLFLOW_TRACKING_URI }
+    - id: sec
+      options:
+        - { id: sec-cpath, text: AZURE_CLIENT_CERTIFICATE_PATH }
+        - { id: sec-ok, text: AZURE_CLIENT_SECRET }
+        - { id: sec-cpwd, text: AZURE_CLIENT_CERTIFICATE_PASSWORD }
+    - id: fn
+      options:
+        - { id: fn-reg, text: set_registry_uri }
+        - { id: fn-get, text: get_tracking_uri }
+        - { id: fn-ok, text: set_tracking_uri }
+answer:
+  values: { cid: cid-ok, sec: sec-ok, fn: fn-ok }
+explanation:
+  correct:
+    en: |
+      The `azureml-mlflow` plugin tries environment variables first. With `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` set, it signs in as the service principal and never falls back to the interactive browser, which would block an unattended script. `mlflow.set_tracking_uri()` then points MLflow to the workspace.
+    fr: |
+      Le plug-in `azureml-mlflow` essaie d'abord les variables d'environnement. Avec `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` et `AZURE_CLIENT_SECRET` définies, il se connecte en tant que principal de service et ne bascule jamais vers le navigateur interactif, qui bloquerait un script sans surveillance. `mlflow.set_tracking_uri()` oriente ensuite MLflow vers l'espace de travail.
+  options:
+    cid-cloud: { en: "AZUREML_CURRENT_CLOUD selects a nonpublic Azure cloud; it doesn't carry the client ID.", fr: "AZUREML_CURRENT_CLOUD sélectionne un cloud Azure non public ; elle ne contient pas l'ID client." }
+    cid-uri: { en: "MLFLOW_TRACKING_URI sets the tracking server, not the identity of the service principal.", fr: "MLFLOW_TRACKING_URI définit le serveur de suivi, pas l'identité du principal de service." }
+    sec-cpath: { en: "This variable is for certificate authentication; the script uses a client secret.", fr: "Cette variable sert à l'authentification par certificat ; le script utilise un secret client." }
+    sec-cpwd: { en: "This variable holds a certificate password, not a client secret.", fr: "Cette variable contient le mot de passe d'un certificat, pas un secret client." }
+    fn-reg: { en: "set_registry_uri targets a model registry; runs and metrics still need the tracking URI.", fr: "set_registry_uri cible un registre de modèles ; les exécutions et les métriques ont toujours besoin de l'URI de suivi." }
+    fn-get: { en: "get_tracking_uri only reads the current value; it doesn't set it.", fr: "get_tracking_uri lit seulement la valeur actuelle ; elle ne la définit pas." }
+references:
+  - title: Configure MLflow for Azure Machine Learning
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-use-mlflow-configure-tracking

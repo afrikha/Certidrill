@@ -1,0 +1,73 @@
+id: dp420-1a-ru-dotnet-metrics
+objective: "1.1.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank is load-testing a .NET service that uses Azure Cosmos DB for NoSQL. For each operation, you need to log:
+
+    - the RU charge of a point read;
+    - the server-side query metrics of each query page;
+    - the total RU charge reported by those query metrics.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank effectue des tests de charge sur un service .NET qui utilise Azure Cosmos DB for NoSQL. Pour chaque opération, vous devez journaliser :
+
+    - la charge en RU d'une lecture ponctuelle ;
+    - les métriques de requête côté serveur de chaque page de requête ;
+    - la charge totale en RU indiquée par ces métriques de requête.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    ItemResponse<Account> read = await container.ReadItemAsync<Account>(id, new PartitionKey(customerId));
+    logger.LogInformation("Point read: {ru} RU", read.[[charge]]);
+
+    FeedIterator<Account> iterator = container.GetItemQueryIterator<Account>(query);
+    while (iterator.HasMoreResults)
+    {
+        FeedResponse<Account> page = await iterator.ReadNextAsync();
+        ServerSideCumulativeMetrics metrics = page.Diagnostics.[[metrics]]();
+        logger.LogInformation("Query page: {ru} RU", metrics.[[total]]);
+    }
+  slots:
+    - id: charge
+      options:
+        - { id: status, text: StatusCode }
+        - { id: etag, text: ETag }
+        - { id: diag, text: Diagnostics }
+        - { id: rc, text: RequestCharge }
+    - id: metrics
+      options:
+        - { id: getqm, text: GetQueryMetrics }
+        - { id: elapsed, text: GetClientElapsedTime }
+        - { id: regions, text: GetContactedRegions }
+    - id: total
+      options:
+        - { id: cumul, text: CumulativeMetrics }
+        - { id: tostring, text: ToString() }
+        - { id: totalrc, text: TotalRequestCharge }
+answer:
+  values: { charge: rc, metrics: getqm, total: totalrc }
+explanation:
+  correct:
+    en: |
+      `ItemResponse<T>.RequestCharge` returns the RUs consumed by the operation. `Diagnostics.GetQueryMetrics()` returns a `ServerSideCumulativeMetrics` object for the page, whose `TotalRequestCharge` property gives the total charge across the partitions contacted.
+    fr: |
+      `ItemResponse<T>.RequestCharge` renvoie les RU consommées par l'opération. `Diagnostics.GetQueryMetrics()` renvoie un objet `ServerSideCumulativeMetrics` pour la page, dont la propriété `TotalRequestCharge` donne la charge totale sur les partitions contactées.
+  options:
+    elapsed: { en: "GetClientElapsedTime returns the client-side duration, not the server-side query metrics.", fr: "GetClientElapsedTime renvoie la durée côté client, pas les métriques de requête côté serveur." }
+    cumul: { en: "CumulativeMetrics holds the aggregated execution metrics (documents loaded, times), not the total request charge.", fr: "CumulativeMetrics contient les métriques d'exécution agrégées (documents chargés, durées), pas la charge totale de la requête." }
+references:
+  - title: Get SQL query performance & execution metrics
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query-metrics-performance
+  - title: Performance tips for Azure Cosmos DB and .NET
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/performance-tips-dotnet-sdk-v3

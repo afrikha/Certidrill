@@ -1,0 +1,71 @@
+id: sc200-2b-cx-multi-workload-kql
+objective: "2.1.9"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum uses Microsoft Defender for Office 365, Defender for Endpoint, Defender for Identity and Defender for Cloud Apps. You suspect a multi-domain attack that targets a few users.
+
+    You need an advanced hunting query that returns the Microsoft Entra users who appear as evidence in alerts from at least three different Defender services during the last seven days.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum utilise Microsoft Defender pour Office 365, Defender for Endpoint, Defender pour Identity et Defender pour les applications cloud. Vous soupçonnez une attaque multidomaine qui cible quelques utilisateurs.
+
+    Vous avez besoin d'une requête de repérage avancé qui renvoie les utilisateurs Microsoft Entra apparaissant comme preuves dans des alertes d'au moins trois services Defender différents au cours des sept derniers jours.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where Timestamp > ago(7d)
+    | where EntityType == "User" and isnotempty(AccountObjectId)
+    | summarize Sources = [[agg]](ServiceSource), Alerts = dcount(AlertId) by AccountObjectId
+    | where [[fn]](Sources) >= 3
+  slots:
+    - id: table
+      options:
+        - { id: evidence, text: AlertEvidence }
+        - { id: info, text: AlertInfo }
+        - { id: identity, text: IdentityInfo }
+        - { id: logon, text: IdentityLogonEvents }
+    - id: agg
+      options:
+        - { id: set, text: make_set }
+        - { id: list, text: make_list }
+        - { id: dcount, text: dcount }
+        - { id: any, text: take_any }
+    - id: fn
+      options:
+        - { id: arraylength, text: array_length }
+        - { id: strlen, text: strlen }
+        - { id: isnotempty, text: isnotempty }
+        - { id: toint, text: toint }
+answer:
+  values: { table: evidence, agg: set, fn: arraylength }
+explanation:
+  correct:
+    en: |
+      `AlertEvidence` has one row per entity of each alert, with `EntityType`, `AccountObjectId`, `AlertId` and the `ServiceSource` that raised the alert. `make_set(ServiceSource)` builds the distinct services for each user, and `array_length()` returns how many services are in that array.
+    fr: |
+      `AlertEvidence` contient une ligne par entité de chaque alerte, avec `EntityType`, `AccountObjectId`, `AlertId` et le `ServiceSource` qui a généré l'alerte. `make_set(ServiceSource)` construit la liste des services distincts de chaque utilisateur, et `array_length()` renvoie le nombre de services de ce tableau.
+  options:
+    info: { en: "AlertInfo describes alerts but has no entity columns such as EntityType or AccountObjectId; you join it with AlertEvidence on AlertId.", fr: "AlertInfo décrit les alertes mais n'a pas de colonnes d'entité comme EntityType ou AccountObjectId ; on la joint à AlertEvidence sur AlertId." }
+    identity: { en: "IdentityInfo stores account information, not alert evidence.", fr: "IdentityInfo stocke des informations de compte, pas des preuves d'alerte." }
+    logon: { en: "IdentityLogonEvents stores authentication events, not alerts.", fr: "IdentityLogonEvents stocke des événements d'authentification, pas des alertes." }
+    list: { en: "make_list() keeps duplicates, so three alerts from the same service would be counted as three.", fr: "make_list() conserve les doublons : trois alertes du même service compteraient pour trois." }
+    dcount: { en: "dcount() returns a number, and array_length() can't be applied to a number.", fr: "dcount() renvoie un nombre, et array_length() ne s'applique pas à un nombre." }
+    any: { en: "take_any() keeps a single service.", fr: "take_any() ne conserve qu'un seul service." }
+    strlen: { en: "strlen() returns the length of a string, not the number of array elements.", fr: "strlen() renvoie la longueur d'une chaîne, pas le nombre d'éléments d'un tableau." }
+    isnotempty: { en: "isnotempty() returns a Boolean, which can't be compared with 3.", fr: "isnotempty() renvoie une valeur booléenne, qui ne peut pas être comparée à 3." }
+    toint: { en: "toint() can't convert an array of service names into a count.", fr: "toint() ne peut pas convertir un tableau de noms de services en nombre." }
+references:
+  - title: AlertEvidence table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertevidence-table

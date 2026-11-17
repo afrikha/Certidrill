@@ -1,0 +1,95 @@
+id: ai300-3c-create-version-python
+objective: "3.3.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso deploys an agent named **trail-guide** to a Microsoft Foundry project by running a Python script from its Git repository. The script uses the `azure-ai-projects` package. The script must:
+
+    - create a new version of trail-guide whose behavior is defined by the content of the v3_instructions.txt prompt file;
+    - record the Git commit and the prompt file name as key-value pairs on the new agent version.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso déploie un agent nommé **trail-guide** dans un projet Microsoft Foundry en exécutant un script Python depuis son dépôt Git. Le script utilise le package `azure-ai-projects`. Le script doit :
+
+    - créer une nouvelle version de trail-guide dont le comportement est défini par le contenu du fichier d'invite v3_instructions.txt ;
+    - enregistrer le commit Git et le nom du fichier d'invite sous forme de paires clé-valeur sur la nouvelle version de l'agent.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+    import subprocess
+    from pathlib import Path
+    from azure.identity import DefaultAzureCredential
+    from azure.ai.projects import AIProjectClient
+    from azure.ai.projects.models import PromptAgentDefinition
+
+    prompt_file = Path(__file__).parent / "prompts" / "v3_instructions.txt"
+    prompt_text = prompt_file.read_text().strip()
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+
+    project = AIProjectClient(
+        endpoint=os.environ["PROJECT_ENDPOINT"],
+        credential=DefaultAzureCredential(),
+    )
+
+    agent = project.agents.[[m]](
+        agent_name="trail-guide",
+        definition=PromptAgentDefinition(
+            model=os.environ["MODEL_NAME"],
+            [[p]]=prompt_text,
+        ),
+        [[md]]={"git_commit": commit, "prompt_file": prompt_file.name},
+    )
+    print(f"Agent: {agent.name}, Version: {agent.version}")
+  slots:
+    - id: m
+      options:
+        - { id: create, text: create_version }
+        - { id: get, text: get_version }
+        - { id: list, text: list_versions }
+        - { id: delete, text: delete_version }
+    - id: p
+      options:
+        - { id: instr, text: instructions }
+        - { id: tools, text: tools }
+        - { id: desc, text: description }
+    - id: md
+      options:
+        - { id: meta, text: metadata }
+        - { id: desc, text: description }
+        - { id: draft, text: draft }
+        - { id: blueprint, text: blueprint_reference }
+answer:
+  values: { m: create, p: instr, md: meta }
+explanation:
+  correct:
+    en: project.agents.create_version creates a new version of the named agent; agents are identified by name and version. In PromptAgentDefinition, instructions holds the system prompt that defines the agent's behavior, here read from the version-controlled prompt file. The metadata parameter of create_version takes a dictionary of string key-value pairs, which suits the commit SHA and file name, so each Foundry version points back to the Git state that produced it.
+    fr: "project.agents.create_version crée une nouvelle version de l'agent nommé ; les agents sont identifiés par leur nom et leur version. Dans PromptAgentDefinition, instructions contient l'invite système qui définit le comportement de l'agent, lue ici depuis le fichier d'invite sous contrôle de version. Le paramètre metadata de create_version accepte un dictionnaire de paires clé-valeur de chaînes, adapté au SHA du commit et au nom du fichier : chaque version Foundry renvoie ainsi à l'état Git qui l'a produite."
+  options:
+    get:
+      en: get_version retrieves an existing version; it doesn't create one.
+      fr: get_version récupère une version existante ; elle n'en crée pas.
+    tools:
+      en: tools lists the tools the agent can call, not its instructions.
+      fr: tools liste les outils que l'agent peut appeler, pas ses instructions.
+    desc:
+      en: description is a single free-text string, not a set of key-value pairs, and it doesn't define the agent's behavior.
+      fr: description est une simple chaîne de texte libre, pas un ensemble de paires clé-valeur, et elle ne définit pas le comportement de l'agent.
+    draft:
+      en: draft is a Boolean flag, not a dictionary of values.
+      fr: draft est un indicateur booléen, pas un dictionnaire de valeurs.
+references:
+  - title: Build with runtime components in Foundry Agent Service
+    url: https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/runtime-components
+  - title: Understand Microsoft Foundry agents and prompt versioning
+    url: https://learn.microsoft.com/en-us/training/modules/prompt-versioning-genaiops/3-foundry-agents-prompt-versioning

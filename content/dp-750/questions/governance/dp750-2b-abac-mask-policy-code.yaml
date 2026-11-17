@@ -1,0 +1,66 @@
+id: dp750-2b-abac-mask-policy-code
+objective: "2.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind stores customer data in the **crm** catalog. The schema **crm.customers** contains about 40 tables. Columns that store email addresses are tagged with the governed tag `pii` = `email`. A SQL function named **crm.governance.mask_email** returns a redacted value.
+
+    You need to mask the tagged columns of every table in crm.customers for the **support_agents** group, except for members of the **privacy_officers** group. Tables in the other schemas of the catalog must not be affected.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind stocke les données clients dans le catalogue **crm**. Le schéma **crm.customers** contient environ 40 tables. Les colonnes qui stockent des adresses e-mail portent la balise gouvernée `pii` = `email`. Une fonction SQL nommée **crm.governance.mask_email** renvoie une valeur masquée.
+
+    Vous devez masquer les colonnes balisées de toutes les tables de crm.customers pour le groupe **support_agents**, sauf pour les membres du groupe **privacy_officers**. Les tables des autres schémas du catalogue ne doivent pas être affectées.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE POLICY mask_customer_email
+    ON [[scope]] crm.customers
+    [[kind]] crm.governance.mask_email
+    TO `support_agents`
+    EXCEPT `privacy_officers`
+    FOR TABLES
+    MATCH COLUMNS [[cond]]('pii', 'email') AS email_col
+    ON COLUMN email_col;
+  slots:
+    - id: scope
+      options:
+        - { id: catalog, text: CATALOG }
+        - { id: schema, text: SCHEMA }
+        - { id: table, text: TABLE }
+    - id: kind
+      options:
+        - { id: rowfilter, text: ROW FILTER }
+        - { id: setmask, text: SET MASK }
+        - { id: colmask, text: COLUMN MASK }
+    - id: cond
+      options:
+        - { id: hastag, text: has_tag }
+        - { id: hastagvalue, text: has_tag_value }
+        - { id: isgroup, text: is_account_group_member }
+answer:
+  values: { scope: schema, kind: colmask, cond: hastagvalue }
+explanation:
+  correct:
+    en: "ON SCHEMA attaches the policy to crm.customers, so it covers every table in that schema and nothing else in the catalog. COLUMN MASK names the masking function, and has_tag_value('pii', 'email') matches only the columns whose pii tag has the value email; ON COLUMN then masks the matched column."
+    fr: "ON SCHEMA attache la stratégie à crm.customers : elle couvre toutes les tables de ce schéma et rien d'autre dans le catalogue. COLUMN MASK désigne la fonction de masquage, et has_tag_value('pii', 'email') ne cible que les colonnes dont la balise pii a la valeur email ; ON COLUMN masque ensuite la colonne ciblée."
+  options:
+    catalog: { en: "ON CATALOG would apply the policy to every schema of crm, which the requirement forbids.", fr: "ON CATALOG appliquerait la stratégie à tous les schémas de crm, ce que l'exigence interdit." }
+    table: { en: "ON TABLE expects a three-part table name and would cover a single table.", fr: "ON TABLE attend un nom de table en trois parties et ne couvrirait qu'une seule table." }
+    rowfilter: { en: "ROW FILTER creates a row filter policy, which cannot be combined with ON COLUMN.", fr: "ROW FILTER crée une stratégie de filtre de lignes, incompatible avec ON COLUMN." }
+    setmask: { en: "SET MASK is the ALTER TABLE … ALTER COLUMN clause of a table-level mask, not a CREATE POLICY clause.", fr: "SET MASK est la clause ALTER TABLE … ALTER COLUMN d'un masque au niveau de la table, pas une clause de CREATE POLICY." }
+    hastag: { en: "has_tag takes only a tag name and would match every pii column, whatever its value.", fr: "has_tag ne prend qu'un nom de balise et ciblerait toutes les colonnes pii, quelle que soit leur valeur." }
+    isgroup: { en: "is_account_group_member tests group membership; MATCH COLUMNS selects columns by tag.", fr: "is_account_group_member teste l'appartenance à un groupe ; MATCH COLUMNS sélectionne des colonnes par balise." }
+references:
+  - title: Create and manage row filter and column mask policies
+    url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/abac/policies

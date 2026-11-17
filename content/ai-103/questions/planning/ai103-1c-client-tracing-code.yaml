@@ -1,0 +1,81 @@
+id: ai103-1c-client-tracing-code
+objective: "1.4.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso, Ltd. has a Python application that calls an agent in a Microsoft Foundry project. An Application Insights resource is connected to the project, and the required packages are installed.
+
+    You need to send the GenAI traces of the application to Application Insights. Because of a compliance rule, the traces must not record message contents or tool call parameters.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso, Ltd. dispose d'une application Python qui appelle un agent dans un projet Microsoft Foundry. Une ressource Application Insights est connectée au projet, et les packages nécessaires sont installés.
+
+    Vous devez envoyer les traces GenAI de l'application à Application Insights. En raison d'une règle de conformité, les traces ne doivent pas enregistrer le contenu des messages ni les paramètres des appels d'outils.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    import os
+
+    os.environ[[[flag]]] = "true"
+    os.environ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = [[content]]
+
+    # imports of AIProjectClient, DefaultAzureCredential and the exporter
+
+    with (
+        DefaultAzureCredential() as credential,
+        AIProjectClient(endpoint=endpoint, credential=credential) as project,
+    ):
+        connection_string = project.telemetry.get_application_insights_connection_string()
+        [[export]](connection_string=connection_string)
+
+        with project.get_openai_client(agent_name="support-agent") as openai:
+            conversation = openai.conversations.create()
+            response = openai.responses.create(conversation=conversation.id, input=question)
+  slots:
+    - id: flag
+      options:
+        - { id: enable, text: '"AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING"' }
+        - { id: binary, text: '"AZURE_TRACING_GEN_AI_INCLUDE_BINARY_DATA"' }
+        - { id: propagate, text: '"AZURE_TRACING_GEN_AI_ENABLE_TRACE_CONTEXT_PROPAGATION"' }
+        - { id: appi, text: '"APPLICATIONINSIGHTS_CONNECTION_STRING"' }
+    - id: content
+      options:
+        - { id: "false", text: '"false"' }
+        - { id: "true", text: '"true"' }
+    - id: export
+      options:
+        - { id: monitor, text: configure_azure_monitor }
+        - { id: provider, text: trace.set_tracer_provider }
+        - { id: instr, text: AIProjectInstrumentor().instrument }
+answer:
+  values: { flag: enable, content: "false", export: monitor }
+explanation:
+  correct:
+    en: |
+      `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` must be set to `true` before instrumentation to opt in to GenAI tracing. `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` records message contents and tool call parameters when it's `true`, so it stays `false` (its default). `configure_azure_monitor()` from `azure.monitor.opentelemetry` sets up the export to Application Insights with the connection string that the project returns.
+    fr: |
+      `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` doit être défini sur `true` avant l'instrumentation pour activer le suivi GenAI. `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` enregistre le contenu des messages et les paramètres des appels d'outils quand il vaut `true` : il reste donc à `false` (sa valeur par défaut). `configure_azure_monitor()` de `azure.monitor.opentelemetry` configure l'exportation vers Application Insights avec la chaîne de connexion que renvoie le projet.
+  options:
+    flag:
+      en: |
+        The binary data and trace context propagation variables tune what tracing includes once it's enabled; they don't opt in to GenAI tracing. The connection string variable doesn't enable tracing either.
+      fr: |
+        Les variables de données binaires et de propagation du contexte de trace règlent ce que le suivi inclut une fois activé ; elles n'activent pas le suivi GenAI. La variable de chaîne de connexion n'active pas non plus le suivi.
+    export:
+      en: |
+        trace.set_tracer_provider and AIProjectInstrumentor().instrument are used with a console or OTLP exporter; neither takes an Application Insights connection string.
+      fr: |
+        trace.set_tracer_provider et AIProjectInstrumentor().instrument s'utilisent avec un exportateur console ou OTLP ; aucun ne prend de chaîne de connexion Application Insights.
+references:
+  - title: Add client-side tracing to Foundry agents
+    url: https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/trace-agent-client-side

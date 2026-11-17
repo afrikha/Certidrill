@@ -1,0 +1,80 @@
+id: ai300-cs4a-github-workflow
+objective: "1.3.3"
+type: dropdown
+caseStudy: ai300-cs4a-coho-winery
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the GitHub Actions workflow that submits the training job. The repository secrets AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID contain the identifiers of app-coho-gh, the tenant and the subscription.
+
+    How should you complete the workflow to meet the training requirements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le workflow GitHub Actions qui soumet le travail d'entraînement. Les secrets du dépôt AZURE_CLIENT_ID, AZURE_TENANT_ID et AZURE_SUBSCRIPTION_ID contiennent les identifiants d'app-coho-gh, du locataire et de l'abonnement.
+
+    Comment devez-vous compléter le workflow pour respecter les exigences d'entraînement ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: train-harvest-forecaster
+    on:
+      push:
+        branches: [ main ]
+    permissions:
+      [[perm]]
+      contents: read
+    jobs:
+      train:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - uses: [[login]]
+            with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          - run: az extension add --name [[ext]]
+          - run: >
+              az ml job create --file jobs/train.yml
+              --resource-group rg-coho-dev --workspace-name mlw-coho-dev
+  slots:
+    - id: perm
+      options:
+        - { id: actions, text: "actions: write" }
+        - { id: deployments, text: "deployments: write" }
+        - { id: idtoken, text: "id-token: write" }
+        - { id: pr, text: "pull-requests: write" }
+    - id: login
+      options:
+        - { id: armdeploy, text: azure/arm-deploy@v2 }
+        - { id: cli, text: azure/cli@v2 }
+        - { id: login, text: azure/login@v2 }
+    - id: ext
+      options:
+        - { id: v1, text: azure-cli-ml }
+        - { id: ml, text: ml }
+        - { id: devops, text: azure-devops }
+answer:
+  values: { perm: idtoken, login: login, ext: ml }
+explanation:
+  correct:
+    en: "With OpenID Connect, the job requests a GitHub token that Microsoft Entra ID exchanges through the federated credential of app-coho-gh, so no secret or certificate is stored: the job needs `id-token: write`, and `azure/login@v2` performs the sign-in with the client, tenant and subscription IDs. The CLI v2 commands `az ml` come from the `ml` extension."
+    fr: "Avec OpenID Connect, le travail demande un jeton GitHub que Microsoft Entra ID échange grâce aux informations d'identification fédérées d'app-coho-gh ; aucune clé secrète ni aucun certificat n'est stocké : le travail a besoin de `id-token: write`, et `azure/login@v2` effectue la connexion avec les ID de client, de locataire et d'abonnement. Les commandes `az ml` de la CLI v2 proviennent de l'extension `ml`."
+  options:
+    actions: { en: "actions: write manages workflow runs; it doesn't let the job request an OIDC token.", fr: "actions: write gère les exécutions de workflow ; il ne permet pas au travail de demander un jeton OIDC." }
+    deployments: { en: "deployments: write manages GitHub deployments; azure/login can't get an OIDC token with it.", fr: "deployments: write gère les déploiements GitHub ; azure/login ne peut pas obtenir de jeton OIDC avec cette permission." }
+    pr: { en: "pull-requests: write is unrelated to the Azure sign-in.", fr: "pull-requests: write n'a aucun rapport avec la connexion à Azure." }
+    armdeploy: { en: "azure/arm-deploy deploys ARM or Bicep templates; it doesn't sign in with the client-id, tenant-id and subscription-id inputs.", fr: "azure/arm-deploy déploie des modèles ARM ou Bicep ; il ne se connecte pas avec les entrées client-id, tenant-id et subscription-id." }
+    cli: { en: "azure/cli runs Azure CLI scripts in a session that azure/login must open first.", fr: "azure/cli exécute des scripts Azure CLI dans une session qu'azure/login doit d'abord ouvrir." }
+    v1: { en: "azure-cli-ml is the CLI v1 extension, which Microsoft Learn says to remove before installing the v2 ml extension.", fr: "azure-cli-ml est l'extension de la CLI v1, que Microsoft Learn demande de supprimer avant d'installer l'extension ml v2." }
+    devops: { en: "azure-devops adds Azure DevOps commands, not az ml.", fr: "azure-devops ajoute des commandes Azure DevOps, pas az ml." }
+references:
+  - title: Use GitHub Actions with Azure Machine Learning
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-github-actions-machine-learning
+  - title: Install and set up the CLI (v2)
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-configure-cli

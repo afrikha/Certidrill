@@ -1,0 +1,70 @@
+id: dp800-2d-function-trigger-code
+objective: "2.4.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind enabled change tracking on an Azure SQL database and on its dbo.Orders table. You are writing an Azure Functions app (isolated worker model) that must run each time rows of dbo.Orders change, and archive the orders that were deleted. The app setting SqlConnectionString contains the connection to the database.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind a activé le suivi des modifications sur une base de données Azure SQL et sur sa table dbo.Orders. Vous écrivez une application Azure Functions (modèle worker isolé) qui doit s'exécuter chaque fois que des lignes de dbo.Orders changent, et archiver les commandes supprimées. Le paramètre d'application SqlConnectionString contient la connexion à la base de données.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    [Function("ArchiveDeletedOrders")]
+    public static void Run(
+        [[attr]]
+        [[ptype]] changes,
+        FunctionContext context)
+    {
+        foreach (var change in changes)
+        {
+            if (change.Operation == [[op]])
+            {
+                Archive(change.Item);
+            }
+        }
+    }
+  slots:
+    - id: attr
+      options:
+        - { id: input, text: "[SqlInput(\"SELECT * FROM dbo.Orders\", \"SqlConnectionString\")]" }
+        - { id: trigger, text: "[SqlTrigger(\"[dbo].[Orders]\", \"SqlConnectionString\")]" }
+        - { id: timer, text: "[TimerTrigger(\"0 */1 * * * *\")]" }
+    - id: ptype
+      options:
+        - { id: list, text: "IReadOnlyList<Order>" }
+        - { id: changeList, text: "IReadOnlyList<SqlChange<Order>>" }
+        - { id: str, text: "string" }
+    - id: op
+      options:
+        - { id: del, text: SqlChangeOperation.Delete }
+        - { id: upd, text: SqlChangeOperation.Update }
+        - { id: d, text: "'D'" }
+answer:
+  values: { attr: trigger, ptype: changeList, op: del }
+explanation:
+  correct:
+    en: |
+      The SqlTrigger attribute takes the monitored table and the name of the app setting that holds the connection; it polls change tracking and invokes the function with a batch of changes. The batch is bound to IReadOnlyList<SqlChange<T>>, where each SqlChange has an Item (the row) and an Operation of type SqlChangeOperation: Insert, Update or Delete.
+    fr: |
+      L'attribut SqlTrigger prend la table surveillée et le nom du paramètre d'application qui contient la connexion ; il interroge le suivi des modifications et appelle la fonction avec un lot de modifications. Le lot est lié à IReadOnlyList<SqlChange<T>>, où chaque SqlChange a un Item (la ligne) et une Operation de type SqlChangeOperation : Insert, Update ou Delete.
+  options:
+    input: { en: "An input binding reads rows when the function runs; it doesn't start the function when rows change.", fr: "Une liaison d'entrée lit des lignes quand la fonction s'exécute ; elle ne démarre pas la fonction quand des lignes changent." }
+    timer: { en: "A timer trigger runs on a schedule and provides no changed rows.", fr: "Un déclencheur de minuteur s'exécute selon une planification et ne fournit aucune ligne modifiée." }
+    list: { en: "A list of Order objects has no Operation property; the trigger delivers SqlChange items.", fr: "Une liste d'objets Order n'a pas de propriété Operation ; le déclencheur fournit des éléments SqlChange." }
+    str: { en: "The code reads Operation and Item, which a string doesn't provide.", fr: "Le code lit Operation et Item, qu'une chaîne ne fournit pas." }
+    upd: { en: "Update selects modified rows, not deleted ones.", fr: "Update sélectionne les lignes modifiées, pas les lignes supprimées." }
+    d: { en: "'D' is the SYS_CHANGE_OPERATION value of CHANGETABLE; the binding exposes the SqlChangeOperation enumeration.", fr: "'D' est la valeur SYS_CHANGE_OPERATION de CHANGETABLE ; la liaison expose l'énumération SqlChangeOperation." }
+references:
+  - title: Azure SQL trigger for Functions
+    url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-azure-sql-trigger

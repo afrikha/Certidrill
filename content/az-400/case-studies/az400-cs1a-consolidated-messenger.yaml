@@ -1,0 +1,119 @@
+id: az400-cs1a-consolidated-messenger
+status: draft
+title:
+  en: |
+    Consolidated Messenger
+  fr: |
+    Consolidated Messenger
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Consolidated Messenger is a parcel delivery company that operates in eight countries. Customers track their parcels and choose delivery windows on a web portal and a public API.
+
+        The company has 40 developers in five product teams and a platform team of four engineers. All the applications run as containers in Azure.
+      fr: |
+        Consolidated Messenger est une entreprise de livraison de colis présente dans huit pays. Les clients suivent leurs colis et choisissent leurs créneaux de livraison sur un portail web et une API publique.
+
+        L'entreprise compte 40 développeurs répartis en cinq équipes produit et une équipe plateforme de quatre ingénieurs. Toutes les applications s'exécutent sous forme de conteneurs dans Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Source control and CI/CD**
+
+        Consolidated Messenger uses a GitHub Enterprise Cloud organization named **consolidated-messenger**. Each application has its own repository and its own GitHub Actions workflows.
+
+        | Repository | Content | Deployed to |
+        | --- | --- | --- |
+        | tracking-api | .NET parcel tracking API, Bicep files in the /infra folder | Container app **ca-tracking** |
+        | routing-api | .NET delivery routing API, Bicep files in the /infra folder | Container app **ca-routing** |
+        | web-portal | React front end built with npm | Container app **ca-portal** |
+
+        The platform team is the GitHub team **@consolidated-messenger/platform**, which has the Maintain role on the three repositories. Two engineers of the platform team are repository administrators. Dependabot alerts are enabled on all the repositories.
+
+        Each workflow signs in to Azure by using a client secret of a service principal stored in a repository secret named AZURE_CREDENTIALS. The secret expires every six months, and deployments failed twice last year because it had expired.
+
+        **Azure**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | cae-prod | Azure Container Apps environment |
+        | ca-tracking, ca-routing, ca-portal | Container apps with external ingress, single revision mode |
+        | crcmprod | Azure Container Registry, Premium SKU |
+        | appcs-cm-prod | Azure App Configuration store |
+        | appi-cm-prod | Workspace-based Application Insights resource; all the container apps send OpenTelemetry traces to it |
+        | id-cm-deploy | User-assigned managed identity with the Contributor role on the production resource group |
+      fr: |
+        **Contrôle de code source et CI/CD**
+
+        Consolidated Messenger utilise une organisation GitHub Enterprise Cloud nommée **consolidated-messenger**. Chaque application a son propre dépôt et ses propres workflows GitHub Actions.
+
+        | Dépôt | Contenu | Déployé sur |
+        | --- | --- | --- |
+        | tracking-api | API .NET de suivi des colis, fichiers Bicep dans le dossier /infra | Application conteneur **ca-tracking** |
+        | routing-api | API .NET de planification des tournées, fichiers Bicep dans le dossier /infra | Application conteneur **ca-routing** |
+        | web-portal | Front-end React généré avec npm | Application conteneur **ca-portal** |
+
+        L'équipe plateforme est l'équipe GitHub **@consolidated-messenger/platform**, qui a le rôle Maintain sur les trois dépôts. Deux ingénieurs de l'équipe plateforme sont administrateurs des dépôts. Les alertes Dependabot sont activées sur tous les dépôts.
+
+        Chaque workflow se connecte à Azure avec une clé secrète client d'un principal de service, stockée dans un secret de dépôt nommé AZURE_CREDENTIALS. Ce secret expire tous les six mois, et des déploiements ont échoué deux fois l'an dernier parce qu'il avait expiré.
+
+        **Azure**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | cae-prod | Environnement Azure Container Apps |
+        | ca-tracking, ca-routing, ca-portal | Applications conteneur avec entrée externe, mode de révision unique |
+        | crcmprod | Azure Container Registry, référence SKU Premium |
+        | appcs-cm-prod | Magasin Azure App Configuration |
+        | appi-cm-prod | Ressource Application Insights basée sur un espace de travail ; toutes les applications conteneur lui envoient des traces OpenTelemetry |
+        | id-cm-deploy | Identité managée affectée par l'utilisateur, avec le rôle Contributor sur le groupe de ressources de production |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Security requirements**
+
+        1. Workflows must sign in to Azure by using id-cm-deploy. No password, client secret or certificate may be stored in GitHub.
+        2. In tracking-api, only the jobs that target the GitHub environment named **production** may obtain an Azure token for id-cm-deploy.
+        3. When a vulnerability is found in an npm package used by web-portal, a pull request that upgrades the package to a patched version must be created automatically.
+        4. The actions referenced by the workflows of every repository must be checked every week for newer versions, even when no vulnerability is known.
+
+        **Source control requirements**
+
+        5. Changes reach the main branch of each repository only through pull requests approved by at least one reviewer.
+        6. Any pull request that changes a file in the /infra folder must be approved by a member of the platform team before it is merged. Repository administrators must not be able to bypass this rule.
+
+        **Deployment requirements**
+
+        7. A new version of tracking-api must first receive 10 percent of the production traffic. If errors increase, all the traffic must return to the previous version within seconds, without a new build or deployment.
+        8. A new "delivery-window" feature of routing-api must be enabled for a percentage of the signed-in customers, starting at 20 percent. A customer must always get the same experience, and the product owner must be able to change the percentage or turn the feature off without redeploying or restarting routing-api.
+
+        **Monitoring requirements**
+
+        9. Support engineers must be able to list, for each failed request of tracking-api, every dependency call made during the same end-to-end operation, including the calls made by routing-api.
+        10. Administrative effort must be minimized.
+      fr: |
+        **Exigences de sécurité**
+
+        1. Les workflows doivent se connecter à Azure en utilisant id-cm-deploy. Aucun mot de passe, aucune clé secrète client et aucun certificat ne doivent être stockés dans GitHub.
+        2. Dans tracking-api, seuls les travaux qui ciblent l'environnement GitHub nommé **production** doivent pouvoir obtenir un jeton Azure pour id-cm-deploy.
+        3. Quand une vulnérabilité est détectée dans un package npm utilisé par web-portal, une pull request qui met à niveau le package vers une version corrigée doit être créée automatiquement.
+        4. Les actions référencées par les workflows de chaque dépôt doivent être vérifiées chaque semaine pour détecter des versions plus récentes, même en l'absence de vulnérabilité connue.
+
+        **Exigences de contrôle de code source**
+
+        5. Les modifications n'atteignent la branche main de chaque dépôt qu'au moyen de pull requests approuvées par au moins un réviseur.
+        6. Toute pull request qui modifie un fichier du dossier /infra doit être approuvée par un membre de l'équipe plateforme avant sa fusion. Les administrateurs des dépôts ne doivent pas pouvoir contourner cette règle.
+
+        **Exigences de déploiement**
+
+        7. Une nouvelle version de tracking-api doit d'abord recevoir 10 % du trafic de production. Si les erreurs augmentent, tout le trafic doit revenir à la version précédente en quelques secondes, sans nouvelle build ni nouveau déploiement.
+        8. Une nouvelle fonctionnalité « delivery-window » de routing-api doit être activée pour un pourcentage des clients connectés, en commençant à 20 %. Un client doit toujours obtenir la même expérience, et le propriétaire du produit doit pouvoir changer le pourcentage ou désactiver la fonctionnalité sans redéployer ni redémarrer routing-api.
+
+        **Exigences de supervision**
+
+        9. Les ingénieurs du support doivent pouvoir lister, pour chaque requête de tracking-api en échec, tous les appels de dépendance effectués pendant la même opération de bout en bout, y compris les appels effectués par routing-api.
+        10. L'effort d'administration doit être réduit au minimum.

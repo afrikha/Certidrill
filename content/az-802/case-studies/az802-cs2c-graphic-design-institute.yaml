@@ -1,0 +1,87 @@
+id: az802-cs2c-graphic-design-institute
+status: draft
+title:
+  en: Graphic Design Institute
+  fr: Graphic Design Institute
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Graphic Design Institute is a school of animation, visual effects and game design. Its render farm provides GPU capacity to the students and to the research teams, and its training center teaches server virtualization.
+
+        The institute runs its lab virtual machines in Azure and its render farm on premises.
+      fr: |
+        Graphic Design Institute est une école d'animation, d'effets visuels et de conception de jeux vidéo. Sa ferme de rendu fournit de la capacité GPU aux étudiants et aux équipes de recherche, et son centre de formation enseigne la virtualisation de serveurs.
+
+        L'institut exécute ses machines virtuelles de laboratoire dans Azure et sa ferme de rendu en local.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Active Directory.** The network contains a single-domain AD DS forest named **gdinstitute.edu**. SYSVOL is replicated by using DFS Replication. All the servers run Windows Server 2025.
+
+        | Server | Location | Configuration |
+        | --- | --- | --- |
+        | DC1, DC2 | Campus | Writable domain controllers, DNS servers (10.20.0.10, 10.20.0.11), no internet access |
+        | RODC-LIB | Library building | Read-only domain controller |
+        | MGMT1 | Campus | Member server with outbound HTTPS access to the internet |
+        | HVLAB1 | Training center | Standalone Hyper-V host |
+        | GPUHV1, GPUHV2 | Render farm | Hyper-V hosts, nodes of the failover cluster **GPUCLUS** |
+
+        HVLAB1 hosts a VM named **VM-TRAIN2** that runs Windows Server 2025 and is connected only to a private virtual switch. Remote Desktop is disabled inside VM-TRAIN2. On HVLAB1, the **Enhanced session mode policy** and **Enhanced session mode** settings are both turned on. The students connect to VM-TRAIN2 from Windows 11 computers by using Virtual Machine Connection (VMConnect).
+
+        The render jobs of GPUCLUS run at night, and the CPU load of the nodes grows every term.
+
+        **Azure.** The institute has an Azure subscription connected to the campus by a site-to-site VPN. Microsoft Defender for Servers Plan 1 is enabled on the subscription.
+
+        | Resource | Configuration |
+        | --- | --- |
+        | VNet-Hub | 10.60.0.0/16, DNS servers set to Default (Azure-provided) |
+        | snet-dns-in | 10.60.2.0/28, delegated to `Microsoft.Network/dnsResolvers`, inbound endpoint (10.60.2.4) of the Azure DNS Private Resolver **DNSPR1** |
+        | snet-lab | 10.60.10.0/24, network security group NSG-Lab, VMs VM-LAB1 and VM-LAB2 |
+
+        The range 10.60.3.0/24 of VNet-Hub is not used.
+      fr: |
+        **Active Directory.** Le réseau contient une forêt AD DS à domaine unique nommée **gdinstitute.edu**. SYSVOL est répliqué à l'aide de la réplication DFS. Tous les serveurs exécutent Windows Server 2025.
+
+        | Serveur | Emplacement | Configuration |
+        | --- | --- | --- |
+        | DC1, DC2 | Campus | Contrôleurs de domaine accessibles en écriture, serveurs DNS (10.20.0.10, 10.20.0.11), sans accès à Internet |
+        | RODC-LIB | Bâtiment de la bibliothèque | Contrôleur de domaine en lecture seule |
+        | MGMT1 | Campus | Serveur membre avec un accès HTTPS sortant à Internet |
+        | HVLAB1 | Centre de formation | Hôte Hyper-V autonome |
+        | GPUHV1, GPUHV2 | Ferme de rendu | Hôtes Hyper-V, nœuds du cluster de basculement **GPUCLUS** |
+
+        HVLAB1 héberge une machine virtuelle nommée **VM-TRAIN2** qui exécute Windows Server 2025 et n'est connectée qu'à un commutateur virtuel privé. Le Bureau à distance est désactivé dans VM-TRAIN2. Sur HVLAB1, les paramètres **Enhanced session mode policy** et **Enhanced session mode** sont tous deux activés. Les étudiants se connectent à VM-TRAIN2 depuis des ordinateurs Windows 11 à l'aide de Connexion à une machine virtuelle (VMConnect).
+
+        Les travaux de rendu de GPUCLUS s'exécutent la nuit, et la charge processeur des nœuds augmente à chaque trimestre.
+
+        **Azure.** L'institut dispose d'un abonnement Azure relié au campus par un VPN site à site. Microsoft Defender pour les serveurs Plan 1 est activé sur l'abonnement.
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | VNet-Hub | 10.60.0.0/16, serveurs DNS définis sur Par défaut (fournis par Azure) |
+        | snet-dns-in | 10.60.2.0/28, délégué à `Microsoft.Network/dnsResolvers`, point de terminaison entrant (10.60.2.4) du résolveur privé Azure DNS **DNSPR1** |
+        | snet-lab | 10.60.10.0/24, groupe de sécurité réseau NSG-Lab, machines virtuelles VM-LAB1 et VM-LAB2 |
+
+        La plage 10.60.3.0/24 de VNet-Hub n'est pas utilisée.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Graphic Design Institute identifies the following requirements:
+
+        1. **Name resolution.** The VMs in VNet-Hub must resolve the names of the gdinstitute.edu zone by querying DC1 and DC2. The DNS settings of VNet-Hub must not change, and no DNS server VM must be deployed in Azure.
+        2. **Lab access.** RDP to VM-LAB1 and VM-LAB2 must be allowed only on request and for a limited time, by using just-in-time (JIT) VM access.
+        3. **Training.** In VMConnect, the students must be able to use the clipboard and their USB drives in VM-TRAIN2. VM-TRAIN2 must stay connected only to its private virtual switch.
+        4. **Passwords.** Microsoft Entra Password Protection must validate password changes on every writable domain controller. The domain controllers must keep having no internet access.
+        5. **Render farm capacity.** Each node of GPUCLUS must forecast its own CPU usage every two days at 2:00 AM, without depending on any cloud service. When a forecast reaches the Critical status, the script C:\Scripts\Rebalance.ps1 must run automatically.
+      fr: |
+        Graphic Design Institute a défini les exigences suivantes :
+
+        1. **Résolution de noms.** Les machines virtuelles de VNet-Hub doivent résoudre les noms de la zone gdinstitute.edu en interrogeant DC1 et DC2. Les paramètres DNS de VNet-Hub ne doivent pas changer, et aucune machine virtuelle serveur DNS ne doit être déployée dans Azure.
+        2. **Accès aux laboratoires.** Le RDP vers VM-LAB1 et VM-LAB2 ne doit être autorisé que sur demande et pour une durée limitée, à l'aide de l'accès juste-à-temps (JIT) aux machines virtuelles.
+        3. **Formation.** Dans VMConnect, les étudiants doivent pouvoir utiliser le Presse-papiers et leurs lecteurs USB dans VM-TRAIN2. VM-TRAIN2 doit rester connectée uniquement à son commutateur virtuel privé.
+        4. **Mots de passe.** La protection par mot de passe Microsoft Entra doit valider les changements de mot de passe sur chaque contrôleur de domaine accessible en écriture. Les contrôleurs de domaine doivent toujours rester sans accès à Internet.
+        5. **Capacité de la ferme de rendu.** Chaque nœud de GPUCLUS doit prévoir sa propre utilisation du processeur tous les deux jours à 2 h 00, sans dépendre d'aucun service cloud. Quand une prévision atteint l'état Critical, le script C:\Scripts\Rebalance.ps1 doit s'exécuter automatiquement.

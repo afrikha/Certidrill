@@ -1,0 +1,72 @@
+id: dp750-3b-ss-window-output
+objective: "3.2.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam counts sensor events per device in five-minute windows. The query reads the Delta table **fabrikam.bronze.telemetry** and writes to the Delta table **fabrikam.silver.device_counts**. It runs continuously on classic job compute.
+
+    The solution must meet the following requirements:
+
+    - Start a micro-batch every five minutes.
+    - Write each window to the target table only once, when its count can no longer change.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam compte les événements de capteurs par appareil dans des fenêtres de cinq minutes. La requête lit la table Delta **fabrikam.bronze.telemetry** et écrit dans la table Delta **fabrikam.silver.device_counts**. Elle s'exécute en continu sur un calcul de job classique.
+
+    La solution doit satisfaire les exigences suivantes :
+
+    - Lancer un micro-lot toutes les cinq minutes.
+    - N'écrire chaque fenêtre dans la table cible qu'une seule fois, quand son décompte ne peut plus changer.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql.functions import window
+
+    (spark.readStream.table("fabrikam.bronze.telemetry")
+       .withWatermark("event_ts", "10 minutes")
+       .groupBy(window("event_ts", "5 minutes"), "device_id")
+       .count()
+       .writeStream
+       .outputMode([[mode]])
+       .option("checkpointLocation", "/Volumes/fabrikam/silver/chk/device_counts")
+       .trigger([[trig]])
+       .toTable("fabrikam.silver.device_counts"))
+  slots:
+    - id: mode
+      options:
+        - { id: append, text: '"append"' }
+        - { id: update, text: '"update"' }
+        - { id: complete, text: '"complete"' }
+    - id: trig
+      options:
+        - { id: proc, text: processingTime="5 minutes" }
+        - { id: now, text: availableNow=True }
+        - { id: cont, text: continuous="5 minutes" }
+answer:
+  values: { mode: append, trig: proc }
+explanation:
+  correct:
+    en: |
+      In append mode, a stateful aggregation emits only the rows that won't change in later triggers; the watermark determines when a window is final, so each window is written once. A processing-time trigger of five minutes starts a micro-batch at that interval while the query keeps running.
+    fr: |
+      En mode append, une agrégation avec état n'émet que les lignes qui ne changeront plus lors des déclenchements suivants ; le filigrane détermine quand une fenêtre est définitive : chaque fenêtre est donc écrite une seule fois. Un déclencheur temporel de cinq minutes lance un micro-lot à cet intervalle pendant que la requête continue de s'exécuter.
+  options:
+    update: { en: "Delta Lake sinks don't support update mode, and update mode writes a window again each time its count changes.", fr: "Les récepteurs Delta Lake ne prennent pas en charge le mode update, et ce mode réécrit une fenêtre chaque fois que son décompte change." }
+    complete: { en: "Complete mode writes all the windows at every trigger, so each window is written many times.", fr: "Le mode complete écrit toutes les fenêtres à chaque déclenchement : chaque fenêtre est donc écrite de nombreuses fois." }
+    now: { en: "availableNow processes the available data, then stops, whereas the query must run continuously.", fr: "availableNow traite les données disponibles puis s'arrête, alors que la requête doit s'exécuter en continu." }
+    cont: { en: "The continuous trigger isn't supported on Azure Databricks.", fr: "Le déclencheur continu n'est pas pris en charge sur Azure Databricks." }
+references:
+  - title: Select an output mode for Structured Streaming
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/output-mode
+  - title: Configure Structured Streaming trigger intervals
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/triggers

@@ -1,0 +1,72 @@
+id: dp700-2d-es-sql-busy-stores
+objective: "2.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an eventstream named **ES-Retail** that receives point-of-sale events. Each event contains the `storeId` field and an `orderTime` field that holds the time the order was placed in the store. Events can reach ES-Retail several seconds after `orderTime`.
+
+    You add a SQL operator that has an input named **OrdersInput** and an output named **BusyStores**. For each store, the operator must count the orders in consecutive, non-overlapping one-minute windows based on `orderTime`, and send only the windows that contain more than 100 orders to BusyStores.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un flux d'événements nommé **ES-Retail** qui reçoit des événements de point de vente. Chaque événement contient le champ `storeId` et un champ `orderTime` qui indique l'heure à laquelle la commande a été passée en magasin. Les événements peuvent arriver dans ES-Retail plusieurs secondes après `orderTime`.
+
+    Vous ajoutez un opérateur SQL qui a une entrée nommée **OrdersInput** et une sortie nommée **BusyStores**. Pour chaque magasin, l'opérateur doit compter les commandes dans des fenêtres d'une minute consécutives et sans chevauchement, basées sur `orderTime`, et n'envoyer à BusyStores que les fenêtres qui contiennent plus de 100 commandes.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT System.Timestamp() AS WindowEnd, storeId, COUNT(*) AS Orders
+    [[into]] BusyStores
+    FROM OrdersInput [[ts]] orderTime
+    GROUP BY storeId, [[win]]
+    [[cond]] COUNT(*) > 100
+  slots:
+    - id: into
+      options:
+        - { id: intoKw, text: INTO }
+        - { id: outputKw, text: OUTPUT }
+        - { id: insertKw, text: INSERT }
+    - id: ts
+      options:
+        - { id: orderBy, text: ORDER BY }
+        - { id: tsBy, text: TIMESTAMP BY }
+        - { id: partBy, text: PARTITION BY }
+    - id: win
+      options:
+        - { id: slide1, text: "SlidingWindow(minute, 1)" }
+        - { id: sess1, text: "SessionWindow(minute, 1, 5)" }
+        - { id: tumble1, text: "TumblingWindow(minute, 1)" }
+    - id: cond
+      options:
+        - { id: whereKw, text: WHERE }
+        - { id: havingKw, text: HAVING }
+        - { id: limitKw, text: LIMIT }
+answer:
+  values: { into: intoKw, ts: tsBy, win: tumble1, cond: havingKw }
+explanation:
+  correct:
+    en: "`INTO` names the output alias that receives the result. The SQL operator uses arrival time by default, so `TIMESTAMP BY orderTime` is needed to window on the time the order was placed. `TumblingWindow(minute, 1)` creates contiguous, non-overlapping one-minute windows, and `HAVING` filters the groups on the aggregated count."
+    fr: "`INTO` désigne l'alias de sortie qui reçoit le résultat. L'opérateur SQL utilise par défaut l'heure d'arrivée : `TIMESTAMP BY orderTime` est donc nécessaire pour appliquer la fenêtre à l'heure de la commande. `TumblingWindow(minute, 1)` crée des fenêtres d'une minute contiguës et sans chevauchement, et `HAVING` filtre les groupes sur le nombre agrégé."
+  options:
+    outputKw: { en: "OUTPUT isn't the clause that routes the result to an output alias in the Stream Analytics query language.", fr: "OUTPUT n'est pas la clause qui envoie le résultat vers un alias de sortie dans le langage de requête Stream Analytics." }
+    insertKw: { en: "The query writes to an output with SELECT ... INTO, not with an INSERT statement.", fr: "La requête écrit dans une sortie avec SELECT ... INTO, pas avec une instruction INSERT." }
+    orderBy: { en: "ORDER BY doesn't set the timestamp used by the windows; TIMESTAMP BY does.", fr: "ORDER BY ne définit pas l'horodatage utilisé par les fenêtres ; c'est le rôle de TIMESTAMP BY." }
+    partBy: { en: "PARTITION BY splits the processing by a key; it doesn't replace the arrival time with orderTime.", fr: "PARTITION BY répartit le traitement par clé ; il ne remplace pas l'heure d'arrivée par orderTime." }
+    slide1: { en: "A sliding window produces output each time an event enters or leaves the window, so the windows overlap.", fr: "Une fenêtre glissante produit un résultat chaque fois qu'un événement entre dans la fenêtre ou en sort : les fenêtres se chevauchent." }
+    sess1: { en: "A session window depends on gaps between events; its length isn't a fixed minute.", fr: "Une fenêtre de session dépend des intervalles entre les événements ; sa durée n'est pas une minute fixe." }
+    whereKw: { en: "WHERE filters the events before aggregation; it can't test the result of COUNT(*).", fr: "WHERE filtre les événements avant l'agrégation ; il ne peut pas tester le résultat de COUNT(*)." }
+    limitKw: { en: "LIMIT isn't a clause that filters groups on an aggregate condition.", fr: "LIMIT n'est pas une clause qui filtre les groupes selon une condition d'agrégat." }
+references:
+  - title: Process events by using a SQL operator
+    url: https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/process-events-using-sql-code-editor
+  - title: Introduction to Stream Analytics windowing functions
+    url: https://learn.microsoft.com/en-us/azure/stream-analytics/stream-analytics-window-functions

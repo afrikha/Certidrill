@@ -1,0 +1,87 @@
+id: dp300-cs2a-named-replica-bicep
+objective: "4.2.1"
+type: dropdown
+caseStudy: dp300-cs2a-proseware-market
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Orders now uses the service tier that meets the platform requirements. You need to deploy the reporting workload to meet the reporting requirements.
+
+    How should you complete the Bicep file? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Orders utilise désormais le niveau de service qui satisfait les exigences de plateforme. Vous devez déployer la charge de travail de rapports pour satisfaire les exigences de rapports.
+
+    Comment devez-vous compléter le fichier Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    param reportSku object
+
+    resource prodServer 'Microsoft.Sql/servers@2021-11-01' existing = {
+      name: 'sql-pw-prod'
+    }
+
+    resource ordersDb 'Microsoft.Sql/servers/databases@2021-11-01' existing = {
+      parent: prodServer
+      name: 'Orders'
+    }
+
+    resource reportServer 'Microsoft.Sql/servers@2021-11-01' existing = {
+      name: 'sql-pw-reports'
+    }
+
+    resource ordersReports 'Microsoft.Sql/servers/databases@2021-11-01' = {
+      parent: reportServer
+      name: 'Orders-Reports'
+      location: 'westeurope'
+      sku: reportSku
+      properties: {
+        createMode: '[[mode]]'
+        secondaryType: '[[kind]]'
+        sourceDatabaseId: [[source]]
+      }
+    }
+  slots:
+    - id: mode
+      options:
+        - { id: m_copy, text: Copy }
+        - { id: m_default, text: Default }
+        - { id: m_secondary, text: Secondary }
+        - { id: m_pitr, text: PointInTimeRestore }
+    - id: kind
+      options:
+        - { id: k_geo, text: Geo }
+        - { id: k_named, text: Named }
+        - { id: k_standby, text: Standby }
+    - id: source
+      options:
+        - { id: s_db, text: ordersDb.id }
+        - { id: s_server, text: prodServer.id }
+        - { id: s_report, text: reportServer.id }
+answer:
+  values: { mode: m_secondary, kind: k_named, source: s_db }
+explanation:
+  correct:
+    en: |
+      A Hyperscale named replica meets the reporting requirements: it is read-only, shares the page servers of the primary without copying data, has its own service level objective, and can be on another logical server in the same region, where SG-Analysts can get logins without any access to sql-pw-prod. In Bicep, a replica is a `Microsoft.Sql/servers/databases` resource with `createMode: 'Secondary'`, `secondaryType: 'Named'` and `sourceDatabaseId` set to the resource ID of the primary database.
+    fr: |
+      Un réplica nommé Hyperscale satisfait les exigences de rapports : il est en lecture seule, partage les serveurs de pages du primaire sans copie de données, a son propre objectif de niveau de service et peut se trouver sur un autre serveur logique de la même région, où SG-Analysts peut obtenir des connexions sans aucun accès à sql-pw-prod. En Bicep, un réplica est une ressource `Microsoft.Sql/servers/databases` avec `createMode: 'Secondary'`, `secondaryType: 'Named'` et `sourceDatabaseId` défini sur l'ID de ressource de la base de données primaire.
+  options:
+    m_copy: { en: "Copy creates an independent, read-write copy of the data that is not kept in sync with Orders.", fr: "Copy crée une copie indépendante des données, en lecture-écriture, qui n'est pas synchronisée avec Orders." }
+    m_pitr: { en: "PointInTimeRestore creates a new read-write database from a backup, frozen at the restore point.", fr: "PointInTimeRestore crée une nouvelle base de données en lecture-écriture à partir d'une sauvegarde, figée au point de restauration." }
+    m_default: { en: "Default creates an empty database.", fr: "Default crée une base de données vide." }
+    k_geo: { en: "A geo-replica keeps a separate copy of the data for disaster recovery and must have the same name as the primary.", fr: "Un géo-réplica conserve une copie distincte des données pour la reprise d'activité et doit porter le même nom que le primaire." }
+    k_standby: { en: "A standby replica is a license-free secondary that is used for no workload; it cannot serve the reports.", fr: "Un réplica de secours (standby) est un secondaire sans licence qui ne sert à aucune charge de travail ; il ne peut pas servir les rapports." }
+    s_server: { en: "sourceDatabaseId must identify the primary database, not its logical server.", fr: "sourceDatabaseId doit identifier la base de données primaire, pas son serveur logique." }
+    s_report: { en: "sql-pw-reports is the parent of the new replica, not the source database.", fr: "sql-pw-reports est le parent du nouveau réplica, pas la base de données source." }
+references:
+  - title: Hyperscale secondary replicas - Azure SQL Database
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/service-tier-hyperscale-replicas
+  - title: Microsoft.Sql/servers/databases - Bicep, ARM template & Terraform AzAPI reference
+    url: https://learn.microsoft.com/en-us/azure/templates/microsoft.sql/servers/databases

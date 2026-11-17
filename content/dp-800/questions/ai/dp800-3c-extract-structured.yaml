@@ -1,0 +1,110 @@
+id: dp800-3c-extract-structured
+objective: "3.3.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.TicketTriage. A stored procedure sends a support ticket to a chat deployment by using sp_invoke_external_rest_endpoint. The payload sets response_format to a json_schema that defines two required string properties named category and priority.
+
+    For a successful call, @response contains the following JSON.
+
+    ```json
+    {
+      "response": { "status": { "http": { "code": 200, "description": "OK" } } },
+      "result": {
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\"category\":\"Billing\",\"priority\":\"High\"}"
+            }
+          }
+        ]
+      }
+    }
+    ```
+
+    You need to insert the category and the priority into dbo.TicketTriage.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.TicketTriage. Une procédure stockée envoie un ticket de support à un déploiement de conversation avec sp_invoke_external_rest_endpoint. La charge utile définit response_format avec un json_schema qui déclare deux propriétés de type chaîne obligatoires nommées category et priority.
+
+    Pour un appel réussi, @response contient le JSON suivant.
+
+    ```json
+    {
+      "response": { "status": { "http": { "code": 200, "description": "OK" } } },
+      "result": {
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\"category\":\"Billing\",\"priority\":\"High\"}"
+            }
+          }
+        ]
+      }
+    }
+    ```
+
+    Vous devez insérer la catégorie et la priorité dans dbo.TicketTriage.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    DECLARE @content NVARCHAR(MAX) =
+        [[get]](@response, '$.result.choices[0].message.content');
+
+    INSERT INTO dbo.TicketTriage (TicketId, Category, Priority)
+    SELECT @ticketId, t.Category, t.Priority
+    FROM [[src]]
+    WITH (
+        Category NVARCHAR(50) [[path]],
+        Priority NVARCHAR(10) '$.priority'
+    ) AS t;
+  slots:
+    - id: get
+      options:
+        - { id: value, text: JSON_VALUE }
+        - { id: query, text: JSON_QUERY }
+        - { id: isjson, text: ISJSON }
+    - id: src
+      options:
+        - { id: content, text: OPENJSON(@content) }
+        - { id: response, text: OPENJSON(@response) }
+        - { id: message, text: "OPENJSON(@response, '$.result.choices[0].message')" }
+    - id: path
+      options:
+        - { id: lower, text: "'$.category'" }
+        - { id: upper, text: "'$.Category'" }
+        - { id: nested, text: "'$.result.category'" }
+answer:
+  values: { get: value, src: content, path: lower }
+explanation:
+  correct:
+    en: "With structured outputs, message.content is a JSON string, not a nested object. JSON_VALUE extracts that string and unescapes it, OPENJSON(@content) then parses it a second time, and the WITH clause maps each property. JSON paths are case-sensitive, so the path must be $.category, as in the schema."
+    fr: "Avec les sorties structurées, message.content est une chaîne JSON, pas un objet imbriqué. JSON_VALUE extrait cette chaîne et supprime son échappement, OPENJSON(@content) l'analyse ensuite une seconde fois, et la clause WITH associe chaque propriété. Les chemins JSON respectent la casse : le chemin doit être $.category, comme dans le schéma."
+  options:
+    query: { en: "content is a string value, so JSON_QUERY returns NULL in lax mode.", fr: "content est une valeur de type chaîne : JSON_QUERY renvoie NULL en mode lax." }
+    isjson: { en: "ISJSON returns 1 or 0, not the content.", fr: "ISJSON renvoie 1 ou 0, pas le contenu." }
+    response: { en: "The root of @response has only response and result properties: $.category returns NULL.", fr: "La racine de @response n'a que les propriétés response et result : $.category renvoie NULL." }
+    message: { en: "The message object contains role and content; category is inside the content string, which this path doesn't parse.", fr: "L'objet message contient role et content ; category se trouve dans la chaîne content, que ce chemin n'analyse pas." }
+    upper: { en: "OPENJSON matches paths case-sensitively: $.Category doesn't match the category property.", fr: "OPENJSON compare les chemins en respectant la casse : $.Category ne correspond pas à la propriété category." }
+    nested: { en: "@content is the model's JSON itself; it has no result property.", fr: "@content est le JSON du modèle lui-même ; il n'a pas de propriété result." }
+references:
+  - title: How to use structured outputs with Azure OpenAI in Microsoft Foundry Models
+    url: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs
+  - title: OPENJSON (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/openjson-transact-sql

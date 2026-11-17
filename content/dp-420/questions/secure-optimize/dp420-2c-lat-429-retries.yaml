@@ -1,0 +1,42 @@
+id: dp420-2c-lat-429-retries
+objective: "2.3.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An order-intake service uses the Azure Cosmos DB .NET SDK with its default retry options. It runs in the same Azure region as the account on VMs with accelerated networking.
+
+    During the daily peak, the client-observed P99 latency of item creations rises to about 1.8 seconds. Server Side Latency Direct for Create operations stays around 6 ms. Insights shows that about 4 % of the requests return status code 429, yet the application never catches a `CosmosException` with status code 429.
+
+    What is the most likely cause of the latency increase?
+  fr: |
+    Un service de prise de commandes utilise le SDK .NET Azure Cosmos DB avec ses options de nouvelle tentative par défaut. Il s'exécute dans la même région Azure que le compte, sur des machines virtuelles dotées de la mise en réseau accélérée.
+
+    Pendant le pic quotidien, la latence P99 observée côté client pour les créations d'éléments atteint environ 1,8 seconde. Server Side Latency Direct pour les opérations Create reste autour de 6 ms. Insights indique qu'environ 4 % des requêtes renvoient le code d'état 429, mais l'application n'intercepte jamais de `CosmosException` avec le code d'état 429.
+
+    Quelle est la cause la plus probable de l'augmentation de la latence ?
+body:
+  options:
+    - id: a
+      text: { en: "The SDK waits and retries rate-limited requests internally, and the waits add to the client latency.", fr: "Le SDK attend et relance en interne les requêtes limitées, et ces attentes s'ajoutent à la latence côté client." }
+    - id: b
+      text: { en: "Server-side latency metrics exclude rate-limited requests, so the backend is actually slow.", fr: "Les métriques de latence côté serveur excluent les requêtes limitées : le back-end est en réalité lent." }
+    - id: c
+      text: { en: "The SDK switches to gateway mode when requests are throttled, which adds a network hop.", fr: "Le SDK passe en mode passerelle lorsque les requêtes sont limitées, ce qui ajoute un saut réseau." }
+    - id: d
+      text: { en: "The network between the VMs and the account adds latency during the peak.", fr: "Le réseau entre les machines virtuelles et le compte ajoute de la latence pendant le pic." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "When a request exceeds the provisioned RU/s, the service returns 429 with a retry-after value, and the SDK automatically waits and retries (up to 9 times by default, within a cumulative 30 seconds). The application never sees the 429 when a retry succeeds, but the waits increase the latency it observes. Seeing 429s in metrics but not in the application is the typical sign of these silent retries."
+    fr: "Lorsqu'une requête dépasse les RU/s provisionnées, le service renvoie un 429 avec un délai de nouvelle tentative, et le SDK attend puis relance automatiquement la requête (jusqu'à 9 fois par défaut, dans une limite cumulée de 30 secondes). L'application ne voit jamais le 429 si une nouvelle tentative réussit, mais les attentes augmentent la latence qu'elle observe. Des 429 visibles dans les métriques mais absents de l'application sont le signe typique de ces nouvelles tentatives silencieuses."
+  options:
+    b: { en: "Server-side latency is low, which rules out the backend; 429s are rejected quickly by the service.", fr: "La latence côté serveur est faible, ce qui écarte le back-end ; les 429 sont rejetés rapidement par le service." }
+    c: { en: "The connection mode is set when the client is created; the SDK does not change it on throttling.", fr: "Le mode de connexion est défini à la création du client ; le SDK ne le change pas en cas de limitation." }
+    d: { en: "The application runs in the same region with accelerated networking; the 429 rate explains the delay.", fr: "L'application s'exécute dans la même région avec la mise en réseau accélérée ; le taux de 429 explique le délai." }
+references:
+  - title: Diagnose and troubleshoot "Request rate too large" (429) exceptions
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-request-rate-too-large
+  - title: Performance tips for Azure Cosmos DB and .NET
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/performance-tips-dotnet-sdk-v3

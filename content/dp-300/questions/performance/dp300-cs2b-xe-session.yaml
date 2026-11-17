@@ -1,0 +1,66 @@
+id: dp300-cs2b-xe-session
+objective: "3.1.6"
+type: dropdown
+caseStudy: dp300-cs2b-fabrikam-plants
+difficulty: 1
+status: draft
+stem:
+  en: |
+    You need to create an Extended Events session on MESFCI to meet the monitoring requirement.
+
+    How should you complete the Transact-SQL statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez créer une session d'événements étendus sur MESFCI pour satisfaire l'exigence de surveillance.
+
+    Comment devez-vous compléter l'instruction Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE EVENT SESSION [MesCalls] ON SERVER
+    ADD EVENT sqlserver.[[evt]] (
+        ACTION (sqlserver.session_id, sqlserver.database_name)
+        WHERE ([sqlserver].[client_app_name] = N'MesServer'))
+    ADD TARGET package0.[[target]] (
+        SET filename = N'G:\XEvents\MesCalls.xel', max_file_size = 512)
+    WITH ([[opt]] = ON);
+  slots:
+    - id: evt
+      options:
+        - { id: e_rpc_start, text: rpc_starting }
+        - { id: e_rpc_done, text: rpc_completed }
+        - { id: e_batch, text: sql_batch_completed }
+        - { id: e_spstmt, text: sp_statement_completed }
+    - id: target
+      options:
+        - { id: t_ring, text: ring_buffer }
+        - { id: t_file, text: event_file }
+        - { id: t_hist, text: histogram }
+    - id: opt
+      options:
+        - { id: o_startup, text: STARTUP_STATE }
+        - { id: o_causal, text: TRACK_CAUSALITY }
+        - { id: o_retention, text: EVENT_RETENTION_MODE }
+answer:
+  values: { evt: e_rpc_done, target: t_file, opt: o_startup }
+explanation:
+  correct:
+    en: |
+      The MES application calls stored procedures as remote procedure calls, and `rpc_completed` fires once per call when it ends, with its duration, CPU time and logical reads. The `event_file` target writes the events to .xel files on disk, unlike the in-memory targets. `STARTUP_STATE = ON` starts the session automatically each time SQL Server starts, including after a failover of the FCI.
+    fr: |
+      L'application MES appelle les procédures stockées sous forme d'appels de procédure distante, et `rpc_completed` se déclenche une fois par appel, à sa fin, avec sa durée, son temps processeur et ses lectures logiques. La cible `event_file` écrit les événements dans des fichiers .xel sur disque, contrairement aux cibles en mémoire. `STARTUP_STATE = ON` démarre la session automatiquement à chaque démarrage de SQL Server, y compris après un basculement de la FCI.
+  options:
+    e_rpc_start: { en: "rpc_starting fires when the call begins, before its duration and resource usage are known.", fr: "rpc_starting se déclenche au début de l'appel, avant que sa durée et sa consommation de ressources soient connues." }
+    e_batch: { en: "sql_batch_completed captures ad hoc batches, not the stored procedure calls that MesServer sends as RPCs.", fr: "sql_batch_completed capture les lots ad hoc, pas les appels de procédure stockée que MesServer envoie sous forme de RPC." }
+    e_spstmt: { en: "sp_statement_completed fires for each statement inside a procedure, not once per procedure call.", fr: "sp_statement_completed se déclenche pour chaque instruction d'une procédure, pas une fois par appel de procédure." }
+    t_ring: { en: "The ring_buffer target keeps the most recent events in memory; they are not kept on disk.", fr: "La cible ring_buffer conserve les événements les plus récents en mémoire ; ils ne sont pas conservés sur disque." }
+    t_hist: { en: "The histogram target counts events in buckets in memory; it does not keep each call.", fr: "La cible histogram compte les événements par compartiment en mémoire ; elle ne conserve pas chaque appel." }
+    o_causal: { en: "TRACK_CAUSALITY adds activity IDs to correlate related events; it does not start the session.", fr: "TRACK_CAUSALITY ajoute des ID d'activité pour corréler les événements liés ; il ne démarre pas la session." }
+    o_retention: { en: "EVENT_RETENTION_MODE defines whether events can be lost under load and takes a value such as ALLOW_SINGLE_EVENT_LOSS, not ON.", fr: "EVENT_RETENTION_MODE définit si des événements peuvent être perdus sous charge et prend une valeur telle que ALLOW_SINGLE_EVENT_LOSS, pas ON." }
+references:
+  - title: "Quickstart: Extended Events - SQL Server"
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/extended-events/quick-start-extended-events-in-sql-server

@@ -1,0 +1,43 @@
+id: dp800-cs3a-oldest-month
+objective: "1.1.6"
+type: single
+caseStudy: dp800-cs3a-blue-yonder-airlines
+difficulty: 3
+status: draft
+stem:
+  en: You need to delete the flight legs of the oldest month from dbo.FlightLegs. The solution must meet the fleet requirements. What should you do?
+  fr: Vous devez supprimer les étapes de vol du mois le plus ancien de dbo.FlightLegs. La solution doit satisfaire les exigences de la flotte. Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: Run TRUNCATE TABLE dbo.FlightLegs WITH (PARTITIONS (1)) directly, without changing any index.
+        fr: Exécuter directement TRUNCATE TABLE dbo.FlightLegs WITH (PARTITIONS (1)), sans modifier aucun index.
+    - id: b
+      text:
+        en: Re-create IX_FlightLegs_Tail on PS_FlightMonth(FlightDate), and then run TRUNCATE TABLE dbo.FlightLegs WITH (PARTITIONS (1)).
+        fr: Recréer IX_FlightLegs_Tail sur PS_FlightMonth(FlightDate), puis exécuter TRUNCATE TABLE dbo.FlightLegs WITH (PARTITIONS (1)).
+    - id: c
+      text:
+        en: Run ALTER PARTITION FUNCTION PF_FlightMonth() MERGE RANGE on the lowest boundary value, and then rebuild IX_FlightLegs_Tail.
+        fr: Exécuter ALTER PARTITION FUNCTION PF_FlightMonth() MERGE RANGE sur la plus petite valeur limite, puis reconstruire IX_FlightLegs_Tail.
+    - id: d
+      text:
+        en: Disable IX_FlightLegs_Tail, delete the rows of the oldest month by using a DELETE statement on FlightDate, and then rebuild the index.
+        fr: Désactiver IX_FlightLegs_Tail, supprimer les lignes du mois le plus ancien à l'aide d'une instruction DELETE sur FlightDate, puis reconstruire l'index.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      TRUNCATE TABLE with the PARTITIONS argument empties one partition by deallocating its pages, and only the page deallocations are logged. It requires the table and all its indexes to be aligned on the same partition function, and IX_FlightLegs_Tail was created on [PRIMARY] instead of the partition scheme. Re-creating the index on PS_FlightMonth(FlightDate) aligns it, and the truncation of partition 1 then succeeds without a staging table.
+    fr: |
+      TRUNCATE TABLE avec l'argument PARTITIONS vide une partition en désallouant ses pages, et seules les désallocations de pages sont journalisées. Elle exige que la table et tous ses index soient alignés sur la même fonction de partition, or IX_FlightLegs_Tail a été créé sur [PRIMARY] au lieu du schéma de partition. Recréer l'index sur PS_FlightMonth(FlightDate) l'aligne, et la troncation de la partition 1 réussit alors sans table intermédiaire.
+  options:
+    a: { en: "The truncation fails because IX_FlightLegs_Tail isn't aligned with the partition function of the table.", fr: "La troncation échoue parce que IX_FlightLegs_Tail n'est pas aligné sur la fonction de partition de la table." }
+    c: { en: "MERGE RANGE removes a boundary and moves the rows of the dropped partition into the remaining one; it deletes no data.", fr: "MERGE RANGE supprime une limite et déplace les lignes de la partition supprimée dans celle qui reste ; elle ne supprime aucune donnée." }
+    d: { en: "DELETE logs every deleted row, even with the index disabled, so it isn't a partition-level operation with minimal logging.", fr: "DELETE journalise chaque ligne supprimée, même avec l'index désactivé : ce n'est pas une opération au niveau de la partition avec une journalisation minimale." }
+references:
+  - title: TRUNCATE TABLE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/truncate-table-transact-sql
+  - title: ALTER PARTITION FUNCTION (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-partition-function-transact-sql

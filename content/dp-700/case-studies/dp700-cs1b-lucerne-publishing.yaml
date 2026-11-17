@@ -1,0 +1,122 @@
+id: dp700-cs1b-lucerne-publishing
+status: draft
+title:
+  en: |-
+    Lucerne Publishing
+  fr: |-
+    Lucerne Publishing
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Lucerne Publishing is a book publisher based in Lyon. It publishes about 1,200 titles a year in print and as e-books, and sells them through bookstores and its own online shop. A team of six data engineers builds the analytics platform.
+
+        Lucerne is moving its royalty reporting to a data warehouse in Microsoft Fabric and plans several new data projects.
+      fr: |
+        Lucerne Publishing est un éditeur de livres basé à Lyon. Il publie environ 1 200 titres par an, en version imprimée et en livre numérique, et les vend par l'intermédiaire de librairies et de sa propre boutique en ligne. Une équipe de six ingénieurs données construit la plateforme d'analytique.
+
+        Lucerne migre son reporting des droits d'auteur vers un entrepôt de données dans Microsoft Fabric et prévoit plusieurs nouveaux projets de données.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Fabric.** Lucerne has a Fabric capacity (F32) and three workspaces: **LP-Dev**, **LP-Test** and **LP-Prod**. LP-Dev contains a warehouse named **WH_Royalty** and a pipeline named **PL_LoadRoyalty**. The same items were created manually in LP-Test and LP-Prod.
+
+        **WH_Royalty** contains the following tables.
+
+        | Table | Description |
+        | --- | --- |
+        | stg.Author | Current state of each author, extracted from the contract system every night: AuthorID, Country, RoyaltyTier. All the columns are NOT NULL. |
+        | dbo.DimAuthor | AuthorKey (IDENTITY), AuthorID, Country, RoyaltyTier, ValidFrom (date), ValidTo (date, NULL), IsCurrent (bit) |
+        | dbo.DimTitle | One row per title |
+        | dbo.FactRoyalty | Royalties per author, title and month |
+
+        **Source control.** The team uses an Azure DevOps project that contains a Git repository named **lp-data** and Azure Pipelines for its other applications.
+
+        **People.** The data engineers have the Contributor role in the three workspaces. The financial analysts have the Viewer role in LP-Prod. A Fabric administrator enabled certification for the tenant and authorized only the members of a group named **SG-DataStewards** to certify items. No data engineer is a member of SG-DataStewards.
+
+        **Incidents.**
+
+        - A script that creates the tables of WH_Royalty in LP-Test fails on the following statement: `CREATE TABLE dbo.DimTitle (TitleKey int NOT NULL PRIMARY KEY, ISBN char(13) NOT NULL, Title varchar(200) NOT NULL);`
+        - Last Monday, someone deleted PL_LoadRoyalty from LP-Prod.
+      fr: |
+        **Fabric.** Lucerne dispose d'une capacité Fabric (F32) et de trois espaces de travail : **LP-Dev**, **LP-Test** et **LP-Prod**. LP-Dev contient un entrepôt nommé **WH_Royalty** et un pipeline nommé **PL_LoadRoyalty**. Les mêmes éléments ont été créés manuellement dans LP-Test et LP-Prod.
+
+        **WH_Royalty** contient les tables suivantes.
+
+        | Table | Description |
+        | --- | --- |
+        | stg.Author | État actuel de chaque auteur, extrait chaque nuit du système de gestion des contrats : AuthorID, Country, RoyaltyTier. Toutes les colonnes sont NOT NULL. |
+        | dbo.DimAuthor | AuthorKey (IDENTITY), AuthorID, Country, RoyaltyTier, ValidFrom (date), ValidTo (date, NULL), IsCurrent (bit) |
+        | dbo.DimTitle | Une ligne par titre |
+        | dbo.FactRoyalty | Droits d'auteur par auteur, titre et mois |
+
+        **Contrôle de code source.** L'équipe utilise un projet Azure DevOps qui contient un dépôt Git nommé **lp-data** et Azure Pipelines pour ses autres applications.
+
+        **Personnes.** Les ingénieurs données ont le rôle Contributor dans les trois espaces de travail. Les analystes financiers ont le rôle Viewer dans LP-Prod. Un administrateur Fabric a activé la certification pour le locataire et n'a autorisé que les membres d'un groupe nommé **SG-DataStewards** à certifier des éléments. Aucun ingénieur données n'est membre de SG-DataStewards.
+
+        **Incidents.**
+
+        - Un script qui crée les tables de WH_Royalty dans LP-Test échoue sur l'instruction suivante : `CREATE TABLE dbo.DimTitle (TitleKey int NOT NULL PRIMARY KEY, ISBN char(13) NOT NULL, Title varchar(200) NOT NULL);`
+        - Lundi dernier, quelqu'un a supprimé PL_LoadRoyalty de LP-Prod.
+  - key: projects
+    title: { en: "New data projects", fr: "Nouveaux projets de données" }
+    body:
+      en: |
+        | Data set | Description |
+        | --- | --- |
+        | Royalty statements | Star schema maintained by T-SQL developers. A monthly stored procedure updates dbo.FactRoyalty and dbo.DimAuthor in a single transaction. |
+        | Manuscripts | PDF files and their JSON metadata, processed by data scientists with PySpark notebooks |
+        | E-reader telemetry | About two billion JSON page-turn events a month sent by the e-book reading apps, analyzed as time series with KQL |
+        | Online shop orders | The database of the new order-entry application of the online shop: many small concurrent transactions |
+      fr: |
+        | Jeu de données | Description |
+        | --- | --- |
+        | Relevés de droits d'auteur | Schéma en étoile maintenu par des développeurs T-SQL. Une procédure stockée mensuelle met à jour dbo.FactRoyalty et dbo.DimAuthor dans une seule transaction. |
+        | Manuscrits | Fichiers PDF et leurs métadonnées JSON, traités par des scientifiques des données dans des notebooks PySpark |
+        | Télémétrie des liseuses | Environ deux milliards d'événements JSON de changement de page par mois envoyés par les applications de lecture de livres numériques, analysés comme des séries chronologiques avec KQL |
+        | Commandes de la boutique en ligne | La base de données de la nouvelle application de saisie des commandes de la boutique en ligne : de nombreuses petites transactions simultanées |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Lucerne identifies the following requirements.
+
+        **Data stores**
+
+        1. Each data set of the new data projects must be stored in the Fabric item type that best matches its workload.
+
+        **Dimensional model**
+
+        2. dbo.DimAuthor must keep the history of the changes to Country and RoyaltyTier. The current version of each author has IsCurrent = 1 and a NULL ValidTo. A new version is valid from the load date.
+
+        **Lifecycle**
+
+        3. The schema of WH_Royalty must be developed in Visual Studio Code and stored in lp-data. Every change must be validated by a build in Azure Pipelines, then deployed to LP-Test and LP-Prod by Azure Pipelines.
+        4. Primary keys must be declared on the dimension tables so that tools can discover the relationships. The load process guarantees the uniqueness of the keys.
+
+        **Governance**
+
+        5. WH_Royalty in LP-Prod must be marked as ready for reuse, and it must carry the **Confidential** sensitivity label.
+        6. The security team must identify who deleted PL_LoadRoyalty from LP-Prod.
+      fr: |
+        Lucerne a défini les exigences suivantes.
+
+        **Magasins de données**
+
+        1. Chaque jeu de données des nouveaux projets doit être stocké dans le type d'élément Fabric le mieux adapté à sa charge de travail.
+
+        **Modèle dimensionnel**
+
+        2. dbo.DimAuthor doit conserver l'historique des modifications de Country et de RoyaltyTier. La version actuelle de chaque auteur a IsCurrent = 1 et un ValidTo NULL. Une nouvelle version est valide à partir de la date de chargement.
+
+        **Cycle de vie**
+
+        3. Le schéma de WH_Royalty doit être développé dans Visual Studio Code et stocké dans lp-data. Chaque modification doit être validée par une build dans Azure Pipelines, puis déployée dans LP-Test et LP-Prod par Azure Pipelines.
+        4. Des clés primaires doivent être déclarées sur les tables de dimension afin que les outils puissent détecter les relations. Le processus de chargement garantit l'unicité des clés.
+
+        **Gouvernance**
+
+        5. WH_Royalty dans LP-Prod doit être signalé comme prêt à être réutilisé et porter l'étiquette de confidentialité **Confidential**.
+        6. L'équipe de sécurité doit identifier qui a supprimé PL_LoadRoyalty de LP-Prod.

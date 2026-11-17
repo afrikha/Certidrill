@@ -1,0 +1,101 @@
+id: az400-cs4b-alpine-ski-house
+status: draft
+title:
+  en: Alpine Ski House
+  fr: Alpine Ski House
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Alpine Ski House operates six ski resorts in the Alps. Customers buy lift passes, lessons, and equipment rentals in a mobile app and on a website that both call **booking-service**, a containerized Java API.
+
+        Traffic peaks sharply on winter weekends. A DevOps team of five engineers supports 45 developers.
+      fr: |
+        Alpine Ski House exploite six stations de ski dans les Alpes. Les clients achètent forfaits, cours et locations de matériel dans une application mobile et sur un site web qui appellent tous deux **booking-service**, une API Java conteneurisée.
+
+        Le trafic connaît de fortes pointes les week-ends d'hiver. Une équipe DevOps de cinq ingénieurs accompagne 45 développeurs.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **GitHub**
+
+        Alpine Ski House uses GitHub Enterprise Cloud with an organization named **alpineskihouse** that contains 35 private repositories, including **booking-service**. The organization has licenses for **GitHub Secret Protection** and **GitHub Code Security**. A team named **platform-team** maintains the **/infra/** folder that every repository contains.
+
+        The workflow **deploy.yml** of booking-service builds the container image, pushes it to an Azure container registry, and deploys it. Its **deploy** job signs in to Azure by using `azure/login@v2` with `creds: ${{ secrets.AZURE_CREDENTIALS }}`, a repository secret that contains the client secret of a service principal.
+
+        A GitHub environment named **production** has the **Required reviewers** protection rule set to the release managers.
+
+        **Azure**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | ca-booking | Azure Container Apps app that runs booking-service in **single** revision mode, with external ingress. |
+        | id-ask-deploy | User-assigned managed identity that has the permissions to deploy ca-booking. It has a federated credential for GitHub Actions with the entity type **Environment**, the repository **alpineskihouse/booking-service**, and the value **production**. |
+        | appcs-ask | Azure App Configuration store. booking-service loads its feature flags from appcs-ask by using the feature management library with targeting enabled, and refreshes them every 30 seconds. |
+        | appi-ask | Application Insights resource. booking-service and the internal APIs it calls (**pricing-api** and **payment-api**) all send their telemetry to appi-ask. |
+      fr: |
+        **GitHub**
+
+        Alpine Ski House utilise GitHub Enterprise Cloud avec une organisation nommée **alpineskihouse** qui contient 35 dépôts privés, dont **booking-service**. L'organisation dispose de licences **GitHub Secret Protection** et **GitHub Code Security**. Une équipe nommée **platform-team** gère le dossier **/infra/** que contient chaque dépôt.
+
+        Le workflow **deploy.yml** de booking-service génère l'image conteneur, l'envoie dans un registre de conteneurs Azure et la déploie. Son travail **deploy** se connecte à Azure avec `azure/login@v2` et `creds: ${{ secrets.AZURE_CREDENTIALS }}`, un secret de dépôt qui contient la clé secrète client d'un principal de service.
+
+        Un environnement GitHub nommé **production** possède la règle de protection **Required reviewers**, définie sur les responsables de mise en production.
+
+        **Azure**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | ca-booking | Application Azure Container Apps qui exécute booking-service en mode de révision **unique** (single), avec une entrée externe. |
+        | id-ask-deploy | Identité managée affectée par l'utilisateur qui dispose des autorisations nécessaires pour déployer ca-booking. Elle possède des informations d'identification fédérées pour GitHub Actions avec le type d'entité **Environment**, le dépôt **alpineskihouse/booking-service** et la valeur **production**. |
+        | appcs-ask | Magasin Azure App Configuration. booking-service charge ses indicateurs de fonctionnalité depuis appcs-ask avec la bibliothèque de gestion des fonctionnalités, ciblage activé, et les actualise toutes les 30 secondes. |
+        | appi-ask | Ressource Application Insights. booking-service et les API internes qu'il appelle (**pricing-api** et **payment-api**) envoient toutes leur télémétrie à appi-ask. |
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Security**
+
+        1. The deploy job must sign in to Azure as id-ask-deploy. No Azure credential must be stored in GitHub.
+        2. The deploy job must start only after a release manager approves it.
+        3. A push that contains a secret matching a supported secret pattern must be rejected.
+        4. SQL injection flaws in new Java code must be reported in the pull request, before the merge.
+        5. A pull request that adds a dependency version with a known vulnerability must show it in the pull request.
+        6. Pull requests that upgrade vulnerable dependencies to a fixed version must be created automatically.
+
+        **Source control**
+
+        7. In every repository, a change under /infra/ must be approved by a member of platform-team before it is merged into the default branch. This rule must be enforced from a single central configuration.
+
+        **Deployment and release**
+
+        8. QA engineers must test each new version of booking-service at a dedicated URL while production traffic still goes to the current version. All the traffic must then move to the new version at once, and the team must be able to move it back in less than a minute without redeploying. No additional Azure resource must be created.
+        9. A new dynamic pricing feature is controlled by a feature flag named **DynamicPricing** in appcs-ask.
+
+        **Monitoring**
+
+        10. Support engineers must identify, for an individual slow booking request, which call to pricing-api or payment-api consumed the time.
+      fr: |
+        **Sécurité**
+
+        1. Le travail deploy doit se connecter à Azure en tant qu'id-ask-deploy. Aucune information d'identification Azure ne doit être stockée dans GitHub.
+        2. Le travail deploy ne doit démarrer qu'après l'approbation d'un responsable de mise en production.
+        3. Un envoi (push) qui contient un secret correspondant à un modèle de secret pris en charge doit être refusé.
+        4. Les failles d'injection SQL dans le nouveau code Java doivent être signalées dans la pull request, avant la fusion.
+        5. Une pull request qui ajoute une version de dépendance présentant une vulnérabilité connue doit l'indiquer dans la pull request.
+        6. Des pull requests qui mettent à niveau les dépendances vulnérables vers une version corrigée doivent être créées automatiquement.
+
+        **Contrôle de code source**
+
+        7. Dans chaque dépôt, une modification sous /infra/ doit être approuvée par un membre de platform-team avant d'être fusionnée dans la branche par défaut. Cette règle doit être appliquée depuis une configuration centrale unique.
+
+        **Déploiement et mise en production**
+
+        8. Les ingénieurs QA doivent tester chaque nouvelle version de booking-service sur une URL dédiée pendant que le trafic de production va toujours vers la version actuelle. Tout le trafic doit ensuite passer d'un coup vers la nouvelle version, et l'équipe doit pouvoir le ramener en moins d'une minute sans redéployer. Aucune ressource Azure supplémentaire ne doit être créée.
+        9. Une nouvelle fonctionnalité de tarification dynamique est contrôlée par un indicateur de fonctionnalité nommé **DynamicPricing** dans appcs-ask.
+
+        **Supervision**
+
+        10. Les ingénieurs du support doivent identifier, pour une requête de réservation lente donnée, quel appel à pricing-api ou à payment-api a consommé le temps.

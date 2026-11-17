@@ -1,0 +1,93 @@
+id: dp420-cs3b-figure-vector-policy
+objective: "3.1.2"
+type: dropdown
+caseStudy: dp420-cs3b-lucerne-publishing
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are preparing the definition of the new chunks container. The text vector settings stay as they are.
+
+    You need to complete the definition to meet the retrieval requirements for figures.
+
+    How should you complete the definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous préparez la définition du nouveau conteneur chunks. Les paramètres des vecteurs de texte restent inchangés.
+
+    Vous devez compléter la définition pour satisfaire les exigences de recherche relatives aux figures.
+
+    Comment devez-vous compléter la définition ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "vectorEmbeddingPolicy": {
+        "vectorEmbeddings": [
+          { "path": "/textEmbedding", "dataType": "float32", "distanceFunction": "cosine", "dimensions": 1536 },
+          { "path": "/figureEmbedding", "dataType": "float32", "distanceFunction": "[[dist]]", "dimensions": 384 }
+        ]
+      },
+      "indexingPolicy": {
+        "indexingMode": "consistent",
+        "automatic": true,
+        "includedPaths": [ { "path": "/*" } ],
+        "excludedPaths": [
+          { "path": "/_etag/?" },
+          { "path": "/textEmbedding/*" },
+          { "path": "[[excl]]" }
+        ],
+        "vectorIndexes": [
+          { "path": "/textEmbedding", "type": "diskANN" },
+          { "path": "/figureEmbedding", "type": "[[type]]" }
+        ]
+      }
+    }
+  slots:
+    - id: dist
+      options:
+        - { id: cos, text: cosine }
+        - { id: dot, text: dotproduct }
+        - { id: euc, text: euclidean }
+    - id: excl
+      options:
+        - { id: star, text: "/figureEmbedding/*" }
+        - { id: scalar, text: "/figureEmbedding/?" }
+        - { id: all, text: "/*" }
+    - id: type
+      options:
+        - { id: flat, text: flat }
+        - { id: qflat, text: quantizedFlat }
+        - { id: diskann, text: diskANN }
+answer:
+  values: { dist: dot, excl: star, type: flat }
+explanation:
+  correct:
+    en: "The distance function of the vector embedding policy must match how the image model's vectors are compared, here the dot product (`dotproduct`). Excluding `/figureEmbedding/*` keeps the 384 numbers of each vector out of the range index, which lowers write cost and latency. The `flat` index performs an exact (brute-force) search with 100 percent recall and supports up to 505 dimensions, so it fits 384-dimension vectors; `quantizedFlat` and `diskANN` compress or approximate the vectors and do not guarantee exact results."
+    fr: "La fonction de distance de la stratégie d'incorporation vectorielle doit correspondre à la façon dont les vecteurs du modèle d'image sont comparés, ici le produit scalaire (`dotproduct`). Exclure `/figureEmbedding/*` maintient les 384 nombres de chaque vecteur hors de l'index de plage, ce qui réduit le coût et la latence des écritures. L'index `flat` effectue une recherche exacte (force brute) avec un rappel de 100 % et prend en charge jusqu'à 505 dimensions : il convient donc à des vecteurs de 384 dimensions ; `quantizedFlat` et `diskANN` compressent ou approximent les vecteurs et ne garantissent pas de résultats exacts."
+  options:
+    cos:
+      en: "Cosine is used for the text vectors; the figure vectors are compared with the dot product."
+      fr: "Cosine est utilisée pour les vecteurs de texte ; les vecteurs de figure sont comparés avec le produit scalaire."
+    euc:
+      en: "Euclidean distance does not match the comparison method of the image model."
+      fr: "La distance euclidienne ne correspond pas à la méthode de comparaison du modèle d'image."
+    scalar:
+      en: "`/?` matches only a scalar value at that path; the vector is an array, and the documented pattern to exclude a vector path is `/figureEmbedding/*`."
+      fr: "`/?` ne correspond qu'à une valeur scalaire à ce chemin ; le vecteur est un tableau, et le modèle documenté pour exclure un chemin vectoriel est `/figureEmbedding/*`."
+    all:
+      en: "Excluding `/*` would remove every property from the range index while `/*` is also included, and filters such as `tenantId` would lose their index."
+      fr: "Exclure `/*` retirerait toutes les propriétés de l'index de plage alors que `/*` est aussi inclus, et des filtres comme `tenantId` perdraient leur index."
+    qflat:
+      en: "`quantizedFlat` searches compressed (quantized) vectors, so its recall can be lower than 100 percent."
+      fr: "`quantizedFlat` effectue la recherche sur des vecteurs compressés (quantifiés) : son rappel peut être inférieur à 100 %."
+    diskann:
+      en: "`diskANN` is an approximate nearest neighbor index; it trades exactness for speed on large vector sets."
+      fr: "`diskANN` est un index de plus proches voisins approximatifs ; il sacrifie l'exactitude au profit de la vitesse sur de grands ensembles de vecteurs."
+references:
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/vector-search

@@ -1,0 +1,94 @@
+id: ai300-3a-network-acls-bicep
+objective: "3.1.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso deploys a Foundry resource named **foundry-cso** by using Bicep. The network configuration must meet the following requirements:
+
+    - Clients in the office range 203.0.113.0/24 must reach the public endpoint of foundry-cso.
+    - Any other traffic to the public endpoint must be denied.
+    - Trusted Azure services, such as Azure AI Search, must be able to access foundry-cso by using their managed identity.
+
+    How should you complete the Bicep code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso déploie une ressource Foundry nommée **foundry-cso** à l'aide de Bicep. La configuration réseau doit répondre aux exigences suivantes :
+
+    - Les clients de la plage du bureau 203.0.113.0/24 doivent joindre le point de terminaison public de foundry-cso.
+    - Tout autre trafic vers le point de terminaison public doit être refusé.
+    - Les services Azure approuvés, comme Azure AI Search, doivent pouvoir accéder à foundry-cso avec leur identité managée.
+
+    Comment devez-vous compléter le code Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource foundry 'Microsoft.CognitiveServices/accounts@2026-07-01' = {
+      name: 'foundry-cso'
+      location: location
+      kind: 'AIServices'
+      sku: { name: 'S0' }
+      identity: { type: 'SystemAssigned' }
+      properties: {
+        customSubDomainName: 'foundry-cso'
+        allowProjectManagement: true
+        publicNetworkAccess: [[pna]]
+        networkAcls: {
+          defaultAction: [[da]]
+          bypass: [[bp]]
+          ipRules: [
+            { value: '203.0.113.0/24' }
+          ]
+        }
+      }
+    }
+  slots:
+    - id: pna
+      options:
+        - { id: enabled, text: "'Enabled'" }
+        - { id: disabled, text: "'Disabled'" }
+        - { id: perimeter, text: "'SecuredByPerimeter'" }
+    - id: da
+      options:
+        - { id: allow, text: "'Allow'" }
+        - { id: deny, text: "'Deny'" }
+        - { id: none, text: "'None'" }
+    - id: bp
+      options:
+        - { id: none, text: "'None'" }
+        - { id: azsvc, text: "'AzureServices'" }
+        - { id: allow, text: "'Allow'" }
+answer:
+  values: { pna: enabled, da: deny, bp: azsvc }
+explanation:
+  correct:
+    en: |
+      The public endpoint must stay reachable for the office range, so `publicNetworkAccess` is `'Enabled'` and the network ACLs restrict it. `defaultAction: 'Deny'` applies when `bypass` is evaluated and no IP rule or virtual network rule matches, so only 203.0.113.0/24 gets through. `bypass: 'AzureServices'` creates the exception for trusted Azure services, which authenticate with their managed identity.
+    fr: |
+      Le point de terminaison public doit rester joignable pour la plage du bureau : `publicNetworkAccess` vaut `'Enabled'` et les listes de contrôle d'accès réseau le restreignent. `defaultAction: 'Deny'` s'applique après l'évaluation de `bypass` lorsqu'aucune règle IP ni règle de réseau virtuel ne correspond : seule la plage 203.0.113.0/24 passe. `bypass: 'AzureServices'` crée l'exception pour les services Azure approuvés, qui s'authentifient avec leur identité managée.
+  options:
+    pna:
+      en: |
+        `'Disabled'` blocks the public endpoint for everyone, including the office range; this resource type accepts only `'Enabled'` or `'Disabled'`.
+      fr: |
+        `'Disabled'` bloque le point de terminaison public pour tous, y compris la plage du bureau ; ce type de ressource n'accepte que `'Enabled'` ou `'Disabled'`.
+    da:
+      en: |
+        `'Allow'` would let any public client in, and `defaultAction` accepts only `'Allow'` or `'Deny'`.
+      fr: |
+        `'Allow'` laisserait entrer n'importe quel client public, et `defaultAction` n'accepte que `'Allow'` ou `'Deny'`.
+    bp:
+      en: |
+        `'None'` gives trusted Azure services no exception, and `'Allow'` isn't a valid `bypass` value.
+      fr: |
+        `'None'` ne donne aucune exception aux services Azure approuvés, et `'Allow'` n'est pas une valeur valide de `bypass`.
+references:
+  - title: Microsoft.CognitiveServices accounts
+    url: https://learn.microsoft.com/en-us/azure/templates/microsoft.cognitiveservices/accounts
+  - title: How to configure network isolation for Microsoft Foundry
+    url: https://learn.microsoft.com/en-us/azure/foundry/how-to/configure-private-link

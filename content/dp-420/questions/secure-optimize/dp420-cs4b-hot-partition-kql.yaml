@@ -1,0 +1,66 @@
+id: dp420-cs4b-hot-partition-kql
+objective: "2.3.6"
+type: dropdown
+caseStudy: dp420-cs4b-relecloud-tickets
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The last on-sale took place yesterday and lasted less than 24 hours.
+
+    You need to write a query in the Log Analytics workspace that meets the operations requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    La dernière ouverture de vente a eu lieu hier et a duré moins de 24 heures.
+
+    Vous devez écrire une requête dans l'espace de travail Log Analytics qui satisfait l'exigence d'exploitation.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated > ago(2d)
+    | where DatabaseName == "ticketing" and CollectionName == "tickets"
+    | summarize TotalRU = [[agg]](RequestCharge) by [[by]]
+    | top 10 by TotalRU desc
+  slots:
+    - id: table
+      options:
+        - { id: dataplane, text: CDBDataPlaneRequests }
+        - { id: pkru, text: CDBPartitionKeyRUConsumption }
+        - { id: metrics, text: AzureMetrics }
+    - id: agg
+      options:
+        - { id: sum, text: sum }
+        - { id: avg, text: avg }
+        - { id: count, text: count }
+    - id: by
+      options:
+        - { id: pkrange, text: PartitionKeyRangeId }
+        - { id: op, text: OperationName }
+        - { id: pk, text: PartitionKey }
+answer:
+  values: { table: pkru, agg: sum, by: pk }
+explanation:
+  correct:
+    en: "The PartitionKeyRUConsumption category writes to the `CDBPartitionKeyRUConsumption` table, which records the request units consumed per logical partition key in the `PartitionKey` column. Summing `RequestCharge` by `PartitionKey` and keeping the top values lists the venue IDs that consumed the most request units."
+    fr: "La catégorie PartitionKeyRUConsumption écrit dans la table `CDBPartitionKeyRUConsumption`, qui enregistre les unités de requête consommées par clé de partition logique dans la colonne `PartitionKey`. Additionner `RequestCharge` par `PartitionKey` et conserver les valeurs les plus élevées liste les ID de salle qui ont consommé le plus d'unités de requête."
+  options:
+    dataplane: { en: "CDBDataPlaneRequests has a physical PartitionId column but no logical partition key value.", fr: "CDBDataPlaneRequests possède une colonne PartitionId (partition physique), mais pas de valeur de clé de partition logique." }
+    metrics: { en: "AzureMetrics stores platform metrics, not per-request charges by partition key.", fr: "AzureMetrics stocke des métriques de plateforme, pas les coûts par requête et par clé de partition." }
+    avg: { en: "The average charge per request does not show which key consumed the most in total.", fr: "Le coût moyen par requête ne montre pas quelle clé a consommé le plus au total." }
+    count: { en: "count returns a number of records and ignores how many RUs each request consumed.", fr: "count renvoie un nombre d'enregistrements et ignore le nombre de RU consommées par chaque requête." }
+    pkrange: { en: "PartitionKeyRangeId identifies the physical partition, which can contain many partition key values.", fr: "PartitionKeyRangeId identifie la partition physique, qui peut contenir de nombreuses valeurs de clé de partition." }
+    op: { en: "Grouping by OperationName shows the cost per operation type, not per partition key value.", fr: "Regrouper par OperationName montre le coût par type d'opération, pas par valeur de clé de partition." }
+references:
+  - title: Azure Monitor Logs reference - CDBPartitionKeyRUConsumption
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cdbpartitionkeyruconsumption
+  - title: Azure Monitor Logs reference - CDBDataPlaneRequests
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cdbdataplanerequests

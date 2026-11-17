@@ -1,0 +1,48 @@
+id: dp750-4d-broadcast-hint
+objective: "4.4.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A report query runs on a SQL warehouse. It joins **wwi.sales.fact_orders** (3 TB) with **wwi.sales.dim_product** (150 MB, 40,000 rows, alias `p` in the query) on `product_id`, and then aggregates by product category.
+
+    The query profile shows a sort merge join. The Shuffle operators on both inputs of the join account for most of the time spent.
+
+    You need to reduce the time spent in shuffles. The solution must not change the size of the warehouse or the data layout of the tables.
+
+    What should you do?
+  fr: |
+    Une requête de rapport s'exécute sur un entrepôt SQL. Elle joint **wwi.sales.fact_orders** (3 To) et **wwi.sales.dim_product** (150 Mo, 40 000 lignes, alias `p` dans la requête) sur `product_id`, puis agrège par catégorie de produit.
+
+    Le profil de requête montre une jointure de tri-fusion (sort merge join). Les opérateurs Shuffle des deux entrées de la jointure représentent l'essentiel du temps passé.
+
+    Vous devez réduire le temps passé dans les shuffles. La solution ne doit modifier ni la taille de l'entrepôt ni l'organisation des données des tables.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Add the hint /*+ MERGE(p) */ for dim_product to the query.", fr: "Ajouter l'indicateur /*+ MERGE(p) */ pour dim_product à la requête." } }
+    - { id: b, text: { en: "Add the hint /*+ REPARTITION(200) */ to the query.", fr: "Ajouter l'indicateur /*+ REPARTITION(200) */ à la requête." } }
+    - { id: c, text: { en: "Add the hint /*+ BROADCAST(p) */ for dim_product to the query.", fr: "Ajouter l'indicateur /*+ BROADCAST(p) */ pour dim_product à la requête." } }
+    - { id: d, text: { en: "Add the hint /*+ SHUFFLE_HASH(p) */ for dim_product to the query.", fr: "Ajouter l'indicateur /*+ SHUFFLE_HASH(p) */ pour dim_product à la requête." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: A broadcast hash join sends a copy of the small table to every executor, so the 3 TB fact table is joined in place and no longer shuffled. The BROADCAST hint requests this strategy regardless of the automatic broadcast threshold, which the 150 MB table exceeds. Only a hint is added, so the warehouse size and the table layout stay unchanged.
+    fr: "Une jointure de hachage par diffusion envoie une copie de la petite table à chaque exécuteur : la table de faits de 3 To est jointe sur place et n'est plus redistribuée. L'indicateur BROADCAST demande cette stratégie indépendamment du seuil de diffusion automatique, que la table de 150 Mo dépasse. Seul un indicateur est ajouté : la taille de l'entrepôt et l'organisation des tables ne changent pas."
+  options:
+    a:
+      en: MERGE requests a shuffle sort merge join, which is the strategy the query already uses.
+      fr: MERGE demande une jointure de tri-fusion avec shuffle, c'est-à-dire la stratégie que la requête utilise déjà.
+    b:
+      en: REPARTITION adds a shuffle to change the number of partitions; it does not remove the shuffles of the join.
+      fr: REPARTITION ajoute un shuffle pour changer le nombre de partitions ; il ne supprime pas les shuffles de la jointure.
+    d:
+      en: A shuffle hash join avoids the sort, but both inputs are still shuffled across the executors.
+      fr: Une jointure de hachage avec shuffle évite le tri, mais les deux entrées sont toujours redistribuées entre les exécuteurs.
+references:
+  - title: Hints
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-qry-select-hints
+  - title: Query profile
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/user/queries/query-profile

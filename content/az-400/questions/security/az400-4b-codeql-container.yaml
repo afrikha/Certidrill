@@ -1,0 +1,89 @@
+id: az400-4b-codeql-container
+objective: "4.3.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam has a GitHub repository that contains C++ firmware. The firmware compiles only with a toolchain that Fabrikam publishes as two container images, both of which include Git:
+
+    - `ghcr.io/fabrikam/firmware-tools:3.1-alpine`, based on Alpine Linux
+    - `ghcr.io/fabrikam/firmware-tools:3.1-bookworm`, based on Debian
+
+    The build command is `make all`. You need to configure CodeQL code scanning so that CodeQL analyzes the code compiled by this toolchain.
+
+    How should you complete the workflow? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un dépôt GitHub qui contient un microprogramme C++. Le microprogramme ne se compile qu'avec une chaîne d'outils que Fabrikam publie sous forme de deux images conteneur, qui incluent toutes deux Git :
+
+    - `ghcr.io/fabrikam/firmware-tools:3.1-alpine`, basée sur Alpine Linux ;
+    - `ghcr.io/fabrikam/firmware-tools:3.1-bookworm`, basée sur Debian.
+
+    La commande de build est `make all`. Vous devez configurer l'analyse du code CodeQL pour que CodeQL analyse le code compilé par cette chaîne d'outils.
+
+    Comment devez-vous compléter le workflow ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    name: CodeQL
+    on:
+      push:
+        branches: [ main ]
+      pull_request:
+        branches: [ main ]
+
+    jobs:
+      analyze:
+        runs-on: ubuntu-latest
+        permissions:
+          security-events: write
+          actions: read
+        [[key]]:
+          image: [[image]]
+        steps:
+          - uses: actions/checkout@v6
+          - uses: github/codeql-action/init@v4
+            with:
+              languages: c-cpp
+              build-mode: manual
+          - run: [[build]]
+          - uses: github/codeql-action/analyze@v4
+  slots:
+    - id: key
+      options:
+        - { id: services, text: services }
+        - { id: container, text: container }
+        - { id: environment, text: environment }
+    - id: image
+      options:
+        - { id: alpine, text: ghcr.io/fabrikam/firmware-tools:3.1-alpine }
+        - { id: bookworm, text: ghcr.io/fabrikam/firmware-tools:3.1-bookworm }
+        - { id: ubuntu, text: "ubuntu:24.04" }
+    - id: build
+      options:
+        - { id: make, text: make all }
+        - { id: dockerrun, text: "docker run --rm -v $GITHUB_WORKSPACE:/src ghcr.io/fabrikam/firmware-tools:3.1-bookworm make -C /src all" }
+        - { id: dockerbuild, text: "docker build --tag firmware:ci ." }
+answer:
+  values: { key: container, image: bookworm, build: make }
+explanation:
+  correct:
+    en: |
+      The `container` key of a job runs all its steps, including the CodeQL actions, inside the given image, so CodeQL can observe the compiler calls of `make all` run directly in that job. The CodeQL CLI isn't compatible with non-glibc distributions such as the musl-based Alpine Linux, so the Debian-based image is required; Git must also be installed and on the PATH, which both images provide.
+    fr: |
+      La clé `container` d'un travail exécute toutes ses étapes, y compris les actions CodeQL, dans l'image indiquée : CodeQL peut observer les appels au compilateur de `make all` exécuté directement dans ce travail. L'interface CLI CodeQL n'est pas compatible avec les distributions sans glibc comme Alpine Linux, basée sur musl : l'image basée sur Debian est obligatoire ; Git doit aussi être installé et présent dans le PATH, ce que fournissent les deux images.
+  options:
+    services: { en: "services starts side containers, such as a database, next to the job; the steps don't run inside them.", fr: "services démarre des conteneurs annexes, comme une base de données, à côté du travail ; les étapes ne s'y exécutent pas." }
+    environment: { en: "environment links the job to a deployment environment with its protection rules; it doesn't take an image.", fr: "environment associe le travail à un environnement de déploiement et à ses règles de protection ; il ne prend pas d'image." }
+    alpine: { en: "The CodeQL CLI doesn't support musl-based Alpine Linux.", fr: "L'interface CLI CodeQL ne prend pas en charge Alpine Linux, basée sur musl." }
+    ubuntu: { en: "The generic Ubuntu image doesn't contain Fabrikam's toolchain, so the firmware wouldn't compile.", fr: "L'image Ubuntu générique ne contient pas la chaîne d'outils de Fabrikam : le microprogramme ne se compilerait pas." }
+    dockerrun: { en: "A build started in a separate container with docker run happens outside the processes that CodeQL monitors, so the database would contain no compiled code.", fr: "Un build lancé dans un conteneur distinct avec docker run se déroule hors des processus que CodeQL surveille : la base de données ne contiendrait aucun code compilé." }
+    dockerbuild: { en: "docker build produces an image; it doesn't compile the firmware where CodeQL can observe it.", fr: "docker build produit une image ; il ne compile pas le microprogramme là où CodeQL peut l'observer." }
+references:
+  - title: Configure code scanning
+    url: https://learn.microsoft.com/en-us/training/modules/configure-code-scanning/4-configure-code-scanning

@@ -1,0 +1,70 @@
+id: az700-cs4a-outbound-snat
+objective: "3.1.11"
+type: dropdown
+caseStudy: az700-cs4a-coho-resorts
+difficulty: 3
+status: draft
+shuffle: false
+stem:
+  en: |
+    You disable outbound SNAT on rule-https. You add five frontend IP configurations named **fe-out2** to **fe-out6** to LB-Partner, each with its own Standard public IP address.
+
+    You need to create an outbound rule that meets the partner API requirements. How should you complete the command? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous désactivez la SNAT sortante sur rule-https. Vous ajoutez à LB-Partner cinq configurations IP frontales nommées **fe-out2** à **fe-out6**, chacune avec sa propre adresse IP publique Standard.
+
+    Vous devez créer une règle de trafic sortant qui respecte les exigences de l'API partenaires. Comment devez-vous compléter la commande ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network lb outbound-rule create --resource-group RG-Partner \
+      --lb-name LB-Partner --name out-payments --protocol Tcp \
+      --address-pool pool-api \
+      --frontend-ip-configs [[fips]] \
+      --outbound-ports [[ports]] \
+      --idle-timeout [[timeout]] --enable-tcp-reset true
+  slots:
+    - id: fips
+      options:
+        - { id: f1, text: "fe-web" }
+        - { id: f2, text: "fe-web fe-out2" }
+        - { id: f4, text: "fe-web fe-out2 fe-out3 fe-out4" }
+        - { id: f6, text: "fe-web fe-out2 fe-out3 fe-out4 fe-out5 fe-out6" }
+    - id: ports
+      options:
+        - { id: p1024, text: "1024" }
+        - { id: p6000, text: "6000" }
+        - { id: p6100, text: "6100" }
+        - { id: p64000, text: "64000" }
+    - id: timeout
+      options:
+        - { id: t4, text: "4" }
+        - { id: t30, text: "30" }
+        - { id: t120, text: "120" }
+answer:
+  values: { fips: f4, ports: p6000, timeout: t30 }
+explanation:
+  correct:
+    en: |
+      Each frontend public IP address gives the outbound rule 64,000 SNAT ports, and the rule allocates the same number of ports to every instance of the backend pool. 40 instances × 6,000 ports = 240,000 ports, which needs four addresses (256,000 ports); three addresses (192,000) aren't enough, and six would register more addresses than necessary. The port count must be a multiple of 8: 6,000 is valid and meets the requirement. The idle timeout is expressed in minutes (4 to 120), so 30 closes idle flows after 30 minutes, and TCP reset notifies both endpoints.
+    fr: |
+      Chaque adresse IP publique frontale apporte 64 000 ports SNAT à la règle de trafic sortant, et la règle alloue le même nombre de ports à chaque instance du pool principal. 40 instances × 6 000 ports = 240 000 ports, ce qui exige quatre adresses (256 000 ports) ; trois adresses (192 000) ne suffisent pas, et six reviendraient à déclarer plus d'adresses que nécessaire. Le nombre de ports doit être un multiple de 8 : 6 000 est valide et respecte l'exigence. Le délai d'inactivité s'exprime en minutes (de 4 à 120) : 30 ferme les flux inactifs au bout de 30 minutes, et la réinitialisation TCP avertit les deux extrémités.
+  options:
+    f1: { en: "One address provides 64,000 ports, enough for only 10 instances at 6,000 ports each: the configuration is rejected.", fr: "Une adresse fournit 64 000 ports, assez pour 10 instances seulement à 6 000 ports chacune : la configuration est refusée." }
+    f2: { en: "Two addresses provide 128,000 ports, enough for only 21 instances at 6,000 ports each.", fr: "Deux adresses fournissent 128 000 ports, assez pour 21 instances seulement à 6 000 ports chacune." }
+    f6: { en: "Six addresses work but use more public IP addresses than required.", fr: "Six adresses fonctionnent mais utilisent plus d'adresses IP publiques que nécessaire." }
+    p1024: { en: "1,024 ports per instance doesn't allow 6,000 simultaneous outbound connections to the providers.", fr: "1 024 ports par instance ne permettent pas 6 000 connexions sortantes simultanées vers les prestataires." }
+    p6100: { en: "6,100 isn't a multiple of 8, so the load balancer rejects the configuration.", fr: "6 100 n'est pas un multiple de 8 : l'équilibreur de charge refuse la configuration." }
+    p64000: { en: "64,000 ports is the maximum of one address for a single instance; it can't be given to every instance of a 40-instance pool.", fr: "64 000 ports correspondent au maximum d'une adresse pour une seule instance ; cette valeur ne peut pas être allouée à chaque instance d'un pool de 40 instances." }
+    t4: { en: "4 minutes is the default and would close connections that are idle for less than 30 minutes.", fr: "4 minutes est la valeur par défaut et fermerait des connexions inactives depuis moins de 30 minutes." }
+    t120: { en: "120 minutes would keep idle connections open well beyond 30 minutes.", fr: "120 minutes maintiendraient les connexions inactives ouvertes bien au-delà de 30 minutes." }
+references:
+  - title: Outbound rules for Azure Load Balancer
+    url: https://learn.microsoft.com/en-us/azure/load-balancer/outbound-rules
+  - title: az network lb outbound-rule
+    url: https://learn.microsoft.com/en-us/cli/azure/network/lb/outbound-rule

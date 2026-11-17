@@ -1,0 +1,77 @@
+id: dp420-1b-query-param-pk-iterator
+objective: "1.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso is building an order-history API in .NET on Azure Cosmos DB for NoSQL. The **orders** container is partitioned by `/customerId` and stores about 40 million orders.
+
+    The endpoint receives a customer ID and a status typed by the user. It must return every matching order of that customer. The query must not be vulnerable to injection, must not fan out to every physical partition, and must read all the result pages.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso développe en .NET une API d'historique des commandes sur Azure Cosmos DB for NoSQL. Le conteneur **orders** est partitionné par `/customerId` et stocke environ 40 millions de commandes.
+
+    Le point de terminaison reçoit un ID client et un statut saisi par l'utilisateur. Il doit renvoyer toutes les commandes correspondantes de ce client. La requête ne doit pas être vulnérable à l'injection, ne doit pas être distribuée à toutes les partitions physiques et doit lire toutes les pages de résultats.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    QueryDefinition query = new QueryDefinition(
+        "SELECT * FROM o WHERE o.customerId = @customerId AND o.status = @status")
+        .WithParameter("@customerId", customerId)
+        .WithParameter("@status", status);
+
+    using FeedIterator<Order> feed = container.GetItemQueryIterator<Order>(
+        query,
+        requestOptions: new QueryRequestOptions { [[opt]] });
+
+    List<Order> results = new();
+    while ([[loop]])
+    {
+        FeedResponse<Order> page = await feed.[[read]]();
+        results.AddRange(page);
+    }
+  slots:
+    - id: opt
+      options:
+        - { id: pk, text: "PartitionKey = new PartitionKey(customerId)" }
+        - { id: conc, text: "MaxConcurrency = -1" }
+        - { id: scan, text: "EnableScanInQuery = true" }
+        - { id: max, text: "MaxItemCount = -1" }
+    - id: loop
+      options:
+        - { id: more, text: feed.HasMoreResults }
+        - { id: count, text: results.Count == 0 }
+        - { id: task, text: feed.ReadNextAsync().IsCompleted }
+    - id: read
+      options:
+        - { id: next, text: ReadNextAsync }
+        - { id: many, text: ReadManyItemsAsync }
+        - { id: exec, text: ExecuteAsync }
+answer:
+  values: { opt: pk, loop: more, read: next }
+explanation:
+  correct:
+    en: "Setting `QueryRequestOptions.PartitionKey` scopes the query to the customer's logical partition, so the SDK does not visit every physical partition. The parameters added with `WithParameter` protect against injection. A query can return several pages: you loop while `HasMoreResults` is true and get each page with `ReadNextAsync`."
+    fr: "Définir `QueryRequestOptions.PartitionKey` limite la requête à la partition logique du client : le SDK ne visite pas toutes les partitions physiques. Les paramètres ajoutés avec `WithParameter` protègent contre l'injection. Une requête peut renvoyer plusieurs pages : vous bouclez tant que `HasMoreResults` est vrai et obtenez chaque page avec `ReadNextAsync`."
+  options:
+    conc: { en: "MaxConcurrency only controls how many partitions are visited in parallel; the query still fans out.", fr: "MaxConcurrency contrôle seulement le nombre de partitions visitées en parallèle ; la requête reste distribuée." }
+    scan: { en: "EnableScanInQuery allows scans when no index serves the filter; it does not target a partition.", fr: "EnableScanInQuery autorise les analyses quand aucun index ne sert le filtre ; il ne cible aucune partition." }
+    max: { en: "MaxItemCount sets the page size; it does not target a partition.", fr: "MaxItemCount définit la taille de page ; il ne cible aucune partition." }
+    count: { en: "This condition stops after the first non-empty page, and a page can be empty while more results remain.", fr: "Cette condition s'arrête après la première page non vide, et une page peut être vide alors qu'il reste des résultats." }
+    task: { en: "Calling ReadNextAsync in the condition reads and discards a page, and IsCompleted says nothing about remaining pages.", fr: "Appeler ReadNextAsync dans la condition lit et ignore une page, et IsCompleted n'indique rien sur les pages restantes." }
+    many: { en: "ReadManyItemsAsync is a container method that reads items by id and partition key; it is not a FeedIterator method.", fr: "ReadManyItemsAsync est une méthode du conteneur qui lit des éléments par ID et clé de partition ; ce n'est pas une méthode de FeedIterator." }
+    exec: { en: "ExecuteAsync runs a transactional batch; FeedIterator exposes ReadNextAsync.", fr: "ExecuteAsync exécute un lot transactionnel ; FeedIterator expose ReadNextAsync." }
+references:
+  - title: Query Items Using .NET - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-dotnet-query-items
+  - title: Query Performance Tips for Sdks - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/performance-tips-query-sdk

@@ -1,0 +1,54 @@
+id: dp750-3b-cdf-history-steps
+objective: "3.1.8"
+type: ordering
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has a Unity Catalog managed table named **contoso.sales.orders**. A nightly Lakeflow Jobs job updates the table with a MERGE statement. The table uses the default retention settings, and change data feed is not enabled on it.
+
+    Auditors require that every row-level change to the table (inserts, updates and deletes) made from now on is kept for seven years in the table **contoso.audit.orders_history**.
+
+    Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+  fr: |
+    Contoso dispose d'une table managée Unity Catalog nommée **contoso.sales.orders**. Un job Lakeflow Jobs nocturne met à jour la table avec une instruction MERGE. La table utilise les paramètres de rétention par défaut, et le flux de données modifiées (change data feed) n'y est pas activé.
+
+    Les auditeurs exigent que chaque modification au niveau des lignes de la table (insertions, mises à jour et suppressions) effectuée à partir de maintenant soit conservée pendant sept ans dans la table **contoso.audit.orders_history**.
+
+    Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+body:
+  count: 3
+  actions:
+    - { id: enable, text: { en: "Run ALTER TABLE contoso.sales.orders SET TBLPROPERTIES (delta.enableChangeDataFeed = true).", fr: "Exécuter ALTER TABLE contoso.sales.orders SET TBLPROPERTIES (delta.enableChangeDataFeed = true)." } }
+    - { id: stream, text: { en: "Write a notebook that reads contoso.sales.orders with the readChangeFeed option and writes to contoso.audit.orders_history with a checkpoint location and trigger(availableNow=True).", fr: "Écrire un notebook qui lit contoso.sales.orders avec l'option readChangeFeed et écrit dans contoso.audit.orders_history avec un emplacement de point de contrôle et trigger(availableNow=True)." } }
+    - { id: task, text: { en: "Add the notebook to the nightly job as a task that depends on the MERGE task.", fr: "Ajouter le notebook au job nocturne en tant que tâche qui dépend de la tâche MERGE." } }
+    - { id: retention, text: { en: "Set delta.logRetentionDuration on contoso.sales.orders to interval 2555 days.", fr: "Définir delta.logRetentionDuration sur contoso.sales.orders à interval 2555 days." } }
+    - { id: backfill, text: { en: "Query table_changes('contoso.sales.orders', 0) to retrieve the changes made before the feed was enabled.", fr: "Interroger table_changes('contoso.sales.orders', 0) pour récupérer les modifications effectuées avant l'activation du flux." } }
+    - { id: vacuum, text: { en: "Run VACUUM on contoso.sales.orders after each MERGE.", fr: "Exécuter VACUUM sur contoso.sales.orders après chaque MERGE." } }
+answer:
+  sequence: [ enable, stream, task ]
+explanation:
+  correct:
+    en: |
+      Change data feed records only the commits made after it is enabled, so you enable it first. Change data feed records are transient and follow the table retention, so a streaming read with readChangeFeed and trigger(availableNow=True) copies them into a separate append-only table, as Microsoft Learn recommends for a durable audit trail. Running that notebook as a task after the MERGE task captures each night's changes.
+    fr: |
+      Le flux de données modifiées n'enregistre que les validations effectuées après son activation : il faut donc l'activer en premier. Ses enregistrements sont temporaires et suivent la rétention de la table ; une lecture en streaming avec readChangeFeed et trigger(availableNow=True) les copie dans une table distincte en ajout seul, comme Microsoft Learn le recommande pour une piste d'audit durable. Exécuter ce notebook en tant que tâche après la tâche MERGE capture les modifications de chaque nuit.
+  options:
+    retention:
+      en: |
+        Microsoft Learn advises against using table history as a long-term archive; a seven-year log retention also keeps the change data files only if the data file retention is raised too.
+      fr: |
+        Microsoft Learn déconseille d'utiliser l'historique de la table comme archive à long terme ; une rétention du journal de sept ans ne conserve les fichiers de modifications que si la rétention des fichiers de données est également augmentée.
+    backfill:
+      en: |
+        Change data feed can't return changes committed before it was enabled; reading such a version raises an error.
+      fr: |
+        Le flux de données modifiées ne peut pas renvoyer les modifications validées avant son activation ; lire une telle version génère une erreur.
+    vacuum:
+      en: |
+        VACUUM removes unreferenced files, including change data files; it doesn't keep any history.
+      fr: |
+        VACUUM supprime les fichiers non référencés, y compris les fichiers de modifications ; il ne conserve aucun historique.
+references:
+  - title: Use change data feed on Azure Databricks
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/delta-change-data-feed

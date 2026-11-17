@@ -1,0 +1,67 @@
+id: ai200-2c-redis-knn-query
+objective: "2.3.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders indexes router manuals in Azure Managed Redis. The index `idx:kb` contains a tag field named `product`, a text field named `content`, and an HNSW vector field named `embedding` of type FLOAT32 with the COSINE metric. The `qv` variable contains the question embedding as a NumPy array of type `float32`.
+
+    The query must return the eight chunks that are the most similar to the question among the documents whose `product` tag is `router`, the most similar first.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders indexe des manuels de routeurs dans Azure Managed Redis. L'index `idx:kb` contient un champ de balise nommé `product`, un champ texte nommé `content` et un champ vectoriel HNSW nommé `embedding` de type FLOAT32 avec la métrique COSINE. La variable `qv` contient l'incorporation de la question sous forme de tableau NumPy de type `float32`.
+
+    La requête doit renvoyer les huit segments les plus similaires à la question parmi les documents dont la balise `product` vaut `router`, les plus similaires en premier.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    q = (
+        Query("[[filter]]=>[KNN 8 @embedding $vec AS score]")
+        [[sort]]
+        .return_fields("content", "score")
+        .dialect(2)
+    )
+    results = r.ft("idx:kb").search(q, query_params={"vec": [[param]]})
+  slots:
+    - id: filter
+      options:
+        - { id: star, text: "*" }
+        - { id: tag, text: "(@product:{router})" }
+        - { id: range, text: "(@product:[router])" }
+    - id: sort
+      options:
+        - { id: sortdesc, text: ".sort_by(\"score\", asc=False)" }
+        - { id: sortcontent, text: ".sort_by(\"content\")" }
+        - { id: sortasc, text: ".sort_by(\"score\")" }
+    - id: param
+      options:
+        - { id: tobytes, text: "qv.tobytes()" }
+        - { id: tolist, text: "qv.tolist()" }
+        - { id: json, text: "json.dumps(qv.tolist())" }
+answer:
+  values: { filter: tag, sort: sortasc, param: tobytes }
+explanation:
+  correct:
+    en: |
+      The filter before `=>` selects the documents to consider, and a tag field is matched with braces: `@product:{router}`. With the COSINE metric, `score` is a distance, so an ascending sort puts the most similar chunks first. In a parameterized query, the vector is passed as the raw bytes of the `float32` array.
+    fr: |
+      Le filtre placé avant `=>` sélectionne les documents à prendre en compte, et un champ de balise se compare avec des accolades : `@product:{router}`. Avec la métrique COSINE, `score` est une distance : un tri croissant place les segments les plus similaires en premier. Dans une requête paramétrée, le vecteur est passé sous forme d'octets bruts du tableau `float32`.
+  options:
+    star: { en: "`*` considers every document, including those of other products.", fr: "`*` prend en compte tous les documents, y compris ceux d'autres produits." }
+    range: { en: "Square brackets are the numeric range syntax, not the tag syntax.", fr: "Les crochets sont la syntaxe de plage numérique, pas la syntaxe de balise." }
+    sortdesc: { en: "A descending sort on a distance puts the least similar chunks first.", fr: "Un tri décroissant sur une distance place les segments les moins similaires en premier." }
+    sortcontent: { en: "Sorting by content orders the chunks alphabetically.", fr: "Le tri par contenu classe les segments dans l'ordre alphabétique." }
+    tolist: { en: "A Python list isn't a valid vector parameter; the query expects the bytes of the vector.", fr: "Une liste Python n'est pas un paramètre vectoriel valide ; la requête attend les octets du vecteur." }
+    json: { en: "A JSON string isn't the binary FLOAT32 format that the query expects.", fr: "Une chaîne JSON n'est pas le format binaire FLOAT32 attendu par la requête." }
+references:
+  - title: About Vector Embeddings and Vector Search in Azure Managed Redis
+    url: https://learn.microsoft.com/en-us/azure/redis/overview-vector-similarity

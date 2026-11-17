@@ -1,0 +1,125 @@
+id: dp750-cs2c-fourth-coffee
+status: draft
+title:
+  en: Fourth Coffee
+  fr: Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee is a chain of 650 coffeehouses in Spain and Portugal. Its head office is in Madrid. A data engineering team develops the sales and loyalty pipelines on Azure Databricks, and an operations team runs them in production.
+
+        Fourth Coffee wants to make its nightly processing more reliable, automate its deployments, and give the operations team the monitoring tools it already uses for the rest of Azure.
+      fr: |
+        Fourth Coffee est une chaîne de 650 cafés en Espagne et au Portugal. Son siège est à Madrid. Une équipe d'ingénierie des données développe les pipelines de ventes et de fidélité sur Azure Databricks, et une équipe des opérations les exécute en production.
+
+        Fourth Coffee souhaite fiabiliser son traitement nocturne, automatiser ses déploiements et donner à l'équipe des opérations les outils de surveillance qu'elle utilise déjà pour le reste d'Azure.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Fourth Coffee has the following resources in the West Europe region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-fc-dev | Azure Databricks workspace | Premium plan; development |
+        | adb-fc-prod | Azure Databricks workspace | Premium plan; production; catalog **fc_prod** with the schemas staging, silver and gold |
+        | law-fc-ops | Log Analytics workspace | The operations team centralizes the logs and alert rules of all its Azure resources in this workspace |
+        | cl-fc-analytics | All-purpose compute in adb-fc-prod | Standard access mode; started every morning by the operations team; used by the group **store-analysts** |
+        | fc-data-platform | Git repository in Azure Repos | Contains the Declarative Automation Bundle **fc-sales** |
+
+        The databricks.yml file of fc-sales defines two targets:
+
+        - **dev**: workspace adb-fc-dev, `mode: development`
+        - **prod**: workspace adb-fc-prod, `mode: production`, Git branch `main`, `run_as` set to the service principal **sp-fc-deploy**
+
+        The bundle deploys the job **fc_nightly_sales**, which contains the following tasks.
+
+        | Task | Type | Depends on |
+        | --- | --- | --- |
+        | ingest_pos | Pipeline | None |
+        | load_loyalty | Notebook | None |
+        | transform_sales | Notebook | ingest_pos |
+        | transform_inventory | Notebook | ingest_pos |
+        | publish_gold | SQL | transform_sales, transform_inventory |
+        | cleanup_staging | Notebook | transform_sales, transform_inventory |
+        | alert_oncall | Notebook | transform_sales, transform_inventory |
+
+        Every night, the loyalty program provider sends a full extract of the active loyalty members. The load_loyalty task loads it into **fc_prod.staging.loyalty_extract**, which contains one row per member (`member_id` is unique), and then updates **fc_prod.silver.loyalty_members**.
+
+        Last night, transform_inventory failed because of a bug in its notebook. ingest_pos, load_loyalty and transform_sales succeeded; publish_gold, cleanup_staging and alert_oncall did not run. A developer has since fixed the notebook.
+      fr: |
+        Fourth Coffee dispose des ressources suivantes dans la région West Europe.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | adb-fc-dev | Espace de travail Azure Databricks | Plan Premium ; développement |
+        | adb-fc-prod | Espace de travail Azure Databricks | Plan Premium ; production ; catalogue **fc_prod** avec les schémas staging, silver et gold |
+        | law-fc-ops | Espace de travail Log Analytics | L'équipe des opérations centralise dans cet espace de travail les journaux et les règles d'alerte de toutes ses ressources Azure |
+        | cl-fc-analytics | Calcul polyvalent dans adb-fc-prod | Mode d'accès standard ; démarré chaque matin par l'équipe des opérations ; utilisé par le groupe **store-analysts** |
+        | fc-data-platform | Dépôt Git dans Azure Repos | Contient le Declarative Automation Bundle **fc-sales** |
+
+        Le fichier databricks.yml de fc-sales définit deux cibles :
+
+        - **dev** : espace de travail adb-fc-dev, `mode: development`
+        - **prod** : espace de travail adb-fc-prod, `mode: production`, branche Git `main`, `run_as` défini sur le principal de service **sp-fc-deploy**
+
+        Le bundle déploie le job **fc_nightly_sales**, qui contient les tâches suivantes.
+
+        | Tâche | Type | Dépend de |
+        | --- | --- | --- |
+        | ingest_pos | Pipeline | Aucune |
+        | load_loyalty | Notebook | Aucune |
+        | transform_sales | Notebook | ingest_pos |
+        | transform_inventory | Notebook | ingest_pos |
+        | publish_gold | SQL | transform_sales, transform_inventory |
+        | cleanup_staging | Notebook | transform_sales, transform_inventory |
+        | alert_oncall | Notebook | transform_sales, transform_inventory |
+
+        Chaque nuit, le prestataire du programme de fidélité envoie un extrait complet des membres actifs. La tâche load_loyalty le charge dans **fc_prod.staging.loyalty_extract**, qui contient une ligne par membre (`member_id` est unique), puis met à jour **fc_prod.silver.loyalty_members**.
+
+        La nuit dernière, transform_inventory a échoué à cause d'un bogue dans son notebook. ingest_pos, load_loyalty et transform_sales ont réussi ; publish_gold, cleanup_staging et alert_oncall ne se sont pas exécutées. Un développeur a depuis corrigé le notebook.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Nightly job**
+
+        - publish_gold must run only when both transform_sales and transform_inventory succeed.
+        - cleanup_staging must run after transform_sales and transform_inventory have finished, whatever their outcome.
+        - alert_oncall must run only when transform_sales or transform_inventory fails.
+        - After a failure, the run must be completed without running again the tasks that already succeeded.
+
+        **Loyalty data**
+
+        - fc_prod.silver.loyalty_members must contain exactly the members of the latest extract: changed members are updated, new members are inserted, and members that are no longer in the extract are deleted.
+
+        **Deployment**
+
+        - Developers deploy their own copy of the bundle to adb-fc-dev for testing. Only the release pipeline deploys to adb-fc-prod, from the main branch.
+
+        **Operations**
+
+        - The operations team must be able to query the job events of adb-fc-prod in law-fc-ops and create Azure Monitor alert rules on them.
+        - The members of store-analysts must be able to attach notebooks to cl-fc-analytics and view its Spark UI and metrics. They must not be able to start, restart or terminate cl-fc-analytics, change its configuration or install libraries on it.
+      fr: |
+        **Job nocturne**
+
+        - publish_gold ne doit s'exécuter que si transform_sales et transform_inventory réussissent toutes les deux.
+        - cleanup_staging doit s'exécuter une fois transform_sales et transform_inventory terminées, quel que soit leur résultat.
+        - alert_oncall ne doit s'exécuter que si transform_sales ou transform_inventory échoue.
+        - Après un échec, l'exécution doit être menée à bien sans réexécuter les tâches qui ont déjà réussi.
+
+        **Données de fidélité**
+
+        - fc_prod.silver.loyalty_members doit contenir exactement les membres du dernier extrait : les membres modifiés sont mis à jour, les nouveaux membres sont insérés et les membres qui ne figurent plus dans l'extrait sont supprimés.
+
+        **Déploiement**
+
+        - Les développeurs déploient leur propre copie du bundle dans adb-fc-dev pour leurs tests. Seul le pipeline de mise en production déploie dans adb-fc-prod, depuis la branche main.
+
+        **Opérations**
+
+        - L'équipe des opérations doit pouvoir interroger les événements de jobs d'adb-fc-prod dans law-fc-ops et y créer des règles d'alerte Azure Monitor.
+        - Les membres de store-analysts doivent pouvoir attacher des notebooks à cl-fc-analytics et afficher son interface utilisateur Spark et ses métriques. Ils ne doivent pas pouvoir démarrer, redémarrer ni arrêter cl-fc-analytics, modifier sa configuration ni y installer de bibliothèques.

@@ -1,0 +1,54 @@
+id: dp800-1b-proc-dynamic-context
+objective: "1.2.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database for Woodgrove Bank. The Reporting and Sales schemas, and all their objects, are owned by dbo. Members of a database role named ReportUsers have only the EXECUTE permission on the Reporting schema.
+
+    A procedure named Reporting.usp_SearchOrders builds a WHERE clause from optional filters and runs it as follows.
+
+    ```sql
+    SET @sql = N'SELECT OrderID, CustomerID, Amount FROM Sales.Orders WHERE 1 = 1'
+             + CASE WHEN @Status IS NOT NULL THEN N' AND Status = @Status' ELSE N'' END;
+    EXECUTE sp_executesql @sql, N'@Status varchar(10)', @Status = @Status;
+    ```
+
+    When members of ReportUsers run the procedure, it fails with a SELECT permission error on Sales.Orders. You need to fix the issue. The solution must not grant permissions on the tables to ReportUsers and must keep the parameterized dynamic SQL.
+
+    What should you do?
+  fr: |
+    Vous disposez d'une base de données Azure SQL pour Woodgrove Bank. Les schémas Reporting et Sales, ainsi que tous leurs objets, appartiennent à dbo. Les membres d'un rôle de base de données nommé ReportUsers disposent uniquement de l'autorisation EXECUTE sur le schéma Reporting.
+
+    Une procédure nommée Reporting.usp_SearchOrders construit une clause WHERE à partir de filtres facultatifs et l'exécute comme suit.
+
+    ```sql
+    SET @sql = N'SELECT OrderID, CustomerID, Amount FROM Sales.Orders WHERE 1 = 1'
+             + CASE WHEN @Status IS NOT NULL THEN N' AND Status = @Status' ELSE N'' END;
+    EXECUTE sp_executesql @sql, N'@Status varchar(10)', @Status = @Status;
+    ```
+
+    Quand les membres de ReportUsers exécutent la procédure, elle échoue avec une erreur d'autorisation SELECT sur Sales.Orders. Vous devez corriger le problème. La solution ne doit pas accorder d'autorisations sur les tables à ReportUsers et doit conserver le SQL dynamique paramétré.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Replace sp_executesql with EXECUTE (@sql) and concatenate the @Status value into @sql.", fr: "Remplacer sp_executesql par EXECUTE (@sql) et concaténer la valeur de @Status dans @sql." } }
+    - { id: b, text: { en: "Add WITH RECOMPILE to the procedure definition.", fr: "Ajouter WITH RECOMPILE à la définition de la procédure." } }
+    - { id: c, text: { en: "Add WITH EXECUTE AS OWNER to the procedure definition.", fr: "Ajouter WITH EXECUTE AS OWNER à la définition de la procédure." } }
+    - { id: d, text: { en: "Grant the EXECUTE permission on sp_executesql to ReportUsers.", fr: "Accorder l'autorisation EXECUTE sur sp_executesql à ReportUsers." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      Ownership chaining lets the static statements of a procedure access tables with the same owner, but it does not apply to dynamic queries inside the module, so the dynamic SELECT is checked against the caller. With EXECUTE AS OWNER, the statements of the procedure, including the dynamic SQL, run in the context of the owner (dbo), and callers still need only EXECUTE on the procedure.
+    fr: |
+      Le chaînage des propriétés permet aux instructions statiques d'une procédure d'accéder aux tables de même propriétaire, mais il ne s'applique pas aux requêtes dynamiques du module : le SELECT dynamique est vérifié avec les autorisations de l'appelant. Avec EXECUTE AS OWNER, les instructions de la procédure, y compris le SQL dynamique, s'exécutent dans le contexte du propriétaire (dbo), et les appelants n'ont toujours besoin que d'EXECUTE sur la procédure.
+  options:
+    a: { en: "EXECUTE (@sql) is dynamic SQL too, so ownership chaining still does not apply, and concatenating the value opens the procedure to SQL injection.", fr: "EXECUTE (@sql) est aussi du SQL dynamique : le chaînage des propriétés ne s'applique toujours pas, et la concaténation de la valeur expose la procédure à l'injection SQL." }
+    b: { en: "WITH RECOMPILE changes plan caching, not the security context in which the dynamic SQL runs.", fr: "WITH RECOMPILE modifie la mise en cache des plans, pas le contexte de sécurité dans lequel s'exécute le SQL dynamique." }
+    d: { en: "Running sp_executesql is not the problem; the SELECT that it runs is still checked against the caller's permissions on Sales.Orders.", fr: "L'exécution de sp_executesql n'est pas le problème ; le SELECT qu'elle exécute est toujours vérifié avec les autorisations de l'appelant sur Sales.Orders." }
+references:
+  - title: EXECUTE AS clause (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/execute-as-clause-transact-sql

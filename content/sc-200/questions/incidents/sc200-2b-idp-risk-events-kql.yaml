@@ -1,0 +1,69 @@
+id: sc200-2b-idp-risk-events-kql
+objective: "2.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys sends the Microsoft Entra ID Protection risk logs to a Log Analytics workspace that is used by Microsoft Sentinel.
+
+    You need a query that lists, for each user, the distinct types of risk detections that are still **at risk** with a **high** risk level, so that you can prioritize remediation.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys envoie les journaux de risque de Microsoft Entra ID Protection vers un espace de travail Log Analytics utilisé par Microsoft Sentinel.
+
+    Vous avez besoin d'une requête qui liste, pour chaque utilisateur, les types distincts de détections de risque qui sont toujours **à risque** avec un niveau de risque **élevé**, afin de prioriser la correction.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated > ago(14d)
+    | where RiskLevel == "high" and RiskState == [[state]]
+    | summarize Detections = count(), Types = [[agg]](RiskEventType) by UserPrincipalName
+    | order by Detections desc
+  slots:
+    - id: table
+      options:
+        - { id: risk, text: AADUserRiskEvents }
+        - { id: signin, text: SigninLogs }
+        - { id: noninter, text: AADNonInteractiveUserSignInLogs }
+        - { id: audit, text: AuditLogs }
+    - id: state
+      options:
+        - { id: atrisk, text: "\"atRisk\"" }
+        - { id: confirmed, text: "\"confirmedCompromised\"" }
+        - { id: remediated, text: "\"remediated\"" }
+        - { id: dismissed, text: "\"dismissed\"" }
+    - id: agg
+      options:
+        - { id: set, text: make_set }
+        - { id: dcount, text: dcount }
+        - { id: argmax, text: arg_max }
+        - { id: any, text: take_any }
+answer:
+  values: { table: risk, state: atrisk, agg: set }
+explanation:
+  correct:
+    en: "`AADUserRiskEvents` stores one row per ID Protection risk detection, with the `RiskEventType`, `RiskLevel` and `RiskState` columns. The state of an unresolved detection is `atRisk`, and `make_set()` returns the distinct detection types of each user as an array."
+    fr: "`AADUserRiskEvents` stocke une ligne par détection de risque d'ID Protection, avec les colonnes `RiskEventType`, `RiskLevel` et `RiskState`. L'état d'une détection non résolue est `atRisk`, et `make_set()` renvoie les types de détection distincts de chaque utilisateur sous forme de tableau."
+  options:
+    signin: { en: "SigninLogs has risk columns such as RiskLevelDuringSignIn, but no RiskEventType column with one row per detection.", fr: "SigninLogs contient des colonnes de risque comme RiskLevelDuringSignIn, mais pas de colonne RiskEventType avec une ligne par détection." }
+    noninter: { en: "AADNonInteractiveUserSignInLogs stores non-interactive sign-ins, not risk detections.", fr: "AADNonInteractiveUserSignInLogs stocke les connexions non interactives, pas les détections de risque." }
+    audit: { en: "AuditLogs records directory changes, not risk detections.", fr: "AuditLogs enregistre les modifications de l'annuaire, pas les détections de risque." }
+    confirmed: { en: "confirmedCompromised means an admin already confirmed the compromise; the query targets unresolved detections.", fr: "confirmedCompromised signifie qu'un administrateur a déjà confirmé la compromission ; la requête cible les détections non résolues." }
+    remediated: { en: "remediated detections were already resolved, for example by a secure password change.", fr: "Les détections remediated sont déjà résolues, par exemple par un changement de mot de passe sécurisé." }
+    dismissed: { en: "dismissed detections were closed by an admin and are no longer at risk.", fr: "Les détections dismissed ont été fermées par un administrateur et ne sont plus à risque." }
+    dcount: { en: "dcount() returns the number of distinct types, not the list of types.", fr: "dcount() renvoie le nombre de types distincts, pas la liste des types." }
+    argmax: { en: "arg_max() returns the row with the maximum value of an expression, not a list of values.", fr: "arg_max() renvoie la ligne ayant la valeur maximale d'une expression, pas une liste de valeurs." }
+    any: { en: "take_any() returns a single arbitrary value, not every distinct type.", fr: "take_any() renvoie une seule valeur arbitraire, pas tous les types distincts." }
+references:
+  - title: Azure Monitor Logs reference - AADUserRiskEvents
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/aaduserriskevents

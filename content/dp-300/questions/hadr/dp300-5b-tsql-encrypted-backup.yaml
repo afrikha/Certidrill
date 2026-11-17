@@ -1,0 +1,66 @@
+id: dp300-5b-tsql-encrypted-backup
+objective: "5.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a SQL Server 2022 instance on an Azure virtual machine. The instance hosts a database named **Patients** that doesn't use transparent data encryption (TDE).
+
+    You need to create a compressed full backup of Patients whose backup file is encrypted by using AES-256 and a certificate. No master key or certificate exists yet on the instance.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une instance SQL Server 2022 sur une machine virtuelle Azure. L'instance héberge une base de données nommée **Patients** qui n'utilise pas le chiffrement transparent des données (TDE).
+
+    Vous devez créer une sauvegarde complète compressée de Patients dont le fichier de sauvegarde est chiffré avec AES-256 et un certificat. Aucune clé principale ni aucun certificat n'existe encore sur l'instance.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    USE [[db]];
+    CREATE MASTER KEY ENCRYPTION BY PASSWORD = '<strong password>';
+    CREATE [[obj]] BackupCert WITH SUBJECT = 'Patients backup encryption';
+    BACKUP DATABASE Patients TO DISK = N'F:\Backup\Patients.bak'
+        WITH COMPRESSION,
+        ENCRYPTION (ALGORITHM = AES_256, [[enc]] = BackupCert);
+  slots:
+    - id: db
+      options:
+        - { id: patients, text: Patients }
+        - { id: master, text: master }
+        - { id: msdb, text: msdb }
+    - id: obj
+      options:
+        - { id: cert, text: CERTIFICATE }
+        - { id: dek, text: DATABASE ENCRYPTION KEY }
+        - { id: cred, text: CREDENTIAL }
+    - id: enc
+      options:
+        - { id: srvasym, text: SERVER ASYMMETRIC KEY }
+        - { id: cred2, text: CREDENTIAL }
+        - { id: srvcert, text: SERVER CERTIFICATE }
+answer:
+  values: { db: master, obj: cert, enc: srvcert }
+explanation:
+  correct:
+    en: |
+      Backup encryption uses a certificate (or an asymmetric key) stored in `master`, protected by the database master key of `master`. The `BACKUP` statement then references it with `ENCRYPTION (ALGORITHM = AES_256, SERVER CERTIFICATE = BackupCert)`. Back up the certificate and its private key: without them, the backup can't be restored.
+    fr: |
+      Le chiffrement des sauvegardes utilise un certificat (ou une clé asymétrique) stocké dans `master` et protégé par la clé principale de base de données de `master`. L'instruction `BACKUP` le référence ensuite avec `ENCRYPTION (ALGORITHM = AES_256, SERVER CERTIFICATE = BackupCert)`. Sauvegardez le certificat et sa clé privée : sans eux, la sauvegarde ne peut pas être restaurée.
+  options:
+    patients: { en: "The certificate must be in master to be usable as a server certificate by BACKUP.", fr: "Le certificat doit se trouver dans master pour que BACKUP puisse l'utiliser comme certificat de serveur." }
+    msdb: { en: "msdb stores backup history, not the certificate used to encrypt backups.", fr: "msdb stocke l'historique des sauvegardes, pas le certificat utilisé pour les chiffrer." }
+    dek: { en: "A database encryption key is created in a user database for TDE; it doesn't encrypt backup files on its own.", fr: "Une clé de chiffrement de base de données est créée dans une base utilisateur pour TDE ; elle ne chiffre pas les fichiers de sauvegarde à elle seule." }
+    cred: { en: "A credential stores authentication information, such as for backup to URL; it isn't an encryption key.", fr: "Des informations d'identification stockent des données d'authentification, par exemple pour la sauvegarde vers une URL ; ce ne sont pas une clé de chiffrement." }
+    srvasym: { en: "SERVER ASYMMETRIC KEY references an asymmetric key, but the script creates a certificate.", fr: "SERVER ASYMMETRIC KEY référence une clé asymétrique, alors que le script crée un certificat." }
+    cred2: { en: "CREDENTIAL isn't an argument of the ENCRYPTION clause.", fr: "CREDENTIAL n'est pas un argument de la clause ENCRYPTION." }
+references:
+  - title: Create an encrypted backup
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/create-an-encrypted-backup

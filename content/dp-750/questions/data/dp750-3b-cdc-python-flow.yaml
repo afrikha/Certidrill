@@ -1,0 +1,72 @@
+id: dp750-3b-cdc-python-flow
+objective: "3.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank is writing the Python source of a Lakeflow Spark Declarative Pipelines pipeline. The view **customer_changes** returns a CDC feed in which the `operation` column contains `INSERT`, `UPDATE` or `DELETE`, and `change_seq` orders the changes.
+
+    The streaming table **customers** must contain only the current state of each customer. Customers deleted in the source must be removed from the table.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank écrit la source Python d'un pipeline Lakeflow Spark Declarative Pipelines. La vue **customer_changes** renvoie un flux CDC dans lequel la colonne `operation` contient `INSERT`, `UPDATE` ou `DELETE`, et `change_seq` ordonne les modifications.
+
+    La table de streaming **customers** doit contenir uniquement l'état actuel de chaque client. Les clients supprimés dans la source doivent être retirés de la table.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark import pipelines as dp
+    from pyspark.sql.functions import col, expr
+
+    dp.create_streaming_table("customers")
+
+    dp.[[fn]](
+        target="customers",
+        source="customer_changes",
+        keys=["customer_id"],
+        sequence_by=col("change_seq"),
+        apply_as_deletes=[[del]],
+        except_column_list=["operation", "change_seq"],
+        stored_as_scd_type=[[scd]]
+    )
+  slots:
+    - id: fn
+      options:
+        - { id: cdc, text: create_auto_cdc_flow }
+        - { id: snap, text: create_auto_cdc_from_snapshot_flow }
+        - { id: sink, text: create_sink }
+    - id: del
+      options:
+        - { id: eq, text: "expr(\"operation = 'DELETE'\")" }
+        - { id: ne, text: "expr(\"operation <> 'DELETE'\")" }
+        - { id: col, text: "col(\"operation\")" }
+    - id: scd
+      options:
+        - { id: one, text: "1" }
+        - { id: two, text: "2" }
+answer:
+  values: { fn: cdc, del: eq, scd: one }
+explanation:
+  correct:
+    en: |
+      create_auto_cdc_flow applies a CDC feed to a streaming table, using the keys and the sequence column to keep the latest change of each key. apply_as_deletes takes a condition that identifies the delete records, and stored_as_scd_type=1 keeps only the current state of each row.
+    fr: |
+      create_auto_cdc_flow applique un flux CDC à une table de streaming, en utilisant les clés et la colonne de séquence pour conserver la dernière modification de chaque clé. apply_as_deletes prend une condition qui identifie les enregistrements de suppression, et stored_as_scd_type=1 ne conserve que l'état actuel de chaque ligne.
+  options:
+    snap: { en: "The snapshot flow compares full snapshots; the source here provides change records.", fr: "Le flux à partir d'instantanés compare des instantanés complets ; ici, la source fournit des enregistrements de modification." }
+    sink: { en: "create_sink defines an external sink such as Kafka, not a CDC flow.", fr: "create_sink définit un récepteur externe comme Kafka, pas un flux CDC." }
+    ne: { en: "This condition would treat every insert and update as a delete.", fr: "Cette condition traiterait chaque insertion et mise à jour comme une suppression." }
+    col: { en: "apply_as_deletes needs a Boolean condition, not the operation column itself.", fr: "apply_as_deletes a besoin d'une condition booléenne, pas de la colonne operation elle-même." }
+    two: { en: "SCD type 2 keeps every version with __START_AT and __END_AT, not only the current state.", fr: "Le SCD de type 2 conserve chaque version avec __START_AT et __END_AT, pas seulement l'état actuel." }
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

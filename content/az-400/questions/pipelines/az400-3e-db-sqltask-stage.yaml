@@ -1,0 +1,100 @@
+id: az400-3e-db-sqltask-stage
+objective: "3.4.8"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Litware builds an ASP.NET Core application that uses Entity Framework Core. The build stage generates an idempotent migration script named **migrate.sql** and publishes it in a pipeline artifact named **db**. You are writing the release part of the YAML pipeline.
+
+    The pipeline must meet the following requirements:
+
+    - Run **migrate.sql** against the Azure SQL database by using the Azure SQL Database deployment task.
+    - Deploy the application only after the migration succeeds.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware développe une application ASP.NET Core qui utilise Entity Framework Core. La phase de build génère un script de migration idempotent nommé **migrate.sql** et le publie dans un artefact de pipeline nommé **db**. Vous écrivez la partie mise en production du pipeline YAML.
+
+    Le pipeline doit respecter les exigences suivantes :
+
+    - Exécuter **migrate.sql** sur la base de données Azure SQL avec la tâche de déploiement Azure SQL Database.
+    - Ne déployer l'application qu'après la réussite de la migration.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    - stage: Database
+      dependsOn: Build
+      jobs:
+      - deployment: Migrate
+        environment: litware-prod
+        pool:
+          vmImage: windows-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - task: SqlAzureDacpacDeployment@1
+                inputs:
+                  azureSubscription: 'sc-litware-prod'
+                  AuthenticationType: 'servicePrincipal'
+                  ServerName: 'sql-litware.database.windows.net'
+                  DatabaseName: 'sqldb-litware'
+                  deployType: [[type]]
+                  [[input]]: '$(Pipeline.Workspace)/db/migrate.sql'
+    - stage: App
+      [[dep]]
+      jobs:
+      - deployment: Web
+        environment: litware-prod
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - script: echo Deploy the web app
+  slots:
+    - id: type
+      options:
+        - { id: dacpac, text: "'DacpacTask'" }
+        - { id: sql, text: "'SqlTask'" }
+        - { id: inline, text: "'InlineSqlTask'" }
+    - id: input
+      options:
+        - { id: dacpacfile, text: DacpacFile }
+        - { id: sqlfile, text: SqlFile }
+        - { id: sqlinline, text: SqlInline }
+        - { id: profile, text: PublishProfile }
+    - id: dep
+      options:
+        - { id: database, text: "dependsOn: Database" }
+        - { id: empty, text: "dependsOn: []" }
+        - { id: always, text: "condition: always()" }
+        - { id: build, text: "dependsOn: Build" }
+answer:
+  values: { type: sql, input: sqlfile, dep: database }
+explanation:
+  correct:
+    en: "The SqlTask deployment type runs a SQL script file, and its path goes in the SqlFile input. `dependsOn: Database` makes the App stage wait for the Database stage and, with the default condition, run only if that stage succeeded."
+    fr: "Le type de déploiement SqlTask exécute un fichier de script SQL, dont le chemin se place dans l'entrée SqlFile. `dependsOn: Database` fait attendre la phase App jusqu'à la fin de la phase Database et, avec la condition par défaut, ne l'exécute que si cette phase a réussi."
+  options:
+    dacpac: { en: "DacpacTask deploys a .dacpac file, not a SQL script.", fr: "DacpacTask déploie un fichier .dacpac, pas un script SQL." }
+    inline: { en: "InlineSqlTask runs SQL typed in the SqlInline input, not a file from the artifact.", fr: "InlineSqlTask exécute du SQL saisi dans l'entrée SqlInline, pas un fichier de l'artefact." }
+    dacpacfile: { en: "DacpacFile is the input of the DacpacTask type.", fr: "DacpacFile est l'entrée du type DacpacTask." }
+    profile: { en: "A publish profile only adds options to a .dacpac deployment.", fr: "Un profil de publication ajoute seulement des options à un déploiement .dacpac." }
+    empty: { en: "An empty dependsOn list makes the App stage run in parallel with the other stages.", fr: "Une liste dependsOn vide exécute la phase App en parallèle des autres phases." }
+    always: { en: "With always(), the App stage would run even if the migration failed.", fr: "Avec always(), la phase App s'exécuterait même en cas d'échec de la migration." }
+    build: { en: "With dependsOn: Build only, the App stage runs in parallel with the Database stage as soon as the build succeeds.", fr: "Avec seulement dependsOn: Build, la phase App s'exécute en parallèle de la phase Database dès la réussite du build." }
+references:
+  - title: SqlAzureDacpacDeployment@1 - Azure SQL Database deployment v1 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/sql-azure-dacpac-deployment-v1
+  - title: Applying Migrations - EF Core
+    url: https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying

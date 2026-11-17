@@ -1,0 +1,76 @@
+id: ai200-cs3b-ingest-scaling
+objective: "1.2.2"
+type: dropdown
+caseStudy: ai200-cs3b-bellows-college
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to configure the scaling of ingest-worker to meet the ingestion scaling requirement. You will apply the following YAML to ingest-worker.
+
+    How should you complete the YAML? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez configurer la mise à l'échelle de ingest-worker pour respecter l'exigence de mise à l'échelle de l'ingestion. Vous allez appliquer le YAML suivant à ingest-worker.
+
+    Comment devez-vous compléter le YAML ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    properties:
+      template:
+        scale:
+          minReplicas: [[min]]
+          maxReplicas: 20
+          rules:
+          - name: ingest-queue
+            custom:
+              type: [[type]]
+              identity: [[identity]]
+              metadata:
+                queueName: ingest
+                namespace: sb-bellows
+                [[metric]]: "25"
+  slots:
+    - id: min
+      options:
+        - { id: m0, text: "0" }
+        - { id: m1, text: "1" }
+        - { id: m25, text: "25" }
+    - id: type
+      options:
+        - { id: sb, text: "azure-servicebus" }
+        - { id: queue, text: "azure-queue" }
+        - { id: http, text: "http" }
+    - id: identity
+      options:
+        - { id: system, text: "system" }
+        - { id: secret, text: "connection-string-secret" }
+        - { id: none, text: "none" }
+    - id: metric
+      options:
+        - { id: messagecount, text: "messageCount" }
+        - { id: queuelength, text: "queueLength" }
+        - { id: concurrent, text: "concurrentRequests" }
+answer:
+  values: { min: m0, type: sb, identity: system, metric: messagecount }
+explanation:
+  correct:
+    en: "`minReplicas: 0` lets the app scale to zero when the queue is empty. The custom rule uses the KEDA `azure-servicebus` scaler, whose `messageCount` metadata sets the number of messages per replica. Setting `identity: system` makes the scaler authenticate with the system-assigned managed identity, so no secret reference is needed."
+    fr: "`minReplicas: 0` permet à l'application de descendre à zéro réplica quand la file d'attente est vide. La règle personnalisée utilise le scaler KEDA `azure-servicebus`, dont la métadonnée `messageCount` fixe le nombre de messages par réplica. Définir `identity: system` fait s'authentifier le scaler avec l'identité managée affectée par le système : aucune référence de secret n'est nécessaire."
+  options:
+    m1: { en: "One replica would always run, even when the queue is empty.", fr: "Un réplica s'exécuterait en permanence, même quand la file d'attente est vide." }
+    m25: { en: "The minimum is a replica count, not the number of messages per replica.", fr: "Le minimum est un nombre de réplicas, pas le nombre de messages par réplica." }
+    queue: { en: "`azure-queue` scales on Azure Queue Storage queues, not Service Bus queues.", fr: "`azure-queue` met à l'échelle selon des files d'attente Stockage File d'attente Azure, pas Service Bus." }
+    http: { en: "ingest-worker has no ingress and is driven by queue messages, not HTTP requests.", fr: "ingest-worker n'a pas d'entrée et est piloté par des messages en file d'attente, pas par des requêtes HTTP." }
+    secret: { en: "Authenticating with a secret that holds a connection string is forbidden by the requirement.", fr: "L'authentification avec un secret qui contient une chaîne de connexion est interdite par l'exigence." }
+    none: { en: "Without an identity or an authentication secret, the scaler cannot read the queue.", fr: "Sans identité ni secret d'authentification, le scaler ne peut pas lire la file d'attente." }
+    queuelength: { en: "`queueLength` is the metadata of the Azure Queue Storage scaler.", fr: "`queueLength` est la métadonnée du scaler Stockage File d'attente Azure." }
+    concurrent: { en: "`concurrentRequests` belongs to the HTTP scale rule.", fr: "`concurrentRequests` appartient à la règle de mise à l'échelle HTTP." }
+references:
+  - title: Set scaling rules in Azure Container Apps
+    url: https://learn.microsoft.com/en-us/azure/container-apps/scale-app

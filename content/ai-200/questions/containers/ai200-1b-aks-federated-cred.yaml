@@ -1,0 +1,66 @@
+id: ai200-1b-aks-federated-cred
+objective: "1.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso is configuring Microsoft Entra Workload ID for a retrieval API on the Azure Kubernetes Service (AKS) cluster **aks-rag**, which has the OIDC issuer and workload identity enabled. The pods run with the ServiceAccount **sa-rag-api** in the namespace `rag`, which is annotated with the client ID of the user-assigned managed identity **id-rag-api**.
+
+    You need to create the federated identity credential that lets the pods obtain tokens for id-rag-api. The audience must be the default recommended value.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso configure Microsoft Entra Workload ID pour une API de récupération sur le cluster Azure Kubernetes Service (AKS) **aks-rag**, sur lequel l'émetteur OIDC et l'identité de charge de travail sont activés. Les pods s'exécutent avec le ServiceAccount **sa-rag-api** dans l'espace de noms `rag`, annoté avec l'ID client de l'identité managée affectée par l'utilisateur **id-rag-api**.
+
+    Vous devez créer l'information d'identification d'identité fédérée qui permet aux pods d'obtenir des jetons pour id-rag-api. L'audience doit être la valeur par défaut recommandée.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    AKS_OIDC_ISSUER=$(az aks show --resource-group rg-rag --name aks-rag \
+      --query [[issuer]] --output tsv)
+
+    az identity federated-credential create --name fic-rag-api \
+      --identity-name id-rag-api --resource-group rg-rag \
+      --issuer "$AKS_OIDC_ISSUER" \
+      --subject [[subject]] \
+      --audience [[audience]]
+  slots:
+    - id: issuer
+      options:
+        - { id: oidc, text: "\"oidcIssuerProfile.issuerUrl\"" }
+        - { id: kubelet, text: "\"identityProfile.kubeletidentity.clientId\"" }
+        - { id: fqdn, text: "\"fqdn\"" }
+    - id: subject
+      options:
+        - { id: nssa, text: "system:serviceaccount:rag:sa-rag-api" }
+        - { id: sans, text: "system:serviceaccount:sa-rag-api:rag" }
+        - { id: slash, text: "rag/sa-rag-api" }
+    - id: audience
+      options:
+        - { id: exchange, text: "api://AzureADTokenExchange" }
+        - { id: vault, text: "https://vault.azure.net/.default" }
+        - { id: arm, text: "https://management.azure.com/.default" }
+answer:
+  values: { issuer: oidc, subject: nssa, audience: exchange }
+explanation:
+  correct:
+    en: "The federated credential trusts tokens issued by the cluster's OIDC issuer, whose URL is in `oidcIssuerProfile.issuerUrl`. The subject identifies the Kubernetes service account in the form `system:serviceaccount:<namespace>:<name>`, and `api://AzureADTokenExchange` is the default and recommended audience."
+    fr: "L'information d'identification fédérée approuve les jetons émis par l'émetteur OIDC du cluster, dont l'URL figure dans `oidcIssuerProfile.issuerUrl`. Le sujet identifie le compte de service Kubernetes sous la forme `system:serviceaccount:<espace de noms>:<nom>`, et `api://AzureADTokenExchange` est l'audience par défaut recommandée."
+  options:
+    kubelet: { en: "The kubelet identity is the identity of the nodes, not the token issuer.", fr: "L'identité kubelet est l'identité des nœuds, pas l'émetteur des jetons." }
+    fqdn: { en: "The FQDN is the address of the API server, not the OIDC issuer URL.", fr: "Le FQDN est l'adresse du serveur d'API, pas l'URL de l'émetteur OIDC." }
+    sans: { en: "The namespace comes before the service account name in the subject.", fr: "L'espace de noms précède le nom du compte de service dans le sujet." }
+    slash: { en: "The subject must match the sub claim of the service account token, which starts with system:serviceaccount.", fr: "Le sujet doit correspondre à la revendication sub du jeton de compte de service, qui commence par system:serviceaccount." }
+    vault: { en: "A Key Vault scope is requested by the code when it calls Key Vault; it isn't the audience of the federated credential.", fr: "Une étendue Key Vault est demandée par le code quand il appelle Key Vault ; ce n'est pas l'audience de l'information d'identification fédérée." }
+    arm: { en: "The Azure Resource Manager scope is requested by the code; it isn't the audience of the federated credential.", fr: "L'étendue Azure Resource Manager est demandée par le code ; ce n'est pas l'audience de l'information d'identification fédérée." }
+references:
+  - title: Deploy and Configure an Azure Kubernetes Service (AKS) Cluster with Microsoft Entra Workload ID
+    url: https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster

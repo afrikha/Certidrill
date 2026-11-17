@@ -1,0 +1,111 @@
+id: dp800-cs2c-fabrikam-residences
+status: draft
+title:
+  en: "Fabrikam Residences"
+  fr: "Fabrikam Residences"
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fabrikam Residences rents furnished apartments in France, Spain and Portugal through its website and a network of property managers. The developers are modernizing the listing search and are building a leasing assistant: an agent in Microsoft Foundry that answers renters' questions by using listing data.
+      fr: |
+        Fabrikam Residences loue des appartements meublés en France, en Espagne et au Portugal par l'intermédiaire de son site web et d'un réseau de gestionnaires immobiliers. Les développeurs modernisent la recherche d'annonces et créent un assistant de location : un agent dans Microsoft Foundry qui répond aux questions des locataires à l'aide des données des annonces.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Database**
+
+        - An Azure SQL database named **ListingsDb** contains a table named **dbo.Listings** with 1.4 million active and archived listings. Its columns include ListingId (int, clustered primary key PK_Listings), PropertyManagerId, City, MonthlyRent, Title and Description (nvarchar(4000)).
+        - A full-text index exists on the Title and Description columns of dbo.Listings.
+        - An external model named **ListingEmbeddings** points to an Azure OpenAI embedding deployment that returns 1,536 dimensions.
+
+        **Search API**
+
+        The search API already contains the following query for the public site. It will run after the vector column and its index are created.
+
+        ```sql
+        SELECT TOP (10) WITH APPROXIMATE t.ListingId, t.Title, r.distance
+        FROM VECTOR_SEARCH(TABLE = dbo.Listings AS t, COLUMN = DescriptionVector,
+                           SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+        WHERE t.City = @city
+        ORDER BY r.distance;
+        ```
+
+        **Leasing assistant**
+
+        - A Data API builder (DAB) 2.0 instance named **dab-agent** runs in Azure Container Apps and is used only by the leasing assistant and by a nightly reconciliation job. The agent calls the SQL MCP Server endpoint `/mcp`; the job calls the REST endpoint.
+        - The dab-agent configuration currently uses the authentication provider **Unauthenticated** and contains two entities: **Listings**, with the permission `anonymous` and the actions `["*"]`, and **Tenants**, which contains the names and phone numbers of tenants, with the permission `authenticated` and the actions `["read"]`.
+        - A Microsoft Entra app registration named **dab-agent-api** has been created for dab-agent.
+
+        **Development**
+
+        The developers use GitHub Copilot Chat in Visual Studio Code on a GitHub repository named **fabrikam-listings**.
+      fr: |
+        **Base de données**
+
+        - Une base de données Azure SQL nommée **ListingsDb** contient une table nommée **dbo.Listings** de 1,4 million d'annonces actives et archivées. Ses colonnes comprennent ListingId (int, clé primaire cluster PK_Listings), PropertyManagerId, City, MonthlyRent, Title et Description (nvarchar(4000)).
+        - Un index de recherche en texte intégral existe sur les colonnes Title et Description de dbo.Listings.
+        - Un modèle externe nommé **ListingEmbeddings** pointe vers un déploiement d'incorporation Azure OpenAI qui renvoie 1 536 dimensions.
+
+        **API de recherche**
+
+        L'API de recherche contient déjà la requête suivante pour le site public. Elle s'exécutera une fois la colonne vectorielle et son index créés.
+
+        ```sql
+        SELECT TOP (10) WITH APPROXIMATE t.ListingId, t.Title, r.distance
+        FROM VECTOR_SEARCH(TABLE = dbo.Listings AS t, COLUMN = DescriptionVector,
+                           SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+        WHERE t.City = @city
+        ORDER BY r.distance;
+        ```
+
+        **Assistant de location**
+
+        - Une instance Data API builder (DAB) 2.0 nommée **dab-agent** s'exécute dans Azure Container Apps et n'est utilisée que par l'assistant de location et par un travail de rapprochement nocturne. L'agent appelle le point de terminaison SQL MCP Server `/mcp` ; le travail appelle le point de terminaison REST.
+        - La configuration de dab-agent utilise actuellement le fournisseur d'authentification **Unauthenticated** et contient deux entités : **Listings**, avec l'autorisation `anonymous` et les actions `["*"]`, et **Tenants**, qui contient les noms et numéros de téléphone des locataires, avec l'autorisation `authenticated` et les actions `["read"]`.
+        - Une inscription d'application Microsoft Entra nommée **dab-agent-api** a été créée pour dab-agent.
+
+        **Développement**
+
+        Les développeurs utilisent GitHub Copilot Chat dans Visual Studio Code sur un dépôt GitHub nommé **fabrikam-listings**.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Search requirements**
+
+        1. Add a column named DescriptionVector to dbo.Listings that stores the embedding of Description, and create a vector index that the existing search API query uses.
+        2. Back-office staff search descriptions for specific terms, such as *parking*, including their word forms.
+        3. Renters can describe the home they want in their own words, for example *a quiet flat near a park to work from home*.
+        4. On the public site, a single search box accepts either amenity keywords or descriptive sentences. Its results must merge the top 50 full-text results and the top 50 vector results by using reciprocal rank fusion (RRF) with k = 60, with the vector results weighted twice as much as the full-text results. A listing found by only one of the two methods must still be returned.
+        5. In the property manager console, a search is restricted by a WHERE clause to the listings of one property manager (at most 4,000 listings) and must return the exact nearest neighbors.
+
+        **Leasing assistant requirements**
+
+        6. dab-agent must accept only requests that present a Microsoft Entra access token issued for dab-agent-api.
+        7. The agent can read listings, but no caller of dab-agent can create, update or delete data.
+        8. Tenants must remain available through the REST endpoint for the nightly job, but must not be available through the MCP endpoint.
+
+        **Development requirements**
+
+        9. Every developer who uses Copilot Chat in fabrikam-listings must automatically receive the team's Transact-SQL conventions, such as schema prefixes, explicit column lists and TRY...CATCH blocks in stored procedures, without referencing a file in each prompt.
+      fr: |
+        **Exigences de recherche**
+
+        1. Ajouter à dbo.Listings une colonne nommée DescriptionVector qui stocke l'incorporation de Description, et créer un index vectoriel utilisé par la requête existante de l'API de recherche.
+        2. Le personnel administratif recherche des termes précis dans les descriptions, comme *parking*, y compris leurs formes fléchies.
+        3. Les locataires peuvent décrire le logement qu'ils souhaitent avec leurs propres mots, par exemple *un appartement calme près d'un parc pour télétravailler*.
+        4. Sur le site public, une zone de recherche unique accepte des mots-clés d'équipements ou des phrases descriptives. Ses résultats doivent fusionner les 50 premiers résultats en texte intégral et les 50 premiers résultats vectoriels à l'aide de la fusion de classement réciproque (RRF) avec k = 60, en donnant aux résultats vectoriels un poids deux fois supérieur à celui des résultats en texte intégral. Une annonce trouvée par une seule des deux méthodes doit quand même être renvoyée.
+        5. Dans la console des gestionnaires immobiliers, une recherche est restreinte par une clause WHERE aux annonces d'un seul gestionnaire (4 000 annonces au plus) et doit renvoyer les voisins les plus proches exacts.
+
+        **Exigences de l'assistant de location**
+
+        6. dab-agent ne doit accepter que les requêtes qui présentent un jeton d'accès Microsoft Entra émis pour dab-agent-api.
+        7. L'agent peut lire les annonces, mais aucun appelant de dab-agent ne peut créer, mettre à jour ou supprimer des données.
+        8. Tenants doit rester disponible par le point de terminaison REST pour le travail nocturne, mais ne doit pas être disponible par le point de terminaison MCP.
+
+        **Exigences de développement**
+
+        9. Chaque développeur qui utilise Copilot Chat dans fabrikam-listings doit recevoir automatiquement les conventions Transact-SQL de l'équipe, comme les préfixes de schéma, les listes de colonnes explicites et les blocs TRY...CATCH dans les procédures stockées, sans référencer de fichier dans chaque prompt.

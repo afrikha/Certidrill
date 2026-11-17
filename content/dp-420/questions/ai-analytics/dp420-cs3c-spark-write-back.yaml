@@ -1,0 +1,86 @@
+id: dp420-cs3c-spark-write-back
+objective: "3.3.4"
+type: dropdown
+caseStudy: dp420-cs3c-humongous-insurance
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An actuary writes the notebook that saves the DataFrame `scores_df` to the riskscores container of one broker account by using the Azure Cosmos DB Spark connector. The authentication settings are already configured.
+
+    You need to complete the configuration to meet the analytics requirement.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un actuaire écrit le notebook qui enregistre le DataFrame `scores_df` dans le conteneur riskscores d'un compte de courtier avec le connecteur Spark d'Azure Cosmos DB. Les paramètres d'authentification sont déjà configurés.
+
+    Vous devez compléter la configuration pour satisfaire l'exigence relative à l'analytique.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    cfg = {
+        "spark.cosmos.accountEndpoint": endpoint,
+        "spark.cosmos.database": "claimsdb",
+        "spark.cosmos.container": "riskscores",
+        # authentication settings omitted
+        "spark.cosmos.write.strategy": "[[strategy]]",
+        "spark.cosmos.throughputControl.enabled": "true",
+        "spark.cosmos.throughputControl.name": "RiskScoreWriter",
+        "spark.cosmos.throughputControl.[[setting]]": "0.20",
+        "spark.cosmos.throughputControl.globalControl.useDedicatedContainer": "false",
+    }
+
+    scores_df.write.format("[[format]]").mode("append").options(**cfg).save()
+  slots:
+    - id: strategy
+      options:
+        - { id: append, text: ItemAppend }
+        - { id: overwrite, text: ItemOverwrite }
+        - { id: delete, text: ItemDelete }
+    - id: setting
+      options:
+        - { id: target, text: targetThroughput }
+        - { id: priority, text: priorityLevel }
+        - { id: threshold, text: targetThroughputThreshold }
+    - id: format
+      options:
+        - { id: oltp, text: cosmos.oltp }
+        - { id: olap, text: cosmos.olap }
+        - { id: delta, text: delta }
+answer:
+  values: { strategy: overwrite, setting: threshold, format: oltp }
+explanation:
+  correct:
+    en: "`ItemOverwrite`, the default write strategy, upserts each row: existing scores are replaced and missing ones are created. `targetThroughputThreshold` set to `0.20` limits the Spark throughput control group to 20 percent of the RUs of the target container, which leaves the rest to ClaimsHub. `cosmos.oltp` is the connector format for reading and writing the transactional store."
+    fr: "`ItemOverwrite`, la stratégie d'écriture par défaut, effectue un upsert de chaque ligne : les scores existants sont remplacés et ceux qui manquent sont créés. `targetThroughputThreshold` défini sur `0.20` limite le groupe de contrôle du débit Spark à 20 % des RU du conteneur cible, ce qui laisse le reste à ClaimsHub. `cosmos.oltp` est le format du connecteur pour lire et écrire dans le magasin transactionnel."
+  options:
+    append:
+      en: "`ItemAppend` only creates items and ignores those that already exist, so the existing scores would not be updated."
+      fr: "`ItemAppend` crée seulement des éléments et ignore ceux qui existent déjà : les scores existants ne seraient pas mis à jour."
+    delete:
+      en: "`ItemDelete` deletes the items that match the rows instead of writing them."
+      fr: "`ItemDelete` supprime les éléments correspondant aux lignes au lieu de les écrire."
+    target:
+      en: "`targetThroughput` sets an absolute RU/s value for the group; a fraction of the provisioned throughput is set with `targetThroughputThreshold`."
+      fr: "`targetThroughput` définit une valeur absolue de RU/s pour le groupe ; une fraction du débit provisionné se définit avec `targetThroughputThreshold`."
+    priority:
+      en: "`priorityLevel` decides which group is throttled first when groups exceed the total throughput; it does not cap the group at a share of the container throughput."
+      fr: "`priorityLevel` détermine quel groupe est limité en premier quand les groupes dépassent le débit total ; il ne plafonne pas le groupe à une part du débit du conteneur."
+    olap:
+      en: "`cosmos.olap` targets the analytical store, which is read-only for Spark and is not where ClaimsHub reads the scores."
+      fr: "`cosmos.olap` cible le magasin analytique, en lecture seule pour Spark, et ce n'est pas là que ClaimsHub lit les scores."
+    delta:
+      en: "`delta` writes Delta Lake files, for example to a lakehouse, not to an Azure Cosmos DB container."
+      fr: "`delta` écrit des fichiers Delta Lake, par exemple dans un lakehouse, et non dans un conteneur Azure Cosmos DB."
+references:
+  - title: "Tutorial - Reverse extract, transform, & load (ETL) - Azure Cosmos DB"
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/tutorial-reverse-extract-transform-load
+  - title: Tutorial - Connect Using Spark - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/tutorial-spark-connector

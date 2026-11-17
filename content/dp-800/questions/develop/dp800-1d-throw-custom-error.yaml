@@ -1,0 +1,82 @@
+id: dp800-1d-throw-custom-error
+objective: "1.3.8"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a stored procedure named Sales.usp_ApplyDiscount and the code that calls it. The procedure must meet the following requirements:
+
+    - When @DiscountPct is greater than 15, raise error number 51015 with the message "Discount cannot exceed 15%." and transfer control to the CATCH block of the caller.
+    - Don't add any message to sys.messages.
+
+    The caller must handle error 51015 and re-raise every other error.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez une procédure stockée nommée Sales.usp_ApplyDiscount et le code qui l'appelle. La procédure doit satisfaire les exigences suivantes :
+
+    - Quand @DiscountPct est supérieur à 15, lever l'erreur numéro 51015 avec le message « Discount cannot exceed 15%. » et transférer le contrôle au bloc CATCH de l'appelant.
+    - N'ajouter aucun message à sys.messages.
+
+    L'appelant doit traiter l'erreur 51015 et lever de nouveau toutes les autres erreurs.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR ALTER PROCEDURE Sales.usp_ApplyDiscount
+        @OrderID int, @DiscountPct decimal(5, 2)
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        IF @DiscountPct > 15
+            [[raise]];
+        UPDATE Sales.Orders SET DiscountPct = @DiscountPct WHERE OrderID = @OrderID;
+    END;
+    GO
+
+    BEGIN TRY
+        EXEC Sales.usp_ApplyDiscount @OrderID = 1001, @DiscountPct = 20;
+    END TRY
+    BEGIN CATCH
+        IF [[check]] = 51015
+            PRINT N'Discount rejected.';
+        ELSE
+            THROW;
+    END CATCH;
+  slots:
+    - id: raise
+      options:
+        - { id: throw, text: "THROW 51015, N'Discount cannot exceed 15%%.', 1" }
+        - { id: raiseid, text: "RAISERROR(51015, 16, 1)" }
+        - { id: raisestr, text: "RAISERROR(N'Discount cannot exceed 15%%.', 16, 1)" }
+        - { id: throwswap, text: "THROW N'Discount cannot exceed 15%%.', 51015, 1" }
+    - id: check
+      options:
+        - { id: state, text: "ERROR_STATE()" }
+        - { id: number, text: "ERROR_NUMBER()" }
+        - { id: severity, text: "ERROR_SEVERITY()" }
+        - { id: xact, text: "XACT_STATE()" }
+answer:
+  values: { raise: throw, check: number }
+explanation:
+  correct:
+    en: |
+      THROW takes the error number (50000 or higher), the message and the state, in that order, and the number doesn't need to exist in sys.messages; the percent sign is reserved in the message and is doubled. The exception, raised with severity 16, transfers control to the CATCH block of the caller, where ERROR_NUMBER() returns 51015.
+    fr: |
+      THROW prend le numéro d'erreur (50000 ou plus), le message et l'état, dans cet ordre, et le numéro n'a pas besoin d'exister dans sys.messages ; le signe pourcentage est réservé dans le message et il est doublé. L'exception, levée avec la gravité 16, transfère le contrôle au bloc CATCH de l'appelant, où ERROR_NUMBER() renvoie 51015.
+  options:
+    raiseid: { en: "RAISERROR with a message ID requires the message to be defined in sys.messages.", fr: "RAISERROR avec un ID de message exige que le message soit défini dans sys.messages." }
+    raisestr: { en: "RAISERROR with a message string raises error number 50000, not 51015.", fr: "RAISERROR avec une chaîne de message lève l'erreur numéro 50000, pas 51015." }
+    throwswap: { en: "The first argument of THROW is the error number; the arguments are in the wrong order.", fr: "Le premier argument de THROW est le numéro d'erreur : les arguments sont dans le mauvais ordre." }
+    state: { en: "ERROR_STATE() returns the state passed to THROW (1), not the error number.", fr: "ERROR_STATE() renvoie l'état passé à THROW (1), pas le numéro d'erreur." }
+    severity: { en: "ERROR_SEVERITY() returns 16 for an exception raised by THROW.", fr: "ERROR_SEVERITY() renvoie 16 pour une exception levée par THROW." }
+references:
+  - title: THROW (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/language-elements/throw-transact-sql

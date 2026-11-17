@@ -1,0 +1,85 @@
+id: ai200-cs1b-workload-identity
+objective: "1.2.3"
+type: dropdown
+caseStudy: ai200-cs1b-wingtip
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the Kubernetes manifest that deploys catalog-api to aks-wingtip. catalog-api uses `DefaultAzureCredential` from the Azure Identity library.
+
+    You need to meet the identity requirement. How should you complete the manifest? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le manifeste Kubernetes qui déploie catalog-api sur aks-wingtip. catalog-api utilise `DefaultAzureCredential` de la bibliothèque Azure Identity.
+
+    Vous devez satisfaire l'exigence relative à l'identité. Comment devez-vous compléter le manifeste ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: sa-catalog
+      namespace: shop
+      annotations:
+        [[annotation]]: "<client ID of id-catalog>"
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: catalog-api
+      namespace: shop
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: catalog-api
+      template:
+        metadata:
+          labels:
+            app: catalog-api
+            [[label]]: "true"
+        spec:
+          [[account]]: sa-catalog
+          containers:
+          - name: catalog-api
+            image: crwingtip.azurecr.io/catalog-api:3.1.0
+  slots:
+    - id: annotation
+      options:
+        - { id: clientid, text: azure.workload.identity/client-id }
+        - { id: tenantid, text: azure.workload.identity/tenant-id }
+        - { id: podid, text: aadpodidbinding }
+    - id: label
+      options:
+        - { id: use, text: azure.workload.identity/use }
+        - { id: podidlabel, text: aadpodidbinding }
+        - { id: clientlabel, text: azure.workload.identity/client-id }
+    - id: account
+      options:
+        - { id: san, text: serviceAccountName }
+        - { id: automount, text: automountServiceAccountToken }
+        - { id: pullsecrets, text: imagePullSecrets }
+answer:
+  values: { annotation: clientid, label: use, account: san }
+explanation:
+  correct:
+    en: |
+      The service account carries the `azure.workload.identity/client-id` annotation with the client ID of the user-assigned managed identity, which has a federated credential for `system:serviceaccount:shop:sa-catalog`. The pod template must have the label `azure.workload.identity/use: "true"` and reference the service account through `serviceAccountName`. The workload identity webhook then projects a token that `DefaultAzureCredential` exchanges for a Microsoft Entra token, with no secret in the cluster.
+    fr: |
+      Le compte de service porte l'annotation `azure.workload.identity/client-id` avec l'ID client de l'identité managée affectée par l'utilisateur, qui dispose d'informations d'identification fédérées pour `system:serviceaccount:shop:sa-catalog`. Le modèle de pod doit avoir l'étiquette `azure.workload.identity/use: "true"` et référencer le compte de service avec `serviceAccountName`. Le webhook de Workload ID projette alors un jeton que `DefaultAzureCredential` échange contre un jeton Microsoft Entra, sans aucun secret dans le cluster.
+  options:
+    tenantid: { en: "The tenant-id annotation only overrides the tenant; it does not tell the webhook which identity to use.", fr: "L'annotation tenant-id ne fait que remplacer le locataire ; elle n'indique pas au webhook quelle identité utiliser." }
+    podid: { en: "aadpodidbinding belongs to the deprecated pod-managed identity add-on, not to Microsoft Entra Workload ID.", fr: "aadpodidbinding appartient au module complémentaire d'identité managée de pod déprécié, pas à Microsoft Entra Workload ID." }
+    podidlabel: { en: "aadpodidbinding is the label of the deprecated pod-managed identity add-on.", fr: "aadpodidbinding est l'étiquette du module complémentaire d'identité managée de pod déprécié." }
+    clientlabel: { en: "The client ID is an annotation of the service account, not the pod label that enables the webhook.", fr: "L'ID client est une annotation du compte de service, pas l'étiquette de pod qui active le webhook." }
+    automount: { en: "automountServiceAccountToken controls the default token mount; it does not select the service account.", fr: "automountServiceAccountToken contrôle le montage du jeton par défaut ; il ne sélectionne pas le compte de service." }
+    pullsecrets: { en: "imagePullSecrets provides registry credentials, which the requirement forbids and which do not select an identity.", fr: "imagePullSecrets fournit des informations d'identification de registre, ce que l'exigence interdit, et ne sélectionne aucune identité." }
+references:
+  - title: Deploy and configure Microsoft Entra Workload ID on an Azure Kubernetes Service (AKS) cluster
+    url: https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster

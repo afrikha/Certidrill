@@ -1,0 +1,81 @@
+id: dp750-cs2b-abac-mask
+objective: "2.2.2"
+type: dropdown
+caseStudy: dp750-cs2b-humongous-insurance
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to meet the second security requirement. You run the statements in the answer area from a serverless SQL warehouse.
+
+    How should you complete the statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez satisfaire la deuxième exigence de sécurité. Vous exécutez les instructions de la zone de réponse depuis un entrepôt SQL serverless.
+
+    Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION claims_prod.governance.keep_last(val STRING, nr INT)
+      RETURNS STRING
+      RETURN right(val, nr);
+
+    CREATE POLICY mask_national_id
+    ON [[scope]]
+    COLUMN MASK claims_prod.governance.keep_last
+    [[principals]]
+    FOR TABLES
+    MATCH COLUMNS [[match]] AS nid
+    ON COLUMN nid
+    USING COLUMNS (4);
+  slots:
+    - id: scope
+      options:
+        - { id: catalog, text: "CATALOG claims_prod" }
+        - { id: schema, text: "SCHEMA claims_prod.silver" }
+        - { id: table, text: "TABLE claims_prod.silver.claimants" }
+    - id: principals
+      options:
+        - { id: siu, text: "TO `siu-investigators`" }
+        - { id: users, text: "TO `account users`" }
+        - { id: except, text: "TO `account users` EXCEPT `siu-investigators`" }
+    - id: match
+      options:
+        - { id: hastag, text: "has_tag('pii')" }
+        - { id: value, text: "has_tag_value('pii', 'national_id')" }
+        - { id: inverted, text: "has_tag_value('national_id', 'pii')" }
+answer:
+  values: { scope: schema, principals: except, match: value }
+explanation:
+  correct:
+    en: "An ABAC policy attached to the schema claims_prod.silver applies to every current and future table of that schema and to no other schema, and table owners cannot override it. `TO ... EXCEPT` applies the mask to every account user except the members of siu-investigators. `has_tag_value('pii', 'national_id')` matches only the national identification columns, so the email and phone columns tagged `pii` = `contact` stay unmasked."
+    fr: "Une stratégie ABAC attachée au schéma claims_prod.silver s'applique à chaque table actuelle et future de ce schéma et à aucun autre schéma, et les propriétaires des tables ne peuvent pas la contourner. `TO ... EXCEPT` applique le masque à tous les utilisateurs du compte, sauf aux membres de siu-investigators. `has_tag_value('pii', 'national_id')` cible uniquement les colonnes de numéro d'identification national : les colonnes d'e-mail et de téléphone balisées `pii` = `contact` restent non masquées."
+  options:
+    catalog:
+      en: A policy on the catalog also applies to the bronze and gold schemas, which the requirement does not ask for.
+      fr: Une stratégie sur le catalogue s'applique aussi aux schémas bronze et gold, ce que l'exigence ne demande pas.
+    table:
+      en: A policy on one table does not cover the other current and future tables of the schema.
+      fr: Une stratégie sur une seule table ne couvre pas les autres tables actuelles et futures du schéma.
+    siu:
+      en: This would mask the column only for the investigators, the opposite of the requirement.
+      fr: Le masque s'appliquerait uniquement aux enquêteurs, soit l'inverse de l'exigence.
+    users:
+      en: Without EXCEPT, the members of siu-investigators would also see the masked value.
+      fr: Sans EXCEPT, les membres de siu-investigators verraient aussi la valeur masquée.
+    hastag:
+      en: "`has_tag('pii')` matches every column that has the pii tag, including the email and phone columns."
+      fr: "`has_tag('pii')` cible toutes les colonnes qui portent la balise pii, y compris les colonnes d'e-mail et de téléphone."
+    inverted:
+      en: "The first argument of `has_tag_value` is the tag name and the second is its value; inverting them matches no column."
+      fr: "Le premier argument de `has_tag_value` est le nom de la balise et le second sa valeur ; les inverser ne cible aucune colonne."
+references:
+  - title: Create and manage row filter and column mask policies
+    url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/abac/policies
+  - title: Row filters and column masks
+    url: https://learn.microsoft.com/en-us/azure/databricks/tables/row-and-column-filters

@@ -1,0 +1,70 @@
+id: dp800-2b-sleeping-open-tran
+objective: "2.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum has a database in Azure SQL Database. Several times a week, updates to `dbo.Invoice` are blocked for a long time. Each time, the head blocker is a session with the status `sleeping`, `open_transaction_count` set to 1, and a last request that started 40 minutes earlier.
+
+    The application calls stored procedures that open explicit transactions. When a call exceeds the 30-second command timeout, the application logs the timeout and keeps the connection in the pool.
+
+    You need to prevent the problem from recurring. What should you do?
+  fr: |
+    Adatum dispose d'une base de données dans Azure SQL Database. Plusieurs fois par semaine, les mises à jour de `dbo.Invoice` sont bloquées longtemps. À chaque fois, le bloqueur principal est une session dont l'état est `sleeping`, avec `open_transaction_count` égal à 1 et une dernière requête démarrée 40 minutes plus tôt.
+
+    L'application appelle des procédures stockées qui ouvrent des transactions explicites. Lorsqu'un appel dépasse le délai de commande de 30 secondes, l'application journalise le dépassement et conserve la connexion dans le pool.
+
+    Vous devez empêcher que le problème se reproduise. Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: |
+          Increase the application's command timeout from 30 seconds to 300 seconds.
+        fr: |
+          Porter le délai de commande de l'application de 30 secondes à 300 secondes.
+    - id: b
+      text:
+        en: |
+          Add SET XACT_ABORT ON to the procedures and a rollback to the application's error handler.
+        fr: |
+          Ajouter SET XACT_ABORT ON aux procédures et une annulation au gestionnaire d'erreurs de l'application.
+    - id: c
+      text:
+        en: |
+          Run KILL on the head blocker each time the monitoring detects the blocking.
+        fr: |
+          Exécuter KILL sur le bloqueur principal chaque fois que la supervision détecte le blocage.
+    - id: d
+      text:
+        en: |
+          Add the NOLOCK table hint to every UPDATE statement that targets dbo.Invoice.
+        fr: |
+          Ajouter l'indicateur de table NOLOCK à chaque instruction UPDATE qui cible dbo.Invoice.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      A canceled or timed-out query doesn't roll back its transaction; the session sleeps with the transaction open and keeps its locks while the pooled connection waits for reuse. SET XACT_ABORT ON and a rollback in the error handler (IF @@TRANCOUNT > 0 ROLLBACK) make sure that an error or timeout ends the transaction and releases the locks.
+    fr: |
+      Une requête annulée ou expirée n'annule pas sa transaction ; la session passe en veille avec la transaction ouverte et conserve ses verrous pendant que la connexion du pool attend d'être réutilisée. SET XACT_ABORT ON et une annulation dans le gestionnaire d'erreurs (IF @@TRANCOUNT > 0 ROLLBACK) garantissent qu'une erreur ou un dépassement de délai met fin à la transaction et libère les verrous.
+  options:
+    a:
+      en: |
+        A longer timeout delays the symptom; any later timeout or error still leaves the transaction open.
+      fr: |
+        Un délai plus long retarde le symptôme ; tout dépassement ou toute erreur ultérieure laisse toujours la transaction ouverte.
+    c:
+      en: |
+        KILL ends one orphaned transaction but doesn't stop the next one.
+      fr: |
+        KILL met fin à une transaction orpheline, mais n'empêche pas la suivante.
+    d:
+      en: |
+        NOLOCK applies to reads and can't remove the exclusive locks that the UPDATE statements need.
+      fr: |
+        NOLOCK s'applique aux lectures et ne peut pas supprimer les verrous exclusifs dont les instructions UPDATE ont besoin.
+references:
+  - title: Understand and resolve blocking problems
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/understand-resolve-blocking

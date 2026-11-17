@@ -1,0 +1,66 @@
+id: dp600-2c-dq-pyspark-latest
+objective: "2.2.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a lakehouse that contains a Delta table named **bronze_orders**. Each load appends new versions of orders, so an OrderID can appear several times with different **LoadDate** values. Two rows of the same order can have the same LoadDate.
+
+    You need to keep exactly one row per OrderID, from the most recent load.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse qui contient une table Delta nommée **bronze_orders**. Chaque chargement ajoute de nouvelles versions des commandes : un OrderID peut apparaître plusieurs fois avec des valeurs **LoadDate** différentes. Deux lignes d'une même commande peuvent avoir la même LoadDate.
+
+    Vous devez conserver exactement une ligne par OrderID, issue du chargement le plus récent.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from pyspark.sql import Window, functions as F
+
+    w = Window.[[part]]("OrderID").orderBy(F.col("LoadDate").[[dir]]())
+
+    latest = (spark.read.table("bronze_orders")
+        .withColumn("rn", F.[[fn]]().over(w))
+        .filter("rn = 1")
+        .drop("rn"))
+  slots:
+    - id: part
+      options:
+        - { id: partitionby, text: partitionBy }
+        - { id: groupby, text: groupBy }
+        - { id: orderby, text: orderBy }
+    - id: dir
+      options:
+        - { id: desc, text: desc }
+        - { id: asc, text: asc }
+        - { id: isnull, text: isNull }
+    - id: fn
+      options:
+        - { id: rownumber, text: row_number }
+        - { id: rank, text: rank }
+        - { id: denserank, text: dense_rank }
+answer:
+  values: { part: partitionby, dir: desc, fn: rownumber }
+explanation:
+  correct:
+    en: "`Window.partitionBy(\"OrderID\")` restarts the numbering for each order, and `desc()` puts the most recent LoadDate first. `row_number()` gives a unique sequential number even when two rows tie on LoadDate, so filtering on 1 keeps exactly one row per order."
+    fr: "`Window.partitionBy(\"OrderID\")` recommence la numérotation pour chaque commande, et `desc()` place la LoadDate la plus récente en premier. `row_number()` attribue un numéro séquentiel unique même quand deux lignes sont à égalité sur LoadDate : le filtre sur 1 conserve exactement une ligne par commande."
+  options:
+    groupby: { en: "Window has no groupBy method; a window is partitioned with partitionBy.", fr: "Window n'a pas de méthode groupBy ; une fenêtre se partitionne avec partitionBy." }
+    orderby: { en: "`Window.orderBy(\"OrderID\")` would number all rows as one partition, ordered by OrderID.", fr: "`Window.orderBy(\"OrderID\")` numéroterait toutes les lignes comme une seule partition, triée par OrderID." }
+    asc: { en: "Ascending order puts the oldest load first.", fr: "L'ordre croissant place le chargement le plus ancien en premier." }
+    isnull: { en: "isNull returns a Boolean, so the window would be ordered by whether LoadDate is null, not by date.", fr: "isNull renvoie un booléen : la fenêtre serait triée selon que LoadDate est null ou non, pas par date." }
+    rank: { en: "rank gives tied rows the same number, so two rows with the same latest LoadDate would both get 1.", fr: "rank attribue le même numéro aux lignes à égalité : deux lignes avec la même LoadDate la plus récente obtiendraient toutes deux 1." }
+    denserank: { en: "dense_rank also gives tied rows the same number, so ties would keep two rows.", fr: "dense_rank attribue aussi le même numéro aux lignes à égalité : les égalités conserveraient deux lignes." }
+references:
+  - title: ROW_NUMBER (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/row-number-transact-sql

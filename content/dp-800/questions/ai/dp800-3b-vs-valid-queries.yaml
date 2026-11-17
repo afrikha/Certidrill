@@ -1,0 +1,115 @@
+id: dp800-3b-vs-valid-queries
+objective: "3.2.7"
+type: multi
+shuffle: false
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains the dbo.Products and dbo.Categories tables. A latest-version vector index that uses the cosine metric exists on dbo.Products.DescriptionVector. In the following queries, VS stands for this expression:
+
+    ```sql
+    VECTOR_SEARCH(TABLE = dbo.Products AS p, COLUMN = DescriptionVector,
+                  SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+    ```
+
+    ```sql
+    -- Query A
+    SELECT TOP (20) WITH APPROXIMATE p.CategoryID, COUNT(*) AS hits
+    FROM VS
+    GROUP BY p.CategoryID
+    ORDER BY r.distance;
+
+    -- Query B
+    SELECT TOP (20) WITH APPROXIMATE p.ProductID, c.CategoryName, r.distance
+    FROM VS
+    INNER JOIN dbo.Categories AS c ON c.CategoryID = p.CategoryID
+    ORDER BY r.distance;
+
+    -- Query C
+    SELECT TOP (20) WITH APPROXIMATE p.ProductID,
+           ROW_NUMBER() OVER (ORDER BY r.distance) AS position
+    FROM VS
+    ORDER BY r.distance;
+
+    -- Query D
+    SELECT DISTINCT TOP (20) WITH APPROXIMATE p.CategoryID, r.distance
+    FROM VS
+    ORDER BY r.distance;
+
+    -- Query E
+    SELECT v.CategoryID, COUNT(*) AS hits
+    FROM (SELECT TOP (20) WITH APPROXIMATE p.CategoryID, r.distance
+          FROM VS
+          ORDER BY r.distance) AS v
+    GROUP BY v.CategoryID;
+    ```
+
+    Which two queries run successfully?
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient les tables dbo.Products et dbo.Categories. Un index vectoriel de dernière version qui utilise la métrique cosinus existe sur dbo.Products.DescriptionVector. Dans les requêtes suivantes, VS représente cette expression :
+
+    ```sql
+    VECTOR_SEARCH(TABLE = dbo.Products AS p, COLUMN = DescriptionVector,
+                  SIMILAR_TO = @qv, METRIC = 'cosine') AS r
+    ```
+
+    ```sql
+    -- Query A
+    SELECT TOP (20) WITH APPROXIMATE p.CategoryID, COUNT(*) AS hits
+    FROM VS
+    GROUP BY p.CategoryID
+    ORDER BY r.distance;
+
+    -- Query B
+    SELECT TOP (20) WITH APPROXIMATE p.ProductID, c.CategoryName, r.distance
+    FROM VS
+    INNER JOIN dbo.Categories AS c ON c.CategoryID = p.CategoryID
+    ORDER BY r.distance;
+
+    -- Query C
+    SELECT TOP (20) WITH APPROXIMATE p.ProductID,
+           ROW_NUMBER() OVER (ORDER BY r.distance) AS position
+    FROM VS
+    ORDER BY r.distance;
+
+    -- Query D
+    SELECT DISTINCT TOP (20) WITH APPROXIMATE p.CategoryID, r.distance
+    FROM VS
+    ORDER BY r.distance;
+
+    -- Query E
+    SELECT v.CategoryID, COUNT(*) AS hits
+    FROM (SELECT TOP (20) WITH APPROXIMATE p.CategoryID, r.distance
+          FROM VS
+          ORDER BY r.distance) AS v
+    GROUP BY v.CategoryID;
+    ```
+
+    Quelles sont les deux requêtes qui s'exécutent correctement ?
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: Query A }
+    - { id: b, text: Query B }
+    - { id: c, text: Query C }
+    - { id: d, text: Query D }
+    - { id: e, text: Query E }
+answer: { optionIds: [ b, e ] }
+explanation:
+  correct:
+    en: |-
+      An INNER JOIN, WHERE predicates and a single ORDER BY distance work directly with TOP (N) WITH APPROXIMATE. GROUP BY, aggregates, window functions, DISTINCT and set operators require the subquery pattern, as in Query E, where the vector search runs in the inner query and the aggregation in the outer query.
+    fr: |-
+      Une jointure INNER JOIN, des prédicats WHERE et un seul ORDER BY distance fonctionnent directement avec TOP (N) WITH APPROXIMATE. GROUP BY, les agrégats, les fonctions de fenêtre, DISTINCT et les opérateurs ensemblistes exigent le modèle de sous-requête, comme dans la requête E, où la recherche vectorielle s'exécute dans la requête interne et l'agrégation dans la requête externe.
+  options:
+    a: { en: "GROUP BY and COUNT cannot appear in the same query block as TOP (N) WITH APPROXIMATE.", fr: "GROUP BY et COUNT ne peuvent pas figurer dans le même bloc de requête que TOP (N) WITH APPROXIMATE." }
+    c: { en: "Window functions such as ROW_NUMBER require a subquery around the approximate search.", fr: "Les fonctions de fenêtre comme ROW_NUMBER exigent une sous-requête autour de la recherche approximative." }
+    d: { en: "DISTINCT requires a subquery around the approximate search.", fr: "DISTINCT exige une sous-requête autour de la recherche approximative." }
+references:
+  - title: VECTOR_SEARCH (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/vector-search-transact-sql

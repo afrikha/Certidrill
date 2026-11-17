@@ -1,0 +1,68 @@
+id: sc200-2b-idp-signin-risk-kql
+objective: "2.1.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders streams Microsoft Entra sign-in logs to a Microsoft Sentinel workspace. The tenant has Microsoft Entra ID P2.
+
+    You need a query that returns the users who had **successful** interactive sign-ins with a **medium** or **high** sign-in risk from more than one country or region during the last seven days.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders diffuse les journaux de connexion Microsoft Entra vers un espace de travail Microsoft Sentinel. Le locataire dispose de Microsoft Entra ID P2.
+
+    Vous avez besoin d'une requête qui renvoie les utilisateurs ayant effectué des connexions interactives **réussies** avec un risque de connexion **moyen** ou **élevé** depuis plus d'un pays ou d'une région au cours des sept derniers jours.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    SigninLogs
+    | where TimeGenerated > ago(7d)
+    | where RiskLevelDuringSignIn [[op]] ("medium", "high")
+    | where ResultType == [[result]]
+    | summarize Countries = [[agg]](Location), IPs = make_set(IPAddress) by UserPrincipalName
+    | where Countries > 1
+  slots:
+    - id: op
+      options:
+        - { id: in, text: in }
+        - { id: has, text: has }
+        - { id: eq, text: "==" }
+        - { id: between, text: between }
+    - id: result
+      options:
+        - { id: zero, text: "\"0\"" }
+        - { id: one, text: "\"1\"" }
+        - { id: blocked, text: "\"50053\"" }
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+        - { id: set, text: make_set }
+        - { id: max, text: max }
+answer:
+  values: { op: in, result: zero, agg: dcount }
+explanation:
+  correct:
+    en: "The `in` operator matches any value of a list, here the medium and high risk levels. In `SigninLogs`, `ResultType` is a string and `\"0\"` means a successful sign-in. `dcount(Location)` counts the distinct country or region codes of each user, which the last line compares with 1."
+    fr: "L'opérateur `in` correspond à n'importe quelle valeur d'une liste, ici les niveaux de risque medium et high. Dans `SigninLogs`, `ResultType` est une chaîne et `\"0\"` signifie une connexion réussie. `dcount(Location)` compte les codes de pays ou de région distincts de chaque utilisateur, que la dernière ligne compare à 1."
+  options:
+    has: { en: "has searches for a term inside a string; it doesn't compare a column with a list of values.", fr: "has recherche un terme dans une chaîne ; il ne compare pas une colonne à une liste de valeurs." }
+    eq: { en: "== compares with a single value, not a list.", fr: "== compare à une seule valeur, pas à une liste." }
+    between: { en: "between works on numeric or date ranges, not on a list of strings.", fr: "between fonctionne sur des plages numériques ou de dates, pas sur une liste de chaînes." }
+    one: { en: "Any value other than 0 is an error code, so the sign-in failed.", fr: "Toute valeur différente de 0 est un code d'erreur : la connexion a échoué." }
+    blocked: { en: "50053 is a failure code, for example a sign-in blocked by built-in protections because of high-confidence risk.", fr: "50053 est un code d'échec, par exemple une connexion bloquée par les protections intégrées en raison d'un risque de confiance élevée." }
+    count: { en: "count() counts sign-ins, not distinct countries.", fr: "count() compte les connexions, pas les pays distincts." }
+    set: { en: "make_set() returns an array, which can't be compared with the number 1.", fr: "make_set() renvoie un tableau, qui ne peut pas être comparé au nombre 1." }
+    max: { en: "max() returns the highest location code, not the number of locations.", fr: "max() renvoie le code d'emplacement le plus élevé, pas le nombre d'emplacements." }
+references:
+  - title: Azure Monitor Logs reference - SigninLogs
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/signinlogs

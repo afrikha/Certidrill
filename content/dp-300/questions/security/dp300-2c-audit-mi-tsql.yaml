@@ -1,0 +1,78 @@
+id: dp300-2c-audit-mi-tsql
+objective: "2.3.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL managed instance named MI1 and a storage account named stauditfab in the same region. You created a private blob container named miaudit in stauditfab and generated a SAS token for it.
+
+    You need to audit every failed login attempt on MI1. The audit records must be written to the miaudit container and kept for 180 days.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une instance managée Azure SQL nommée MI1 et d'un compte de stockage nommé stauditfab dans la même région. Vous avez créé un conteneur d'objets blob privé nommé miaudit dans stauditfab et généré un jeton SAS pour ce conteneur.
+
+    Vous devez auditer chaque tentative de connexion ayant échoué sur MI1. Les enregistrements d'audit doivent être écrits dans le conteneur miaudit et conservés 180 jours.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    USE master;
+    GO
+    CREATE CREDENTIAL [https://stauditfab.blob.core.windows.net/miaudit]
+    WITH IDENTITY = 'SHARED ACCESS SIGNATURE',
+         SECRET = 'sv=2024-11-04&ss=b&srt=co&sp=rwl&sig=...';
+    GO
+    CREATE SERVER AUDIT LoginAudit
+    TO [[target]] (PATH = 'https://stauditfab.blob.core.windows.net/miaudit',
+                   RETENTION_DAYS = 180);
+    GO
+    CREATE [[spec]] AUDIT SPECIFICATION LoginAuditSpec
+    FOR SERVER AUDIT LoginAudit
+    ADD ([[group]])
+    WITH (STATE = ON);
+    GO
+    ALTER SERVER AUDIT LoginAudit WITH (STATE = ON);
+  slots:
+    - id: target
+      options:
+        - { id: t_file, text: FILE }
+        - { id: t_url, text: URL }
+        - { id: t_ext, text: EXTERNAL_MONITOR }
+        - { id: t_app, text: APPLICATION_LOG }
+    - id: spec
+      options:
+        - { id: s_server, text: SERVER }
+        - { id: s_db, text: DATABASE }
+    - id: group
+      options:
+        - { id: g_batch, text: BATCH_COMPLETED_GROUP }
+        - { id: g_logout, text: DATABASE_LOGOUT_GROUP }
+        - { id: g_failed, text: FAILED_LOGIN_GROUP }
+        - { id: g_schema, text: SCHEMA_OBJECT_ACCESS_GROUP }
+answer:
+  values: { target: t_url, spec: s_server, group: g_failed }
+explanation:
+  correct:
+    en: |
+      On SQL Managed Instance, a server audit writes to Azure Blob Storage with the TO URL target, authenticated by a credential whose name is the container URL; RETENTION_DAYS sets the retention. Logins are instance-level events, so they are captured by a server audit specification that adds FAILED_LOGIN_GROUP. The audit itself is then enabled with ALTER SERVER AUDIT ... WITH (STATE = ON).
+    fr: |
+      Sur SQL Managed Instance, un audit du serveur écrit vers le Stockage Blob Azure avec la cible TO URL, authentifiée par des informations d'identification dont le nom est l'URL du conteneur ; RETENTION_DAYS définit la rétention. Les connexions sont des événements de l'instance : elles sont capturées par une spécification d'audit du serveur qui ajoute FAILED_LOGIN_GROUP. L'audit lui-même est ensuite activé avec ALTER SERVER AUDIT ... WITH (STATE = ON).
+  options:
+    t_file: { en: "Managed Instance does not write audits to local files; the blob storage target is URL.", fr: "Managed Instance n'écrit pas les audits dans des fichiers locaux ; la cible de stockage d'objets blob est URL." }
+    t_ext: { en: "EXTERNAL_MONITOR sends events through diagnostic settings to Log Analytics or Event Hubs, not to the miaudit container.", fr: "EXTERNAL_MONITOR envoie les événements par les paramètres de diagnostic vers Log Analytics ou Event Hubs, pas vers le conteneur miaudit." }
+    t_app: { en: "The Windows Application log is a SQL Server target that does not use a PATH to blob storage.", fr: "Le journal Application de Windows est une cible SQL Server qui n'utilise pas de PATH vers le stockage d'objets blob." }
+    s_db: { en: "A database audit specification captures actions inside one database; login attempts are server-level events.", fr: "Une spécification d'audit de base de données capture des actions dans une seule base ; les tentatives de connexion sont des événements de niveau serveur." }
+    g_batch: { en: "BATCH_COMPLETED_GROUP records completed batches, not failed logins.", fr: "BATCH_COMPLETED_GROUP enregistre les lots terminés, pas les connexions ayant échoué." }
+    g_logout: { en: "DATABASE_LOGOUT_GROUP records logouts from databases.", fr: "DATABASE_LOGOUT_GROUP enregistre les déconnexions des bases de données." }
+    g_schema: { en: "SCHEMA_OBJECT_ACCESS_GROUP records the use of object permissions, not login attempts.", fr: "SCHEMA_OBJECT_ACCESS_GROUP enregistre l'utilisation d'autorisations sur des objets, pas les tentatives de connexion." }
+references:
+  - title: Get started with Azure SQL Managed Instance auditing
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/auditing-configure

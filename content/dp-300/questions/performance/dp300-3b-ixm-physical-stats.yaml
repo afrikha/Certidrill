@@ -1,0 +1,68 @@
+id: dp300-3b-ixm-physical-stats
+objective: "3.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named **CatalogDB** that contains several indexes of more than 100,000 pages.
+
+    You need a query that returns the logical fragmentation and the page density of each index in CatalogDB. The query must read as few pages as possible while still returning page density.
+
+    How should you complete the Transact-SQL query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée **CatalogDB** qui contient plusieurs index de plus de 100 000 pages.
+
+    Vous avez besoin d'une requête qui renvoie la fragmentation logique et la densité des pages de chaque index de CatalogDB. La requête doit lire le moins de pages possible tout en renvoyant la densité des pages.
+
+    Comment devez-vous compléter la requête Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT OBJECT_NAME(ips.object_id) AS table_name,
+           i.name AS index_name,
+           ips.[[frag]] AS fragmentation,
+           ips.[[density]] AS page_density,
+           ips.page_count
+    FROM sys.dm_db_index_physical_stats(DB_ID(), DEFAULT, DEFAULT, DEFAULT, [[mode]]) AS ips
+    INNER JOIN sys.indexes AS i
+        ON ips.object_id = i.object_id AND ips.index_id = i.index_id;
+  slots:
+    - id: frag
+      options:
+        - { id: frag, text: avg_fragmentation_in_percent }
+        - { id: size, text: avg_fragment_size_in_pages }
+        - { id: fwd, text: forwarded_record_count }
+    - id: density
+      options:
+        - { id: used, text: avg_page_space_used_in_percent }
+        - { id: rec, text: avg_record_size_in_bytes }
+        - { id: count, text: record_count }
+    - id: mode
+      options:
+        - { id: limited, text: "'LIMITED'" }
+        - { id: sampled, text: "'SAMPLED'" }
+        - { id: detailed, text: "'DETAILED'" }
+answer:
+  values: { frag: frag, density: used, mode: sampled }
+explanation:
+  correct:
+    en: "`avg_fragmentation_in_percent` is the logical fragmentation of a rowstore index, and `avg_page_space_used_in_percent` is its page density. Page density is NULL in `LIMITED` mode, which reads only the pages above the leaf level. `SAMPLED` reads a 1 percent sample of the pages of large indexes, while `DETAILED` scans every page."
+    fr: "`avg_fragmentation_in_percent` est la fragmentation logique d'un index rowstore, et `avg_page_space_used_in_percent` sa densité de pages. La densité des pages est NULL en mode `LIMITED`, qui ne lit que les pages situées au-dessus du niveau feuille. `SAMPLED` lit un échantillon de 1 % des pages des grands index, alors que `DETAILED` analyse toutes les pages."
+  options:
+    size: { en: "`avg_fragment_size_in_pages` is the average number of pages in a fragment, not the percentage of out-of-order pages.", fr: "`avg_fragment_size_in_pages` est le nombre moyen de pages d'un fragment, pas le pourcentage de pages hors séquence." }
+    fwd: { en: "`forwarded_record_count` concerns heaps only.", fr: "`forwarded_record_count` ne concerne que les tas (heaps)." }
+    rec: { en: "`avg_record_size_in_bytes` is the size of rows, not how full the pages are.", fr: "`avg_record_size_in_bytes` est la taille des lignes, pas le taux de remplissage des pages." }
+    count: { en: "`record_count` is a number of rows, not a density.", fr: "`record_count` est un nombre de lignes, pas une densité." }
+    limited: { en: "`LIMITED` is the fastest mode but returns NULL for page density.", fr: "`LIMITED` est le mode le plus rapide mais renvoie NULL pour la densité des pages." }
+    detailed: { en: "`DETAILED` returns page density but scans all the pages, which reads far more than needed.", fr: "`DETAILED` renvoie la densité des pages mais analyse toutes les pages, ce qui lit bien plus que nécessaire." }
+references:
+  - title: sys.dm_db_index_physical_stats (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-db-index-physical-stats-transact-sql
+  - title: Optimize index maintenance to improve query performance and reduce resource consumption
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/indexes/reorganize-and-rebuild-indexes

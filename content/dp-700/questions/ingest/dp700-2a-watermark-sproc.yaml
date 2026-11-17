@@ -1,0 +1,71 @@
+id: dp700-2a-watermark-sproc
+objective: "2.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a pipeline named **PL1** that incrementally copies rows of a table named dbo.Shipments from a warehouse to a lakehouse. PL1 contains the following activities:
+
+    - **LookupOld**: a Lookup activity that reads the row of dbo.Shipments in a control table named dbo.Watermark. **First row only** is selected, and the output column is WatermarkValue.
+    - **LookupNew**: a Lookup activity that runs `SELECT MAX(LastModified) AS NewWatermarkValue FROM dbo.Shipments`. **First row only** is selected.
+    - **CopyShipments**: a Copy activity that copies the rows whose LastModified value is greater than WatermarkValue and less than or equal to NewWatermarkValue.
+    - **WriteWatermark**: a Stored procedure activity that runs dbo.usp_write_watermark, which saves its @LastModifiedtime parameter in dbo.Watermark.
+
+    You need to configure WriteWatermark so that the next run neither skips nor copies again any row, including after a failure of CopyShipments.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un pipeline nommé **PL1** qui copie de façon incrémentielle les lignes d'une table nommée dbo.Shipments d'un entrepôt vers un lakehouse. PL1 contient les activités suivantes :
+
+    - **LookupOld** : une activité Lookup qui lit la ligne de dbo.Shipments dans une table de contrôle nommée dbo.Watermark. **First row only** est sélectionné, et la colonne de sortie est WatermarkValue.
+    - **LookupNew** : une activité Lookup qui exécute `SELECT MAX(LastModified) AS NewWatermarkValue FROM dbo.Shipments`. **First row only** est sélectionné.
+    - **CopyShipments** : une activité Copy qui copie les lignes dont la valeur LastModified est supérieure à WatermarkValue et inférieure ou égale à NewWatermarkValue.
+    - **WriteWatermark** : une activité Stored procedure qui exécute dbo.usp_write_watermark, laquelle enregistre son paramètre @LastModifiedtime dans dbo.Watermark.
+
+    Vous devez configurer WriteWatermark afin que l'exécution suivante n'ignore ni ne recopie aucune ligne, y compris après un échec de CopyShipments.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Connect CopyShipments to WriteWatermark by using the [[cond]] condition.
+
+      Set the @LastModifiedtime parameter to [[val]].
+    fr: |
+      Reliez CopyShipments à WriteWatermark avec la condition [[cond]].
+
+      Définissez le paramètre @LastModifiedtime sur [[val]].
+  slots:
+    - id: cond
+      options:
+        - { id: success, text: On success }
+        - { id: completion, text: On completion }
+        - { id: failure, text: On fail }
+        - { id: skip, text: On skip }
+    - id: val
+      options:
+        - { id: newwm, text: "@{activity('LookupNew').output.firstRow.NewWatermarkValue}" }
+        - { id: oldwm, text: "@{activity('LookupOld').output.firstRow.WatermarkValue}" }
+        - { id: utc, text: "@{utcNow()}" }
+        - { id: trig, text: "@{pipeline().TriggerTime}" }
+answer:
+  values: { cond: success, val: newwm }
+explanation:
+  correct:
+    en: The watermark must move only when the copy succeeds, so the dependency is On success; after a failure, the next run starts again from the old watermark. The saved value must be NewWatermarkValue, the upper bound that the copy actually used, so the next run starts exactly after the last copied row.
+    fr: |
+      Le filigrane ne doit avancer que si la copie réussit : la dépendance est donc On success ; après un échec, l'exécution suivante repart de l'ancien filigrane. La valeur enregistrée doit être NewWatermarkValue, la borne supérieure réellement utilisée par la copie, afin que l'exécution suivante démarre juste après la dernière ligne copiée.
+  options:
+    completion: { en: "On completion also runs after a failed copy, which would move the watermark past rows that were never copied.", fr: "On completion s'exécute aussi après une copie en échec, ce qui ferait avancer le filigrane au-delà de lignes jamais copiées." }
+    oldwm: { en: "Saving the old value never moves the watermark, so every run copies the same rows again.", fr: "Enregistrer l'ancienne valeur ne fait jamais avancer le filigrane : chaque exécution recopie les mêmes lignes." }
+    utc: { en: "Rows modified between LookupNew and the end of the copy are later than NewWatermarkValue but earlier than utcNow(), so they would be skipped.", fr: "Les lignes modifiées entre LookupNew et la fin de la copie sont postérieures à NewWatermarkValue mais antérieures à utcNow() : elles seraient ignorées." }
+    trig: { en: "The trigger time isn't the upper bound used by the copy, so rows can be skipped or copied twice.", fr: "L'heure de déclenchement n'est pas la borne supérieure utilisée par la copie : des lignes peuvent être ignorées ou copiées deux fois." }
+references:
+  - title: Incrementally load data from Data Warehouse to Lakehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-factory/tutorial-incremental-copy-data-warehouse-lakehouse

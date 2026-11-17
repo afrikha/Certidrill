@@ -1,0 +1,88 @@
+id: dp700-3b-runmultiple-dag
+objective: "3.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric workspace named Workspace1 that contains three notebooks named NB_Master, NB_Orders, and NB_Invoices. NB_Master runs the other two notebooks by using notebookutils.notebook.runMultiple().
+
+    NB_Master must meet the following requirements:
+
+    - One cell of NB_Orders runs for about 10 minutes and must not time out.
+    - NB_Invoices must start only after NB_Orders completes.
+    - If an activity fails, NB_Master must continue and print the result of each activity.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Fabric nommé Workspace1 qui contient trois notebooks nommés NB_Master, NB_Orders et NB_Invoices. NB_Master exécute les deux autres notebooks au moyen de notebookutils.notebook.runMultiple().
+
+    NB_Master doit satisfaire les exigences suivantes :
+
+    - Une cellule de NB_Orders s'exécute pendant environ 10 minutes et ne doit pas expirer.
+    - NB_Invoices ne doit démarrer qu'une fois NB_Orders terminé.
+    - Si une activité échoue, NB_Master doit continuer et afficher le résultat de chaque activité.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from notebookutils.common.exceptions import RunMultipleFailedException
+
+    DAG = {
+        "activities": [
+            {"name": "Orders", "path": "NB_Orders", "[[k]]": 900},
+            {"name": "Invoices", "path": "NB_Invoices", "[[dep]]": ["Orders"]}
+        ]
+    }
+
+    try:
+        results = notebookutils.notebook.runMultiple(DAG)
+    except RunMultipleFailedException as ex:
+        results = ex.[[attr]]
+
+    for name, r in results.items():
+        print(name, r["exception"] or r["exitVal"])
+  slots:
+    - id: k
+      options:
+        - { id: timeoutincell, text: timeoutPerCellInSeconds }
+        - { id: timeoutdag, text: timeoutInSeconds }
+        - { id: timeoutrun, text: timeout_seconds }
+        - { id: retryint, text: retryIntervalInSeconds }
+    - id: dep
+      options:
+        - { id: dependson, text: dependsOn }
+        - { id: dependencies, text: dependencies }
+        - { id: args, text: args }
+        - { id: retry, text: retry }
+    - id: attr
+      options:
+        - { id: exitval, text: exitVal }
+        - { id: exception, text: exception }
+        - { id: result, text: result }
+answer:
+  values: { k: timeoutincell, dep: dependencies, attr: result }
+explanation:
+  correct:
+    en: |
+      In a runMultiple() DAG, timeoutPerCellInSeconds sets the timeout of each cell of an activity (90 seconds by default), and dependencies lists the activities that must finish first. When an activity fails, runMultiple() raises RunMultipleFailedException; its result attribute holds the dictionary of results, with exitVal and exception for each activity.
+    fr: |
+      Dans un DAG runMultiple(), timeoutPerCellInSeconds définit le délai d'expiration de chaque cellule d'une activité (90 secondes par défaut), et dependencies liste les activités qui doivent se terminer d'abord. Quand une activité échoue, runMultiple() lève RunMultipleFailedException ; son attribut result contient le dictionnaire des résultats, avec exitVal et exception pour chaque activité.
+  options:
+    timeoutdag: { en: "timeoutInSeconds is a root-level property that limits the whole DAG (12 hours by default), not each cell.", fr: "timeoutInSeconds est une propriété de niveau racine qui limite l'ensemble du DAG (12 heures par défaut), pas chaque cellule." }
+    timeoutrun: { en: "timeout_seconds is the argument of notebook.run(), not a DAG property.", fr: "timeout_seconds est l'argument de notebook.run(), pas une propriété de DAG." }
+    retryint: { en: "retryIntervalInSeconds sets the wait between retries, not a timeout.", fr: "retryIntervalInSeconds définit l'attente entre les nouvelles tentatives, pas un délai d'expiration." }
+    dependson: { en: "dependsOn is used in pipeline JSON definitions; a runMultiple() DAG uses dependencies.", fr: "dependsOn est utilisé dans les définitions JSON de pipeline ; un DAG runMultiple() utilise dependencies." }
+    args: { en: "args passes parameters to the child notebook; it doesn't define the execution order.", fr: "args transmet des paramètres au notebook enfant ; il ne définit pas l'ordre d'exécution." }
+    retry: { en: "retry sets the number of retries of an activity, not its dependencies.", fr: "retry définit le nombre de nouvelles tentatives d'une activité, pas ses dépendances." }
+    exitval: { en: "exitVal is a key of each activity result, not an attribute of the exception.", fr: "exitVal est une clé du résultat de chaque activité, pas un attribut de l'exception." }
+    exception: { en: "exception is a key of each activity result; the exception object exposes all the results through result.", fr: "exception est une clé du résultat de chaque activité ; l'objet exception expose tous les résultats via result." }
+references:
+  - title: NotebookUtils notebook run and orchestration for Fabric
+    url: https://learn.microsoft.com/en-us/fabric/data-engineering/notebookutils/notebookutils-notebook-run

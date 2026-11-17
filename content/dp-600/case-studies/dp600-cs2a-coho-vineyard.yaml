@@ -1,0 +1,97 @@
+id: dp600-cs2a-coho-vineyard
+status: draft
+title:
+  en: Coho Vineyard
+  fr: Coho Vineyard
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Coho Vineyard is a wine producer that farms 1,200 hectares of vines in the Bordeaux region of France. The vineyard is divided into 340 blocks, and each block is monitored by soil sensors.
+
+        A data team of one data engineer and two data analysts builds the analytics platform on Microsoft Fabric. Coho Vineyard wants to combine sensor, harvest and weather data to plan irrigation and forecast yields.
+      fr: |
+        Coho Vineyard est un producteur de vin qui exploite 1 200 hectares de vignes dans la région de Bordeaux, en France. Le vignoble est divisé en 340 parcelles, et chaque parcelle est surveillée par des capteurs de sol.
+
+        Une équipe données composée d'un ingénieur données et de deux analystes de données construit la plateforme d'analytique sur Microsoft Fabric. Coho Vineyard souhaite combiner les données des capteurs, des vendanges et de la météo pour planifier l'irrigation et prévoir les rendements.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Coho Vineyard has a Fabric capacity (F64 SKU) and the following items.
+
+        | Item | Type | Workspace | Configuration |
+        | --- | --- | --- | --- |
+        | WS-Vineyard | Workspace | — | The data engineer has the Admin role; the data analysts have the Contributor role |
+        | EH-Sensors | Eventhouse | WS-Vineyard | KQL database **SensorDB** with the table **SoilReadings**; an eventstream adds the readings of 3,000 sensors every five minutes |
+        | LH-Vineyard | Lakehouse | WS-Vineyard | Delta tables **Harvest**, **Blocks** and **GrapeVariety**, loaded every night by a notebook that runs for about 40 minutes |
+        | SM-Harvest | Semantic model | WS-Vineyard | Direct Lake on the SQL analytics endpoint of LH-Vineyard; default settings; used by the report **Harvest Dashboard** |
+        | WH-Budget | Warehouse | WS-Finance | Table **YieldBudget**, maintained by the finance team |
+
+        The SoilReadings table has the following columns: Timestamp (datetime), SensorId (string), BlockId (string) and Moisture (real, volumetric water content in percent).
+
+        A weather partner writes daily forecasts as Delta tables to the container **forecasts** of an Azure Data Lake Storage Gen2 account named **stcohoweather**.
+
+        Grape purchase contracts are exported every week as CSV files to a SharePoint Online document library. The files contain empty rows, and all their columns are text.
+      fr: |
+        Coho Vineyard dispose d'une capacité Fabric (référence SKU F64) et des éléments suivants.
+
+        | Élément | Type | Espace de travail | Configuration |
+        | --- | --- | --- | --- |
+        | WS-Vineyard | Espace de travail | — | L'ingénieur données a le rôle Admin ; les analystes de données ont le rôle Contributor |
+        | EH-Sensors | Eventhouse | WS-Vineyard | Base de données KQL **SensorDB** avec la table **SoilReadings** ; un flux d'événements ajoute les relevés de 3 000 capteurs toutes les cinq minutes |
+        | LH-Vineyard | Lakehouse | WS-Vineyard | Tables Delta **Harvest**, **Blocks** et **GrapeVariety**, chargées chaque nuit par un notebook qui s'exécute pendant environ 40 minutes |
+        | SM-Harvest | Modèle sémantique | WS-Vineyard | Direct Lake sur le point de terminaison d'analytique SQL de LH-Vineyard ; paramètres par défaut ; utilisé par le rapport **Harvest Dashboard** |
+        | WH-Budget | Entrepôt | WS-Finance | Table **YieldBudget**, gérée par l'équipe finance |
+
+        La table SoilReadings contient les colonnes suivantes : Timestamp (datetime), SensorId (string), BlockId (string) et Moisture (real, teneur en eau volumique en pourcentage).
+
+        Un partenaire météo écrit des prévisions quotidiennes sous forme de tables Delta dans le conteneur **forecasts** d'un compte Azure Data Lake Storage Gen2 nommé **stcohoweather**.
+
+        Les contrats d'achat de raisin sont exportés chaque semaine sous forme de fichiers CSV dans une bibliothèque de documents SharePoint Online. Les fichiers contiennent des lignes vides, et toutes leurs colonnes sont de type texte.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Data access**
+
+        1. The data analysts must be able to query the soil readings from LH-Vineyard by using notebooks and the SQL analytics endpoint. The soil readings must not be ingested by a second process.
+        2. The weather forecasts must be available as tables in LH-Vineyard without copying the data.
+        3. The purchase contracts must be loaded every week into a Delta table of LH-Vineyard. The empty rows must be removed and the columns converted to numeric and date types by using a low-code visual tool.
+
+        **Irrigation monitoring**
+
+        4. A query must return, for each block, every one-hour interval of the last 24 hours in which the average soil moisture was below 18 percent.
+
+        **Semantic models**
+
+        5. Harvest Dashboard must never send queries to the SQL analytics endpoint. If a query cannot be answered from the Delta tables, it must fail so that the data team detects the problem.
+        6. Harvest Dashboard users must never see the results of a nightly load that is still running. The new data must become visible only when all the tables are loaded.
+        7. A new semantic model named SM-Agronomy must combine tables from LH-Vineyard and the YieldBudget table of WH-Budget. It must read the Delta tables directly, without a scheduled data import and without creating shortcuts, and it must never fall back to DirectQuery.
+
+        **Security and governance**
+
+        8. Three external viticulture consultants have accounts in the Coho Vineyard Microsoft Entra tenant. They must be able to query the Harvest and Blocks tables by using T-SQL, and nothing else in WS-Vineyard. The principle of least privilege must be followed.
+        9. SM-Harvest must display a badge that identifies it as an authoritative source that meets the quality standards of Coho Vineyard. Only the data governance lead must be able to apply this badge.
+      fr: |
+        **Accès aux données**
+
+        1. Les analystes de données doivent pouvoir interroger les relevés de sol depuis LH-Vineyard à l'aide de notebooks et du point de terminaison d'analytique SQL. Les relevés de sol ne doivent pas être ingérés par un second processus.
+        2. Les prévisions météo doivent être disponibles sous forme de tables dans LH-Vineyard sans copie des données.
+        3. Les contrats d'achat doivent être chargés chaque semaine dans une table Delta de LH-Vineyard. Les lignes vides doivent être supprimées et les colonnes converties en types numériques et date à l'aide d'un outil visuel low-code.
+
+        **Surveillance de l'irrigation**
+
+        4. Une requête doit retourner, pour chaque parcelle, chaque intervalle d'une heure des dernières 24 heures pendant lequel l'humidité moyenne du sol était inférieure à 18 %.
+
+        **Modèles sémantiques**
+
+        5. Harvest Dashboard ne doit jamais envoyer de requêtes au point de terminaison d'analytique SQL. Si une requête ne peut pas être traitée à partir des tables Delta, elle doit échouer pour que l'équipe données détecte le problème.
+        6. Les utilisateurs de Harvest Dashboard ne doivent jamais voir les résultats d'un chargement nocturne encore en cours. Les nouvelles données ne doivent devenir visibles qu'une fois toutes les tables chargées.
+        7. Un nouveau modèle sémantique nommé SM-Agronomy doit combiner des tables de LH-Vineyard et la table YieldBudget de WH-Budget. Il doit lire directement les tables Delta, sans importation planifiée des données et sans création de raccourcis, et il ne doit jamais basculer en mode DirectQuery.
+
+        **Sécurité et gouvernance**
+
+        8. Trois consultants externes en viticulture disposent de comptes dans le locataire Microsoft Entra de Coho Vineyard. Ils doivent pouvoir interroger les tables Harvest et Blocks avec T-SQL, et rien d'autre dans WS-Vineyard. Le principe du moindre privilège doit être respecté.
+        9. SM-Harvest doit afficher un badge qui l'identifie comme une source de référence conforme aux normes de qualité de Coho Vineyard. Seul le responsable de la gouvernance des données doit pouvoir appliquer ce badge.

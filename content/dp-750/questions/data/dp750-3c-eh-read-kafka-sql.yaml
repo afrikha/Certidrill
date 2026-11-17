@@ -1,0 +1,88 @@
+id: dp750-3c-eh-read-kafka-sql
+objective: "3.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders sends sensor events to an event hub named **sensor-events** in the Standard tier namespace **evhns-northwind**. The pipeline principal can use the Unity Catalog service credential **sc_evh_northwind**, which has the permissions to read the event hub.
+
+    You are writing the SQL source of a Lakeflow Spark Declarative Pipeline. The dataset **northwind.bronze.sensor_events** must process each event exactly once, incrementally, as new events arrive.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders envoie des événements de capteurs vers un hub d'événements nommé **sensor-events** dans l'espace de noms de niveau Standard **evhns-northwind**. Le principal du pipeline peut utiliser les informations d'identification de service Unity Catalog **sc_evh_northwind**, qui disposent des autorisations de lecture du hub d'événements.
+
+    Vous écrivez le code source SQL d'un pipeline Lakeflow Spark Declarative Pipelines. Le jeu de données **northwind.bronze.sensor_events** doit traiter chaque événement exactement une fois, de façon incrémentielle, à mesure que de nouveaux événements arrivent.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE [[obj]] northwind.bronze.sensor_events AS
+    SELECT value::string AS body,
+           timestamp     AS enqueued_at
+    FROM [[kw]] read_kafka(
+      bootstrapServers  => 'evhns-northwind.servicebus.windows.net:9093',
+      subscribe         => [[topic]],
+      serviceCredential => 'sc_evh_northwind'
+    );
+  slots:
+    - id: obj
+      options:
+        - { id: mv, text: OR REFRESH MATERIALIZED VIEW }
+        - { id: st, text: OR REFRESH STREAMING TABLE }
+        - { id: view, text: TEMPORARY VIEW }
+    - id: kw
+      options:
+        - { id: stream, text: STREAM }
+        - { id: live, text: LIVE }
+        - { id: lateral, text: LATERAL }
+    - id: topic
+      options:
+        - { id: ns, text: "'evhns-northwind'" }
+        - { id: cg, text: "'$Default'" }
+        - { id: hub, text: "'sensor-events'" }
+answer:
+  values: { obj: st, kw: stream, topic: hub }
+explanation:
+  correct:
+    en: |
+      A streaming table processes each source record once and is the recommended target for ingestion; its query reads the source with `STREAM read_kafka(...)`. Event Hubs maps a Kafka topic to an event hub, so `subscribe` takes the event hub name, while the namespace is already in the bootstrap server. The `serviceCredential` parameter authenticates with the Unity Catalog service credential, without a secret.
+    fr: |
+      Une table de streaming traite chaque enregistrement source une seule fois et constitue la cible recommandée pour l'ingestion ; sa requête lit la source avec `STREAM read_kafka(...)`. Event Hubs fait correspondre un topic Kafka à un hub d'événements : `subscribe` prend donc le nom du hub d'événements, tandis que l'espace de noms figure déjà dans le serveur d'amorçage. Le paramètre `serviceCredential` assure l'authentification avec les informations d'identification de service Unity Catalog, sans secret.
+  options:
+    mv:
+      en: |
+        A materialized view is computed from a batch query; it does not consume the event stream incrementally record by record.
+      fr: |
+        Une vue matérialisée est calculée à partir d'une requête par lots ; elle ne consomme pas le flux d'événements de façon incrémentielle, enregistrement par enregistrement.
+    view:
+      en: |
+        A temporary view is not persisted as a table, so the events would not be stored in northwind.bronze.sensor_events.
+      fr: |
+        Une vue temporaire n'est pas persistée sous forme de table : les événements ne seraient pas stockés dans northwind.bronze.sensor_events.
+    live:
+      en: "`LIVE` qualifies references to datasets defined in the same pipeline; it does not make a read incremental, which requires `STREAM`."
+      fr: "`LIVE` qualifie les références aux jeux de données définis dans le même pipeline ; il ne rend pas une lecture incrémentielle, ce qui exige `STREAM`."
+    lateral:
+      en: "`LATERAL` correlates a subquery with preceding tables; it does not make the read incremental."
+      fr: "`LATERAL` corrèle une sous-requête avec les tables qui la précèdent ; il ne rend pas la lecture incrémentielle."
+    ns:
+      en: |
+        The namespace corresponds to the Kafka cluster and is already given in `bootstrapServers`.
+      fr: |
+        L'espace de noms correspond au cluster Kafka et figure déjà dans `bootstrapServers`.
+    cg:
+      en: "`$Default` is a consumer group, not a topic."
+      fr: "`$Default` est un groupe de consommateurs, pas un topic."
+references:
+  - title: read_kafka table-valued function
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/functions/read_kafka
+  - title: Authentication
+    url: https://learn.microsoft.com/en-us/azure/databricks/connect/streaming/kafka/authentication

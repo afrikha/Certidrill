@@ -1,0 +1,81 @@
+id: az400-cs4b-oidc-login
+objective: "4.2.2"
+type: dropdown
+caseStudy: az400-cs4b-alpine-ski-house
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to update the deploy job of deploy.yml to meet security requirements 1 and 2. The client ID of id-ask-deploy, the tenant ID, and the subscription ID are stored as configuration variables. You will delete the AZURE_CREDENTIALS secret.
+
+    How should you complete the job? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez mettre à jour le travail deploy de deploy.yml pour satisfaire les exigences de sécurité 1 et 2. L'ID client d'id-ask-deploy, l'ID de locataire et l'ID d'abonnement sont stockés comme variables de configuration. Vous supprimerez le secret AZURE_CREDENTIALS.
+
+    Comment devez-vous compléter le travail ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        [[gate]]
+        permissions:
+          [[token]]
+          contents: read
+        steps:
+          - uses: actions/checkout@v4
+          - uses: azure/login@v2
+            with:
+              [[input]]: ${{ vars.AZURE_CLIENT_ID }}
+              tenant-id: ${{ vars.AZURE_TENANT_ID }}
+              subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  slots:
+    - id: gate
+      options:
+        - { id: env, text: "environment: production" }
+        - { id: conc, text: "concurrency: production" }
+        - { id: needs, text: "needs: production" }
+    - id: token
+      options:
+        - { id: deploy, text: "deployments: write" }
+        - { id: actions, text: "actions: read" }
+        - { id: idnone, text: "id-token: none" }
+        - { id: idwrite, text: "id-token: write" }
+    - id: input
+      options:
+        - { id: creds, text: creds }
+        - { id: authtype, text: auth-type }
+        - { id: clientid, text: client-id }
+answer:
+  values: { gate: env, token: idwrite, input: clientid }
+explanation:
+  correct:
+    en: |
+      `environment: production` ties the job to the production environment, so the Required reviewers rule holds the job until a release manager approves it, and the OIDC token carries the subject repo:alpineskihouse/booking-service:environment:production that matches the federated credential of id-ask-deploy. `id-token: write` lets the job request the OIDC token, and `azure/login@v2` with `client-id`, `tenant-id`, and `subscription-id` exchanges it for a Microsoft Entra token without any stored secret.
+    fr: |
+      `environment: production` associe le travail à l'environnement production : la règle Required reviewers bloque le travail jusqu'à l'approbation d'un responsable de mise en production, et le jeton OIDC porte le sujet repo:alpineskihouse/booking-service:environment:production qui correspond aux informations d'identification fédérées d'id-ask-deploy. `id-token: write` permet au travail de demander le jeton OIDC, et `azure/login@v2` avec `client-id`, `tenant-id` et `subscription-id` l'échange contre un jeton Microsoft Entra sans aucun secret stocké.
+  options:
+    conc:
+      en: "`concurrency` only limits simultaneous runs; it applies no protection rule and does not change the subject of the OIDC token."
+      fr: "`concurrency` limite seulement les exécutions simultanées ; il n'applique aucune règle de protection et ne modifie pas le sujet du jeton OIDC."
+    idnone:
+      en: |
+        Without the id-token write permission, the job cannot request an OIDC token and the sign-in fails.
+      fr: |
+        Sans l'autorisation id-token en écriture, le travail ne peut pas demander de jeton OIDC et la connexion échoue.
+    creds:
+      en: |
+        The creds input expects the JSON credentials of a service principal, including its secret, which requirement 1 forbids.
+      fr: |
+        L'entrée creds attend les informations d'identification JSON d'un principal de service, secret compris, ce que l'exigence 1 interdit.
+references:
+  - title: Authenticate to Azure from GitHub Actions by OpenID Connect
+    url: https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect
+  - title: Create a trust relationship between an app and an external identity provider
+    url: https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust

@@ -1,0 +1,61 @@
+id: sc200-1d-cd-arg-max
+objective: "1.4.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware uses Microsoft Defender for Endpoint with several device groups. You need to create a custom detection rule that raises an alert when a device records more than 20 failed sign-ins for the same account.
+
+    The query aggregates the events. The alerts must keep correct device group scoping and use the Timestamp and ReportId of the most recent failed sign-in.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware utilise Microsoft Defender pour point de terminaison avec plusieurs groupes d'appareils. Vous devez créer une règle de détection personnalisée qui déclenche une alerte quand un appareil enregistre plus de 20 échecs de connexion pour le même compte.
+
+    La requête agrège les événements. Les alertes doivent conserver une limitation correcte aux groupes d'appareils et utiliser les valeurs Timestamp et ReportId de l'échec de connexion le plus récent.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    DeviceLogonEvents
+    | where ingestion_time() > ago(1d)
+    | where ActionType == "LogonFailed"
+    | summarize (Timestamp, ReportId) = [[agg]](Timestamp, ReportId), Failures = count() by [[key]], AccountName
+    | where Failures > 20
+  slots:
+    - id: agg
+      options:
+        - { id: argmax, text: arg_max }
+        - { id: argmin, text: arg_min }
+        - { id: makeset, text: make_set }
+        - { id: dcount, text: dcount }
+    - id: key
+      options:
+        - { id: deviceid, text: DeviceId }
+        - { id: devicename, text: DeviceName }
+        - { id: reportid, text: ReportId }
+        - { id: timestamp, text: Timestamp }
+answer:
+  values: { agg: argmax, key: deviceid }
+explanation:
+  correct:
+    en: arg_max(Timestamp, ReportId) returns the Timestamp and ReportId of the latest event in each group, so both values come from the same event, as custom detections require. Rules on Defender for Endpoint tables must also return DeviceId, which ensures correct device group scoping, so the aggregation groups by DeviceId.
+    fr: |
+      arg_max(Timestamp, ReportId) renvoie les valeurs Timestamp et ReportId de l'événement le plus récent de chaque groupe ; les deux valeurs proviennent donc du même événement, comme l'exigent les détections personnalisées. Les règles sur les tables de Defender pour point de terminaison doivent aussi renvoyer DeviceId, qui garantit une limitation correcte aux groupes d'appareils : l'agrégation regroupe donc par DeviceId.
+  options:
+    argmin: { en: "arg_min returns the oldest event of each group, not the most recent one.", fr: "arg_min renvoie l'événement le plus ancien de chaque groupe, pas le plus récent." }
+    makeset: { en: "make_set returns arrays of values, not the Timestamp and ReportId of one event.", fr: "make_set renvoie des tableaux de valeurs, pas les valeurs Timestamp et ReportId d'un événement." }
+    dcount: { en: "dcount returns a number of distinct values, not columns of an event.", fr: "dcount renvoie un nombre de valeurs distinctes, pas des colonnes d'un événement." }
+    devicename: { en: "Without DeviceId in the results, device group scoping of a Defender for Endpoint rule does not work correctly.", fr: "Sans DeviceId dans les résultats, la limitation aux groupes d'appareils d'une règle Defender pour point de terminaison ne fonctionne pas correctement." }
+    reportid: { en: "Grouping by ReportId would create one group per event, so the count could never exceed 1.", fr: "Regrouper par ReportId créerait un groupe par événement : le nombre ne pourrait jamais dépasser 1." }
+    timestamp: { en: "Grouping by Timestamp would split the events by time instead of by device.", fr: "Regrouper par Timestamp répartirait les événements par heure au lieu de les regrouper par appareil." }
+references:
+  - title: Create custom detection rules in Microsoft Defender XDR
+    url: https://learn.microsoft.com/en-us/defender-xdr/custom-detection-rules

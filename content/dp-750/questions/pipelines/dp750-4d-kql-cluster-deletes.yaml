@@ -1,0 +1,66 @@
+id: dp750-4d-kql-cluster-deletes
+objective: "4.4.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A diagnostic setting streams the clusters log category of the Azure Databricks workspace **adb-adatum** to a Log Analytics workspace.
+
+    You need a query that returns, for each user, the number of clusters that the user permanently deleted during the last seven days. Clusters that were only terminated must not be counted.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un paramètre de diagnostic diffuse en continu la catégorie de journaux clusters de l'espace de travail Azure Databricks **adb-adatum** vers un espace de travail Log Analytics.
+
+    Vous avez besoin d'une requête qui renvoie, pour chaque utilisateur, le nombre de clusters qu'il a supprimés définitivement au cours des sept derniers jours. Les clusters seulement arrêtés ne doivent pas être comptés.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    DatabricksClusters
+    | where TimeGenerated > [[time]]
+    | where ActionName == "[[action]]"
+    | summarize DeletedClusters = count() by [[by]]
+  slots:
+    - id: time
+      options:
+        - { id: ago, text: ago(7d) }
+        - { id: now, text: now(7d) }
+        - { id: span, text: 7d }
+    - id: action
+      options:
+        - { id: delete, text: delete }
+        - { id: permdelete, text: permanentDelete }
+        - { id: deleteresult, text: deleteResult }
+        - { id: edit, text: edit }
+    - id: by
+      options:
+        - { id: identity, text: Identity }
+        - { id: sourceip, text: SourceIPAddress }
+        - { id: servicename, text: ServiceName }
+        - { id: requestid, text: RequestId }
+answer:
+  values: { time: ago, action: permdelete, by: identity }
+explanation:
+  correct:
+    en: "`ago(7d)` returns the time seven days before now. In the clusters audit events, `permanentDelete` is logged when a cluster is deleted, whereas `delete` is logged when a cluster is terminated. The `Identity` column holds information about the user who made the request, so summarizing by it gives one row per user."
+    fr: "`ago(7d)` renvoie l'heure qu'il était il y a sept jours. Dans les événements d'audit clusters, `permanentDelete` est journalisé quand un cluster est supprimé, alors que `delete` l'est quand un cluster est arrêté. La colonne `Identity` contient les informations sur l'utilisateur qui a fait la demande : résumer par cette colonne donne une ligne par utilisateur."
+  options:
+    now: { en: "now(7d) returns a time seven days in the future.", fr: "now(7d) renvoie une heure située sept jours dans le futur." }
+    span: { en: "A timespan cannot be compared with the datetime column TimeGenerated.", fr: "Une durée ne peut pas être comparée à la colonne de date TimeGenerated." }
+    delete: { en: "delete is logged when a cluster is terminated, which the requirement excludes.", fr: "delete est journalisé quand un cluster est arrêté, ce que l'exigence exclut." }
+    deleteresult: { en: "deleteResult is the result of a termination, logged with delete.", fr: "deleteResult est le résultat d'un arrêt, journalisé avec delete." }
+    edit: { en: "edit is logged when cluster settings change.", fr: "edit est journalisé quand les paramètres d'un cluster changent." }
+    sourceip: { en: "SourceIPAddress groups by the address of the request, not by user.", fr: "SourceIPAddress regroupe par adresse de la demande, pas par utilisateur." }
+    servicename: { en: "ServiceName is the same value (clusters) for every row of the table.", fr: "ServiceName a la même valeur (clusters) pour toutes les lignes de la table." }
+    requestid: { en: "RequestId is unique per request, so every group would count one event.", fr: "RequestId est unique par demande : chaque groupe compterait un seul événement." }
+references:
+  - title: Diagnostic log reference
+    url: https://learn.microsoft.com/en-us/azure/databricks/admin/account-settings/audit-logs

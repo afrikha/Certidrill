@@ -1,0 +1,64 @@
+id: dp300-3a-qsm-catalog-views
+objective: "3.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database named **DB1** that uses Query Store.
+
+    You need a Transact-SQL query that returns the text of the 10 queries that were executed the most times during the last 7 days, based on Query Store data.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL nommée **DB1** qui utilise le Magasin des requêtes.
+
+    Vous avez besoin d'une requête Transact-SQL qui renvoie le texte des 10 requêtes les plus exécutées au cours des 7 derniers jours, à partir des données du Magasin des requêtes.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT TOP (10) qt.query_sql_text,
+           SUM(rs.count_executions) AS executions
+    FROM [[rs]] AS rs
+    JOIN sys.query_store_runtime_stats_interval AS i
+         ON rs.runtime_stats_interval_id = i.runtime_stats_interval_id
+    JOIN sys.query_store_plan AS p ON rs.plan_id = p.plan_id
+    JOIN [[q]] AS q ON p.query_id = q.query_id
+    JOIN sys.query_store_query_text AS qt ON q.query_text_id = qt.query_text_id
+    WHERE i.start_time > DATEADD(day, -7, SYSUTCDATETIME())
+    GROUP BY qt.query_sql_text
+    ORDER BY executions DESC;
+  slots:
+    - id: rs
+      options:
+        - { id: runtime, text: sys.query_store_runtime_stats }
+        - { id: wait, text: sys.query_store_wait_stats }
+        - { id: dmv, text: sys.dm_exec_query_stats }
+    - id: q
+      options:
+        - { id: query, text: sys.query_store_query }
+        - { id: ctx, text: sys.query_context_settings }
+        - { id: hints, text: sys.query_store_query_hints }
+answer:
+  values: { rs: runtime, q: query }
+explanation:
+  correct:
+    en: |
+      sys.query_store_runtime_stats holds the statistics of each plan per interval, including count_executions, and joins to sys.query_store_runtime_stats_interval for the interval times. sys.query_store_plan links each plan to its query in sys.query_store_query, which holds the query_text_id used to get the text from sys.query_store_query_text.
+    fr: |
+      sys.query_store_runtime_stats contient les statistiques de chaque plan par intervalle, dont count_executions, et se joint à sys.query_store_runtime_stats_interval pour les heures des intervalles. sys.query_store_plan relie chaque plan à sa requête dans sys.query_store_query, qui contient le query_text_id permettant d'obtenir le texte dans sys.query_store_query_text.
+  options:
+    wait: { en: "sys.query_store_wait_stats holds wait statistics per plan; it has no count_executions column.", fr: "sys.query_store_wait_stats contient les statistiques d'attente par plan ; elle n'a pas de colonne count_executions." }
+    dmv: { en: "sys.dm_exec_query_stats reflects the plan cache, not Query Store intervals, and it has no runtime_stats_interval_id.", fr: "sys.dm_exec_query_stats reflète le cache des plans, pas les intervalles du Magasin des requêtes, et n'a pas de runtime_stats_interval_id." }
+    ctx: { en: "sys.query_context_settings describes the SET options of a context; it has no query_text_id.", fr: "sys.query_context_settings décrit les options SET d'un contexte ; elle n'a pas de query_text_id." }
+    hints: { en: "sys.query_store_query_hints lists Query Store hints, not every query.", fr: "sys.query_store_query_hints liste les indicateurs du Magasin des requêtes, pas toutes les requêtes." }
+references:
+  - title: Monitor performance by using the Query Store
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/performance/monitoring-performance-by-using-the-query-store

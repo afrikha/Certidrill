@@ -1,0 +1,82 @@
+id: az400-3c-canary-hooks
+objective: "3.4.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso deploys an API to the Kubernetes resource **aks-api** of the Azure Pipelines environment **prod**. You need a deployment job that meets the following requirements:
+
+    - The new version receives 10 percent of the traffic, then 50 percent, before the full rollout.
+    - After the traffic is routed at each step, a health check script runs.
+    - A rollback script runs if the deployment fails.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso déploie une API sur la ressource Kubernetes **aks-api** de l'environnement Azure Pipelines **prod**. Vous avez besoin d'un travail de déploiement qui respecte les exigences suivantes :
+
+    - La nouvelle version reçoit 10 % du trafic, puis 50 %, avant le déploiement complet.
+    - Après le routage du trafic à chaque étape, un script de contrôle d'intégrité s'exécute.
+    - Un script de restauration s'exécute si le déploiement échoue.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    jobs:
+    - deployment: Api
+      environment: prod.aks-api
+      pool:
+        vmImage: ubuntu-latest
+      strategy:
+        [[s1]]:
+          increments: [10, 50]
+          [[s2]]:
+            steps:
+            - script: ./deploy-canary.sh --percentage $(strategy.increment)
+          [[s3]]:
+            steps:
+            - script: ./check-health.sh
+          on:
+            failure:
+              steps:
+              - script: ./rollback.sh
+  slots:
+    - id: s1
+      options:
+        - { id: canary, text: canary }
+        - { id: rolling, text: rolling }
+        - { id: runonce, text: runOnce }
+    - id: s2
+      options:
+        - { id: deploy, text: deploy }
+        - { id: predeploy, text: preDeploy }
+        - { id: route2, text: routeTraffic }
+    - id: s3
+      options:
+        - { id: postroute, text: postRouteTraffic }
+        - { id: route3, text: routeTraffic }
+        - { id: predeploy3, text: preDeploy }
+answer:
+  values: { s1: canary, s2: deploy, s3: postroute }
+explanation:
+  correct:
+    en: |
+      The canary strategy runs preDeploy once, then the deploy, routeTraffic and postRouteTraffic hooks for each value of `increments`, and `strategy.increment` holds the current percentage in those hooks. The deployment script belongs in deploy, and postRouteTraffic is the hook that monitors health after traffic is routed.
+    fr: |
+      La stratégie canary exécute preDeploy une fois, puis les hooks deploy, routeTraffic et postRouteTraffic pour chaque valeur de `increments`, et `strategy.increment` contient le pourcentage en cours dans ces hooks. Le script de déploiement va dans deploy, et postRouteTraffic est le hook qui surveille l'intégrité après le routage du trafic.
+  options:
+    rolling: { en: "rolling replaces instances in batches and supports only virtual machine resources; it has no increments.", fr: "rolling remplace les instances par lots et ne prend en charge que les ressources machine virtuelle ; il n'a pas d'increments." }
+    runonce: { en: "runOnce runs each hook once and doesn't support increments.", fr: "runOnce exécute chaque hook une seule fois et ne prend pas en charge increments." }
+    predeploy: { en: "preDeploy runs once before the increments, so strategy.increment isn't available in it.", fr: "preDeploy s'exécute une fois avant les incréments : strategy.increment n'y est pas disponible." }
+    route2: { en: "routeTraffic routes traffic to the deployed version; the version must be deployed first in deploy.", fr: "routeTraffic dirige le trafic vers la version déployée ; la version doit d'abord être déployée dans deploy." }
+    route3: { en: "routeTraffic runs before traffic reaches the new version; health is checked in postRouteTraffic.", fr: "routeTraffic s'exécute avant que le trafic atteigne la nouvelle version ; l'intégrité se contrôle dans postRouteTraffic." }
+    predeploy3: { en: "preDeploy runs only once, before any traffic is routed.", fr: "preDeploy ne s'exécute qu'une fois, avant tout routage du trafic." }
+references:
+  - title: Deployment jobs
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/process/deployment-jobs

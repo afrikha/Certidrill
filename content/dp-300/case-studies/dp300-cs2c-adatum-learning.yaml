@@ -1,0 +1,127 @@
+id: dp300-cs2c-adatum-learning
+status: draft
+title:
+  en: Adatum Learning
+  fr: Adatum Learning
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Adatum Learning runs online degree programs for 30 partner universities. About 90,000 students follow courses on the web portal and on a mobile app that works offline.
+
+        Adatum plans to move its databases from its only datacenter, in Amsterdam, to Azure SQL Database. A team of two database administrators (DBAs) manages the databases.
+      fr: |
+        Adatum Learning propose des cursus diplômants en ligne pour 30 universités partenaires. Environ 90 000 étudiants suivent les cours sur le portail web et sur une application mobile qui fonctionne hors connexion.
+
+        Adatum prévoit de déplacer ses bases de données de son unique centre de données, à Amsterdam, vers Azure SQL Database. Une équipe de deux administrateurs de bases de données (DBA) gère les bases de données.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **On-premises environment**
+
+        A server named **SQLEDU1** runs SQL Server 2016 SP3 Standard. It hosts two databases.
+
+        | Database | Size | Usage |
+        | --- | --- | --- |
+        | Enrollment | 250 GB | Students, courses, progress and payments. Used 24 hours a day. |
+        | Grades | 40 GB | Exam grades. Used only during the four exam periods of the year, a few hours a day. |
+
+        Enrollment contains the following tables:
+
+        - **dbo.CourseProgress**: the progress of each student in each course. The mobile app synchronizes it.
+        - **dbo.Transcripts**: the final grade of each student in each course. A grade can be corrected after an appeal.
+        - **dbo.Payments**: the tuition payments.
+
+        A legacy enrollment tool sends thousands of different ad hoc queries to Enrollment every hour. Most of them run only once.
+
+        **Planned Azure environment**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | sql-adl-weu | Logical server in West Europe |
+        | sql-adl-neu | Logical server in North Europe |
+        | Enrollment | Single database on sql-adl-weu, General Purpose, provisioned compute, 16 vCores. A readable geo-secondary of Enrollment will be created on sql-adl-neu. |
+        | Grades | Single database on sql-adl-weu |
+
+        The web portal, the mobile app back end and a reporting tool will connect to Enrollment. The reporting tool will connect to the geo-secondary on sql-adl-neu.
+      fr: |
+        **Environnement local**
+
+        Un serveur nommé **SQLEDU1** exécute SQL Server 2016 SP3 Standard. Il héberge deux bases de données.
+
+        | Base de données | Taille | Usage |
+        | --- | --- | --- |
+        | Enrollment | 250 Go | Étudiants, cours, progression et paiements. Utilisée 24 heures sur 24. |
+        | Grades | 40 Go | Notes d'examen. Utilisée uniquement pendant les quatre sessions d'examens de l'année, quelques heures par jour. |
+
+        Enrollment contient les tables suivantes :
+
+        - **dbo.CourseProgress** : la progression de chaque étudiant dans chaque cours. L'application mobile la synchronise.
+        - **dbo.Transcripts** : la note finale de chaque étudiant dans chaque cours. Une note peut être corrigée après une réclamation.
+        - **dbo.Payments** : les paiements des frais de scolarité.
+
+        Un ancien outil d'inscription envoie chaque heure à Enrollment des milliers de requêtes ad hoc différentes. La plupart ne s'exécutent qu'une fois.
+
+        **Environnement Azure prévu**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | sql-adl-weu | Serveur logique dans la région West Europe |
+        | sql-adl-neu | Serveur logique dans la région North Europe |
+        | Enrollment | Base de données unique sur sql-adl-weu, General Purpose, calcul provisionné, 16 vCores. Un géo-secondaire accessible en lecture d'Enrollment sera créé sur sql-adl-neu. |
+        | Grades | Base de données unique sur sql-adl-weu |
+
+        Le portail web, le back-end de l'application mobile et un outil de rapports se connecteront à Enrollment. L'outil de rapports se connectera au géo-secondaire sur sql-adl-neu.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Migration requirements**
+
+        1. Enrollment and Grades will be migrated during a weekend on which the portal is closed for 12 hours. The schema and the data must be migrated. Under the data protection policy, no copy of the student data may be written to a file during the migration.
+
+        **Grades requirements**
+
+        2. Grades must be created by using Azure PowerShell. Compute must be billed only while Grades is used, up to 4 vCores, and Grades must pause after one hour without activity.
+        3. The backups of Grades must remain available if an availability zone fails, and they must never be stored outside the West Europe region.
+
+        **Data change requirements**
+
+        4. The mobile app back end must retrieve the dbo.CourseProgress rows changed since its last synchronization, with their current values only. No earlier value must be stored.
+        5. For any row of dbo.Transcripts, the appeal committee must be able to see the row as it was at any past date. The earlier versions must be kept for seven years and then removed automatically.
+        6. Each insert, update and delete in dbo.Payments, with the values before and after the change, must be read asynchronously from the transaction log by the finance data platform.
+
+        **Performance requirements**
+
+        7. On the primary database, each query of Enrollment must use at most two processors. On the geo-secondary, each reporting query must be able to use up to eight processors.
+        8. The single-use queries of the legacy enrollment tool must consume as little plan cache memory as possible.
+
+        **Disaster recovery requirements**
+
+        9. Twice a year, the DBAs must run a disaster recovery drill: Enrollment must become primary in North Europe without any data loss, and then become primary in West Europe again.
+      fr: |
+        **Exigences de migration**
+
+        1. Enrollment et Grades seront migrées pendant un week-end au cours duquel le portail est fermé pendant 12 heures. Le schéma et les données doivent être migrés. Selon la stratégie de protection des données, aucune copie des données des étudiants ne doit être écrite dans un fichier pendant la migration.
+
+        **Exigences relatives à Grades**
+
+        2. Grades doit être créée à l'aide d'Azure PowerShell. Le calcul ne doit être facturé que lorsque Grades est utilisée, jusqu'à 4 vCores, et Grades doit se mettre en pause après une heure sans activité.
+        3. Les sauvegardes de Grades doivent rester disponibles en cas de défaillance d'une zone de disponibilité et ne doivent jamais être stockées en dehors de la région West Europe.
+
+        **Exigences relatives aux modifications de données**
+
+        4. Le back-end de l'application mobile doit récupérer les lignes de dbo.CourseProgress modifiées depuis sa dernière synchronisation, avec uniquement leurs valeurs actuelles. Aucune valeur antérieure ne doit être stockée.
+        5. Pour toute ligne de dbo.Transcripts, la commission des réclamations doit pouvoir voir la ligne telle qu'elle était à n'importe quelle date passée. Les versions antérieures doivent être conservées pendant sept ans, puis supprimées automatiquement.
+        6. Chaque insertion, mise à jour et suppression dans dbo.Payments, avec les valeurs avant et après la modification, doit être lue de façon asynchrone dans le journal des transactions par la plateforme de données financières.
+
+        **Exigences de performances**
+
+        7. Sur la base de données primaire, chaque requête d'Enrollment doit utiliser au plus deux processeurs. Sur le géo-secondaire, chaque requête de rapport doit pouvoir utiliser jusqu'à huit processeurs.
+        8. Les requêtes à usage unique de l'ancien outil d'inscription doivent consommer le moins de mémoire possible dans le cache des plans.
+
+        **Exigences de reprise d'activité**
+
+        9. Deux fois par an, les DBA doivent effectuer un exercice de reprise d'activité : Enrollment doit devenir primaire dans la région North Europe sans aucune perte de données, puis redevenir primaire dans la région West Europe.

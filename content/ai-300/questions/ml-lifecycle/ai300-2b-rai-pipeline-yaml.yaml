@@ -1,0 +1,82 @@
+id: ai300-2b-rai-pipeline-yaml
+objective: "2.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure Machine Learning workspace that contains a registered MLflow model with the `sklearn` flavor. The model predicts whether a loan is approved (`approved` is `0` or `1`). The training and test data are registered `mltable` data assets.
+
+    You are writing a pipeline job that builds a Responsible AI dashboard with feature explanations by using the components published in the Azure Machine Learning system registry.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un espace de travail Azure Machine Learning qui contient un modèle MLflow inscrit avec la saveur `sklearn`. Le modèle prédit si un prêt est approuvé (`approved` vaut `0` ou `1`). Les données d'entraînement et de test sont des ressources de données `mltable` inscrites.
+
+    Vous écrivez un travail de pipeline qui crée un tableau de bord Responsible AI avec des explications des caractéristiques, à l'aide des composants publiés dans le registre système Azure Machine Learning.
+
+    Comment devez-vous compléter le fichier YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    jobs:
+      create_rai_job:
+        type: command
+        component: azureml://registries/[[s1]]/components/microsoft_azureml_rai_tabular_insight_constructor/versions/<version>
+        inputs:
+          title: Loan approval insights
+          task_type: [[s2]]
+          train_dataset: ${{parent.inputs.train_data}}
+          test_dataset: ${{parent.inputs.test_data}}
+          target_column_name: approved
+      explain_01:
+        type: command
+        component: azureml://registries/azureml/components/microsoft_azureml_rai_tabular_explanation/versions/<version>
+        inputs:
+          rai_insights_dashboard: ${{parent.jobs.create_rai_job.outputs.rai_insights_dashboard}}
+      gather_01:
+        type: command
+        component: azureml://registries/azureml/components/[[s3]]/versions/<version>
+        inputs:
+          constructor: ${{parent.jobs.create_rai_job.outputs.rai_insights_dashboard}}
+          insight_1: ${{parent.jobs.explain_01.outputs.explanation}}
+  slots:
+    - id: s1
+      options:
+        - { id: s1a, text: azureml }
+        - { id: s1b, text: mlw-contoso }
+        - { id: s1c, text: microsoft }
+    - id: s2
+      options:
+        - { id: s2b, text: regression }
+        - { id: s2c, text: forecasting }
+        - { id: s2a, text: classification }
+    - id: s3
+      options:
+        - { id: s3b, text: microsoft_azureml_rai_tabular_insight_constructor }
+        - { id: s3d, text: rai_score_card }
+        - { id: s3c, text: microsoft_azureml_rai_tabular_erroranalysis }
+        - { id: s3a, text: microsoft_azureml_rai_tabular_insight_gather }
+answer:
+  values: { s1: s1a, s2: s2a, s3: s3a }
+explanation:
+  correct:
+    en: |
+      The Responsible AI components are published in the `azureml` system registry. A model that predicts approved or not approved is a `classification` task. A dashboard always needs the constructor and the Gather RAI Insights dashboard component, which collects the outputs of the tool components such as Add Explanation.
+    fr: |
+      Les composants Responsible AI sont publiés dans le registre système `azureml`. Un modèle qui prédit approuvé ou non approuvé correspond à une tâche `classification`. Un tableau de bord nécessite toujours le constructeur et le composant Gather RAI Insights dashboard, qui rassemble les sorties des composants d'outils comme Add Explanation.
+  options:
+    s1b: { en: "The components aren't in your workspace; they come from the `azureml` registry.", fr: "Les composants ne se trouvent pas dans votre espace de travail ; ils proviennent du registre `azureml`." }
+    s2b: { en: "Regression predicts a continuous value; `approved` takes two classes.", fr: "La régression prédit une valeur continue ; `approved` prend deux classes." }
+    s2c: { en: "Forecasting is for time series predictions.", fr: "La prévision (forecasting) concerne les séries chronologiques." }
+    s3b: { en: "The constructor is the first step; it doesn't gather the insights.", fr: "Le constructeur est la première étape ; il ne rassemble pas les analyses." }
+    s3c: { en: "Error analysis is a tool component that adds an insight; it doesn't build the final dashboard.", fr: "L'analyse des erreurs est un composant d'outil qui ajoute une analyse ; il ne crée pas le tableau de bord final." }
+    s3d: { en: "The scorecard component generates a PDF from an existing dashboard, and it is referenced as `azureml:rai_score_card@latest`.", fr: "Le composant de scorecard génère un PDF à partir d'un tableau de bord existant, et il est référencé sous la forme `azureml:rai_score_card@latest`." }
+references:
+  - title: Generate Responsible AI insights with YAML and Python
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-responsible-ai-insights-sdk-cli

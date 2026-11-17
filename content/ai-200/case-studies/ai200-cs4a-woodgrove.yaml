@@ -1,0 +1,83 @@
+id: ai200-cs4a-woodgrove
+status: draft
+title:
+  en: Woodgrove Bank
+  fr: Woodgrove Bank
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Woodgrove Bank is a retail bank with 240 branches in three countries. Its customer service team receives about 9,000 customer complaints a day through the website, the mobile app and the branches.
+
+        Woodgrove Bank is building **ComplaintDesk**, a set of Python services that registers each complaint, suggests the resolutions of the most similar past complaints, and sends suspected fraud cases to a dedicated team.
+      fr: |
+        Woodgrove Bank est une banque de détail qui compte 240 agences dans trois pays. Son service client reçoit environ 9 000 réclamations de clients par jour par le site web, l'application mobile et les agences.
+
+        Woodgrove Bank développe **ComplaintDesk**, un ensemble de services Python qui enregistre chaque réclamation, propose les résolutions des réclamations passées les plus similaires et envoie les cas de fraude présumée à une équipe dédiée.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Woodgrove Bank has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | aks-woodgrove | Azure Kubernetes Service (AKS) cluster | Namespace **complaints**; Microsoft Entra Workload ID enabled |
+        | psql-woodgrove | Azure Database for PostgreSQL flexible server | General Purpose compute; database **complaints**; the `azure.extensions` server parameter allows no extension |
+        | sb-woodgrove | Azure Service Bus namespace | Standard tier; topic **complaints** with the subscriptions **fraud-review** and **archive** |
+        | kv-woodgrove | Azure Key Vault | Azure role-based access control permission model; secret **bureau-api-key** |
+
+        ComplaintDesk contains the following services, which all run in the complaints namespace of aks-woodgrove:
+
+        - **complaint-api**: a Python web API that registers the complaints and returns similar past complaints. It runs as a Kubernetes deployment with a workload identity named **id-complaint-api**.
+        - **fraud-worker**: reads the subscription fraud-review and opens a fraud case for each message.
+        - **archive-worker**: reads the subscription archive and stores every complaint in the long-term archive.
+
+        complaint-api sends one message to the complaints topic for each new complaint. The message body is a JSON document that contains a `category` field, such as `fraud`, `fees` or `service`. complaint-api sets no application properties. Both subscriptions contain only the rule that Service Bus created with the subscription.
+
+        fraud-worker writes its errors to standard output only.
+      fr: |
+        Woodgrove Bank dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | aks-woodgrove | Cluster Azure Kubernetes Service (AKS) | Espace de noms **complaints** ; Microsoft Entra Workload ID activé |
+        | psql-woodgrove | Serveur flexible Azure Database for PostgreSQL | Calcul General Purpose ; base de données **complaints** ; le paramètre de serveur `azure.extensions` n'autorise aucune extension |
+        | sb-woodgrove | Espace de noms Azure Service Bus | Niveau Standard ; rubrique **complaints** avec les abonnements **fraud-review** et **archive** |
+        | kv-woodgrove | Azure Key Vault | Modèle d'autorisation Contrôle d'accès en fonction du rôle Azure ; secret **bureau-api-key** |
+
+        ComplaintDesk contient les services suivants, qui s'exécutent tous dans l'espace de noms complaints de aks-woodgrove :
+
+        - **complaint-api** : une API web Python qui enregistre les réclamations et renvoie les réclamations passées similaires. Elle s'exécute sous la forme d'un déploiement Kubernetes avec une identité de charge de travail nommée **id-complaint-api**.
+        - **fraud-worker** : lit l'abonnement fraud-review et ouvre un dossier de fraude pour chaque message.
+        - **archive-worker** : lit l'abonnement archive et stocke chaque réclamation dans l'archive à long terme.
+
+        complaint-api envoie un message à la rubrique complaints pour chaque nouvelle réclamation. Le corps du message est un document JSON qui contient un champ `category`, par exemple `fraud`, `fees` ou `service`. complaint-api ne définit aucune propriété d'application. Les deux abonnements ne contiennent que la règle que Service Bus a créée avec l'abonnement.
+
+        fraud-worker écrit ses erreurs uniquement sur la sortie standard.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Woodgrove Bank identifies the following requirements:
+
+        1. **Complaint history**: the resolved complaints must be stored in a new table named **complaint_history** in the complaints database. Each row contains:
+           - `embedding`: the 1,536-dimension embedding of the complaint text, at full precision, in a column that can be indexed.
+           - `attributes`: product-specific details whose keys differ from one product to another. complaint-api filters on them with the `@>` containment operator and a GIN index.
+           - `received_at`: the moment the complaint was received. The branches are in several time zones, and the column must identify the same instant whatever the time zone of the session.
+        2. **Similarity search**: complaint-api returns the five past complaints nearest to a new complaint by cosine distance. The index on `embedding` must be an IVFFlat index, for its fast build and low memory use. The 1.8 million resolved complaints of the previous system are imported once, before go-live.
+        3. **Availability**: complaint-api runs three replicas. A pod must receive traffic only after `GET /health/ready` succeeds. A container must be restarted when `GET /health/live` fails. During an update, complaint-api must never have fewer than three ready pods.
+        4. **Fraud routing**: fraud-worker must receive only the complaints whose category is `fraud`. archive-worker must keep receiving every complaint.
+        5. **Credit bureau key**: complaint-api calls a credit bureau with the key stored in bureau-api-key. Every 90 days, the security team adds a new version of the secret; the bureau accepts the previous key for 24 hours after a rotation. complaint-api must use the new key within one hour of a rotation, without a restart, and must minimize the number of requests to kv-woodgrove. Permissions must follow the principle of least privilege.
+      fr: |
+        Woodgrove Bank a défini les exigences suivantes :
+
+        1. **Historique des réclamations** : les réclamations résolues doivent être stockées dans une nouvelle table nommée **complaint_history** de la base de données complaints. Chaque ligne contient :
+           - `embedding` : l'incorporation de 1 536 dimensions du texte de la réclamation, en pleine précision, dans une colonne qui peut être indexée.
+           - `attributes` : des détails propres au produit dont les clés diffèrent d'un produit à l'autre. complaint-api filtre sur ces détails avec l'opérateur de contenance `@>` et un index GIN.
+           - `received_at` : l'instant de réception de la réclamation. Les agences se trouvent dans plusieurs fuseaux horaires, et la colonne doit identifier le même instant quel que soit le fuseau horaire de la session.
+        2. **Recherche de similarité** : complaint-api renvoie les cinq réclamations passées les plus proches d'une nouvelle réclamation selon la distance cosinus. L'index de `embedding` doit être un index IVFFlat, pour sa génération rapide et sa faible consommation de mémoire. Les 1,8 million de réclamations résolues de l'ancien système sont importées une seule fois, avant la mise en service.
+        3. **Disponibilité** : complaint-api exécute trois réplicas. Un pod ne doit recevoir du trafic qu'après la réussite de `GET /health/ready`. Un conteneur doit être redémarré quand `GET /health/live` échoue. Pendant une mise à jour, complaint-api ne doit jamais avoir moins de trois pods prêts.
+        4. **Routage des fraudes** : fraud-worker ne doit recevoir que les réclamations dont la catégorie est `fraud`. archive-worker doit continuer à recevoir toutes les réclamations.
+        5. **Clé du bureau de crédit** : complaint-api appelle un bureau de crédit avec la clé stockée dans bureau-api-key. Tous les 90 jours, l'équipe de sécurité ajoute une nouvelle version du secret ; le bureau accepte la clé précédente pendant 24 heures après une rotation. complaint-api doit utiliser la nouvelle clé dans l'heure qui suit une rotation, sans redémarrage, et doit réduire au minimum le nombre de requêtes adressées à kv-woodgrove. Les autorisations doivent respecter le principe des privilèges minimum.

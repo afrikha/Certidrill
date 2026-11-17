@@ -1,0 +1,71 @@
+id: ai200-cs1c-litware
+status: draft
+title:
+  en: Litware Wind
+  fr: Litware Wind
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Litware Wind operates 60 wind farms in Spain and Portugal. Its field technicians use a web app named **FieldAssist** to report turbine faults with photos. FieldAssist suggests a diagnosis and creates a work order for each fault.
+
+        The work orders are used to schedule the maintenance crews and to reserve spare parts. All the components are written in Python.
+      fr: |
+        Litware Wind exploite 60 parcs éoliens en Espagne et au Portugal. Ses techniciens de terrain utilisent une application web nommée **FieldAssist** pour signaler les pannes des éoliennes avec des photos. FieldAssist propose un diagnostic et crée un ordre de travail pour chaque panne.
+
+        Les ordres de travail servent à planifier les équipes de maintenance et à réserver les pièces de rechange. Tous les composants sont écrits en Python.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Litware Wind has an Azure subscription that contains the following resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | crlitware | Azure Container Registry | Standard SKU; repository **field-assistant** |
+        | app-litware-assist | Web app for containers (Linux) | Runs the field-assistant image (FieldAssist) |
+        | sb-litware | Azure Service Bus namespace | Standard tier; topic **work-orders** with the subscription **scheduling**; queue **crew-dispatch** |
+        | func-litware | Function app (Python v2 programming model) | Connects to sb-litware through the connection named **ServiceBusConnection** |
+        | appi-litware | Application Insights | Receives the traces of FieldAssist and func-litware through OpenTelemetry |
+
+        The release team locks the tags of the field-assistant images that run in production by setting their `write-enabled` attribute to `false`. The other tags are kept forever, and crlitware now contains thousands of tags and untagged manifests.
+
+        FieldAssist sends one message per work order to the work-orders topic. Each message has an application property named `turbineId`. A turbine can receive several work orders within a few minutes.
+
+        FieldAssist uses the OpenTelemetry instrumentation of its web framework, so every incoming HTTP request produces a request span.
+      fr: |
+        Litware Wind dispose d'un abonnement Azure qui contient les ressources suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | crlitware | Azure Container Registry | SKU Standard ; dépôt **field-assistant** |
+        | app-litware-assist | Application web pour conteneurs (Linux) | Exécute l'image field-assistant (FieldAssist) |
+        | sb-litware | Espace de noms Azure Service Bus | Niveau Standard ; rubrique **work-orders** avec l'abonnement **scheduling** ; file d'attente **crew-dispatch** |
+        | func-litware | Application de fonction (modèle de programmation Python v2) | Se connecte à sb-litware par la connexion nommée **ServiceBusConnection** |
+        | appi-litware | Application Insights | Reçoit les traces de FieldAssist et de func-litware par le biais d'OpenTelemetry |
+
+        L'équipe de mise en production verrouille les balises des images field-assistant exécutées en production en définissant leur attribut `write-enabled` sur `false`. Les autres balises sont conservées indéfiniment, et crlitware contient désormais des milliers de balises et de manifestes sans balise.
+
+        FieldAssist envoie un message par ordre de travail à la rubrique work-orders. Chaque message a une propriété d'application nommée `turbineId`. Une éolienne peut recevoir plusieurs ordres de travail en quelques minutes.
+
+        FieldAssist utilise l'instrumentation OpenTelemetry de son framework web : chaque requête HTTP entrante produit une étendue (span) de requête.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Litware Wind identifies the following requirements:
+
+        1. **Registry cleanup**: every Sunday at 02:00 UTC, the field-assistant tags that are older than 30 days must be deleted, except the 10 most recent of them, and the untagged manifests must be deleted. A locked tag must never be deleted.
+        2. **Parts reservation**: a new subscription named **parts** will be added to work-orders. The parts worker must process the work orders of the same turbine one at a time and in the order in which they were sent, while it processes the work orders of different turbines in parallel.
+        3. **Crew scheduling**: a function named schedule_crew must read each work order from the scheduling subscription and write a dispatch plan to the crew-dispatch queue.
+        4. **Failed work orders**: on the scheduling subscription, a work order that makes schedule_crew fail must be delivered at most five times and then moved to the dead-letter queue. A work order whose time to live expires before it is processed must also be moved to the dead-letter queue.
+        5. **Tracing**: every request handled by FieldAssist must be searchable by turbine ID in the request telemetry of appi-litware, without creating additional telemetry items.
+      fr: |
+        Litware Wind a défini les exigences suivantes :
+
+        1. **Nettoyage du registre** : chaque dimanche à 02:00 UTC, les balises field-assistant de plus de 30 jours doivent être supprimées, à l'exception des 10 plus récentes d'entre elles, et les manifestes sans balise doivent être supprimés. Une balise verrouillée ne doit jamais être supprimée.
+        2. **Réservation des pièces** : un nouvel abonnement nommé **parts** sera ajouté à work-orders. Le worker des pièces doit traiter les ordres de travail d'une même éolienne un par un et dans l'ordre de leur envoi, tout en traitant en parallèle les ordres de travail d'éoliennes différentes.
+        3. **Planification des équipes** : une fonction nommée schedule_crew doit lire chaque ordre de travail dans l'abonnement scheduling et écrire un plan d'intervention dans la file d'attente crew-dispatch.
+        4. **Ordres de travail en échec** : sur l'abonnement scheduling, un ordre de travail qui fait échouer schedule_crew doit être remis cinq fois au plus, puis déplacé dans la file d'attente de lettres mortes. Un ordre de travail dont la durée de vie expire avant son traitement doit aussi être déplacé dans la file d'attente de lettres mortes.
+        5. **Traçage** : chaque requête traitée par FieldAssist doit pouvoir être recherchée par ID d'éolienne dans la télémétrie des requêtes d'appi-litware, sans créer d'éléments de télémétrie supplémentaires.

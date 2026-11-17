@@ -1,0 +1,77 @@
+id: dp800-3b-hy-complete
+objective: "3.2.8"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named dbo.HelpArticles with 20,000 rows. The table has an ArticleID key, a Body column covered by a full-text index, and a BodyVector column of type VECTOR(1536). The table has no vector index.
+
+    The variable @text contains the sentence typed by the user, and @qv contains its embedding. You need to build the two candidate lists of a hybrid search. The keyword list must match any word of @text and its inflectional forms without building a search condition, and the semantic list must use exact distances.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée dbo.HelpArticles de 20 000 lignes. La table possède une clé ArticleID, une colonne Body couverte par un index de recherche en texte intégral et une colonne BodyVector de type VECTOR(1536). La table ne possède pas d'index vectoriel.
+
+    La variable @text contient la phrase saisie par l'utilisateur, et @qv contient son incorporation. Vous devez construire les deux listes de candidats d'une recherche hybride. La liste par mots clés doit trouver n'importe quel mot de @text et ses formes fléchies sans construire de condition de recherche, et la liste sémantique doit utiliser des distances exactes.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    WITH keyword AS (
+        SELECT TOP (50) ft.[KEY] AS ArticleID,
+               RANK() OVER (ORDER BY [[krank]]) AS kw_rank
+        FROM [[kfn]](dbo.HelpArticles, Body, @text) AS ft
+        ORDER BY ft.[RANK] DESC
+    ),
+    semantic AS (
+        SELECT TOP (50) a.ArticleID,
+               RANK() OVER (ORDER BY [[vrank]]) AS vec_rank
+        FROM dbo.HelpArticles AS a
+        ORDER BY VECTOR_DISTANCE('cosine', @qv, a.BodyVector)
+    )
+    SELECT COALESCE(k.ArticleID, s.ArticleID) AS ArticleID, k.kw_rank, s.vec_rank
+    FROM keyword AS k
+    FULL OUTER JOIN semantic AS s ON s.ArticleID = k.ArticleID;
+  slots:
+    - id: krank
+      options:
+        - { id: rankdesc, text: "ft.[RANK] DESC" }
+        - { id: rankasc, text: "ft.[RANK] ASC" }
+        - { id: key, text: "ft.[KEY]" }
+    - id: kfn
+      options:
+        - { id: freetexttable, text: FREETEXTTABLE }
+        - { id: containstable, text: CONTAINSTABLE }
+        - { id: freetext, text: FREETEXT }
+    - id: vrank
+      options:
+        - { id: distasc, text: "VECTOR_DISTANCE('cosine', @qv, a.BodyVector)" }
+        - { id: distdesc, text: "VECTOR_DISTANCE('cosine', @qv, a.BodyVector) DESC" }
+        - { id: id, text: a.ArticleID }
+answer:
+  values: { krank: rankdesc, kfn: freetexttable, vrank: distasc }
+explanation:
+  correct:
+    en: |-
+      FREETEXTTABLE word-breaks and stems the free text and returns KEY and RANK; a higher RANK is a better match, so rank 1 goes to the highest RANK. On a 20,000-row table, VECTOR_DISTANCE computes exact distances, and rank 1 goes to the smallest distance. Each list is then ranked by position for the fusion.
+    fr: |-
+      FREETEXTTABLE découpe le texte libre en mots, génère les formes dérivées et renvoie KEY et RANK ; un RANK plus élevé est une meilleure correspondance : le rang 1 revient donc au RANK le plus élevé. Sur une table de 20 000 lignes, VECTOR_DISTANCE calcule des distances exactes, et le rang 1 revient à la plus petite distance. Chaque liste est ensuite classée par position pour la fusion.
+  options:
+    rankasc: { en: "Ascending order gives rank 1 to the weakest full-text match.", fr: "L'ordre croissant donne le rang 1 à la correspondance en texte intégral la plus faible." }
+    key: { en: "Ordering by KEY ranks the articles by ID, not by relevance.", fr: "Le tri par KEY classe les articles par ID, pas par pertinence." }
+    containstable: { en: "CONTAINSTABLE expects a CONTAINS search condition that the application would have to build.", fr: "CONTAINSTABLE attend une condition de recherche CONTAINS que l'application devrait construire." }
+    freetext: { en: "FREETEXT is a WHERE predicate; it returns no rowset and no RANK.", fr: "FREETEXT est un prédicat WHERE ; il ne renvoie ni ensemble de lignes ni RANK." }
+    distdesc: { en: "Descending order gives rank 1 to the farthest article.", fr: "L'ordre décroissant donne le rang 1 à l'article le plus éloigné." }
+    id: { en: "Ordering by ArticleID ignores the distance.", fr: "Le tri par ArticleID ignore la distance." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking
+  - title: FREETEXTTABLE (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-functions/freetexttable-transact-sql

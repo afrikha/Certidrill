@@ -1,0 +1,66 @@
+id: dp700-3a-failed-pipelines-kql
+objective: "3.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin has a workspace named WS-Load that contains 30 pipelines. Workspace monitoring is enabled for WS-Load.
+
+    You need a KQL query in the monitoring database that returns, for the last 24 hours, the number of failed runs of each pipeline.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin dispose d'un espace de travail nommé WS-Load qui contient 30 pipelines. La supervision de l'espace de travail est activée pour WS-Load.
+
+    Vous avez besoin d'une requête KQL dans la base de données de supervision qui renvoie, pour les dernières 24 heures, le nombre d'exécutions en échec de chaque pipeline.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[tbl]]
+    | where Timestamp > ago(24h)
+    | where JobType == "Data Pipeline" and [[col]] == "Failed"
+    | summarize FailedRuns = [[agg]] by ItemName
+  slots:
+    - id: tbl
+      options:
+        - { id: job, text: ItemJobEventLogs }
+        - { id: res, text: EventhouseIngestionResultsLogs }
+        - { id: cmd, text: EventhouseCommandLogs }
+    - id: col
+      options:
+        - { id: invoke, text: JobInvokeType }
+        - { id: ptype, text: ExecutingPrincipalType }
+        - { id: status, text: JobStatus }
+    - id: agg
+      options:
+        - { id: sum, text: sum(DurationMs) }
+        - { id: dinst, text: dcount(JobInstanceId) }
+        - { id: ditem, text: dcount(ItemName) }
+        - { id: max, text: max(JobEndTime) }
+answer:
+  values: { tbl: job, col: status, agg: dinst }
+explanation:
+  correct:
+    en: |
+      `ItemJobEventLogs` records the job events of items such as pipelines, notebooks and copy jobs, with the `JobType`, `JobStatus` and `JobInstanceId` columns. `JobStatus` takes values such as Completed or Failed, and counting distinct `JobInstanceId` values per `ItemName` gives the number of failed runs of each pipeline.
+    fr: |
+      `ItemJobEventLogs` enregistre les événements de tâche d'éléments comme les pipelines, les notebooks et les tâches de copie, avec les colonnes `JobType`, `JobStatus` et `JobInstanceId`. `JobStatus` prend des valeurs comme Completed ou Failed, et le nombre de valeurs distinctes de `JobInstanceId` par `ItemName` donne le nombre d'exécutions en échec de chaque pipeline.
+  options:
+    res: { en: "EventhouseIngestionResultsLogs holds eventhouse ingestion results, not pipeline runs.", fr: "EventhouseIngestionResultsLogs contient les résultats d'ingestion des eventhouses, pas les exécutions de pipelines." }
+    cmd: { en: "EventhouseCommandLogs holds eventhouse management commands, not pipeline runs.", fr: "EventhouseCommandLogs contient les commandes de gestion des eventhouses, pas les exécutions de pipelines." }
+    invoke: { en: "JobInvokeType tells whether the job was on demand or scheduled, not whether it failed.", fr: "JobInvokeType indique si la tâche était à la demande ou planifiée, pas si elle a échoué." }
+    ptype: { en: "ExecutingPrincipalType tells whether a user or a service principal ran the job.", fr: "ExecutingPrincipalType indique si un utilisateur ou un principal de service a exécuté la tâche." }
+    sum: { en: "The sum of durations is a time, not a number of runs.", fr: "La somme des durées est un temps, pas un nombre d'exécutions." }
+    ditem: { en: "Grouped by ItemName, dcount(ItemName) always returns 1.", fr: "Avec un regroupement par ItemName, dcount(ItemName) renvoie toujours 1." }
+    max: { en: "max(JobEndTime) returns the end time of the last failed run, not a count.", fr: "max(JobEndTime) renvoie l'heure de fin de la dernière exécution en échec, pas un nombre." }
+references:
+  - title: Monitor Fabric items with item job event logs
+    url: https://learn.microsoft.com/en-us/fabric/fundamentals/item-job-event-logs

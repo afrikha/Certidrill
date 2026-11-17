@@ -1,0 +1,69 @@
+id: dp300-cs3b-monitoring-login
+objective: "2.1.3"
+type: dropdown
+caseStudy: dp300-cs3b-bellows-college
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to meet the security requirements for BC\SIS-Monitoring.
+
+    How should you complete the Transact-SQL script and its deployment? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez satisfaire les exigences de sécurité concernant BC\SIS-Monitoring.
+
+    Comment devez-vous compléter le script Transact-SQL et son déploiement ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template:
+    en: |
+      -- Run this script on: [[where]]
+      USE master;
+      CREATE LOGIN [BC\SIS-Monitoring] [[source]];
+      ALTER SERVER ROLE [[role]] ADD MEMBER [BC\SIS-Monitoring];
+    fr: |
+      -- Exécuter ce script sur : [[where]]
+      USE master;
+      CREATE LOGIN [BC\SIS-Monitoring] [[source]];
+      ALTER SERVER ROLE [[role]] ADD MEMBER [BC\SIS-Monitoring];
+  slots:
+    - id: where
+      options:
+        - { id: vm1, text: { en: "SIS-VM1 only; the availability group replicates the login to SIS-VM2", fr: "SIS-VM1 uniquement ; le groupe de disponibilité réplique la connexion vers SIS-VM2" } }
+        - { id: both, text: { en: "SIS-VM1 and SIS-VM2", fr: "SIS-VM1 et SIS-VM2" } }
+        - { id: vm2, text: { en: "SIS-VM2 only; the readable secondary replica serves the monitoring queries", fr: "SIS-VM2 uniquement ; le réplica secondaire accessible en lecture traite les requêtes de supervision" } }
+    - id: source
+      options:
+        - { id: windows, text: "FROM WINDOWS" }
+        - { id: external, text: "FROM EXTERNAL PROVIDER" }
+        - { id: password, text: "WITH PASSWORD = N'Pa55w.rd-2026'" }
+    - id: role
+      options:
+        - { id: perf, text: "##MS_ServerPerformanceStateReader##" }
+        - { id: state, text: "##MS_ServerStateReader##" }
+        - { id: manager, text: "##MS_ServerStateManager##" }
+        - { id: processadmin, text: processadmin }
+answer:
+  values: { where: both, source: windows, role: perf }
+explanation:
+  correct:
+    en: |
+      Logins and server role memberships are stored in master, which an availability group does not replicate, so the script must run on both replicas for the access to survive a failover. `CREATE LOGIN ... FROM WINDOWS` creates a login for the AD DS group, so its members sign in with Windows authentication. `##MS_ServerPerformanceStateReader##`, a fixed server role added in SQL Server 2022, grants only VIEW SERVER PERFORMANCE STATE, the subset of server state needed to read the performance DMVs.
+    fr: |
+      Les connexions et les appartenances aux rôles de serveur sont stockées dans master, que le groupe de disponibilité ne réplique pas : le script doit s'exécuter sur les deux réplicas pour que l'accès subsiste après un basculement. `CREATE LOGIN ... FROM WINDOWS` crée une connexion pour le groupe AD DS : ses membres se connectent avec l'authentification Windows. `##MS_ServerPerformanceStateReader##`, rôle serveur fixe ajouté dans SQL Server 2022, accorde uniquement VIEW SERVER PERFORMANCE STATE, le sous-ensemble de l'état du serveur nécessaire pour lire les DMV de performances.
+  options:
+    vm1: { en: "An availability group replicates only user databases; logins in master must be created on each replica.", fr: "Un groupe de disponibilité ne réplique que les bases de données utilisateur ; les connexions de master doivent être créées sur chaque réplica." }
+    vm2: { en: "The monitoring team must query the server that hosts the primary replica, which is SIS-VM1 now and can be either server after a failover.", fr: "L'équipe de supervision doit interroger le serveur qui héberge le réplica principal, aujourd'hui SIS-VM1, et l'un ou l'autre serveur après un basculement." }
+    external: { en: "FROM EXTERNAL PROVIDER creates a Microsoft Entra login; BC\\SIS-Monitoring is an AD DS group and no Microsoft Entra authentication is configured.", fr: "FROM EXTERNAL PROVIDER crée une connexion Microsoft Entra ; BC\\SIS-Monitoring est un groupe AD DS et aucune authentification Microsoft Entra n'est configurée." }
+    password: { en: "WITH PASSWORD creates a SQL authentication login shared by everyone instead of a login for the AD DS group.", fr: "WITH PASSWORD crée une connexion d'authentification SQL partagée par tous au lieu d'une connexion pour le groupe AD DS." }
+    state: { en: "##MS_ServerStateReader## also grants VIEW SERVER SECURITY STATE, more than the performance DMVs.", fr: "##MS_ServerStateReader## accorde aussi VIEW SERVER SECURITY STATE, plus que les DMV de performances." }
+    manager: { en: "##MS_ServerStateManager## also grants ALTER SERVER STATE, which allows clearing caches and statistics.", fr: "##MS_ServerStateManager## accorde aussi ALTER SERVER STATE, qui permet de vider des caches et des statistiques." }
+    processadmin: { en: "processadmin lets its members end the processes of other sessions, which is not required.", fr: "processadmin permet à ses membres de mettre fin aux processus d'autres sessions, ce qui n'est pas demandé." }
+references:
+  - title: Server-level roles
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/server-level-roles

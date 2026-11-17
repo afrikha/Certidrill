@@ -1,0 +1,87 @@
+id: dp800-2b-updlock-transaction
+objective: "2.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind has a database in Azure SQL Database that uses the default database options. You are writing a stored procedure that reads the stock of a product, runs business checks on the value, and then updates the row.
+
+    The procedure must meet the following requirements:
+
+    - No other session can change the row between the read and the update.
+    - Sessions that only read the stock without table hints must not be blocked by the procedure.
+    - If a check fails, no change is kept.
+
+    How should you complete the procedure? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind dispose d'une base de données dans Azure SQL Database qui utilise les options de base de données par défaut. Vous écrivez une procédure stockée qui lit le stock d'un produit, exécute des contrôles métier sur la valeur, puis met à jour la ligne.
+
+    La procédure doit satisfaire les exigences suivantes :
+
+    - Aucune autre session ne peut modifier la ligne entre la lecture et la mise à jour.
+    - Les sessions qui lisent seulement le stock sans indicateur de table ne doivent pas être bloquées par la procédure.
+    - Si un contrôle échoue, aucune modification n'est conservée.
+
+    Comment devez-vous compléter la procédure ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR ALTER PROCEDURE dbo.ReserveStock @ProductID int, @Qty int
+    AS
+    SET XACT_ABORT ON;
+    [[s1]]
+    DECLARE @Stock int;
+    SELECT @Stock = Stock
+    FROM dbo.Product WITH ([[s2]])
+    WHERE ProductID = @ProductID;
+
+    -- Business checks on @Stock
+    IF @Stock < @Qty
+        THROW 50001, N'Insufficient stock', 1;
+
+    UPDATE dbo.Product SET Stock = @Stock - @Qty WHERE ProductID = @ProductID;
+    [[s3]]
+  slots:
+    - id: s1
+      options:
+        - { id: lockto, text: "SET LOCK_TIMEOUT 0;" }
+        - { id: begin, text: "BEGIN TRANSACTION;" }
+        - { id: ru, text: "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;" }
+        - { id: try, text: "BEGIN TRY" }
+    - id: s2
+      options:
+        - { id: nolock, text: "NOLOCK" }
+        - { id: readpast, text: "READPAST" }
+        - { id: updlock, text: "UPDLOCK" }
+        - { id: nowait, text: "NOWAIT" }
+    - id: s3
+      options:
+        - { id: commit, text: "COMMIT TRANSACTION;" }
+        - { id: rollback, text: "ROLLBACK TRANSACTION;" }
+        - { id: xoff, text: "SET XACT_ABORT OFF;" }
+        - { id: endtry, text: "END TRY" }
+answer:
+  values: { s1: begin, s2: updlock, s3: commit }
+explanation:
+  correct:
+    en: |
+      The read and the update must be in one explicit transaction. UPDLOCK takes an update lock on the row and holds it until the transaction ends, so a second session running the procedure waits at its SELECT instead of reading the same value. Update locks are compatible with shared locks, and plain readers use row versions under RCSI, so they aren't blocked. With XACT_ABORT ON, the THROW ends the batch and rolls back the transaction; otherwise COMMIT keeps the change.
+    fr: |
+      La lecture et la mise à jour doivent se trouver dans une transaction explicite. UPDLOCK prend un verrou de mise à jour sur la ligne et le conserve jusqu'à la fin de la transaction : une seconde session qui exécute la procédure attend sur son SELECT au lieu de lire la même valeur. Les verrous de mise à jour sont compatibles avec les verrous partagés, et les lecteurs simples utilisent des versions de lignes avec RCSI : ils ne sont pas bloqués. Avec XACT_ABORT ON, THROW termine le lot et annule la transaction ; sinon, COMMIT conserve la modification.
+  options:
+    lockto: { en: "LOCK_TIMEOUT 0 makes the session fail immediately on any lock wait; it doesn't start a transaction.", fr: "LOCK_TIMEOUT 0 fait échouer la session dès qu'elle attend un verrou ; il ne démarre pas de transaction." }
+    ru: { en: "READ UNCOMMITTED allows dirty reads and protects nothing.", fr: "READ UNCOMMITTED autorise les lectures incorrectes et ne protège rien." }
+    try: { en: "A TRY block without a transaction can't keep the row locked between the two statements.", fr: "Un bloc TRY sans transaction ne peut pas garder la ligne verrouillée entre les deux instructions." }
+    nolock: { en: "NOLOCK takes no lock at all on the row read.", fr: "NOLOCK ne prend aucun verrou sur la ligne lue." }
+    readpast: { en: "READPAST skips locked rows; the procedure could read no row at all.", fr: "READPAST ignore les lignes verrouillées ; la procédure pourrait ne lire aucune ligne." }
+    nowait: { en: "NOWAIT returns an error instead of waiting for a lock; it doesn't hold a lock until the update.", fr: "NOWAIT renvoie une erreur au lieu d'attendre un verrou ; il ne conserve pas de verrou jusqu'à la mise à jour." }
+    rollback: { en: "ROLLBACK would undo every successful reservation.", fr: "ROLLBACK annulerait chaque réservation réussie." }
+references:
+  - title: Transaction locking and row versioning guide
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide

@@ -1,0 +1,87 @@
+id: dp800-2b-dab-policy-fields
+objective: "2.1.8"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Wingtip exposes the `dbo.Orders` table through Data API builder (DAB). Customers sign in with Microsoft Entra ID, and their tokens contain the `oid` claim. The `CustomerId` column of `dbo.Orders` stores the `oid` value of the customer who placed the order.
+
+    You need to configure the `customer` role to meet the following requirements:
+
+    - Customers can place new orders.
+    - Customers can read only their own orders.
+    - The `CostPrice` and `InternalNotes` columns are never returned to customers, including columns added to the table later.
+
+    How should you complete the permission? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Wingtip expose la table `dbo.Orders` avec Data API builder (DAB). Les clients se connectent avec Microsoft Entra ID, et leurs jetons contiennent la revendication `oid`. La colonne `CustomerId` de `dbo.Orders` stocke la valeur `oid` du client qui a passé la commande.
+
+    Vous devez configurer le rôle `customer` pour satisfaire les exigences suivantes :
+
+    - Les clients peuvent passer de nouvelles commandes.
+    - Les clients ne peuvent lire que leurs propres commandes.
+    - Les colonnes `CostPrice` et `InternalNotes` ne sont jamais renvoyées aux clients, ce qui doit rester vrai pour les colonnes ajoutées plus tard à la table.
+
+    Comment devez-vous compléter l'autorisation ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "role": "customer",
+      "actions": [
+        "create",
+        {
+          "action": [[act]],
+          "fields": [[fld]],
+          "policy": { "database": [[pol]] }
+        }
+      ]
+    }
+  slots:
+    - id: act
+      options:
+        - { id: create, text: '"create"' }
+        - { id: read, text: '"read"' }
+        - { id: execute, text: '"execute"' }
+        - { id: update, text: '"update"' }
+    - id: fld
+      options:
+        - { id: incl, text: '{ "include": [ "CostPrice", "InternalNotes" ] }' }
+        - { id: all, text: '{ "include": [ "*" ] }' }
+        - { id: excl, text: '{ "include": [ "*" ], "exclude": [ "CostPrice", "InternalNotes" ] }' }
+        - { id: exclall, text: '{ "exclude": [ "*" ], "include": [ "CostPrice", "InternalNotes" ] }' }
+    - id: pol
+      options:
+        - { id: eq, text: '"@item.CustomerId eq @claims.oid"' }
+        - { id: rev, text: '"@claims.CustomerId eq @item.oid"' }
+        - { id: sqleq, text: '"@item.CustomerId = @claims.oid"' }
+        - { id: noitem, text: '"CustomerId eq @claims.oid"' }
+answer:
+  values: { act: read, fld: excl, pol: eq }
+explanation:
+  correct:
+    en: |
+      The policy and the field restrictions belong to the read action; create stays a plain action because database policies aren't supported for create or execute. Including every field and excluding CostPrice and InternalNotes hides those two columns while new columns remain readable. The policy uses @item for the row's field and @claims for the token claim with the OData operator eq, so DAB adds the predicate to the generated query.
+    fr: |
+      La stratégie et les restrictions de champs appartiennent à l'action read ; create reste une action simple, car les stratégies de base de données ne sont pas prises en charge pour create ni pour execute. Inclure tous les champs et exclure CostPrice et InternalNotes masque ces deux colonnes tout en laissant lisibles les nouvelles colonnes. La stratégie utilise @item pour le champ de la ligne et @claims pour la revendication du jeton, avec l'opérateur OData eq : DAB ajoute le prédicat à la requête générée.
+  options:
+    create: { en: "Database policies aren't supported on create, and create is already granted.", fr: "Les stratégies de base de données ne sont pas prises en charge sur create, et create est déjà accordé." }
+    execute: { en: "execute applies to stored procedures, not to a table entity.", fr: "execute s'applique aux procédures stockées, pas à une entité de table." }
+    update: { en: "update doesn't let customers read their orders.", fr: "update ne permet pas aux clients de lire leurs commandes." }
+    incl: { en: "This returns only the two sensitive columns.", fr: "Ceci ne renvoie que les deux colonnes sensibles." }
+    all: { en: "Including every field without an exclusion returns CostPrice and InternalNotes.", fr: "Inclure tous les champs sans exclusion renvoie CostPrice et InternalNotes." }
+    exclall: { en: "Exclusions take precedence over inclusions, so no field would be readable.", fr: "Les exclusions l'emportent sur les inclusions : aucun champ ne serait lisible." }
+    rev: { en: "The row's column is referenced with @item and the token value with @claims, not the reverse.", fr: "La colonne de la ligne est référencée avec @item et la valeur du jeton avec @claims, pas l'inverse." }
+    sqleq: { en: "Policies use OData operators such as eq, not the T-SQL = operator.", fr: "Les stratégies utilisent des opérateurs OData tels que eq, pas l'opérateur T-SQL =." }
+    noitem: { en: "A field must be referenced with the @item prefix.", fr: "Un champ doit être référencé avec le préfixe @item." }
+references:
+  - title: Configure database policies for row-level filtering
+    url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/how-to-configure-database-policies
+  - title: Authorization overview
+    url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/authorization

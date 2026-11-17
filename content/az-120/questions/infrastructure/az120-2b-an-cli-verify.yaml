@@ -1,0 +1,76 @@
+id: az120-2b-an-cli-verify
+objective: "2.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are deploying a new SAP application server VM named **sapapp03** in the subnet **snet-app** of the virtual network **vnet-sap-prd**.
+
+    You need to:
+
+    - create the network interface with Accelerated Networking enabled;
+    - choose a VM size that supports Accelerated Networking;
+    - verify from the Linux guest that packets flow over the virtual function (VF) interface.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous déployez une nouvelle machine virtuelle de serveur d'applications SAP nommée **sapapp03** dans le sous-réseau **snet-app** du réseau virtuel **vnet-sap-prd**.
+
+    Vous devez :
+
+    - créer l'interface réseau avec Accelerated Networking activé ;
+    - choisir une taille de machine virtuelle qui prend en charge Accelerated Networking ;
+    - vérifier depuis l'invité Linux que les paquets transitent par l'interface de fonction virtuelle (VF).
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az network nic create --resource-group rg-sap-prd --name nic-sapapp03 \
+      --vnet-name vnet-sap-prd --subnet snet-app [[flag]]
+
+    az vm create --resource-group rg-sap-prd --name sapapp03 \
+      --nics nic-sapapp03 --size [[size]] --image $SLES_SAP_IMAGE
+
+    # In the guest OS, after the first boot
+    ethtool -S eth0 | grep [[ctr]]
+  slots:
+    - id: flag
+      options:
+        - { id: an, text: "--accelerated-networking true" }
+        - { id: ipf, text: "--ip-forwarding true" }
+        - { id: nsg, text: "--network-security-group nsg-app" }
+    - id: size
+      options:
+        - { id: e16, text: Standard_E16ds_v4 }
+        - { id: nv, text: Standard_NV12s_v3 }
+        - { id: b1, text: Standard_B1s }
+    - id: ctr
+      options:
+        - { id: vf, text: "vf_" }
+        - { id: hv, text: "hv_netvsc" }
+        - { id: mlx, text: "mlx5_core" }
+answer:
+  values: { flag: an, size: e16, ctr: vf }
+explanation:
+  correct:
+    en: "`az network nic create --accelerated-networking true` creates the NIC with Accelerated Networking. The Edsv4 series, including Standard_E16ds_v4, supports Accelerated Networking. The `ethtool -S eth0` output lines that contain `vf` show the packets that flow over the VF interface."
+    fr: "`az network nic create --accelerated-networking true` crée la carte réseau avec Accelerated Networking. La série Edsv4, dont Standard_E16ds_v4, prend en charge Accelerated Networking. Les lignes de la sortie de `ethtool -S eth0` qui contiennent `vf` indiquent les paquets qui passent par l'interface VF."
+  options:
+    ipf: { en: "IP forwarding is for NVAs that route other hosts' traffic.", fr: "Le transfert IP sert aux NVA qui routent le trafic d'autres hôtes." }
+    nsg: { en: "Associating an NSG doesn't enable Accelerated Networking.", fr: "L'association d'un NSG n'active pas Accelerated Networking." }
+    nv: { en: "NV sizes appear in the SKU list but don't support Accelerated Networking.", fr: "Les tailles NV apparaissent dans la liste des références SKU mais ne prennent pas en charge Accelerated Networking." }
+    b1: { en: "Accelerated Networking requires at least two vCPUs; Standard_B1s has one.", fr: "Accelerated Networking exige au moins deux processeurs virtuels ; Standard_B1s n'en a qu'un." }
+    hv: { en: "hv_netvsc is the driver of the synthetic interface, not a VF statistic.", fr: "hv_netvsc est le pilote de l'interface synthétique, pas une statistique VF." }
+    mlx: { en: "mlx5_core is a VF driver name (shown by ethtool -i), not a packet counter, and MANA hosts use another driver.", fr: "mlx5_core est un nom de pilote VF (affiché par ethtool -i), pas un compteur de paquets, et les hôtes MANA utilisent un autre pilote." }
+references:
+  - title: Create an Azure Virtual Machine with Accelerated Networking
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/create-virtual-machine-accelerated-networking
+  - title: Azure Accelerated Networking Overview and Benefits
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-overview

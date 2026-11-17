@@ -1,0 +1,69 @@
+id: ai200-cs4a-bureau-key
+objective: "4.1.1"
+type: yesno_statements
+caseStudy: ai200-cs4a-woodgrove
+difficulty: 1
+status: draft
+stem:
+  en: |
+    A developer adds the code shown in the Code exhibit to complaint-api to meet the credit bureau key requirement. `DefaultAzureCredential` authenticates as id-complaint-api.
+
+    For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un développeur ajoute le code présenté dans la pièce Code à complaint-api pour satisfaire l'exigence relative à la clé du bureau de crédit. `DefaultAzureCredential` s'authentifie en tant que id-complaint-api.
+
+    Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+    Remarque : chaque sélection correcte vaut un point.
+exhibits:
+  - id: code
+    title: { en: "Code", fr: "Code" }
+    body: |
+      ```python
+      import time
+      from azure.identity import DefaultAzureCredential
+      from azure.keyvault.secrets import SecretClient
+
+      client = SecretClient(vault_url="https://kv-woodgrove.vault.azure.net",
+                            credential=DefaultAzureCredential())
+      _cache = {"value": None, "expires": 0.0}
+
+      def get_bureau_key() -> str:
+          if time.monotonic() >= _cache["expires"]:
+              _cache["value"] = client.get_secret("bureau-api-key").value
+              _cache["expires"] = time.monotonic() + 3600
+          return _cache["value"]
+      ```
+body:
+  statements:
+    - id: s1
+      text:
+        en: |
+          After the security team adds a new version of bureau-api-key, `get_bureau_key` returns the new value within one hour without a restart of complaint-api.
+        fr: |
+          Après l'ajout d'une nouvelle version de bureau-api-key par l'équipe de sécurité, `get_bureau_key` renvoie la nouvelle valeur dans l'heure, sans redémarrage de complaint-api.
+    - id: s2
+      text:
+        en: |
+          Assigning the Key Vault Reader role on kv-woodgrove to id-complaint-api is enough for the code to run.
+        fr: |
+          L'attribution du rôle Key Vault Reader sur kv-woodgrove à id-complaint-api suffit pour que le code s'exécute.
+    - id: s3
+      text:
+        en: |
+          For up to one hour after a rotation, `get_bureau_key` can return the previous value of bureau-api-key.
+        fr: |
+          Pendant une heure au plus après une rotation, `get_bureau_key` peut renvoyer la valeur précédente de bureau-api-key.
+answer:
+  values: { s1: true, s2: false, s3: true }
+explanation:
+  correct:
+    en: "`get_secret` without a version returns the latest version of the secret, and the cache is refreshed once an hour, so the new key is used within an hour and the previous key can be returned until the next refresh, which the bureau still accepts. Key Vault Reader reads only metadata, not secret values: id-complaint-api needs Key Vault Secrets User, the least privileged role that reads secret contents."
+    fr: "`get_secret` sans version renvoie la dernière version du secret, et le cache est actualisé une fois par heure : la nouvelle clé est utilisée dans l'heure, et la clé précédente peut être renvoyée jusqu'à l'actualisation suivante, ce que le bureau accepte encore. Key Vault Reader lit uniquement les métadonnées, pas les valeurs des secrets : id-complaint-api a besoin de Key Vault Secrets User, le rôle le moins privilégié qui lit le contenu des secrets."
+references:
+  - title: azure.keyvault.secrets.SecretClient class
+    url: https://learn.microsoft.com/en-us/python/api/azure-keyvault-secrets/azure.keyvault.secrets.secretclient
+  - title: Grant permission to applications to access an Azure key vault using Azure RBAC
+    url: https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide

@@ -1,0 +1,57 @@
+id: dp750-3d-replace-where-day
+objective: "3.3.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank has a Delta table named **woodgrove.silver.daily_positions** that is not partitioned. Each night, a Lakeflow job recomputes all the positions of one business day from the source system and writes them to the table.
+
+    The job is sometimes rerun for the same day after a failure or after the source system corrects its data. A correction can remove positions, and the removed positions must disappear from the table. The rows of the other business days must stay unchanged.
+
+    Which statement should the job run to load the positions of November 16, 2026?
+  fr: |
+    Woodgrove Bank dispose d'une table Delta nommée **woodgrove.silver.daily_positions** qui n'est pas partitionnée. Chaque nuit, un job Lakeflow recalcule toutes les positions d'un jour ouvré à partir du système source et les écrit dans la table.
+
+    Le job est parfois relancé pour le même jour après un échec ou après une correction des données par le système source. Une correction peut supprimer des positions, et les positions supprimées doivent disparaître de la table. Les lignes des autres jours ouvrés doivent rester inchangées.
+
+    Quelle instruction le job doit-il exécuter pour charger les positions du 16 novembre 2026 ?
+body:
+  options:
+    - id: a
+      text: "`INSERT INTO woodgrove.silver.daily_positions SELECT * FROM woodgrove.staging.positions_20261116`"
+    - id: b
+      text: "`INSERT OVERWRITE woodgrove.silver.daily_positions SELECT * FROM woodgrove.staging.positions_20261116`"
+    - id: c
+      text: "`INSERT INTO woodgrove.silver.daily_positions REPLACE WHERE business_day = '2026-11-16' SELECT * FROM woodgrove.staging.positions_20261116`"
+    - id: d
+      text: "`MERGE INTO woodgrove.silver.daily_positions AS t USING woodgrove.staging.positions_20261116 AS s ON t.position_id = s.position_id WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *`"
+answer:
+  optionId: c
+explanation:
+  correct:
+    en: |
+      `INSERT INTO ... REPLACE WHERE` atomically deletes the rows that match the predicate and inserts the query rows, so the table holds exactly the recomputed positions of that day, and a rerun gives the same result. The predicate can use any column of a Delta table, so the table doesn't need to be partitioned. If a returned row fell outside the predicate, the statement would fail and write nothing.
+    fr: |
+      `INSERT INTO ... REPLACE WHERE` supprime de façon atomique les lignes qui correspondent au prédicat et insère les lignes de la requête : la table contient exactement les positions recalculées de ce jour, et une réexécution donne le même résultat. Le prédicat peut utiliser n'importe quelle colonne d'une table Delta, la table n'a donc pas besoin d'être partitionnée. Si une ligne renvoyée sortait du prédicat, l'instruction échouerait sans rien écrire.
+  options:
+    a:
+      en: |
+        `INSERT INTO` only adds rows: a rerun duplicates the positions of the day, and removed positions stay in the table.
+      fr: |
+        `INSERT INTO` ne fait qu'ajouter des lignes : une réexécution duplique les positions du jour, et les positions supprimées restent dans la table.
+    b:
+      en: |
+        `INSERT OVERWRITE` without a partition specification truncates the whole table, so the other business days are lost.
+      fr: |
+        `INSERT OVERWRITE` sans spécification de partition tronque toute la table : les autres jours ouvrés sont perdus.
+    d:
+      en: |
+        This merge updates and inserts positions but never deletes the positions that the correction removed.
+      fr: |
+        Cette fusion met à jour et insère des positions, mais ne supprime jamais les positions que la correction a retirées.
+references:
+  - title: INSERT
+    url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-dml-insert-into
+  - title: Selectively overwrite data with Delta Lake
+    url: https://learn.microsoft.com/en-us/azure/databricks/delta/selective-overwrite

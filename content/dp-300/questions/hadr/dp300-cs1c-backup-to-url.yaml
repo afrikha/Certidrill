@@ -1,0 +1,68 @@
+id: dp300-cs1c-backup-to-url
+objective: "5.2.7"
+type: dropdown
+caseStudy: dp300-cs1c-litware-energy
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to configure the weekly backup of MeterData to meet the backup requirements. The backup is striped across 32 blobs.
+
+    How should you complete the Transact-SQL script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez configurer la sauvegarde hebdomadaire de MeterData pour satisfaire les exigences de sauvegarde. La sauvegarde est répartie sur 32 objets blob.
+
+    Comment devez-vous compléter le script Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE CREDENTIAL [[name]]
+        WITH IDENTITY = [[identity]],
+        SECRET = '<SAS token without the leading question mark>';
+    GO
+    BACKUP DATABASE MeterData
+        TO URL = 'https://stlitwarebak.blob.core.windows.net/backups/MeterData_01.bak',
+           URL = 'https://stlitwarebak.blob.core.windows.net/backups/MeterData_02.bak',
+           -- MeterData_03.bak to MeterData_31.bak omitted
+           URL = 'https://stlitwarebak.blob.core.windows.net/backups/MeterData_32.bak'
+        WITH COMPRESSION, BLOCKSIZE = 65536,
+             MAXTRANSFERSIZE = [[mts]];
+  slots:
+    - id: name
+      options:
+        - { id: account, text: "[stlitwarebak]" }
+        - { id: container, text: "[https://stlitwarebak.blob.core.windows.net/backups]" }
+        - { id: endpoint, text: "[https://stlitwarebak.blob.core.windows.net]" }
+    - id: identity
+      options:
+        - { id: sas, text: "'SHARED ACCESS SIGNATURE'" }
+        - { id: accountname, text: "'stlitwarebak'" }
+        - { id: mi, text: "'Managed Identity'" }
+    - id: mts
+      options:
+        - { id: m64k, text: "65536" }
+        - { id: m1m, text: "1048576" }
+        - { id: m4m, text: "4194304" }
+answer:
+  values: { name: container, identity: sas, mts: m4m }
+explanation:
+  correct:
+    en: |
+      With a SAS token, the credential must be named after the container URL and use `IDENTITY = 'SHARED ACCESS SIGNATURE'`; the backup is then written to block blobs and no account key is stored. A block blob holds at most 50,000 blocks, so with `MAXTRANSFERSIZE = 4194304` (4 MB) each stripe can reach about 195 GB, and 32 stripes cover the 4 TB backup. With the default 1 MB transfer size, 32 stripes would hold only about 1.6 TB.
+    fr: |
+      Avec un jeton SAS, les informations d'identification doivent porter le nom de l'URL du conteneur et utiliser `IDENTITY = 'SHARED ACCESS SIGNATURE'` ; la sauvegarde est alors écrite dans des objets blob de blocs et aucune clé de compte n'est stockée. Un objet blob de blocs contient au plus 50 000 blocs : avec `MAXTRANSFERSIZE = 4194304` (4 Mo), chaque bande peut atteindre environ 195 Go, et 32 bandes couvrent la sauvegarde de 4 To. Avec la taille de transfert par défaut de 1 Mo, 32 bandes ne contiendraient qu'environ 1,6 To.
+  options:
+    account: { en: "A credential named after the storage account is the legacy format used with the storage account key, which the requirements forbid.", fr: "Des informations d'identification portant le nom du compte de stockage correspondent à l'ancien format utilisé avec la clé du compte, ce que les exigences interdisent." }
+    endpoint: { en: "The credential name must include the container path so that SQL Server matches it with the backup URLs.", fr: "Le nom des informations d'identification doit inclure le chemin du conteneur pour que SQL Server l'associe aux URL de sauvegarde." }
+    accountname: { en: "Using the account name as the identity goes with the storage account key as the secret, which writes page blobs and stores the key.", fr: "Le nom du compte comme identité va de pair avec la clé du compte comme secret, ce qui écrit des objets blob de pages et stocke la clé." }
+    mi: { en: "Backup to URL with a managed identity is available starting with SQL Server 2025; SQLVM1 runs SQL Server 2022, and the requirements ask for a SAS token.", fr: "La sauvegarde vers une URL avec une identité managée est disponible à partir de SQL Server 2025 ; SQLVM1 exécute SQL Server 2022, et les exigences demandent un jeton SAS." }
+    m64k: { en: "A 64 KB transfer size would allow only about 3 GB per blob.", fr: "Une taille de transfert de 64 Ko ne permettrait qu'environ 3 Go par objet blob." }
+    m1m: { en: "The default 1 MB transfer size limits each blob to about 48 GB, about 1.6 TB for 32 stripes.", fr: "La taille de transfert par défaut de 1 Mo limite chaque objet blob à environ 48 Go, soit environ 1,6 To pour 32 bandes." }
+references:
+  - title: SQL Server backup to URL for Azure Blob Storage
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/sql-server-backup-to-url

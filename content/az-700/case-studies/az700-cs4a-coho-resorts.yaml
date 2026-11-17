@@ -1,0 +1,113 @@
+id: az700-cs4a-coho-resorts
+status: draft
+title:
+  en: Coho Mountain Resorts
+  fr: Coho Mountain Resorts
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Coho Mountain Resorts operates 12 ski resorts in France and Switzerland. The head office and the main datacenter are in Annecy. A team of five network engineers manages the datacenter, the resort networks and the Azure environment.
+
+        Coho has moved its booking website and its partner API to Azure, in the France Central region. Travel agencies call the partner API to book lift passes, and the API calls payment providers on the internet.
+      fr: |
+        Coho Mountain Resorts exploite 12 stations de ski en France et en Suisse. Le siège et le centre de données principal sont à Annecy. Une équipe de cinq ingénieurs réseau gère le centre de données, les réseaux des stations et l'environnement Azure.
+
+        Coho a migré son site web de réservation et son API partenaires vers Azure, dans la région France Central. Les agences de voyages appellent l'API partenaires pour réserver des forfaits, et l'API appelle des prestataires de paiement sur Internet.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **On-premises**
+
+        - The Annecy datacenter uses the address space 10.50.0.0/16. Each resort uses a /22 range from 10.60.0.0/16.
+        - Ten resorts have VPN devices that support route-based VPN and BGP.
+        - The **Valfroide** and **Pic-Blanc** resorts have older firewalls that support only policy-based VPN (prefix-based traffic selectors). These firewalls support IKEv2 but not BGP.
+
+        **Azure (France Central)**
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Virtual network | 10.40.0.0/22 — subnets GatewaySubnet (10.40.0.0/27), AzureBastionSubnet (10.40.1.0/26), snet-appgw (10.40.2.0/24) |
+        | VGW-HQ | VPN gateway | Route-based, SKU VpnGw2AZ, BGP enabled; site-to-site connections to the Annecy datacenter and to the ten route-based resorts |
+        | bastion-hub | Azure Bastion | Standard SKU, in AzureBastionSubnet |
+        | VNet-App | Virtual network | 10.41.0.0/16 — subnets snet-api (10.41.1.0/24) and snet-web (10.41.2.0/24); peered with VNet-Hub and uses the remote gateway |
+        | AGW-Coho | Application Gateway | WAF_v2 SKU, in snet-appgw; multi-site listeners **lst-booking** (booking.cohoresorts.com) and **lst-staff** (staff.cohoresorts.com); back end VM-WEB1 and VM-WEB2 in snet-web |
+        | WAFP-Global | WAF policy | Prevention mode, Microsoft-managed Default Rule Set; associated with AGW-Coho |
+        | VMSS-API | Virtual machine scale set | In snet-api; autoscale from 4 to 40 instances; no instance-level public IP addresses |
+        | LB-Partner | Load balancer | Standard, public; frontend IP configuration **fe-web** (public IP address pip-partner1); backend pool **pool-api** (VMSS-API); load-balancing rule **rule-https** (TCP 443) |
+
+        The network engineers connect to the virtual machines over RDP through bastion-hub. No NSG is associated with AzureBastionSubnet.
+      fr: |
+        **Environnement local**
+
+        - Le centre de données d'Annecy utilise l'espace d'adressage 10.50.0.0/16. Chaque station utilise une plage /22 de 10.60.0.0/16.
+        - Dix stations disposent de périphériques VPN qui prennent en charge le VPN basé sur des routes et BGP.
+        - Les stations de **Valfroide** et de **Pic-Blanc** disposent d'anciens pare-feu qui ne prennent en charge que le VPN basé sur des stratégies (sélecteurs de trafic basés sur des préfixes). Ces pare-feu prennent en charge IKEv2, mais pas BGP.
+
+        **Azure (France Central)**
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Réseau virtuel | 10.40.0.0/22 — sous-réseaux GatewaySubnet (10.40.0.0/27), AzureBastionSubnet (10.40.1.0/26), snet-appgw (10.40.2.0/24) |
+        | VGW-HQ | Passerelle VPN | Basée sur des routes, SKU VpnGw2AZ, BGP activé ; connexions de site à site vers le centre de données d'Annecy et vers les dix stations basées sur des routes |
+        | bastion-hub | Azure Bastion | SKU Standard, dans AzureBastionSubnet |
+        | VNet-App | Réseau virtuel | 10.41.0.0/16 — sous-réseaux snet-api (10.41.1.0/24) et snet-web (10.41.2.0/24) ; peering avec VNet-Hub, utilise la passerelle distante |
+        | AGW-Coho | Application Gateway | SKU WAF_v2, dans snet-appgw ; écouteurs multisites **lst-booking** (booking.cohoresorts.com) et **lst-staff** (staff.cohoresorts.com) ; back-end VM-WEB1 et VM-WEB2 dans snet-web |
+        | WAFP-Global | Stratégie WAF | Mode Prévention, ensemble de règles par défaut (Default Rule Set) managé par Microsoft ; associée à AGW-Coho |
+        | VMSS-API | Groupe de machines virtuelles identiques | Dans snet-api ; mise à l'échelle automatique de 4 à 40 instances ; aucune adresse IP publique au niveau des instances |
+        | LB-Partner | Équilibreur de charge | Standard, public ; configuration IP frontale **fe-web** (adresse IP publique pip-partner1) ; pool principal **pool-api** (VMSS-API) ; règle d'équilibrage de charge **rule-https** (TCP 443) |
+
+        Les ingénieurs réseau se connectent aux machines virtuelles en RDP par bastion-hub. Aucun NSG n'est associé à AzureBastionSubnet.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Connectivity**
+
+        1. Valfroide and Pic-Blanc must connect to VGW-HQ. Their firewalls can't be replaced before next season, and no other VPN gateway may be deployed in VNet-Hub.
+
+        **Partner API**
+
+        2. VMSS-API instances must reach the payment providers through LB-Partner. The payment providers accept only the public IP addresses that Coho registers with them, so Coho must use as few public IP addresses as possible.
+        3. Each VMSS-API instance must be able to keep at least 6,000 simultaneous outbound connections, including when the scale set runs 40 instances.
+        4. Outbound connections that stay idle for 30 minutes must be closed, and both endpoints must be notified.
+
+        **Web**
+
+        5. Staff portal requests contain a cookie named **liftSession** that triggers false positives in WAFP-Global. The cookie must be excluded from WAF inspection for staff.cohoresorts.com only. booking.cohoresorts.com must keep the full protection of WAFP-Global.
+
+        **Security and operations**
+
+        6. Every subnet, including AzureBastionSubnet, must have a network security group (NSG). Azure Bastion must keep working and receiving platform updates.
+        7. The network engineers must be able to:
+           - check whether the NSGs allow a given packet to or from a virtual machine, and identify the rule that allows or denies it;
+           - identify the next hop that a virtual machine uses to reach a given IP address;
+           - continuously measure the latency and packet loss between VMSS-API and the payment providers, and receive alerts;
+           - record the IP flows of VNet-App and analyze them with traffic analytics.
+        8. Costs and administrative effort must be minimized.
+      fr: |
+        **Connectivité**
+
+        1. Valfroide et Pic-Blanc doivent se connecter à VGW-HQ. Leurs pare-feu ne peuvent pas être remplacés avant la saison prochaine, et aucune autre passerelle VPN ne peut être déployée dans VNet-Hub.
+
+        **API partenaires**
+
+        2. Les instances de VMSS-API doivent joindre les prestataires de paiement par LB-Partner. Les prestataires de paiement n'acceptent que les adresses IP publiques que Coho leur déclare : Coho doit donc utiliser le moins d'adresses IP publiques possible.
+        3. Chaque instance de VMSS-API doit pouvoir maintenir au moins 6 000 connexions sortantes simultanées, y compris quand le groupe identique compte 40 instances.
+        4. Les connexions sortantes inactives pendant 30 minutes doivent être fermées, et les deux extrémités doivent en être averties.
+
+        **Web**
+
+        5. Les requêtes du portail du personnel contiennent un cookie nommé **liftSession** qui déclenche des faux positifs dans WAFP-Global. Ce cookie doit être exclu de l'inspection WAF pour staff.cohoresorts.com uniquement. booking.cohoresorts.com doit conserver la protection complète de WAFP-Global.
+
+        **Sécurité et exploitation**
+
+        6. Chaque sous-réseau, y compris AzureBastionSubnet, doit avoir un groupe de sécurité réseau (NSG). Azure Bastion doit continuer à fonctionner et à recevoir les mises à jour de la plateforme.
+        7. Les ingénieurs réseau doivent pouvoir :
+           - vérifier si les NSG autorisent un paquet donné vers ou depuis une machine virtuelle, et identifier la règle qui l'autorise ou le refuse ;
+           - identifier le tronçon suivant qu'une machine virtuelle utilise pour joindre une adresse IP donnée ;
+           - mesurer en continu la latence et la perte de paquets entre VMSS-API et les prestataires de paiement, et recevoir des alertes ;
+           - enregistrer les flux IP de VNet-App et les analyser avec traffic analytics.
+        8. Les coûts et l'effort d'administration doivent être réduits au minimum.

@@ -1,0 +1,84 @@
+id: sc500-3b-jit-ps-policy
+objective: "3.2.3"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware has a Linux virtual machine named **VM1** in the resource group **RG1** (West Europe). Defender for Servers Plan 2 is enabled.
+
+    You need to configure a just-in-time VM access policy for VM1 by using Azure PowerShell. The policy must meet the following requirements:
+
+    - Allow access only to the SSH port.
+    - Allow requests only from the 203.0.113.0/24 range.
+    - Limit each request to a maximum of two hours.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware dispose d'une machine virtuelle Linux nommée **VM1** dans le groupe de ressources **RG1** (West Europe). Defender for Servers Plan 2 est activé.
+
+    Vous devez configurer une stratégie d'accès juste-à-temps pour VM1 à l'aide d'Azure PowerShell. La stratégie doit répondre aux exigences suivantes :
+
+    - Autoriser l'accès uniquement au port SSH.
+    - Autoriser les demandes uniquement depuis la plage 203.0.113.0/24.
+    - Limiter chaque demande à deux heures au maximum.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $JitPolicy = (@{
+        id="/subscriptions/<subscription ID>/resourceGroups/RG1/providers/Microsoft.Compute/virtualMachines/VM1";
+        ports=(@{
+            number=[[port]];
+            protocol="*";
+            allowedSourceAddressPrefix=@([[src]]);
+            maxRequestAccessDuration=[[dur]]})})
+    $JitPolicyArr=@($JitPolicy)
+    [[cmd]] -Kind "Basic" -Location "westeurope" -Name "default" -ResourceGroupName "RG1" -VirtualMachine $JitPolicyArr
+  slots:
+    - id: port
+      options:
+        - { id: p22, text: "22" }
+        - { id: p3389, text: "3389" }
+        - { id: p5986, text: "5986" }
+    - id: src
+      options:
+        - { id: any, text: "\"*\"" }
+        - { id: range, text: "\"203.0.113.0/24\"" }
+        - { id: tag, text: "\"Internet\"" }
+    - id: dur
+      options:
+        - { id: pt2m, text: "\"PT2M\"" }
+        - { id: pt2h, text: "\"PT2H\"" }
+        - { id: p2d, text: "\"P2D\"" }
+    - id: cmd
+      options:
+        - { id: get, text: Get-AzJitNetworkAccessPolicy }
+        - { id: start, text: Start-AzJitNetworkAccessPolicy }
+        - { id: set, text: Set-AzJitNetworkAccessPolicy }
+answer:
+  values: { port: p22, src: range, dur: pt2h, cmd: set }
+explanation:
+  correct:
+    en: |
+      SSH uses port 22, and `allowedSourceAddressPrefix` restricts the source of requests to the 203.0.113.0/24 range. `maxRequestAccessDuration` is an ISO 8601 duration, so two hours is `PT2H` (the default is `PT3H`). `Set-AzJitNetworkAccessPolicy` creates or updates the JIT policy; `Start-AzJitNetworkAccessPolicy` is used later to request access.
+    fr: |
+      SSH utilise le port 22, et `allowedSourceAddressPrefix` limite la source des demandes à la plage 203.0.113.0/24. `maxRequestAccessDuration` est une durée ISO 8601 : deux heures s'écrivent `PT2H` (la valeur par défaut est `PT3H`). `Set-AzJitNetworkAccessPolicy` crée ou met à jour la stratégie JIT ; `Start-AzJitNetworkAccessPolicy` sert ensuite à demander l'accès.
+  options:
+    p3389: { en: "3389 is the RDP port, not SSH.", fr: "3389 est le port RDP, pas SSH." }
+    p5986: { en: "5986 is WinRM over HTTPS, not SSH.", fr: "5986 est WinRM sur HTTPS, pas SSH." }
+    any: { en: "\"*\" allows requests from any source IP address.", fr: "\"*\" autorise les demandes depuis n'importe quelle adresse IP source." }
+    tag: { en: "The requirement is a specific address range, not every internet address.", fr: "L'exigence porte sur une plage d'adresses précise, pas sur toutes les adresses Internet." }
+    pt2m: { en: "PT2M is two minutes.", fr: "PT2M correspond à deux minutes." }
+    p2d: { en: "P2D is two days.", fr: "P2D correspond à deux jours." }
+    get: { en: "Get-AzJitNetworkAccessPolicy only reads existing policies.", fr: "Get-AzJitNetworkAccessPolicy ne fait que lire les stratégies existantes." }
+    start: { en: "Start-AzJitNetworkAccessPolicy requests access under an existing policy; it doesn't configure the policy.", fr: "Start-AzJitNetworkAccessPolicy demande un accès dans le cadre d'une stratégie existante ; il ne configure pas la stratégie." }
+references:
+  - title: Enable just-in-time access
+    url: https://learn.microsoft.com/en-us/azure/defender-for-cloud/just-in-time-access-usage

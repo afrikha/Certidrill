@@ -1,0 +1,82 @@
+id: ai103-2b-connection-id
+objective: "2.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso, Ltd. has an Azure AI Search service named contoso-srch that hosts an index named policies-v2. The Foundry project has a connection to contoso-srch named contoso-search that uses Microsoft Entra ID authentication, and the managed identity of the Foundry account already has the required roles on the search service.
+
+    You need to create an agent that queries the index. No key may appear in the code.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso, Ltd. dispose d'un service Azure AI Search nommé contoso-srch qui héberge un index nommé policies-v2. Le projet Foundry possède une connexion à contoso-srch nommée contoso-search qui utilise l'authentification Microsoft Entra ID, et l'identité managée du compte Foundry dispose déjà des rôles nécessaires sur le service de recherche.
+
+    Vous devez créer un agent qui interroge l'index. Aucune clé ne doit apparaître dans le code.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.ai.projects.models import (
+        AzureAISearchTool, AzureAISearchToolResource,
+        AISearchIndexResource, PromptAgentDefinition,
+    )
+
+    search_connection = project.[[s1]]("contoso-search")
+
+    agent = project.agents.create_version(
+        agent_name="policy-agent",
+        definition=PromptAgentDefinition(
+            model="policy-chat",
+            instructions="Answer from the policy index and cite the source of each answer.",
+            tools=[AzureAISearchTool(azure_ai_search=AzureAISearchToolResource(indexes=[
+                AISearchIndexResource(
+                    project_connection_id=[[s2]],
+                    index_name=[[s3]],
+                ),
+            ]))],
+        ),
+    )
+  slots:
+    - id: s1
+      options:
+        - { id: get, text: connections.get }
+        - { id: default, text: connections.get_default }
+        - { id: indexes, text: indexes.get }
+    - id: s2
+      options:
+        - { id: name, text: search_connection.name }
+        - { id: id, text: search_connection.id }
+        - { id: key, text: 'os.environ["SEARCH_ADMIN_KEY"]' }
+    - id: s3
+      options:
+        - { id: conn, text: '"contoso-search"' }
+        - { id: svc, text: '"contoso-srch"' }
+        - { id: index, text: '"policies-v2"' }
+answer:
+  values: { s1: get, s2: id, s3: index }
+explanation:
+  correct:
+    en: |
+      `project.connections.get()` retrieves the connection by its name. The tool takes the resource ID of the project connection in `project_connection_id`, which is the `id` of the connection object, so the credentials stay in the connection. `index_name` is the name of the index in the search service, not the name of the connection or of the service.
+    fr: |
+      `project.connections.get()` récupère la connexion par son nom. L'outil attend l'ID de ressource de la connexion du projet dans `project_connection_id`, c'est-à-dire l'`id` de l'objet connexion : les informations d'identification restent dans la connexion. `index_name` est le nom de l'index dans le service de recherche, pas le nom de la connexion ni celui du service.
+  options:
+    default: { en: "get_default() expects a connection type, such as CognitiveSearch, not a connection name.", fr: "get_default() attend un type de connexion, comme CognitiveSearch, pas un nom de connexion." }
+    indexes: { en: "project.indexes manages index assets of the project; it doesn't return the search connection.", fr: "project.indexes gère les ressources d'index du projet ; il ne renvoie pas la connexion de recherche." }
+    name: { en: "project_connection_id expects the resource ID of the connection, not its name.", fr: "project_connection_id attend l'ID de ressource de la connexion, pas son nom." }
+    key: { en: "An admin key in an environment variable is a key in the configuration, and the parameter expects a connection ID.", fr: "Une clé d'administration dans une variable d'environnement reste une clé dans la configuration, et le paramètre attend un ID de connexion." }
+    conn: { en: "contoso-search is the connection name, not the index name.", fr: "contoso-search est le nom de la connexion, pas celui de l'index." }
+    svc: { en: "contoso-srch is the search service, not the index.", fr: "contoso-srch est le service de recherche, pas l'index." }
+references:
+  - title: Connect an Azure AI Search index to Foundry agents
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/agents/how-to/tools/ai-search
+  - title: azure.ai.projects.operations.ConnectionsOperations class
+    url: https://learn.microsoft.com/en-us/python/api/azure-ai-projects/azure.ai.projects.operations.connectionsoperations

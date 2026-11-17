@@ -1,0 +1,89 @@
+id: ai103-5b-kb-mcp-tool
+objective: "5.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Adatum Corporation has an Azure AI Search service that hosts a Foundry IQ knowledge base named hr-kb. You are writing the Python code that connects a prompt agent in a Foundry project to hr-kb.
+
+    The project connection must authenticate with the project's managed identity. The agent must retrieve from hr-kb without waiting for a user approval on each call. The `project` variable is an authenticated `AIProjectClient`.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum Corporation dispose d'un service Azure AI Search qui héberge une base de connaissances Foundry IQ nommée hr-kb. Vous écrivez le code Python qui connecte un agent d'invite d'un projet Foundry à hr-kb.
+
+    La connexion du projet doit s'authentifier avec l'identité managée du projet. L'agent doit effectuer la récupération dans hr-kb sans attendre l'approbation d'un utilisateur à chaque appel. La variable `project` est un `AIProjectClient` authentifié.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    mcp_endpoint = f"{search_endpoint}/knowledgebases/hr-kb/mcp?api-version=2026-08-01-preview"
+
+    # Body of the PUT request that creates the project connection "hr-kb-connection"
+    connection_body = {
+        "name": "hr-kb-connection",
+        "type": "Microsoft.MachineLearningServices/workspaces/connections",
+        "properties": {
+            "authType": "ProjectManagedIdentity",
+            "category": [[category]],
+            "target": mcp_endpoint,
+            "isSharedToAll": True,
+            "audience": "https://search.azure.com/",
+            "metadata": {"ApiType": "Azure"},
+        },
+    }
+
+    kb_tool = MCPTool(
+        server_label="hr-knowledge",
+        server_url=[[url]],
+        require_approval="never",
+        allowed_tools=[ [[tool]] ],
+        project_connection_id="hr-kb-connection",
+    )
+
+    agent = project.agents.create_version(
+        agent_name="hr-agent",
+        definition=PromptAgentDefinition(
+            model="gpt-4.1-mini",
+            instructions="Answer only from the knowledge base and cite the retrieved sources.",
+            tools=[kb_tool],
+        ),
+    )
+  slots:
+    - id: category
+      options:
+        - { id: remote, text: '"RemoteTool"' }
+        - { id: search, text: '"CognitiveSearch"' }
+        - { id: aoai, text: '"AzureOpenAI"' }
+    - id: url
+      options:
+        - { id: search, text: search_endpoint }
+        - { id: mcp, text: mcp_endpoint }
+        - { id: project, text: project_endpoint }
+    - id: tool
+      options:
+        - { id: filesearch, text: '"file_search"' }
+        - { id: aisearch, text: '"azure_ai_search"' }
+        - { id: retrieve, text: '"knowledge_base_retrieve"' }
+answer:
+  values: { category: remote, url: mcp, tool: retrieve }
+explanation:
+  correct:
+    en: |
+      An agent reaches a Foundry IQ knowledge base through the Model Context Protocol: the project connection uses the RemoteTool category and targets the knowledge base's MCP endpoint, with ProjectManagedIdentity authentication. The MCPTool points to the same MCP endpoint, and knowledge_base_retrieve is the only knowledge base MCP tool that Foundry Agent Service supports.
+    fr: |
+      Un agent atteint une base de connaissances Foundry IQ via le protocole MCP (Model Context Protocol) : la connexion du projet utilise la catégorie RemoteTool et cible le point de terminaison MCP de la base de connaissances, avec l'authentification ProjectManagedIdentity. Le MCPTool pointe vers ce même point de terminaison MCP, et knowledge_base_retrieve est le seul outil MCP de base de connaissances que Foundry Agent Service prend en charge.
+  options:
+    category: { en: "CognitiveSearch is the connection category used by the Azure AI Search tool for an index, and AzureOpenAI is for model resources; neither targets an MCP endpoint.", fr: "CognitiveSearch est la catégorie de connexion utilisée par l'outil Azure AI Search pour un index, et AzureOpenAI concerne les ressources de modèles ; aucune ne cible un point de terminaison MCP." }
+    url: { en: "The MCP server is the knowledge base endpoint, not the root of the search service or the Foundry project endpoint.", fr: "Le serveur MCP est le point de terminaison de la base de connaissances, pas la racine du service de recherche ni le point de terminaison du projet Foundry." }
+    tool: { en: "file_search and azure_ai_search aren't tools exposed by the knowledge base MCP server.", fr: "file_search et azure_ai_search ne sont pas des outils exposés par le serveur MCP de la base de connaissances." }
+references:
+  - title: Connect Agents to Foundry IQ Knowledge Bases
+    url: https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/foundry-iq-connect

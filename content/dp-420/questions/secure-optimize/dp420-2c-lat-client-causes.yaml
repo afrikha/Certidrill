@@ -1,0 +1,76 @@
+id: dp420-2c-lat-client-causes
+objective: "2.3.4"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A .NET 8 worker that uses the Azure Cosmos DB .NET SDK 3.45 logs the diagnostics of every point read that exceeds 50 ms. The following excerpt comes from a typical slow read.
+
+    ```json
+    "systemHistory": [
+      { "dateUtc": "2026-11-03T09:14:02.1Z", "cpu": 91.4, "threadInfo": { "isThreadStarving": "True" } },
+      { "dateUtc": "2026-11-03T09:14:27.6Z", "cpu": 93.0, "threadInfo": { "isThreadStarving": "True" } }
+    ],
+    "StoreResult": {
+      "StatusCode": "Ok",
+      "BELatencyInMs": "0.812",
+      "transportRequestTimeline": {
+        "requestTimeline": [
+          { "event": "ChannelAcquisitionStarted", "durationInMs": 0.0141 },
+          { "event": "Pipelined", "durationInMs": 0.0912 },
+          { "event": "Transit Time", "durationInMs": 1.2875 },
+          { "event": "Received", "durationInMs": 418.2033 }
+        ]
+      }
+    }
+    ```
+
+    Which two conclusions are supported by the diagnostics?
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Un worker .NET 8 qui utilise le SDK .NET Azure Cosmos DB 3.45 journalise les diagnostics de chaque lecture ponctuelle qui dépasse 50 ms. L'extrait suivant provient d'une lecture lente typique.
+
+    ```json
+    "systemHistory": [
+      { "dateUtc": "2026-11-03T09:14:02.1Z", "cpu": 91.4, "threadInfo": { "isThreadStarving": "True" } },
+      { "dateUtc": "2026-11-03T09:14:27.6Z", "cpu": 93.0, "threadInfo": { "isThreadStarving": "True" } }
+    ],
+    "StoreResult": {
+      "StatusCode": "Ok",
+      "BELatencyInMs": "0.812",
+      "transportRequestTimeline": {
+        "requestTimeline": [
+          { "event": "ChannelAcquisitionStarted", "durationInMs": 0.0141 },
+          { "event": "Pipelined", "durationInMs": 0.0912 },
+          { "event": "Transit Time", "durationInMs": 1.2875 },
+          { "event": "Received", "durationInMs": 418.2033 }
+        ]
+      }
+    }
+    ```
+
+    Quelles sont les deux conclusions étayées par les diagnostics ?
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "CPU exhaustion on the client machine contributes to the latency.", fr: "La saturation du processeur de la machine cliente contribue à la latence." } }
+    - { id: b, text: { en: "The thread pool of the application is starved or blocked.", fr: "Le pool de threads de l'application est affamé ou bloqué." } }
+    - { id: c, text: { en: "The backend replica took most of the time to process the read.", fr: "Le réplica back-end a consommé l'essentiel du temps pour traiter la lecture." } }
+    - { id: d, text: { en: "The read was rate limited and retried by the SDK.", fr: "La lecture a été limitée puis relancée par le SDK." } }
+    - { id: e, text: { en: "Network transit between the client and the service dominates the latency.", fr: "Le transit réseau entre le client et le service domine la latence." } }
+answer: { optionIds: [ a, b ] }
+explanation:
+  correct:
+    en: "CPU values above 70 percent in systemHistory indicate that CPU exhaustion is likely causing the delay. isThreadStarving set to True, the 25-second gap between measurements that should be about 10 seconds apart, and the long Received stage (time for the SDK to process a response it already received) all point to thread starvation, typically caused by blocking calls over async code. The solution is on the client: remove the blocking code or scale the machine up or out."
+    fr: "Des valeurs de processeur supérieures à 70 % dans systemHistory indiquent qu'une saturation du processeur provoque probablement le retard. isThreadStarving à True, l'écart de 25 secondes entre des mesures censées être espacées d'environ 10 secondes et la longue étape Received (temps nécessaire au SDK pour traiter une réponse déjà reçue) désignent une famine du pool de threads, généralement due à des appels bloquants sur du code asynchrone. La solution se situe côté client : supprimer le code bloquant ou faire monter en puissance ou en charge la machine."
+  options:
+    c: { en: "BELatencyInMs is below 1 ms, so the backend processed the read quickly.", fr: "BELatencyInMs est inférieur à 1 ms : le back-end a traité la lecture rapidement." }
+    d: { en: "The StoreResult status is Ok, and no 429 status appears in the diagnostics.", fr: "Le statut du StoreResult est Ok, et aucun statut 429 n'apparaît dans les diagnostics." }
+    e: { en: "Transit Time is about 1.3 ms; the time is spent after the response is received.", fr: "Transit Time est d'environ 1,3 ms ; le temps est perdu après la réception de la réponse." }
+references:
+  - title: Diagnose and troubleshoot slow requests in Azure Cosmos DB .NET SDK
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-dotnet-sdk-slow-request

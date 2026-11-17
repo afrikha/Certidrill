@@ -1,0 +1,82 @@
+id: az400-3e-dsc-mc-package
+objective: "3.5.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin wrote a PowerShell DSC configuration named **TlsBaseline** and compiled it to **TlsBaseline.mof**. You are writing the script that turns it into an Azure Machine Configuration policy for Windows machines. The package is uploaded to a blob whose URI is stored in `$contentUri`.
+
+    The policy must apply the configuration and correct drift automatically whenever it's detected.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin a écrit une configuration PowerShell DSC nommée **TlsBaseline** et l'a compilée en **TlsBaseline.mof**. Vous écrivez le script qui la transforme en stratégie Azure Machine Configuration pour des machines Windows. Le package est chargé dans un objet blob dont l'URI est stocké dans `$contentUri`.
+
+    La stratégie doit appliquer la configuration et corriger automatiquement la dérive dès qu'elle est détectée.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $package = @{
+      Name          = 'TlsBaseline'
+      Configuration = './TlsBaseline/TlsBaseline.mof'
+      Type          = [[type]]
+      Force         = $true
+    }
+    New-GuestConfigurationPackage @package
+
+    # Upload TlsBaseline.zip, then:
+    $policy = @{
+      PolicyId      = (New-Guid).Guid
+      ContentUri    = $contentUri
+      DisplayName   = 'TLS baseline'
+      Description   = 'Applies the TLS baseline and corrects drift'
+      Path          = './policies/deployIfNotExists.json'
+      Platform      = 'Windows'
+      PolicyVersion = '1.0.0'
+      Mode          = [[mode]]
+    }
+    [[cmd]] @policy
+  slots:
+    - id: type
+      options:
+        - { id: audit, text: "'Audit'" }
+        - { id: auditset, text: "'AuditAndSet'" }
+        - { id: apply, text: "'ApplyAndAutoCorrect'" }
+    - id: mode
+      options:
+        - { id: maudit, text: "'Audit'" }
+        - { id: monitor, text: "'ApplyAndMonitor'" }
+        - { id: autocorrect, text: "'ApplyAndAutoCorrect'" }
+        - { id: mauditset, text: "'AuditAndSet'" }
+    - id: cmd
+      options:
+        - { id: gcpolicy, text: New-GuestConfigurationPolicy }
+        - { id: azdef, text: New-AzPolicyDefinition }
+        - { id: azassign, text: New-AzPolicyAssignment }
+        - { id: remediate, text: Start-AzPolicyRemediation }
+answer:
+  values: { type: auditset, mode: autocorrect, cmd: gcpolicy }
+explanation:
+  correct:
+    en: "A package of type AuditAndSet can apply the configuration (a package of type Audit only reports). `New-GuestConfigurationPolicy` from the GuestConfiguration module generates the policy definition JSON; with the ApplyAndAutoCorrect mode it produces a DeployIfNotExists definition that also remediates drift. The definition is then published with `New-AzPolicyDefinition` and assigned."
+    fr: "Un package de type AuditAndSet peut appliquer la configuration (un package de type Audit se contente de signaler). `New-GuestConfigurationPolicy`, du module GuestConfiguration, génère le JSON de la définition de stratégie ; avec le mode ApplyAndAutoCorrect, il produit une définition DeployIfNotExists qui corrige aussi la dérive. La définition est ensuite publiée avec `New-AzPolicyDefinition`, puis affectée."
+  options:
+    audit: { en: "A package of type Audit only reports compliance; it can't apply the settings.", fr: "Un package de type Audit signale uniquement la conformité ; il ne peut pas appliquer les paramètres." }
+    apply: { en: "ApplyAndAutoCorrect is a policy mode; the package type is Audit or AuditAndSet.", fr: "ApplyAndAutoCorrect est un mode de stratégie ; le type de package est Audit ou AuditAndSet." }
+    monitor: { en: "ApplyAndMonitor applies the configuration once and then only reports drift.", fr: "ApplyAndMonitor applique la configuration une fois, puis se contente de signaler la dérive." }
+    mauditset: { en: "AuditAndSet is a package type, not a policy mode.", fr: "AuditAndSet est un type de package, pas un mode de stratégie." }
+    azdef: { en: "New-AzPolicyDefinition publishes a JSON file that already exists; it doesn't read the package parameters.", fr: "New-AzPolicyDefinition publie un fichier JSON qui existe déjà ; il ne lit pas les paramètres du package." }
+    azassign: { en: "New-AzPolicyAssignment assigns a published definition; the definition doesn't exist yet.", fr: "New-AzPolicyAssignment affecte une définition publiée ; la définition n'existe pas encore." }
+references:
+  - title: How to create custom machine configuration policy definitions
+    url: https://learn.microsoft.com/en-us/azure/governance/machine-configuration/how-to/create-policy-definition
+  - title: How to create custom machine configuration package artifacts
+    url: https://learn.microsoft.com/en-us/azure/governance/machine-configuration/how-to/develop-custom-package/2-create-package

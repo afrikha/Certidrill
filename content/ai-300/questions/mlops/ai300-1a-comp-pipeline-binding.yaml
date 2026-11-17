@@ -1,0 +1,86 @@
+id: ai300-1a-comp-pipeline-binding
+objective: "1.2.3"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing a pipeline job for the Azure Machine Learning workspace **mlw-contoso**. The pipeline must meet the following requirements:
+
+    - the `prep` step, defined in the local file prep.yml, reads the pipeline input raw_data and writes an output named clean_data;
+    - the `train` step uses the latest registered version of the component **train_churn_model**;
+    - the `train` step trains on the clean_data output of `prep`.
+
+    How should you complete the pipeline YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un travail de pipeline pour l'espace de travail Azure Machine Learning **mlw-contoso**. Le pipeline doit répondre aux exigences suivantes :
+
+    - l'étape `prep`, définie dans le fichier local prep.yml, lit l'entrée raw_data du pipeline et écrit une sortie nommée clean_data ;
+    - l'étape `train` utilise la dernière version inscrite du composant **train_churn_model** ;
+    - l'étape `train` s'entraîne sur la sortie clean_data de `prep`.
+
+    Comment devez-vous compléter le fichier YAML du pipeline ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    $schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
+    type: pipeline
+    settings:
+      default_compute: azureml:cpu-cluster
+    inputs:
+      raw_data:
+        type: uri_folder
+        path: azureml:sales-transactions:3
+    outputs:
+      trained_model:
+        type: mlflow_model
+    jobs:
+      prep:
+        type: command
+        component: ./prep.yml
+        inputs:
+          raw: [[a]]
+      train:
+        type: command
+        component: [[b]]
+        inputs:
+          training_data: [[c]]
+        outputs:
+          model_output: ${{parent.outputs.trained_model}}
+  slots:
+    - id: a
+      options:
+        - { id: own, text: "${{inputs.raw_data}}" }
+        - { id: parent, text: "${{parent.inputs.raw_data}}" }
+        - { id: jobs, text: "${{parent.jobs.raw_data}}" }
+    - id: b
+      options:
+        - { id: latest, text: "azureml:train_churn_model@latest" }
+        - { id: local, text: "./train_churn_model@latest" }
+        - { id: ds, text: "azureml://datastores/workspaceblobstore/paths/train_churn_model" }
+    - id: c
+      options:
+        - { id: pout, text: "${{parent.outputs.clean_data}}" }
+        - { id: nojobs, text: "${{jobs.prep.outputs.clean_data}}" }
+        - { id: step, text: "${{parent.jobs.prep.outputs.clean_data}}" }
+answer:
+  values: { a: parent, b: latest, c: step }
+explanation:
+  correct:
+    en: |
+      A step input binds to a pipeline-level input with `${{parent.inputs.<name>}}`, and to the output of another step with `${{parent.jobs.<step>.outputs.<name>}}`, which also makes `train` run after `prep`. A registered component is referenced as `azureml:<name>:<version>` or `azureml:<name>@latest` for the latest version.
+    fr: |
+      Une entrée d'étape se lie à une entrée du pipeline avec `${{parent.inputs.<nom>}}`, et à la sortie d'une autre étape avec `${{parent.jobs.<étape>.outputs.<nom>}}`, ce qui fait aussi s'exécuter `train` après `prep`. Un composant inscrit se référence sous la forme `azureml:<nom>:<version>`, ou `azureml:<nom>@latest` pour la dernière version.
+  options:
+    own: { en: "`${{inputs.x}}` is used inside a component command to read its own input, not to bind a step to the pipeline.", fr: "`${{inputs.x}}` s'utilise dans la commande d'un composant pour lire sa propre entrée, pas pour lier une étape au pipeline." }
+    local: { en: "A local path references a YAML file, not a registered component version.", fr: "Un chemin local référence un fichier YAML, pas une version de composant inscrite." }
+    pout: { en: "`${{parent.outputs.x}}` refers to a pipeline-level output, and the pipeline has no clean_data output.", fr: "`${{parent.outputs.x}}` désigne une sortie du pipeline, et le pipeline n'a pas de sortie clean_data." }
+    nojobs: { en: "Step outputs are referenced through `parent.jobs`, so the `parent` prefix is required.", fr: "Les sorties des étapes se référencent par `parent.jobs` : le préfixe `parent` est obligatoire." }
+references:
+  - title: Create and run component-based ML pipelines (CLI) - Azure Machine Learning
+    url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-create-component-pipelines-cli

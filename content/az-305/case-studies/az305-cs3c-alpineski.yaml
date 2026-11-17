@@ -1,0 +1,134 @@
+id: az305-cs3c-alpineski
+status: draft
+title:
+  en: Alpine Ski House
+  fr: Alpine Ski House
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Alpine Ski House operates 14 ski resorts in the Alps and has its head office in Innsbruck. It sells six million lift passes a year on its website and through 45 partner tour operators.
+
+        Alpine Ski House is rebuilding its booking platform, a monolithic application, as containerized microservices. The platform team has 30 developers and two certified Kubernetes administrators.
+      fr: |
+        Alpine Ski House exploite 14 stations de ski dans les Alpes et a son siège à Innsbruck. L'entreprise vend six millions de forfaits de remontées mécaniques par an sur son site web et par 45 voyagistes partenaires.
+
+        Alpine Ski House reconstruit sa plateforme de réservation, une application monolithique, sous la forme de microservices conteneurisés. L'équipe de la plateforme compte 30 développeurs et deux administrateurs Kubernetes certifiés.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Identity.** A Microsoft Entra tenant named alpineskihouse.com contains the employee accounts. The employees of the partner tour operators are created by hand as guest users, are added to a group named **Partners-Reporting**, and are never removed. The platform engineers hold the Contributor role on the production subscription permanently.
+
+        **Azure.** A subscription named **Sub-Booking** contains the following resources in the West Europe region:
+
+        | Resource | Description |
+        | --- | --- |
+        | Booking monolith | Ten Windows Server virtual machines behind an application gateway |
+        | Booking database | SQL Server 2019 on an Azure virtual machine |
+        | Loyalty database | An Azure Cosmos DB for NoSQL account that stores the profile of each member of the loyalty program as a JSON document. West Europe is the write region and North Europe is a read region. The account uses the periodic backup mode. |
+        | Webcam thumbnails | The resorts upload about 3,000 webcam images a day to a blob container named **webcams**, mostly between 07:00 and 10:00, and none outside the ski season. A virtual machine that runs 24 hours a day lists the container every minute and creates a thumbnail of each new image in less than 20 seconds. |
+
+        **Known issues**
+
+        - When a booking request is slow, the operations team can't tell which component causes the delay.
+        - Nobody knows which partner guests still need their access.
+        - Last season, a faulty release of the loyalty application deleted 40,000 member profiles. The restore took four days.
+      fr: |
+        **Identité.** Un locataire Microsoft Entra nommé alpineskihouse.com contient les comptes des employés. Les employés des voyagistes partenaires sont créés à la main comme utilisateurs invités, sont ajoutés à un groupe nommé **Partners-Reporting** et ne sont jamais supprimés. Les ingénieurs de la plateforme détiennent en permanence le rôle Contributor sur l'abonnement de production.
+
+        **Azure.** Un abonnement nommé **Sub-Booking** contient les ressources suivantes dans la région West Europe :
+
+        | Ressource | Description |
+        | --- | --- |
+        | Monolithe de réservation | Dix machines virtuelles Windows Server derrière une passerelle d'application |
+        | Base de données de réservation | SQL Server 2019 sur une machine virtuelle Azure |
+        | Base de données de fidélité | Un compte Azure Cosmos DB for NoSQL qui stocke le profil de chaque membre du programme de fidélité sous la forme d'un document JSON. West Europe est la région d'écriture et North Europe est une région de lecture. Le compte utilise le mode de sauvegarde périodique. |
+        | Miniatures des webcams | Les stations chargent environ 3 000 images de webcam par jour dans un conteneur d'objets blob nommé **webcams**, surtout entre 7 h et 10 h, et aucune hors de la saison de ski. Une machine virtuelle qui fonctionne 24 heures sur 24 liste le conteneur chaque minute et crée une miniature de chaque nouvelle image en moins de 20 secondes. |
+
+        **Problèmes connus**
+
+        - Lorsqu'une demande de réservation est lente, l'équipe d'exploitation ne sait pas quel composant cause le retard.
+        - Personne ne sait quels invités partenaires ont encore besoin de leur accès.
+        - La saison dernière, une version défectueuse de l'application de fidélité a supprimé 40 000 profils de membres. La restauration a pris quatre jours.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Alpine Ski House plans the following changes:
+
+        - Package the booking platform as 18 microservices in Linux containers. Some microservices are HTTP APIs. The others are background processors that consume messages. The microservices are delivered as Helm charts that install custom resource definitions (CRDs) and operators.
+        - Add a messaging service between the microservices. When a booking is created or changed, the booking microservice publishes a message. Messages are smaller than 100 KB.
+        - Replace the virtual machine that creates the webcam thumbnails.
+        - Improve the recovery of the loyalty database.
+        - Review how partners and platform engineers obtain their access.
+      fr: |
+        Alpine Ski House prévoit les changements suivants :
+
+        - Empaqueter la plateforme de réservation sous la forme de 18 microservices dans des conteneurs Linux. Certains microservices sont des API HTTP. Les autres sont des processeurs d'arrière-plan qui consomment des messages. Les microservices sont livrés sous la forme de charts Helm qui installent des définitions de ressources personnalisées (CRD) et des opérateurs.
+        - Ajouter un service de messagerie entre les microservices. Lorsqu'une réservation est créée ou modifiée, le microservice de réservation publie un message. Les messages font moins de 100 Ko.
+        - Remplacer la machine virtuelle qui crée les miniatures des webcams.
+        - Améliorer la récupération de la base de données de fidélité.
+        - Revoir la manière dont les partenaires et les ingénieurs de la plateforme obtiennent leur accès.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Business requirements**
+
+        - Minimize operational overhead: use the most managed service that meets the technical requirements.
+        - Minimize costs whenever several solutions meet the technical requirements.
+
+        **Compute requirements**
+
+        1. The hosting platform of the microservices must give the platform team direct access to the Kubernetes API, which the Helm charts, the CRDs and the operators require.
+        2. The HTTP APIs must scale automatically with the number of concurrent requests, and the background processors with the number of waiting messages.
+        3. The code that creates a thumbnail must start when an image is uploaded, without listing the container. No compute resource must be billed for the thumbnails while no image is uploaded. The code must not run on the hosting platform of the microservices.
+
+        **Messaging requirements**
+
+        4. Each booking message must be delivered to three consumers that work independently: ticketing, loyalty and notifications. Each consumer must receive only the message types that it has selected.
+        5. Each consumer must process the messages of a given booking in the order in which they were sent.
+        6. A message that is sent twice within ten minutes because of a retry must be processed only once.
+        7. Access to the messaging service through its public endpoint is acceptable.
+
+        **Data requirements**
+
+        8. If a release corrupts or deletes loyalty profiles, the platform team must restore the data by itself, without a support request, as it was at any point in time of the last 30 days.
+
+        **Operations and governance requirements**
+
+        9. The operations team must see a map of the microservices and of their dependencies, with the failure rate and the duration of the calls between them, and must be able to follow one booking request across the microservices.
+        10. Employees of the partner tour operators must request by themselves a bundle that contains the partner portal application, a reporting application and a SharePoint site. An Alpine Ski House sponsor must approve each request. The access must expire after 180 days, and a guest account must be removed when its last access ends.
+        11. Platform engineers must hold the Contributor role on Sub-Booking only after approval, for a maximum of four hours.
+        12. Every quarter, the sponsors must confirm which members of the Partners-Reporting group keep their membership. The other members must be removed automatically.
+      fr: |
+        **Exigences métier**
+
+        - Réduire la charge d'exploitation au minimum : utiliser le service le plus managé qui satisfait les exigences techniques.
+        - Réduire les coûts au minimum chaque fois que plusieurs solutions satisfont les exigences techniques.
+
+        **Exigences de calcul**
+
+        1. La plateforme d'hébergement des microservices doit donner à l'équipe de la plateforme un accès direct à l'API Kubernetes, que les charts Helm, les CRD et les opérateurs exigent.
+        2. Les API HTTP doivent être mises à l'échelle automatiquement selon le nombre de requêtes simultanées, et les processeurs d'arrière-plan selon le nombre de messages en attente.
+        3. Le code qui crée une miniature doit démarrer lorsqu'une image est chargée, sans lister le conteneur. Aucune ressource de calcul ne doit être facturée pour les miniatures tant qu'aucune image n'est chargée. Le code ne doit pas s'exécuter sur la plateforme d'hébergement des microservices.
+
+        **Exigences de messagerie**
+
+        4. Chaque message de réservation doit être remis à trois consommateurs qui travaillent indépendamment : billetterie, fidélité et notifications. Chaque consommateur ne doit recevoir que les types de messages qu'il a sélectionnés.
+        5. Chaque consommateur doit traiter les messages d'une réservation donnée dans l'ordre où ils ont été envoyés.
+        6. Un message envoyé deux fois en moins de dix minutes à cause d'une nouvelle tentative ne doit être traité qu'une seule fois.
+        7. L'accès au service de messagerie par son point de terminaison public est acceptable.
+
+        **Exigences relatives aux données**
+
+        8. Si une version corrompt ou supprime des profils de fidélité, l'équipe de la plateforme doit restaurer elle-même les données, sans demande de support, telles qu'elles étaient à n'importe quel moment des 30 derniers jours.
+
+        **Exigences d'exploitation et de gouvernance**
+
+        9. L'équipe d'exploitation doit voir une carte des microservices et de leurs dépendances, avec le taux d'échec et la durée des appels entre eux, et doit pouvoir suivre une demande de réservation à travers les microservices.
+        10. Les employés des voyagistes partenaires doivent demander eux-mêmes un ensemble qui contient l'application du portail partenaire, une application de reporting et un site SharePoint. Un parrain d'Alpine Ski House doit approuver chaque demande. L'accès doit expirer au bout de 180 jours, et un compte invité doit être supprimé lorsque son dernier accès prend fin.
+        11. Les ingénieurs de la plateforme ne doivent détenir le rôle Contributor sur Sub-Booking qu'après approbation, pendant quatre heures au maximum.
+        12. Chaque trimestre, les parrains doivent confirmer quels membres du groupe Partners-Reporting conservent leur appartenance. Les autres membres doivent être retirés automatiquement.

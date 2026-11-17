@@ -1,0 +1,72 @@
+id: ai200-1c-aca-probe-port
+objective: "1.2.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware deploys a Python reranking service to a container app named **ca-rerank**. The application listens on port 8000, and HTTP ingress is enabled with the target port set to 8000. The container definition of the new revision is shown in the exhibit.
+
+    The revision shows the provision status **Provisioned** and the running status **Degraded**, with the details `Deployment Progress Deadline Exceeded. 0/1 replicas ready.` The console logs show that the application started and is listening on port 8000.
+
+    You need the revision to become healthy and to keep receiving traffic through the current ingress.
+
+    What should you do?
+  fr: |
+    Proseware déploie un service Python de reclassement dans une application conteneur nommée **ca-rerank**. L'application écoute sur le port 8000, et l'entrée HTTP est activée avec le port cible 8000. La définition du conteneur de la nouvelle révision est présentée dans la pièce.
+
+    La révision affiche l'état d'approvisionnement **Provisioned** et l'état d'exécution **Degraded**, avec le détail `Deployment Progress Deadline Exceeded. 0/1 replicas ready.` Les journaux de console montrent que l'application a démarré et écoute sur le port 8000.
+
+    La révision doit devenir saine et continuer à recevoir le trafic par l'entrée actuelle.
+
+    Que devez-vous faire ?
+exhibits:
+  - id: container
+    title: { en: "Container definition (extract)", fr: "Définition du conteneur (extrait)" }
+    body: |
+      ```yaml
+      template:
+        containers:
+          - name: rerank
+            image: crproseware.azurecr.io/rerank:1.4.2
+            probes:
+              - type: Readiness
+                tcpSocket:
+                  port: 8080
+                initialDelaySeconds: 10
+                periodSeconds: 5
+      ```
+body:
+  options:
+    - { id: a, text: { en: "Deploy a new revision in which the readiness probe uses port 8000.", fr: "Déployer une nouvelle révision dans laquelle la sonde de disponibilité utilise le port 8000." } }
+    - { id: b, text: { en: "Change the ingress target port of the app to 8080.", fr: "Remplacer le port cible de l'entrée de l'application par 8080." } }
+    - { id: c, text: { en: "Deploy a new revision in which the readiness probe has a higher `failureThreshold`.", fr: "Déployer une nouvelle révision dans laquelle la sonde de disponibilité a un `failureThreshold` plus élevé." } }
+    - { id: d, text: { en: "Change the ingress transport of the app to HTTP/2.", fr: "Remplacer le transport de l'entrée de l'application par HTTP/2." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A TCP probe succeeds only when it can open a connection on its port. Nothing listens on 8080, so the readiness probe never succeeds, no replica becomes ready and the revision ends up Degraded. For TCP probes the port must match the ingress target port (8000); changing the probe creates a new revision that can become ready.
+    fr: |
+      Une sonde TCP ne réussit que si elle peut ouvrir une connexion sur son port. Rien n'écoute sur 8080 : la sonde de disponibilité ne réussit jamais, aucun réplica ne devient prêt et la révision finit à l'état Degraded. Pour les sondes TCP, le port doit correspondre au port cible de l'entrée (8000) ; modifier la sonde crée une nouvelle révision qui peut devenir prête.
+  options:
+    b:
+      en: |
+        The app listens on 8000, so a target port of 8080 would send traffic to a closed port, and the probe on 8080 would still fail.
+      fr: |
+        L'application écoute sur 8000 : un port cible de 8080 enverrait le trafic vers un port fermé, et la sonde sur 8080 échouerait toujours.
+    c:
+      en: |
+        More attempts only delay the verdict; a probe on a port where nothing listens fails every attempt.
+      fr: |
+        Davantage de tentatives ne font que retarder le verdict ; une sonde sur un port où rien n'écoute échoue à chaque tentative.
+    d:
+      en: |
+        The transport changes the HTTP version used by ingress; it does not affect the TCP connection that the probe opens on port 8080.
+      fr: |
+        Le transport modifie la version HTTP utilisée par l'entrée ; il n'a aucun effet sur la connexion TCP que la sonde ouvre sur le port 8080.
+references:
+  - title: Troubleshoot a container app
+    url: https://learn.microsoft.com/en-us/azure/container-apps/troubleshooting
+  - title: Health probes in Azure Container Apps
+    url: https://learn.microsoft.com/en-us/azure/container-apps/health-probes

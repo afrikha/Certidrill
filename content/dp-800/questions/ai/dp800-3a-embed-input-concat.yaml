@@ -1,0 +1,62 @@
+id: dp800-3a-embed-input-concat
+objective: "3.1.4"
+type: dropdown
+difficulty: 1
+status: draft
+stem:
+  en: |
+    Tailspin Toys has an Azure SQL database. The dbo.Products table has the columns ProductID, Name, Description, StockQty, CategoryID and ModifiedDate. The dbo.Categories table has the columns CategoryID and CategoryName.
+
+    You need to generate one embedding per product. The embedded text must give the description the context of the product name and its category, and it must exclude identifiers, quantities and dates.
+
+    How should you complete the statement? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys dispose d'une base de données Azure SQL. La table dbo.Products contient les colonnes ProductID, Name, Description, StockQty, CategoryID et ModifiedDate. La table dbo.Categories contient les colonnes CategoryID et CategoryName.
+
+    Vous devez générer une incorporation par produit. Le texte incorporé doit donner à la description le contexte du nom du produit et de sa catégorie, et exclure les identifiants, les quantités et les dates.
+
+    Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    INSERT INTO dbo.ProductEmbeddings (ProductID, Embedding)
+    SELECT p.ProductID,
+           AI_GENERATE_EMBEDDINGS(
+               CONCAT([[first]], N'. ', [[second]], N'. ', p.Description)
+               USE MODEL EmbedModel)
+    FROM dbo.Products AS p
+    INNER JOIN dbo.Categories AS c ON c.CategoryID = p.CategoryID;
+  slots:
+    - id: first
+      options:
+        - { id: name, text: p.Name }
+        - { id: pid, text: p.ProductID }
+        - { id: mod, text: p.ModifiedDate }
+    - id: second
+      options:
+        - { id: catname, text: c.CategoryName }
+        - { id: catid, text: c.CategoryID }
+        - { id: stock, text: p.StockQty }
+answer:
+  values: { first: name, second: catname }
+explanation:
+  correct:
+    en: |
+      Several text columns can be concatenated into one input so that a single vector carries the product name, its category and its description. The ProductID stays in the embeddings table as the key to the source row, but it isn't part of the embedded text.
+    fr: |
+      Plusieurs colonnes de texte peuvent être concaténées en une seule entrée pour qu'un même vecteur porte le nom du produit, sa catégorie et sa description. ProductID reste dans la table d'incorporations comme clé vers la ligne source, mais ne fait pas partie du texte incorporé.
+  options:
+    pid: { en: "An identifier adds tokens but no meaning.", fr: "Un identifiant ajoute des jetons mais aucun sens." }
+    mod: { en: "A date is operational metadata; date conditions belong in predicates.", fr: "Une date est une métadonnée opérationnelle ; les conditions de date relèvent des prédicats." }
+    catid: { en: "CategoryID is a number; the category name carries the meaning.", fr: "CategoryID est un nombre ; c'est le nom de la catégorie qui porte le sens." }
+    stock: { en: "A stock quantity is a changing number that vectors don't compare.", fr: "Une quantité en stock est un nombre changeant que les vecteurs ne comparent pas." }
+references:
+  - title: Design embeddings for SQL database workloads
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-models-embeddings-with-sql/04-design-embeddings-sql-database-workloads
+  - title: AI_GENERATE_EMBEDDINGS (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/ai-generate-embeddings-transact-sql

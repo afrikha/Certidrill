@@ -1,0 +1,67 @@
+id: dp420-2d-pool-fleetspace-cli
+objective: "2.4.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Tailspin has an Azure Cosmos DB fleet named **fleet-tailspin** in a resource group named **rg-saas**. You plan to group the premium tenant accounts, which all use multi-region writes in West Europe and North Europe, in a new fleetspace named **fs-premium**.
+
+    The pool of fs-premium must have a minimum of 200,000 RU/s and must be able to scale to the highest maximum allowed for that minimum under the default fleet limits.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin dispose d'une flotte Azure Cosmos DB nommée **fleet-tailspin** dans un groupe de ressources nommé **rg-saas**. Vous prévoyez de regrouper les comptes des locataires premium, qui utilisent tous des écritures multirégions dans West Europe et North Europe, dans un nouveau fleetspace nommé **fs-premium**.
+
+    Le pool de fs-premium doit avoir un minimum de 200 000 RU/s et doit pouvoir monter jusqu'au maximum le plus élevé autorisé pour ce minimum avec les limites par défaut des flottes.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    json=$(jq --null-input --compact-output \
+      '{fleetspaceAPIKind:"NoSQL",serviceTier:"[[tier]]",dataRegions:["westeurope","northeurope"],throughputPoolConfiguration:{minThroughput:200000,maxThroughput:[[max]]}}')
+
+    az resource create --resource-group rg-saas \
+      --name "fleet-tailspin/fleetspaces/fs-premium" \
+      --resource-type "[[rtype]]" \
+      --location westeurope --latest-include-preview \
+      --properties "$json"
+  slots:
+    - id: tier
+      options:
+        - { id: tgp, text: GeneralPurpose }
+        - { id: tbc, text: BusinessCritical }
+        - { id: tprem, text: Premium }
+    - id: max
+      options:
+        - { id: m500, text: "500000" }
+        - { id: m1m, text: "1000000" }
+        - { id: m2m, text: "2000000" }
+    - id: rtype
+      options:
+        - { id: rfs, text: Microsoft.DocumentDB/fleets/fleetspaces }
+        - { id: rfsa, text: Microsoft.DocumentDB/fleets/fleetspaces/fleetspaceAccounts }
+        - { id: rdba, text: Microsoft.DocumentDB/databaseAccounts }
+answer:
+  values: { tier: tbc, max: m1m, rtype: rfs }
+explanation:
+  correct:
+    en: |
+      Accounts with multi-region writes need the BusinessCritical service tier; GeneralPurpose is for single-region writes. The maximum can be up to 10 times the minimum (2,000,000 RU/s here), but the default limit of a pool is 1,000,000 RU/s, so 1,000,000 is the highest value without a support request. A fleetspace is a child resource of type Microsoft.DocumentDB/fleets/fleetspaces, created with the preview API versions.
+    fr: |
+      Les comptes à écritures multirégions exigent le niveau de service BusinessCritical ; GeneralPurpose correspond aux écritures dans une seule région. Le maximum peut valoir jusqu'à 10 fois le minimum (ici 2 000 000 RU/s), mais la limite par défaut d'un pool est de 1 000 000 RU/s : 1 000 000 est donc la valeur la plus élevée sans demande de support. Un fleetspace est une ressource enfant de type Microsoft.DocumentDB/fleets/fleetspaces, créée avec les versions d'API en préversion.
+  options:
+    tgp: { en: "GeneralPurpose pools accept only accounts with single-region writes.", fr: "Les pools GeneralPurpose n'acceptent que des comptes à écriture dans une seule région." }
+    m2m: { en: "2,000,000 respects the 10-times rule but exceeds the default 1,000,000 RU/s limit of a pool.", fr: "2 000 000 respecte la règle des 10 fois mais dépasse la limite par défaut de 1 000 000 RU/s d'un pool." }
+    rfsa: { en: "fleetspaceAccounts links an existing account to a fleetspace; it doesn't create the fleetspace.", fr: "fleetspaceAccounts relie un compte existant à un fleetspace ; il ne crée pas le fleetspace." }
+references:
+  - title: Create a Fleet (Preview) - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-create-fleet
+  - title: Fleets Overview - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/fleet

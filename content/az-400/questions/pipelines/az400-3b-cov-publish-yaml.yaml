@@ -1,0 +1,79 @@
+id: az400-3b-cov-publish-yaml
+objective: "3.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Proseware builds a .NET solution on Microsoft-hosted ubuntu-latest agents. The test projects reference the coverlet.collector package.
+
+    You need to complete the pipeline so that:
+
+    - the coverage report appears on the **Code Coverage** tab of each run;
+    - the publishing step fails if the test run produced no coverage data.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware génère une solution .NET sur des agents ubuntu-latest hébergés par Microsoft. Les projets de test référencent le package coverlet.collector.
+
+    Vous devez compléter le pipeline pour que :
+
+    - le rapport de couverture apparaisse dans l'onglet **Code Coverage** de chaque exécution ;
+    - l'étape de publication échoue si l'exécution des tests n'a produit aucune donnée de couverture.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    steps:
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: test
+          projects: '**/*Tests.csproj'
+          arguments: '--configuration Release --collect "XPlat Code Coverage"'
+      - task: [[task]]
+        inputs:
+          summaryFileLocation: '[[path]]'
+          [[flag]]: true
+  slots:
+    - id: task
+      options:
+        - { id: ptr, text: PublishTestResults@2 }
+        - { id: pcc, text: PublishCodeCoverageResults@2 }
+        - { id: ppa, text: PublishPipelineArtifact@1 }
+    - id: path
+      options:
+        - { id: staging, text: "$(Build.ArtifactStagingDirectory)/coverage.xml" }
+        - { id: trx, text: "$(Agent.TempDirectory)/**/*.trx" }
+        - { id: cobertura, text: "$(Agent.TempDirectory)/**/coverage.cobertura.xml" }
+        - { id: jacoco, text: "$(System.DefaultWorkingDirectory)/**/jacoco.xml" }
+    - id: flag
+      options:
+        - { id: missing, text: failTaskOnMissingResultsFile }
+        - { id: empty, text: failIfCoverageEmpty }
+        - { id: failed, text: failTaskOnFailedTests }
+answer:
+  values: { task: pcc, path: cobertura, flag: empty }
+explanation:
+  correct:
+    en: |
+      The `XPlat Code Coverage` collector writes a coverage.cobertura.xml file per test project in the test results folder, which Learn's example searches under `$(Agent.TempDirectory)`. PublishCodeCoverageResults@2 reads it with a minimatch pattern, fills the Code Coverage tab, and fails when `failIfCoverageEmpty` is `true` and no coverage was produced.
+    fr: |
+      Le collecteur `XPlat Code Coverage` écrit un fichier coverage.cobertura.xml par projet de test dans le dossier des résultats de test, que l'exemple de Learn recherche sous `$(Agent.TempDirectory)`. PublishCodeCoverageResults@2 le lit avec un modèle minimatch, remplit l'onglet Code Coverage et échoue quand `failIfCoverageEmpty` vaut `true` et qu'aucune couverture n'a été produite.
+  options:
+    ptr: { en: "PublishTestResults@2 publishes test results, not coverage.", fr: "PublishTestResults@2 publie des résultats de test, pas la couverture." }
+    ppa: { en: "A pipeline artifact keeps files but doesn't fill the Code Coverage tab.", fr: "Un artefact de pipeline conserve des fichiers mais ne remplit pas l'onglet Code Coverage." }
+    trx: { en: "TRX files contain test results, not the Cobertura coverage report.", fr: "Les fichiers TRX contiennent des résultats de test, pas le rapport de couverture Cobertura." }
+    jacoco: { en: "jacoco.xml is produced by JaCoCo for Java projects.", fr: "jacoco.xml est produit par JaCoCo pour les projets Java." }
+    missing: { en: "failTaskOnMissingResultsFile is an input of PublishTestResults@2.", fr: "failTaskOnMissingResultsFile est une entrée de PublishTestResults@2." }
+    failed: { en: "failTaskOnFailedTests is an input of PublishTestResults@2 about failed tests.", fr: "failTaskOnFailedTests est une entrée de PublishTestResults@2 qui concerne les tests en échec." }
+references:
+  - title: Build, test, and deploy .NET Core projects
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/ecosystems/dotnet-core
+  - title: PublishCodeCoverageResults@2 - Publish code coverage results v2 task
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/publish-code-coverage-results-v2

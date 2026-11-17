@@ -1,0 +1,115 @@
+id: dp800-cs1b-wide-world-importers
+status: draft
+title:
+  en: Wide World Importers
+  fr: Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers is a freight forwarder that organizes sea and air shipments for 2,500 business customers from its offices in Rotterdam and Singapore. Its shipping platform tracks about 40,000 active shipments.
+
+        A team of six developers maintains the shipping database and its deployment pipeline. Wide World Importers wants to publish shipment events to its logistics partners, keep a full history of shipment statuses, and let customs officers search past customs notes.
+      fr: |
+        Wide World Importers est un transitaire qui organise des expéditions maritimes et aériennes pour 2 500 clients professionnels depuis ses bureaux de Rotterdam et de Singapour. Sa plateforme d'expédition suit environ 40 000 expéditions actives.
+
+        Une équipe de six développeurs gère la base de données d'expédition et son pipeline de déploiement. Wide World Importers souhaite publier des événements d'expédition à ses partenaires logistiques, conserver l'historique complet des statuts d'expédition et permettre aux agents des douanes de rechercher dans les notes douanières passées.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Database**
+
+        Wide World Importers has an Azure SQL Database named **sqldb-shipping** (Business Critical, compatibility level 170). It contains the following tables.
+
+        | Table | Description |
+        | --- | --- |
+        | dbo.Shipments | One row per shipment: ShipmentID (bigint, primary key), CustomerID, StatusCode, CurrentPort, ETA. About 200,000 updates per day |
+        | dbo.Containers | One row per container, with the ShipmentID of the shipment that uses it |
+        | dbo.ShipmentStatus | Reference table of the 12 status codes (StatusCode, Label) |
+        | dbo.CustomsNotes | NoteID (primary key), ShipmentID, NoteText (nvarchar(max)); notes contain up to 40,000 characters |
+
+        The shipping application is a vendor product that cannot be modified. Its code contains statements such as `INSERT INTO dbo.Shipments VALUES (...)` and `SELECT * FROM dbo.Shipments`. The stored procedures dbo.usp_AssignContainer and dbo.usp_ReleaseShipment, which Wide World Importers owns, update dbo.Shipments and dbo.Containers in opposite orders. They are occasionally chosen as deadlock victims.
+
+        **Source control and deployment**
+
+        The schema is stored in the GitHub repository **wwi-shipping-db** as an SDK-style SQL database project named WWI.Shipping. A GitHub Actions workflow deploys the project. The repository has a GitHub environment named **production** that has a required reviewer.
+
+        **Integration**
+
+        An Azure Event Hubs namespace named evhns-wwi contains an event hub named **evh-shipment-events** that the partners consume.
+      fr: |
+        **Base de données**
+
+        Wide World Importers dispose d'une base de données Azure SQL Database nommée **sqldb-shipping** (Critique pour l'entreprise, niveau de compatibilité 170). Elle contient les tables suivantes.
+
+        | Table | Description |
+        | --- | --- |
+        | dbo.Shipments | Une ligne par expédition : ShipmentID (bigint, clé primaire), CustomerID, StatusCode, CurrentPort, ETA. Environ 200 000 mises à jour par jour |
+        | dbo.Containers | Une ligne par conteneur, avec le ShipmentID de l'expédition qui l'utilise |
+        | dbo.ShipmentStatus | Table de référence des 12 codes de statut (StatusCode, Label) |
+        | dbo.CustomsNotes | NoteID (clé primaire), ShipmentID, NoteText (nvarchar(max)) ; les notes contiennent jusqu'à 40 000 caractères |
+
+        L'application d'expédition est un produit d'éditeur qui ne peut pas être modifié. Son code contient des instructions comme `INSERT INTO dbo.Shipments VALUES (...)` et `SELECT * FROM dbo.Shipments`. Les procédures stockées dbo.usp_AssignContainer et dbo.usp_ReleaseShipment, qui appartiennent à Wide World Importers, mettent à jour dbo.Shipments et dbo.Containers dans des ordres opposés. Elles sont parfois choisies comme victimes d'interblocage.
+
+        **Contrôle de code source et déploiement**
+
+        Le schéma est stocké dans le dépôt GitHub **wwi-shipping-db** sous la forme d'un projet de base de données SQL de style SDK nommé WWI.Shipping. Un flux de travail GitHub Actions déploie le projet. Le dépôt a un environnement GitHub nommé **production** qui a un réviseur obligatoire.
+
+        **Intégration**
+
+        Un espace de noms Azure Event Hubs nommé evhns-wwi contient un hub d'événements nommé **evh-shipment-events** que les partenaires consomment.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Deployment**
+
+        - The 12 rows of dbo.ShipmentStatus must be stored in source control. Every deployment must restore them to the values in source control without creating duplicate rows.
+        - The production job must deploy the .dacpac file produced by the build job, without rebuilding the project.
+        - Before any change is made to the production database, the required reviewer must approve a report of the schema changes that the deployment will make.
+
+        **Partner events**
+
+        - Every insert, update and delete in dbo.Shipments must be published to evh-shipment-events within seconds, including the previous values of the updated columns.
+        - The solution must not poll the database, and it must not add work to the transactions of the shipping application.
+
+        **History**
+
+        - Compliance officers must be able to query the state of any shipment at any past point in time. The history must be maintained by the database engine and kept indefinitely.
+        - The shipping application must keep working without any change.
+
+        **Customs notes**
+
+        - The customs notes will be split into chunks of 2,000 characters and stored in a new table named dbo.CustomsNoteChunks.
+        - The embeddings of the chunks will be generated from a deployment of the text-embedding-3-large model, which returns 3,072 dimensions by default, and stored in a vector column of dbo.CustomsNoteChunks.
+
+        **Reliability**
+
+        - When dbo.usp_ReleaseShipment is chosen as a deadlock victim, it must retry its transaction, up to three attempts in total. Any other error must be returned to the caller unchanged.
+      fr: |
+        **Déploiement**
+
+        - Les 12 lignes de dbo.ShipmentStatus doivent être stockées dans le contrôle de code source. Chaque déploiement doit les rétablir aux valeurs du contrôle de code source sans créer de lignes en double.
+        - Le travail de production doit déployer le fichier .dacpac produit par le travail de build, sans régénérer le projet.
+        - Avant toute modification de la base de données de production, le réviseur obligatoire doit approuver un rapport des modifications de schéma que le déploiement va effectuer.
+
+        **Événements partenaires**
+
+        - Chaque insertion, mise à jour et suppression dans dbo.Shipments doit être publiée dans evh-shipment-events en quelques secondes, avec les valeurs précédentes des colonnes mises à jour.
+        - La solution ne doit pas interroger la base de données à intervalles réguliers, et elle ne doit pas ajouter de travail aux transactions de l'application d'expédition.
+
+        **Historique**
+
+        - Les responsables de la conformité doivent pouvoir interroger l'état de n'importe quelle expédition à n'importe quel moment passé. L'historique doit être géré par le moteur de base de données et conservé indéfiniment.
+        - L'application d'expédition doit continuer à fonctionner sans aucune modification.
+
+        **Notes douanières**
+
+        - Les notes douanières seront découpées en blocs de 2 000 caractères et stockées dans une nouvelle table nommée dbo.CustomsNoteChunks.
+        - Les incorporations des blocs seront générées à partir d'un déploiement du modèle text-embedding-3-large, qui renvoie 3 072 dimensions par défaut, et stockées dans une colonne vector de dbo.CustomsNoteChunks.
+
+        **Fiabilité**
+
+        - Quand dbo.usp_ReleaseShipment est choisie comme victime d'interblocage, elle doit réessayer sa transaction, dans la limite de trois tentatives au total. Toute autre erreur doit être renvoyée à l'appelant sans modification.

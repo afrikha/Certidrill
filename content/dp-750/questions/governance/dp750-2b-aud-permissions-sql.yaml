@@ -1,0 +1,65 @@
+id: dp750-2b-aud-permissions-sql
+objective: "2.2.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware's compliance officer asks for the list of privilege changes made on Unity Catalog securable objects during the last 30 days, with the identity that made each change.
+
+    You query the audit log system table.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le responsable de la conformité de Litware demande la liste des modifications de privilèges effectuées sur les objets sécurisables Unity Catalog au cours des 30 derniers jours, avec l'identité à l'origine de chaque modification.
+
+    Vous interrogez la table système du journal d'audit.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT event_time,
+           user_identity.email AS changed_by,
+           request_params.securable_full_name,
+           request_params.changes
+    FROM system.access.audit
+    WHERE service_name = [[svc]]
+      AND action_name = [[act]]
+      AND event_date >= current_date() - INTERVAL 30 DAYS
+    ORDER BY event_time DESC;
+  slots:
+    - id: svc
+      options:
+        - { id: accounts, text: "'accounts'" }
+        - { id: workspace, text: "'workspace'" }
+        - { id: uc, text: "'unityCatalog'" }
+        - { id: notebook, text: "'notebook'" }
+    - id: act
+      options:
+        - { id: gettable, text: "'getTable'" }
+        - { id: updateperm, text: "'updatePermissions'" }
+        - { id: createtable, text: "'createTable'" }
+        - { id: runcommand, text: "'runCommand'" }
+answer:
+  values: { svc: uc, act: updateperm }
+explanation:
+  correct:
+    en: |
+      Privilege changes on Unity Catalog securables are logged by the unityCatalog service with the updatePermissions action; request_params holds the securable and the changes, and user_identity the principal that made them. Filtering on event_date, the date column, is more efficient than filtering on event_time.
+    fr: |
+      Les modifications de privilèges sur les objets sécurisables Unity Catalog sont journalisées par le service unityCatalog avec l'action updatePermissions ; request_params contient l'objet sécurisable et les modifications, et user_identity le principal qui les a effectuées. Filtrer sur event_date, la colonne de date, est plus efficace que filtrer sur event_time.
+  options:
+    accounts: { en: "The accounts service logs authentication, user, group and token events, not Unity Catalog grants.", fr: "Le service accounts journalise les événements d'authentification, d'utilisateurs, de groupes et de jetons, pas les attributions Unity Catalog." }
+    gettable: { en: "getTable records reads of table metadata, not privilege changes.", fr: "getTable enregistre les lectures de métadonnées de table, pas les modifications de privilèges." }
+    runcommand: { en: "runCommand is a verbose audit event of notebooks and jobs that carries command text.", fr: "runCommand est un événement d'audit détaillé des notebooks et des jobs qui contient le texte des commandes." }
+references:
+  - title: Configure audit logging
+    url: https://learn.microsoft.com/en-us/training/modules/govern-unity-catalog-objects/6-configure-audit-logging
+  - title: Audit log system table reference
+    url: https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/audit-logs

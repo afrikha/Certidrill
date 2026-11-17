@@ -1,0 +1,49 @@
+id: dp300-2c-rls-predicate-eval
+objective: "2.3.6"
+type: hotarea
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have an Azure SQL database that contains a table named Sales.Orders with a Region column. A security policy named Security.RegionPolicy is enabled on Sales.Orders. All its predicates call the function Security.fn_Region(Region), which returns a row when Region equals the value of SESSION_CONTEXT(N'Region').
+
+    The predicates of the policy are shown in the following table. A user named User1 connects, and the application sets the session context key Region to West.
+
+    Answer each prompt by selecting the predicate that determines the outcome of the statement.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données Azure SQL qui contient une table nommée Sales.Orders avec une colonne Region. Une stratégie de sécurité nommée Security.RegionPolicy est activée sur Sales.Orders. Tous ses prédicats appellent la fonction Security.fn_Region(Region), qui renvoie une ligne lorsque Region est égale à la valeur de SESSION_CONTEXT(N'Region').
+
+    Les prédicats de la stratégie figurent dans le tableau suivant. Un utilisateur nommé User1 se connecte, et l'application définit la clé de contexte de session Region sur West.
+
+    Répondez à chaque consigne en sélectionnant le prédicat qui détermine le résultat de l'instruction.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  prompts:
+    - id: p1
+      text: { en: "User1 runs an UPDATE that sets Region = 'East' on an order whose Region is West. The statement fails with an error.", fr: "User1 exécute un UPDATE qui définit Region = 'East' sur une commande dont la valeur Region est West. L'instruction échoue avec une erreur." }
+    - id: p2
+      text: { en: "User1 runs an UPDATE on an order whose Region is East. The statement affects zero rows and returns no error.", fr: "User1 exécute un UPDATE sur une commande dont la valeur Region est East. L'instruction n'affecte aucune ligne et ne renvoie pas d'erreur." }
+  grid:
+    header: [{ en: "Predicate", fr: "Prédicat" }, Type, { en: "Operation", fr: "Opération" }]
+    rows:
+      - [{ text: P1, area: p_filter }, { text: FILTER }, { text: "-" }]
+      - [{ text: P2, area: p_ai }, { text: BLOCK }, { text: AFTER INSERT }]
+      - [{ text: P3, area: p_au }, { text: BLOCK }, { text: AFTER UPDATE }]
+      - [{ text: P4, area: p_bu }, { text: BLOCK }, { text: BEFORE UPDATE }]
+answer:
+  values: { p1: p_au, p2: p_filter }
+explanation:
+  correct:
+    en: |
+      The first update targets a West row, which the filter predicate lets User1 see and which passes BEFORE UPDATE because its current value is allowed. The new value East violates the predicate, so the AFTER UPDATE block predicate rejects the update with an error. In the second case the filter predicate silently removes East rows from the rows available to UPDATE, so the statement affects zero rows without an error; block predicates raise errors and never apply to rows that are already filtered out.
+    fr: |
+      La première mise à jour vise une ligne West, que le prédicat de filtre laisse voir à User1 et qui satisfait BEFORE UPDATE puisque sa valeur actuelle est autorisée. La nouvelle valeur East viole le prédicat : le prédicat de blocage AFTER UPDATE rejette la mise à jour avec une erreur. Dans le second cas, le prédicat de filtre retire silencieusement les lignes East des lignes disponibles pour UPDATE : l'instruction n'affecte aucune ligne et ne renvoie pas d'erreur ; les prédicats de blocage déclenchent des erreurs et ne s'appliquent jamais aux lignes déjà filtrées.
+  options:
+    p_ai: { en: "AFTER INSERT applies to inserted rows only.", fr: "AFTER INSERT ne s'applique qu'aux lignes insérées." }
+    p_bu: { en: "BEFORE UPDATE blocks updates of rows whose current value violates the predicate, and it raises an error rather than silently affecting zero rows.", fr: "BEFORE UPDATE bloque la mise à jour des lignes dont la valeur actuelle viole le prédicat, et il déclenche une erreur au lieu de n'affecter silencieusement aucune ligne." }
+references:
+  - title: Row-level security
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/security/row-level-security

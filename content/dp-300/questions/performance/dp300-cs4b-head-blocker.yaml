@@ -1,0 +1,67 @@
+id: dp300-cs4b-head-blocker
+objective: "3.2.3"
+type: dropdown
+caseStudy: dp300-cs4b-relecloud
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to write a query for the DBAs to meet the performance requirement. You will run the query in TicketsDB.
+
+    How should you complete the Transact-SQL query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire une requête pour les DBA afin de satisfaire l'exigence de performances. Vous exécuterez la requête dans TicketsDB.
+
+    Comment devez-vous compléter la requête Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT s.session_id, s.status, s.open_transaction_count,
+           t.text AS last_statement
+    FROM sys.dm_exec_sessions AS s
+    INNER JOIN [[dmv]] AS c
+        ON c.session_id = s.session_id
+    CROSS APPLY sys.dm_exec_sql_text(c.[[handle]]) AS t
+    WHERE s.session_id IN
+        (SELECT r.[[col]]
+         FROM sys.dm_exec_requests AS r
+         WHERE r.wait_type LIKE N'LCK%');
+  slots:
+    - id: dmv
+      options:
+        - { id: d_requests, text: sys.dm_exec_requests }
+        - { id: d_connections, text: sys.dm_exec_connections }
+        - { id: d_locks, text: sys.dm_tran_locks }
+    - id: handle
+      options:
+        - { id: h_sql, text: sql_handle }
+        - { id: h_plan, text: plan_handle }
+        - { id: h_recent, text: most_recent_sql_handle }
+    - id: col
+      options:
+        - { id: c_session, text: session_id }
+        - { id: c_blocking, text: blocking_session_id }
+        - { id: c_request, text: request_id }
+answer:
+  values: { dmv: d_connections, handle: h_recent, col: c_blocking }
+explanation:
+  correct:
+    en: |
+      The subquery returns the `blocking_session_id` of every request that waits on a lock, so the outer query lists the blockers. A blocker that is idle with an open transaction has no row in `sys.dm_exec_requests`, but it keeps a row in `sys.dm_exec_connections`, whose `most_recent_sql_handle` column identifies the last batch that the session ran. `sys.dm_exec_sql_text` then returns the text of that batch.
+    fr: |
+      La sous-requête renvoie le `blocking_session_id` de chaque requête qui attend un verrou : la requête externe liste donc les sessions bloquantes. Une session bloquante inactive avec une transaction ouverte n'a pas de ligne dans `sys.dm_exec_requests`, mais elle conserve une ligne dans `sys.dm_exec_connections`, dont la colonne `most_recent_sql_handle` identifie le dernier lot exécuté par la session. `sys.dm_exec_sql_text` renvoie ensuite le texte de ce lot.
+  options:
+    d_requests: { en: "sys.dm_exec_requests contains only sessions that are running a request; the inner join would drop the idle blockers.", fr: "sys.dm_exec_requests ne contient que les sessions qui exécutent une requête ; la jointure interne éliminerait les sessions bloquantes inactives." }
+    d_locks: { en: "sys.dm_tran_locks describes lock requests; it has no session_id column and no SQL handle.", fr: "sys.dm_tran_locks décrit les demandes de verrou ; elle n'a ni colonne session_id ni handle SQL." }
+    h_sql: { en: "sql_handle is a column of sys.dm_exec_requests, not of sys.dm_exec_connections.", fr: "sql_handle est une colonne de sys.dm_exec_requests, pas de sys.dm_exec_connections." }
+    h_plan: { en: "sys.dm_exec_connections has no plan_handle column.", fr: "sys.dm_exec_connections n'a pas de colonne plan_handle." }
+    c_session: { en: "session_id returns the waiting sessions, not the sessions that block them.", fr: "session_id renvoie les sessions en attente, pas les sessions qui les bloquent." }
+    c_request: { en: "request_id identifies a request within its session; it isn't a session ID.", fr: "request_id identifie une requête au sein de sa session ; ce n'est pas un ID de session." }
+references:
+  - title: Understand and resolve blocking problems
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/understand-resolve-blocking

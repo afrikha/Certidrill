@@ -1,0 +1,58 @@
+id: dp420-3b-conv-order-property
+objective: "3.2.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Wingtip Toys stores the turns of its support agent in an Azure Cosmos DB for NoSQL container partitioned by `/threadId`, one item per turn. Each turn item has:
+
+    - `id`: the thread ID followed by the turn number without zero padding, for example `thread-77-9` and `thread-77-10`
+    - `turnIndex`: the turn number as an integer, assigned by the agent
+    - `messages`: the user and agent messages of the turn
+
+    An agent can write several turns within the same second, and a background job later updates older turns to add a sentiment score.
+
+    The agent loads its context with `SELECT TOP 10 c.turnIndex, c.messages FROM c WHERE c.threadId = @t ORDER BY ... DESC`. You need the query to always return the 10 most recent turns of the thread.
+
+    Which property should you sort on?
+  fr: |
+    Wingtip Toys stocke les tours de son agent de support dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/threadId`, un élément par tour. Chaque élément de tour contient :
+
+    - `id` : l'ID du thread suivi du numéro du tour sans zéros de remplissage, par exemple `thread-77-9` et `thread-77-10`
+    - `turnIndex` : le numéro du tour sous forme d'entier, attribué par l'agent
+    - `messages` : les messages de l'utilisateur et de l'agent du tour
+
+    Un agent peut écrire plusieurs tours dans la même seconde, et un travail en arrière-plan met ensuite à jour les anciens tours pour y ajouter un score de sentiment.
+
+    L'agent charge son contexte avec `SELECT TOP 10 c.turnIndex, c.messages FROM c WHERE c.threadId = @t ORDER BY ... DESC`. Vous devez faire en sorte que la requête renvoie toujours les 10 tours les plus récents du thread.
+
+    Sur quelle propriété devez-vous trier ?
+body:
+  options:
+    - id: a
+      text: c._ts
+    - id: b
+      text: c.id
+    - id: c
+      text: c._etag
+    - id: d
+      text: c.turnIndex
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "turnIndex is a numeric sequence assigned by the agent, so ORDER BY c.turnIndex DESC returns the latest turns in a stable order, whatever the write timing or later updates. Inside the thread's partition, the TOP 10 query reads only the turns it needs."
+    fr: "turnIndex est une séquence numérique attribuée par l'agent ; ORDER BY c.turnIndex DESC renvoie donc les derniers tours dans un ordre stable, quels que soient le moment des écritures et les mises à jour ultérieures. Dans la partition du thread, la requête TOP 10 ne lit que les tours dont elle a besoin."
+  options:
+    a:
+      en: "_ts has a one-second resolution, so turns written in the same second tie, and it changes when the background job updates an older turn, which moves that turn to the top."
+      fr: "_ts a une résolution d'une seconde, si bien que les tours écrits dans la même seconde sont à égalité, et il change quand le travail en arrière-plan met à jour un ancien tour, ce qui fait remonter ce tour en tête."
+    b:
+      en: "id is a string, so in a descending sort thread-77-9 comes before thread-77-10, as if it were more recent."
+      fr: "id est une chaîne ; dans un tri décroissant, thread-77-9 se classe avant thread-77-10, comme s'il était plus récent."
+    c:
+      en: "_etag is an opaque version identifier used for optimistic concurrency; it has no chronological order."
+      fr: "_etag est un identifiant de version opaque utilisé pour l'accès concurrentiel optimiste ; il n'a aucun ordre chronologique."
+references:
+  - title: Agent Memory in Azure Cosmos DB for NoSQL - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories

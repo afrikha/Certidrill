@@ -1,0 +1,79 @@
+id: ai200-4b-kql-impacted-users
+objective: "4.2.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Woodgrove Bank's mobile banking assistant calls a Python API that sets the authenticated user ID on its request telemetry. The product owner wants a daily chart of the number of distinct signed-in users who got at least one failed request during the last 14 days.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    L'assistant bancaire mobile de Woodgrove Bank appelle une API Python qui définit l'ID d'utilisateur authentifié dans sa télémétrie de requêtes. Le responsable produit veut un graphique quotidien du nombre d'utilisateurs connectés distincts ayant reçu au moins une requête en échec au cours des 14 derniers jours.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    AppRequests
+    | where TimeGenerated > ago(14d) and Success == false
+    | summarize ImpactedUsers = [[agg]]([[col]]) by [[grp]]
+    | render timechart
+  slots:
+    - id: agg
+      options:
+        - { id: dcount, text: dcount }
+        - { id: count, text: count }
+        - { id: sum, text: sum }
+    - id: col
+      options:
+        - { id: auth, text: UserAuthenticatedId }
+        - { id: anon, text: UserId }
+        - { id: op, text: OperationId }
+    - id: grp
+      options:
+        - { id: bin, text: "bin(TimeGenerated, 1d)" }
+        - { id: raw, text: TimeGenerated }
+        - { id: ago, text: ago(1d) }
+answer:
+  values: { agg: dcount, col: auth, grp: bin }
+explanation:
+  correct:
+    en: "`dcount()` estimates the number of distinct values in each group. `UserAuthenticatedId` holds the known, signed-in user identifier, whereas `UserId` is an anonymous ID. `bin(TimeGenerated, 1d)` creates one group per day for the time chart."
+    fr: "`dcount()` estime le nombre de valeurs distinctes de chaque groupe. `UserAuthenticatedId` contient l'identifiant connu de l'utilisateur connecté, alors que `UserId` est un ID anonyme. `bin(TimeGenerated, 1d)` crée un groupe par jour pour le graphique temporel."
+  options:
+    count:
+      en: |-
+        count() counts rows, so a user with several failures is counted several times.
+      fr: |-
+        count() compte les lignes : un utilisateur ayant plusieurs échecs est compté plusieurs fois.
+    sum:
+      en: |-
+        sum() adds numeric values; a user ID can't be summed.
+      fr: |-
+        sum() additionne des valeurs numériques ; un ID d'utilisateur ne peut pas être additionné.
+    anon:
+      en: |-
+        UserId is an anonymous identifier that changes with the device or browser, so it doesn't count signed-in users.
+      fr: |-
+        UserId est un identifiant anonyme qui change selon l'appareil ou le navigateur : il ne compte pas les utilisateurs connectés.
+    op:
+      en: |-
+        OperationId identifies operations, so the result would be a number of failed operations.
+      fr: |-
+        OperationId identifie des opérations : le résultat serait un nombre d'opérations en échec.
+    raw:
+      en: |-
+        Grouping by the raw timestamp creates one group per distinct time value instead of one per day.
+      fr: |-
+        Regrouper par l'horodatage brut crée un groupe par valeur de temps distincte au lieu d'un par jour.
+references:
+  - title: dcount() (aggregation function)
+    url: https://learn.microsoft.com/en-us/kusto/query/dcount-aggregation-function
+  - title: Application Insights telemetry data model
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete

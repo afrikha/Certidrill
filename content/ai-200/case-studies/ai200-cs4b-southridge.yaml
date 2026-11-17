@@ -1,0 +1,69 @@
+id: ai200-cs4b-southridge
+status: draft
+title:
+  en: Southridge Video
+  fr: Southridge Video
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Southridge Video is a video streaming service with 4 million subscribers in North America. Its catalog contains about 42,000 movies and series.
+
+        Southridge Video is adding **WatchNext**, a recommendation feature written in Python. When a subscriber finishes a title, WatchNext suggests titles whose synopsis is semantically close. Southridge Video also notifies its distribution partners when a new title is released, and is opening a partner API.
+      fr: |
+        Southridge Video est un service de streaming vidéo qui compte 4 millions d'abonnés en Amérique du Nord. Son catalogue contient environ 42 000 films et séries.
+
+        Southridge Video ajoute **WatchNext**, une fonctionnalité de recommandation écrite en Python. Quand un abonné termine un titre, WatchNext suggère des titres dont le synopsis est sémantiquement proche. Southridge Video avertit aussi ses partenaires de distribution quand un nouveau titre sort, et ouvre une API pour les partenaires.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Southridge Video has an Azure subscription that contains the following resources in the East US region.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | cae-southridge | Container Apps environment | Workload profiles environment, not internal-only; integrated with the virtual network vnet-southridge |
+        | web-southridge | Container app in cae-southridge | Public website of Southridge Video; external ingress |
+        | recs-api | Container app in cae-southridge | Python WatchNext API that listens on port 8000; ingress not configured yet; system-assigned managed identity that has the Contributor role on cosmos-southridge |
+        | notify-api | Container app in cae-southridge | Python web API that forwards release notifications to the partners; external ingress |
+        | cosmos-southridge | Azure Cosmos DB for NoSQL account | Local (key-based) authentication disabled; database **media** with the containers **titles** and **leases** |
+        | func-southridge-embed | Function app | Python, v2 programming model; function **embed-titles** |
+        | egt-southridge-releases | Event Grid custom topic | Receives events of type `Southridge.Title.Released` |
+
+        embed-titles uses a Cosmos DB trigger on the titles container with the lease container leases and no lease prefix. It computes the embedding of the synopsis and upserts it into the same title item, unless the item already holds the embedding of its current synopsis; processing a title twice gives the same result. embed-titles has been running for two weeks.
+      fr: |
+        Southridge Video dispose d'un abonnement Azure qui contient les ressources suivantes dans la région USA Est.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | cae-southridge | Environnement Container Apps | Environnement de profils de charge de travail, non interne uniquement ; intégré au réseau virtuel vnet-southridge |
+        | web-southridge | Application conteneur de cae-southridge | Site web public de Southridge Video ; entrée externe |
+        | recs-api | Application conteneur de cae-southridge | API WatchNext Python qui écoute sur le port 8000 ; entrée pas encore configurée ; identité managée affectée par le système qui a le rôle Contributor sur cosmos-southridge |
+        | notify-api | Application conteneur de cae-southridge | API web Python qui transmet les notifications de sortie aux partenaires ; entrée externe |
+        | cosmos-southridge | Compte Azure Cosmos DB for NoSQL | Authentification locale (par clé) désactivée ; base de données **media** avec les conteneurs **titles** et **leases** |
+        | func-southridge-embed | Application de fonction | Python, modèle de programmation v2 ; fonction **embed-titles** |
+        | egt-southridge-releases | Rubrique personnalisée Event Grid | Reçoit des événements de type `Southridge.Title.Released` |
+
+        embed-titles utilise un déclencheur Cosmos DB sur le conteneur titles avec le conteneur de baux leases et sans préfixe de bail. Elle calcule l'incorporation du synopsis et l'écrit par upsert dans le même élément de titre, sauf si l'élément contient déjà l'incorporation de son synopsis actuel ; traiter un titre deux fois donne le même résultat. embed-titles s'exécute depuis deux semaines.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Southridge Video identifies the following requirements:
+
+        1. **WatchNext access**: web-southridge calls recs-api. recs-api must be reachable only from the apps of cae-southridge, never from the internet. web-southridge must stay reachable from the internet.
+        2. **WatchNext scaling**: recs-api must add a replica when it has more than 50 concurrent HTTP requests per replica, must run at most 30 replicas, and must never have a cold start. Costs must be minimized.
+        3. **Catalog reads**: recs-api only reads items from the titles container, by using its system-assigned managed identity. Permissions must follow the principle of least privilege.
+        4. **Backfill**: about 38,000 titles were created before embed-titles first started, and they have no embedding. They must get their embedding through embed-titles, without a separate script.
+        5. **Release notifications**: an event subscription of egt-southridge-releases must deliver the events to notify-api through a webhook, by using the CloudEvents v1.0 schema. notify-api must handle the endpoint validation in its own code.
+        6. **Partner API**: a new function app named **func-southridge-partners** will host Python HTTP functions for the partners. It must use a serverless plan whose instances are billed only when they run, except for warm capacity; it must support virtual network integration; and at least one instance must always be ready to serve the HTTP functions.
+      fr: |
+        Southridge Video a défini les exigences suivantes :
+
+        1. **Accès à WatchNext** : web-southridge appelle recs-api. recs-api doit être joignable uniquement depuis les applications de cae-southridge, jamais depuis Internet. web-southridge doit rester joignable depuis Internet.
+        2. **Mise à l'échelle de WatchNext** : recs-api doit ajouter un réplica quand il a plus de 50 requêtes HTTP simultanées par réplica, doit exécuter au plus 30 réplicas et ne doit jamais subir de démarrage à froid. Les coûts doivent être réduits au minimum.
+        3. **Lecture du catalogue** : recs-api lit uniquement des éléments du conteneur titles, à l'aide de son identité managée affectée par le système. Les autorisations doivent respecter le principe des privilèges minimum.
+        4. **Rattrapage** : environ 38 000 titres ont été créés avant le premier démarrage d'embed-titles, et ils n'ont pas d'incorporation. Ils doivent obtenir leur incorporation par embed-titles, sans script distinct.
+        5. **Notifications de sortie** : un abonnement aux événements de egt-southridge-releases doit remettre les événements à notify-api par un webhook, à l'aide du schéma CloudEvents v1.0. notify-api doit gérer la validation du point de terminaison dans son propre code.
+        6. **API partenaires** : une nouvelle application de fonction nommée **func-southridge-partners** hébergera des fonctions HTTP Python pour les partenaires. Elle doit utiliser un plan serverless dont les instances ne sont facturées que lorsqu'elles s'exécutent, à l'exception de la capacité maintenue à chaud ; elle doit prendre en charge l'intégration de réseau virtuel ; et au moins une instance doit toujours être prête à servir les fonctions HTTP.

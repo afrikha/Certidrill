@@ -1,0 +1,66 @@
+id: sc500-cs2a-download-hunting
+objective: "4.2.10"
+type: dropdown
+caseStudy: sc500-cs2a-nod-publishers
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to write the advanced hunting query that meets the weekly reporting requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez écrire la requête de chasse avancée qui répond à l'exigence de rapport hebdomadaire.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where TimeGenerated > ago(7d)
+    | where RecordType == "SharePointFileOperation"
+    | where Operation == "[[op]]"
+    | summarize DistinctFiles = [[agg]] by UserId
+    | order by DistinctFiles desc
+  slots:
+    - id: table
+      options:
+        - { id: office, text: OfficeActivity }
+        - { id: signin, text: SigninLogs }
+        - { id: audit, text: AuditLogs }
+        - { id: azact, text: AzureActivity }
+    - id: op
+      options:
+        - { id: accessed, text: FileAccessed }
+        - { id: downloaded, text: FileDownloaded }
+        - { id: uploaded, text: FileUploaded }
+        - { id: deleted, text: FileDeleted }
+    - id: agg
+      options:
+        - { id: count, text: count() }
+        - { id: dfile, text: dcount(SourceFileName) }
+        - { id: duser, text: dcount(UserId) }
+        - { id: maxt, text: max(TimeGenerated) }
+answer:
+  values: { table: office, op: downloaded, agg: dfile }
+explanation:
+  correct:
+    en: "The OfficeActivity table holds the Office 365 audit records (Exchange, SharePoint, Teams) that Microsoft Sentinel collects; its RecordType, Operation, UserId and SourceFileName columns match the query. SharePoint downloads are recorded with the FileDownloaded operation, and `dcount(SourceFileName)` counts the distinct files per user."
+    fr: "La table OfficeActivity contient les enregistrements d'audit Office 365 (Exchange, SharePoint, Teams) collectés par Microsoft Sentinel ; ses colonnes RecordType, Operation, UserId et SourceFileName correspondent à la requête. Les téléchargements SharePoint sont enregistrés avec l'opération FileDownloaded, et `dcount(SourceFileName)` compte les fichiers distincts par utilisateur."
+  options:
+    signin: { en: "SigninLogs contains Microsoft Entra sign-ins, not SharePoint file operations.", fr: "SigninLogs contient les connexions Microsoft Entra, pas les opérations sur les fichiers SharePoint." }
+    audit: { en: "AuditLogs contains the Microsoft Entra directory audit log, not SharePoint activity.", fr: "AuditLogs contient le journal d'audit de l'annuaire Microsoft Entra, pas l'activité SharePoint." }
+    azact: { en: "AzureActivity contains Azure control-plane operations.", fr: "AzureActivity contient les opérations du plan de contrôle Azure." }
+    accessed: { en: "FileAccessed records file views, not downloads.", fr: "FileAccessed enregistre les consultations de fichiers, pas les téléchargements." }
+    count: { en: "count() counts download events, so a file downloaded three times counts three times.", fr: "count() compte les événements de téléchargement : un fichier téléchargé trois fois compte trois fois." }
+    duser: { en: "Grouped by UserId, dcount(UserId) always returns 1.", fr: "Avec un regroupement par UserId, dcount(UserId) renvoie toujours 1." }
+references:
+  - title: OfficeActivity
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/officeactivity
+  - title: Query Purview Audit logs in Microsoft Defender XDR
+    url: https://learn.microsoft.com/en-us/training/modules/manage-data-storage-audit-logs-sentinel/5-query-purview-audit

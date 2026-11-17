@@ -1,0 +1,36 @@
+id: ai200-2a-cf-idempotent-handler
+objective: "2.1.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has a .NET worker that uses the change feed processor of Azure Cosmos DB for NoSQL. For each changed document, the delegate calls an embedding API and then inserts a new record, with a randomly generated ID, into a search index.
+
+    After transient failures of the embedding API, the search index contains several records for the same document. You need to prevent duplicates without losing any change.
+
+    What should you do?
+  fr: |
+    Contoso dispose d'un worker .NET qui utilise le processeur de flux de modification d'Azure Cosmos DB for NoSQL. Pour chaque document modifié, le délégué appelle une API d'incorporation, puis insère dans un index de recherche un nouvel enregistrement dont l'ID est généré aléatoirement.
+
+    Après des défaillances temporaires de l'API d'incorporation, l'index de recherche contient plusieurs enregistrements pour le même document. Vous devez empêcher les doublons sans perdre aucune modification.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Catch every exception in the delegate and log it without rethrowing it.", fr: "Intercepter toutes les exceptions dans le délégué et les journaliser sans les relancer." } }
+    - { id: b, text: { en: "Call WithStartTime(DateTime.UtcNow) each time the processor starts.", fr: "Appeler WithStartTime(DateTime.UtcNow) à chaque démarrage du processeur." } }
+    - { id: c, text: { en: "Upsert into the index with the document ID as key instead of inserting with a random ID.", fr: "Faire un upsert dans l'index avec l'ID du document comme clé au lieu d'insérer avec un ID aléatoire." } }
+    - { id: d, text: { en: "Give every instance of the worker the same instance name.", fr: "Donner le même nom d'instance à toutes les instances du worker." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "The change feed processor guarantees at-least-once delivery: when the delegate throws, the lease isn't updated and the same batch is delivered again. The handler must therefore be idempotent; an upsert keyed on the document ID makes a repeated delivery overwrite the same record."
+    fr: "Le processeur de flux de modification garantit une livraison au moins une fois : quand le délégué lève une exception, le bail n'est pas mis à jour et le même lot est relivré. Le traitement doit donc être idempotent ; un upsert dont la clé est l'ID du document fait qu'une relivraison écrase le même enregistrement."
+  options:
+    a: { en: "If the delegate swallows the error, the lease advances and the failed changes are never processed again.", fr: "Si le délégué masque l'erreur, le bail avance et les modifications en échec ne sont jamais retraitées." }
+    b: { en: "The start time applies only when the lease container is initialized for the first time; it doesn't stop redeliveries.", fr: "L'heure de début ne s'applique qu'à la première initialisation du conteneur de baux ; elle n'empêche pas les relivraisons." }
+    d: { en: "Instance names must be unique within a deployment unit; identical names break lease distribution.", fr: "Les noms d'instance doivent être uniques dans une unité de déploiement ; des noms identiques perturbent la répartition des baux." }
+references:
+  - title: Change Feed Processor - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/change-feed-processor

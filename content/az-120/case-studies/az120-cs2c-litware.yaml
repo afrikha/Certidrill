@@ -1,0 +1,102 @@
+id: az120-cs2c-litware
+status: draft
+title:
+  en: Litware Energy
+  fr: Litware Energy
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Litware Energy is an electricity and gas distributor in Germany. The head office is in Frankfurt. A team of eight administrators manages the SAP Basis and the infrastructure.
+
+        Litware will move its SAP ERP landscape from a VMware cluster in Frankfurt to the **Germany West Central** Azure region. The operating system and database platform stay the same (lift and shift).
+      fr: |
+        Litware Energy est un distributeur d'électricité et de gaz en Allemagne. Le siège est à Francfort. Une équipe de huit administrateurs gère la couche SAP Basis et l'infrastructure.
+
+        Litware va déplacer son paysage SAP ERP d'un cluster VMware de Francfort vers la région Azure **Germany West Central**. Le système d'exploitation et la plateforme de base de données restent les mêmes (lift-and-shift).
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **SAP systems**
+
+        All systems run SAP ERP 6.0 EHP8 on Windows Server 2022 and SQL Server 2019 (latest cumulative update).
+
+        | SID | Role | Notes |
+        | --- | --- | --- |
+        | LE1 | Production | ASCS/ERS, SQL Server, six application servers |
+        | LQ1 | Quality assurance | Distributed non-HA system |
+        | LS1 | Sandbox | Used about 20 hours per month |
+
+        **Azure subscription Sub-SAP-PRD**
+
+        The output of `az vm list-usage --location germanywestcentral` shows:
+
+        | Name | CurrentValue | Limit |
+        | --- | --- | --- |
+        | Total Regional vCPUs | 64 | 350 |
+        | Standard EDSv5 Family vCPUs | 64 | 100 |
+
+        The 64 vCPUs in use belong to two Standard_E32ds_v5 pilot VMs, which are currently deallocated.
+      fr: |
+        **Systèmes SAP**
+
+        Tous les systèmes exécutent SAP ERP 6.0 EHP8 sur Windows Server 2022 et SQL Server 2019 (dernière mise à jour cumulative).
+
+        | SID | Rôle | Remarques |
+        | --- | --- | --- |
+        | LE1 | Production | ASCS/ERS, SQL Server, six serveurs d'applications |
+        | LQ1 | Assurance qualité | Système distribué non HA |
+        | LS1 | Bac à sable | Utilisé environ 20 heures par mois |
+
+        **Abonnement Azure Sub-SAP-PRD**
+
+        La sortie de `az vm list-usage --location germanywestcentral` indique :
+
+        | Name | CurrentValue | Limit |
+        | --- | --- | --- |
+        | Total Regional vCPUs | 64 | 350 |
+        | Standard EDSv5 Family vCPUs | 64 | 100 |
+
+        Les 64 processeurs virtuels utilisés appartiennent à deux machines virtuelles pilotes Standard_E32ds_v5, actuellement libérées.
+  - key: planned
+    title: { en: "Planned environment", fr: "Environnement prévu" }
+    body:
+      en: |
+        | Component of LE1 | Design |
+        | --- | --- |
+        | ASCS/ERS | Two VMs in a Windows Server failover cluster, one in zone 1 and one in zone 2, with an Azure shared disk for the ASCS instance |
+        | Database | SQL Server Always On availability group with three replicas: zone 1 and zone 2 (synchronous), and a disaster recovery replica in another region (asynchronous) |
+        | Application servers | Six new Standard_E32ds_v5 VMs, three in each zone |
+
+        Accelerated Networking is enabled on every VM. LQ1 is already registered in Azure Center for SAP solutions.
+      fr: |
+        | Composant de LE1 | Conception |
+        | --- | --- |
+        | ASCS/ERS | Deux machines virtuelles dans un cluster de basculement Windows Server, l'une dans la zone 1 et l'autre dans la zone 2, avec un disque partagé Azure pour l'instance ASCS |
+        | Base de données | Groupe de disponibilité Always On SQL Server à trois réplicas : zone 1 et zone 2 (synchrones), et un réplica de reprise d'activité dans une autre région (asynchrone) |
+        | Serveurs d'applications | Six nouvelles machines virtuelles Standard_E32ds_v5, trois dans chaque zone |
+
+        Accelerated Networking est activé sur toutes les machines virtuelles. LQ1 est déjà inscrit dans le Centre Azure pour les solutions SAP.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Litware identifies the following requirements:
+
+        1. **Deployment.** The six application server VMs of LE1 must be deployed in Sub-SAP-PRD. The two pilot VMs must be kept.
+        2. **Latency.** Tests show that the network latency between the application servers and the database is too high. It must be reduced. The administrators must keep the flexibility to resize the database VMs to other VM types later.
+        3. **ASCS high availability.** The ASCS instance must survive the loss of an availability zone. The cluster quorum witness must not depend on an additional VM or disk.
+        4. **Database high availability.** The SAP application servers must connect to the availability group through a listener that does not require an Azure load balancer.
+        5. **Costs.** The ASCS/ERS and database VMs of LE1 will run 24/7 on the same VM sizes and in the same region for at least three years. The application servers of LE1 will move to a newer VM family next year, possibly in another region. The discount must be as high as possible for each workload, and no commitment may be bought for a workload that would not use it.
+        6. **Operations.** The operations team must stop the SAP application tier of LQ1 every Friday evening from the Azure portal and start it again every Monday morning.
+      fr: |
+        Litware a défini les exigences suivantes :
+
+        1. **Déploiement.** Les six machines virtuelles de serveur d'applications de LE1 doivent être déployées dans Sub-SAP-PRD. Les deux machines virtuelles pilotes doivent être conservées.
+        2. **Latence.** Des tests montrent que la latence réseau entre les serveurs d'applications et la base de données est trop élevée. Elle doit être réduite. Les administrateurs doivent conserver la possibilité de redimensionner plus tard les machines virtuelles de base de données vers d'autres types de machines virtuelles.
+        3. **Haute disponibilité de l'ASCS.** L'instance ASCS doit résister à la perte d'une zone de disponibilité. Le témoin de quorum du cluster ne doit dépendre d'aucune machine virtuelle ni d'aucun disque supplémentaire.
+        4. **Haute disponibilité de la base de données.** Les serveurs d'applications SAP doivent se connecter au groupe de disponibilité par un écouteur qui ne nécessite pas d'équilibreur de charge Azure.
+        5. **Coûts.** Les machines virtuelles ASCS/ERS et de base de données de LE1 fonctionneront 24 h/24, 7 j/7, avec les mêmes tailles de machine virtuelle et dans la même région pendant au moins trois ans. Les serveurs d'applications de LE1 passeront l'an prochain à une famille de machines virtuelles plus récente, peut-être dans une autre région. La remise doit être la plus élevée possible pour chaque charge de travail, et aucun engagement ne doit être acheté pour une charge de travail qui ne l'utiliserait pas.
+        6. **Exploitation.** L'équipe d'exploitation doit arrêter la couche applicative SAP de LQ1 chaque vendredi soir depuis le portail Azure et la redémarrer chaque lundi matin.

@@ -1,0 +1,86 @@
+id: az140-1e-aib-windowsupdate
+objective: "1.5.5"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You use an Azure VM Image Builder template to build the monthly image of an Azure Virtual Desktop host pool. The first customizer installs a line-of-business app that requires a restart.
+
+    You need to complete the `customize` section so that:
+
+    - no restart is pending when Windows updates are searched for;
+    - only the updates that aren't installed yet are installed;
+    - preview updates are skipped.
+
+    How should you complete the section? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous utilisez un modèle Azure VM Image Builder pour construire l'image mensuelle d'un pool d'hôtes Azure Virtual Desktop. Le premier personnalisateur installe une application métier qui exige un redémarrage.
+
+    Vous devez compléter la section `customize` pour que :
+
+    - aucun redémarrage ne soit en attente lors de la recherche des mises à jour Windows ;
+    - seules les mises à jour pas encore installées soient installées ;
+    - les mises à jour en préversion soient ignorées.
+
+    Comment devez-vous compléter la section ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    "customize": [
+      {
+        "type": "PowerShell",
+        "name": "installLob",
+        "runElevated": true,
+        "scriptUri": "https://raw.githubusercontent.com/contoso/avd/main/lob.ps1"
+      },
+      { "type": "[[restart]]", "restartTimeout": "10m" },
+      {
+        "type": "[[update]]",
+        "searchCriteria": "[[criteria]]",
+        "filters": [ "[[filter]]", "include:$true" ]
+      }
+    ]
+  slots:
+    - id: restart
+      options:
+        - { id: wr, text: WindowsRestart }
+        - { id: file, text: File }
+        - { id: shell, text: Shell }
+    - id: update
+      options:
+        - { id: wu, text: WindowsUpdate }
+        - { id: ps, text: PowerShell }
+        - { id: file, text: File }
+    - id: criteria
+      options:
+        - { id: notinst, text: "IsInstalled=0" }
+        - { id: inst, text: "IsInstalled=1" }
+        - { id: hidden, text: "IsHidden=1" }
+    - id: filter
+      options:
+        - { id: excl, text: "exclude:$_.Title -like '*Preview*'" }
+        - { id: incl, text: "include:$_.Title -like '*Preview*'" }
+        - { id: exclcu, text: "exclude:$_.Title -like '*Cumulative*'" }
+answer:
+  values: { restart: wr, update: wu, criteria: notinst, filter: excl }
+explanation:
+  correct:
+    en: The WindowsUpdate customizer can fail if a restart is outstanding, so Microsoft advises a WindowsRestart customizer before it. `searchCriteria` with `IsInstalled=0` selects the updates not installed yet (the default is `BrowseOnly=0 and IsInstalled=0`), and the `exclude:` filter on titles that contain "Preview" skips preview updates while `include:$true` keeps the rest.
+    fr: "Le personnalisateur WindowsUpdate peut échouer si un redémarrage est en attente : Microsoft conseille de le faire précéder d'un personnalisateur WindowsRestart. `searchCriteria` avec `IsInstalled=0` sélectionne les mises à jour pas encore installées (la valeur par défaut est `BrowseOnly=0 and IsInstalled=0`), et le filtre `exclude:` sur les titres contenant « Preview » ignore les préversions, tandis que `include:$true` conserve les autres."
+  options:
+    file: { en: "The File customizer only downloads small files (under 20 MB) to the build VM; it neither restarts Windows nor installs updates.", fr: "Le personnalisateur File ne fait que télécharger de petits fichiers (moins de 20 Mo) sur la machine virtuelle de build ; il ne redémarre pas Windows et n'installe pas de mises à jour." }
+    shell: { en: "The Shell customizer runs scripts on Linux build VMs.", fr: "Le personnalisateur Shell exécute des scripts sur des machines virtuelles de build Linux." }
+    ps: { en: "searchCriteria and filters are properties of the WindowsUpdate customizer, not of the PowerShell customizer.", fr: "searchCriteria et filters sont des propriétés du personnalisateur WindowsUpdate, pas du personnalisateur PowerShell." }
+    inst: { en: "IsInstalled=1 searches for updates that are already installed.", fr: "IsInstalled=1 recherche les mises à jour déjà installées." }
+    hidden: { en: "IsHidden=1 searches for hidden updates, not for the missing ones.", fr: "IsHidden=1 recherche les mises à jour masquées, pas celles qui manquent." }
+    incl: { en: "An include filter on preview titles would keep preview updates instead of skipping them.", fr: "Un filtre include sur les titres de préversion conserverait les préversions au lieu de les ignorer." }
+    exclcu: { en: "Excluding cumulative updates would skip the monthly security updates that the image needs.", fr: "Exclure les mises à jour cumulatives écarterait les mises à jour de sécurité mensuelles dont l'image a besoin." }
+references:
+  - title: Create an Azure Image Builder Bicep or ARM template JSON template
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/image-builder-json

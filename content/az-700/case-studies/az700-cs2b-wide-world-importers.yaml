@@ -1,0 +1,122 @@
+id: az700-cs2b-wide-world-importers
+status: draft
+title:
+  en: |
+    Wide World Importers
+  fr: |
+    Wide World Importers
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Wide World Importers is a freight forwarding and logistics company. Its head office and its main datacenter are in Rotterdam, and it operates 60 warehouses in Europe. The company is opening a distribution center in the United States.
+
+        The warehouse management and customs applications run in Azure, in the West Europe region.
+      fr: |
+        Wide World Importers est une entreprise de commission de transport et de logistique. Son siège et son centre de données principal se trouvent à Rotterdam, et elle exploite 60 entrepôts en Europe. L'entreprise ouvre un centre de distribution aux États-Unis.
+
+        Les applications de gestion des entrepôts et de dédouanement s'exécutent dans Azure, dans la région West Europe.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Rotterdam datacenter**
+
+        - The datacenter uses 172.16.0.0/16. The customs systems are in the segment 172.16.50.0/24.
+        - An ExpressRoute circuit named **ER-AMS** connects the datacenter to Azure. ER-AMS is supplied by a connectivity provider at the Amsterdam peering location. It has a bandwidth of 10 Gbps and uses the Standard tier. Only Azure private peering is configured.
+        - The edge routers advertise 172.16.0.0/16 and 0.0.0.0/0 over ER-AMS, so that internet traffic leaves through the Rotterdam proxies.
+        - A firewall in the datacenter can terminate IPsec tunnels.
+
+        **Azure**
+
+        Wide World Importers has an Azure subscription named **Sub-Logistics** that contains the following resources in West Europe.
+
+        | Name | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Virtual network | 10.40.0.0/16; subnets GatewaySubnet (10.40.0.0/27) and snet-nva (10.40.2.0/24) |
+        | ergw-weu | ExpressRoute gateway | ErGw2AZ in VNet-Hub, connected to ER-AMS |
+        | nva-inspect | Virtual machine | Network virtual appliance in snet-nva (10.40.2.4), IP forwarding enabled |
+        | VNet-Apps | Virtual network | 10.41.0.0/16; subnets snet-app (10.41.1.0/24), snet-pe (10.41.2.0/24) and snet-batch (10.41.3.0/24) |
+        | VM-APP1 | Virtual machine | In snet-app |
+        | VM-BATCH1 | Virtual machine | In snet-batch |
+        | sqlwwi | Azure SQL logical server | Private endpoint **pe-sqlwwi** in snet-pe; public network access disabled |
+        | VNet-Ops | Virtual network | 10.42.0.0/16; subnet snet-ops (10.42.1.0/24), no route table |
+        | VM-SFTP1 | Virtual machine | In snet-ops; Standard public IP address **pip-sftp1** |
+        | lb-ops | Load balancer | Public Standard load balancer; its backend pool contains VM-SFTP1 and the other virtual machines of snet-ops; an outbound rule provides their outbound connectivity |
+
+        The peering between VNet-Hub and VNet-Apps uses gateway transit: VNet-Apps uses the remote gateway of VNet-Hub. The peering between VNet-Hub and VNet-Ops uses the default settings.
+
+        A route table named **rt-app** is associated with snet-app. It contains one route: 172.16.50.0/24, next hop type Virtual appliance, next hop address 10.40.2.4.
+
+        A network security group named **NSG-PE** is associated with snet-pe. Its inbound rules allow TCP 1433 from 10.41.1.0/24 to 10.41.2.0/24 at priority 100 and deny all traffic at priority 4000. The **Network policy for private endpoints** setting of snet-pe is **Disabled**.
+      fr: |
+        **Centre de données de Rotterdam**
+
+        - Le centre de données utilise 172.16.0.0/16. Les systèmes de dédouanement se trouvent dans le segment 172.16.50.0/24.
+        - Un circuit ExpressRoute nommé **ER-AMS** connecte le centre de données à Azure. ER-AMS est fourni par un fournisseur de connectivité à l'emplacement de peering d'Amsterdam. Il offre une bande passante de 10 Gbit/s et utilise le niveau Standard. Seul le peering privé Azure est configuré.
+        - Les routeurs de périphérie publient 172.16.0.0/16 et 0.0.0.0/0 sur ER-AMS, afin que le trafic Internet sorte par les proxys de Rotterdam.
+        - Un pare-feu du centre de données peut terminer des tunnels IPsec.
+
+        **Azure**
+
+        Wide World Importers dispose d'un abonnement Azure nommé **Sub-Logistics** qui contient les ressources suivantes dans West Europe.
+
+        | Nom | Type | Configuration |
+        | --- | --- | --- |
+        | VNet-Hub | Réseau virtuel | 10.40.0.0/16 ; sous-réseaux GatewaySubnet (10.40.0.0/27) et snet-nva (10.40.2.0/24) |
+        | ergw-weu | Passerelle ExpressRoute | ErGw2AZ dans VNet-Hub, connectée à ER-AMS |
+        | nva-inspect | Machine virtuelle | Appliance virtuelle réseau dans snet-nva (10.40.2.4), transfert IP activé |
+        | VNet-Apps | Réseau virtuel | 10.41.0.0/16 ; sous-réseaux snet-app (10.41.1.0/24), snet-pe (10.41.2.0/24) et snet-batch (10.41.3.0/24) |
+        | VM-APP1 | Machine virtuelle | Dans snet-app |
+        | VM-BATCH1 | Machine virtuelle | Dans snet-batch |
+        | sqlwwi | Serveur logique Azure SQL | Point de terminaison privé **pe-sqlwwi** dans snet-pe ; accès au réseau public désactivé |
+        | VNet-Ops | Réseau virtuel | 10.42.0.0/16 ; sous-réseau snet-ops (10.42.1.0/24), sans table de routage |
+        | VM-SFTP1 | Machine virtuelle | Dans snet-ops ; adresse IP publique Standard **pip-sftp1** |
+        | lb-ops | Équilibreur de charge | Équilibreur de charge public Standard ; son pool principal contient VM-SFTP1 et les autres machines virtuelles de snet-ops ; une règle de trafic sortant fournit leur connectivité sortante |
+
+        Le peering entre VNet-Hub et VNet-Apps utilise le transit de passerelle : VNet-Apps utilise la passerelle distante de VNet-Hub. Le peering entre VNet-Hub et VNet-Ops utilise les paramètres par défaut.
+
+        Une table de routage nommée **rt-app** est associée à snet-app. Elle contient un seul itinéraire : 172.16.50.0/24, type de tronçon suivant Appliance virtuelle, adresse du tronçon suivant 10.40.2.4.
+
+        Un groupe de sécurité réseau nommé **NSG-PE** est associé à snet-pe. Ses règles entrantes autorisent TCP 1433 depuis 10.41.1.0/24 vers 10.41.2.0/24 en priorité 100 et refusent tout le trafic en priorité 4000. Le paramètre **Network policy for private endpoints** de snet-pe a la valeur **Disabled**.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        Wide World Importers plans the following changes:
+
+        - Create a virtual network named **VNet-US** (10.50.0.0/16) in the East US 2 region for the applications of the US distribution center. VNet-US will connect to ER-AMS through its own ExpressRoute gateway named **ergw-eus2**.
+        - Order a second ExpressRoute circuit named **ER-AMS-Bulk** at the Amsterdam peering location. Every day, archives will be exported from storage accounts in West Europe to Rotterdam, about 150 TB per month. The provider confirms that the Local SKU is available at Amsterdam for West Europe.
+        - In 2027, connect the new data platform of the company. It will ingest up to 80 Gbps into Azure Storage.
+        - Create a NAT gateway named **natgw-ops** that uses a Standard public IP prefix named **ippre-ops** (/30). Fabrikam Freight, a partner, will add the addresses of ippre-ops to the allowlist of its SFTP server.
+      fr: |
+        Wide World Importers prévoit les changements suivants :
+
+        - Créer un réseau virtuel nommé **VNet-US** (10.50.0.0/16) dans la région East US 2 pour les applications du centre de distribution américain. VNet-US se connectera à ER-AMS par sa propre passerelle ExpressRoute nommée **ergw-eus2**.
+        - Commander un second circuit ExpressRoute nommé **ER-AMS-Bulk** à l'emplacement de peering d'Amsterdam. Chaque jour, des archives seront exportées de comptes de stockage de West Europe vers Rotterdam, environ 150 To par mois. Le fournisseur confirme que la référence SKU Local est disponible à Amsterdam pour West Europe.
+        - En 2027, connecter la nouvelle plateforme de données de l'entreprise. Elle ingérera jusqu'à 80 Gbit/s dans Stockage Azure.
+        - Créer une passerelle NAT nommée **natgw-ops** qui utilise un préfixe d'adresse IP publique Standard nommé **ippre-ops** (/30). Fabrikam Freight, un partenaire, ajoutera les adresses de ippre-ops à la liste d'autorisation de son serveur SFTP.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Wide World Importers identifies the following requirements:
+
+        1. VNet-US must be linked to ER-AMS.
+        2. ER-AMS-Bulk must minimize data transfer costs. It only needs to reach West Europe.
+        3. The data platform must connect through dedicated ports, and its physical links must be encrypted with MACsec.
+        4. ergw-eus2 must be zone-redundant and support up to 5 Gbps.
+        5. The traffic between the Rotterdam datacenter and VNet-Hub must be encrypted over the private peering of ER-AMS. Microsoft peering must not be used.
+        6. New outbound connections from snet-ops to Fabrikam Freight must use the addresses of ippre-ops. Fabrikam Freight must still be able to push files to VM-SFTP1 at the address of pip-sftp1.
+        7. Only the virtual machines of snet-app must be able to connect to pe-sqlwwi.
+      fr: |
+        Wide World Importers a défini les exigences suivantes :
+
+        1. VNet-US doit être lié à ER-AMS.
+        2. ER-AMS-Bulk doit réduire au minimum les coûts de transfert de données. Il n'a besoin d'atteindre que West Europe.
+        3. La plateforme de données doit se connecter par des ports dédiés, et ses liaisons physiques doivent être chiffrées avec MACsec.
+        4. ergw-eus2 doit être redondante interzone et prendre en charge jusqu'à 5 Gbit/s.
+        5. Le trafic entre le centre de données de Rotterdam et VNet-Hub doit être chiffré sur le peering privé de ER-AMS. Le peering Microsoft ne doit pas être utilisé.
+        6. Les nouvelles connexions sortantes de snet-ops vers Fabrikam Freight doivent utiliser les adresses de ippre-ops. Fabrikam Freight doit toujours pouvoir déposer des fichiers sur VM-SFTP1 à l'adresse de pip-sftp1.
+        7. Seules les machines virtuelles de snet-app doivent pouvoir se connecter à pe-sqlwwi.

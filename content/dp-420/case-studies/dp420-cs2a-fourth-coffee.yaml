@@ -1,0 +1,65 @@
+id: dp420-cs2a-fourth-coffee
+status: draft
+title:
+  en: Fourth Coffee
+  fr: Fourth Coffee
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Fourth Coffee operates 9,000 coffee shops in North America, Europe and Asia. About 25 million members use the Fourth Coffee mobile app to order drinks, collect loyalty points and redeem them.
+
+        Fourth Coffee is rebuilding the loyalty platform of the app on Azure Cosmos DB for NoSQL. Its analytics team, which works in a Microsoft Fabric workspace, also plans a new store-inventory application.
+      fr: |
+        Fourth Coffee exploite 9 000 cafés en Amérique du Nord, en Europe et en Asie. Environ 25 millions de membres utilisent l'application mobile Fourth Coffee pour commander des boissons, cumuler des points de fidélité et les échanger.
+
+        Fourth Coffee reconstruit la plateforme de fidélité de l'application sur Azure Cosmos DB for NoSQL. Son équipe d'analytique, qui travaille dans un espace de travail Microsoft Fabric, prévoit aussi une nouvelle application d'inventaire des magasins.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Fourth Coffee has an Azure Cosmos DB for NoSQL account named **cosmos-fourthcoffee** with the following configuration:
+
+        | Setting | Value |
+        | --- | --- |
+        | Regions | East US, West Europe, Southeast Asia |
+        | Multi-region writes | Enabled |
+        | Default consistency level | Eventual |
+        | Key-based authentication | Disabled |
+
+        The account contains a database named **loyalty**. A container named **members** will be created in loyalty, with dedicated autoscale throughput. It will store one item per member, partitioned by `/memberId`. Each item contains `points` (the current balance) and `updatedAtMs`, a number set by the app to the time of the change in milliseconds since the Unix epoch.
+
+        The loyalty API is written in C# with the Azure Cosmos DB .NET SDK v3. It runs in Azure App Service in each of the three regions, and each instance has a managed identity that has a data plane role assignment on cosmos-fourthcoffee.
+      fr: |
+        Fourth Coffee dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-fourthcoffee**, configuré comme suit :
+
+        | Paramètre | Valeur |
+        | --- | --- |
+        | Régions | East US, West Europe, Southeast Asia |
+        | Écritures multirégions | Activées |
+        | Niveau de cohérence par défaut | Éventuel (Eventual) |
+        | Authentification par clé | Désactivée |
+
+        Le compte contient une base de données nommée **loyalty**. Un conteneur nommé **members** sera créé dans loyalty, avec un débit dédié en mise à l'échelle automatique (autoscale). Il stockera un élément par membre, partitionné par `/memberId`. Chaque élément contient `points` (le solde actuel) et `updatedAtMs`, un nombre défini par l'application à l'heure de la modification, en millisecondes depuis l'epoch Unix.
+
+        L'API de fidélité est écrite en C# avec le SDK .NET v3 d'Azure Cosmos DB. Elle s'exécute dans Azure App Service dans chacune des trois régions, et chaque instance dispose d'une identité managée qui a une attribution de rôle de plan de données sur cosmos-fourthcoffee.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Fourth Coffee identifies the following requirements:
+
+        1. After a purchase, a member must always see the new points balance on the next screen that the app loads in the same session. Other members' data can be slightly out of date. The RU charge of reads must be minimized.
+        2. Redeeming a reward must subtract the reward's points from `points` in a single request, without reading the member item first. The redemption must fail if the balance is lower than the reward's points.
+        3. Each instance of the loyalty API must send its reads and writes to the region in which it runs and must authenticate with its managed identity, without storing any secret.
+        4. When the same member item is updated in two regions at the same time, the service must resolve the conflict automatically by keeping the version with the highest `updatedAtMs` value. No server-side code may be deployed.
+        5. The store-inventory application will store the stock of each shop as JSON documents. Its data must be available automatically in OneLake for Power BI reports, without configuring mirroring or an ETL process, and its database must be managed from the Fabric workspace of the analytics team. No container needs more than 20,000 RU/s, and private endpoints aren't required. Administrative effort must be minimized.
+      fr: |
+        Fourth Coffee a défini les exigences suivantes :
+
+        1. Après un achat, un membre doit toujours voir le nouveau solde de points sur l'écran suivant chargé par l'application dans la même session. Les données des autres membres peuvent être légèrement obsolètes. Le coût en RU des lectures doit être réduit au minimum.
+        2. L'échange d'une récompense doit soustraire les points de la récompense de `points` en une seule requête, sans lire l'élément du membre au préalable. L'échange doit échouer si le solde est inférieur aux points de la récompense.
+        3. Chaque instance de l'API de fidélité doit envoyer ses lectures et ses écritures à la région dans laquelle elle s'exécute et doit s'authentifier avec son identité managée, sans stocker de secret.
+        4. Lorsque le même élément de membre est mis à jour dans deux régions au même moment, le service doit résoudre le conflit automatiquement en conservant la version dont la valeur `updatedAtMs` est la plus élevée. Aucun code côté serveur ne peut être déployé.
+        5. L'application d'inventaire des magasins stockera le stock de chaque café sous forme de documents JSON. Ses données doivent être disponibles automatiquement dans OneLake pour les rapports Power BI, sans configurer de mise en miroir ni de processus ETL, et sa base de données doit être gérée depuis l'espace de travail Fabric de l'équipe d'analytique. Aucun conteneur n'a besoin de plus de 20 000 RU/s, et les points de terminaison privés ne sont pas nécessaires. L'effort d'administration doit être réduit au minimum.

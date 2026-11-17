@@ -1,0 +1,82 @@
+id: dp700-cs4a-kql-dedup
+objective: "2.2.9"
+type: dropdown
+caseStudy: dp700-cs4a-city-power
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the KQL query for the analytics requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la requête KQL pour l'exigence d'analytique.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    Readings
+    | where ReadingTime > ago(7d)
+    | summarize [[dedup]] by [[keys]]
+    | summarize AvgKwh = avg(kWh) by MeterId, bin(ReadingTime, 15m)
+  slots:
+    - id: dedup
+      options:
+        - { id: argmax, text: "arg_max(SentAt, kWh)" }
+        - { id: argmin, text: "arg_min(SentAt, kWh)" }
+        - { id: max, text: "kWh = max(kWh)" }
+        - { id: any, text: "kWh = take_any(kWh)" }
+    - id: keys
+      options:
+        - { id: k_meter, text: "MeterId" }
+        - { id: k_both, text: "MeterId, ReadingTime" }
+        - { id: k_ingest, text: "MeterId, SentAt" }
+        - { id: k_sub, text: "SubstationId, ReadingTime" }
+answer:
+  values: { dedup: argmax, keys: k_both }
+explanation:
+  correct:
+    en: |
+      A duplicated reading is identified by MeterId and ReadingTime, so the first summarize must group on both columns. `arg_max(SentAt, kWh)` returns, for each group, the kWh value of the row with the latest SentAt, so each reading is kept once with the version from the most recently sent event before the 15-minute averages are computed.
+    fr: |
+      Un relevé en double est identifié par MeterId et ReadingTime : le premier summarize doit donc regrouper sur ces deux colonnes. `arg_max(SentAt, kWh)` renvoie, pour chaque groupe, la valeur kWh de la ligne dont SentAt est le plus récent : chaque relevé est conservé une seule fois, avec la version issue de l'événement envoyé le plus récemment, avant le calcul des moyennes sur 15 minutes.
+  options:
+    argmin:
+      en: |
+        arg_min keeps the first sent version, not the corrected one.
+      fr: |
+        arg_min conserve la première version envoyée, pas la version corrigée.
+    max:
+      en: |
+        max keeps the largest kWh value, which is not necessarily the most recently sent one.
+      fr: |
+        max conserve la plus grande valeur kWh, qui n'est pas forcément la plus récemment envoyée.
+    any:
+      en: |
+        take_any returns an arbitrary version of the duplicated reading.
+      fr: |
+        take_any renvoie une version arbitraire du relevé en double.
+    k_meter:
+      en: |
+        Grouping on MeterId alone keeps one reading per meter and loses ReadingTime, which the next line needs.
+      fr: |
+        Regrouper sur MeterId seul ne conserve qu'un relevé par compteur et perd ReadingTime, dont la ligne suivante a besoin.
+    k_ingest:
+      en: |
+        Each resent copy comes from a new event with its own SentAt value, so grouping on it keeps all the duplicates.
+      fr: |
+        Chaque copie renvoyée provient d'un nouvel événement avec sa propre valeur SentAt : regrouper sur elle conserve tous les doublons.
+    k_sub:
+      en: |
+        Grouping on SubstationId merges the readings of different meters and loses MeterId.
+      fr: |
+        Regrouper sur SubstationId fusionne les relevés de compteurs différents et perd MeterId.
+references:
+  - title: arg_max() (aggregation function)
+    url: https://learn.microsoft.com/en-us/kusto/query/arg-max-aggregation-function

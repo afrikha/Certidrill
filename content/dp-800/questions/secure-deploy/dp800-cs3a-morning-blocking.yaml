@@ -1,0 +1,40 @@
+id: dp800-cs3a-morning-blocking
+objective: "2.2.4"
+type: single
+caseStudy: dp800-cs3a-blue-yonder-airlines
+difficulty: 2
+status: draft
+stem:
+  en: You need to meet the operations requirement. What should you recommend?
+  fr: Vous devez satisfaire l'exigence d'exploitation. Que devez-vous recommander ?
+body:
+  options:
+    - id: a
+      text:
+        en: Enable READ_COMMITTED_SNAPSHOT on MaintDb so that the technicians' updates use row versions.
+        fr: Activer READ_COMMITTED_SNAPSHOT sur MaintDb pour que les mises à jour des techniciens utilisent des versions de ligne.
+    - id: b
+      text:
+        en: Run the technicians' updates under the SNAPSHOT isolation level so that they read committed row versions.
+        fr: Exécuter les mises à jour des techniciens sous le niveau d'isolation SNAPSHOT pour qu'elles lisent des versions de ligne validées.
+    - id: c
+      text:
+        en: Increase the command timeout of the technicians' application so that their updates wait for the import to finish.
+        fr: Augmenter le délai d'expiration de commande de l'application des techniciens pour que leurs mises à jour attendent la fin de l'importation.
+    - id: d
+      text:
+        en: Run IF @@TRANCOUNT > 0 ROLLBACK TRAN in the error handler of PartsImport after any error, including time-outs.
+        fr: Exécuter IF @@TRANCOUNT > 0 ROLLBACK TRAN dans le gestionnaire d'erreurs de PartsImport après toute erreur, y compris les expirations.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: When a query times out, the client cancels the batch but the transaction stays open, so the sleeping PartsImport session keeps its locks on Maint.WorkOrder while its connection waits in the pool. Rolling back any open transaction in the client error handler releases those locks immediately. The head blocker is a session with an open transaction, not a long-running query, so isolation changes don't help.
+    fr: |
+      Quand une requête expire, le client annule le lot mais la transaction reste ouverte : la session PartsImport en veille conserve ses verrous sur Maint.WorkOrder pendant que sa connexion attend dans le pool. Annuler toute transaction ouverte dans le gestionnaire d'erreurs du client libère immédiatement ces verrous. La session en tête de la chaîne est une session avec une transaction ouverte, pas une requête longue : modifier l'isolation n'aide pas.
+  options:
+    a: { en: "RCSI is enabled by default in Azure SQL Database and only stops readers from waiting for writers; an update still waits for the exclusive locks of the open transaction.", fr: "RCSI est activé par défaut dans Azure SQL Database et empêche seulement les lecteurs d'attendre les rédacteurs ; une mise à jour attend toujours les verrous exclusifs de la transaction ouverte." }
+    b: { en: "Under SNAPSHOT isolation, a modification of a row that another transaction has locked still waits for that lock.", fr: "Sous l'isolation SNAPSHOT, la modification d'une ligne verrouillée par une autre transaction attend toujours ce verrou." }
+    c: { en: "The orphaned transaction is never committed, so a longer timeout only makes the technicians wait longer.", fr: "La transaction orpheline n'est jamais validée : un délai plus long ne fait qu'allonger l'attente des techniciens." }
+references:
+  - title: Understand and resolve blocking problems
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/understand-resolve-blocking

@@ -1,0 +1,75 @@
+id: ai200-1b-keda-topic-yaml
+objective: "1.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Tailspin Toys runs a GPU scoring worker named **ca-scorer** in Azure Container Apps. The worker receives requests from the subscription `gpu-workers` of the Service Bus topic `scoring-requests` in the namespace `sb-tailspin`. A listen-only connection string is stored in the app secret `sb-listen`.
+
+    You need to scale ca-scorer with one replica for every 10 messages waiting in the subscription, by authenticating with the `sb-listen` secret.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Tailspin Toys exécute un worker de notation sur GPU nommé **ca-scorer** dans Azure Container Apps. Le worker reçoit des requêtes de l'abonnement `gpu-workers` de la rubrique Service Bus `scoring-requests` dans l'espace de noms `sb-tailspin`. Une chaîne de connexion en écoute seule est stockée dans le secret d'application `sb-listen`.
+
+    Vous devez mettre ca-scorer à l'échelle avec un réplica pour 10 messages en attente dans l'abonnement, en vous authentifiant avec le secret `sb-listen`.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    properties:
+      template:
+        scale:
+          minReplicas: 0
+          maxReplicas: 15
+          rules:
+            - name: scoring-subscription
+              custom:
+                type: azure-servicebus
+                metadata:
+                  [[entity]]: scoring-requests
+                  subscriptionName: gpu-workers
+                  namespace: sb-tailspin
+                  messageCount: "10"
+                auth:
+                  - [[authsecret]]: sb-listen
+                    [[authparam]]: connection
+  slots:
+    - id: entity
+      options:
+        - { id: topic, text: topicName }
+        - { id: queue, text: queueName }
+        - { id: hub, text: eventHubName }
+    - id: authsecret
+      options:
+        - { id: secretref, text: secretRef }
+        - { id: secretkeyref, text: secretKeyRef }
+        - { id: key, text: key }
+    - id: authparam
+      options:
+        - { id: trigger, text: triggerParameter }
+        - { id: parameter, text: parameter }
+        - { id: name, text: name }
+answer:
+  values: { entity: topic, authsecret: secretref, authparam: trigger }
+explanation:
+  correct:
+    en: "The Service Bus scaler reads a topic subscription through `topicName` together with `subscriptionName`. In Container Apps, each `auth` entry maps an app secret, named in `secretRef`, to the scaler parameter named in `triggerParameter`, here `connection`."
+    fr: "Le scaler Service Bus lit un abonnement de rubrique avec `topicName` associé à `subscriptionName`. Dans Container Apps, chaque entrée `auth` associe un secret de l'application, nommé dans `secretRef`, au paramètre du scaler nommé dans `triggerParameter`, ici `connection`."
+  options:
+    queue: { en: "queueName targets a queue; scoring-requests is a topic read through a subscription.", fr: "queueName cible une file d'attente ; scoring-requests est une rubrique lue via un abonnement." }
+    hub: { en: "eventHubName belongs to the Event Hubs scaler.", fr: "eventHubName appartient au scaler Event Hubs." }
+    secretkeyref: { en: "secretKeyRef is Kubernetes syntax for environment variables in a pod manifest.", fr: "secretKeyRef est une syntaxe Kubernetes pour les variables d'environnement d'un manifeste de pod." }
+    key: { en: "key is a field of a KEDA TriggerAuthentication; in Container Apps it becomes secretRef.", fr: "key est un champ d'une ressource KEDA TriggerAuthentication ; dans Container Apps, il devient secretRef." }
+    parameter: { en: "parameter is a field of a KEDA TriggerAuthentication; in Container Apps it becomes triggerParameter.", fr: "parameter est un champ d'une ressource KEDA TriggerAuthentication ; dans Container Apps, il devient triggerParameter." }
+    name: { en: "An auth entry has no name field; it pairs secretRef with triggerParameter.", fr: "Une entrée auth n'a pas de champ name ; elle associe secretRef à triggerParameter." }
+references:
+  - title: Scaling in Azure Container Apps
+    url: https://learn.microsoft.com/en-us/azure/container-apps/scale-app

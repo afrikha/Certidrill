@@ -1,0 +1,88 @@
+id: dp800-2b-lost-update-stock
+objective: "2.2.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a database in Azure SQL Database that uses the default database options. An order procedure contains the following code.
+
+    ```sql
+    DECLARE @Stock int;
+    SELECT @Stock = Stock FROM dbo.Product WHERE ProductID = @ProductID;
+    IF @Stock >= @Qty
+        UPDATE dbo.Product SET Stock = @Stock - @Qty WHERE ProductID = @ProductID;
+    ```
+
+    When two customers order the last unit of a product at the same time, both orders succeed and the stock value doesn't reflect both orders.
+
+    You need to modify the code so that the stock can never be oversold. The solution must keep locks for the shortest possible time.
+
+    What should you do?
+  fr: |
+    Fabrikam dispose d'une base de données dans Azure SQL Database qui utilise les options de base de données par défaut. Une procédure de commande contient le code suivant.
+
+    ```sql
+    DECLARE @Stock int;
+    SELECT @Stock = Stock FROM dbo.Product WHERE ProductID = @ProductID;
+    IF @Stock >= @Qty
+        UPDATE dbo.Product SET Stock = @Stock - @Qty WHERE ProductID = @ProductID;
+    ```
+
+    Lorsque deux clients commandent en même temps la dernière unité d'un produit, les deux commandes réussissent et la valeur du stock ne reflète pas les deux commandes.
+
+    Vous devez modifier le code pour que le stock ne puisse jamais être survendu. La solution doit conserver les verrous le moins longtemps possible.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text:
+        en: |
+          Add the READCOMMITTEDLOCK table hint to the SELECT statement that reads the stock.
+        fr: |
+          Ajouter l'indicateur de table READCOMMITTEDLOCK à l'instruction SELECT qui lit le stock.
+    - id: b
+      text:
+        en: |
+          Add the NOLOCK table hint to the SELECT statement that reads the stock.
+        fr: |
+          Ajouter l'indicateur de table NOLOCK à l'instruction SELECT qui lit le stock.
+    - id: c
+      text:
+        en: |
+          Run SET TRANSACTION ISOLATION LEVEL READ COMMITTED before the first statement.
+        fr: |
+          Exécuter SET TRANSACTION ISOLATION LEVEL READ COMMITTED avant la première instruction.
+    - id: d
+      text:
+        en: |
+          Use one UPDATE that subtracts @Qty only WHERE Stock >= @Qty, and then test @@ROWCOUNT.
+        fr: |
+          Utiliser une seule instruction UPDATE qui soustrait @Qty uniquement WHERE Stock >= @Qty, puis tester @@ROWCOUNT.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      A single UPDATE that checks and changes the stock in the same statement is atomic; the second session's update re-evaluates the predicate against the committed value and affects 0 rows when the stock is gone. Testing @@ROWCOUNT tells the procedure whether the order can be accepted, and the exclusive lock lasts only for that statement.
+    fr: |
+      Une seule instruction UPDATE qui vérifie et modifie le stock dans la même instruction est atomique ; la mise à jour de la seconde session réévalue le prédicat sur la valeur validée et affecte 0 ligne lorsque le stock est épuisé. Le test de @@ROWCOUNT indique à la procédure si la commande peut être acceptée, et le verrou exclusif ne dure que le temps de cette instruction.
+  options:
+    a:
+      en: |
+        READCOMMITTEDLOCK takes a shared lock only while the row is read; both sessions can still read the same value before either updates it.
+      fr: |
+        READCOMMITTEDLOCK ne prend un verrou partagé que pendant la lecture de la ligne ; les deux sessions peuvent toujours lire la même valeur avant que l'une d'elles ne la mette à jour.
+    b:
+      en: |
+        NOLOCK allows dirty reads and does nothing to stop two sessions from writing values computed from the same read.
+      fr: |
+        NOLOCK autorise les lectures incorrectes et n'empêche pas deux sessions d'écrire des valeurs calculées à partir de la même lecture.
+    c:
+      en: |
+        READ COMMITTED is already the level in use; with READ_COMMITTED_SNAPSHOT on, it changes nothing about how the two writers conflict.
+      fr: |
+        READ COMMITTED est déjà le niveau utilisé ; avec READ_COMMITTED_SNAPSHOT activé, il ne change rien au conflit entre les deux rédacteurs.
+references:
+  - title: Transaction locking and row versioning guide
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide

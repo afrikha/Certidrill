@@ -1,0 +1,64 @@
+id: ai200-2c-redis-scan-invalidate
+objective: "2.3.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam's multi-tenant copilot caches responses, embeddings and profiles in Azure Managed Redis under keys that start with `tenant:<tenant ID>:`. When a tenant changes its data sources, all its cached keys must be invalidated.
+
+    The invalidation function must meet the following requirements:
+
+    - Must not block the server for other clients while it looks for the keys.
+    - Must return the number of keys removed.
+
+    How should you complete the code? To answer, select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Le copilote multilocataire de Fabrikam met en cache des réponses, des incorporations et des profils dans Azure Managed Redis sous des clés qui commencent par `tenant:<ID de locataire>:`. Quand un locataire modifie ses sources de données, toutes ses clés mises en cache doivent être invalidées.
+
+    La fonction d'invalidation doit respecter les exigences suivantes :
+
+    - Ne pas bloquer le serveur pour les autres clients pendant la recherche des clés.
+    - Renvoyer le nombre de clés supprimées.
+
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    def invalidate_tenant(tenant_id: str) -> int:
+        removed = 0
+        for key in r.[[iter]](match=f"tenant:{tenant_id}:*", count=500):
+            removed += r.[[remove]](key)
+        return removed
+  slots:
+    - id: iter
+      options:
+        - { id: keys, text: keys }
+        - { id: scaniter, text: scan_iter }
+        - { id: sscaniter, text: sscan_iter }
+    - id: remove
+      options:
+        - { id: delete, text: delete }
+        - { id: persist, text: persist }
+        - { id: ttl, text: ttl }
+answer:
+  values: { iter: scaniter, remove: delete }
+explanation:
+  correct:
+    en: |
+      `scan_iter` runs the SCAN command incrementally, a batch of about `count` keys at a time, so the server keeps serving other clients; KEYS is an expensive command that Microsoft recommends avoiding. `delete` removes each key and returns the number of keys deleted, which the function adds up.
+    fr: |
+      `scan_iter` exécute la commande SCAN de façon incrémentielle, par lots d'environ `count` clés, de sorte que le serveur continue de servir les autres clients ; KEYS est une commande coûteuse que Microsoft recommande d'éviter. `delete` supprime chaque clé et renvoie le nombre de clés supprimées, que la fonction additionne.
+  options:
+    keys: { en: "KEYS scans the whole keyspace in one blocking call and takes a pattern, not `match` and `count`.", fr: "KEYS parcourt tout l'espace de clés en un seul appel bloquant et prend un modèle, pas `match` ni `count`." }
+    sscaniter: { en: "`sscan_iter` iterates over the members of one set key, not over the key names.", fr: "`sscan_iter` parcourt les membres d'une clé de type ensemble, pas les noms de clés." }
+    persist: { en: "PERSIST removes the expiration and keeps the stale entries.", fr: "PERSIST supprime l'expiration et conserve les entrées obsolètes." }
+    ttl: { en: "TTL only reads the remaining time to live; nothing is removed.", fr: "TTL lit seulement la durée de vie restante ; rien n'est supprimé." }
+references:
+  - title: Best practices for development for Azure Managed Redis
+    url: https://learn.microsoft.com/en-us/azure/redis/best-practices-development

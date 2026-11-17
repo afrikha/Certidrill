@@ -1,0 +1,81 @@
+id: sc500-4a-vm-arg-query
+objective: "4.1.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Woodgrove Bank uses Defender for Servers with Microsoft Defender Vulnerability Management on its Azure virtual machines. The security team must export, with Azure Resource Graph, one row per CVE for every software update recommendation of the virtual machines.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Woodgrove Bank utilise Defender for Servers avec Microsoft Defender Vulnerability Management sur ses machines virtuelles Azure. L'équipe de sécurité doit exporter avec Azure Resource Graph une ligne par CVE pour chaque recommandation de mise à jour logicielle des machines virtuelles.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    [[table]]
+    | where type == "[[type]]"
+    | where properties.resourceDetails.ResourceType =~ "microsoft.compute/virtualmachines"
+    | where properties.metadata.recommendationCategory == "SoftwareUpdate"
+    | extend DisplayName = tostring(properties.displayName)
+    | extend CvesDetails = parse_json(tostring(properties.additionalData.CvesDetails))
+    | [[op]] CveDetail = CvesDetails
+    | extend CveId = tostring(CveDetail.CveId)
+    | project DisplayName, CveId
+  slots:
+    - id: table
+      options:
+        - { id: secres, text: securityresources }
+        - { id: res, text: resources }
+        - { id: alert, text: SecurityAlert }
+        - { id: hb, text: Heartbeat }
+    - id: type
+      options:
+        - { id: assess, text: microsoft.security/assessments }
+        - { id: cve, text: microsoft.security/cvedetails }
+        - { id: pricing, text: microsoft.security/pricings }
+    - id: op
+      options:
+        - { id: mvexpand, text: mv-expand }
+        - { id: summarize, text: summarize }
+        - { id: projectaway, text: project-away }
+        - { id: makeseries, text: make-series }
+answer:
+  values: { table: secres, type: assess, op: mvexpand }
+explanation:
+  correct:
+    en: |-
+      Defender for Cloud recommendations are stored in the `securityresources` table of Azure Resource Graph with the type `microsoft.security/assessments`. The CVEs of a recommendation are an array in `additionalData.CvesDetails`, and `mv-expand` turns each array element into its own row.
+    fr: |-
+      Les recommandations de Defender for Cloud sont stockées dans la table `securityresources` d'Azure Resource Graph avec le type `microsoft.security/assessments`. Les CVE d'une recommandation forment un tableau dans `additionalData.CvesDetails`, et `mv-expand` transforme chaque élément du tableau en une ligne distincte.
+  options:
+    res:
+      en: |-
+        The resources table holds Azure resources, not Defender for Cloud assessments.
+      fr: |-
+        La table resources contient les ressources Azure, pas les évaluations de Defender for Cloud.
+    alert:
+      en: |-
+        SecurityAlert is a Log Analytics table of alerts; Azure Resource Graph doesn't query it.
+      fr: |-
+        SecurityAlert est une table d'alertes Log Analytics ; Azure Resource Graph ne l'interroge pas.
+    cve:
+      en: |-
+        cvedetails holds extended CVE information at tenant scope; recommendations and their recommendationCategory are assessments.
+      fr: |-
+        cvedetails contient des informations détaillées sur les CVE à l'étendue du locataire ; les recommandations et leur recommendationCategory sont des évaluations.
+    summarize:
+      en: |-
+        summarize aggregates rows; it doesn't split an array into one row per element.
+      fr: |-
+        summarize agrège des lignes ; il ne découpe pas un tableau en une ligne par élément.
+references:
+  - title: Remediate machine vulnerabilities
+    url: https://learn.microsoft.com/en-us/azure/defender-for-cloud/remediate-vulnerability-findings-vm

@@ -1,0 +1,65 @@
+id: dp600-2b-itvf-cross-apply
+objective: "2.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a Fabric warehouse named Warehouse1 that contains tables named dbo.DimCustomer and dbo.FactOrders.
+
+    You need to create a reusable object that returns the orders of one customer since a given date, and then use it to list the recent orders of every customer that has some. The object must be usable in the FROM clause of a query.
+
+    How should you complete the T-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un entrepôt Fabric nommé Warehouse1 qui contient des tables nommées dbo.DimCustomer et dbo.FactOrders.
+
+    Vous devez créer un objet réutilisable qui renvoie les commandes d'un client depuis une date donnée, puis l'utiliser pour lister les commandes récentes de chaque client qui en a. L'objet doit pouvoir être utilisé dans la clause FROM d'une requête.
+
+    Comment devez-vous compléter les instructions T-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE FUNCTION dbo.fnRecentOrders (@CustomerKey bigint, @FromDate date)
+    RETURNS [[ret]]
+    AS
+    RETURN
+        SELECT OrderID, OrderDate, Amount
+        FROM dbo.FactOrders
+        WHERE CustomerKey = @CustomerKey AND OrderDate >= @FromDate;
+    GO
+
+    SELECT c.CustomerName, o.OrderID, o.OrderDate, o.Amount
+    FROM dbo.DimCustomer AS c
+    [[apply]] dbo.fnRecentOrders(c.CustomerKey, '2026-10-01') AS o;
+  slots:
+    - id: ret
+      options:
+        - { id: table, text: TABLE }
+        - { id: int, text: int }
+        - { id: bit, text: bit }
+    - id: apply
+      options:
+        - { id: cross, text: CROSS APPLY }
+        - { id: inner, text: INNER JOIN }
+        - { id: union, text: UNION ALL }
+answer:
+  values: { ret: table, apply: cross }
+explanation:
+  correct:
+    en: |
+      An inline table-valued function is declared with RETURNS TABLE and a single SELECT; it accepts parameters and is used like a table. CROSS APPLY calls the function once per row of DimCustomer, passing that row's CustomerKey, and keeps only the customers for which the function returns rows.
+    fr: |
+      Une fonction table inline se déclare avec RETURNS TABLE et une seule instruction SELECT ; elle accepte des paramètres et s'utilise comme une table. CROSS APPLY appelle la fonction pour chaque ligne de DimCustomer en lui passant le CustomerKey de la ligne, et ne garde que les clients pour lesquels la fonction renvoie des lignes.
+  options:
+    int: { en: "A scalar return type returns one value, not the set of order rows that the query reads.", fr: "Un type de retour scalaire renvoie une seule valeur, pas l'ensemble des lignes de commande lues par la requête." }
+    bit: { en: "A scalar return type returns one value, not the set of order rows that the query reads.", fr: "Un type de retour scalaire renvoie une seule valeur, pas l'ensemble des lignes de commande lues par la requête." }
+    inner: { en: "A JOIN can't pass a column of the outer table (c.CustomerKey) as an argument to a table-valued function, and it needs an ON clause.", fr: "Une jointure ne peut pas passer une colonne de la table externe (c.CustomerKey) en argument d'une fonction table, et elle exige une clause ON." }
+    union: { en: "UNION ALL appends the rows of two queries; it doesn't correlate the function with each customer.", fr: "UNION ALL ajoute les lignes de deux requêtes l'une à l'autre ; il ne corrèle pas la fonction avec chaque client." }
+references:
+  - title: CREATE FUNCTION (Microsoft Fabric, Azure Synapse Analytics)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-function-sql-data-warehouse

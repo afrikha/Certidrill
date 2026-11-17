@@ -1,0 +1,107 @@
+id: ai300-cs4a-coho-winery
+status: draft
+title:
+  en: Coho Winery
+  fr: Coho Winery
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Coho Winery produces wine from 12 vineyards in the Bordeaux region of France. Soil and weather sensors installed in each vineyard upload a reading every 15 minutes.
+
+        A data science team of four people trains a regression model that predicts, for each vineyard parcel, the number of days until the optimal harvest date. A platform team of two engineers manages the Azure resources and the release process. The marketing department also plans to use a generative AI model to write the descriptions of the online wine catalog.
+      fr: |
+        Coho Winery produit du vin à partir de 12 vignobles de la région de Bordeaux, en France. Des capteurs de sol et de météo installés dans chaque vignoble envoient une mesure toutes les 15 minutes.
+
+        Une équipe de quatre data scientists entraîne un modèle de régression qui prédit, pour chaque parcelle, le nombre de jours restant avant la date de vendange optimale. Une équipe plateforme de deux ingénieurs gère les ressources Azure et le processus de mise en production. Le service marketing prévoit aussi d'utiliser un modèle d'IA générative pour rédiger les descriptions du catalogue de vins en ligne.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Coho Winery has the following Azure resources.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-coho-dev | Azure Machine Learning workspace | Resource group rg-coho-dev, France Central; used by the data scientists |
+        | mlw-coho-prod | Azure Machine Learning workspace | Resource group rg-coho-prod, France Central; used only by the platform team |
+        | reg-coho | Azure Machine Learning registry | France Central; currently empty |
+        | sensorstore | Datastore in mlw-coho-dev | Identity-based access to the **sensors** container of the storage account stcohoiot |
+        | harvest-forecaster | Model in mlw-coho-dev | MLflow model; version 7 was produced by the training job **train-2026-10** and was approved by the data scientists |
+        | aif-coho | Microsoft Foundry resource | Sweden Central; contains a project named **catalog-writer** |
+
+        The sensor readings are stored as Parquet files in the sensors container under the path **readings/2026/**, one subfolder per vineyard. The training script reads every Parquet file of that folder with pandas.
+
+        The training code and the job YAML files are stored in a GitHub repository named **coho-ml**. A Microsoft Entra application named **app-coho-gh** has a federated identity credential for the **main** branch of coho-ml and the Contributor role on rg-coho-dev.
+      fr: |
+        Coho Winery dispose des ressources Azure suivantes.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | mlw-coho-dev | Espace de travail Azure Machine Learning | Groupe de ressources rg-coho-dev, France Central ; utilisé par les data scientists |
+        | mlw-coho-prod | Espace de travail Azure Machine Learning | Groupe de ressources rg-coho-prod, France Central ; utilisé uniquement par l'équipe plateforme |
+        | reg-coho | Registre Azure Machine Learning | France Central ; actuellement vide |
+        | sensorstore | Magasin de données de mlw-coho-dev | Accès basé sur l'identité au conteneur **sensors** du compte de stockage stcohoiot |
+        | harvest-forecaster | Modèle de mlw-coho-dev | Modèle MLflow ; la version 7 a été produite par le travail d'entraînement **train-2026-10** et a été approuvée par les data scientists |
+        | aif-coho | Ressource Microsoft Foundry | Sweden Central ; contient un projet nommé **catalog-writer** |
+
+        Les mesures des capteurs sont stockées sous forme de fichiers Parquet dans le conteneur sensors, sous le chemin **readings/2026/**, avec un sous-dossier par vignoble. Le script d'entraînement lit tous les fichiers Parquet de ce dossier avec pandas.
+
+        Le code d'entraînement et les fichiers YAML des travaux sont stockés dans un dépôt GitHub nommé **coho-ml**. Une application Microsoft Entra nommée **app-coho-gh** possède des informations d'identification fédérées pour la branche **main** de coho-ml et le rôle Contributor sur rg-coho-dev.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Training**
+
+        - The training data must be registered in mlw-coho-dev as a versioned data asset named **vineyard-readings** that references the whole readings/2026/ folder of sensorstore. The data scientists don't want to maintain a schema file for the data.
+        - Each push to the main branch of coho-ml must run a GitHub Actions workflow that submits the training job to mlw-coho-dev. No client secret or certificate may be stored in GitHub.
+
+        **Release**
+
+        - Approved model versions must be published once to reg-coho, and the platform team must deploy them to mlw-coho-prod from reg-coho. The platform team has no access to mlw-coho-dev.
+        - The lineage between a published model and the training job that produced it must be preserved.
+
+        **Scoring**
+
+        - Every night, an existing scheduler sends a REST request that scores all the readings of the previous day. The predictions must be written as files to storage. No compute cost must be incurred between two nightly runs.
+        - A field application used by the agronomists must get a prediction within one second for a single parcel. It calls a managed online endpoint named **harvest-api** in mlw-coho-prod. Collection of the model inputs and outputs is enabled on its deployment.
+
+        **Monitoring of harvest-api**
+
+        - M1: Detect when the distribution of the sensor readings received in production differs from the training data.
+        - M2: Detect when the distribution of the predicted number of days changes compared with the previous weeks.
+        - M3: Detect when readings contain null values or values outside their physical range.
+        - M4: Detect when the prediction error increases. After each harvest, the actual harvest dates are stored with the correlation ID of each prediction.
+
+        **Catalog descriptions**
+
+        - Once a month, the marketing department generates descriptions for about 15,000 catalog items. The results can be delivered up to 24 hours later.
+        - Prompts and responses must be processed only within the European Union. The cost must be minimized. For the model that the marketing department selected, the deployment types available in Sweden Central are Global Standard, Global Batch, Data Zone Standard, Data Zone Batch, Data Zone Provisioned and Standard.
+      fr: |
+        **Entraînement**
+
+        - Les données d'entraînement doivent être inscrites dans mlw-coho-dev sous la forme d'une ressource de données (data asset) versionnée nommée **vineyard-readings** qui référence tout le dossier readings/2026/ de sensorstore. Les data scientists ne veulent pas maintenir de fichier de schéma pour ces données.
+        - Chaque envoi (push) vers la branche main de coho-ml doit exécuter un workflow GitHub Actions qui soumet le travail d'entraînement à mlw-coho-dev. Aucune clé secrète client ni aucun certificat ne doit être stocké dans GitHub.
+
+        **Mise en production**
+
+        - Les versions de modèle approuvées doivent être publiées une seule fois dans reg-coho, et l'équipe plateforme doit les déployer dans mlw-coho-prod à partir de reg-coho. L'équipe plateforme n'a pas accès à mlw-coho-dev.
+        - La traçabilité (lineage) entre un modèle publié et le travail d'entraînement qui l'a produit doit être conservée.
+
+        **Scoring**
+
+        - Chaque nuit, un planificateur existant envoie une requête REST qui évalue toutes les mesures de la veille. Les prédictions doivent être écrites sous forme de fichiers dans le stockage. Aucun coût de calcul ne doit être engagé entre deux exécutions nocturnes.
+        - Une application de terrain utilisée par les agronomes doit obtenir une prédiction en moins d'une seconde pour une parcelle. Elle appelle un point de terminaison en ligne managé nommé **harvest-api** dans mlw-coho-prod. La collecte des entrées et des sorties du modèle est activée sur son déploiement.
+
+        **Surveillance de harvest-api**
+
+        - M1 : détecter quand la distribution des mesures reçues en production diffère des données d'entraînement.
+        - M2 : détecter quand la distribution du nombre de jours prédit change par rapport aux semaines précédentes.
+        - M3 : détecter quand des mesures contiennent des valeurs nulles ou des valeurs hors de leur plage physique.
+        - M4 : détecter quand l'erreur de prédiction augmente. Après chaque vendange, les dates de vendange réelles sont stockées avec l'ID de corrélation de chaque prédiction.
+
+        **Descriptions du catalogue**
+
+        - Une fois par mois, le service marketing génère les descriptions d'environ 15 000 articles du catalogue. Les résultats peuvent être livrés jusqu'à 24 heures plus tard.
+        - Les invites et les réponses doivent être traitées uniquement dans l'Union européenne. Le coût doit être réduit au minimum. Pour le modèle choisi par le service marketing, les types de déploiement disponibles dans Sweden Central sont Global Standard, Global Batch, Data Zone Standard, Data Zone Batch, Data Zone Provisioned et Standard.

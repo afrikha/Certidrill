@@ -1,0 +1,60 @@
+id: dp420-1e-copy-hpk-limit
+objective: "1.4.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware stores customer support tickets in an Azure Cosmos DB for NoSQL container named **tickets** that uses the partition key `/region`. You run an online container copy job to a new container named **tickets-v2** that uses the partition key `/tenantId`.
+
+    The job fails with status code 403 and substatus 1014. One tenant stores 60 GB of tickets, and its data keeps growing. Most queries filter on `tenantId` and `ticketId`, and `ticketId` is unique within a tenant.
+
+    You need to complete the copy and keep queries that filter on `tenantId` targeted to a subset of partitions.
+
+    What should you do?
+  fr: |
+    Proseware stocke les tickets de support de ses clients dans un conteneur Azure Cosmos DB for NoSQL nommé **tickets** qui utilise la clé de partition `/region`. Vous exécutez une tâche de copie de conteneur en ligne vers un nouveau conteneur nommé **tickets-v2** qui utilise la clé de partition `/tenantId`.
+
+    La tâche échoue avec le code d'état 403 et le sous-état 1014. Un locataire stocke 60 Go de tickets, et ses données continuent d'augmenter. La plupart des requêtes filtrent sur `tenantId` et `ticketId`, et `ticketId` est unique au sein d'un locataire.
+
+    Vous devez terminer la copie et faire en sorte que les requêtes qui filtrent sur `tenantId` ciblent un sous-ensemble de partitions.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - id: a
+      text: { en: "Increase the throughput of tickets-v2 to at least twice the throughput of tickets, and then create the job again.", fr: "Augmenter le débit de tickets-v2 à au moins deux fois celui de tickets, puis recréer la tâche." }
+    - id: b
+      text: { en: "Create the target container with the hierarchical partition key /tenantId and /ticketId, and then create the job again.", fr: "Créer le conteneur cible avec la clé de partition hiérarchique /tenantId et /ticketId, puis recréer la tâche." }
+    - id: c
+      text: { en: "Create the target container with the partition key /ticketId, and then create the job again.", fr: "Créer le conteneur cible avec la clé de partition /ticketId, puis recréer la tâche." }
+    - id: d
+      text: { en: "Run az cosmosdb copy pause and az cosmosdb copy resume so that the job retries the failed items.", fr: "Exécuter az cosmosdb copy pause puis az cosmosdb copy resume pour que la tâche relance les éléments en échec." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      Substatus 1014 means that a logical partition reached the 20 GB maximum, which a 60 GB tenant cannot fit in with /tenantId alone. A hierarchical partition key (up to three levels) lets a tenantId prefix exceed 20 GB, and queries that filter on the tenantId prefix are still routed only to the partitions that hold that tenant. The partition key cannot be changed on the existing target, so you create the container again.
+    fr: |
+      Le sous-état 1014 signifie qu'une partition logique a atteint le maximum de 20 Go, ce qu'un locataire de 60 Go ne peut pas respecter avec /tenantId seul. Une clé de partition hiérarchique (jusqu'à trois niveaux) permet à un préfixe tenantId de dépasser 20 Go, et les requêtes qui filtrent sur le préfixe tenantId restent acheminées uniquement vers les partitions qui contiennent ce locataire. La clé de partition ne peut pas être modifiée sur la cible existante : vous recréez donc le conteneur.
+  options:
+    a:
+      en: |
+        More throughput speeds up the copy but does not raise the 20 GB limit of a logical partition.
+      fr: |
+        Davantage de débit accélère la copie mais ne relève pas la limite de 20 Go d'une partition logique.
+    c:
+      en: |
+        /ticketId alone avoids the size limit, but every query that filters on tenantId becomes a cross-partition fan-out query.
+      fr: |
+        /ticketId seul évite la limite de taille, mais chaque requête qui filtre sur tenantId devient une requête entre partitions sur toutes les partitions.
+    d:
+      en: |
+        Pausing and resuming the job does not change the partition key of the target, so the tenant still exceeds the 20 GB limit.
+      fr: |
+        Suspendre puis reprendre la tâche ne change pas la clé de partition de la cible : le locataire dépasse toujours la limite de 20 Go.
+references:
+  - title: Container Copy Jobs - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/container-copy
+  - title: Hierarchical Partition Keys - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/hierarchical-partition-keys

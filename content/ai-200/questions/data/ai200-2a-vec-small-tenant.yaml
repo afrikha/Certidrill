@@ -1,0 +1,46 @@
+id: ai200-2a-vec-small-tenant
+objective: "2.1.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a multi-tenant RAG service. Each tenant has its own Azure Cosmos DB for NoSQL container with a `diskANN` vector index on `/embedding`, and `/embedding/*` is excluded from the range index. The service runs:
+
+    ```sql
+    SELECT TOP 5 c.id, c.text FROM c
+    ORDER BY VectorDistance(c.embedding, @v)
+    ```
+
+    For a new tenant whose container holds 300 chunks, the query costs far more RUs than expected, while large tenants are fine.
+
+    What is the most likely cause?
+  fr: |
+    Fabrikam dispose d'un service RAG multilocataire. Chaque locataire a son propre conteneur Azure Cosmos DB for NoSQL avec un index vectoriel `diskANN` sur `/embedding`, et `/embedding/*` est exclu de l'index de plage. Le service exécute :
+
+    ```sql
+    SELECT TOP 5 c.id, c.text FROM c
+    ORDER BY VectorDistance(c.embedding, @v)
+    ```
+
+    Pour un nouveau locataire dont le conteneur contient 300 segments, la requête coûte beaucoup plus de RU que prévu, alors que les grands locataires ne posent pas de problème.
+
+    Quelle est la cause la plus probable ?
+body:
+  options:
+    - { id: a, text: { en: "The query needs an ORDER BY direction such as ASC to use the vector index.", fr: "La requête a besoin d'une direction ORDER BY, comme ASC, pour utiliser l'index vectoriel." } }
+    - { id: b, text: { en: "The /embedding/* exclusion prevents the vector index from being used.", fr: "L'exclusion de /embedding/* empêche l'utilisation de l'index vectoriel." } }
+    - { id: c, text: { en: "The query must project VectorDistance in the SELECT clause to use the vector index.", fr: "La requête doit projeter VectorDistance dans la clause SELECT pour utiliser l'index vectoriel." } }
+    - { id: d, text: { en: "A diskANN index needs at least 1,000 vectors; below that, the query runs a full scan.", fr: "Un index diskANN a besoin d'au moins 1 000 vecteurs ; en dessous, la requête effectue une analyse complète." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "`quantizedFlat` and `diskANN` indexes require at least 1,000 indexed vectors to be accurate; with fewer, Azure Cosmos DB runs a full scan instead, which costs more RUs. The large tenants are above the threshold."
+    fr: "Les index `quantizedFlat` et `diskANN` exigent au moins 1 000 vecteurs indexés pour être précis ; avec moins, Azure Cosmos DB effectue une analyse complète, qui coûte plus de RU. Les grands locataires sont au-dessus de ce seuil."
+  options:
+    a: { en: "Learn's vector queries use ORDER BY VectorDistance without a direction, and the large tenants run the same query efficiently.", fr: "Les requêtes vectorielles de Learn utilisent ORDER BY VectorDistance sans direction, et les grands locataires exécutent efficacement la même requête." }
+    b: { en: "Excluding the vector path from the range index is the recommended configuration; the vector index is separate.", fr: "Exclure le chemin vectoriel de l'index de plage est la configuration recommandée ; l'index vectoriel est distinct." }
+    c: { en: "Projecting the score is optional; the ORDER BY clause is what drives the vector search.", fr: "Projeter le score est facultatif ; c'est la clause ORDER BY qui pilote la recherche vectorielle." }
+references:
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search

@@ -1,0 +1,70 @@
+id: dp420-2d-log-query-text-join
+objective: "2.3.6"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Contoso has an Azure Cosmos DB for NoSQL account that sends the **DataPlaneRequests** and **QueryRuntimeStatistics** categories to a Log Analytics workspace in resource-specific mode. Diagnostics full-text query is enabled.
+
+    You need to list the 20 most expensive requests of the last day that cost more than 100 RUs, with the text of each query. Requests that have no query text must not be returned.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'un compte Azure Cosmos DB for NoSQL qui envoie les catégories **DataPlaneRequests** et **QueryRuntimeStatistics** vers un espace de travail Log Analytics en mode spécifique à la ressource. Diagnostics full-text query est activé.
+
+    Vous devez lister les 20 requêtes les plus coûteuses de la dernière journée qui coûtent plus de 100 RU, avec le texte de chaque requête. Les requêtes qui n'ont pas de texte de requête ne doivent pas être renvoyées.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    CDBDataPlaneRequests
+    | where TimeGenerated > ago(1d) and RequestCharge > 100
+    | project ActivityId, RequestCharge, DurationMs
+    | join kind=[[kind]] (
+        [[table]]
+        | project ActivityId, QueryText
+      ) on [[key]]
+    | order by RequestCharge desc
+    | take 20
+  slots:
+    - id: kind
+      options:
+        - { id: kinner, text: inner }
+        - { id: kanti, text: leftanti }
+        - { id: kouter, text: leftouter }
+    - id: table
+      options:
+        - { id: tqr, text: CDBQueryRuntimeStatistics }
+        - { id: tpk, text: CDBPartitionKeyRUConsumption }
+        - { id: tcp, text: CDBControlPlaneRequests }
+    - id: key
+      options:
+        - { id: kact, text: ActivityId }
+        - { id: kcoll, text: CollectionName }
+        - { id: ktime, text: TimeGenerated }
+answer:
+  values: { kind: kinner, table: tqr, key: kact }
+explanation:
+  correct:
+    en: |
+      CDBQueryRuntimeStatistics holds the QueryText of each query operation, and its ActivityId correlates with the same request in CDBDataPlaneRequests. An inner join keeps only the requests that have a matching query row, so point reads and writes without query text are excluded.
+    fr: |
+      CDBQueryRuntimeStatistics contient le QueryText de chaque opération de requête, et son ActivityId correspond à la même requête dans CDBDataPlaneRequests. Une jointure interne (inner) ne conserve que les requêtes qui ont une ligne de requête correspondante : les lectures ponctuelles et les écritures sans texte de requête sont donc exclues.
+  options:
+    kanti: { en: "leftanti returns only the requests that have no match, the opposite of the requirement.", fr: "leftanti ne renvoie que les requêtes sans correspondance, l'inverse de l'exigence." }
+    kouter: { en: "leftouter also keeps the requests without query text, with an empty QueryText.", fr: "leftouter conserve aussi les requêtes sans texte de requête, avec un QueryText vide." }
+    tpk: { en: "CDBPartitionKeyRUConsumption records RU per partition key and has no QueryText column.", fr: "CDBPartitionKeyRUConsumption enregistre les RU par clé de partition et n'a pas de colonne QueryText." }
+    kcoll: { en: "Joining on the container name would match every query of the container to every request.", fr: "Joindre sur le nom du conteneur associerait chaque requête du conteneur à chaque opération." }
+    ktime: { en: "Timestamps aren't unique per request; ActivityId identifies one operation.", fr: "Les horodatages ne sont pas uniques par requête ; ActivityId identifie une opération." }
+references:
+  - title: Troubleshoot Issues With Advanced Diagnostics Queries - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/diagnostic-queries
+  - title: Azure Monitor Logs reference - CDBQueryRuntimeStatistics
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cdbqueryruntimestatistics

@@ -1,0 +1,84 @@
+id: dp420-1e-kitai-vector-policy
+objective: "1.5.2"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam is building a product recommendation agent on Azure Cosmos DB for NoSQL, with vector search enabled on the account. Each product item stores an embedding of 3,072 `float32` values in the `/embedding` property. The catalog will hold about 4 million products, and searches run across the whole catalog.
+
+    Your AI coding assistant, which has the Azure Cosmos DB Agent Kit installed, drafts the container definition below. You need to complete it so that searches have the lowest latency and request unit (RU) cost and inserts are not slowed by indexing the vector in the regular index.
+
+    How should you complete the definition? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam crée un agent de recommandation de produits sur Azure Cosmos DB for NoSQL, avec la recherche vectorielle activée sur le compte. Chaque élément produit stocke une incorporation de 3 072 valeurs `float32` dans la propriété `/embedding`. Le catalogue contiendra environ 4 millions de produits, et les recherches portent sur l'ensemble du catalogue.
+
+    Votre assistant de codage IA, sur lequel Azure Cosmos DB Agent Kit est installé, rédige la définition de conteneur ci-dessous. Vous devez la compléter pour que les recherches aient la latence et le coût en unités de requête (RU) les plus faibles et que les insertions ne soient pas ralenties par l'indexation du vecteur dans l'index standard.
+
+    Comment devez-vous compléter la définition ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "vectorEmbeddingPolicy": {
+        "vectorEmbeddings": [
+          {
+            "path": "/embedding",
+            "dataType": "float32",
+            "distanceFunction": "cosine",
+            "dimensions": [[dims]]
+          }
+        ]
+      },
+      "indexingPolicy": {
+        "indexingMode": "consistent",
+        "automatic": true,
+        "includedPaths": [ { "path": "/*" } ],
+        "excludedPaths": [
+          { "path": "/_etag/?" },
+          { "path": [[excl]] }
+        ],
+        "vectorIndexes": [
+          { "path": "/embedding", "type": [[type]] }
+        ]
+      }
+    }
+  slots:
+    - id: dims
+      options:
+        - { id: d1536, text: "1536" }
+        - { id: d3072, text: "3072" }
+        - { id: d4096, text: "4096" }
+    - id: excl
+      options:
+        - { id: star, text: "\"/embedding/*\"" }
+        - { id: root, text: "\"/*\"" }
+        - { id: none, text: "\"/embedding\"" }
+    - id: type
+      options:
+        - { id: flat, text: "\"flat\"" }
+        - { id: qflat, text: "\"quantizedFlat\"" }
+        - { id: diskann, text: "\"diskANN\"" }
+answer:
+  values: { dims: d3072, excl: star, type: diskann }
+explanation:
+  correct:
+    en: |
+      The dimensions value must match the length of the vectors in the path (the default of 1536 does not apply here). Excluding /embedding/* keeps the vector out of the regular index, which is recommended for insert performance. diskANN supports up to 4,096 dimensions and is generally the most performant index when a search covers more than 50,000 vectors.
+    fr: |
+      La valeur dimensions doit correspondre à la longueur des vecteurs du chemin (la valeur par défaut 1536 ne convient pas ici). Exclure /embedding/* maintient le vecteur hors de l'index standard, ce qui est recommandé pour les performances d'insertion. diskANN prend en charge jusqu'à 4 096 dimensions et constitue généralement l'index le plus performant quand une recherche porte sur plus de 50 000 vecteurs.
+  options:
+    d1536: { en: "1536 is the default, but all vectors in the path have 3,072 dimensions.", fr: "1536 est la valeur par défaut, mais tous les vecteurs du chemin ont 3 072 dimensions." }
+    d4096: { en: "4,096 is the maximum for a quantizedFlat or diskANN index, not the length of these vectors.", fr: "4 096 est le maximum d'un index quantizedFlat ou diskANN, pas la longueur de ces vecteurs." }
+    root: { en: "Excluding /* removes every property from the regular index, which breaks the filters and sorts of other queries.", fr: "Exclure /* retire toutes les propriétés de l'index standard, ce qui pénalise les filtres et les tris des autres requêtes." }
+    none: { en: "An index path ends with /? or /*; the property name alone is not a valid excluded path.", fr: "Un chemin d'index se termine par /? ou /* ; le nom de la propriété seul n'est pas un chemin exclu valide." }
+    flat: { en: "A flat index supports at most 505 dimensions.", fr: "Un index flat prend en charge au plus 505 dimensions." }
+    qflat: { en: "quantizedFlat is a brute-force search recommended for 50,000 vectors or fewer per search, not 4 million.", fr: "quantizedFlat est une recherche exhaustive recommandée pour 50 000 vecteurs ou moins par recherche, pas 4 millions." }
+references:
+  - title: Integrated Vector Store - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search

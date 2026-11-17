@@ -1,0 +1,64 @@
+id: dp420-1a-cons-session-token
+objective: "1.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum has an Azure Cosmos DB for NoSQL account whose default consistency level is Session. A web API creates an order and then sends a message to a separate worker service, which uses its own `CosmosClient` instance.
+
+    The worker must always read the order that the API has just written, without changing the account's consistency level. You write the following .NET code.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum dispose d'un compte Azure Cosmos DB for NoSQL dont le niveau de cohérence par défaut est Session. Une API web crée une commande, puis envoie un message à un service worker distinct, qui utilise sa propre instance de `CosmosClient`.
+
+    Le worker doit toujours lire la commande que l'API vient d'écrire, sans modifier le niveau de cohérence du compte. Vous écrivez le code .NET suivant.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    // Web API
+    ItemResponse<Order> created = await apiContainer.CreateItemAsync(order, new PartitionKey(order.CustomerId));
+    string token = created.Headers.[[hdr]];
+    await queue.SendAsync(new OrderMessage(order.Id, order.CustomerId, token));
+
+    // Worker
+    ItemRequestOptions options = new ItemRequestOptions { [[opt]] = message.Token };
+    ItemResponse<Order> read = await workerContainer.ReadItemAsync<Order>(
+        message.OrderId, new PartitionKey(message.CustomerId), options);
+  slots:
+    - id: hdr
+      options:
+        - { id: cont, text: ContinuationToken }
+        - { id: session, text: Session }
+        - { id: etag, text: ETag }
+        - { id: activity, text: ActivityId }
+    - id: opt
+      options:
+        - { id: sessiontoken, text: SessionToken }
+        - { id: ifmatch, text: IfMatchEtag }
+        - { id: ifnone, text: IfNoneMatchEtag }
+        - { id: level, text: ConsistencyLevel }
+answer:
+  values: { hdr: session, opt: sessiontoken }
+explanation:
+  correct:
+    en: With Session consistency, read-your-writes holds within a session; a second client instance gets it only if it reuses the writer's session token. The token is returned in `Headers.Session` of the write response and is passed to the read with `ItemRequestOptions.SessionToken`.
+    fr: Avec la cohérence Session, la lecture de ses propres écritures est garantie dans une session ; une seconde instance de client n'en bénéficie que si elle réutilise le jeton de session du rédacteur. Le jeton est renvoyé dans `Headers.Session` de la réponse d'écriture et transmis à la lecture avec `ItemRequestOptions.SessionToken`.
+  options:
+    etag: { en: "The ETag identifies the item version and is used for optimistic concurrency, not for session guarantees.", fr: "L'ETag identifie la version de l'élément et sert au contrôle de concurrence optimiste, pas aux garanties de session." }
+    cont: { en: "A continuation token resumes a paged query; it has no role in a point read.", fr: "Un jeton de continuation reprend une requête paginée ; il ne joue aucun rôle dans une lecture ponctuelle." }
+    ifmatch: { en: "IfMatchEtag makes a write conditional on the item version; it doesn't carry a session.", fr: "IfMatchEtag rend une écriture conditionnelle à la version de l'élément ; il ne transporte pas de session." }
+    level: { en: "ConsistencyLevel can only relax the account level, and it doesn't link the read to the writer's session.", fr: "ConsistencyLevel ne peut qu'assouplir le niveau du compte, et il ne relie pas la lecture à la session du rédacteur." }
+references:
+  - title: Manage consistency levels in Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-manage-consistency
+  - title: ItemRequestOptions Class (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.itemrequestoptions

@@ -1,0 +1,90 @@
+id: dp800-2b-deadlock-retry-code
+objective: "2.2.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Fabrikam has a stored procedure in Azure SQL Database that is sometimes chosen as a deadlock victim. You need to modify the procedure to meet the following requirements:
+
+    - When the procedure is the deadlock victim, it runs the transaction again after a random pause of one to three seconds, for at most three attempts in total.
+    - Any other error is returned to the caller.
+    - No transaction stays open after an error, including an uncommittable transaction.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'une procédure stockée dans Azure SQL Database qui est parfois choisie comme victime d'un interblocage. Vous devez modifier la procédure pour satisfaire les exigences suivantes :
+
+    - Lorsque la procédure est la victime d'un interblocage, elle relance la transaction après une pause aléatoire d'une à trois secondes, avec au maximum trois tentatives au total.
+    - Toute autre erreur est renvoyée à l'appelant.
+    - Aucune transaction ne reste ouverte après une erreur, y compris une transaction non validable.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    DECLARE @Attempt int = 1, @Delay char(8);
+    WHILE @Attempt <= 3
+    BEGIN
+        BEGIN TRY
+            BEGIN TRANSACTION;
+            UPDATE dbo.Account SET Balance = Balance - @Amount WHERE AccountID = @From;
+            UPDATE dbo.Account SET Balance = Balance + @Amount WHERE AccountID = @To;
+            COMMIT TRANSACTION;
+            BREAK;
+        END TRY
+        BEGIN CATCH
+            IF [[tc]] > 0 ROLLBACK TRANSACTION;
+            IF ERROR_NUMBER() = [[err]] AND @Attempt < 3
+            BEGIN
+                SET @Attempt += 1;
+                SET @Delay = '00:00:0' + CAST(1 + ABS(CHECKSUM(NEWID())) % 3 AS char(1));
+                WAITFOR [[wf]] @Delay;
+            END
+            ELSE
+                THROW;
+        END CATCH
+    END
+  slots:
+    - id: tc
+      options:
+        - { id: trancount, text: "@@TRANCOUNT" }
+        - { id: xstate, text: "XACT_STATE()" }
+        - { id: rowcount, text: "@@ROWCOUNT" }
+        - { id: error, text: "@@ERROR" }
+    - id: err
+      options:
+        - { id: e1222, text: "1222" }
+        - { id: e3960, text: "3960" }
+        - { id: e1205, text: "1205" }
+        - { id: e50000, text: "50000" }
+    - id: wf
+      options:
+        - { id: time, text: "TIME" }
+        - { id: delay, text: "DELAY" }
+        - { id: timeout, text: "TIMEOUT" }
+answer:
+  values: { tc: trancount, err: e1205, wf: delay }
+explanation:
+  correct:
+    en: "@@TRANCOUNT > 0 is true whenever a transaction is open, whether it is committable or not, so the CATCH block always rolls it back. The deadlock victim receives error 1205 after the engine rolls back its transaction, and Microsoft recommends retrying after a short random pause. WAITFOR DELAY waits for an interval, here one to three seconds."
+    fr: "@@TRANCOUNT > 0 est vrai dès qu'une transaction est ouverte, qu'elle soit validable ou non : le bloc CATCH l'annule donc toujours. La victime d'un interblocage reçoit l'erreur 1205 après que le moteur a annulé sa transaction, et Microsoft recommande de réessayer après une courte pause aléatoire. WAITFOR DELAY attend pendant un intervalle, ici d'une à trois secondes."
+  options:
+    xstate: { en: "XACT_STATE() returns -1 for an uncommittable transaction, so the test > 0 would skip the rollback.", fr: "XACT_STATE() renvoie -1 pour une transaction non validable : le test > 0 ignorerait l'annulation." }
+    rowcount: { en: "@@ROWCOUNT counts rows affected by the last statement, not open transactions.", fr: "@@ROWCOUNT compte les lignes affectées par la dernière instruction, pas les transactions ouvertes." }
+    error: { en: "@@ERROR is reset by each statement and doesn't tell whether a transaction is open.", fr: "@@ERROR est réinitialisé par chaque instruction et n'indique pas si une transaction est ouverte." }
+    e1222: { en: "1222 is the lock request time-out error raised when LOCK_TIMEOUT expires.", fr: "1222 est l'erreur de dépassement du délai de demande de verrou levée à l'expiration de LOCK_TIMEOUT." }
+    e3960: { en: "3960 is an update conflict under SNAPSHOT isolation, not a deadlock.", fr: "3960 est un conflit de mise à jour en isolation SNAPSHOT, pas un interblocage." }
+    e50000: { en: "50000 is the error number of RAISERROR messages without a message ID.", fr: "50000 est le numéro d'erreur des messages RAISERROR sans ID de message." }
+    time: { en: "WAITFOR TIME waits until a clock time, such as 02:00:00, not for an interval.", fr: "WAITFOR TIME attend une heure précise, telle que 02:00:00, pas un intervalle." }
+    timeout: { en: "TIMEOUT is used only with WAITFOR around RECEIVE or GET CONVERSATION GROUP statements.", fr: "TIMEOUT ne s'utilise qu'avec WAITFOR autour des instructions RECEIVE ou GET CONVERSATION GROUP." }
+references:
+  - title: Deadlocks guide
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-deadlocks-guide
+  - title: Analyze and prevent deadlocks in Azure SQL Database and SQL database in Fabric
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/analyze-prevent-deadlocks

@@ -1,0 +1,105 @@
+id: ai200-cs1a-proseware
+status: draft
+title:
+  en: Proseware Legal
+  fr: Proseware Legal
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Proseware Legal publishes a legal research service for 900 law firms in Belgium and France. Lawyers type a question in natural language and receive the court decision passages that are the most relevant to it.
+
+        Proseware has moved the service, named **CaseFinder**, to Azure. CaseFinder is written in Python and is made of a search API and an indexer that splits new court decisions into passages and generates an embedding for each passage.
+      fr: |
+        Proseware Legal édite un service de recherche juridique utilisé par 900 cabinets d'avocats en Belgique et en France. Les avocats saisissent une question en langage naturel et reçoivent les passages de décisions de justice les plus pertinents.
+
+        Proseware a migré ce service, nommé **CaseFinder**, vers Azure. CaseFinder est écrit en Python et se compose d'une API de recherche et d'un indexeur qui découpe les nouvelles décisions de justice en passages et génère une incorporation pour chaque passage.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        Proseware has an Azure subscription that contains the following resources in a resource group named **rg-casefinder**.
+
+        | Resource | Type | Configuration |
+        | --- | --- | --- |
+        | crproseware | Azure Container Registry | Standard SKU; repositories **search-api** and **indexer** |
+        | cae-proseware | Azure Container Apps environment | Sends the logs to the Log Analytics workspace log-proseware |
+        | ca-search-api | Container app | External ingress, single revision mode, HTTP scale rule; one secret named **courtfeed-key** |
+        | ca-indexer | Container app | No ingress; scale rule of type `azure-servicebus` on doc-ingest, minimum 0 replicas |
+        | sb-proseware | Azure Service Bus namespace | Standard tier; queue **doc-ingest** with the default lock duration and maximum delivery count; one message per new court decision |
+        | pg-proseware | Azure Database for PostgreSQL flexible server | Database **casefinder** |
+        | amr-proseware | Azure Managed Redis | Balanced tier, default eviction policy |
+        | appi-proseware | Application Insights | Workspace-based (log-proseware); both apps send their traces to it by using OpenTelemetry |
+
+        The casefinder database contains a table named **passages** with 4 million rows. Its `embedding` column has the type `vector(1536)` and is indexed as follows:
+
+        ```sql
+        CREATE INDEX passages_embedding_idx ON passages
+            USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+        ```
+
+        The search API runs the following query, which returns the 10 passages closest to the question embedding in the jurisdiction selected by the lawyer:
+
+        ```sql
+        SELECT id, doc_id, content
+        FROM passages
+        WHERE jurisdiction = %s
+        ORDER BY embedding <=> %s::vector
+        LIMIT 10;
+        ```
+
+        ca-indexer receives the messages of doc-ingest by using the azure-servicebus library in peek-lock mode. Processing a court decision takes between 2 and 15 minutes.
+      fr: |
+        Proseware dispose d'un abonnement Azure qui contient les ressources suivantes dans un groupe de ressources nommé **rg-casefinder**.
+
+        | Ressource | Type | Configuration |
+        | --- | --- | --- |
+        | crproseware | Azure Container Registry | SKU Standard ; dépôts **search-api** et **indexer** |
+        | cae-proseware | Environnement Azure Container Apps | Envoie les journaux vers l'espace de travail Log Analytics log-proseware |
+        | ca-search-api | Application conteneur | Entrée externe, mode de révision unique, règle de mise à l'échelle HTTP ; un secret nommé **courtfeed-key** |
+        | ca-indexer | Application conteneur | Aucune entrée ; règle de mise à l'échelle de type `azure-servicebus` sur doc-ingest, 0 réplica au minimum |
+        | sb-proseware | Espace de noms Azure Service Bus | Niveau Standard ; file d'attente **doc-ingest** avec la durée de verrouillage et le nombre maximal de remises par défaut ; un message par nouvelle décision de justice |
+        | pg-proseware | Serveur flexible Azure Database for PostgreSQL | Base de données **casefinder** |
+        | amr-proseware | Azure Managed Redis | Niveau Balanced, stratégie d'éviction par défaut |
+        | appi-proseware | Application Insights | Basée sur un espace de travail (log-proseware) ; les deux applications y envoient leurs traces à l'aide d'OpenTelemetry |
+
+        La base de données casefinder contient une table nommée **passages** de 4 millions de lignes. Sa colonne `embedding` est de type `vector(1536)` et indexée comme suit :
+
+        ```sql
+        CREATE INDEX passages_embedding_idx ON passages
+            USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+        ```
+
+        L'API de recherche exécute la requête suivante, qui renvoie les 10 passages les plus proches de l'incorporation de la question dans la juridiction sélectionnée par l'avocat :
+
+        ```sql
+        SELECT id, doc_id, content
+        FROM passages
+        WHERE jurisdiction = %s
+        ORDER BY embedding <=> %s::vector
+        LIMIT 10;
+        ```
+
+        ca-indexer reçoit les messages de doc-ingest à l'aide de la bibliothèque azure-servicebus en mode peek-lock. Le traitement d'une décision de justice prend entre 2 et 15 minutes.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        Proseware identifies the following requirements:
+
+        1. **Change control**: every change to ca-search-api that creates a new revision must be approved by the change advisory board. Changes that do not create a revision are approved by the team lead.
+        2. **Image protection**: the build pipeline tags each search API image with its build ID. Once a tag is deployed to ca-search-api, nobody may overwrite or delete it, but the pipeline must still be able to push new tags to search-api.
+        3. **Search recall**: lawyers report that searches in small jurisdictions sometimes return fewer than 10 passages. The developers must improve the recall of the search query only, without rebuilding the index and without changing the behavior of other database sessions.
+        4. **Indexer reliability**: while a replica of ca-indexer processes a court decision, no other replica may receive the same message. If a replica fails, the message must be processed again by another replica.
+        5. **Caching**: the search API stores the results of frequent questions in amr-proseware without an expiration, because the results change only when a decision is reindexed. When the cache memory is full, the least recently used results must be evicted so that new results can always be written.
+        6. **Monitoring**: the operations team must chart the 95th percentile duration of each API operation of CaseFinder over the last 24 hours, in 15-minute intervals.
+      fr: |
+        Proseware a défini les exigences suivantes :
+
+        1. **Contrôle des modifications** : toute modification de ca-search-api qui crée une nouvelle révision doit être approuvée par le comité consultatif des changements. Les modifications qui ne créent pas de révision sont approuvées par le responsable d'équipe.
+        2. **Protection des images** : le pipeline de génération balise chaque image de l'API de recherche avec son ID de génération. Une fois qu'une balise est déployée sur ca-search-api, personne ne doit pouvoir la remplacer ni la supprimer, mais le pipeline doit toujours pouvoir envoyer de nouvelles balises vers search-api.
+        3. **Rappel de la recherche** : des avocats signalent que les recherches dans de petites juridictions renvoient parfois moins de 10 passages. Les développeurs doivent améliorer le rappel de la requête de recherche uniquement, sans regénérer l'index et sans modifier le comportement des autres sessions de base de données.
+        4. **Fiabilité de l'indexeur** : pendant qu'un réplica de ca-indexer traite une décision de justice, aucun autre réplica ne doit recevoir le même message. Si un réplica tombe en panne, le message doit être traité à nouveau par un autre réplica.
+        5. **Mise en cache** : l'API de recherche stocke les résultats des questions fréquentes dans amr-proseware sans expiration, car les résultats ne changent que lorsqu'une décision est réindexée. Quand la mémoire du cache est pleine, les résultats les moins récemment utilisés doivent être évincés pour que de nouveaux résultats puissent toujours être écrits.
+        6. **Supervision** : l'équipe d'exploitation doit représenter dans un graphique le 95e centile de la durée de chaque opération de l'API CaseFinder sur les dernières 24 heures, par intervalles de 15 minutes.

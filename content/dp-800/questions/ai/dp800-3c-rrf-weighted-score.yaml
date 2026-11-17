@@ -1,0 +1,70 @@
+id: dp800-3c-rrf-weighted-score
+objective: "3.2.9"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You have a SQL database in Microsoft Fabric that contains a table named dbo.Recipes. You are writing a hybrid search query. The common table expressions keyword_search and vector_search return the 50 best candidates of a full-text search and of a vector search, with their positions in the columns keyword_rank and vector_rank.
+
+    You need to merge the two lists by using reciprocal rank fusion (RRF). The vector search must contribute twice as much as the full-text search, and the best recipes must be returned first.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une base de données SQL dans Microsoft Fabric qui contient une table nommée dbo.Recipes. Vous écrivez une requête de recherche hybride. Les expressions de table communes keyword_search et vector_search renvoient les 50 meilleurs candidats d'une recherche en texte intégral et d'une recherche vectorielle, avec leur position dans les colonnes keyword_rank et vector_rank.
+
+    Vous devez fusionner les deux listes par fusion de classement réciproque (RRF). La recherche vectorielle doit compter deux fois plus que la recherche en texte intégral, et les meilleures recettes doivent être renvoyées en premier.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    DECLARE @k int = 60;
+
+    -- keyword_search and vector_search CTEs
+    SELECT TOP (10)
+           COALESCE(ks.RecipeId, vs.RecipeId) AS RecipeId,
+           COALESCE([[kw]] / (@k + ks.keyword_rank), 0.0)
+         + COALESCE([[vw]] / (@k + vs.vector_rank), 0.0) AS rrf_score
+    FROM keyword_search AS ks
+    FULL OUTER JOIN vector_search AS vs
+        ON vs.RecipeId = ks.RecipeId
+    ORDER BY [[sort]];
+  slots:
+    - id: kw
+      options:
+        - { id: one-int, text: "1" }
+        - { id: one-dec, text: "1.0" }
+        - { id: two-dec, text: "2.0" }
+    - id: vw
+      options:
+        - { id: one-dec, text: "1.0" }
+        - { id: two-int, text: "2" }
+        - { id: two-dec, text: "2.0" }
+        - { id: half, text: "0.5" }
+    - id: sort
+      options:
+        - { id: desc, text: rrf_score DESC }
+        - { id: asc, text: rrf_score ASC }
+        - { id: vrank, text: vs.vector_rank }
+        - { id: krank, text: ks.keyword_rank DESC }
+answer:
+  values: { kw: one-dec, vw: two-dec, sort: desc }
+explanation:
+  correct:
+    en: "Weighting RRF multiplies the term of the favored source: 1.0 / (@k + keyword_rank) plus 2.0 / (@k + vector_rank). Decimal literals are required because @k and the ranks are integers. A higher RRF score is better, so the result is sorted by rrf_score DESC."
+    fr: "Pondérer RRF revient à multiplier le terme de la source favorisée : 1.0 / (@k + keyword_rank) plus 2.0 / (@k + vector_rank). Des littéraux décimaux sont nécessaires, car @k et les rangs sont des entiers. Un score RRF plus élevé est meilleur : le résultat est trié par rrf_score DESC."
+  options:
+    one-int: { en: "1 / (60 + rank) is an integer division that always returns 0, so the full-text list would be ignored.", fr: "1 / (60 + rang) est une division entière qui renvoie toujours 0 : la liste en texte intégral serait ignorée." }
+    two-int: { en: "2 / (60 + rank) is also an integer division and returns 0.", fr: "2 / (60 + rang) est aussi une division entière et renvoie 0." }
+    half: { en: "0.5 for the vector term would halve its weight instead of doubling it.", fr: "0.5 pour le terme vectoriel diviserait son poids par deux au lieu de le doubler." }
+    asc: { en: "Ascending order would return the least relevant recipes first.", fr: "L'ordre croissant renverrait d'abord les recettes les moins pertinentes." }
+    vrank: { en: "Sorting by vector_rank ignores the fused score and the full-text results.", fr: "Trier par vector_rank ignore le score fusionné et les résultats en texte intégral." }
+references:
+  - title: Implement hybrid search and ranking
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-intelligent-search-with-sql/06-implement-hybrid-search-ranking

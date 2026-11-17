@@ -1,0 +1,87 @@
+id: dp800-2d-uami-database-user
+objective: "2.4.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso deploys Data API builder (DAB) to an Azure container app named ca-dab-hr. The app uses a user-assigned managed identity named id-dab-hr to connect to an Azure SQL database named HRDb. All the DAB entities of HRDb are read-only.
+
+    You are connected to HRDb as the Microsoft Entra admin of the server. You need to give id-dab-hr access to HRDb and set the connection string of ca-dab-hr. The solution must follow the principle of least privilege and store no password.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso déploie Data API builder (DAB) dans une application conteneur Azure nommée ca-dab-hr. L'application utilise une identité managée affectée par l'utilisateur nommée id-dab-hr pour se connecter à une base de données Azure SQL nommée HRDb. Toutes les entités DAB de HRDb sont en lecture seule.
+
+    Vous êtes connecté à HRDb en tant qu'administrateur Microsoft Entra du serveur. Vous devez donner à id-dab-hr l'accès à HRDb et définir la chaîne de connexion de ca-dab-hr. La solution doit respecter le principe du privilège minimum et ne stocker aucun mot de passe.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template:
+    en: |
+      -- Run in HRDb as the Microsoft Entra admin
+      CREATE USER [id-dab-hr] FROM [[src]];
+      ALTER ROLE [[role]] ADD MEMBER [id-dab-hr];
+
+      -- Value of DATABASE_CONNECTION_STRING in ca-dab-hr
+      -- Server=tcp:sql-hr.database.windows.net,1433;Database=HRDb;
+      -- Authentication=[[auth]];User Id=[[uid]];
+    fr: |
+      -- À exécuter dans HRDb en tant qu'administrateur Microsoft Entra
+      CREATE USER [id-dab-hr] FROM [[src]];
+      ALTER ROLE [[role]] ADD MEMBER [id-dab-hr];
+
+      -- Valeur de DATABASE_CONNECTION_STRING dans ca-dab-hr
+      -- Server=tcp:sql-hr.database.windows.net,1433;Database=HRDb;
+      -- Authentication=[[auth]];User Id=[[uid]];
+  slots:
+    - id: src
+      options:
+        - { id: ext, text: EXTERNAL PROVIDER }
+        - { id: login, text: "LOGIN [id-dab-hr]" }
+        - { id: cert, text: "CERTIFICATE [id-dab-hr]" }
+    - id: role
+      options:
+        - { id: reader, text: db_datareader }
+        - { id: writer, text: db_datawriter }
+        - { id: owner, text: db_owner }
+        - { id: ddl, text: db_ddladmin }
+    - id: auth
+      options:
+        - { id: mi, text: Active Directory Managed Identity }
+        - { id: pwd, text: Active Directory Password }
+        - { id: interactive, text: Active Directory Interactive }
+    - id: uid
+      options:
+        - { id: client, text: { en: "<client ID of id-dab-hr>", fr: "<ID client d'id-dab-hr>" } }
+        - { id: object, text: { en: "<object (principal) ID of id-dab-hr>", fr: "<ID d'objet (principal) d'id-dab-hr>" } }
+        - { id: resource, text: { en: "<resource ID of id-dab-hr>", fr: "<ID de ressource d'id-dab-hr>" } }
+answer:
+  values: { src: ext, role: reader, auth: mi, uid: client }
+explanation:
+  correct:
+    en: |
+      CREATE USER ... FROM EXTERNAL PROVIDER creates a database user for a Microsoft Entra identity, run by the Microsoft Entra admin. db_datareader is enough for read-only entities. The connection string uses Authentication=Active Directory Managed Identity with no password, and for a user-assigned identity User Id must contain the client ID of the identity; a system-assigned identity would omit User Id.
+    fr: |
+      CREATE USER ... FROM EXTERNAL PROVIDER crée un utilisateur de base de données pour une identité Microsoft Entra, exécuté par l'administrateur Microsoft Entra. db_datareader suffit pour des entités en lecture seule. La chaîne de connexion utilise Authentication=Active Directory Managed Identity sans mot de passe, et pour une identité affectée par l'utilisateur, User Id doit contenir l'ID client de l'identité ; une identité affectée par le système omettrait User Id.
+  options:
+    login: { en: "FROM LOGIN requires an existing login in master; FROM EXTERNAL PROVIDER creates the user directly from the Microsoft Entra identity.", fr: "FROM LOGIN exige une connexion existante dans master ; FROM EXTERNAL PROVIDER crée l'utilisateur directement à partir de l'identité Microsoft Entra." }
+    cert: { en: "A user mapped to a certificate can't sign in with a managed identity.", fr: "Un utilisateur mappé à un certificat ne peut pas se connecter avec une identité managée." }
+    writer: { en: "db_datawriter grants writes, which read-only entities don't need, and no read access.", fr: "db_datawriter accorde des écritures, inutiles pour des entités en lecture seule, et aucun accès en lecture." }
+    owner: { en: "db_owner grants full control of the database, far more than needed.", fr: "db_owner accorde le contrôle total de la base de données, bien plus que nécessaire." }
+    ddl: { en: "db_ddladmin allows schema changes, not needed to read data.", fr: "db_ddladmin permet des modifications de schéma, inutiles pour lire des données." }
+    pwd: { en: "Active Directory Password requires a password in the connection string.", fr: "Active Directory Password exige un mot de passe dans la chaîne de connexion." }
+    interactive: { en: "Interactive authentication prompts a user; a container can't use it.", fr: "L'authentification interactive invite un utilisateur ; un conteneur ne peut pas l'utiliser." }
+    object: { en: "User Id identifies a user-assigned identity by its client ID, not by its object ID.", fr: "User Id identifie une identité affectée par l'utilisateur par son ID client, pas par son ID d'objet." }
+    resource: { en: "User Id expects the client ID, not the Azure resource ID.", fr: "User Id attend l'ID client, pas l'ID de ressource Azure." }
+references:
+  - title: Configuration schema - Data source section - Data API builder
+    url: https://learn.microsoft.com/en-us/azure/data-api-builder/configuration/data-source
+  - title: Securely connect .NET apps to Azure SQL Database using Managed Identity - Azure App Service
+    url: https://learn.microsoft.com/en-us/azure/app-service/tutorial-connect-msi-sql-database

@@ -1,0 +1,73 @@
+id: az400-3a-art-download
+objective: "3.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing a multi-stage YAML pipeline. The Build stage publishes the web application once, and the UiTests job of the Test stage must run the tests against exactly those files. The UiTests job is a regular job, not a deployment job.
+
+    How should you complete the YAML? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez un pipeline YAML multiphase. La phase Build publie une seule fois l'application web, et le job UiTests de la phase Test doit exécuter les tests sur exactement ces fichiers. Le job UiTests est un job standard, pas un job de déploiement.
+
+    Comment devez-vous compléter le YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: yaml
+  template: |
+    stages:
+      - stage: Build
+        jobs:
+          - job: Build
+            steps:
+              - script: dotnet publish src/Web -c Release -o $(Build.ArtifactStagingDirectory)/web
+              - [[pub]]: $(Build.ArtifactStagingDirectory)/web
+                artifact: web
+      - stage: Test
+        dependsOn: Build
+        jobs:
+          - job: UiTests
+            steps:
+              - [[dl]]: current
+                artifact: web
+              - script: ./run-ui-tests.sh --site [[path]]
+  slots:
+    - id: pub
+      options:
+        - { id: publish, text: publish }
+        - { id: download, text: download }
+        - { id: checkout, text: checkout }
+        - { id: getpkg, text: getPackage }
+    - id: dl
+      options:
+        - { id: download, text: download }
+        - { id: dlbuild, text: downloadBuild }
+        - { id: checkout, text: checkout }
+        - { id: publish, text: publish }
+    - id: path
+      options:
+        - { id: ws, text: "$(Pipeline.Workspace)/web" }
+        - { id: src, text: "$(Build.SourcesDirectory)/web" }
+        - { id: stage, text: "$(Build.ArtifactStagingDirectory)/web" }
+answer:
+  values: { pub: publish, dl: download, path: ws }
+explanation:
+  correct:
+    en: |
+      The publish keyword is a shortcut for the Publish Pipeline Artifact task and uploads the folder as the pipeline artifact web. In a regular job, artifacts are not downloaded automatically, so the job uses the download keyword with current (this run). The download keyword always uses the default location, `$(Pipeline.Workspace)/<artifact name>`.
+    fr: |
+      Le mot clé publish est un raccourci de la tâche Publish Pipeline Artifact et charge le dossier comme artefact de pipeline web. Dans un job standard, les artefacts ne sont pas téléchargés automatiquement : le job utilise le mot clé download avec current (cette exécution). Le mot clé download utilise toujours l'emplacement par défaut, `$(Pipeline.Workspace)/<nom de l'artefact>`.
+  options:
+    getpkg: { en: "getPackage downloads a package from Azure Artifacts, it does not publish a pipeline artifact.", fr: "getPackage télécharge un package depuis Azure Artifacts ; il ne publie pas d'artefact de pipeline." }
+    dlbuild: { en: "downloadBuild downloads build artifacts, the older artifact type, not the pipeline artifact published with publish.", fr: "downloadBuild télécharge des artefacts de build, l'ancien type d'artefact, pas l'artefact de pipeline publié avec publish." }
+    checkout: { en: "checkout gets source code from a repository, not artifacts.", fr: "checkout récupère le code source d'un dépôt, pas des artefacts." }
+    src: { en: "Downloaded pipeline artifacts are not placed in the sources directory.", fr: "Les artefacts de pipeline téléchargés ne sont pas placés dans le répertoire des sources." }
+    stage: { en: "The staging directory of the Test job is empty: the files were staged on the Build agent, in another job.", fr: "Le répertoire intermédiaire du job Test est vide : les fichiers ont été préparés sur l'agent de Build, dans un autre job." }
+references:
+  - title: Publish and download pipeline artifacts
+    url: https://learn.microsoft.com/en-us/azure/devops/pipelines/artifacts/pipeline-artifacts

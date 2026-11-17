@@ -1,0 +1,74 @@
+id: dp800-cs4a-quiz-progress
+objective: "1.3.2"
+type: dropdown
+caseStudy: dp800-cs4a-proseware
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You are writing the query of the learner dashboard.
+
+    You need to complete the query. The solution must meet the reporting requirements.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez la requête du tableau de bord des apprenants.
+
+    Vous devez compléter la requête. La solution doit satisfaire les exigences de création de rapports.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    WITH attempts AS (
+        SELECT LearnerId, QuizId, Score,
+               [[rank]] OVER (PARTITION BY LearnerId, QuizId
+                              ORDER BY SubmittedAt DESC) AS rn,
+               Score - [[prev]](Score) OVER (PARTITION BY LearnerId, QuizId
+                                             ORDER BY SubmittedAt) AS ScoreChange
+        FROM dbo.QuizAttempts
+    )
+    SELECT LearnerId, QuizId, Score AS LatestScore, ScoreChange
+    FROM attempts
+    [[filter]];
+  slots:
+    - id: rank
+      options:
+        - { id: rownumber, text: "ROW_NUMBER()" }
+        - { id: rank, text: "RANK()" }
+        - { id: ntile, text: "NTILE(1)" }
+    - id: prev
+      options:
+        - { id: lag, text: LAG }
+        - { id: lead, text: LEAD }
+        - { id: first, text: FIRST_VALUE }
+    - id: filter
+      options:
+        - { id: rn1, text: "WHERE rn = 1" }
+        - { id: rngt1, text: "WHERE rn > 1" }
+        - { id: changenull, text: "WHERE ScoreChange IS NULL" }
+answer:
+  values: { rank: rownumber, prev: lag, filter: rn1 }
+explanation:
+  correct:
+    en: |
+      ROW_NUMBER numbers the attempts of each learner and quiz from the latest one, and always gives distinct numbers, so exactly one row has rn = 1. LAG returns the score of the previous row in ascending order within the same partition, and NULL for the first attempt because the default offset is 1 and the default value is NULL. A window function can't be used in WHERE, so the CTE computes rn and the outer query keeps rn = 1.
+    fr: |
+      ROW_NUMBER numérote les tentatives de chaque apprenant et questionnaire à partir de la plus récente et donne toujours des numéros distincts : une seule ligne a rn = 1. LAG renvoie le score de la ligne précédente dans l'ordre croissant au sein de la même partition, et NULL pour la première tentative car le décalage par défaut est 1 et la valeur par défaut est NULL. Une fonction de fenêtre ne peut pas être utilisée dans WHERE : la CTE calcule rn et la requête externe conserve rn = 1.
+  options:
+    rank: { en: "RANK gives the same number to rows that tie on SubmittedAt, so two latest attempts with the same SubmittedAt would both have rn = 1 and return two rows.", fr: "RANK donne le même numéro aux lignes à égalité sur SubmittedAt : deux dernières tentatives ayant la même valeur SubmittedAt auraient toutes deux rn = 1 et renverraient deux lignes." }
+    ntile: { en: "NTILE(1) puts every row of the partition in group 1, so every attempt would have rn = 1.", fr: "NTILE(1) place toutes les lignes de la partition dans le groupe 1 : chaque tentative aurait rn = 1." }
+    lead: { en: "LEAD returns the next attempt in ascending order, which is always NULL for the latest attempt.", fr: "LEAD renvoie la tentative suivante dans l'ordre croissant, toujours NULL pour la dernière tentative." }
+    first: { en: "FIRST_VALUE returns the score of the first attempt, not of the previous one, and returns 0 instead of NULL for a single attempt.", fr: "FIRST_VALUE renvoie le score de la première tentative, pas de la précédente, et renvoie 0 au lieu de NULL pour une tentative unique." }
+    rngt1: { en: "rn > 1 keeps the older attempts and drops the latest one.", fr: "rn > 1 conserve les tentatives plus anciennes et supprime la plus récente." }
+    changenull: { en: "ScoreChange is NULL only for the first attempt, so this filter returns the oldest attempt, not the latest.", fr: "ScoreChange n'est NULL que pour la première tentative : ce filtre renvoie la plus ancienne tentative, pas la plus récente." }
+references:
+  - title: SELECT - OVER clause (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/queries/select-over-clause-transact-sql
+  - title: LAG (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/functions/lag-transact-sql

@@ -1,0 +1,76 @@
+id: dp420-cs4a-conversation-container
+objective: "3.2.2"
+type: dropdown
+caseStudy: dp420-cs4a-lamna-healthcare
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Each turn item in the conversations container contains `id`, `sessionId`, `clinicianId`, `turnNumber`, `role` and `content`. When a clinician pins a conversation, Lamna Assist sets `ttl` to -1 on the turns of that conversation.
+
+    You need to create the conversations container and load the conversation state to meet the conversation requirements.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Chaque élément de tour du conteneur conversations contient `id`, `sessionId`, `clinicianId`, `turnNumber`, `role` et `content`. Quand un clinicien épingle une conversation, Lamna Assist définit `ttl` sur -1 pour les tours de cette conversation.
+
+    Vous devez créer le conteneur conversations et charger l'état de la conversation pour satisfaire les exigences relatives aux conversations.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    conversations = database.create_container_if_not_exists(
+        id="conversations",
+        partition_key=PartitionKey(path="[[pk]]"),
+        default_ttl=[[ttl]]
+    )
+
+    turns = conversations.query_items(
+        query="SELECT TOP 20 * FROM c WHERE c.sessionId = @s ORDER BY c.turnNumber DESC",
+        parameters=[{"name": "@s", "value": session_id}],
+        [[scope]]
+    )
+  slots:
+    - id: pk
+      options:
+        - { id: role, text: /role }
+        - { id: session, text: /sessionId }
+        - { id: hospital, text: /hospitalId }
+        - { id: turn, text: /turnNumber }
+    - id: ttl
+      options:
+        - { id: minus1, text: "-1" }
+        - { id: days, text: "30" }
+        - { id: hours, text: "720" }
+        - { id: seconds, text: "2592000" }
+    - id: scope
+      options:
+        - { id: pkarg, text: partition_key=session_id }
+        - { id: cross, text: enable_cross_partition_query=True }
+        - { id: page, text: max_item_count=20 }
+answer:
+  values: { pk: session, ttl: seconds, scope: pkarg }
+explanation:
+  correct:
+    en: "With `/sessionId` as the partition key, all the turns of a session are in one logical partition, and passing `partition_key=session_id` runs the query against that single partition, which is the cheapest way to load the 20 latest turns. TTL is expressed in seconds: `default_ttl=2592000` (30 × 86,400) expires every turn 30 days after its last modification, and an item-level `ttl` of -1 overrides the default so that pinned turns never expire."
+    fr: "Avec `/sessionId` comme clé de partition, tous les tours d'une session se trouvent dans une seule partition logique, et passer `partition_key=session_id` exécute la requête sur cette seule partition, ce qui est le moyen le moins coûteux de charger les 20 derniers tours. La TTL s'exprime en secondes : `default_ttl=2592000` (30 × 86 400) fait expirer chaque tour 30 jours après sa dernière modification, et une valeur `ttl` de -1 au niveau de l'élément remplace la valeur par défaut, si bien que les tours épinglés n'expirent jamais."
+  options:
+    role: { en: "role has only a few values (user, assistant), which creates hot partitions and spreads a session over several partitions.", fr: "role n'a que quelques valeurs (user, assistant), ce qui crée des partitions chaudes et répartit une session sur plusieurs partitions." }
+    hospital: { en: "hospitalId has only 40 values; all conversations of a hospital would share one logical partition, limited to 20 GB.", fr: "hospitalId n'a que 40 valeurs ; toutes les conversations d'un hôpital partageraient une seule partition logique, limitée à 20 Go." }
+    turn: { en: "Partitioning by turnNumber spreads the turns of a session across partitions, so the query fans out.", fr: "Partitionner par turnNumber répartit les tours d'une session entre les partitions : la requête s'exécute sur toutes les partitions." }
+    minus1: { en: "A default TTL of -1 enables TTL but keeps items forever unless each item sets its own ttl.", fr: "Une TTL par défaut de -1 active la TTL mais conserve les éléments indéfiniment, sauf si chaque élément définit son propre ttl." }
+    days: { en: "TTL is expressed in seconds; 30 would delete turns after 30 seconds.", fr: "La TTL s'exprime en secondes ; 30 supprimerait les tours au bout de 30 secondes." }
+    hours: { en: "TTL is expressed in seconds; 720 would delete turns after 12 minutes.", fr: "La TTL s'exprime en secondes ; 720 supprimerait les tours au bout de 12 minutes." }
+    cross: { en: "Enabling a cross-partition query is unnecessary when the partition key value is known; targeting the partition is cheaper.", fr: "Autoriser une requête interpartitions est inutile quand la valeur de la clé de partition est connue ; cibler la partition est moins coûteux." }
+    page: { en: "max_item_count sets the page size; it does not scope the query to a partition.", fr: "max_item_count définit la taille de page ; il ne limite pas la requête à une partition." }
+references:
+  - title: Expire Data With Time to Live - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/time-to-live
+  - title: Agent Memory Toolkit (Preview) - Azure Cosmos DB for NoSQL
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agent-memory-toolkit

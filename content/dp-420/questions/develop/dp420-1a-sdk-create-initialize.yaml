@@ -1,0 +1,73 @@
+id: dp420-1a-sdk-create-initialize
+objective: "1.1.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso has a latency-sensitive .NET checkout service that uses the **orders** and **carts** containers of the **retail** database in Azure Cosmos DB for NoSQL. After each deployment, the first requests are slow because caches and connections aren't initialized. The client must meet the following requirements:
+
+    - warm up the caches and connections of both containers before the service accepts traffic;
+    - use West Europe first, then North Europe;
+    - when requests are rate limited, wait up to 60 seconds in total for retries before an exception is thrown.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso dispose d'un service .NET de paiement sensible à la latence qui utilise les conteneurs **orders** et **carts** de la base de données **retail** dans Azure Cosmos DB for NoSQL. Après chaque déploiement, les premières requêtes sont lentes, car les caches et les connexions ne sont pas initialisés. Le client doit respecter les exigences suivantes :
+
+    - préchauffer les caches et les connexions des deux conteneurs avant que le service accepte du trafic ;
+    - utiliser West Europe en premier, puis North Europe ;
+    - lorsque des requêtes sont limitées en débit, attendre jusqu'à 60 secondes au total pour les nouvelles tentatives avant qu'une exception soit levée.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: csharp
+  template: |
+    CosmosClient client = await CosmosClient.[[init]](
+        endpoint,
+        new DefaultAzureCredential(),
+        new List<(string, string)> { ("retail", "orders"), ("retail", "carts") },
+        new CosmosClientOptions
+        {
+            [[regions]] = new List<string> { "West Europe", "North Europe" },
+            [[retry]] = TimeSpan.FromSeconds(60)
+        });
+  slots:
+    - id: init
+      options:
+        - { id: readaccount, text: ReadAccountAsync }
+        - { id: createdb, text: CreateDatabaseIfNotExistsAsync }
+        - { id: createinit, text: CreateAndInitializeAsync }
+    - id: regions
+      options:
+        - { id: excluderegions, text: ExcludeRegions }
+        - { id: preferred, text: ApplicationPreferredRegions }
+        - { id: appregion, text: ApplicationRegion }
+    - id: retry
+      options:
+        - { id: maxwait, text: MaxRetryWaitTimeOnRateLimitedRequests }
+        - { id: requesttimeout, text: RequestTimeout }
+        - { id: idletimeout, text: IdleTcpConnectionTimeout }
+answer:
+  values: { init: createinit, regions: preferred, retry: maxwait }
+explanation:
+  correct:
+    en: |
+      `CosmosClient.CreateAndInitializeAsync` creates the client and warms up its caches and connections for the listed (database, container) pairs before the first call. `ApplicationPreferredRegions` takes an ordered list of regions. `MaxRetryWaitTimeOnRateLimitedRequests` sets the maximum cumulative wait for retries on HTTP 429; by default the SDK gives up after about 30 seconds.
+    fr: |
+      `CosmosClient.CreateAndInitializeAsync` crée le client et préchauffe ses caches et ses connexions pour les paires (base de données, conteneur) indiquées avant le premier appel. `ApplicationPreferredRegions` prend une liste ordonnée de régions. `MaxRetryWaitTimeOnRateLimitedRequests` définit l'attente cumulée maximale des nouvelles tentatives sur HTTP 429 ; par défaut, le SDK abandonne après environ 30 secondes.
+  options:
+    readaccount: { en: "ReadAccountAsync is an instance method that reads the account properties; it doesn't create or warm up a client.", fr: "ReadAccountAsync est une méthode d'instance qui lit les propriétés du compte ; elle ne crée ni ne préchauffe de client." }
+    appregion: { en: "ApplicationRegion takes a single region and orders the others by proximity; it doesn't accept a list.", fr: "ApplicationRegion prend une seule région et classe les autres par proximité ; elle n'accepte pas de liste." }
+    excluderegions: { en: "ExcludeRegions is a request option that skips regions for a request; it isn't a client option.", fr: "ExcludeRegions est une option de requête qui ignore des régions pour une requête ; ce n'est pas une option du client." }
+    requesttimeout: { en: "RequestTimeout is the time to wait for a response from the network peer, not the retry budget for throttled requests.", fr: "RequestTimeout est le délai d'attente d'une réponse du pair réseau, pas le budget de nouvelles tentatives des requêtes limitées." }
+references:
+  - title: CosmosClient Class (Microsoft.Azure.Cosmos)
+    url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.cosmosclient
+  - title: Performance tips for Azure Cosmos DB and .NET
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/performance-tips-dotnet-sdk-v3

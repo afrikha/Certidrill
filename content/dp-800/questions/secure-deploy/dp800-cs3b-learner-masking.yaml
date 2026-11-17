@@ -1,0 +1,67 @@
+id: dp800-cs3b-learner-masking
+objective: "2.1.2"
+type: dropdown
+caseStudy: dp800-cs3b-proseware
+difficulty: 2
+status: draft
+stem:
+  en: |
+    You need to protect the contact details in dbo.Learners. The solution must meet the data protection requirements.
+
+    How should you complete the Transact-SQL statements? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez protéger les coordonnées de dbo.Learners. La solution doit satisfaire les exigences de protection des données.
+
+    Comment devez-vous compléter les instructions Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    ALTER TABLE dbo.Learners ALTER COLUMN Email
+        ADD MASKED WITH (FUNCTION = [[email]]);
+
+    ALTER TABLE dbo.Learners ALTER COLUMN Phone
+        ADD MASKED WITH (FUNCTION = [[phone]]);
+
+    GRANT [[unmask]] TO CourseAuditors;
+  slots:
+    - id: email
+      options:
+        - { id: default, text: "'default()'" }
+        - { id: email, text: "'email()'" }
+        - { id: partial, text: "'partial(0,\"XXX@XXXX.com\",0)'" }
+    - id: phone
+      options:
+        - { id: first4, text: "'partial(4,\"-XXX-XXX\",0)'" }
+        - { id: random, text: "'random(1000, 9999)'" }
+        - { id: last4, text: "'partial(0,\"XXX-XXX-\",4)'" }
+        - { id: default, text: "'default()'" }
+    - id: unmask
+      options:
+        - { id: table, text: "UNMASK ON dbo.Learners" }
+        - { id: column, text: "UNMASK ON dbo.Learners (Phone)" }
+        - { id: database, text: "UNMASK" }
+        - { id: select, text: "SELECT ON dbo.Learners (Phone)" }
+answer:
+  values: { email: email, phone: last4, unmask: column }
+explanation:
+  correct:
+    en: |
+      The email() function exposes the first letter of the address and replaces the rest with XXX@XXXX.com. partial(0,"XXX-XXX-",4) exposes no leading characters, adds the padding string and keeps the last four characters of the phone number. UNMASK can be granted on a single column, so CourseAuditors see the real phone numbers while Email stays masked for them. Dynamic data masking is supported in SQL database in Fabric and is configured there by using T-SQL.
+    fr: |
+      La fonction email() expose la première lettre de l'adresse et remplace le reste par XXX@XXXX.com. partial(0,"XXX-XXX-",4) n'expose aucun caractère de début, ajoute la chaîne de remplissage et conserve les quatre derniers caractères du numéro de téléphone. UNMASK peut être accordé sur une seule colonne : CourseAuditors voit donc les vrais numéros de téléphone, tandis qu'Email reste masqué pour ce rôle. Le masquage dynamique des données est pris en charge dans la base de données SQL dans Fabric, où il se configure en T-SQL.
+  options:
+    default: { en: "default() replaces the whole value (xxxx for strings); no first letter or last digits remain visible.", fr: "default() remplace toute la valeur (xxxx pour les chaînes) ; ni la première lettre ni les derniers chiffres ne restent visibles." }
+    partial: { en: "With a prefix of 0, the first letter of the address isn't exposed.", fr: "Avec un préfixe de 0, la première lettre de l'adresse n'est pas exposée." }
+    first4: { en: "This function exposes the first four characters, not the last four digits.", fr: "Cette fonction expose les quatre premiers caractères, pas les quatre derniers chiffres." }
+    random: { en: "random() applies to numeric columns; Phone is a varchar column, and no real digits would be shown.", fr: "random() s'applique aux colonnes numériques ; Phone est une colonne varchar, et aucun vrai chiffre ne serait affiché." }
+    table: { en: "UNMASK on the table also unmasks Email for CourseAuditors.", fr: "UNMASK sur la table démasque aussi Email pour CourseAuditors." }
+    database: { en: "UNMASK at the database level unmasks every masked column, including Email.", fr: "UNMASK au niveau de la base de données démasque toutes les colonnes masquées, y compris Email." }
+    select: { en: "SELECT lets the role read the column but returns masked values; only UNMASK removes the mask.", fr: "SELECT permet au rôle de lire la colonne mais renvoie des valeurs masquées ; seul UNMASK supprime le masque." }
+references:
+  - title: Dynamic data masking
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/database/dynamic-data-masking-overview

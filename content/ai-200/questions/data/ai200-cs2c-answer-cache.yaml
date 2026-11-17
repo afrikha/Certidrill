@@ -1,0 +1,82 @@
+id: ai200-cs2c-answer-cache
+objective: "2.3.1"
+type: dropdown
+caseStudy: ai200-cs2c-blue-yonder
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are writing the cache code of the portal by using redis-py. The variable `credential_provider` contains a Microsoft Entra credential provider for redis-byair.
+
+    You need to meet the answer cache requirement. How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous écrivez le code de cache du portail à l'aide de redis-py. La variable `credential_provider` contient un fournisseur d'informations d'identification Microsoft Entra pour redis-byair.
+
+    Vous devez satisfaire l'exigence relative au cache des réponses. Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    r = redis.Redis(host=os.environ["REDIS_HOST"], port=[[port]], ssl=True,
+                    decode_responses=True, credential_provider=credential_provider)
+
+    def get_answer(question_id):
+        key = f"answer:{question_id}"
+        cached = r.[[read]]
+        if cached is not None:
+            return cached
+        answer = generate_answer(question_id)
+        r.[[write]]
+        return answer
+  slots:
+    - id: port
+      options:
+        - { id: p6379, text: "6379" }
+        - { id: p6380, text: "6380" }
+        - { id: p10000, text: "10000" }
+    - id: read
+      options:
+        - { id: getex, text: "getex(key, ex=1800)" }
+        - { id: get, text: "get(key)" }
+        - { id: getdel, text: "getdel(key)" }
+    - id: write
+      options:
+        - { id: setex, text: "set(key, answer, ex=1800)" }
+        - { id: keepttl, text: "set(key, answer, keepttl=True)" }
+        - { id: setnx, text: "set(key, answer, nx=True)" }
+answer:
+  values: { port: p10000, read: getex, write: setex }
+explanation:
+  correct:
+    en: |
+      Azure Managed Redis listens for TLS connections on port 10000. `GETEX` with `ex=1800` returns the value and resets its time to live to 30 minutes on every read, which gives a sliding expiration. Writing with `ex=1800` sets a 30-minute time to live on a new answer, so an answer that is never read is also removed.
+    fr: |
+      Azure Managed Redis écoute les connexions TLS sur le port 10000. `GETEX` avec `ex=1800` renvoie la valeur et réinitialise sa durée de vie à 30 minutes à chaque lecture, ce qui donne une expiration glissante. L'écriture avec `ex=1800` définit une durée de vie de 30 minutes sur une nouvelle réponse : une réponse jamais lue est elle aussi supprimée.
+  options:
+    p6379:
+      en: 6379 is the default non-TLS port of open-source Redis, not the port of Azure Managed Redis.
+      fr: 6379 est le port non TLS par défaut de Redis open source, pas le port d'Azure Managed Redis.
+    p6380:
+      en: 6380 is the TLS port of Azure Cache for Redis, not of Azure Managed Redis.
+      fr: 6380 est le port TLS d'Azure Cache for Redis, pas celui d'Azure Managed Redis.
+    get:
+      en: GET does not change the time to live, so the entry expires 30 minutes after it was written even if it is read often.
+      fr: |
+        GET ne modifie pas la durée de vie : l'entrée expire 30 minutes après son écriture, même si elle est lue souvent.
+    getdel:
+      en: GETDEL deletes the entry on the first read, so the cache never serves the same answer twice.
+      fr: |
+        GETDEL supprime l'entrée à la première lecture : le cache ne sert jamais deux fois la même réponse.
+    keepttl:
+      en: KEEPTTL keeps the existing time to live; a new key has none, so the answer would never expire unless it is read.
+      fr: KEEPTTL conserve la durée de vie existante ; une nouvelle clé n'en a pas, donc la réponse n'expirerait jamais sans lecture.
+    setnx:
+      en: NX only prevents overwriting an existing key; it sets no time to live.
+      fr: NX empêche seulement de remplacer une clé existante ; il ne définit aucune durée de vie.
+references:
+  - title: "Quickstart: Create a Python app with Azure Managed Redis"
+    url: https://learn.microsoft.com/en-us/azure/redis/python-get-started

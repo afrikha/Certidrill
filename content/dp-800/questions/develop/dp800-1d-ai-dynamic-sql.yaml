@@ -1,0 +1,64 @@
+id: dp800-1d-ai-dynamic-sql
+objective: "1.4.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    GitHub Copilot generated the following stored procedure for an Azure SQL database.
+
+    ```sql
+    CREATE OR ALTER PROCEDURE Sales.usp_FindCustomer
+        @LastName nvarchar(50)
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        DECLARE @sql nvarchar(max) =
+            N'SELECT CustomerID, FirstName, LastName FROM Sales.Customer WHERE LastName = N'''
+            + @LastName + N''';';
+        EXEC (@sql);
+    END;
+    ```
+
+    During the review, you need to prevent SQL injection through @LastName. The procedure must keep using dynamic SQL.
+
+    What should you do?
+  fr: |
+    GitHub Copilot a généré la procédure stockée suivante pour une base de données Azure SQL.
+
+    ```sql
+    CREATE OR ALTER PROCEDURE Sales.usp_FindCustomer
+        @LastName nvarchar(50)
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        DECLARE @sql nvarchar(max) =
+            N'SELECT CustomerID, FirstName, LastName FROM Sales.Customer WHERE LastName = N'''
+            + @LastName + N''';';
+        EXEC (@sql);
+    END;
+    ```
+
+    Pendant la revue, vous devez empêcher l'injection SQL par @LastName. La procédure doit continuer à utiliser du SQL dynamique.
+
+    Que devez-vous faire ?
+body:
+  options:
+    - { id: a, text: { en: "Pass @LastName to sys.sp_executesql as a parameter instead of concatenating it.", fr: "Passer @LastName à sys.sp_executesql comme paramètre au lieu de le concaténer." } }
+    - { id: b, text: { en: "Replace EXEC (@sql) with EXEC sys.sp_executesql @sql and keep the concatenation.", fr: "Remplacer EXEC (@sql) par EXEC sys.sp_executesql @sql et conserver la concaténation." } }
+    - { id: c, text: { en: "Add WITH EXECUTE AS OWNER to the procedure so that it runs in a fixed context.", fr: "Ajouter WITH EXECUTE AS OWNER à la procédure pour qu'elle s'exécute dans un contexte fixe." } }
+    - { id: d, text: { en: "Change the data type of @LastName to varchar(50) to limit the accepted characters.", fr: "Changer le type de données de @LastName en varchar(50) pour limiter les caractères acceptés." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      Generated dynamic SQL that concatenates user input is open to injection. With sp_executesql, the statement contains a placeholder such as @name, and the value is passed as a typed parameter, so it is never parsed as Transact-SQL code.
+    fr: |
+      Un SQL dynamique généré qui concatène une entrée utilisateur est exposé à l'injection. Avec sp_executesql, l'instruction contient un espace réservé comme @name, et la valeur est passée comme paramètre typé : elle n'est jamais analysée comme du code Transact-SQL.
+  options:
+    b: { en: "sp_executesql only helps when the value is passed as a parameter; a concatenated string is still injectable.", fr: "sp_executesql n'aide que si la valeur est passée comme paramètre : une chaîne concaténée reste injectable." }
+    c: { en: "EXECUTE AS OWNER changes the security context and can even widen what injected code may do.", fr: "EXECUTE AS OWNER change le contexte de sécurité et peut même élargir ce que le code injecté peut faire." }
+    d: { en: "A quote is still accepted in varchar, so the injection remains possible.", fr: "Une apostrophe reste acceptée en varchar : l'injection reste possible." }
+references:
+  - title: Interpret security impact of using AI-assisted tools
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-sql-solutions-ai-assisted-tools/3-interpret-security-impact

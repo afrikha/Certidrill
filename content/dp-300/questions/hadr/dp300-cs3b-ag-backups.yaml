@@ -1,0 +1,70 @@
+id: dp300-cs3b-ag-backups
+objective: "5.2.2"
+type: dropdown
+caseStudy: dp300-cs3b-bellows-college
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You need to design the backups of SIS to meet the backup requirements.
+
+    How should you complete the design? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous devez concevoir les sauvegardes de SIS pour satisfaire les exigences de sauvegarde.
+
+    Comment devez-vous compléter la conception ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      Weekly full backup: [[full]]
+
+      Daily differential backup: [[diff]]
+
+      Automated backup preference of AG-SIS, used by the log backup job: [[pref]]
+    fr: |
+      Sauvegarde complète hebdomadaire : [[full]]
+
+      Sauvegarde différentielle quotidienne : [[diff]]
+
+      Préférence de sauvegarde automatisée d'AG-SIS, utilisée par le travail de sauvegarde du journal : [[pref]]
+  slots:
+    - id: full
+      options:
+        - { id: cosec, text: { en: "BACKUP DATABASE ... WITH COPY_ONLY on SIS-VM2", fr: "BACKUP DATABASE ... WITH COPY_ONLY sur SIS-VM2" } }
+        - { id: prim, text: { en: "BACKUP DATABASE on SIS-VM1", fr: "BACKUP DATABASE sur SIS-VM1" } }
+        - { id: coprim, text: { en: "BACKUP DATABASE ... WITH COPY_ONLY on SIS-VM1", fr: "BACKUP DATABASE ... WITH COPY_ONLY sur SIS-VM1" } }
+    - id: diff
+      options:
+        - { id: d1, text: { en: "On SIS-VM1", fr: "Sur SIS-VM1" } }
+        - { id: d2, text: { en: "On SIS-VM2", fr: "Sur SIS-VM2" } }
+        - { id: dpref, text: { en: "On the replica for which sys.fn_hadr_backup_is_preferred_replica returns 1", fr: "Sur le réplica pour lequel sys.fn_hadr_backup_is_preferred_replica renvoie 1" } }
+    - id: pref
+      options:
+        - { id: primary, text: PRIMARY }
+        - { id: seconly, text: SECONDARY_ONLY }
+        - { id: secondary, text: SECONDARY }
+        - { id: none, text: NONE }
+answer:
+  values: { full: prim, diff: d1, pref: secondary }
+explanation:
+  correct:
+    en: |
+      In SQL Server 2022, a secondary replica supports only copy-only full backups and regular log backups; differential backups are not supported there. A copy-only backup does not clear the differential bitmap, so it cannot be the base of a differential backup: the weekly full backup and the daily differential backup must run on SIS-VM1. The log backups can be offloaded: with the SECONDARY preference, they run on a secondary replica when one is available and on the primary replica otherwise, so they continue if SIS-VM2 is unavailable.
+    fr: |
+      Dans SQL Server 2022, un réplica secondaire ne prend en charge que les sauvegardes complètes en copie seule et les sauvegardes régulières du journal ; les sauvegardes différentielles n'y sont pas prises en charge. Une sauvegarde en copie seule ne réinitialise pas la bitmap différentielle : elle ne peut donc pas servir de base à une sauvegarde différentielle, et la sauvegarde complète hebdomadaire comme la sauvegarde différentielle quotidienne doivent s'exécuter sur SIS-VM1. Les sauvegardes du journal peuvent être déchargées : avec la préférence SECONDARY, elles s'exécutent sur un réplica secondaire quand il est disponible et sur le réplica principal sinon ; elles continuent donc si SIS-VM2 est indisponible.
+  options:
+    cosec: { en: "A copy-only full backup cannot be the base of the daily differential backups.", fr: "Une sauvegarde complète en copie seule ne peut pas servir de base aux sauvegardes différentielles quotidiennes." }
+    coprim: { en: "A copy-only full backup cannot be the base of the daily differential backups, wherever it runs.", fr: "Une sauvegarde complète en copie seule ne peut pas servir de base aux sauvegardes différentielles quotidiennes, où qu'elle s'exécute." }
+    d2: { en: "SQL Server 2022 does not support differential backups on a secondary replica.", fr: "SQL Server 2022 ne prend pas en charge les sauvegardes différentielles sur un réplica secondaire." }
+    dpref: { en: "With an offloading preference, the preferred replica is SIS-VM2, where differential backups are not supported.", fr: "Avec une préférence de déchargement, le réplica préféré est SIS-VM2, où les sauvegardes différentielles ne sont pas prises en charge." }
+    primary: { en: "PRIMARY runs the log backups on SIS-VM1 and offloads nothing.", fr: "PRIMARY exécute les sauvegardes du journal sur SIS-VM1 et ne décharge rien." }
+    seconly: { en: "SECONDARY_ONLY never uses the primary replica, so the log backups stop when SIS-VM2 is unavailable.", fr: "SECONDARY_ONLY n'utilise jamais le réplica principal : les sauvegardes du journal s'arrêtent quand SIS-VM2 est indisponible." }
+    none: { en: "NONE ignores the role of the replicas and does not prefer a secondary replica, so the work is not deliberately offloaded.", fr: "NONE ignore le rôle des réplicas et ne privilégie pas un réplica secondaire : le travail n'est pas volontairement déchargé." }
+references:
+  - title: Offload supported backups to secondary replicas of an availability group
+    url: https://learn.microsoft.com/en-us/sql/database-engine/availability-groups/windows/active-secondaries-backup-on-secondary-replicas-always-on-availability-groups

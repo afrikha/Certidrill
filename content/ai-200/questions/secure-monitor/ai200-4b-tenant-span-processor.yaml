@@ -1,0 +1,94 @@
+id: ai200-4b-tenant-span-processor
+objective: "4.2.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind Traders runs a multitenant Python RAG API instrumented with the Azure Monitor OpenTelemetry Distro. The function `current_tenant()` returns the tenant ID of the request being processed.
+
+    You need every span of the API, including the spans created by the bundled instrumentations, to carry a `tenant.id` custom property so that you can filter requests and dependencies by tenant in KQL.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders exécute une API RAG Python multilocataire instrumentée avec la distribution OpenTelemetry Azure Monitor. La fonction `current_tenant()` renvoie l'ID du locataire de la requête en cours de traitement.
+
+    Chaque étendue de l'API, y compris celles créées par les instrumentations intégrées, doit porter une propriété personnalisée `tenant.id` pour que vous puissiez filtrer les requêtes et les dépendances par locataire en KQL.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from azure.monitor.opentelemetry import configure_azure_monitor
+    from opentelemetry.sdk.trace import SpanProcessor
+
+    class TenantProcessor(SpanProcessor):
+        def [[hook]](self, span, parent_context=None):
+            span.[[call]]("tenant.id", current_tenant())
+
+    configure_azure_monitor([[param]]=[TenantProcessor()])
+  slots:
+    - id: hook
+      options:
+        - { id: start, text: on_start }
+        - { id: end, text: on_end }
+        - { id: shutdown, text: shutdown }
+    - id: call
+      options:
+        - { id: setattr, text: set_attribute }
+        - { id: addevent, text: add_event }
+        - { id: rename, text: update_name }
+    - id: param
+      options:
+        - { id: span, text: span_processors }
+        - { id: log, text: log_record_processors }
+        - { id: readers, text: metric_readers }
+answer:
+  values: { hook: start, call: setattr, param: span }
+explanation:
+  correct:
+    en: |-
+      A span processor sees every span before export, whatever created it. In `on_start`, the span is still writable, so `set_attribute` adds the custom property, which lands in `Properties` (customDimensions). The processor is registered through the `span_processors` argument of the distro.
+    fr: |-
+      Un processeur d'étendues voit chaque étendue avant l'export, quelle que soit son origine. Dans `on_start`, l'étendue est encore modifiable : `set_attribute` ajoute la propriété personnalisée, qui arrive dans `Properties` (customDimensions). Le processeur s'inscrit avec l'argument `span_processors` de la distribution.
+  options:
+    end:
+      en: |-
+        on_end receives a read-only span that has already ended, and its signature has no parent context.
+      fr: |-
+        on_end reçoit une étendue en lecture seule déjà terminée, et sa signature n'a pas de contexte parent.
+    shutdown:
+      en: |-
+        shutdown runs once when the tracer provider shuts down, not for each span.
+      fr: |-
+        shutdown s'exécute une seule fois à l'arrêt du fournisseur de traceurs, pas pour chaque étendue.
+    addevent:
+      en: |-
+        add_event adds a timestamped event to the span, not a custom property.
+      fr: |-
+        add_event ajoute un événement horodaté à l'étendue, pas une propriété personnalisée.
+    rename:
+      en: |-
+        update_name changes the span name and takes a single argument.
+      fr: |-
+        update_name modifie le nom de l'étendue et n'accepte qu'un argument.
+    log:
+      en: |-
+        log_record_processors process log records, not spans.
+      fr: |-
+        log_record_processors traitent les enregistrements de journaux, pas les étendues.
+    readers:
+      en: |-
+        metric_readers export metrics; they don't receive spans.
+      fr: |-
+        metric_readers exportent les métriques ; ils ne reçoivent pas d'étendues.
+references:
+  - title: Add and Modify OpenTelemetry in Application Insights
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-add-modify
+  - title: Azure Monitor Opentelemetry Distro client library for Python
+    url: https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-readme

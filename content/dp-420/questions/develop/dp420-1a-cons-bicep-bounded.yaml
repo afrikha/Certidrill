@@ -1,0 +1,76 @@
+id: dp420-1a-cons-bicep-bounded
+objective: "1.1.1"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Proseware deploys an Azure Cosmos DB for NoSQL account in a single region, France Central, by using Bicep. The account stores sensor calibration data.
+
+    Reads may lag behind writes, but the lag must never exceed the smallest bound that the service supports for this account. You need to configure the consistency policy of the account.
+
+    How should you complete the Bicep code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Proseware déploie un compte Azure Cosmos DB for NoSQL dans une seule région, France Central, au moyen de Bicep. Le compte stocke des données d'étalonnage de capteurs.
+
+    Les lectures peuvent être en retard sur les écritures, mais le retard ne doit jamais dépasser la plus petite limite que le service prend en charge pour ce compte. Vous devez configurer la stratégie de cohérence du compte.
+
+    Comment devez-vous compléter le code Bicep ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bicep
+  template: |
+    resource account 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
+      name: 'cosmos-proseware-cal'
+      location: 'francecentral'
+      properties: {
+        databaseAccountOfferType: 'Standard'
+        locations: [
+          { locationName: 'francecentral', failoverPriority: 0, isZoneRedundant: false }
+        ]
+        consistencyPolicy: {
+          defaultConsistencyLevel: [[lvl]]
+          maxStalenessPrefix: [[k]]
+          maxIntervalInSeconds: [[t]]
+        }
+      }
+    }
+  slots:
+    - id: lvl
+      options:
+        - { id: session, text: "'Session'" }
+        - { id: bounded, text: "'BoundedStaleness'" }
+        - { id: strong, text: "'Strong'" }
+        - { id: prefix, text: "'ConsistentPrefix'" }
+    - id: k
+      options:
+        - { id: k1, text: "1" }
+        - { id: k10, text: "10" }
+        - { id: k1000, text: "1000" }
+        - { id: k100000, text: "100000" }
+    - id: t
+      options:
+        - { id: t5, text: "5" }
+        - { id: t60, text: "60" }
+        - { id: t300, text: "300" }
+        - { id: t1, text: "1" }
+answer:
+  values: { lvl: bounded, k: k10, t: t5 }
+explanation:
+  correct:
+    en: Bounded staleness lets reads lag by at most K versions or T seconds, whichever is reached first. For a single-region account, the minimum values are 10 write operations and 5 seconds; the 100,000 writes and 300 seconds minimums apply to multi-region accounts.
+    fr: Bounded staleness permet aux lectures d'avoir au plus K versions ou T secondes de retard, selon la limite atteinte en premier. Pour un compte à une seule région, les valeurs minimales sont de 10 opérations d'écriture et 5 secondes ; les minimums de 100 000 écritures et 300 secondes s'appliquent aux comptes multirégions.
+  options:
+    strong: { en: "Strong never lets reads lag, which doesn't match a design where reads may lag within a bound.", fr: "Strong n'autorise jamais de retard des lectures, ce qui ne correspond pas à une conception où les lectures peuvent être en retard dans une limite." }
+    prefix: { en: "Consistent prefix preserves order but puts no bound on the lag.", fr: "Consistent prefix préserve l'ordre mais ne limite pas le retard." }
+    k1: { en: "1 is below the minimum of 10 write operations for a single-region account.", fr: "1 est inférieur au minimum de 10 opérations d'écriture pour un compte à une seule région." }
+    k100000: { en: "100,000 is the minimum for multi-region accounts; a single-region account supports a smaller bound.", fr: "100 000 est le minimum des comptes multirégions ; un compte à une seule région prend en charge une limite plus petite." }
+    t1: { en: "1 second is below the minimum of 5 seconds for a single-region account.", fr: "1 seconde est inférieure au minimum de 5 secondes pour un compte à une seule région." }
+    t300: { en: "300 seconds is the minimum for multi-region accounts, not the smallest bound here.", fr: "300 secondes est le minimum des comptes multirégions, pas la plus petite limite ici." }
+references:
+  - title: Consistency level choices - Azure Cosmos DB
+    url: https://learn.microsoft.com/en-us/azure/cosmos-db/consistency-levels

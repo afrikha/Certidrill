@@ -1,0 +1,73 @@
+id: ai200-2b-planner-params
+objective: "2.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind is tuning an Azure Database for PostgreSQL flexible server that hosts vector searches on SSD-based storage. Some small tables are searched without an index, and one analytical query sorts a large result set.
+
+    How should you complete the tuning plan? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind règle un serveur flexible Azure Database for PostgreSQL qui héberge des recherches vectorielles sur un stockage SSD. Certaines petites tables sont interrogées sans index, et une requête analytique trie un grand ensemble de résultats.
+
+    Comment devez-vous compléter le plan de réglage ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: text
+  template:
+    en: |
+      To make the planner favor index scans on the SSD storage, set [[p1]] to 1.1.
+
+      To let exact searches without an index use more background workers, increase [[p2]].
+
+      To give the analytical query more sort memory without affecting other connections, run [[p3]] inside its transaction.
+    fr: |
+      Pour que le planificateur privilégie les analyses d'index sur le stockage SSD, définissez [[p1]] sur 1.1.
+
+      Pour que les recherches exactes sans index utilisent plus de workers en arrière-plan, augmentez [[p2]].
+
+      Pour donner plus de mémoire de tri à la requête analytique sans affecter les autres connexions, exécutez [[p3]] dans sa transaction.
+  slots:
+    - id: p1
+      options:
+        - { id: rpc, text: random_page_cost }
+        - { id: spc, text: seq_page_cost }
+        - { id: eio, text: effective_io_concurrency }
+    - id: p2
+      options:
+        - { id: gather, text: max_parallel_workers_per_gather }
+        - { id: maint, text: max_parallel_maintenance_workers }
+        - { id: conns, text: max_connections }
+    - id: p3
+      options:
+        - { id: localwm, text: "SET LOCAL work_mem = '256MB'" }
+        - { id: localmwm, text: "SET LOCAL maintenance_work_mem = '256MB'" }
+        - { id: globalwm, text: "az postgres flexible-server parameter set --name work_mem --value 262144" }
+answer:
+  values: { p1: rpc, p2: gather, p3: localwm }
+explanation:
+  correct:
+    en: "Lowering `random_page_cost` from its default of 4.0 to 1.1-1.5 reflects the low cost of random reads on SSD, so the planner prefers index scans. `max_parallel_workers_per_gather` sets how many workers each Gather node can launch, which can speed up exact searches without indexes. `work_mem` applies per operation and per connection, so Learn advises raising it for specific queries rather than globally; `SET LOCAL` limits the change to the transaction."
+    fr: "Abaisser `random_page_cost` de sa valeur par défaut de 4.0 à 1.1-1.5 reflète le faible coût des lectures aléatoires sur SSD : le planificateur privilégie alors les analyses d'index. `max_parallel_workers_per_gather` définit le nombre de workers que chaque nœud Gather peut lancer, ce qui peut accélérer les recherches exactes sans index. `work_mem` s'applique par opération et par connexion : Learn conseille de l'augmenter pour des requêtes précises plutôt que globalement, et `SET LOCAL` limite la modification à la transaction."
+  options:
+    spc:
+      en: "seq_page_cost is the cost of sequential reads; lowering it to 1.1 does not make index scans more attractive."
+      fr: "seq_page_cost est le coût des lectures séquentielles ; l'abaisser à 1.1 ne rend pas les analyses d'index plus attractives."
+    maint:
+      en: "max_parallel_maintenance_workers applies to maintenance operations such as index builds, not to queries."
+      fr: "max_parallel_maintenance_workers s'applique aux opérations de maintenance comme les constructions d'index, pas aux requêtes."
+    localmwm:
+      en: "maintenance_work_mem is used by maintenance operations such as index builds, not by query sorts."
+      fr: "maintenance_work_mem est utilisé par les opérations de maintenance comme les constructions d'index, pas par les tris de requête."
+    globalwm:
+      en: "A server-wide work_mem increase applies to every operation of every connection and can exhaust memory."
+      fr: "Une augmentation de work_mem à l'échelle du serveur s'applique à chaque opération de chaque connexion et peut épuiser la mémoire."
+references:
+  - title: Tune PostgreSQL for pgvector
+    url: https://learn.microsoft.com/en-us/training/modules/optimize-vector-search-azure-database-postgresql/2-tune-postgresql-pgvector
+  - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
+    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector

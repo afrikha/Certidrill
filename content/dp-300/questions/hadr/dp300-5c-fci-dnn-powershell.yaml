@@ -1,0 +1,68 @@
+id: dp300-5c-fci-dnn-powershell
+objective: "5.3.4"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a SQL Server 2019 CU16 failover cluster instance (FCI) on two Azure virtual machines that run Windows Server 2022 in a single subnet. Clients currently connect to the FCI through a virtual network name (VNN) and an Azure Load Balancer. The clustered role of the instance is named **SQL Server (MSSQLSERVER)**.
+
+    You need to configure a distributed network name (DNN) named **sqlfci-dnn** so that you can remove the load balancer, and update the connection string of the applications.
+
+    How should you complete the PowerShell commands and the connection string? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'une instance de cluster de basculement (FCI) SQL Server 2019 CU16 sur deux machines virtuelles Azure qui exécutent Windows Server 2022 dans un seul sous-réseau. Les clients se connectent actuellement à la FCI par un nom de réseau virtuel (VNN) et un équilibreur de charge Azure. Le rôle en cluster de l'instance est nommé **SQL Server (MSSQLSERVER)**.
+
+    Vous devez configurer un nom de réseau distribué (DNN) nommé **sqlfci-dnn** afin de pouvoir supprimer l'équilibreur de charge, puis mettre à jour la chaîne de connexion des applications.
+
+    Comment devez-vous compléter les commandes PowerShell et la chaîne de connexion ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    Add-ClusterResource -Name dnn-sqlfci -ResourceType "[[rtype]]" -Group "SQL Server (MSSQLSERVER)"
+    Get-ClusterResource -Name dnn-sqlfci | Set-ClusterParameter -Name [[param]] -Value sqlfci-dnn
+    Start-ClusterResource -Name dnn-sqlfci
+
+    # Application connection string
+    # Server=sqlfci-dnn;Database=SalesDb;Integrated Security=True;[[conn]]
+  slots:
+    - id: rtype
+      options:
+        - { id: dnn, text: Distributed Network Name }
+        - { id: nn, text: Network Name }
+        - { id: ip, text: IP Address }
+        - { id: dtc, text: Distributed Transaction Coordinator }
+    - id: param
+      options:
+        - { id: dnsname, text: DnsName }
+        - { id: probeport, text: ProbePort }
+        - { id: address, text: Address }
+        - { id: ttl, text: HostRecordTTL }
+    - id: conn
+      options:
+        - { id: msf, text: MultiSubnetFailover=True }
+        - { id: intent, text: ApplicationIntent=ReadOnly }
+        - { id: partner, text: Failover Partner=SQLVM2 }
+answer:
+  values: { rtype: dnn, param: dnsname, conn: msf }
+explanation:
+  correct:
+    en: "The DNN is a cluster resource of type `Distributed Network Name` created in the role of the instance, and its `DnsName` parameter sets the name that clients use. A DNN removes the need for an Azure Load Balancer, but clients must support `MultiSubnetFailover=True` in the connection string so that they try the IP addresses of the nodes in parallel."
+    fr: "Le DNN est une ressource de cluster de type `Distributed Network Name` créée dans le rôle de l'instance, et son paramètre `DnsName` définit le nom utilisé par les clients. Un DNN évite de recourir à un équilibreur de charge Azure, mais les clients doivent prendre en charge `MultiSubnetFailover=True` dans la chaîne de connexion afin d'essayer en parallèle les adresses IP des nœuds."
+  options:
+    nn: { en: "Network Name is the resource type of the existing VNN, which relies on the load balancer in Azure.", fr: "Network Name est le type de ressource du VNN existant, qui dépend de l'équilibreur de charge dans Azure." }
+    ip: { en: "An IP Address resource holds the virtual IP used with a VNN and a load balancer.", fr: "Une ressource IP Address contient l'adresse IP virtuelle utilisée avec un VNN et un équilibreur de charge." }
+    dtc: { en: "Distributed Transaction Coordinator is the clustered MSDTC resource, unrelated to client connectivity.", fr: "Distributed Transaction Coordinator est la ressource MSDTC en cluster, sans rapport avec la connectivité des clients." }
+    probeport: { en: "ProbePort is set on the IP address resource for the load balancer health probe of a VNN.", fr: "ProbePort se définit sur la ressource d'adresse IP pour la sonde d'intégrité de l'équilibreur de charge d'un VNN." }
+    address: { en: "Address is a parameter of an IP Address resource, not of a DNN.", fr: "Address est un paramètre d'une ressource IP Address, pas d'un DNN." }
+    ttl: { en: "HostRecordTTL controls the DNS TTL of a network name; it doesn't set the DNN name.", fr: "HostRecordTTL contrôle la durée de vie DNS d'un nom réseau ; il ne définit pas le nom du DNN." }
+    intent: { en: "ApplicationIntent=ReadOnly is for read-only routing in availability groups; an FCI has no readable secondary.", fr: "ApplicationIntent=ReadOnly sert au routage en lecture seule des groupes de disponibilité ; une FCI n'a pas de secondaire lisible." }
+    partner: { en: "Failover Partner is used with database mirroring, not with an FCI.", fr: "Failover Partner s'utilise avec la mise en miroir de bases de données, pas avec une FCI." }
+references:
+  - title: Configure DNN for Failover Cluster Instance - SQL Server on Azure VMs
+    url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/failover-cluster-instance-distributed-network-name-dnn-configure

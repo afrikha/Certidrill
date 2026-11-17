@@ -1,0 +1,74 @@
+id: dp800-2c-sec-oidc-subject
+objective: "2.3.6"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Contoso deploys a SQL database project from the GitHub repository **contoso/sales-db**. The deploy job references the GitHub environment **production** and signs in with `azure/login@v2` by using the client, tenant and subscription IDs of a Microsoft Entra application named **app-sales-deploy**. No client secret exists for the application.
+
+    You need to configure the federated identity credential of app-sales-deploy and the workflow so that:
+
+    - Only jobs that use the production environment can obtain a token for app-sales-deploy.
+    - The deploy job can request the OpenID Connect token from GitHub.
+
+    How should you complete the configuration? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Contoso déploie un projet de base de données SQL à partir du dépôt GitHub **contoso/sales-db**. Le travail de déploiement référence l'environnement GitHub **production** et se connecte avec `azure/login@v2` en utilisant les ID client, de locataire et d'abonnement d'une application Microsoft Entra nommée **app-sales-deploy**. Aucun secret client n'existe pour l'application.
+
+    Vous devez configurer les informations d'identification fédérées d'app-sales-deploy et le workflow pour que :
+
+    - Seuls les travaux qui utilisent l'environnement production puissent obtenir un jeton pour app-sales-deploy.
+    - Le travail de déploiement puisse demander le jeton OpenID Connect à GitHub.
+
+    Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: text
+  template: |
+    # Federated identity credential of app-sales-deploy
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:contoso/sales-db:[[subject]]",
+    "audiences": [ "api://AzureADTokenExchange" ]
+
+    # .github/workflows/deploy.yml
+    permissions:
+      [[perm]]
+      contents: read
+  slots:
+    - id: subject
+      options:
+        - { id: env, text: "environment:production" }
+        - { id: main, text: "ref:refs/heads/main" }
+        - { id: wildcard, text: "environment:*" }
+        - { id: pr, text: "pull-request" }
+    - id: perm
+      options:
+        - { id: write, text: "id-token: write" }
+        - { id: read, text: "id-token: read" }
+        - { id: deployments, text: "deployments: write" }
+        - { id: actions, text: "actions: write" }
+answer:
+  values: { subject: env, perm: write }
+explanation:
+  correct:
+    en: |
+      For a job that references an environment, the token subject is `repo:ORG/REPO:environment:NAME`, and Microsoft Entra issues a token only when the subject matches exactly, so only production jobs can sign in as the application. The job needs the `id-token: write` permission to fetch the OpenID Connect token from GitHub.
+    fr: |
+      Pour un travail qui référence un environnement, le sujet du jeton est `repo:ORG/DÉPÔT:environment:NOM`, et Microsoft Entra n'émet un jeton que si le sujet correspond exactement : seuls les travaux production peuvent se connecter avec l'application. Le travail a besoin de l'autorisation `id-token: write` pour récupérer le jeton OpenID Connect auprès de GitHub.
+  options:
+    main: { en: "A job that references an environment presents an environment subject, so a branch subject would not match it.", fr: "Un travail qui référence un environnement présente un sujet d'environnement : un sujet de branche ne lui correspondrait pas." }
+    wildcard: { en: "Federated identity credentials do not support wildcards in any property.", fr: "Les informations d'identification fédérées ne prennent en charge les caractères génériques dans aucune propriété." }
+    pr: { en: "This subject trusts pull request workflows, not the production environment.", fr: "Ce sujet approuve les workflows de pull request, pas l'environnement production." }
+    read: { en: "Fetching the OIDC token requires write permission on id-token.", fr: "La récupération du jeton OIDC nécessite l'autorisation d'écriture sur id-token." }
+    deployments: { en: "`deployments: write` manages deployment objects; it does not allow the job to request an OIDC token.", fr: "`deployments: write` gère les objets de déploiement ; il ne permet pas au travail de demander un jeton OIDC." }
+    actions: { en: "`actions: write` manages workflow runs; it does not allow the job to request an OIDC token.", fr: "`actions: write` gère les exécutions de workflow ; il ne permet pas au travail de demander un jeton OIDC." }
+references:
+  - title: Create a trust relationship between an app and an external identity provider
+    url: https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust
+  - title: Authenticate to Azure from GitHub Actions by OpenID Connect
+    url: https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect

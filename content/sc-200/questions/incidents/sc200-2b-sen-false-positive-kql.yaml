@@ -1,0 +1,70 @@
+id: sc200-2b-sen-false-positive-kql
+objective: "2.1.7"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Litware uses Microsoft Sentinel. Analysts close incidents with a classification. You want to find the incident titles that analysts closed most often as false positives during the last 30 days, so that you can tune the related rules.
+
+    The `SecurityIncident` table stores a new row every time an incident is updated.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Litware utilise Microsoft Sentinel. Les analystes ferment les incidents avec une classification. Vous voulez trouver les titres d'incidents que les analystes ont le plus souvent fermés comme faux positifs au cours des 30 derniers jours, afin d'ajuster les règles concernées.
+
+    La table `SecurityIncident` stocke une nouvelle ligne chaque fois qu'un incident est mis à jour.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: kusto
+  template: |
+    SecurityIncident
+    | where TimeGenerated > ago(30d)
+    | summarize [[agg]](TimeGenerated, *) by [[key]]
+    | where Status == "Closed" and Classification == [[class]]
+    | summarize FalsePositives = count() by Title
+    | top 5 by FalsePositives
+  slots:
+    - id: agg
+      options:
+        - { id: argmax, text: arg_max }
+        - { id: argmin, text: arg_min }
+        - { id: any, text: take_any }
+        - { id: max, text: max }
+    - id: key
+      options:
+        - { id: number, text: IncidentNumber }
+        - { id: title, text: Title }
+        - { id: severity, text: Severity }
+        - { id: modified, text: ModifiedBy }
+    - id: class
+      options:
+        - { id: fp, text: "\"FalsePositive\"" }
+        - { id: bp, text: "\"BenignPositive\"" }
+        - { id: tp, text: "\"TruePositive\"" }
+        - { id: und, text: "\"Undetermined\"" }
+answer:
+  values: { agg: argmax, key: number, class: fp }
+explanation:
+  correct:
+    en: |
+      Because every update adds a row, `arg_max(TimeGenerated, *) by IncidentNumber` keeps only the latest state of each incident before filtering, so each incident is counted once. The closed incidents are then filtered on the `FalsePositive` classification and counted by title.
+    fr: |
+      Comme chaque mise à jour ajoute une ligne, `arg_max(TimeGenerated, *) by IncidentNumber` ne conserve que le dernier état de chaque incident avant le filtrage : chaque incident est compté une seule fois. Les incidents fermés sont ensuite filtrés sur la classification `FalsePositive` et comptés par titre.
+  options:
+    argmin: { en: "arg_min keeps the first state of each incident, before it was closed.", fr: "arg_min conserve le premier état de chaque incident, avant sa fermeture." }
+    any: { en: "take_any keeps an arbitrary row, not necessarily the latest state.", fr: "take_any conserve une ligne arbitraire, pas forcément le dernier état." }
+    max: { en: "max(TimeGenerated, *) isn't valid: max returns one value and doesn't keep the other columns of the row.", fr: "max(TimeGenerated, *) n'est pas valide : max renvoie une valeur et ne conserve pas les autres colonnes de la ligne." }
+    title: { en: "Several incidents share the same title, so grouping by title would merge different incidents before the classification filter.", fr: "Plusieurs incidents partagent le même titre : regrouper par titre fusionnerait différents incidents avant le filtre de classification." }
+    severity: { en: "Grouping by severity keeps one row per severity, not one per incident.", fr: "Regrouper par gravité conserve une ligne par gravité, pas une par incident." }
+    modified: { en: "ModifiedBy identifies the source of a change, not an incident.", fr: "ModifiedBy identifie la source d'une modification, pas un incident." }
+    bp: { en: "BenignPositive is suspicious but expected activity, not a false positive.", fr: "BenignPositive désigne une activité suspecte mais attendue, pas un faux positif." }
+references:
+  - title: Azure Monitor Logs reference - SecurityIncident
+    url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/securityincident

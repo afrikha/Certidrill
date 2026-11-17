@@ -1,0 +1,64 @@
+id: az700-2b-er-globalreach-ps
+objective: "2.3.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Northwind has two ExpressRoute circuits in the same subscription and resource group, **CKT-AMS** and **CKT-LON**, at two different peering locations. Each circuit has only Azure private peering configured. The on-premises networks use 10.20.0.0/16 and 10.30.0.0/16, and the virtual networks use 10.100.0.0/14.
+
+    You need to enable ExpressRoute Global Reach between the two circuits by using Azure PowerShell.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind dispose de deux circuits ExpressRoute dans le même abonnement et le même groupe de ressources, **CKT-AMS** et **CKT-LON**, dans deux emplacements de peering différents. Seul le peering privé Azure est configuré sur chaque circuit. Les réseaux locaux utilisent 10.20.0.0/16 et 10.30.0.0/16, et les réseaux virtuels 10.100.0.0/14.
+
+    Vous devez activer ExpressRoute Global Reach entre les deux circuits avec Azure PowerShell.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $ckt1 = Get-AzExpressRouteCircuit -Name "CKT-AMS" -ResourceGroupName "RG-Net"
+    $ckt2 = Get-AzExpressRouteCircuit -Name "CKT-LON" -ResourceGroupName "RG-Net"
+    [[cmd]] -Name "AMS-LON" -ExpressRouteCircuit $ckt1 `
+      -PeerExpressRouteCircuitPeering $ckt2.Peerings[0].Id -AddressPrefix [[prefix]]
+    [[save]] -ExpressRouteCircuit $ckt1
+  slots:
+    - id: cmd
+      options:
+        - { id: connconfig, text: Add-AzExpressRouteCircuitConnectionConfig }
+        - { id: peeringconfig, text: Add-AzExpressRouteCircuitPeeringConfig }
+        - { id: authorization, text: Add-AzExpressRouteCircuitAuthorization }
+        - { id: gwconnection, text: New-AzVirtualNetworkGatewayConnection }
+    - id: prefix
+      options:
+        - { id: p29, text: "\"192.168.255.0/29\"" }
+        - { id: p30, text: "\"192.168.255.0/30\"" }
+        - { id: p27, text: "\"192.168.255.0/27\"" }
+        - { id: overlap, text: "\"10.20.255.0/29\"" }
+    - id: save
+      options:
+        - { id: setcircuit, text: Set-AzExpressRouteCircuit }
+        - { id: setconn, text: Set-AzExpressRouteCircuitConnectionConfig }
+        - { id: setgwconn, text: Set-AzVirtualNetworkGatewayConnection }
+answer:
+  values: { cmd: connconfig, prefix: p29, save: setcircuit }
+explanation:
+  correct:
+    en: "`Add-AzExpressRouteCircuitConnectionConfig` creates the Global Reach connection on the first circuit, pointing at the private peering of the second circuit. It needs a /29 IPv4 subnet that isn't used in the virtual networks or on-premises. The change is applied only when `Set-AzExpressRouteCircuit` saves the circuit object."
+    fr: "`Add-AzExpressRouteCircuitConnectionConfig` crée la connexion Global Reach sur le premier circuit, en pointant vers le peering privé du second circuit. Elle exige un sous-réseau IPv4 /29 qui n'est utilisé ni dans les réseaux virtuels ni en local. La modification n'est appliquée que lorsque `Set-AzExpressRouteCircuit` enregistre l'objet circuit."
+  options:
+    peeringconfig: { en: "Add-AzExpressRouteCircuitPeeringConfig creates a private or Microsoft peering, not a link between two circuits.", fr: "Add-AzExpressRouteCircuitPeeringConfig crée un peering privé ou Microsoft, pas une liaison entre deux circuits." }
+    authorization: { en: "An authorization is needed only when the circuits are in different subscriptions, and it doesn't create the link.", fr: "Une autorisation n'est nécessaire que si les circuits sont dans des abonnements différents, et elle ne crée pas la liaison." }
+    p30: { en: "Global Reach requires a /29 subnet for IPv4.", fr: "Global Reach exige un sous-réseau /29 en IPv4." }
+    overlap: { en: "10.20.255.0/29 is inside the on-premises range 10.20.0.0/16; the subnet must not be used elsewhere.", fr: "10.20.255.0/29 fait partie de la plage locale 10.20.0.0/16 ; le sous-réseau ne doit pas être utilisé ailleurs." }
+    setconn: { en: "Set-AzExpressRouteCircuitConnectionConfig modifies an existing Global Reach configuration in memory; Set-AzExpressRouteCircuit still has to save it.", fr: "Set-AzExpressRouteCircuitConnectionConfig modifie en mémoire une configuration Global Reach existante ; Set-AzExpressRouteCircuit doit toujours l'enregistrer." }
+references:
+  - title: "Azure ExpressRoute: Configure Global Reach"
+    url: https://learn.microsoft.com/en-us/azure/expressroute/expressroute-howto-set-global-reach

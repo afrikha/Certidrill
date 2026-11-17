@@ -1,0 +1,40 @@
+id: dp700-2a-scd2-history-lookup
+objective: "2.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a warehouse named **DW1** that contains a dimension table named **dbo.DimCustomer** (alias `c`). dbo.DimCustomer is an SCD type 2 dimension with the columns CustomerKey, CustomerID (business key), Segment, ValidFrom, ValidTo and IsCurrent. When a version expires, its ValidTo is set to the ValidFrom date of the next version. ValidTo is NULL for the current version.
+
+    You need to load three years of historical orders from a staging table named **stg.Orders** (alias `o`) into a fact table. Each order must be linked to the version of its customer that was valid on the OrderDate of the order.
+
+    Which join condition should you use to look up CustomerKey?
+  fr: |
+    Vous disposez d'un entrepôt nommé **DW1** qui contient une table de dimension nommée **dbo.DimCustomer** (alias `c`). dbo.DimCustomer est une dimension SCD de type 2 avec les colonnes CustomerKey, CustomerID (clé métier), Segment, ValidFrom, ValidTo et IsCurrent. Quand une version expire, sa valeur ValidTo prend la date ValidFrom de la version suivante. ValidTo est NULL pour la version courante.
+
+    Vous devez charger trois ans de commandes historiques à partir d'une table de mise en lots nommée **stg.Orders** (alias `o`) dans une table de faits. Chaque commande doit être liée à la version de son client valide à la date OrderDate de la commande.
+
+    Quelle condition de jointure devez-vous utiliser pour rechercher CustomerKey ?
+body:
+  options:
+    - { id: a, text: "`c.CustomerID = o.CustomerID AND c.IsCurrent = 1 AND c.ValidTo IS NULL`" }
+    - { id: b, text: "`c.CustomerID = o.CustomerID AND o.OrderDate > c.ValidFrom AND o.OrderDate <= ISNULL(c.ValidTo, '9999-12-31')`" }
+    - { id: c, text: "`c.CustomerID = o.CustomerID AND o.OrderDate >= c.ValidFrom AND (o.OrderDate < c.ValidTo OR c.ValidTo IS NULL)`" }
+    - { id: d, text: "`c.CustomerID = o.CustomerID AND o.OrderDate >= c.ValidFrom`" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      For history, each fact must reference the version whose validity period contains the transaction date. Because a version ends on the date the next one starts, the period is ValidFrom included and ValidTo excluded, with a NULL ValidTo for the open current version. This condition returns exactly one version per order.
+    fr: |
+      Pour l'historique, chaque fait doit référencer la version dont la période de validité contient la date de la transaction. Comme une version se termine à la date où la suivante commence, la période inclut ValidFrom et exclut ValidTo, avec un ValidTo NULL pour la version courante ouverte. Cette condition renvoie exactement une version par commande.
+  options:
+    a: { en: "The current version is right for new facts, but historical orders must use the version valid on their date.", fr: "La version courante convient aux nouveaux faits, mais les commandes historiques doivent utiliser la version valide à leur date." }
+    b: { en: "An order placed on the day of a change matches the expired version instead of the new one, and an order on the first ValidFrom date matches no version.", fr: "Une commande passée le jour d'un changement correspond à la version expirée au lieu de la nouvelle, et une commande à la première date ValidFrom ne correspond à aucune version." }
+    d: { en: "Without an upper bound, an order matches every version that started before it, which duplicates the fact rows.", fr: "Sans borne supérieure, une commande correspond à toutes les versions commencées avant elle, ce qui duplique les lignes de faits." }
+references:
+  - title: "Dimensional modeling in Microsoft Fabric Warehouse: Load tables"
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables
+  - title: "Dimensional modeling in Microsoft Fabric Warehouse: Dimension tables"
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-dimension-tables

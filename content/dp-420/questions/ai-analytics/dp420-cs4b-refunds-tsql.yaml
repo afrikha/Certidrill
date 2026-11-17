@@ -1,0 +1,66 @@
+id: dp420-cs4b-refunds-tsql
+objective: "3.3.3"
+type: dropdown
+caseStudy: dp420-cs4b-relecloud-tickets
+difficulty: 2
+status: draft
+stem:
+  en: |
+    In the SQL analytics endpoint of the mirrored database, the orders-archive container appears as a table named `orders_archive`. Each entry of the `refunds` array contains `refundId`, `amount` and `reason`.
+
+    You need to write the query that meets the analytics requirement.
+
+    How should you complete the query? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Dans le point de terminaison d'analytique SQL de la base de données mise en miroir, le conteneur orders-archive apparaît sous la forme d'une table nommée `orders_archive`. Chaque entrée du tableau `refunds` contient `refundId`, `amount` et `reason`.
+
+    Vous devez écrire la requête qui satisfait l'exigence d'analytique.
+
+    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    SELECT o.id, o.customerId, r.refundId, r.amount, r.reason
+    FROM orders_archive AS o
+    [[apply]] [[fn]](o.refunds) WITH (
+        refundId varchar(50) [[path]],
+        amount decimal(10, 2) '$.amount',
+        reason varchar(200) '$.reason'
+    ) AS r
+  slots:
+    - id: apply
+      options:
+        - { id: cross, text: CROSS APPLY }
+        - { id: outer, text: OUTER APPLY }
+        - { id: union, text: UNION ALL }
+    - id: fn
+      options:
+        - { id: openjson, text: OPENJSON }
+        - { id: jsonvalue, text: JSON_VALUE }
+        - { id: openrowset, text: OPENROWSET }
+    - id: path
+      options:
+        - { id: slash, text: "'/refundId'" }
+        - { id: dollar, text: "'$.refundId'" }
+        - { id: bare, text: "'refunds.refundId'" }
+answer:
+  values: { apply: outer, fn: openjson, path: dollar }
+explanation:
+  correct:
+    en: "Mirroring exposes nested arrays as JSON strings. `OPENJSON` with a `WITH` clause expands the `refunds` array into one row per entry, each column being read with a JSON path such as `'$.refundId'`. `OUTER APPLY` keeps the orders that have no `refunds` array and returns NULL in the refund columns."
+    fr: "La mise en miroir expose les tableaux imbriqués sous forme de chaînes JSON. `OPENJSON` avec une clause `WITH` développe le tableau `refunds` en une ligne par entrée, chaque colonne étant lue avec un chemin JSON tel que `'$.refundId'`. `OUTER APPLY` conserve les commandes qui n'ont pas de tableau `refunds` et renvoie NULL dans les colonnes de remboursement."
+  options:
+    cross: { en: "CROSS APPLY returns only the orders that have at least one refund.", fr: "CROSS APPLY ne renvoie que les commandes qui ont au moins un remboursement." }
+    union: { en: "UNION ALL appends result sets; it does not expand an array for each order.", fr: "UNION ALL ajoute des jeux de résultats bout à bout ; il ne développe pas un tableau pour chaque commande." }
+    jsonvalue: { en: "JSON_VALUE returns one scalar value; it cannot return one row per array entry.", fr: "JSON_VALUE renvoie une seule valeur scalaire ; il ne peut pas renvoyer une ligne par entrée de tableau." }
+    openrowset: { en: "OPENROWSET reads external files; it does not parse a JSON column of the table.", fr: "OPENROWSET lit des fichiers externes ; il n'analyse pas une colonne JSON de la table." }
+    slash: { en: "Cosmos DB index paths use slashes, but OPENJSON expects a JSON path that starts with $.", fr: "Les chemins d'index de Cosmos DB utilisent des barres obliques, mais OPENJSON attend un chemin JSON qui commence par $." }
+    bare: { en: "The path is relative to each array entry and must start with $.", fr: "Le chemin est relatif à chaque entrée du tableau et doit commencer par $." }
+references:
+  - title: "How to: Query nested data in Microsoft Fabric mirrored databases from Azure Cosmos DB - Microsoft Fabric"
+    url: https://learn.microsoft.com/en-us/fabric/mirroring/azure-cosmos-db-how-to-query-nested

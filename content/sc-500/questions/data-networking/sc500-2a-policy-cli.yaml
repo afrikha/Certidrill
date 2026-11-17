@@ -1,0 +1,61 @@
+id: sc500-2a-policy-cli
+objective: "2.1.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a storage account named **stfabrikamdocs** that allows Shared Key authorization. The `AZURE_STORAGE_KEY` environment variable contains **key1** of the account.
+
+    A partner must be able to list and read the blobs in a container named **contracts** until December 31, 2026. You must be able to revoke the partner's access later without regenerating key1.
+
+    How should you complete the commands? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'un compte de stockage nommé **stfabrikamdocs** qui autorise l'autorisation par clé partagée. La variable d'environnement `AZURE_STORAGE_KEY` contient **key1** du compte.
+
+    Un partenaire doit pouvoir lister et lire les objets blob d'un conteneur nommé **contracts** jusqu'au 31 décembre 2026. Vous devez pouvoir révoquer plus tard l'accès du partenaire sans régénérer key1.
+
+    Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: bash
+  template: |
+    az storage container policy create --account-name stfabrikamdocs \
+      --container-name contracts --name partner-read \
+      --permissions [[perm]] --expiry 2026-12-31T00:00Z
+
+    az storage container generate-sas --account-name stfabrikamdocs \
+      --name contracts [[ref]] --https-only
+  slots:
+    - id: perm
+      options:
+        - { id: r, text: r }
+        - { id: rl, text: rl }
+        - { id: rwdl, text: rwdl }
+    - id: ref
+      options:
+        - { id: policy, text: "--policy-name partner-read" }
+        - { id: user, text: "--as-user --auth-mode login" }
+        - { id: adhoc, text: "--permissions rl --expiry 2026-12-31T00:00Z" }
+answer:
+  values: { perm: rl, ref: policy }
+explanation:
+  correct:
+    en: |
+      The stored access policy grants read (r) and list (l) until the expiry date. The service SAS references it with `--policy-name partner-read`, so it inherits those values, and deleting or editing the policy later revokes the SAS without regenerating key1.
+    fr: |
+      La stratégie d'accès stockée accorde la lecture (r) et la liste (l) jusqu'à la date d'expiration. La SAS de service la référence avec `--policy-name partner-read` et en hérite donc les valeurs ; supprimer ou modifier la stratégie plus tard révoque la SAS sans régénérer key1.
+  options:
+    r: { en: "Without the list permission, the partner can't enumerate the blobs of the container.", fr: "Sans l'autorisation de liste, le partenaire ne peut pas énumérer les objets blob du conteneur." }
+    rwdl: { en: "Write and delete exceed what the partner needs.", fr: "L'écriture et la suppression dépassent les besoins du partenaire." }
+    user: { en: "A user delegation SAS can't reference a stored access policy.", fr: "Une SAS de délégation d'utilisateur ne peut pas référencer de stratégie d'accès stockée." }
+    adhoc: { en: "An ad hoc service SAS without a policy can be revoked only by regenerating key1.", fr: "Une SAS de service ad hoc sans stratégie ne peut être révoquée qu'en régénérant key1." }
+references:
+  - title: Define a stored access policy
+    url: https://learn.microsoft.com/en-us/rest/api/storageservices/define-stored-access-policy
+  - title: Grant limited access to Azure Storage resources using shared access signatures (SAS)
+    url: https://learn.microsoft.com/en-us/azure/storage/common/storage-sas-overview

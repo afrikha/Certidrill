@@ -1,0 +1,91 @@
+id: dp700-cs3a-proseware
+status: draft
+title:
+  en: Proseware Renewables
+  fr: Proseware Renewables
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Proseware Renewables operates 1,200 wind turbines in 35 wind farms across Europe. A central operations team monitors the turbines around the clock from a control room in Hamburg.
+
+        Proseware is building a real-time monitoring platform in Microsoft Fabric to replace an on-premises historian.
+      fr: |
+        Proseware Renewables exploite 1 200 éoliennes réparties dans 35 parcs éoliens en Europe. Une équipe d'exploitation centrale surveille les éoliennes 24 heures sur 24 depuis une salle de contrôle à Hambourg.
+
+        Proseware construit une plateforme de supervision en temps réel dans Microsoft Fabric pour remplacer un historian local.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **Telemetry.** Each turbine sends a JSON event every 10 seconds to an event hub named **turbine-telemetry** in an Azure Event Hubs namespace named **eh-proseware**. Each event contains the fields TurbineId, Timestamp, PowerKw, VibrationMmS, RotorRpm and IsTest. IsTest is true for the turbines that are being commissioned.
+
+        **Fabric.** Proseware has a Fabric capacity (F64) and a workspace named **WS-Telemetry** that contains the following items.
+
+        | Item | Type | Details |
+        | --- | --- | --- |
+        | EH-Turbines | Eventhouse | Contains a KQL database named **TurbineDB** with an empty table named **Telemetry** |
+        | LH-Maintenance | Lakehouse | Delta table **maintenance_history** (about 300,000 rows), rewritten every night by a notebook |
+        | Ops-Live | Real-Time Dashboard | Queries TurbineDB; its tiles refresh every 30 seconds |
+
+        No eventstream exists yet.
+      fr: |
+        **Télémétrie.** Chaque éolienne envoie un événement JSON toutes les 10 secondes à un hub d'événements nommé **turbine-telemetry** dans un espace de noms Azure Event Hubs nommé **eh-proseware**. Chaque événement contient les champs TurbineId, Timestamp, PowerKw, VibrationMmS, RotorRpm et IsTest. IsTest vaut true pour les éoliennes en cours de mise en service.
+
+        **Fabric.** Proseware dispose d'une capacité Fabric (F64) et d'un espace de travail nommé **WS-Telemetry** qui contient les éléments suivants.
+
+        | Élément | Type | Détails |
+        | --- | --- | --- |
+        | EH-Turbines | Eventhouse | Contient une base de données KQL nommée **TurbineDB** avec une table vide nommée **Telemetry** |
+        | LH-Maintenance | Lakehouse | Table Delta **maintenance_history** (environ 300 000 lignes), réécrite chaque nuit par un notebook |
+        | Ops-Live | Tableau de bord en temps réel | Interroge TurbineDB ; ses vignettes s'actualisent toutes les 30 secondes |
+
+        Aucun flux d'événements n'existe encore.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Ingestion and transformation**
+
+        1. The telemetry must be stored in the Telemetry table. Events whose IsTest field is true must never be stored in TurbineDB. Development effort must be minimized.
+        2. Ops-Live must show, for each turbine, the average power for each consecutive, non-overlapping 5-minute interval of the last 24 hours.
+        3. Analysts must join Telemetry with maintenance_history in KQL queries. maintenance_history must remain in LH-Maintenance, and Proseware does not want to maintain an additional ingestion process or a second copy of the table. The Ops-Live tiles that run these joins must have the lowest possible query latency.
+
+        **Data management**
+
+        4. Telemetry must be kept for 365 days. Queries over the last 30 days must have the best possible performance; older data is queried rarely and must not use more cache storage than necessary.
+
+        **Monitoring**
+
+        5. When the vibration of a turbine exceeds 12 mm/s, the on-call engineer must receive a Microsoft Teams message within one minute. Each turbine must be evaluated separately. No custom code must be written.
+
+        **Security**
+
+        6. Access to WS-Telemetry must follow the principle of least privilege:
+           - The platform team manages the workspace and connects it to a Git repository.
+           - Data engineers create, modify and run eventstreams, notebooks and KQL querysets, but must not add people to the workspace.
+           - Shift supervisors create content and add analysts to the workspace.
+           - Analysts only read the KQL databases and the Real-Time Dashboards.
+      fr: |
+        **Ingestion et transformation**
+
+        1. La télémétrie doit être stockée dans la table Telemetry. Les événements dont le champ IsTest vaut true ne doivent jamais être stockés dans TurbineDB. L'effort de développement doit être réduit au minimum.
+        2. Ops-Live doit afficher, pour chaque éolienne, la puissance moyenne de chaque intervalle de 5 minutes consécutif et sans chevauchement des dernières 24 heures.
+        3. Les analystes doivent joindre Telemetry et maintenance_history dans des requêtes KQL. maintenance_history doit rester dans LH-Maintenance, et Proseware ne veut maintenir ni processus d'ingestion supplémentaire ni deuxième copie de la table. Les vignettes d'Ops-Live qui exécutent ces jointures doivent avoir la latence de requête la plus faible possible.
+
+        **Gestion des données**
+
+        4. Telemetry doit être conservée 365 jours. Les requêtes sur les 30 derniers jours doivent offrir les meilleures performances possibles ; les données plus anciennes sont rarement interrogées et ne doivent pas occuper plus de stockage de cache que nécessaire.
+
+        **Supervision**
+
+        5. Quand la vibration d'une éolienne dépasse 12 mm/s, l'ingénieur d'astreinte doit recevoir un message Microsoft Teams en moins d'une minute. Chaque éolienne doit être évaluée séparément. Aucun code personnalisé ne doit être écrit.
+
+        **Sécurité**
+
+        6. L'accès à WS-Telemetry doit respecter le principe du moindre privilège :
+           - L'équipe plateforme gère l'espace de travail et le connecte à un dépôt Git.
+           - Les ingénieurs données créent, modifient et exécutent des flux d'événements, des notebooks et des ensembles de requêtes KQL, mais ne doivent pas ajouter de personnes à l'espace de travail.
+           - Les chefs d'équipe de quart créent du contenu et ajoutent des analystes à l'espace de travail.
+           - Les analystes lisent uniquement les bases de données KQL et les tableaux de bord en temps réel.

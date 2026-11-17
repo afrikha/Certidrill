@@ -1,0 +1,112 @@
+id: dp300-cs4a-humongous-insurance
+status: draft
+title:
+  en: Humongous Insurance
+  fr: Humongous Insurance
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Humongous Insurance is a health and property insurer that has 1.2 million policyholders in France. The head office and the only datacenter are in Lille.
+
+        Humongous runs part of its SQL Server estate on premises and part of it on Azure SQL Managed Instance. A team of five database administrators (DBAs) manages both environments.
+      fr: |
+        Humongous Insurance est un assureur santé et habitation qui compte 1,2 million d'assurés en France. Le siège et l'unique centre de données se trouvent à Lille.
+
+        Humongous exécute une partie de son parc SQL Server en local et une autre partie sur Azure SQL Managed Instance. Une équipe de cinq administrateurs de bases de données (DBA) gère les deux environnements.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        **On-premises environment**
+
+        - A server named **SQL1** runs SQL Server 2022 Enterprise CU16 on Windows Server 2022. SQL1 hosts **ClaimsCore** (2.3 TB), the claims processing database, which is used 24 hours a day. ClaimsCore has one data file and one log file.
+        - SQL1 also hosts **Underwriting** (180 GB), the database of a legacy underwriting application named **UWLegacy**. The table **dbo.MedicalReports** of Underwriting stores the medical questionnaires of applicants.
+        - UWLegacy runs as a Windows service on four application servers named **APP1** to **APP4**. The servers run Windows Server 2019 and are joined to the Active Directory Domain Services (AD DS) domain **corp.humongousinsurance.com**. They are not Microsoft Entra joined or Microsoft Entra hybrid joined. The service runs under a domain account and connects by using `Integrated Security=SSPI`. The vendor of UWLegacy no longer supports the application, and its code and configuration files can't be changed.
+        - The domain functional level is Windows Server 2016. Microsoft Entra Connect synchronizes the users and the service accounts of the domain to a Microsoft Entra tenant.
+        - An ExpressRoute circuit connects the datacenter to the France Central region.
+
+        **Azure environment (France Central)**
+
+        | Resource | Configuration |
+        | --- | --- |
+        | MI-LEGACY | Managed instance, General Purpose, 8 vCores, in the virtual network **vnet-legacy**. Hosts **ClaimsArchive** (600 GB), the database of the claims archive portal. |
+        | MI-PROD | Managed instance, General Purpose, 16 vCores, in the virtual network **vnet-claims**. |
+        | law-claims | Log Analytics workspace used by the security team. |
+        | stclaimsdiag | Storage account with a container named **xevents**. |
+
+        - MI-LEGACY and MI-PROD use the same update policy. Neither instance belongs to a failover group.
+        - vnet-legacy and vnet-claims are peered. The network security groups (NSGs) of the two managed instance subnets allow only TCP port 1433 and the management traffic required by SQL Managed Instance between the two subnets.
+      fr: |
+        **Environnement local**
+
+        - Un serveur nommé **SQL1** exécute SQL Server 2022 Enterprise CU16 sur Windows Server 2022. SQL1 héberge **ClaimsCore** (2,3 To), la base de données de traitement des sinistres, utilisée 24 heures sur 24. ClaimsCore comporte un fichier de données et un fichier journal.
+        - SQL1 héberge aussi **Underwriting** (180 Go), la base de données d'une ancienne application de souscription nommée **UWLegacy**. La table **dbo.MedicalReports** d'Underwriting stocke les questionnaires médicaux des candidats.
+        - UWLegacy s'exécute en tant que service Windows sur quatre serveurs d'applications nommés **APP1** à **APP4**. Les serveurs exécutent Windows Server 2019 et sont joints au domaine Active Directory Domain Services (AD DS) **corp.humongousinsurance.com**. Ils ne sont ni joints à Microsoft Entra ni joints à Microsoft Entra hybride. Le service s'exécute sous un compte de domaine et se connecte avec `Integrated Security=SSPI`. L'éditeur d'UWLegacy ne prend plus en charge l'application, dont le code et les fichiers de configuration ne peuvent pas être modifiés.
+        - Le niveau fonctionnel du domaine est Windows Server 2016. Microsoft Entra Connect synchronise les utilisateurs et les comptes de service du domaine avec un locataire Microsoft Entra.
+        - Un circuit ExpressRoute relie le centre de données à la région France Central.
+
+        **Environnement Azure (France Central)**
+
+        | Ressource | Configuration |
+        | --- | --- |
+        | MI-LEGACY | Instance managée, General Purpose, 8 vCores, dans le réseau virtuel **vnet-legacy**. Héberge **ClaimsArchive** (600 Go), la base de données du portail d'archives des sinistres. |
+        | MI-PROD | Instance managée, General Purpose, 16 vCores, dans le réseau virtuel **vnet-claims**. |
+        | law-claims | Espace de travail Log Analytics utilisé par l'équipe de sécurité. |
+        | stclaimsdiag | Compte de stockage avec un conteneur nommé **xevents**. |
+
+        - MI-LEGACY et MI-PROD utilisent la même stratégie de mise à jour. Aucune des deux instances n'appartient à un groupe de basculement.
+        - vnet-legacy et vnet-claims sont reliés par un peering. Les groupes de sécurité réseau (NSG) des deux sous-réseaux d'instance managée n'autorisent entre ces sous-réseaux que le port TCP 1433 et le trafic de gestion requis par SQL Managed Instance.
+  - key: planned
+    title: { en: "Planned changes", fr: "Changements prévus" }
+    body:
+      en: |
+        - Underwriting will move from SQL1 to MI-PROD. UWLegacy will keep running on APP1 to APP4.
+        - A new managed instance named **MI-DR** will be deployed in France Central, in a subnet of vnet-claims, to provide disaster recovery for ClaimsCore by using the Managed Instance link.
+        - MI-LEGACY will be deleted.
+      fr: |
+        - Underwriting sera déplacée de SQL1 vers MI-PROD. UWLegacy continuera à s'exécuter sur APP1 à APP4.
+        - Une nouvelle instance managée nommée **MI-DR** sera déployée dans la région France Central, dans un sous-réseau de vnet-claims, pour assurer la reprise d'activité de ClaimsCore à l'aide du lien Managed Instance.
+        - MI-LEGACY sera supprimée.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Business continuity**
+
+        1. If the Lille datacenter becomes unavailable, the DBAs must be able to bring ClaimsCore online on MI-DR. The DBAs decide when to fail over.
+        2. After the datacenter is restored, the DBAs must fail ClaimsCore back to SQL1 online, without restoring a backup.
+        3. As long as MI-DR runs no workload other than the replica of ClaimsCore, Humongous must not pay SQL Server licensing for the vCores of MI-DR.
+
+        **Archive consolidation**
+
+        4. ClaimsArchive must move to MI-PROD before MI-LEGACY is deleted. The claims archive portal must be unavailable for a few minutes at most, and no copy of ClaimsArchive must remain on MI-LEGACY.
+
+        **Security and compliance**
+
+        5. After Underwriting moves to MI-PROD, UWLegacy must keep using Windows authentication. The join state of APP1 to APP4 must not change.
+        6. Every SELECT and UPDATE statement run against dbo.MedicalReports by any user must be audited. The security team must query the audit records in law-claims.
+
+        **Monitoring**
+
+        7. Deadlocks that occur on MI-PROD must be captured continuously to the xevents container, and the captured events must survive a restart of the instance. SQL Managed Instance must access stclaimsdiag by using a shared access signature (SAS) token.
+      fr: |
+        **Continuité d'activité**
+
+        1. Si le centre de données de Lille devient indisponible, les DBA doivent pouvoir mettre ClaimsCore en ligne sur MI-DR. Les DBA décident du moment du basculement.
+        2. Une fois le centre de données rétabli, les DBA doivent effectuer la restauration automatique de ClaimsCore vers SQL1 en ligne, sans restaurer de sauvegarde.
+        3. Tant que MI-DR n'exécute aucune charge de travail autre que le réplica de ClaimsCore, Humongous ne doit pas payer de licence SQL Server pour les vCores de MI-DR.
+
+        **Consolidation des archives**
+
+        4. ClaimsArchive doit être déplacée vers MI-PROD avant la suppression de MI-LEGACY. Le portail d'archives des sinistres doit être indisponible quelques minutes au plus, et aucune copie de ClaimsArchive ne doit subsister sur MI-LEGACY.
+
+        **Sécurité et conformité**
+
+        5. Après le déplacement d'Underwriting vers MI-PROD, UWLegacy doit continuer à utiliser l'authentification Windows. L'état de jonction d'APP1 à APP4 ne doit pas changer.
+        6. Chaque instruction SELECT et UPDATE exécutée sur dbo.MedicalReports par n'importe quel utilisateur doit être auditée. L'équipe de sécurité doit interroger les enregistrements d'audit dans law-claims.
+
+        **Supervision**
+
+        7. Les interblocages qui se produisent sur MI-PROD doivent être capturés en continu dans le conteneur xevents, et les événements capturés doivent survivre à un redémarrage de l'instance. SQL Managed Instance doit accéder à stclaimsdiag à l'aide d'un jeton de signature d'accès partagé (SAS).

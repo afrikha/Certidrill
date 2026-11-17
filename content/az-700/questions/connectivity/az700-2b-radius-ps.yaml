@@ -1,0 +1,75 @@
+id: az700-2b-radius-ps
+objective: "2.2.4"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Fabrikam has a route-based VPN gateway named **VNet1GW** (SKU VpnGw1AZ) in a resource group named **RG1**.
+
+    You need to configure point-to-site RADIUS authentication on VNet1GW. The solution must meet the following requirements:
+
+    - Two RADIUS servers, 10.1.0.15 and 10.1.0.16, must be configured for high availability.
+    - Users connect by using the native VPN client of macOS.
+
+    How should you complete the script? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Fabrikam dispose d'une passerelle VPN basée sur des routes nommée **VNet1GW** (référence SKU VpnGw1AZ) dans un groupe de ressources nommé **RG1**.
+
+    Vous devez configurer l'authentification RADIUS de point à site sur VNet1GW. La solution doit répondre aux exigences suivantes :
+
+    - Deux serveurs RADIUS, 10.1.0.15 et 10.1.0.16, doivent être configurés pour la haute disponibilité.
+    - Les utilisateurs se connectent avec le client VPN natif de macOS.
+
+    Comment devez-vous compléter le script ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: powershell
+  template: |
+    $gw = Get-AzVirtualNetworkGateway -ResourceGroupName "RG1" -Name "VNet1GW"
+    $secret = Read-Host -AsSecureString -Prompt "RadiusSecret"
+    $servers = foreach ($ip in "10.1.0.15", "10.1.0.16") {
+        [[cmd]] -RadiusServerAddress $ip -RadiusServerSecret $secret
+    }
+    Set-AzVirtualNetworkGateway -VirtualNetworkGateway $gw `
+      -VpnClientAddressPool "172.16.201.0/24" -VpnClientProtocol [[proto]] `
+      [[param]] $servers
+  slots:
+    - id: cmd
+      options:
+        - { id: radius, text: New-AzRadiusServer }
+        - { id: vpncfg, text: New-AzVpnClientConfiguration }
+        - { id: rootcert, text: New-AzVpnClientRootCertificate }
+        - { id: ipconf, text: New-AzVirtualNetworkGatewayIpConfig }
+    - id: proto
+      options:
+        - { id: ikev2, text: "\"IkeV2\"" }
+        - { id: openvpn, text: "\"OpenVPN\"" }
+        - { id: sstp, text: "\"SSTP\"" }
+    - id: param
+      options:
+        - { id: list, text: -RadiusServerList }
+        - { id: address, text: -RadiusServerAddress }
+        - { id: roots, text: -VpnClientRootCertificates }
+        - { id: aad, text: -AadTenantUri }
+answer:
+  values: { cmd: radius, proto: ikev2, param: list }
+explanation:
+  correct:
+    en: "`New-AzRadiusServer` creates one RADIUS server object (address and secret) per server, and the array of objects is passed to `Set-AzVirtualNetworkGateway` with `-RadiusServerList`, which is the parameter for several RADIUS servers. The native macOS VPN client uses IKEv2, so the client protocol is `IkeV2`."
+    fr: "`New-AzRadiusServer` crée un objet serveur RADIUS (adresse et secret) par serveur, et le tableau d'objets est passé à `Set-AzVirtualNetworkGateway` avec `-RadiusServerList`, le paramètre prévu pour plusieurs serveurs RADIUS. Le client VPN natif de macOS utilise IKEv2 : le protocole client est donc `IkeV2`."
+  options:
+    vpncfg: { en: "New-AzVpnClientConfiguration generates the VPN client profile package; it doesn't define a RADIUS server.", fr: "New-AzVpnClientConfiguration génère le package de profil du client VPN ; il ne définit pas de serveur RADIUS." }
+    openvpn: { en: "The native macOS client doesn't use OpenVPN; OpenVPN needs the Azure VPN Client or an OpenVPN client.", fr: "Le client natif de macOS n'utilise pas OpenVPN ; OpenVPN nécessite Azure VPN Client ou un client OpenVPN." }
+    sstp: { en: "SSTP is supported only by Windows clients.", fr: "SSTP n'est pris en charge que par les clients Windows." }
+    address: { en: "-RadiusServerAddress takes the address of a single server as a string, not a list of server objects.", fr: "-RadiusServerAddress prend l'adresse d'un seul serveur sous forme de chaîne, pas une liste d'objets serveur." }
+    roots: { en: "-VpnClientRootCertificates configures certificate authentication, not RADIUS.", fr: "-VpnClientRootCertificates configure l'authentification par certificat, pas RADIUS." }
+references:
+  - title: Connect to a virtual network using P2S and RADIUS authentication - PowerShell - Azure VPN Gateway
+    url: https://learn.microsoft.com/en-us/azure/vpn-gateway/point-to-site-how-to-radius-ps
+  - title: Set-AzVirtualNetworkGateway (Az.Network)
+    url: https://learn.microsoft.com/en-us/powershell/module/az.network/set-azvirtualnetworkgateway

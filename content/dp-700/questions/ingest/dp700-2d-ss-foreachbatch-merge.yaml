@@ -1,0 +1,74 @@
+id: dp700-2d-ss-foreachbatch-merge
+objective: "2.3.5"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You have a Fabric lakehouse that contains a Delta table named **device_status**. The table must contain one row per `DeviceId` with the latest status of each device.
+
+    A streaming DataFrame named `status_events` receives status changes from an Azure event hub. Each micro-batch contains at most one event per device. When a device already exists in device_status, its row must be updated; otherwise, a new row must be inserted.
+
+    How should you complete the PySpark code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Vous disposez d'un lakehouse Fabric qui contient une table Delta nommée **device_status**. La table doit contenir une ligne par `DeviceId` avec le dernier état de chaque appareil.
+
+    Un DataFrame de streaming nommé `status_events` reçoit les changements d'état d'un hub d'événements Azure. Chaque micro-lot contient au plus un événement par appareil. Quand un appareil existe déjà dans device_status, sa ligne doit être mise à jour ; sinon, une nouvelle ligne doit être insérée.
+
+    Comment devez-vous compléter le code PySpark ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from delta.tables import DeltaTable
+
+    def upsert_status(batch_df, batch_id):
+        target = DeltaTable.forName(spark, "device_status")
+        (target.alias("t")
+            .[[op]](batch_df.alias("s"), "t.DeviceId = s.DeviceId")
+            .whenMatchedUpdateAll()
+            .[[insert]]()
+            .execute())
+
+    (status_events.writeStream
+        .[[sink]](upsert_status)
+        .option("checkpointLocation", "Files/checkpoints/device_status")
+        .start())
+  slots:
+    - id: op
+      options:
+        - { id: opUpdate, text: update }
+        - { id: opMerge, text: merge }
+        - { id: opJoin, text: join }
+    - id: insert
+      options:
+        - { id: insAll, text: whenNotMatchedInsertAll }
+        - { id: insBySource, text: whenNotMatchedBySourceDelete }
+        - { id: insDelete, text: whenMatchedDelete }
+    - id: sink
+      options:
+        - { id: skForeach, text: foreach }
+        - { id: skTable, text: toTable }
+        - { id: skBatch, text: foreachBatch }
+answer:
+  values: { op: opMerge, insert: insAll, sink: skBatch }
+explanation:
+  correct:
+    en: |-
+      A Delta Lake MERGE in Structured Streaming is run through `foreachBatch`, which calls the function with the DataFrame of each micro-batch and its batch ID. Inside the function, `merge` matches the rows on DeviceId, `whenMatchedUpdateAll` updates the existing devices and `whenNotMatchedInsertAll` inserts the new ones.
+    fr: |-
+      Un MERGE Delta Lake en streaming structuré s'exécute avec `foreachBatch`, qui appelle la fonction avec le DataFrame de chaque micro-lot et son identifiant de lot. Dans la fonction, `merge` fait correspondre les lignes sur DeviceId, `whenMatchedUpdateAll` met à jour les appareils existants et `whenNotMatchedInsertAll` insère les nouveaux.
+  options:
+    opUpdate: { en: "update modifies rows of the target that match a condition; it can't take a source DataFrame or insert rows.", fr: "update modifie les lignes de la cible qui répondent à une condition ; il ne peut ni prendre un DataFrame source ni insérer de lignes." }
+    opJoin: { en: "A DeltaTable has no join method; joining DataFrames doesn't write to the table.", fr: "Un DeltaTable n'a pas de méthode join ; joindre des DataFrames n'écrit pas dans la table." }
+    insBySource: { en: "whenNotMatchedBySourceDelete deletes target rows that aren't in the micro-batch, which would remove every device absent from the batch.", fr: "whenNotMatchedBySourceDelete supprime les lignes de la cible absentes du micro-lot, ce qui retirerait tous les appareils absents du lot." }
+    insDelete: { en: "whenMatchedDelete deletes the matching devices instead of inserting the new ones.", fr: "whenMatchedDelete supprime les appareils correspondants au lieu d'insérer les nouveaux." }
+    skForeach: { en: "foreach processes the output row by row; it doesn't pass a micro-batch DataFrame to the function.", fr: "foreach traite la sortie ligne par ligne ; il ne passe pas de DataFrame de micro-lot à la fonction." }
+    skTable: { en: "toTable appends the stream to a table; it doesn't call a function and can't perform a MERGE.", fr: "toTable ajoute le flux à une table ; il n'appelle pas de fonction et ne peut pas effectuer de MERGE." }
+references:
+  - title: Use foreachBatch to write to arbitrary data sinks
+    url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/foreach

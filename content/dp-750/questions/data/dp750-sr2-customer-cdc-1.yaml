@@ -1,0 +1,50 @@
+id: dp750-sr2-customer-cdc-1
+objective: "3.2.4"
+type: series_yesno
+series: dp750-sr2-customer-cdc
+seriesOrder: 1
+difficulty: 2
+status: draft
+stem:
+  en: You use an AUTO CDC flow stored as SCD type 2.
+  fr: Vous utilisez un flux AUTO CDC stocké en SCD de type 2.
+body:
+  solution:
+    en: |
+      You add the following code to the pipeline.
+
+      ```sql
+      CREATE OR REFRESH STREAMING TABLE customers;
+
+      CREATE FLOW customers_cdc_flow AS AUTO CDC INTO customers
+      FROM stream(nw_prod.bronze.customers_cdc)
+      KEYS (customer_id)
+      APPLY AS DELETE WHEN operation = 'DELETE'
+      SEQUENCE BY event_ts
+      COLUMNS * EXCEPT (operation, event_ts)
+      STORED AS SCD TYPE 2;
+      ```
+    fr: |
+      Vous ajoutez le code suivant au pipeline.
+
+      ```sql
+      CREATE OR REFRESH STREAMING TABLE customers;
+
+      CREATE FLOW customers_cdc_flow AS AUTO CDC INTO customers
+      FROM stream(nw_prod.bronze.customers_cdc)
+      KEYS (customer_id)
+      APPLY AS DELETE WHEN operation = 'DELETE'
+      SEQUENCE BY event_ts
+      COLUMNS * EXCEPT (operation, event_ts)
+      STORED AS SCD TYPE 2;
+      ```
+answer: { value: false }
+explanation:
+  correct:
+    en: |
+      SCD type 2 keeps one row per version of each key, with `__START_AT` and `__END_AT` columns, so a customer that changed city appears several times and a deleted customer keeps its closed history rows. The table would not contain exactly one row per existing customer. SCD type 1 is needed to keep only the latest state.
+    fr: |
+      Le SCD de type 2 conserve une ligne par version de chaque clé, avec les colonnes `__START_AT` et `__END_AT` : un client qui a changé de ville apparaît plusieurs fois et un client supprimé conserve ses lignes d'historique fermées. La table ne contiendrait pas exactement une ligne par client existant. Le SCD de type 1 est nécessaire pour ne conserver que le dernier état.
+references:
+  - title: "The AUTO CDC APIs: Simplify change data capture with pipelines"
+    url: https://learn.microsoft.com/en-us/azure/databricks/ldp/cdc

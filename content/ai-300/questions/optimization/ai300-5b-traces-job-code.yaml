@@ -1,0 +1,84 @@
+id: ai300-5b-traces-job-code
+objective: "5.2.2"
+type: dropdown
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Northwind Traders has a Foundry agent named **orders-agent** that emits traces to Application Insights. Version 4 of the agent is in production, and versions 2 and 3 still receive some traffic. A versioned evaluation dataset named **orders-eval** already exists.
+
+    You need to add up to 300 diverse traces of the last seven days to **orders-eval**. The solution must meet the following requirements:
+
+    - Use only traces of version 4.
+    - Keep the rows of the latest dataset version and remove duplicate trace rows.
+    - Redact private content.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Northwind Traders dispose d'un agent Foundry nommé **orders-agent** qui émet des traces vers Application Insights. La version 4 de l'agent est en production, et les versions 2 et 3 reçoivent encore un peu de trafic. Un jeu de données d'évaluation versionné nommé **orders-eval** existe déjà.
+
+    Vous devez ajouter à **orders-eval** jusqu'à 300 traces variées des sept derniers jours. La solution doit respecter les exigences suivantes :
+
+    - N'utiliser que les traces de la version 4.
+    - Conserver les lignes de la dernière version du jeu de données et supprimer les lignes de traces en double.
+    - Masquer le contenu privé.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    job = EvaluationDataGenerationJobInputs(
+        name="orders-eval",
+        sources=[
+            TracesDataGenerationJobSource(
+                agent_name="orders-agent",
+                [[version]],
+                start_time=end_time - timedelta(days=7),
+                end_time=end_time,
+            ),
+        ],
+        generation_configuration=TracesDataGenerationJobConfiguration(
+            max_samples=300,
+            redact_private_content=[[redact]],
+        ),
+        output_configuration=EvaluationDataGenerationJobOutputConfiguration(
+            name="orders-eval",
+            write_mode=[[mode]],
+        ),
+    )
+    poller = project_client.datasets.begin_create_generation_job(job=job)
+  slots:
+    - id: version
+      options:
+        - { id: agentver, text: "agent_version=\"4\"" }
+        - { id: traceids, text: "trace_ids=[\"4\"]" }
+        - { id: descr, text: "description=\"4\"" }
+    - id: redact
+      options:
+        - { id: rtrue, text: "True" }
+        - { id: rfalse, text: "False" }
+    - id: mode
+      options:
+        - { id: overwrite, text: DataGenerationJobOutputWriteMode.OVERWRITE }
+        - { id: merge, text: DataGenerationJobOutputWriteMode.MERGE }
+answer:
+  values: { version: agentver, redact: rtrue, mode: merge }
+explanation:
+  correct:
+    en: |
+      `agent_version` pins the trace source to one agent version; without it, the job mixes spans from all active versions. `redact_private_content=True` redacts private content, which is also the default. The `MERGE` write mode combines the new rows with the latest existing version and deduplicates trace rows, while `max_samples=300` turns on intelligent sampling of diverse traces.
+    fr: |
+      `agent_version` limite la source de traces à une version de l'agent ; sans lui, le travail mélange les spans de toutes les versions actives. `redact_private_content=True` masque le contenu privé, ce qui est aussi la valeur par défaut. Le mode d'écriture `MERGE` combine les nouvelles lignes avec la dernière version existante et déduplique les lignes de traces, tandis que `max_samples=300` active l'échantillonnage intelligent de traces variées.
+  options:
+    traceids: { en: "`trace_ids` selects specific traces by their trace IDs, not by agent version.", fr: "`trace_ids` sélectionne des traces précises par leur ID de trace, pas par version d'agent." }
+    descr: { en: "`description` is only a text label of the source.", fr: "`description` n'est qu'un libellé de la source." }
+    rfalse: { en: "`False` keeps private content in the dataset.", fr: "`False` conserve le contenu privé dans le jeu de données." }
+    overwrite: { en: "`OVERWRITE` creates the next version with only the newly generated rows.", fr: "`OVERWRITE` crée la version suivante avec uniquement les nouvelles lignes générées." }
+references:
+  - title: Convert agent traces into evaluation datasets
+    url: https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/traces-to-dataset

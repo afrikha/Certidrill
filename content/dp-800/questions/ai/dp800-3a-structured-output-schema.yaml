@@ -1,0 +1,84 @@
+id: dp800-3a-structured-output-schema
+objective: "3.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Adatum has an Azure SQL database that stores support emails. A stored procedure sends each email to a gpt-4.1-mini chat completions deployment by using sp_invoke_external_rest_endpoint, and then parses the reply with OPENJSON into the Category and Urgency columns.
+
+    The parsing sometimes fails because the reply misses a key or contains extra keys. You need the model to return JSON that always adheres to the schema shown in the request body.
+
+    How should you complete the request body? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Adatum dispose d'une base de données Azure SQL qui stocke des e-mails de support. Une procédure stockée envoie chaque e-mail à un déploiement chat completions gpt-4.1-mini à l'aide de sp_invoke_external_rest_endpoint, puis analyse la réponse avec OPENJSON dans les colonnes Category et Urgency.
+
+    L'analyse échoue parfois, car la réponse omet une clé ou contient des clés supplémentaires. Le modèle doit retourner un JSON toujours conforme au schéma présenté dans le corps de la requête.
+
+    Comment devez-vous compléter le corps de la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: json
+  template: |
+    {
+      "messages": [
+        { "role": "system", "content": "Classify the support email." },
+        { "role": "user", "content": "<email text>" }
+      ],
+      "response_format": {
+        "type": "[[fmt]]",
+        "json_schema": {
+          "name": "TicketAttributes",
+          "strict": true,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "category": { "type": "string" },
+              "urgency": { "type": "string", "enum": [ "low", "medium", "high" ] }
+            },
+            "required": [[req]],
+            "additionalProperties": [[extra]]
+          }
+        }
+      }
+    }
+  slots:
+    - id: fmt
+      options:
+        - { id: schema, text: json_schema }
+        - { id: object, text: json_object }
+        - { id: text, text: text }
+    - id: req
+      options:
+        - { id: both, text: '[ "category", "urgency" ]' }
+        - { id: none, text: "[ ]" }
+        - { id: one, text: '[ "category" ]' }
+    - id: extra
+      options:
+        - { id: no, text: "false" }
+        - { id: yes, text: "true" }
+        - { id: any, text: "{ }" }
+answer:
+  values: { fmt: schema, req: both, extra: no }
+explanation:
+  correct:
+    en: |
+      Structured outputs use a response_format of type json_schema with strict set to true, so the reply follows the supplied JSON Schema. In strict mode every property must be listed in required (an optional value is emulated with a nullable type), and every object must set additionalProperties to false.
+    fr: |
+      Les sorties structurées utilisent un response_format de type json_schema avec strict à true : la réponse suit le schéma JSON fourni. En mode strict, chaque propriété doit figurer dans required (une valeur facultative s'émule avec un type nullable), et chaque objet doit définir additionalProperties à false.
+  options:
+    object: { en: "json_object is the older JSON mode: it guarantees valid JSON but doesn't enforce a schema.", fr: "json_object est l'ancien mode JSON : il garantit un JSON valide, mais n'impose aucun schéma." }
+    text: { en: "text returns free-form text, with no guarantee of valid JSON.", fr: "text retourne du texte libre, sans garantie d'un JSON valide." }
+    none: { en: "Structured outputs require every field to be listed as required.", fr: "Les sorties structurées exigent que chaque champ soit déclaré dans required." }
+    one: { en: "urgency would be optional, which strict structured outputs don't accept.", fr: "urgency serait facultatif, ce que les sorties structurées strictes n'acceptent pas." }
+    yes: { en: "Allowing additional properties is exactly what produces extra keys, and strict mode requires false.", fr: "Autoriser des propriétés supplémentaires produit justement des clés en trop, et le mode strict exige false." }
+    any: { en: "An empty schema for additionalProperties allows any extra key; strict mode requires false.", fr: "Un schéma vide pour additionalProperties autorise toute clé supplémentaire ; le mode strict exige false." }
+references:
+  - title: How to use structured outputs with Azure OpenAI in Microsoft Foundry Models
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/structured-outputs
+  - title: Understand and evaluate models for SQL database workloads
+    url: https://learn.microsoft.com/en-us/training/modules/design-implement-models-embeddings-with-sql/02-understand-evaluate-models-sql-database-workloads

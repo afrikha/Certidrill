@@ -1,0 +1,81 @@
+id: ai200-3a-scheduled-reembed
+objective: "3.1.1"
+type: dropdown
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Relecloud ingests documents into a vector index. Each ingested document must be re-embedded with the latest model 24 hours later, so the ingestion code sends a command to a Service Bus queue named **reembed** that must become visible to the worker only after 24 hours.
+
+    If the document is deleted before that time, the pending command must be canceled.
+
+    How should you complete the code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Relecloud ingère des documents dans un index vectoriel. Chaque document ingéré doit être de nouveau vectorisé avec le dernier modèle 24 heures plus tard : le code d'ingestion envoie donc à une file d'attente Service Bus nommée **reembed** une commande qui ne doit devenir visible pour le worker qu'au bout de 24 heures.
+
+    Si le document est supprimé avant ce délai, la commande en attente doit être annulée.
+
+    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: python
+  template: |
+    from datetime import datetime, timedelta, timezone
+    from azure.servicebus import ServiceBusMessage
+
+    # After ingestion
+    with client.get_queue_sender(queue_name="reembed") as sender:
+        run_at = datetime.now(timezone.utc) + timedelta(hours=24)
+        numbers = sender.[[schedule]](ServiceBusMessage(doc_id), run_at)
+        save_numbers(doc_id, numbers)
+
+    # When the document is deleted
+    with client.get_queue_sender(queue_name="reembed") as sender:
+        sender.[[cancel]](load_numbers(doc_id))
+  slots:
+    - id: schedule
+      options:
+        - { id: sched, text: schedule_messages }
+        - { id: send, text: send_messages }
+        - { id: batch, text: create_message_batch }
+    - id: cancel
+      options:
+        - { id: cancelsched, text: cancel_scheduled_messages }
+        - { id: deadletter, text: dead_letter_message }
+        - { id: close, text: close }
+answer:
+  values: { schedule: sched, cancel: cancelsched }
+explanation:
+  correct:
+    en: |
+      schedule_messages(messages, schedule_time_utc) enqueues the message at the given UTC time and returns the list of sequence numbers of the scheduled messages. cancel_scheduled_messages takes those sequence numbers and cancels the messages that are still pending.
+    fr: |
+      schedule_messages(messages, schedule_time_utc) place le message dans la file d'attente à l'heure UTC indiquée et renvoie la liste des numéros de séquence des messages planifiés. cancel_scheduled_messages prend ces numéros de séquence et annule les messages encore en attente.
+  options:
+    send:
+      en: |
+        send_messages doesn't take a schedule time as its second argument and returns nothing, so there would be no sequence number to cancel; scheduling through scheduled_enqueue_time_utc on the message has the same problem.
+      fr: |
+        send_messages ne prend pas d'heure de planification comme deuxième argument et ne renvoie rien : il n'y aurait aucun numéro de séquence à annuler ; planifier avec scheduled_enqueue_time_utc sur le message pose le même problème.
+    batch:
+      en: |
+        create_message_batch only creates an empty batch object; it sends and schedules nothing.
+      fr: |
+        create_message_batch crée seulement un objet lot vide ; il n'envoie et ne planifie rien.
+    deadletter:
+      en: |
+        dead_letter_message is a receiver method that settles a received message; a sender can't call it on scheduled messages.
+      fr: |
+        dead_letter_message est une méthode du récepteur qui règle un message reçu ; un expéditeur ne peut pas l'appeler sur des messages planifiés.
+    close:
+      en: |
+        close shuts down the sender; the scheduled message would still be enqueued after 24 hours.
+      fr: |
+        close ferme l'expéditeur ; le message planifié serait quand même placé dans la file d'attente au bout de 24 heures.
+references:
+  - title: azure.servicebus.ServiceBusSender class
+    url: https://learn.microsoft.com/en-us/python/api/azure-servicebus/azure.servicebus.servicebussender

@@ -1,0 +1,120 @@
+id: az120-cs4b-treyresearch
+status: draft
+title:
+  en: Trey Research
+  fr: Trey Research
+tabs:
+  - key: overview
+    title: { en: "Overview", fr: "Vue d'ensemble" }
+    body:
+      en: |
+        Trey Research is a pharmaceutical manufacturer with three production plants in the Netherlands and Ireland. Its SAP systems support batch management and quality processes that are subject to GxP regulations.
+
+        Trey Research plans to move its SAP landscape from its on-premises VMware datacenter to Azure. The production system will run in the West Europe region, and North Europe will be the disaster recovery region. A conversion to SAP S/4HANA is planned as a separate project in 2028.
+      fr: |
+        Trey Research est un fabricant pharmaceutique qui possède trois sites de production aux Pays-Bas et en Irlande. Ses systèmes SAP prennent en charge la gestion des lots et les processus qualité soumis aux réglementations GxP.
+
+        Trey Research prévoit de déplacer son paysage SAP de son centre de données VMware local vers Azure. Le système de production s'exécutera dans la région West Europe, et North Europe sera la région de reprise d'activité. Une conversion vers SAP S/4HANA est prévue dans un projet distinct en 2028.
+  - key: existing
+    title: { en: "Existing environment", fr: "Environnement existant" }
+    body:
+      en: |
+        The production SAP system, named **PRD**, runs SAP ECC 6.0 EHP8 on Windows Server 2019 and SQL Server 2019 Enterprise. The PRD database is 4 TB.
+
+        | Component | Current on-premises configuration |
+        | --- | --- |
+        | Database | Two SQL Server instances in an Always On availability group with synchronous commit |
+        | ASCS/ERS | Windows Server Failover Clustering (WSFC) cluster that uses a shared SAN disk for the SAP global host files (sapmnt) |
+        | Application servers | Six SAP application server VMs |
+        | SAP Web Dispatcher | Two VMs |
+
+        The non-production landscape contains DEV, QAS and several sandbox systems. Project teams create sandbox systems for a few months and frequently change their VM sizes and families. Some sandboxes will be moved to the North Europe region in 2027.
+
+        A 10-Gbps ExpressRoute circuit connects the datacenter to West Europe.
+      fr: |
+        Le système SAP de production, nommé **PRD**, exécute SAP ECC 6.0 EHP8 sur Windows Server 2019 et SQL Server 2019 Enterprise. La base de données de PRD fait 4 To.
+
+        | Composant | Configuration locale actuelle |
+        | --- | --- |
+        | Base de données | Deux instances SQL Server dans un groupe de disponibilité Always On avec validation synchrone |
+        | ASCS/ERS | Cluster de basculement Windows Server (WSFC) qui utilise un disque SAN partagé pour les fichiers de l'hôte global SAP (sapmnt) |
+        | Serveurs d'applications | Six machines virtuelles de serveur d'applications SAP |
+        | SAP Web Dispatcher | Deux machines virtuelles |
+
+        Le paysage hors production contient DEV, QAS et plusieurs systèmes sandbox. Les équipes projet créent des sandbox pour quelques mois et changent fréquemment leurs tailles et familles de machines virtuelles. Certaines sandbox seront déplacées vers la région North Europe en 2027.
+
+        Un circuit ExpressRoute de 10 Gbit/s relie le centre de données à West Europe.
+  - key: target
+    title: { en: "Planned environment", fr: "Environnement prévu" }
+    body:
+      en: |
+        In West Europe, PRD will be deployed across availability zones 1 and 2:
+
+        - The database will use an availability group of three SQL Server 2019 replicas: two replicas in West Europe with synchronous commit, one in each zone, and one replica in North Europe with asynchronous commit.
+        - The ASCS and ERS instances will run on a two-node WSFC cluster, one node in each zone. A Standard internal load balancer will expose the ASCS virtual IP address.
+        - The application servers and SAP Web Dispatcher VMs will be spread across both zones and will use managed disks only.
+        - All VMs will run Windows Server 2019 and will be joined to the AD DS domain of Trey Research.
+      fr: |
+        Dans la région West Europe, PRD sera déployé dans les zones de disponibilité 1 et 2 :
+
+        - La base de données utilisera un groupe de disponibilité de trois réplicas SQL Server 2019 : deux réplicas dans West Europe avec validation synchrone, un dans chaque zone, et un réplica dans North Europe avec validation asynchrone.
+        - Les instances ASCS et ERS s'exécuteront sur un cluster WSFC à deux nœuds, un nœud dans chaque zone. Un équilibreur de charge interne Standard exposera l'adresse IP virtuelle de l'ASCS.
+        - Les serveurs d'applications et les machines virtuelles SAP Web Dispatcher seront répartis entre les deux zones et n'utiliseront que des disques managés.
+        - Toutes les machines virtuelles exécuteront Windows Server 2019 et seront jointes au domaine AD DS de Trey Research.
+  - key: requirements
+    title: { en: "Requirements", fr: "Exigences" }
+    body:
+      en: |
+        **Migration requirements**
+
+        1. PRD must keep its operating system, DBMS and SAP release during the move to Azure.
+        2. The on-premises database must remain the primary database until the cutover, and the cutover downtime must be minimized.
+
+        **High availability requirements**
+
+        3. The ASCS/ERS cluster must survive the failure of one availability zone.
+        4. The SAP global host files must be stored on a managed Azure file service. No VM must be deployed to host files.
+        5. The quorum of the ASCS/ERS cluster must not require a third VM.
+        6. After a database failover, the application servers must reconnect to the new primary replica. The database team wants no Azure load balancer in front of the database tier.
+
+        **Disaster recovery requirements**
+
+        7. If West Europe becomes unavailable, PRD must be recovered in North Europe without reinstalling any SAP instance. Data loss for the database must be minimized.
+        8. Compute capacity for the PRD VMs must be available in North Europe when a failover is triggered.
+
+        **Backup requirements**
+
+        9. Azure Backup must protect the PRD database and allow point-in-time restores with a maximum data loss of 15 minutes.
+        10. Backups must put as little load as possible on the primary replica. The availability group backup preference will be set to **Prefer Secondary**.
+
+        **Cost requirements**
+
+        11. The PRD VMs will run 24/7 with the same sizes for at least three years. Their compute cost must be as low as possible.
+        12. The compute cost of the sandbox systems must be reduced without restricting their VM families or regions.
+      fr: |
+        **Exigences de migration**
+
+        1. PRD doit conserver son système d'exploitation, son SGBD et sa version SAP lors du déplacement vers Azure.
+        2. La base de données locale doit rester la base de données principale jusqu'à la bascule, et le temps d'arrêt de la bascule doit être réduit au minimum.
+
+        **Exigences de haute disponibilité**
+
+        3. Le cluster ASCS/ERS doit résister à la défaillance d'une zone de disponibilité.
+        4. Les fichiers de l'hôte global SAP doivent être stockés sur un service de fichiers Azure managé. Aucune machine virtuelle ne doit être déployée pour héberger des fichiers.
+        5. Le quorum du cluster ASCS/ERS ne doit pas nécessiter de troisième machine virtuelle.
+        6. Après un basculement de la base de données, les serveurs d'applications doivent se reconnecter au nouveau réplica principal. L'équipe base de données ne veut aucun équilibreur de charge Azure devant la couche base de données.
+
+        **Exigences de reprise d'activité**
+
+        7. Si West Europe devient indisponible, PRD doit être récupéré dans North Europe sans réinstaller aucune instance SAP. La perte de données de la base de données doit être réduite au minimum.
+        8. La capacité de calcul pour les machines virtuelles de PRD doit être disponible dans North Europe quand un basculement est déclenché.
+
+        **Exigences de sauvegarde**
+
+        9. Sauvegarde Azure doit protéger la base de données de PRD et permettre des restaurations à un point dans le temps avec une perte de données maximale de 15 minutes.
+        10. Les sauvegardes doivent imposer le moins de charge possible au réplica principal. La préférence de sauvegarde du groupe de disponibilité sera définie sur **Prefer Secondary**.
+
+        **Exigences de coût**
+
+        11. Les machines virtuelles de PRD s'exécuteront 24 h/24, 7 j/7, avec les mêmes tailles pendant au moins trois ans. Leur coût de calcul doit être le plus bas possible.
+        12. Le coût de calcul des systèmes sandbox doit être réduit sans restreindre leurs familles de machines virtuelles ni leurs régions.

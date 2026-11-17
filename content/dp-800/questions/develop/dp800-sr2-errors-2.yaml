@@ -1,0 +1,52 @@
+id: dp800-sr2-errors-2
+objective: "1.3.8"
+type: series_yesno
+series: dp800-sr2-place-order-errors
+seriesOrder: 2
+difficulty: 2
+status: draft
+stem:
+  en: You roll back the transaction in the CATCH block and write the error to a log table.
+  fr: Vous restaurez la transaction dans le bloc CATCH et écrivez l'erreur dans une table de journal.
+body:
+  solution:
+    en: |
+      You write the procedure body as follows.
+
+      ```sql
+      BEGIN TRY
+          BEGIN TRANSACTION;
+          -- INSERT INTO Sales.Orders ...
+          -- INSERT INTO Sales.OrderLines ...
+          COMMIT TRANSACTION;
+      END TRY
+      BEGIN CATCH
+          IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+          INSERT INTO dbo.ErrorLog (ErrorNumber, ErrorMessage, LoggedAt)
+          VALUES (ERROR_NUMBER(), ERROR_MESSAGE(), SYSUTCDATETIME());
+      END CATCH;
+      ```
+    fr: |
+      Vous écrivez le corps de la procédure comme suit.
+
+      ```sql
+      BEGIN TRY
+          BEGIN TRANSACTION;
+          -- INSERT INTO Sales.Orders ...
+          -- INSERT INTO Sales.OrderLines ...
+          COMMIT TRANSACTION;
+      END TRY
+      BEGIN CATCH
+          IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+          INSERT INTO dbo.ErrorLog (ErrorNumber, ErrorMessage, LoggedAt)
+          VALUES (ERROR_NUMBER(), ERROR_MESSAGE(), SYSUTCDATETIME());
+      END CATCH;
+      ```
+answer: { value: false }
+explanation:
+  correct:
+    en: The rollback removes the inserted rows, and the log row is kept because it is written after the rollback. However, the CATCH block handles the error and never re-raises it, so the procedure ends without an error and the application believes that the order was placed. End the CATCH block with THROW; to return the original error.
+    fr: "La restauration supprime les lignes insérées, et la ligne de journal est conservée parce qu'elle est écrite après la restauration. Cependant, le bloc CATCH traite l'erreur et ne la redéclenche jamais : la procédure se termine sans erreur et l'application croit que la commande a été passée. Terminez le bloc CATCH par THROW; pour retourner l'erreur d'origine."
+references:
+  - title: THROW (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/t-sql/language-elements/throw-transact-sql

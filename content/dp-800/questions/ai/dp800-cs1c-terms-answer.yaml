@@ -1,0 +1,91 @@
+id: dp800-cs1c-terms-answer
+objective: "3.3.5"
+type: dropdown
+caseStudy: dp800-cs1c-woodgrove-bank
+difficulty: 3
+status: draft
+stem:
+  en: |
+    SQL-CORE1 is now configured for calls to fdy-woodgrove, the credential [https://fdy-woodgrove.openai.azure.com] exists, and the external model TermsEmbeddings has been created. You are writing dbo.usp_AskTerms. The retrieved chunks must be sent to the model as a JSON array. The solution must meet the advisor assistant requirements.
+
+    How should you complete the Transact-SQL code? Select the appropriate options in the answer area.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    SQL-CORE1 est maintenant configurée pour les appels vers fdy-woodgrove, les informations d'identification [https://fdy-woodgrove.openai.azure.com] existent et le modèle externe TermsEmbeddings a été créé. Vous écrivez dbo.usp_AskTerms. Les blocs récupérés doivent être envoyés au modèle sous forme de tableau JSON. La solution doit respecter les exigences relatives à l'assistant des conseillers.
+
+    Comment devez-vous compléter le code Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  layout: code
+  language: sql
+  template: |
+    CREATE OR ALTER PROCEDURE dbo.usp_AskTerms
+        @question nvarchar(2000),
+        @answer nvarchar(max) OUTPUT
+    AS
+    BEGIN
+        DECLARE @qv VECTOR(1536) = AI_GENERATE_EMBEDDINGS(@question USE MODEL TermsEmbeddings);
+        DECLARE @context nvarchar(max) = (
+            SELECT TOP (5) ProductCode, ChunkText
+            FROM dbo.ProductTermChunks
+            ORDER BY VECTOR_DISTANCE('cosine', Embedding, @qv)
+            [[tojson]]);
+        DECLARE @payload nvarchar(max) = JSON_OBJECT(
+            'max_tokens': 300,
+            'messages': JSON_ARRAY(
+                JSON_OBJECT('role': 'system',
+                            'content': CONCAT(N'Answer only from these product terms: ', @context)),
+                JSON_OBJECT('role': 'user', 'content': @question)));
+        DECLARE @response nvarchar(max);
+
+        EXECUTE sp_invoke_external_rest_endpoint
+            @url = N'https://fdy-woodgrove.openai.azure.com/openai/deployments/chat-advisor/chat/completions?api-version=2024-10-21',
+            @method = 'POST',
+            @credential = [https://fdy-woodgrove.openai.azure.com],
+            @payload = @payload,
+            @response = @response OUTPUT;
+
+        SET @answer = [[extract]](@response, [[path]]);
+    END;
+  slots:
+    - id: tojson
+      options:
+        - { id: json-path, text: "FOR JSON PATH" }
+        - { id: json-nowrap, text: "FOR JSON PATH, WITHOUT_ARRAY_WRAPPER" }
+        - { id: json-root, text: "FOR JSON PATH, ROOT('terms')" }
+        - { id: xml-path, text: "FOR XML PATH" }
+    - id: extract
+      options:
+        - { id: json-query, text: "JSON_QUERY" }
+        - { id: json-value, text: "JSON_VALUE" }
+        - { id: json-modify, text: "JSON_MODIFY" }
+        - { id: openjson, text: "OPENJSON" }
+    - id: path
+      options:
+        - { id: no-envelope, text: "'$.choices[0].message.content'" }
+        - { id: response, text: "'$.response.choices[0].message.content'" }
+        - { id: result, text: "'$.result.choices[0].message.content'" }
+        - { id: message, text: "'$.result.choices[0].message'" }
+answer:
+  values: { tojson: json-path, extract: json-value, path: result }
+explanation:
+  correct:
+    en: |
+      FOR JSON PATH turns the five rows into a JSON array of objects that the prompt can carry. sp_invoke_external_rest_endpoint returns a JSON document in which the HTTP status and headers are under response and the body returned by the endpoint is under result, so the generated text is at $.result.choices[0].message.content. That value is a string of at most 300 tokens, so JSON_VALUE, which returns a scalar value, extracts it.
+    fr: |
+      FOR JSON PATH transforme les cinq lignes en un tableau JSON d'objets que l'invite peut transporter. sp_invoke_external_rest_endpoint renvoie un document JSON dans lequel le statut HTTP et les en-têtes se trouvent sous response et le corps renvoyé par le point de terminaison sous result : le texte généré est donc à $.result.choices[0].message.content. Cette valeur est une chaîne d'au plus 300 jetons : JSON_VALUE, qui renvoie une valeur scalaire, l'extrait.
+  options:
+    json-nowrap: { en: "Without the array wrapper, five rows produce objects separated by commas, which is not a JSON array.", fr: "Sans l'enveloppe de tableau, cinq lignes produisent des objets séparés par des virgules, ce qui n'est pas un tableau JSON." }
+    json-root: { en: "ROOT wraps the array in an object with a terms property, so the context is a JSON object, not an array.", fr: "ROOT encapsule le tableau dans un objet avec une propriété terms : le contexte est un objet JSON, pas un tableau." }
+    xml-path: { en: "FOR XML produces XML, not the required JSON array.", fr: "FOR XML produit du XML, pas le tableau JSON demandé." }
+    json-query: { en: "JSON_QUERY returns objects and arrays; for a string value it returns NULL in lax mode.", fr: "JSON_QUERY renvoie des objets et des tableaux ; pour une valeur de chaîne, il renvoie NULL en mode lax." }
+    json-modify: { en: "JSON_MODIFY changes a value in a JSON document; it does not extract one.", fr: "JSON_MODIFY modifie une valeur dans un document JSON ; il n'en extrait pas." }
+    openjson: { en: "OPENJSON is a rowset function that is used in a FROM clause; it cannot be assigned to a variable.", fr: "OPENJSON est une fonction d'ensemble de lignes qui s'utilise dans une clause FROM ; elle ne peut pas être affectée à une variable." }
+    no-envelope: { en: "The body of the endpoint response is nested under result in @response, so this path returns NULL.", fr: "Le corps de la réponse du point de terminaison est imbriqué sous result dans @response : ce chemin renvoie NULL." }
+    response: { en: "The response property contains the HTTP status and headers, not the body.", fr: "La propriété response contient le statut HTTP et les en-têtes, pas le corps." }
+    message: { en: "message is an object with role and content; JSON_VALUE returns NULL for an object.", fr: "message est un objet avec role et content ; JSON_VALUE renvoie NULL pour un objet." }
+references:
+  - title: sp_invoke_external_rest_endpoint (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql
