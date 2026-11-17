@@ -119,12 +119,19 @@ export interface QuestionBatch {
   to: BatchStatus;
 }
 
-/** The questions a batch applies to: the filters of the questions page, never retired ones. */
+/**
+ * Statuses a batch never changes: retired (the file was removed) and
+ * needs_review (reported by users as wrong: it comes back only with a new
+ * `version` of its file, the fix after review, see bankStatusAfterSeed).
+ */
+export const OUT_OF_BATCH: readonly ContentStatus[] = ["retired", "needs_review"];
+
+/** The questions a batch applies to: the filters of the questions page, never retired or reported ones. */
 export function batchWhere(certificationId: string, b: Omit<QuestionBatch, "certification" | "to">): Prisma.QuestionWhereInput {
   return {
     certificationId,
     ...(b.type && { type: b.type }),
-    status: b.status === "retired" ? { in: [] } : { ...(b.status ? { equals: b.status } : {}), not: "retired" },
+    status: b.status && OUT_OF_BATCH.includes(b.status) ? { in: [] } : { ...(b.status ? { equals: b.status } : {}), notIn: [...OUT_OF_BATCH] },
     ...(b.domain && { objective: { domain: { code: b.domain, blueprint: { current: true } } } }),
   };
 }
@@ -168,7 +175,7 @@ export async function setQuestionStatuses(db: PrismaClient, actorId: string, bat
       if (rows.length === 0) return 0;
       const ids = rows.map((q) => q.id);
       // Only rows still as read: a batch at the same time does not count them twice.
-      const { count } = await tx.question.updateMany({ where: { id: { in: ids }, status: { not: batch.to }, NOT: { status: "retired" } }, data: { status: batch.to } });
+      const { count } = await tx.question.updateMany({ where: { id: { in: ids }, status: { not: batch.to }, NOT: { status: { in: [...OUT_OF_BATCH] } } }, data: { status: batch.to } });
       const { caseStudies, series } = await groupsAllAt(tx, rows, batch.to);
       const groups = { status: { notIn: [batch.to, "retired"] as ContentStatus[] } };
       if (caseStudies.length > 0) await tx.caseStudy.updateMany({ where: { id: { in: caseStudies }, ...groups }, data: { status: batch.to } });

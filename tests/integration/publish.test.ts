@@ -108,6 +108,14 @@ describe("questions by batch", () => {
     expect((log[0]!.details as { ids: string[] }).ids).toHaveLength(expected);
   });
 
+  it("never republishes a question reported by users (needs_review), even when filtered on it", async () => {
+    const [reported] = bank.questions;
+    await db.question.update({ where: { id: reported!.id }, data: { status: "needs_review" } });
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" })).toBe(bank.questions.length - 1);
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", status: "needs_review", to: "published" })).toBe(0);
+    expect((await db.question.findUniqueOrThrow({ where: { id: reported!.id } })).status).toBe("needs_review");
+  });
+
   it("never touches retired questions, and publishes the case studies and series of the batch", async () => {
     const [first] = bank.questions;
     await db.question.update({ where: { id: first!.id }, data: { status: "retired" } });

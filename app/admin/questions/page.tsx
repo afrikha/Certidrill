@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QuestionBatchForm } from "../certifications/forms";
+import { OUT_OF_BATCH } from "@/lib/content/publish";
 
 export const metadata = { title: "Questions" };
 
@@ -75,7 +76,7 @@ export default async function AdminQuestionsPage({ searchParams }: Readonly<{ se
           key={`${certification.code}-${type ?? ""}-${status ?? ""}-${domain ?? ""}`}
           code={certification.code}
           filters={{ type, status, domain }}
-          count={questions.filter((q) => q.status !== "retired").length}
+          count={questions.filter((q) => !OUT_OF_BATCH.includes(q.status)).length}
         />
       )}
       <Card className="overflow-x-auto p-0">
