@@ -105,3 +105,15 @@ describe("shared glossary", () => {
     expect(glossaryConflicts(g)).toEqual([`"Azure Backup" is both kept in English and translated`, `"tenant" is undecided but already has a French form (glossary.yaml)`]);
   });
 });
+
+describe("seed: unchanged rows", async () => {
+  const { sameRow } = await import("@/lib/content/seed");
+  it("compares the written fields by value, JSON key order aside, and ignores undefined ones", () => {
+    const stored = { id: "q1", stem: { en: "A", fr: "B" }, body: { options: [{ id: "a" }] }, exhibits: null, version: 1, extra: "not written" };
+    expect(sameRow(stored, { stem: { fr: "B", en: "A" }, body: { options: [{ id: "a" }] }, version: 1, exhibits: undefined })).toBe(true);
+    expect(sameRow(stored, { stem: { en: "A", fr: "B!" } })).toBe(false);
+    expect(sameRow(stored, { version: 2 })).toBe(false);
+    expect(sameRow(stored, { seriesOrder: null })).toBe(true);
+    expect(sameRow(stored, { seriesOrder: 3 })).toBe(false);
+  });
+});
