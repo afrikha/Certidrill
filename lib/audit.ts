@@ -6,7 +6,7 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-export type AuditAction = "course.status" | "entitlement.grant" | "entitlement.revoke" | "price.update" | "setting.update" | "user.create";
+export type AuditAction = "certification.active" | "course.status" | "entitlement.grant" | "entitlement.revoke" | "price.update" | "question.status" | "setting.update" | "user.create";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 

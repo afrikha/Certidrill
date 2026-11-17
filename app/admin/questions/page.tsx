@@ -8,6 +8,7 @@ import { questionTypes } from "@/lib/content/schema";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { QuestionBatchForm } from "../certifications/forms";
 
 export const metadata = { title: "Questions" };
 
@@ -25,9 +26,12 @@ export default async function AdminQuestionsPage({ searchParams }: Readonly<{ se
   const domains = await prisma.domain.findMany({ where: { blueprint: { current: true, certificationId: certification?.id ?? "" } }, orderBy: { order: "asc" } });
 
   const where: Prisma.QuestionWhereInput = { certificationId: certification?.id ?? "" };
-  if (sp.type && (questionTypes as readonly string[]).includes(sp.type)) where.type = sp.type as QuestionType;
-  if (sp.status && (statuses as string[]).includes(sp.status)) where.status = sp.status as ContentStatus;
-  if (sp.domain) where.objective = { domain: { code: sp.domain, blueprint: { current: true } } };
+  const type = sp.type && (questionTypes as readonly string[]).includes(sp.type) ? (sp.type as QuestionType) : undefined;
+  const status = sp.status && (statuses as string[]).includes(sp.status) ? (sp.status as ContentStatus) : undefined;
+  const domain = domains.some((d) => d.code === sp.domain) ? sp.domain : undefined;
+  if (type) where.type = type;
+  if (status) where.status = status;
+  if (domain) where.objective = { domain: { code: domain, blueprint: { current: true } } };
 
   const questions = await prisma.question.findMany({
     where,
@@ -65,6 +69,15 @@ export default async function AdminQuestionsPage({ searchParams }: Readonly<{ se
         <Button type="submit" variant="secondary">{t("filter")}</Button>
       </form>
       <p className="text-sm text-muted-foreground">{t("count", { count: questions.length })}</p>
+      {certification && (
+        <QuestionBatchForm
+          // A new form (and result) for every filter.
+          key={`${certification.code}-${type ?? ""}-${status ?? ""}-${domain ?? ""}`}
+          code={certification.code}
+          filters={{ type, status, domain }}
+          count={questions.filter((q) => q.status !== "retired").length}
+        />
+      )}
       <Card className="overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead className="bg-muted">

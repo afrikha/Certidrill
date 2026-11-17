@@ -26,10 +26,13 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
   const b = file.blueprint;
 
   return db.$transaction(async (tx) => {
+    // Activated or deactivated in the back-office: kept while blueprint.yaml keeps its value.
+    const before = await tx.certification.findUnique({ where: { code: c.code }, select: { active: true, fileActive: true } });
+    const active = before?.fileActive === c.active ? before.active : c.active;
     const certification = await tx.certification.upsert({
       where: { code: c.code },
-      create: { code: c.code, title: c.title, vendor: c.vendor, active: c.active },
-      update: { title: c.title, vendor: c.vendor, active: c.active },
+      create: { code: c.code, title: c.title, vendor: c.vendor, active, fileActive: c.active },
+      update: { title: c.title, vendor: c.vendor, active, fileActive: c.active },
     });
 
     const data = {
@@ -102,6 +105,22 @@ export function sameRow(before: Record<string, unknown>, data: Record<string, un
   return Object.entries(data).every(([key, value]) => value === undefined || isDeepStrictEqual(before[key] ?? null, asStored(value)));
 }
 
+/**
+ * The status of a question, case study or series after a seed. The file's
+ * status wins when the file changed it since the last seed, or when the
+ * content has a new `version` (a fix after review: back to what the file
+ * says). Otherwise the status set in the database stays: published or
+ * reviewed in the back-office, or needs_review after user reports. A row
+ * retired (its file was removed) takes the file's status again when it is back.
+ */
+export function bankStatusAfterSeed(
+  before: { status: ContentStatus; fileStatus: ContentStatus; version: number } | undefined,
+  file: { status: ContentStatus; version: number },
+): ContentStatus {
+  if (!before || before.status === "retired" || file.version > before.version || before.fileStatus !== file.status) return file.status;
+  return before.status;
+}
+
 export async function seedBank(db: PrismaClient, content: CertificationContent, bank: QuestionBank) {
   const code = content.blueprint.certification.code;
   const version = content.blueprint.blueprint.version;
@@ -122,29 +141,24 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
     const seriesById = new Map(storedSeries.map((x) => [x.id, x]));
     let written = 0;
     for (const cs of bank.caseStudies) {
-      const data = { title: cs.title, tabs: cs.tabs as Prisma.InputJsonValue, status: cs.status, version: cs.version };
       const stored = casesById.get(cs.id);
+      const data = { title: cs.title, tabs: cs.tabs as Prisma.InputJsonValue, status: bankStatusAfterSeed(stored, cs), fileStatus: cs.status, version: cs.version };
       if (stored && sameRow(stored, data)) continue;
       written += 1;
       await tx.caseStudy.upsert({ where: { id: cs.id }, create: { id: cs.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     for (const s of bank.series) {
-      const data = { stem: s.stem, status: s.status, version: s.version };
       const stored = seriesById.get(s.id);
+      const data = { stem: s.stem, status: bankStatusAfterSeed(stored, s), fileStatus: s.status, version: s.version };
       if (stored && sameRow(stored, data)) continue;
       written += 1;
       await tx.questionSeries.upsert({ where: { id: s.id }, create: { id: s.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
-    // A question sent back to review by user reports (needs_review) keeps that
-    // status at re-seed while its file is unchanged: it goes back to published
-    // only with a new `version` (the fix after review) or an explicit YAML status
-    // other than published.
     const existing = new Map(
       (await tx.question.findMany({ where: { certificationId: certification.id } })).map((q) => [q.id, q]),
     );
     for (const q of bank.questions) {
       const before = existing.get(q.id);
-      const keepNeedsReview = before?.status === "needs_review" && q.status === "published" && q.version <= before.version;
       const data = {
         objectiveId: objectiveIds.get(q.objective)!,
         type: q.type,
@@ -159,7 +173,8 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
         seriesId: q.series ?? null,
         seriesOrder: q.seriesOrder ?? null,
         shuffle: q.shuffle,
-        status: keepNeedsReview ? ("needs_review" as const) : q.status,
+        status: bankStatusAfterSeed(before, q),
+        fileStatus: q.status,
         version: q.version,
         blueprintVersion: version,
       };

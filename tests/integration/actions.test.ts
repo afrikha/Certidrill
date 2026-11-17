@@ -68,6 +68,7 @@ import { setLocale } from "@/lib/actions/locale";
 import { deleteOutcomeAction, reportOutcomeAction } from "@/lib/actions/outcome";
 import { requireAdmin, requireUser } from "@/lib/auth/guards";
 import { setChapterStatusAction, setSectionReadAction } from "@/lib/actions/course";
+import { setCertificationActiveAction, setCourseStatusesAction, setQuestionStatusesAction } from "@/lib/actions/publish";
 import { loadCourse } from "@/lib/content/course";
 import { seedCourse } from "@/lib/content/seed";
 import { courseReadLimiter } from "@/lib/security/rate-limit";
@@ -425,6 +426,37 @@ describe("rights back-office actions", () => {
     await setSwitchAction(form({ name: "toString", enabled: "true" }));
     await setSwitchAction(form({ name: "unknown", enabled: "true" }));
     expect(await prisma.appSetting.count({ where: { key: { notIn: Object.values(SWITCHES) } } })).toBe(0);
+  });
+});
+
+describe("publication actions", () => {
+  it("are for administrators only", async () => {
+    as(userId);
+    expect(await redirectOf(setCertificationActiveAction(undefined, form({ certification: "az-104", active: "false" })))).toBe("/dashboard");
+    expect(await redirectOf(setQuestionStatusesAction(undefined, form({ certification: "az-104", to: "published", confirm: "yes" })))).toBe("/dashboard");
+    expect(await redirectOf(setCourseStatusesAction(undefined, form({ certification: "az-104", to: "published", confirm: "yes" })))).toBe("/dashboard");
+  });
+
+  it("check their input and the confirmation box", async () => {
+    as(adminId, "admin");
+    const active = (fields: Record<string, string>) => setCertificationActiveAction(undefined, form({ certification: "az-104", active: "true", ...fields }));
+    expect(await active({ active: "maybe" })).toEqual({ error: "invalid" });
+    expect(await active({ certification: "zz-999" })).toEqual({ error: "not_found" });
+    expect(await active({})).toEqual({ unchanged: true });
+
+    const batch = (fields: Record<string, string>) => setQuestionStatusesAction(undefined, form({ certification: "az-104", to: "draft", status: "needs_review", confirm: "yes", ...fields }));
+    expect(await batch({ to: "retired" })).toEqual({ error: "invalid" });
+    expect(await batch({ type: "essay" })).toEqual({ error: "invalid" });
+    expect(await batch({ confirm: "" })).toEqual({ error: "unconfirmed" });
+    expect(await batch({ certification: "zz-999" })).toEqual({ error: "not_found" });
+    expect(await batch({})).toEqual({ unchanged: true });
+
+    const course = (fields: Record<string, string>) => setCourseStatusesAction(undefined, form({ certification: "az-104", to: "published", from: "retired", confirm: "yes", ...fields }));
+    expect(await course({ confirm: "" })).toEqual({ error: "unconfirmed" });
+    expect(await course({ from: "gone" })).toEqual({ error: "invalid" });
+    expect(await course({ certification: "zz-999" })).toEqual({ error: "not_found" });
+    expect(await course({})).toEqual({ unchanged: true });
+    expect(h.revalidatePath).not.toHaveBeenCalled();
   });
 });
 
