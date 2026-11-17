@@ -41,7 +41,7 @@ export async function parseCertArgs(argv: readonly string[], root = CONTENT_ROOT
   if (unknown.length > 0) {
     throw new Error(`unknown certification ${unknown.join(", ")}; known: ${[...byCode.keys()].join(", ")}`);
   }
-  return { dirs: [...new Set(codes)].sort().map((c) => byCode.get(c)!), rest };
+  return { dirs: [...new Set(codes)].sort((a, b) => a.localeCompare(b)).map((c) => byCode.get(c)!), rest };
 }
 
 /** The folders asked for, or a clear error when the command needs --cert. */

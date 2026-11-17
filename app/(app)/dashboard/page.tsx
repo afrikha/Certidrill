@@ -10,7 +10,7 @@ import { ReadinessCard } from "@/components/progress/readiness";
 import { ProgressionCard } from "@/components/progress/progression";
 import { OutcomeCard } from "@/components/progress/outcome-card";
 import { latestOutcomeDay, listOutcomes } from "@/lib/progress/outcomes";
-import { buttonClasses } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NewExamForm } from "./new-exam-form";
 import { AccessBadge } from "./access-badge";
@@ -19,7 +19,6 @@ import { getCourseOutline, suggestedSections } from "@/lib/course/read";
 import { CourseCard } from "./course-card";
 import { OverviewCard } from "@/components/progress/overview-card";
 import { progressOverview, selectedCertification } from "@/lib/progress/overview";
-import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";

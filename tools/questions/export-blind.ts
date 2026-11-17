@@ -94,12 +94,19 @@ const RENDER: Record<string, Render> = {
   series_yesno: (b) => [`Solution: ${en(b.solution)}\nDoes the solution meet the goal?`, 'ANSWER FORMAT: {"value": true|false}'],
 };
 
+/** The block a question belongs to: its case study, its series, or itself. */
+function groupKey(q: { id: string; caseStudy?: string; series?: string }): string {
+  if (q.caseStudy) return `cs:${q.caseStudy}`;
+  if (q.series) return `sr:${q.series}`;
+  return `q:${q.id}`;
+}
+
 /** Cuts the questions into `n` groups of about the same size; a case study or a series stays in one group. */
 export function splitGroups<Q extends { id: string; caseStudy?: string; series?: string }>(qs: Q[], n: number): Q[][] {
   const blocks: Q[][] = [];
   const byKey = new Map<string, Q[]>();
   for (const q of qs) {
-    const key = q.caseStudy ? `cs:${q.caseStudy}` : q.series ? `sr:${q.series}` : `q:${q.id}`;
+    const key = groupKey(q);
     let block = byKey.get(key);
     if (!block) {
       block = [];
@@ -163,13 +170,15 @@ async function main() {
   const questions = await readAll(files);
   const qs = files.map((f) => questions.get(f));
   const groups = split === 1 ? [qs] : splitGroups(qs, split);
-  for (const [i, group] of groups.entries()) {
-    const target = split === 1 ? out : out.replace(/(\.md)?$/, `.${i + 1}.md`);
-    const { text, labels } = await render(root, group); // NOSONAR: one file after the other
-    await writeFile(target, text);
-    await writeFile(`${target}.map.json`, JSON.stringify(labels, null, 1) + "\n");
-    console.log(`${group.length} questions → ${target}`);
-  }
+  const written = await Promise.all(
+    groups.map(async (group, i) => {
+      const target = split === 1 ? out : out.replace(/(\.md)?$/, `.${i + 1}.md`);
+      const { text, labels } = await render(root, group);
+      await Promise.all([writeFile(target, text), writeFile(`${target}.map.json`, JSON.stringify(labels, null, 1) + "\n")]);
+      return `${group.length} questions → ${target}`;
+    }),
+  );
+  for (const line of written) console.log(line);
 }
 
 // Run only as a command (splitGroups is reused by tests).

@@ -44,7 +44,7 @@ describe("blind export split", () => {
     const qs = [q("a"), q("b"), q("c1", { caseStudy: "cs" }), q("c2", { caseStudy: "cs" }), q("c3", { caseStudy: "cs" }), q("d"), q("s1", { series: "sr" }), q("s2", { series: "sr" }), q("e")];
     const groups = splitGroups(qs, 3);
     expect(groups.flat()).toEqual(qs);
-    expect(groups.length).toBe(3);
+    expect(groups).toHaveLength(3);
     for (const g of groups) {
       const cs = g.filter((x) => x.caseStudy).length;
       expect([0, 3]).toContain(cs);

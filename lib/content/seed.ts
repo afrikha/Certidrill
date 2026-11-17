@@ -89,8 +89,17 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
  * by value (key order of JSON columns aside), so that an unchanged file costs
  * no write. A field left undefined is not written, hence not compared.
  */
+/**
+ * A value as a JSON column gives it back: undefined keys dropped, dates as
+ * strings. structuredClone would keep both, so an unchanged row would look
+ * changed.
+ */
+function asStored(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value)); // NOSONAR: the JSON round trip is the point, see above
+}
+
 export function sameRow(before: Record<string, unknown>, data: Record<string, unknown>): boolean {
-  return Object.entries(data).every(([key, value]) => value === undefined || isDeepStrictEqual(before[key] ?? null, JSON.parse(JSON.stringify(value))));
+  return Object.entries(data).every(([key, value]) => value === undefined || isDeepStrictEqual(before[key] ?? null, asStored(value)));
 }
 
 export async function seedBank(db: PrismaClient, content: CertificationContent, bank: QuestionBank) {

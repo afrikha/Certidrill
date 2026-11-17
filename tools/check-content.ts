@@ -37,7 +37,8 @@ async function main() {
   }
   // The shared terminology glossary and the additions of each certification.
   const glossary = await loadGlossaries(dirs);
-  console.log(`✔ glossary: ${glossary.shared.terms.length} shared terms, ${glossary.shared.undecided.length} undecided; ${[...glossary.perCertification].map(([c, g]) => `${c} +${g.terms.length}`).join(", ") || "no certification glossary"}`);
+  const additions = [...glossary.perCertification].map(([c, g]) => c + " +" + g.terms.length).join(", ") || "no certification glossary";
+  console.log(`✔ glossary: ${glossary.shared.terms.length} shared terms, ${glossary.shared.undecided.length} undecided; ${additions}`);
 }
 
 try {

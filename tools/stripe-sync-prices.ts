@@ -19,7 +19,10 @@ async function main() {
   try {
     const lines = await syncPrices(db, stripe, { dryRun: values["dry-run"] });
     console.log(`Stripe ${mode} mode${values["dry-run"] ? " (dry run: nothing changed)" : ""}`);
-    for (const l of lines) console.log(`${l.action.padEnd(13)} ${l.code.padEnd(22)} ${l.priceId ?? ""}${l.detail ? `  (${l.detail})` : ""}`);
+    for (const l of lines) {
+      const detail = l.detail ? `  (${l.detail})` : "";
+      console.log(`${l.action.padEnd(13)} ${l.code.padEnd(22)} ${l.priceId ?? ""}${detail}`);
+    }
     if (lines.some((l) => l.action === "mismatch")) {
       console.error("Some Stripe prices differ from their plan: archive them in Stripe, or give the plan a new code (a new price is a new plan).");
       process.exitCode = 1;

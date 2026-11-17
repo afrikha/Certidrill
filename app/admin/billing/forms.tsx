@@ -91,8 +91,8 @@ export function PriceForm({ planCode, code, current }: Readonly<{ planCode: stri
       <label htmlFor={id} className="sr-only">{t("priceAmount", { code: code.toUpperCase() })}</label>
       <Input id={id} name="amount" inputMode="decimal" defaultValue={current} placeholder="—" className="w-24" />
       <Button type="submit" variant="secondary" disabled={pending}>{t("priceSave")}</Button>
-      {state?.ok && <span role="status" className="text-sm text-success">{t("priceSaved")}</span>}
-      {state?.unchanged && <span role="status" className="text-sm text-muted-foreground">{t("priceUnchanged")}</span>}
+      {state?.ok && <output className="text-sm text-success">{t("priceSaved")}</output>}
+      {state?.unchanged && <output className="text-sm text-muted-foreground">{t("priceUnchanged")}</output>}
       {state?.error && <span role="alert" className="text-sm text-danger">{t(`error_${state.error}`)}</span>}
     </form>
   );
