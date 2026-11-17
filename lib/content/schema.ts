@@ -117,13 +117,19 @@ export const progressionSchema = z.object({
 });
 export type ProgressionConfig = z.infer<typeof progressionSchema>;
 
+const none = { min: 0, max: 0 };
+
 export const structureSchema = z.object({
-  caseStudies: z.object({
-    count: range,
-    questionsEach: range,
-    placement: z.enum(["start", "end", "random"]),
-  }),
-  series: z.object({ count: range, questionsEach: range }),
+  /** Absent: no case study (the fundamentals exams have none). */
+  caseStudies: z
+    .object({
+      count: range,
+      questionsEach: range,
+      placement: z.enum(["start", "end", "random"]),
+    })
+    .default({ count: none, questionsEach: none, placement: "end" }),
+  /** Absent: no Yes/No series. */
+  series: z.object({ count: range, questionsEach: range }).default({ count: none, questionsEach: none }),
   maxPerObjective: z.number().int().min(1),
   warningsMin: z.array(z.number().int().positive()).default([]),
   readiness: readinessSchema,

@@ -43,15 +43,15 @@ Les énoncés sont en Markdown (tableaux, blocs de code PowerShell / Azure CLI /
 
 ### Banque AZ-104
 
-598 questions originales, en anglais et en français, de quoi faire **10 examens blancs sans aucune question en double** (`npx tsx tools/questions/simulate.ts 10`). Elles se répartissent en 16 études de cas, 11 séries Oui/Non et 8 types de questions. Par domaine, la répartition suit les pondérations du rapport de score Microsoft. La terminologie française reprend celle de Microsoft Learn (`content/az-104/glossary.yaml` : 564 termes en-us → fr-fr, intitulés officiels du guide d'étude). Les règles de rédaction sont dans `tools/questions/WRITING_GUIDE.md`.
+598 questions originales, en anglais et en français, de quoi faire **10 examens blancs sans aucune question en double** (`npm run content:simulate -- --cert az-104 10`). Elles se répartissent en 16 études de cas, 11 séries Oui/Non et 8 types de questions. Par domaine, la répartition suit les pondérations du rapport de score Microsoft. La terminologie française reprend celle de Microsoft Learn (glossaire partagé `content/glossary.yaml` : 564 termes en-us → fr-fr, typographie, termes à trancher ; `content/az-104/glossary.yaml` : intitulés officiels du guide d'étude). Les règles de rédaction sont dans `tools/questions/WRITING_GUIDE.md`.
 
 Toutes les questions ont été vérifiées à l'aveugle : un agent indépendant y a répondu sans voir le corrigé, puis on a comparé ses réponses au corrigé (`tools/questions/export-blind.ts` puis `compare-blind.ts`). Les écarts ont été corrigés ou justifiés à partir de Learn.
 
 Toutes les questions sont en statut `draft`, car une **relecture humaine reste nécessaire** avant la publication (§7 des specs) :
 
 ```bash
-npm run content:status -- reviewed <préfixe-id>         # après relecture
-npm run content:status -- published all --from reviewed
+npm run content:status -- --cert az-104 reviewed <préfixe-id>         # après relecture
+npm run content:status -- --cert az-104 published all --from reviewed
 npm run seed
 ```
 
@@ -64,8 +64,8 @@ Le cours (`docs/SPECS-COURS.md`) est rédigé en anglais et en français dans `c
 `npm run seed` charge le cours (tables `course_module`, `course_chapter`, `course_section`) : le dépôt fait foi, et un chapitre ou une section retiré des fichiers est supprimé en base avec la progression de lecture associée (`course_progress`, supprimée aussi avec le compte). Les chapitres restent en `draft` jusqu'à relecture humaine :
 
 ```bash
-npm run content:status -- reviewed 12-rbac --course      # un chapitre (préfixe d'id)
-npm run content:status -- published all --from reviewed --course
+npm run content:status -- --cert az-104 reviewed 12-rbac --course      # un chapitre (préfixe d'id)
+npm run content:status -- --cert az-104 published all --from reviewed --course
 ```
 
 Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime : un identifiant de section renommé par erreur s'y voit tout de suite. Un dossier `course/` retiré supprime le cours de la certification.
@@ -120,8 +120,10 @@ Les comptes se créent avec `npm run user:create` ou depuis **Administration →
 | `npm run test:e2e` | Tous les tests Playwright (parcours + non-régression) sur un build de production — même contrainte de base jetable |
 | `npm run test:regression` | Seulement la suite de non-régression Playwright (`tests/e2e/regression`) |
 | `npm run content:check` | Valide `content/` (schémas et références croisées, cours compris) |
-| `npm run content:validate -- --prefix <p>` | Valide des fichiers de questions et liste tous les problèmes ; sans argument (ou avec `--course`), valide le cours |
-| `npm run content:status -- <statut> <préfixe\|all> [--from <statut>] [--course]` | Change le statut de questions en masse, ou de chapitres avec `--course` |
+| `npm run content:validate -- --cert <code\|all> [--prefix <p>] [--course] [--chapters <ids>]` | Valide les fichiers de questions (toute la banque avec `--cert` seul) et le cours, et liste tous les problèmes ; sans argument, valide les cours |
+| `npm run content:simulate -- --cert <code\|all> [n=10]` | Simule `n` examens d'un même candidat avec le vrai assembleur : aucune question répétée, aucun manque, pondérations des domaines respectées |
+| `npm run content:blind:export -- --cert <code> <préfixe\|all> <out.md> [--split <n>]` | Exporte des questions sans corrigé pour une vérification à l'aveugle (`compare-blind.ts` compare ensuite, `--out` écrit les écarts) |
+| `npm run content:status -- --cert <code\|all> <statut> <préfixe\|all> [--from <statut>] [--course]` | Change le statut de questions en masse, ou de chapitres avec `--course` |
 | `npm run test:integration` | Tests sur une vraie base PostgreSQL — `DATABASE_URL` doit pointer vers une base **jetable** (les tables sont vidées) |
 | `npm run seed` | Charge `content/` en base (idempotent ; la base est reconstructible) |
 | `npm run user:create` | Crée un compte (`--email`, `--password`, `--name`, `--admin`, `--locale`) |

@@ -98,8 +98,11 @@ people and agents who author or review questions.
 
 - Every text exists in English (`en`) and French (`fr`), same meaning.
 - The French text uses **exactly Microsoft Learn's French terminology**: see
-  `content/az-104/glossary.yaml` (terms collected from learn.microsoft.com
-  en-us / fr-fr). Product and feature names Microsoft keeps in English stay in
+  the shared glossary `content/glossary.yaml` (terms collected from
+  learn.microsoft.com en-us / fr-fr, for every certification) and the
+  additions of the certification in `content/<code>/glossary.yaml` (study
+  guide titles, own terms). A term still listed under `undecided` must not be
+  settled alone: report it. Product and feature names Microsoft keeps in English stay in
   English; commands, code, parameters, role names, SKU names and portal blade
   names stay in English.
 - Terminology decisions (from the glossary — apply them everywhere):

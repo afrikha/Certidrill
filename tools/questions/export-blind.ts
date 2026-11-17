@@ -2,7 +2,11 @@
  * Exports questions WITHOUT answers or explanations, as Markdown, for an
  * independent blind check (spec §7, step 4): a reviewer (human or model)
  * answers them, then `compare-blind.ts` compares with the answer keys.
- *   npx tsx tools/questions/export-blind.ts <id-prefix | @ids-file> <out.md>
+ *   npx tsx tools/questions/export-blind.ts --cert az-900 <id-prefix | @ids-file | all> <out.md> [--split <n>]
+ * With --split, the export is cut into n files of about the same size
+ * (<out>.1.md, <out>.2.md, …, each with its own .map.json), without
+ * separating the questions of a case study or of a series: one file per
+ * reviewer.
  */
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -11,8 +15,9 @@ import { parse } from "yaml";
 import { createRng } from "../../lib/exam/random";
 import { shuffleArray } from "../../lib/questions/order";
 import { compareCodeUnits } from "../../lib/sort";
+import { requireCertDirs } from "../cert-args";
 
-const root = path.resolve("content/az-104");
+const USAGE = "usage: export-blind --cert <code> <id-prefix | @ids-file | all> <out.md> [--split <n>]";
 type T = string | { en: string; fr: string };
 type Item = { id: string; text: T };
 function en(t: T | undefined): string {
@@ -37,6 +42,7 @@ async function readAll(files: string[]): Promise<Map<string, Doc>> {
 }
 
 function selectFiles(all: string[], prefix: string): string[] {
+  if (prefix === "all") return all;
   if (!prefix.startsWith("@")) return all.filter((f) => path.basename(f).startsWith(prefix));
   const ids = new Set(fs.readFileSync(prefix.slice(1), "utf8").split("\n").filter(Boolean));
   return all.filter((f) => ids.has(path.basename(f, ".yaml")));
@@ -88,13 +94,32 @@ const RENDER: Record<string, Render> = {
   series_yesno: (b) => [`Solution: ${en(b.solution)}\nDoes the solution meet the goal?`, 'ANSWER FORMAT: {"value": true|false}'],
 };
 
-async function main() {
-  const [prefix, out] = process.argv.slice(2);
-  if (!prefix || !out) throw new Error("usage: export-blind <prefix> <out.md>");
-  const files = selectFiles(await yamlFiles(path.join(root, "questions")), prefix).sort(compareCodeUnits);
-  // Every file is read up front, in parallel; the export is then built in order.
-  const questions = await readAll(files);
-  const qs = files.map((f) => questions.get(f));
+/** Cuts the questions into `n` groups of about the same size; a case study or a series stays in one group. */
+export function splitGroups<Q extends { id: string; caseStudy?: string; series?: string }>(qs: Q[], n: number): Q[][] {
+  const blocks: Q[][] = [];
+  const byKey = new Map<string, Q[]>();
+  for (const q of qs) {
+    const key = q.caseStudy ? `cs:${q.caseStudy}` : q.series ? `sr:${q.series}` : `q:${q.id}`;
+    let block = byKey.get(key);
+    if (!block) {
+      block = [];
+      byKey.set(key, block);
+      blocks.push(block);
+    }
+    block.push(q);
+  }
+  const target = Math.ceil(qs.length / n);
+  const groups: Q[][] = [[]];
+  for (const block of blocks) {
+    const last = groups.at(-1)!;
+    if (last.length > 0 && last.length + block.length > target && groups.length < n) groups.push([...block]);
+    else last.push(...block);
+  }
+  return groups;
+}
+
+/** The blind export of `qs` (Markdown) and its letter → option id map. */
+async function render(root: string, qs: Doc[]): Promise<{ text: string; labels: Record<string, Record<string, string>> }> {
   const refs = (key: "caseStudy" | "series", dir: string) =>
     [...new Set(qs.map((q) => q[key]).filter(Boolean))].map((id) => path.join(root, dir, `${id}.yaml`));
   const caseStudies = await readAll(refs("caseStudy", "case-studies"));
@@ -123,14 +148,36 @@ async function main() {
     lines.push(...(RENDER[q.type]?.(q.body, mix, labelMap[q.id] ?? {}) ?? []));
     parts.push(lines.join("\n\n"));
   }
-  await writeFile(out, parts.join("\n\n---\n\n") + "\n");
-  await writeFile(`${out}.map.json`, JSON.stringify(labelMap, null, 1) + "\n");
-  console.log(`${files.length} questions → ${out}`);
+  return { text: parts.join("\n\n---\n\n") + "\n", labels: labelMap };
 }
 
-try {
-  await main();
-} catch (e) {
-  console.error(e);
-  process.exit(1);
+async function main() {
+  const { dirs, rest } = await requireCertDirs(process.argv.slice(2), USAGE);
+  const splitAt = rest.indexOf("--split");
+  const split = splitAt >= 0 ? Number(rest[splitAt + 1]) : 1;
+  const [prefix, out] = splitAt >= 0 ? rest.filter((_, i) => i !== splitAt && i !== splitAt + 1) : rest;
+  if (dirs.length !== 1 || !prefix || !out || !Number.isInteger(split) || split < 1) throw new Error(USAGE);
+  const root = dirs[0]!;
+  const files = selectFiles(await yamlFiles(path.join(root, "questions")), prefix).sort(compareCodeUnits);
+  // Every file is read up front, in parallel; the export is then built in order.
+  const questions = await readAll(files);
+  const qs = files.map((f) => questions.get(f));
+  const groups = split === 1 ? [qs] : splitGroups(qs, split);
+  for (const [i, group] of groups.entries()) {
+    const target = split === 1 ? out : out.replace(/(\.md)?$/, `.${i + 1}.md`);
+    const { text, labels } = await render(root, group); // NOSONAR: one file after the other
+    await writeFile(target, text);
+    await writeFile(`${target}.map.json`, JSON.stringify(labels, null, 1) + "\n");
+    console.log(`${group.length} questions → ${target}`);
+  }
+}
+
+// Run only as a command (splitGroups is reused by tests).
+if (path.resolve(process.argv[1] ?? "") === path.resolve(import.meta.filename)) {
+  try {
+    await main();
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
 }

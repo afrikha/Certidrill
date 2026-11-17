@@ -8,7 +8,7 @@ You produce exam-preparation content for Certidrill (certidrill.com): courses an
 2. **Original content only.** Never reproduce a question from a real exam, a dump site, a practice-test vendor or a book. Write from Microsoft Learn documentation. Fictional companies (Contoso, Fabrikam, Litware, Northwind, Adatum, Tailspin, Woodgrove, Proseware, Wingtip...).
 3. **Exact and current (November 2026).** Microsoft's catalog changed a lot in 2026 and your memory may be stale. Verify with WebFetch on `learn.microsoft.com` every limit, SKU, tier, date, retirement, command name and product name you are not certain of, and **everything** for exams created in 2026 (AI-901, AI-103, AI-200, AI-300, SC-500, AZ-802, DP-750, DP-800). If you cannot verify a fact, leave it out. Current names: Microsoft Entra ID (not Azure AD), Microsoft Foundry / Azure AI Foundry as Learn names it today, Azure Monitor Agent (not MMA), Standard SKU public IP and load balancer (Basic retired).
 4. **Stay inside the official study guide** of the exam: `content/<cert>/objectives.yaml` is the scope. Level of detail = what the real exam tests for that objective.
-5. **French**: Microsoft Learn's French terminology. Read `content/az-104/glossary.yaml` (typography rules and terms) and `tools/questions/WRITING_GUIDE.md` §"Languages and terminology". Product names, role names, SKU names, commands, code and enum values stay in English. Straight apostrophes, a plain space before `: ; ? !`, « » quotes. Blob tiers: « niveau froid (Cool) », « niveau froid (Cold) ».
+5. **French**: Microsoft Learn's French terminology. Read the shared glossary `content/glossary.yaml` (typography rules and terms; `undecided` terms are to be reported, not settled) and `content/<cert>/glossary.yaml` if it exists and `tools/questions/WRITING_GUIDE.md` §"Languages and terminology". Product names, role names, SKU names, commands, code and enum values stay in English. Straight apostrophes, a plain space before `: ; ? !`, « » quotes. Blob tiers: « niveau froid (Cool) », « niveau froid (Cold) ».
 6. Everything stays `status: draft`.
 7. **Final report: 2 lines, under 40 words** — counts and validator result only. Write anything else (unverified facts, doubts, deviations) in `factory/reports/<task id>.md`, not in the report.
 
@@ -20,7 +20,7 @@ You produce exam-preparation content for Certidrill (certidrill.com): courses an
 - GFM only: paragraphs, lists, tables, fenced code (`bash`, `powershell`, `json`, `bicep`, `kusto`, `yaml`, `text` only), blockquote callouts with the two allowed labels (`Exam trap.`/`Piège d'examen.`, `Exam tip.`/`Conseil d'examen.`). No H1, no heading below H2, no image, no raw HTML, no `<` outside code spans.
 - EN and FR must have the same sections, the same objectives, **identical code blocks**, the same table shapes and the same number of callouts.
 - Length: associate/expert/specialty chapters 1,300–2,200 English words; fundamentals 600–1,200.
-- Check: `npx tsx factory/check-cert.ts <cert> <your chapter ids...>` must show `course problems (your chapters): 0`.
+- Check: `npm run content:validate -- --cert <cert> --course --chapters <id1,id2,...>` must report `0 problem(s)` for your chapters.
 
 ## Role QUESTIONS
 
@@ -30,7 +30,7 @@ You produce exam-preparation content for Certidrill (certidrill.com): courses an
 - Realism: same formats, stem style, length and difficulty as the real exam (profile). Plausible distractors from the same product family; exactly one defensible answer; every constraint that decides the answer is stated.
 - Every question: `explanation.correct` (2–4 sentences), `explanation.options` for each wrong option of `single`/`multi`, and 1–2 `references` to Microsoft Learn pages **that you fetched** (title = page title, `https://learn.microsoft.com/en-us/...`).
 - Scoring NOTE sentence on per-element types, as the guide says.
-- Check: `CERT=<cert> npx tsx factory/validate.ts --prefix <your prefix>` must report `0 problem(s)`. Then reread your batch once as a candidate: fix giveaways, ambiguity, and French.
+- Check: `npm run content:validate -- --cert <cert> --prefix <your prefix>` must report `0 problem(s)`. Then reread your batch once as a candidate: fix giveaways, ambiguity, and French.
 
 ## Role CASES (case studies and Yes/No series)
 
