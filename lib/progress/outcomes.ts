@@ -59,7 +59,8 @@ export async function recordOutcome(db: PrismaClient, { userId, certificationCod
   const certification = await db.certification.findUnique({ where: { code: certificationCode }, include: { blueprints: { where: { current: true } } } });
   // The current blueprint gives the score scale: without it, nothing to check a score against.
   const blueprint = certification?.blueprints[0];
-  if (!certification || !blueprint) throw new OutcomeError("not_found");
+  // An inactive certification is invisible: no new result for it.
+  if (!certification?.active || !blueprint) throw new OutcomeError("not_found");
   if (score !== null) {
     if (!Number.isInteger(score) || score < 0 || score > blueprint.maxScore) throw new OutcomeError("invalid_score");
     // A contradictory report would skew the calibration.
