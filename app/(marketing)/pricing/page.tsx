@@ -47,7 +47,7 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
     if (o.kind !== "pass" || !range) return money(o.amountCents, o.currency);
     return perCertification ? tOffer("priceFrom", { price: money(range.min, range.currency) }) : money(range.min, range.currency);
   };
-  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, price: money(c.amountCents, c.currency) }));
+  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, amountCents: c.amountCents, currency: c.currency }));
   const tax = (o: Offer) => tOffer(o.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded");
   const freeExams = quota === null ? null : tHome("freeExams", { count: quota });
   const signIn = signupOpen ? { href: "/signup", label: t("signUpToBuy") } : { href: "/login", label: t("signInToBuy") };

@@ -52,7 +52,7 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
     if (range && range.min !== range.max) return t("priceFrom", { price: money(range.min, range.currency) });
     return range ? money(range.min, range.currency) : money(o.amountCents, o.currency);
   };
-  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, price: money(c.amountCents, c.currency) }));
+  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, amountCents: c.amountCents, currency: c.currency }));
   const terms = (o: Offer) => {
     const tax = t(o.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded");
     if (o.kind === "pass") return t("termsPass", { tax, days: o.durationDays ?? 0 });

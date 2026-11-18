@@ -1,9 +1,11 @@
 /**
  * Starting a purchase (POST /api/billing/checkout): a Stripe Checkout session
- * in payment mode for one Pass. The browser only names the plan and the
- * certification; the price is read here: the certification's own price for
- * the plan, or the plan's (./prices.ts). Nothing is granted here:
- * the right comes with the verified webhook (./webhook.ts).
+ * in payment mode for one Pass or several (a cart: one Pass per
+ * certification, paid at once). The browser only names the plan and the
+ * certifications; each price is read here: the certification's own price for
+ * the plan, or the plan's (./prices.ts). One payment row per Pass, grouped by
+ * checkoutId. Nothing is granted here: the rights come with the verified
+ * webhook (./webhook.ts).
  */
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -14,6 +16,7 @@ import { logError } from "@/lib/log";
 import { readSwitches } from "@/lib/settings";
 import { priceFor, priceRange, pricesByCertification, type CertificationPrice } from "./prices";
 import type { StripeApi } from "./stripe";
+import { MAX_CART } from "./cart";
 
 export type BillingErrorCode = "sales_closed" | "unavailable" | "not_found" | "rate_limited";
 
@@ -28,10 +31,24 @@ export class BillingError extends Error {
   }
 }
 
-export const checkoutSchema = z.object({
-  planCode: z.string().trim().min(1).max(64),
-  certificationCode: z.string().trim().min(1).max(32),
-});
+const code = z.string().trim().min(1).max(32);
+
+/**
+ * The plan and the certifications of a purchase: `certificationCodes` (a
+ * cart), or `certificationCode` for one Pass. Codes are lower-cased and
+ * deduplicated: one Pass per certification in a purchase.
+ */
+export const checkoutSchema = z
+  .object({
+    planCode: z.string().trim().min(1).max(64),
+    certificationCode: code.optional(),
+    certificationCodes: z.array(code).min(1).max(MAX_CART).optional(),
+  })
+  .refine((v) => (v.certificationCode === undefined) !== (v.certificationCodes === undefined), "certificationCode or certificationCodes")
+  .transform(({ planCode, certificationCode, certificationCodes }) => ({
+    planCode,
+    certificationCodes: [...new Set((certificationCodes ?? [certificationCode!]).map((c) => c.toLowerCase()))],
+  }));
 
 /** A Checkout session stays payable this long (Stripe accepts 30 minutes to 24 hours). */
 export const CHECKOUT_MINUTES = 60;
@@ -111,13 +128,13 @@ export async function startCheckout(
   input: z.input<typeof checkoutSchema>,
   { base = process.env.AUTH_URL, now = new Date() }: { base?: string; now?: Date } = {},
 ): Promise<{ url: string }> {
-  const { planCode, certificationCode } = checkoutSchema.parse(input);
-  const [switches, offers, user, plan, certification] = await Promise.all([
+  const { planCode, certificationCodes } = checkoutSchema.parse(input);
+  const [switches, offers, user, plan, found] = await Promise.all([
     readSwitches(db),
     getOffers(db),
     db.user.findUnique({ where: { id: userId }, select: { id: true, email: true, locale: true, emailVerified: true } }),
     db.plan.findUnique({ where: { code: planCode } }),
-    db.certification.findFirst({ where: { code: certificationCode, active: true }, select: { id: true, code: true, title: true } }),
+    db.certification.findMany({ where: { code: { in: certificationCodes }, active: true }, select: { id: true, code: true, title: true } }),
   ]);
   if (!switches.checkoutOpen) throw new BillingError("sales_closed");
   if (!user) throw new BillingError("not_found");
@@ -125,49 +142,55 @@ export async function startCheckout(
   if (!user.emailVerified) throw new AccessError("email_unverified");
   // Only a Pass on sale can be bought here (subscriptions come with lot D).
   if (!plan || plan.kind !== "pass" || !offers.some((o) => o.code === plan.code)) throw new BillingError("not_found");
-  if (!certification) throw new BillingError("not_found");
+  // Every certification asked must be on sale, in the order asked.
+  const certifications = certificationCodes.map((c) => found.find((f) => f.code === c));
+  if (certifications.some((c) => !c)) throw new BillingError("not_found");
   // The certification's own price for the plan, or the plan's.
-  const price = await priceFor(db, plan, certification.id);
-  if (!stripe || !base || !price.stripePriceId || !plan.durationDays) throw new BillingError("unavailable");
+  const lines = await Promise.all(certifications.map(async (c) => ({ certification: c!, price: await priceFor(db, plan, c!.id) })));
+  if (!stripe || !base || !plan.durationDays || lines.some((l) => !l.price.stripePriceId)) throw new BillingError("unavailable");
+  // One Checkout session charges one currency.
+  if (new Set(lines.map((l) => l.price.currency.toLowerCase())).size > 1) throw new BillingError("unavailable");
 
   const customer = await ensureCustomer(db, stripe, user);
-  const payment = await db.payment.create({
-    data: { billingCustomerId: customer.id, planId: plan.id, certificationId: certification.id, amountCents: price.amountCents, currency: price.currency },
+  const checkoutId = randomUUID();
+  await db.payment.createMany({
+    data: lines.map((l) => ({ checkoutId, billingCustomerId: customer.id, planId: plan.id, certificationId: l.certification.id, amountCents: l.price.amountCents, currency: l.price.currency })),
   });
+  const codes = lines.map((l) => l.certification.code.toUpperCase());
   let session;
   try {
     session = await stripe.checkout.sessions.create(
       {
         mode: "payment",
         customer: customer.stripeCustomerId,
-        client_reference_id: payment.id,
-        line_items: [{ price: price.stripePriceId, quantity: 1 }],
-        metadata: { paymentId: payment.id, planCode: plan.code, certificationCode: certification.code },
-        payment_intent_data: { metadata: { paymentId: payment.id }, description: `Pass ${certification.code.toUpperCase()} — ${plan.durationDays} days` },
-        custom_text: { submit: { message: `${certification.code.toUpperCase()} — ${certification.title}` } },
+        client_reference_id: checkoutId,
+        line_items: lines.map((l) => ({ price: l.price.stripePriceId!, quantity: 1 })),
+        metadata: { checkoutId, planCode: plan.code, certificationCodes: lines.map((l) => l.certification.code).join(",") },
+        payment_intent_data: { metadata: { checkoutId }, description: `Pass ${codes.join(", ")} — ${plan.durationDays} days` },
+        custom_text: { submit: { message: lines.length === 1 ? `${codes[0]} — ${lines[0]!.certification.title}` : codes.join(", ") } },
         locale: user.locale === "fr" ? "fr" : "en",
         expires_at: Math.floor(now.getTime() / 1000) + CHECKOUT_MINUTES * 60,
         success_url: `${new URL("/billing/success", base)}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: new URL(`/billing/cancel?${new URLSearchParams({ certification: certification.code })}`, base).toString(),
+        cancel_url: new URL(`/billing/cancel?${new URLSearchParams({ certification: lines[0]!.certification.code })}`, base).toString(),
       },
-      { idempotencyKey: `checkout-${payment.id}` },
+      { idempotencyKey: `checkout-${checkoutId}` },
     );
   } catch (err) {
     // Refused by Stripe (a 4xx answer): no session, nothing to pay, nothing
     // to keep. Any other failure (time-out, network, Stripe down) may come
-    // after Stripe created the session: the payment stays pending, so that
-    // the webhook still finds it if the buyer pays.
-    if (refusedByStripe(err)) await db.payment.delete({ where: { id: payment.id } });
+    // after Stripe created the session: the payments stay pending, so that
+    // the webhook still finds them if the buyer pays.
+    if (refusedByStripe(err)) await db.payment.deleteMany({ where: { checkoutId } });
     throw err;
   }
   if (!session.url) {
     // Nothing to send the buyer to: the session is closed so it cannot be paid.
     await stripe.checkout.sessions.expire(session.id).catch(() => undefined);
-    await db.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id, status: "expired" } });
+    await db.payment.updateMany({ where: { checkoutId }, data: { stripeCheckoutSessionId: session.id, status: "expired" } });
     throw new BillingError("unavailable");
   }
-  // If this fails, the webhook still finds the payment by metadata.paymentId.
-  await db.payment.update({ where: { id: payment.id }, data: { stripeCheckoutSessionId: session.id } });
+  // If this fails, the webhook still finds the payments by metadata.checkoutId.
+  await db.payment.updateMany({ where: { checkoutId }, data: { stripeCheckoutSessionId: session.id } });
   return { url: session.url };
 }
 
@@ -177,21 +200,36 @@ function refusedByStripe(err: unknown): boolean {
   return typeof status === "number" && status >= 400 && status < 500 && status !== 409;
 }
 
-/** State of one of the user's purchases, by its Checkout session (the return page polls it). */
+/** The statuses a purchase's Passes share; the order says which one a purchase shows when they differ. */
+const PURCHASE_ORDER = ["pending", "held", "failed", "expired", "refunded", "paid"] as const;
+
+/**
+ * State of one of the user's purchases, by its Checkout session (the return
+ * page polls it): one entry per Pass, in certification order, and the status
+ * of the purchase. The webhook settles the Passes of a purchase together;
+ * should they differ (one refunded since), the first in PURCHASE_ORDER shows.
+ */
 export async function purchaseStatus(db: PrismaClient, userId: string, sessionId: string) {
-  const payment = await db.payment.findFirst({
+  const payments = await db.payment.findMany({
     where: { stripeCheckoutSessionId: sessionId, customer: { userId } },
+    orderBy: { certification: { code: "asc" } },
     select: { status: true, paidAt: true, certification: { select: { code: true } }, entitlement: { select: { startsAt: true, expiresAt: true } } },
   });
-  if (!payment) throw new BillingError("not_found");
-  const pass = payment.entitlement;
+  if (payments.length === 0) throw new BillingError("not_found");
+  const status = PURCHASE_ORDER.find((s) => payments.some((p) => p.status === s)) ?? payments[0]!.status;
   return {
-    status: payment.status,
-    certification: payment.certification.code,
-    startsAt: pass?.startsAt.toISOString() ?? null,
-    expiresAt: pass?.expiresAt.toISOString() ?? null,
-    /** Bought while a Pass was running: it starts when that one ends. */
-    chained: !!pass && !!payment.paidAt && pass.startsAt > payment.paidAt,
+    status,
+    passes: payments.map((payment) => {
+      const pass = payment.entitlement;
+      return {
+        status: payment.status,
+        certification: payment.certification.code,
+        startsAt: pass?.startsAt.toISOString() ?? null,
+        expiresAt: pass?.expiresAt.toISOString() ?? null,
+        /** Bought while a Pass was running: it starts when that one ends. */
+        chained: !!pass && !!payment.paidAt && pass.startsAt > payment.paidAt,
+      };
+    }),
   };
 }
 

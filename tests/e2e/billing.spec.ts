@@ -90,3 +90,53 @@ test("a user buys a Pass: paid on Stripe, active once the webhook arrives, once"
   expect(await db.entitlement.count({ where: { userId: user.id, source: "purchase" } })).toBe(1);
   await buyer.close();
 });
+
+test("a user buys two Passes at once: one payment, both active", async ({ browser }) => {
+  const pass = await db.plan.findUniqueOrThrow({ where: { code: "pass_90" } });
+  const fundamentals = await db.certification.update({ where: { code: "az-900" }, data: { active: true } });
+  await db.planPrice.upsert({
+    where: { planId_certificationId: { planId: pass.id, certificationId: fundamentals.id } },
+    create: { planId: pass.id, certificationId: fundamentals.id, amountCents: 900, currency: "eur", stripePriceId: "price_e2e_pass_90_az900" },
+    update: { amountCents: 900, stripePriceId: "price_e2e_pass_90_az900" },
+  });
+  await setCheckout(true);
+  const email = "e2e-cart@certidrill.test";
+  await db.user.deleteMany({ where: { email } });
+  const user = await db.user.create({ data: { email, passwordHash: await hashPassword(BUYER.password), emailVerified: new Date(), locale: "en" } });
+  const buyer = await browser.newPage();
+  try {
+    await buyer.goto("/login");
+    await buyer.locator("#email").fill(email);
+    await buyer.locator("#password").fill(BUYER.password);
+    await buyer.locator("main form button[type=submit]").first().click();
+    await buyer.waitForURL("**/dashboard");
+
+    await buyer.goto("/pricing?certification=az-104");
+    const cart = buyer.getByTestId("cart");
+    await expect(cart.getByRole("checkbox", { name: /AZ-104/ })).toBeChecked();
+    await cart.getByRole("checkbox", { name: /AZ-900/ }).check();
+    await expect(buyer.getByTestId("pass-price")).toHaveText("Total for 2 Passes: €28.00");
+    await buyer.getByRole("button", { name: "Buy the 2 Passes" }).click();
+    await buyer.waitForURL(/\/pay\/cs_fake_/);
+    await expect(buyer.getByText("Amount: 28.00 EUR")).toBeVisible();
+    await buyer.getByRole("button", { name: "Pay" }).click();
+
+    await buyer.waitForURL("**/billing/success?session_id=cs_fake_*");
+    const status = buyer.getByTestId("purchase-status");
+    await expect(status).toHaveAttribute("data-status", "paid", { timeout: 15_000 });
+    await expect(status).toContainText("Your 2 Passes are active:");
+    await expect(buyer.getByTestId("purchase-passes").locator("li")).toHaveCount(2);
+    const payments = await db.payment.findMany({ where: { customer: { userId: user.id } } });
+    expect(payments.map((p) => p.status)).toEqual(["paid", "paid"]);
+    expect(new Set(payments.map((p) => p.stripeCheckoutSessionId)).size).toBe(1);
+    expect(payments.map((p) => p.chargedCents).sort()).toEqual([1900, 900].sort());
+    await buyer.waitForTimeout(1500);
+    expect(await db.entitlement.count({ where: { userId: user.id, source: "purchase" } })).toBe(2);
+  } finally {
+    await buyer.close();
+    await db.user.deleteMany({ where: { email } });
+    await db.planPrice.deleteMany({ where: { certificationId: fundamentals.id } });
+    await db.certification.update({ where: { code: "az-900" }, data: { active: false } });
+    await setCheckout(false);
+  }
+});
