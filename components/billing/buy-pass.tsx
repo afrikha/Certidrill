@@ -36,13 +36,17 @@ export function BuyPass({
   planCode: string;
   /** The certifications on sale, with their price. */
   certifications: readonly { code: string; title: string; amountCents: number; currency: string }[];
+  /** Ticked first: one code, or several separated by commas (a cart back from Stripe). */
   defaultCertification?: string;
   className?: string;
 }>) {
   const t = useTranslations("billing");
   const format = useFormatter();
   const [selected, setSelected] = useState<string[]>(() => {
-    const first = certifications.some((c) => c.code === defaultCertification) ? defaultCertification! : certifications[0]?.code;
+    // One code, or a cart back from Stripe ("a,b"): the known ones, in the limit.
+    const wanted = (defaultCertification ?? "").split(",").filter((code) => certifications.some((c) => c.code === code));
+    const first = certifications[0]?.code;
+    if (wanted.length > 0) return [...new Set(wanted)].slice(0, MAX_CART);
     return first ? [first] : [];
   });
   const [busy, setBusy] = useState(false);

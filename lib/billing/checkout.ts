@@ -171,7 +171,8 @@ export async function startCheckout(
         locale: user.locale === "fr" ? "fr" : "en",
         expires_at: Math.floor(now.getTime() / 1000) + CHECKOUT_MINUTES * 60,
         success_url: `${new URL("/billing/success", base)}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: new URL(`/billing/cancel?${new URLSearchParams({ certification: lines[0]!.certification.code })}`, base).toString(),
+        // The whole cart, so that it is ticked again on the way back.
+        cancel_url: new URL(`/billing/cancel?${new URLSearchParams({ certification: lines.map((l) => l.certification.code).join(",") })}`, base).toString(),
       },
       { idempotencyKey: `checkout-${checkoutId}` },
     );
@@ -264,10 +265,12 @@ export function paymentHistory(db: PrismaClient, userId: string) {
 export function heldPayments(db: PrismaClient) {
   return db.payment.findMany({
     where: { status: "held" },
-    orderBy: { paidAt: "asc" },
+    // The payments of one cart side by side.
+    orderBy: [{ paidAt: "asc" }, { checkoutId: "asc" }, { id: "asc" }],
     take: 100,
     select: {
       id: true,
+      checkoutId: true,
       paidAt: true,
       amountCents: true,
       chargedCents: true,

@@ -598,6 +598,8 @@ describe("cart: several Passes in one purchase", () => {
       line_items: [{ price: "price_pass_90_az900", quantity: 1 }, { price: "price_pass_90", quantity: 1 }],
       metadata: { checkoutId: payments[0]!.checkoutId, planCode: "pass_90", certificationCodes: "az-900,az-104" },
     });
+    // Back from Stripe without paying, the whole cart is ticked again.
+    expect(new URL(params.cancel_url!).searchParams.get("certification")).toBe("az-900,az-104");
     expect(JSON.stringify(params)).not.toMatch(/1900|"900"/);
   });
 
@@ -656,6 +658,9 @@ describe("cart: several Passes in one purchase", () => {
       expect.arrayContaining([{ status: "held", chargedCents: 1289 }, { status: "held", chargedCents: 611 }]),
     );
     expect(await db.entitlement.count({ where: { userId: user } })).toBe(0);
+    // Side by side for the administrator, under the cart they share.
+    const held = (await heldPayments(db)).filter((p) => p.checkoutId === short[0]!.checkoutId);
+    expect(held.map((p) => p.certification.code).sort((a, b) => a.localeCompare(b))).toEqual(["az-104", "az-900"]);
 
     const abandoned = await cart(user, ["az-104", "az-900"]);
     expect(await handleStripeEvent(db, event("checkout.session.expired", sessionObject(abandoned[0]!)), T0)).toBe("processed");

@@ -46,6 +46,14 @@ describe("BuyPass", () => {
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCodes: ["az-104", "az-305", "az-900"] });
   });
 
+  it("ticks a whole cart again on the way back from Stripe, ignoring unknown codes", () => {
+    const certifications = [...AZ, { code: "az-900", title: "Azure Fundamentals", amountCents: 900, currency: "eur" }];
+    renderIntl(<BuyPass planCode="pass_90" certifications={certifications} defaultCertification="az-900,nope,az-104" />);
+    expect(screen.getByRole("checkbox", { name: /AZ-104/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /AZ-900/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Buy the 2 Passes" })).toBeEnabled();
+  });
+
   it("needs a certification, and stops at the largest cart", async () => {
     const many = Array.from({ length: 12 }, (_, i) => ({ code: `c-${String(i).padStart(2, "0")}`, title: `Cert ${i}`, amountCents: 1000, currency: "eur" }));
     renderIntl(<BuyPass planCode="pass_90" certifications={many} />);

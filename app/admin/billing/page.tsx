@@ -9,6 +9,7 @@ import { recentAudit, type AuditAction } from "@/lib/audit";
 import { readSwitches, SWITCHES, type Switch } from "@/lib/settings";
 import { setSwitchAction } from "@/lib/actions/billing";
 import { heldPayments } from "@/lib/billing/checkout";
+import { cartsOf } from "@/lib/billing/cart";
 import { resolvePrice } from "@/lib/billing/prices";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
   // Every certification, active or not, so that a price can be set before it opens.
   const allCertifications = passPlan ? await prisma.certification.findMany({ orderBy: { code: "asc" }, select: { id: true, code: true, title: true, active: true } }) : [];
   const ownPrices = new Map(passPlan?.prices.map((p) => [p.certificationId, p]) ?? []);
+  const carts = cartsOf(held);
   const money = (cents: number | null, currency: string) => (cents === null ? "—" : format.number(cents / 100, { style: "currency", currency: currency.toUpperCase() }));
   const [access, entitlements, log] = await Promise.all([
     selected ? getAccessSummary(prisma, selected.id, now) : [],
@@ -129,8 +131,10 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
               </tr>
             </thead>
             <tbody>
-              {held.map((p) => (
-                <tr key={p.id} className="border-t border-border" data-payment={p.id}>
+              {held.map((p) => {
+                const cart = carts.get(p.checkoutId)!;
+                return (
+                <tr key={p.id} className="border-t border-border" data-payment={p.id} data-checkout={p.checkoutId}>
                   <td className="whitespace-nowrap px-4 py-2">{p.paidAt ? date(p.paidAt) : "—"}</td>
                   <td className="px-4 py-2">
                     {p.customer.user ? (
@@ -142,9 +146,15 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
                   <td className="px-4 py-2 font-mono uppercase">{p.certification.code}</td>
                   <td className="px-4 py-2 tabular-nums">{money(p.amountCents, p.currency)}</td>
                   <td className="px-4 py-2 tabular-nums">{money(p.chargedCents, p.chargedCurrency ?? p.currency)}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{p.stripePaymentIntentId ?? "—"}</td>
+                  <td className="px-4 py-2">
+                    <span className="font-mono text-xs">{p.stripePaymentIntentId ?? "—"}</span>
+                    {cart.count > 1 && (
+                      <span className="block text-xs text-muted-foreground" data-testid="held-cart">{t("heldCart", { count: cart.count, total: money(cart.charged, cart.currency) })}</span>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </Card>
