@@ -10,7 +10,8 @@ import Stripe from "stripe";
 const PORT = Number(process.env.FAKE_STRIPE_PORT ?? 12111);
 const APP_URL = process.env.APP_URL ?? "http://localhost:3100";
 const SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_e2e";
-const AMOUNT = 1900;
+// What each Stripe price of the tests charges (a cart charges the sum of its lines).
+const AMOUNTS = { price_e2e_pass_90: 1900, price_e2e_pass_90_az900: 900 };
 const sessions = new Map();
 let counter = 0;
 // Ids unique across runs: a local database keeps the customers of earlier runs.
@@ -41,7 +42,7 @@ async function sendWebhook(session) {
         payment_status: "paid",
         client_reference_id: session.clientReferenceId,
         metadata: session.metadata,
-        amount_total: AMOUNT,
+        amount_total: session.amount,
         currency: "eur",
         total_details: { amount_tax: 317 },
         payment_intent: `pi_fake_${session.id}`,
@@ -54,7 +55,7 @@ async function sendWebhook(session) {
 }
 
 const page = (session) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Fake Stripe Checkout</title></head>
-<body><main><h1>Fake Stripe Checkout</h1><p>Amount: ${(AMOUNT / 100).toFixed(2)} EUR</p>
+<body><main><h1>Fake Stripe Checkout</h1><p>Amount: ${(session.amount / 100).toFixed(2)} EUR</p>
 <form method="post" action="/pay/${session.id}"><button type="submit">Pay</button></form>
 <p><a href="${session.cancelUrl}">Cancel</a></p></main></body></html>`;
 
@@ -74,7 +75,9 @@ createServer(async (req, res) => {
       const m = /^metadata\[(.+)\]$/.exec(k);
       if (m) metadata[m[1]] = v;
     }
-    sessions.set(id, { id, metadata, clientReferenceId: form.get("client_reference_id"), successUrl: form.get("success_url"), cancelUrl: form.get("cancel_url") });
+    let amount = 0;
+    for (const [k, v] of form) if (/^line_items\[\d+\]\[price\]$/.test(k)) amount += AMOUNTS[v] ?? 1900;
+    sessions.set(id, { id, metadata, amount, clientReferenceId: form.get("client_reference_id"), successUrl: form.get("success_url"), cancelUrl: form.get("cancel_url") });
     return json(res, 200, { id, object: "checkout.session", url: `http://localhost:${PORT}/pay/${id}` });
   }
   const pay = /^\/pay\/([\w-]+)$/.exec(url.pathname);

@@ -91,7 +91,7 @@ export function QuestionBatchForm({ code, filters, byStatus, groups }: Readonly<
       <StatusSelect name="to" label={t("questionsTo")} defaultValue="published" onChange={(v) => isBatchStatus(v) && setTo(v)} />
       <Confirm id="question-batch-confirm" label={groupCount > 0 ? `${t("confirmQuestions", { count })} ${t("andGroups", { count: groupCount })}` : t("confirmQuestions", { count })} />
       <Button type="submit" variant="secondary" disabled={pending || count + groupCount === 0}>{t("apply")}</Button>
-      <Result state={state} done={(n) => (state?.groups ? `${t("questionsChanged", { count: n ?? 0 })} ${t("groupsChanged", { count: state.groups })}` : t("questionsChanged", { count: n ?? 0 }))} />
+      <Result state={state} done={(n) => (state?.groups ? `${t("questionsChanged", { count: n ?? 0 })} ${t("groupsChanged", { count: state.groups, to: state.to ?? "published" })}` : t("questionsChanged", { count: n ?? 0 }))} />
     </form>
   );
 }

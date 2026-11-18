@@ -5,7 +5,7 @@ import { BuyPass, isPaymentUrl } from "@/components/billing/buy-pass";
 import { PurchaseStatus, type Purchase } from "@/components/billing/purchase-status";
 import { renderIntl } from "./render";
 
-const AZ = [{ code: "az-104", title: "Microsoft Azure Administrator" }];
+const AZ = [{ code: "az-104", title: "Microsoft Azure Administrator", amountCents: 1900, currency: "eur" }];
 const reply = (status: number, body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -25,36 +25,44 @@ describe("BuyPass", () => {
   it("sends only the plan and the certification, then goes to the payment page", async () => {
     fetchMock.mockReturnValue(reply(200, { url: "https://checkout.stripe.test/cs_1" }));
     renderIntl(<BuyPass planCode="pass_90" certifications={AZ} />);
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Buy the Pass" }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout", expect.objectContaining({ method: "POST", body: JSON.stringify({ planCode: "pass_90", certificationCode: "az-104" }) }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout", expect.objectContaining({ method: "POST", body: JSON.stringify({ planCode: "pass_90", certificationCodes: ["az-104"] }) }));
     expect(assign).toHaveBeenCalledWith("https://checkout.stripe.test/cs_1");
     expect(screen.getByRole("button", { name: "Redirecting to payment…" })).toBeDisabled();
   });
 
-  it("lets the buyer choose the certification, the one they came from first (FR)", async () => {
+  it("buys several Passes at once, the one the buyer came from ticked first, in the order of the list (FR)", async () => {
     fetchMock.mockReturnValue(reply(200, { url: "https://checkout.stripe.test/cs_2" }));
-    const certifications = [...AZ, { code: "az-305", title: "Azure Solutions Architect" }];
+    const certifications = [...AZ, { code: "az-305", title: "Azure Solutions Architect", amountCents: 1900, currency: "eur" }, { code: "az-900", title: "Azure Fundamentals", amountCents: 900, currency: "eur" }];
     renderIntl(<BuyPass planCode="pass_90" certifications={certifications} defaultCertification="az-305" />, "fr");
-    const select = screen.getByRole("combobox", { name: "Certification" });
-    expect(select).toHaveValue("az-305");
-    await userEvent.selectOptions(select, "az-104");
-    await userEvent.click(screen.getByRole("button", { name: "Acheter le Pass" }));
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCode: "az-104" });
+    expect(screen.getByRole("checkbox", { name: /AZ-305/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /AZ-104/ })).not.toBeChecked();
+    expect(screen.getByTestId("pass-price")).toHaveTextContent("Total : 19,00 €");
+    await userEvent.click(screen.getByRole("checkbox", { name: /AZ-900/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /AZ-104/ }));
+    expect(screen.getByTestId("pass-price")).toHaveTextContent("Total pour 3 Pass : 47,00 €");
+    await userEvent.click(screen.getByRole("button", { name: "Acheter les 3 Pass" }));
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCodes: ["az-104", "az-305", "az-900"] });
   });
 
-  it("shows the price of the chosen certification when the prices differ, never when they are the same", async () => {
-    const priced = [
-      { code: "az-104", title: "Azure Administrator", price: "19,00 €" },
-      { code: "az-900", title: "Azure Fundamentals", price: "9,00 €" },
-    ];
-    const { unmount } = renderIntl(<BuyPass planCode="pass_90" certifications={priced} defaultCertification="az-900" />, "fr");
-    expect(screen.getByTestId("pass-price")).toHaveTextContent("9,00 € pour AZ-900");
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Certification" }), "az-104");
-    expect(screen.getByTestId("pass-price")).toHaveTextContent("19,00 € pour AZ-104");
-    unmount();
-    renderIntl(<BuyPass planCode="pass_90" certifications={priced.map((c) => ({ ...c, price: "19,00 €" }))} />, "fr");
-    expect(screen.queryByTestId("pass-price")).toBeNull();
+  it("ticks a whole cart again on the way back from Stripe, ignoring unknown codes", () => {
+    const certifications = [...AZ, { code: "az-900", title: "Azure Fundamentals", amountCents: 900, currency: "eur" }];
+    renderIntl(<BuyPass planCode="pass_90" certifications={certifications} defaultCertification="az-900,nope,az-104" />);
+    expect(screen.getByRole("checkbox", { name: /AZ-104/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /AZ-900/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Buy the 2 Passes" })).toBeEnabled();
+  });
+
+  it("needs a certification, and stops at the largest cart", async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ code: `c-${String(i).padStart(2, "0")}`, title: `Cert ${i}`, amountCents: 1000, currency: "eur" }));
+    renderIntl(<BuyPass planCode="pass_90" certifications={many} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /C-00/ }));
+    expect(screen.getByRole("button", { name: "Choose a certification" })).toBeDisabled();
+    for (const c of many.slice(0, 10)) await userEvent.click(screen.getByRole("checkbox", { name: new RegExp(c.code.toUpperCase()) }));
+    expect(screen.getByRole("button", { name: "Buy the 10 Passes" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: /C-10/ })).toBeDisabled();
+    expect(screen.getByText("10 Passes at most in one purchase.")).toBeInTheDocument();
   });
 
   it("explains a refusal and lets the buyer try again", async () => {
@@ -89,7 +97,12 @@ describe("BuyPass", () => {
   });
 });
 
-const purchase = (p: Partial<Purchase>): Purchase => ({ status: "paid", certification: "az-104", startsAt: "2026-11-13T10:00:00Z", expiresAt: "2027-02-11T10:00:00Z", chained: false, ...p });
+type Pass = Purchase["passes"][number];
+/** A purchase of one Pass, or of the passes given. */
+const purchase = (p: Partial<Pass>, passes?: Pass[]): Purchase => {
+  const pass: Pass = { status: "paid", certification: "az-104", startsAt: "2026-11-13T10:00:00Z", expiresAt: "2027-02-11T10:00:00Z", chained: false, ...p };
+  return { status: pass.status, passes: passes ?? [pass] };
+};
 
 describe("PurchaseStatus", () => {
   it("shows an active Pass, or one that starts after the current one", () => {
@@ -100,6 +113,18 @@ describe("PurchaseStatus", () => {
     renderIntl(<PurchaseStatus sessionId="cs_1" initial={purchase({ chained: true, startsAt: "2027-02-11T10:00:00Z", expiresAt: "2027-05-12T10:00:00Z" })} />, "fr");
     expect(screen.getByRole("status")).toHaveTextContent("Votre Pass AZ-104 commence le 11 février 2027, à la fin de votre Pass en cours, et dure jusqu'au 12 mai 2027.");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lists the Passes of a purchase of several", () => {
+    const passes: Pass[] = [
+      { status: "paid", certification: "az-104", startsAt: "2026-11-13T10:00:00Z", expiresAt: "2027-02-11T10:00:00Z", chained: false },
+      { status: "paid", certification: "az-900", startsAt: "2027-01-01T10:00:00Z", expiresAt: "2027-04-01T10:00:00Z", chained: true },
+    ];
+    renderIntl(<PurchaseStatus sessionId="cs_cart" initial={purchase({}, passes)} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Your 2 Passes are active:");
+    const items = screen.getByTestId("purchase-passes").querySelectorAll("li");
+    expect(items[0]).toHaveTextContent("Your AZ-104 Pass is active until February 11, 2027.");
+    expect(items[1]).toHaveTextContent("Your AZ-900 Pass starts on January 1, 2027");
   });
 
   it("waits for the webhook, then shows the Pass", async () => {

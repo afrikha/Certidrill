@@ -7,10 +7,10 @@ import { prisma } from "@/lib/db";
 import { formString } from "@/lib/form-data";
 import { questionTypes } from "@/lib/content/schema";
 import { isChapterStatus } from "@/lib/course/admin";
-import { isBatchStatus } from "@/lib/content/batch-status";
+import { isBatchStatus, type BatchStatus } from "@/lib/content/batch-status";
 import { PublishError, setCertificationActive, setCourseStatuses, setQuestionStatuses } from "@/lib/content/publish";
 
-export type PublishState = { ok?: true; count?: number; groups?: number; active?: boolean; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "breaks_active" | "unconfirmed" } | undefined;
+export type PublishState = { ok?: true; count?: number; groups?: number; to?: BatchStatus; active?: boolean; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "breaks_active" | "unconfirmed" } | undefined;
 
 /** Everything a certification's visibility touches. */
 function revalidateCertification() {
@@ -53,7 +53,7 @@ export async function setQuestionStatusesAction(_prev: PublishState, formData: F
   const status = formString(formData, "status");
   if (!isBatchStatus(to) || (type && !(questionTypes as readonly string[]).includes(type)) || (status && !isChapterStatus(status))) return { error: "invalid" };
   if (formString(formData, "confirm") !== "yes") return { error: "unconfirmed" };
-  return run(() =>
+  const state = await run(() =>
     setQuestionStatuses(prisma, admin.id, {
       certification: formString(formData, "certification"),
       type: (type || undefined) as QuestionType | undefined,
@@ -62,6 +62,8 @@ export async function setQuestionStatusesAction(_prev: PublishState, formData: F
       to,
     }),
   );
+  // The groups line of the result says whether they were published or taken out of exams.
+  return state?.ok ? { ...state, to } : state;
 }
 
 /** Sets the status of every chapter of a certification's course (only those in `from` when given). */

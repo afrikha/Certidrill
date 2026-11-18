@@ -17,7 +17,7 @@ import { revokeEntitlement } from "@/lib/access/admin";
 import { BillingError, buyableCertifications, CHECKOUT_MINUTES, heldPayments, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
 import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
 import { eraseDeletedCustomers, eraseRetryDelay } from "@/lib/billing/erase";
-import { handleStripeEvent, HELD_NOTE } from "@/lib/billing/webhook";
+import { handleStripeEvent, HELD_NOTE, share } from "@/lib/billing/webhook";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
 import { kickEmailWorker, startEmailWorker, stopEmailWorker } from "@/lib/email/worker";
 import { SWITCHES } from "@/lib/settings";
@@ -95,17 +95,17 @@ async function verifiedUser(email: string, locale: "en" | "fr" = "en") {
 async function checkout(userId: string, stripe = fakeStripe().api) {
   const { url } = await startCheckout(db, stripe, userId, { planCode: "pass_90", certificationCode: "az-104" }, { base: BASE, now: T0 });
   const id = url.split("/").at(-1)!;
-  return db.payment.findUniqueOrThrow({ where: { stripeCheckoutSessionId: id } });
+  return db.payment.findFirstOrThrow({ where: { stripeCheckoutSessionId: id } });
 }
 
-function sessionObject(payment: { id: string; stripeCheckoutSessionId: string | null }, extra: Record<string, unknown> = {}) {
+function sessionObject(payment: { checkoutId: string; stripeCheckoutSessionId: string | null }, extra: Record<string, unknown> = {}) {
   return {
     id: payment.stripeCheckoutSessionId,
     object: "checkout.session",
     mode: "payment",
     payment_status: "paid",
-    client_reference_id: payment.id,
-    metadata: { paymentId: payment.id },
+    client_reference_id: payment.checkoutId,
+    metadata: { checkoutId: payment.checkoutId },
     amount_total: 1900,
     currency: "eur",
     total_details: { amount_tax: 317 },
@@ -118,7 +118,7 @@ function event(type: string, object: Record<string, unknown>, id = `evt_${++n}`)
   return { id, object: "event", type, created: Math.floor(T0.getTime() / 1000), data: { object } } as unknown as Stripe.Event;
 }
 
-const paid = (payment: { id: string; stripeCheckoutSessionId: string | null }, id?: string) => event("checkout.session.completed", sessionObject(payment), id);
+const paid = (payment: { checkoutId: string; stripeCheckoutSessionId: string | null }, id?: string) => event("checkout.session.completed", sessionObject(payment), id);
 
 beforeAll(async () => {
   await db.$executeRawUnsafe(
@@ -195,16 +195,16 @@ describe("checkout", () => {
     expect(params).toMatchObject({
       mode: "payment",
       customer: calls.customerIds[0],
-      client_reference_id: payment.id,
+      client_reference_id: payment.checkoutId,
       line_items: [{ price: "price_pass_90", quantity: 1 }],
-      metadata: { paymentId: payment.id, planCode: "pass_90", certificationCode: "az-104" },
+      metadata: { checkoutId: payment.checkoutId, planCode: "pass_90", certificationCodes: "az-104" },
       locale: "fr",
       expires_at: Math.floor(T0.getTime() / 1000) + CHECKOUT_MINUTES * 60,
       success_url: `${BASE}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${BASE}/billing/cancel?certification=az-104`,
     });
     expect(JSON.stringify(params)).not.toContain("1900");
-    expect(options.idempotencyKey).toBe(`checkout-${payment.id}`);
+    expect(options.idempotencyKey).toBe(`checkout-${payment.checkoutId}`);
     expect(calls.customers[0]).toEqual([
       { email: "buyer@example.com", preferred_locales: ["fr"], metadata: { userId: user } },
       { idempotencyKey: expect.stringMatching(new RegExp(`^customer-${user}-[0-9a-f-]{36}$`)) },
@@ -216,7 +216,7 @@ describe("checkout", () => {
     expect(await db.billingCustomer.count({ where: { userId: user } })).toBe(1);
     // Nothing is granted before the webhook, even with the session id in hand.
     expect(await getAccess(db, user, certificationId, T0)).toMatchObject({ level: "free" });
-    expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "pending", certification: "az-104", startsAt: null, expiresAt: null, chained: false });
+    expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "pending", passes: [{ status: "pending", certification: "az-104", startsAt: null, expiresAt: null, chained: false }] });
   });
 
   it("charges the certification's own price when it has one, the plan's otherwise", async () => {
@@ -375,7 +375,7 @@ describe("webhook", () => {
     expect(rows[0]).toMatchObject({ source: "purchase", paymentId: payment.id, startsAt: T0, expiresAt: at(90), revokedAt: null });
     expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "paid", paidAt: T0, amountCents: 1900, chargedCents: 1900, taxCents: 317, stripePaymentIntentId: "pi_123" });
     expect(await getAccess(db, user, certificationId, at(1))).toMatchObject({ level: "full", source: "pass", expiresAt: at(90) });
-    expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "paid", certification: "az-104", startsAt: T0.toISOString(), expiresAt: at(90).toISOString(), chained: false });
+    expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toEqual({ status: "paid", passes: [{ status: "paid", certification: "az-104", startsAt: T0.toISOString(), expiresAt: at(90).toISOString(), chained: false }] });
     expect((await db.emailOutbox.findMany({ where: { userId: user }, orderBy: { sendAfter: "asc" } })).map((e) => [e.kind, e.sendAfter])).toEqual([
       ["purchase", T0],
       ["pass_reminder", at(83)],
@@ -408,7 +408,7 @@ describe("webhook", () => {
       [at(90), at(180)],
     ]);
     expect(await getAccess(db, user, certificationId, at(31))).toMatchObject({ expiresAt: at(180) });
-    expect(await purchaseStatus(db, user, second.stripeCheckoutSessionId!)).toMatchObject({ status: "paid", chained: true, startsAt: at(90).toISOString() });
+    expect((await purchaseStatus(db, user, second.stripeCheckoutSessionId!)).passes[0]).toMatchObject({ status: "paid", chained: true, startsAt: at(90).toISOString() });
   });
 
   it("follows delayed payments, failures and expiry, and never undoes a paid payment", async () => {
@@ -461,7 +461,7 @@ describe("webhook", () => {
       const e = event("checkout.session.completed", sessionObject(payment, extra));
       expect(await handleStripeEvent(db, e, T0)).toBe("held");
       expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ status: "held", amountCents: 1900, currency: "eur" });
-      expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toMatchObject({ status: "held", startsAt: null });
+      expect(await purchaseStatus(db, user, payment.stripeCheckoutSessionId!)).toMatchObject({ status: "held", passes: [{ status: "held", startsAt: null }] });
       expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: e.id } })).toMatchObject({ processedAt: T0, error: HELD_NOTE });
       // Received again: still nothing granted.
       expect(await handleStripeEvent(db, e, T0)).toBe("duplicate");
@@ -561,6 +561,129 @@ describe("webhook", () => {
     session.current = { user: { id: owner, role: "user", locale: "en" } };
     const res = await get(`?session_id=${payment.stripeCheckoutSessionId}`);
     expect(await res.json()).toMatchObject({ status: "pending" });
+  });
+});
+
+describe("cart: several Passes in one purchase", () => {
+  let fundamentalsId: string;
+  beforeAll(async () => {
+    await seedReferential(db, await loadCertification(path.resolve(__dirname, "../../content/az-900")));
+    const c = await db.certification.update({ where: { code: "az-900" }, data: { active: true } });
+    fundamentalsId = c.id;
+    const pass = await db.plan.findUniqueOrThrow({ where: { code: "pass_90" } });
+    await db.planPrice.create({ data: { planId: pass.id, certificationId: c.id, amountCents: 900, currency: "eur", stripePriceId: "price_pass_90_az900" } });
+  });
+  afterAll(async () => {
+    await db.planPrice.deleteMany({ where: { certificationId: fundamentalsId } });
+    await db.certification.update({ where: { code: "az-900" }, data: { active: false } });
+  });
+
+  async function cart(userId: string, codes: string[], stripe = fakeStripe().api) {
+    const { url } = await startCheckout(db, stripe, userId, { planCode: "pass_90", certificationCodes: codes }, { base: BASE, now: T0 });
+    return db.payment.findMany({ where: { stripeCheckoutSessionId: url.split("/").at(-1)! }, include: { certification: { select: { code: true } } }, orderBy: { certification: { code: "asc" } } });
+  }
+
+  it("charges one session with a line per Pass, each at its own price, one payment row per Pass", async () => {
+    await openSales();
+    const user = await verifiedUser("cart@example.com");
+    const { api, calls } = fakeStripe();
+    // Duplicates and case are folded: one Pass per certification.
+    const payments = await cart(user, ["az-900", "AZ-104", "az-900"], api);
+    expect(payments.map((p) => [p.certification.code, p.amountCents, p.status])).toEqual([["az-104", 1900, "pending"], ["az-900", 900, "pending"]]);
+    expect(new Set(payments.map((p) => p.checkoutId)).size).toBe(1);
+    expect(calls.sessions).toHaveLength(1);
+    const [params] = calls.sessions[0] as [Stripe.Checkout.SessionCreateParams];
+    expect(params).toMatchObject({
+      client_reference_id: payments[0]!.checkoutId,
+      line_items: [{ price: "price_pass_90_az900", quantity: 1 }, { price: "price_pass_90", quantity: 1 }],
+      metadata: { checkoutId: payments[0]!.checkoutId, planCode: "pass_90", certificationCodes: "az-900,az-104" },
+    });
+    // Back from Stripe without paying, the whole cart is ticked again.
+    expect(new URL(params.cancel_url!).searchParams.get("certification")).toBe("az-900,az-104");
+    expect(JSON.stringify(params)).not.toMatch(/1900|"900"/);
+  });
+
+  it("refuses a cart with a certification not on sale, too many Passes, or no Stripe price, and keeps nothing a refused session made", async () => {
+    await openSales();
+    const user = await verifiedUser("cart-refused@example.com");
+    await expect(cart(user, ["az-104", "nope"])).rejects.toMatchObject({ code: "not_found" });
+    await expect(cart(user, Array.from({ length: 11 }, (_, i) => `c-${i}`))).rejects.toThrow();
+    await expect(startCheckout(db, fakeStripe().api, user, { planCode: "pass_90" } as never, { base: BASE })).rejects.toThrow();
+    await db.planPrice.updateMany({ where: { certificationId: fundamentalsId }, data: { stripePriceId: null } });
+    try {
+      await expect(cart(user, ["az-104", "az-900"])).rejects.toMatchObject({ code: "unavailable" });
+    } finally {
+      await db.planPrice.updateMany({ where: { certificationId: fundamentalsId }, data: { stripePriceId: "price_pass_90_az900" } });
+    }
+    await db.planPrice.updateMany({ where: { certificationId: fundamentalsId }, data: { currency: "usd" } });
+    try {
+      // One session charges one currency.
+      await expect(cart(user, ["az-104", "az-900"])).rejects.toMatchObject({ code: "unavailable" });
+    } finally {
+      await db.planPrice.updateMany({ where: { certificationId: fundamentalsId }, data: { currency: "eur" } });
+    }
+    await expect(cart(user, ["az-104", "az-900"], fakeStripe({ failCheckout: "refused" }).api)).rejects.toThrow("No such price");
+    expect(await db.payment.count({ where: { customer: { userId: user } } })).toBe(0);
+  });
+
+  it("grants every Pass of a paid cart once, sharing what Stripe charged and the tax by price", async () => {
+    await openSales();
+    const user = await verifiedUser("cart-paid@example.com");
+    const payments = await cart(user, ["az-104", "az-900"]);
+    const completed = event("checkout.session.completed", sessionObject(payments[0]!, { amount_total: 2800, total_details: { amount_tax: 467 } }));
+    expect(await handleStripeEvent(db, completed, T0)).toBe("processed");
+    expect(await handleStripeEvent(db, completed, T0)).toBe("duplicate");
+    expect(await handleStripeEvent(db, event("checkout.session.async_payment_succeeded", sessionObject(payments[0]!, { amount_total: 2800 })), T0)).toBe("processed");
+    const after = await db.payment.findMany({ where: { checkoutId: payments[0]!.checkoutId }, include: { entitlement: true, certification: { select: { code: true } } }, orderBy: { certification: { code: "asc" } } });
+    expect(after.map((p) => [p.certification.code, p.status, p.chargedCents, p.taxCents, p.stripePaymentIntentId])).toEqual([
+      ["az-104", "paid", 1900, 317, "pi_123"],
+      ["az-900", "paid", 900, 150, "pi_123"],
+    ]);
+    expect(after.every((p) => p.entitlement?.expiresAt.getTime() === at(90).getTime())).toBe(true);
+    expect(await db.entitlement.count({ where: { userId: user } })).toBe(2);
+    expect(await getAccess(db, user, fundamentalsId, T0)).toMatchObject({ level: "full" });
+    expect(await getAccess(db, user, certificationId, T0)).toMatchObject({ level: "full" });
+    // One confirmation per Pass.
+    expect(await db.emailOutbox.count({ where: { userId: user, kind: "purchase" } })).toBe(2);
+    const status = await purchaseStatus(db, user, payments[0]!.stripeCheckoutSessionId!);
+    expect(status).toMatchObject({ status: "paid", passes: [{ certification: "az-104", status: "paid" }, { certification: "az-900", status: "paid" }] });
+  });
+
+  it("holds the whole cart when Stripe charged less than its prices, and expires it whole", async () => {
+    await openSales();
+    const user = await verifiedUser("cart-short@example.com");
+    const short = await cart(user, ["az-104", "az-900"]);
+    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(short[0]!, { amount_total: 1900 })), T0)).toBe("held");
+    expect(await db.payment.findMany({ where: { checkoutId: short[0]!.checkoutId }, select: { status: true, chargedCents: true } })).toEqual(
+      expect.arrayContaining([{ status: "held", chargedCents: 1289 }, { status: "held", chargedCents: 611 }]),
+    );
+    expect(await db.entitlement.count({ where: { userId: user } })).toBe(0);
+    // Side by side for the administrator, under the cart they share.
+    const held = (await heldPayments(db)).filter((p) => p.checkoutId === short[0]!.checkoutId);
+    expect(held.map((p) => p.certification.code).sort((a, b) => a.localeCompare(b))).toEqual(["az-104", "az-900"]);
+
+    const abandoned = await cart(user, ["az-104", "az-900"]);
+    expect(await handleStripeEvent(db, event("checkout.session.expired", sessionObject(abandoned[0]!)), T0)).toBe("processed");
+    expect((await db.payment.findMany({ where: { checkoutId: abandoned[0]!.checkoutId } })).map((p) => p.status)).toEqual(["expired", "expired"]);
+  });
+
+  it("still fulfils a session started before carts, which names its one payment", async () => {
+    await openSales();
+    const user = await verifiedUser("legacy@example.com");
+    const [payment] = await cart(user, ["az-104"]);
+    // Migrated rows: checkoutId = id, and the session's metadata says paymentId.
+    await db.payment.update({ where: { id: payment!.id }, data: { checkoutId: payment!.id } });
+    const legacy = event("checkout.session.completed", { ...sessionObject({ ...payment!, checkoutId: payment!.id }), metadata: { paymentId: payment!.id } });
+    expect(await handleStripeEvent(db, legacy, T0)).toBe("processed");
+    expect(await db.entitlement.count({ where: { paymentId: payment!.id } })).toBe(1);
+  });
+
+  it("shares an amount in whole cents that add up", () => {
+    expect(share(2800, [1900, 900])).toEqual([1900, 900]);
+    expect(share(467, [1900, 900])).toEqual([317, 150]);
+    expect(share(100, [1, 1, 1])).toEqual([34, 33, 33]);
+    expect(share(1999, [1999])).toEqual([1999]);
+    expect(share(0, [1900, 900])).toEqual([0, 0]);
   });
 });
 
