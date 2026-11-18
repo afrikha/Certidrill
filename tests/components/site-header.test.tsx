@@ -81,4 +81,9 @@ describe("SiteFooter", () => {
     render(await SiteFooter());
     expect(screen.getByRole("contentinfo")).toHaveTextContent(/non affilié à Microsoft/);
   });
+
+  it("links to the privacy policy", async () => {
+    render(await SiteFooter());
+    expect(screen.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/privacy");
+  });
 });

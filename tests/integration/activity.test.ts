@@ -11,7 +11,7 @@ import { loadCourse } from "@/lib/content/course";
 import { seedBank, seedCourse, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { audit } from "@/lib/audit";
-import { LOGIN_RETENTION_DAYS, purgeLogins, recentLogins, recordLogin, recordLoginByEmail } from "@/lib/activity/logins";
+import { LOGIN_RETENTION_DAYS, loggedIp, purgeLogins, recordLogin, recordLoginByEmail } from "@/lib/activity/logins";
 import { userActivity } from "@/lib/activity/timeline";
 import { siteActivity } from "@/lib/activity/overview";
 import { publishSampleBank } from "./sample-bank";
@@ -46,11 +46,18 @@ describe("sign-ins (login_event)", () => {
     await recordLoginByEmail(db, { email: "nobody-activity@example.com", kind: "failed", ip: "198.51.100.1" });
     // A deleted account (or a database error) loses the event, not the sign-in.
     await expect(recordLogin(db, { userId: "no-such-user", kind: "password", ip: "1.1.1.1" })).resolves.toBeUndefined();
-    expect((await recentLogins(db, alice)).map((l) => [l.kind, l.ip])).toEqual([
+    const logins = await db.loginEvent.findMany({ where: { userId: alice }, orderBy: { createdAt: "desc" } });
+    expect(logins.map((l) => [l.kind, l.ip])).toEqual([
       ["failed", "2001:db8::1"],
       ["password", "203.0.113.7"],
     ]);
     expect(await db.loginEvent.count({ where: { ip: "198.51.100.1" } })).toBe(0);
+  });
+
+  it("keeps an address only when it is an IPv4 or IPv6 address", () => {
+    expect(loggedIp(" 203.0.113.7 ")).toBe("203.0.113.7");
+    expect(loggedIp("2001:db8::1")).toBe("2001:db8::1");
+    for (const bad of ["unknown", "", "203.0.113.7, 10.0.0.1", "<script>", "x".repeat(200)]) expect(loggedIp(bad)).toBe("unknown");
   });
 
   it("deletes the events older than a year, keeps the others", async () => {

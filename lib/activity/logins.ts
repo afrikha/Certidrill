@@ -2,12 +2,14 @@
  * Sign-ins and security events of each account (login_event), with the full
  * IP address, for the administrators to follow the activity of the site
  * (/admin/users/[id], /admin/activity). The owner chose to keep them one year:
- * the worker deletes older ones (purgeLogins), the account's deletion takes
- * them with it, and the user sees their own on the account page.
+ * the worker deletes older ones (purgeLogins) and the account's deletion takes
+ * them with it. Only the administrators see them (the owner's choice); the
+ * privacy policy (/privacy) tells the users.
  *
  * Only events of an existing account are kept: a wrong address typed at
  * sign-in is nobody's data and is not recorded.
  */
+import { isIP } from "node:net";
 import type { LoginKind, PrismaClient } from "@prisma/client";
 import { logError } from "@/lib/log";
 
@@ -15,13 +17,19 @@ import { logError } from "@/lib/log";
 export const LOGIN_RETENTION_DAYS = 365;
 const DAY_MS = 86_400_000;
 
+/** The address as recorded: an IPv4 or IPv6 address, anything else "unknown". */
+export function loggedIp(ip: string): string {
+  const trimmed = ip.trim();
+  return isIP(trimmed) ? trimmed : "unknown";
+}
+
 /**
  * Records one event. Never throws: a sign-in must not fail because its
  * record could not be written (the failure goes to the logs).
  */
 export async function recordLogin(db: PrismaClient, entry: { userId: string; kind: LoginKind; ip: string }, now = new Date()): Promise<void> {
   try {
-    await db.loginEvent.create({ data: { userId: entry.userId, kind: entry.kind, ip: entry.ip.slice(0, 64), createdAt: now } });
+    await db.loginEvent.create({ data: { userId: entry.userId, kind: entry.kind, ip: loggedIp(entry.ip), createdAt: now } });
   } catch (err) {
     logError("activity.login", err, { kind: entry.kind });
   }
@@ -41,9 +49,4 @@ export async function recordLoginByEmail(db: PrismaClient, entry: { email: strin
 export async function purgeLogins(db: PrismaClient, now = new Date()): Promise<number> {
   const { count } = await db.loginEvent.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - LOGIN_RETENTION_DAYS * DAY_MS) } } });
   return count;
-}
-
-/** The latest events of one account, newest first. */
-export function recentLogins(db: PrismaClient, userId: string, take = 10) {
-  return db.loginEvent.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take, select: { id: true, kind: true, ip: true, createdAt: true } });
 }

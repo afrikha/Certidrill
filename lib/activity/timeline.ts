@@ -26,7 +26,11 @@ export type ActivityEvent = { at: Date } & (
 
 export type ActivityKind = ActivityEvent["kind"];
 
-/** Rows read from each source: enough for the page, which shows the latest `take` events. */
+/**
+ * Rows read from each source: enough for the page, which shows the latest
+ * `take` events. Course progress is grouped by chapter and day after this cap:
+ * the oldest line shown may count fewer sections than were read that day.
+ */
 const PER_SOURCE = 200;
 const DAY_MS = 86_400_000;
 const utcDay = (d: Date) => Math.floor(d.getTime() / DAY_MS);
@@ -63,10 +67,9 @@ export async function userActivity(db: PrismaClient, userId: string, take = 200)
     const certification = a.certification.code;
     events.push({ at: a.createdAt, kind: "exam_started", certification, mode: a.mode });
     // An expired attempt ends at its deadline, a submitted one when it was handed in.
-    const end = a.status === "submitted" ? a.submittedAt : a.status === "expired" ? (a.submittedAt ?? a.deadlineAt) : null;
-    if (end && a.status !== "in_progress") {
-      events.push({ at: end, kind: "exam_finished", certification, mode: a.mode, status: a.status, score: a.scaledScore, passed: a.passed });
-    }
+    if (a.status === "in_progress") continue;
+    const end = a.status === "submitted" ? a.submittedAt : (a.submittedAt ?? a.deadlineAt);
+    if (end) events.push({ at: end, kind: "exam_finished", certification, mode: a.mode, status: a.status, score: a.scaledScore, passed: a.passed });
   }
   // One line per chapter and day: a chapter is read section by section.
   const read = new Map<string, Extract<ActivityEvent, { kind: "course_read" }>>();

@@ -5,8 +5,8 @@ import { login, loginAsAdmin } from "./helpers";
 
 /**
  * Activity follow-up on the production build: a user's sign-ins (with their
- * IP) and wrong password are recorded and shown on their account page; the
- * administrator sees them in the user's timeline and in the site overview.
+ * IP) and wrong password are recorded; only the administrator sees them, in
+ * the user's timeline and in the site overview.
  */
 const db = new PrismaClient();
 const USER = { email: "e2e-activity@certidrill.test", password: "e2e activity password" };
@@ -20,7 +20,7 @@ test.afterAll(async () => {
   await db.$disconnect();
 });
 
-test("a user's sign-ins are recorded with their IP, shown to them and to the administrator", async ({ page, browser }) => {
+test("a user's sign-ins are recorded with their IP and shown to the administrator only", async ({ page, browser }) => {
   // A wrong password, then the right one.
   await page.goto("/login");
   await page.locator("#email").fill(USER.email);
@@ -29,11 +29,10 @@ test("a user's sign-ins are recorded with their IP, shown to them and to the adm
   await expect(page.getByRole("alert")).toBeVisible();
   await login(page, USER);
 
+  // The owner's choice: the user does not see their sign-ins.
   await page.goto("/account");
-  const logins = page.getByTestId("account-logins");
-  await expect(logins.locator('[data-kind="password"]')).toHaveCount(1);
-  await expect(logins.locator('[data-kind="failed"]')).toHaveCount(1);
-  await expect(logins).toContainText("IP ");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByTestId("account-logins")).toHaveCount(0);
 
   const admin = await browser.newPage();
   await loginAsAdmin(admin);

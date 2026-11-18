@@ -1,7 +1,9 @@
 /**
  * The activity of the whole site over the last days, by UTC day, for the
  * administrators (/admin/activity). Counted from what the site keeps anyway
- * and from the sign-ins (login_event).
+ * and from the sign-ins (login_event). The rows of the period are read and
+ * counted here, which is light at the site's volume; past some tens of
+ * thousands of rows a month, a SQL GROUP BY by day would be lighter.
  */
 import type { PrismaClient } from "@prisma/client";
 
