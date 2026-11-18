@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { Alert } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Privacy" };
 
@@ -11,8 +10,7 @@ const SECTIONS = ["controller", "data", "purposes", "recipients", "retention", "
 /**
  * The information owed to users (RGPD art. 13): what the site collects, why,
  * for how long, who sees it and their rights. Linked from the footer of every
- * public page and from the sign-up form. The bracketed passages are for the
- * publisher to complete.
+ * public page and from the sign-up form.
  */
 export default async function PrivacyPage() {
   const t = await getTranslations("privacy");
@@ -23,7 +21,6 @@ export default async function PrivacyPage() {
         <h1 className="text-3xl font-bold">{t("title")}</h1>
         <p className="text-sm text-muted-foreground">{t("updated", { date: format.dateTime(UPDATED, { dateStyle: "long", timeZone: "UTC" }) })}</p>
       </header>
-      <Alert tone="info" data-testid="privacy-draft">{t("draft")}</Alert>
       {SECTIONS.map((key) => (
         <section key={key} className="space-y-3" data-section={key}>
           <h2 className="text-xl font-semibold">{t(`sections.${key}.title`)}</h2>

@@ -86,4 +86,9 @@ describe("SiteFooter", () => {
     render(await SiteFooter());
     expect(screen.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/privacy");
   });
+
+  it("links to the legal notice", async () => {
+    render(await SiteFooter());
+    expect(screen.getByRole("link", { name: "Legal notice" })).toHaveAttribute("href", "/legal");
+  });
 });

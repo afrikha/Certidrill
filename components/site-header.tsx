@@ -50,12 +50,15 @@ export async function SiteHeader() {
 
 export async function SiteFooter() {
   const t = await getTranslations("common");
-  const tp = await getTranslations("privacy");
+  const [tp, tl] = await Promise.all([getTranslations("privacy"), getTranslations("legal")]);
   return (
     <footer className="mt-16 border-t border-border">
       <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-xs text-muted-foreground">
         <p>{t("disclaimer")}</p>
-        <p><Link href="/privacy" className="underline hover:text-foreground">{tp("link")}</Link></p>
+        <p className="space-x-4">
+          <Link href="/legal" className="underline hover:text-foreground">{tl("link")}</Link>
+          <Link href="/privacy" className="underline hover:text-foreground">{tp("link")}</Link>
+        </p>
       </div>
     </footer>
   );

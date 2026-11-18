@@ -11,4 +11,6 @@ test("the privacy policy is reachable from the footer and says how long sign-ins
   }
   await expect(page.locator('[data-section="retention"]')).toContainText("Sign-ins: one year");
   await expect(page.locator('[data-section="data"]')).toContainText("full IP address");
+  // The policy is complete: no bracketed passage left for the publisher to fill in.
+  await expect(page.locator("main")).not.toContainText("[To ");
 });
