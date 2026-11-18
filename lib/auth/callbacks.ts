@@ -41,7 +41,9 @@ export async function authorizeCredentials(db: PrismaClient, limiter: RateLimite
     // the other way round. The refusing key stays blocked until its window ends.
     if (byEmail.ok) byEmail.release();
     if (byIp.ok) byIp.release();
-    await recordLoginByEmail(db, { email, kind: "blocked", ip });
+    // Noted once per refusing key and window, not on every refused try: a
+    // flood on a locked account or address would otherwise write a row a try.
+    if (byEmail.firstRefusal || byIp.firstRefusal) await recordLoginByEmail(db, { email, kind: "blocked", ip });
     throw new RateLimitedError();
   }
 

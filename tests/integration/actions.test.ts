@@ -128,7 +128,10 @@ describe("password sign-in (authorizeCredentials)", () => {
     await authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: PASSWORD }, request("1.2.3.4"));
     await authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: "wrong password!" }, request("1.2.3.5"));
     await authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: "wrong password!" }, request("1.2.3.5"));
-    await expect(authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: PASSWORD }, request("1.2.3.6"))).rejects.toBeInstanceOf(RateLimitedError);
+    // Blocked tries are noted once per window, however many follow.
+    for (let i = 0; i < 3; i++) {
+      await expect(authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: PASSWORD }, request("1.2.3.6"))).rejects.toBeInstanceOf(RateLimitedError);
+    }
     await authorizeCredentials(prisma, limiter, { email: "nobody-logs@example.com", password: PASSWORD }, request("1.2.3.7"));
     const events = await prisma.loginEvent.findMany({ where: { createdAt: { gte: before } }, orderBy: { createdAt: "asc" }, select: { userId: true, kind: true, ip: true } });
     expect(events).toEqual([

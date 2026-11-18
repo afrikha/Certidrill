@@ -10,8 +10,10 @@ export interface RateLimiter {
    * that turned out not to count). Giving back only touches the window the
    * hit was counted in: once that window has ended, or the key was reset, it
    * does nothing, so it never lowers the count of a later window.
+   * `firstRefusal` is true for the one hit that first went over the limit in
+   * its window: what follows a refusal can be noted once, not once per try.
    */
-  take(key: string, now?: number): { ok: boolean; release(now?: number): void };
+  take(key: string, now?: number): { ok: boolean; firstRefusal: boolean; release(now?: number): void };
   /** True when the key has reached the limit in the current window (does not record a hit). */
   blocked(key: string, now?: number): boolean;
   /** Forgets the key: every hit of its window, including tries still in flight. */
@@ -33,6 +35,7 @@ export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs
     const counted = bucket;
     return {
       ok: counted.count <= limit,
+      firstRefusal: counted.count === limit + 1,
       release(at = Date.now()) {
         // The same bucket object: a new window or a reset made a new one.
         if (buckets.get(key) === counted && counted.resetAt > at && counted.count > 0) counted.count -= 1;
