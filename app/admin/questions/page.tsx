@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QuestionBatchForm } from "../certifications/forms";
 import { BATCH_STATUSES, type BatchStatus } from "@/lib/content/batch-status";
+import { groupsToPublish } from "@/lib/content/publish";
 
 export const metadata = { title: "Questions" };
 
@@ -76,6 +77,7 @@ export default async function AdminQuestionsPage({ searchParams }: Readonly<{ se
           key={`${certification.code}-${type ?? ""}-${status ?? ""}-${domain ?? ""}`}
           code={certification.code}
           filters={{ type, status, domain }}
+          groups={await groupsToPublish(prisma, certification.id, { type, status, domain })}
           byStatus={Object.fromEntries(BATCH_STATUSES.map((s) => [s, questions.filter((q) => q.status === s).length])) as Record<BatchStatus, number>}
         />
       )}

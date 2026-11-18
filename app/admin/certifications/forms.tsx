@@ -71,13 +71,16 @@ export function CourseBatchForm({ code }: Readonly<{ code: string }>) {
  * The questions selected by the filters of the questions page, to one status.
  * `byStatus`: the questions a batch may change, by status; the count shown is
  * those not yet at the status chosen, the ones the batch will change.
+ * `groups`: the case studies and series a publishing batch would publish
+ * although none of their questions changes (see groupsToPublish).
  */
-export function QuestionBatchForm({ code, filters, byStatus }: Readonly<{ code: string; filters: { type?: string; status?: string; domain?: string }; byStatus: Record<BatchStatus, number> }>) {
+export function QuestionBatchForm({ code, filters, byStatus, groups }: Readonly<{ code: string; filters: { type?: string; status?: string; domain?: string }; byStatus: Record<BatchStatus, number>; groups: number }>) {
   const t = useTranslations("publishAdmin");
   const [state, action, pending] = useActionState(setQuestionStatusesAction, undefined);
   const [to, setTo] = useState<BatchStatus>("published");
   const total = BATCH_STATUSES.reduce((n, s) => n + byStatus[s], 0);
   const count = total - byStatus[to];
+  const groupCount = to === "published" ? groups : 0;
   return (
     <form action={action} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3" data-testid="question-batch">
       <input type="hidden" name="certification" value={code} />
@@ -86,9 +89,9 @@ export function QuestionBatchForm({ code, filters, byStatus }: Readonly<{ code: 
       <input type="hidden" name="domain" value={filters.domain ?? ""} />
       <span className="text-sm font-medium">{t("batchTitle", { count: total, code: code.toUpperCase() })}</span>
       <StatusSelect name="to" label={t("questionsTo")} defaultValue="published" onChange={(v) => isBatchStatus(v) && setTo(v)} />
-      <Confirm id="question-batch-confirm" label={t("confirmQuestions", { count })} />
-      <Button type="submit" variant="secondary" disabled={pending || count === 0}>{t("apply")}</Button>
-      <Result state={state} done={(n) => t("questionsChanged", { count: n ?? 0 })} />
+      <Confirm id="question-batch-confirm" label={groupCount > 0 ? `${t("confirmQuestions", { count })} ${t("andGroups", { count: groupCount })}` : t("confirmQuestions", { count })} />
+      <Button type="submit" variant="secondary" disabled={pending || count + groupCount === 0}>{t("apply")}</Button>
+      <Result state={state} done={(n) => (state?.groups ? `${t("questionsChanged", { count: n ?? 0 })} ${t("groupsChanged", { count: state.groups })}` : t("questionsChanged", { count: n ?? 0 }))} />
     </form>
   );
 }

@@ -151,7 +151,7 @@ export function batchWhere(certificationId: string, b: Omit<QuestionBatch, "cert
  *   leaving `published` takes its group out of the exams with it.
  */
 async function groupsToChange(
-  tx: Prisma.TransactionClient,
+  tx: PrismaClient | Prisma.TransactionClient,
   selected: readonly { caseStudyId: string | null; seriesId: string | null }[],
   changed: readonly { caseStudyId: string | null; seriesId: string | null }[],
   to: ContentStatus,
@@ -172,15 +172,27 @@ async function groupsToChange(
 }
 
 /**
+ * The case studies and series a publishing batch on these filters would
+ * publish although none of its questions changes: groups left in draft under
+ * questions already published. Shown by the questions page.
+ */
+export async function groupsToPublish(db: PrismaClient, certificationId: string, filters: Omit<QuestionBatch, "certification" | "to">): Promise<number> {
+  const selected = await db.question.findMany({ where: { ...batchWhere(certificationId, filters), OR: [{ caseStudyId: { not: null } }, { seriesId: { not: null } }] }, select: { caseStudyId: true, seriesId: true } });
+  if (selected.length === 0) return 0;
+  const { caseStudies, series } = await groupsToChange(db, selected, [], "published");
+  return caseStudies.length + series.length;
+}
+
+/**
  * Sets the status of every question the filters select, and of the case
  * studies and series they belong to as `groupsToChange` says (an exam only
  * draws a case study or a series whose own status allows it). Refused
  * (nothing changed) when it would leave an active certification unable to
  * build complete exams: deactivate it first. One entry in the audit log for the
  * batch, with the ids changed (questions, case studies, series). Returns the
- * number of questions changed.
+ * number of questions and of groups (case studies and series) changed.
  */
-export async function setQuestionStatuses(db: PrismaClient, actorId: string, batch: QuestionBatch): Promise<number> {
+export async function setQuestionStatuses(db: PrismaClient, actorId: string, batch: QuestionBatch): Promise<{ questions: number; groups: number }> {
   const certification = await db.certification.findUnique({ where: { code: batch.certification }, select: { id: true, active: true } });
   if (!certification) throw new PublishError("not_found");
   return db.$transaction(
@@ -201,7 +213,8 @@ export async function setQuestionStatuses(db: PrismaClient, actorId: string, bat
       const groups = { status: { notIn: [batch.to, "retired"] as ContentStatus[] } };
       const changedCaseStudies = caseStudies.length > 0 ? await tx.caseStudy.updateManyAndReturn({ where: { id: { in: caseStudies }, ...groups }, data: { status: batch.to }, select: { id: true } }) : [];
       const changedSeries = series.length > 0 ? await tx.questionSeries.updateManyAndReturn({ where: { id: { in: series }, ...groups }, data: { status: batch.to }, select: { id: true } }) : [];
-      if (changed.length === 0 && changedCaseStudies.length === 0 && changedSeries.length === 0) return 0;
+      const groupCount = changedCaseStudies.length + changedSeries.length;
+      if (changed.length === 0 && groupCount === 0) return { questions: 0, groups: 0 };
       // An active certification stays able to build complete exams, or nothing is changed.
       if (certification.active && batch.to !== "published" && !(await checkExamBank(tx, certification.id)).ok) throw new PublishError("breaks_active");
       const ids = changed.map((q) => q.id).sort(compareCodeUnits);
@@ -218,7 +231,7 @@ export async function setQuestionStatuses(db: PrismaClient, actorId: string, bat
           series: changedSeries.map((g) => g.id).sort(compareCodeUnits),
         },
       });
-      return ids.length;
+      return { questions: ids.length, groups: groupCount };
     },
     { timeout: 30_000 },
   );
