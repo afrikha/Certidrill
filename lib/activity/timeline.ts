@@ -5,6 +5,7 @@
  * Passes, administrators' actions) and from the sign-ins of login_event:
  * nothing else is collected for it.
  */
+import { FAILED_KINDS } from "@/lib/activity/logins";
 import type { AttemptMode, AttemptStatus, EntitlementSource, LoginKind, PaymentStatus, PrismaClient } from "@prisma/client";
 
 type Bilingual = { en: string; fr: string };
@@ -41,7 +42,8 @@ export async function userActivity(db: PrismaClient, userId: string, take = 200)
   if (!user) return null;
   const newest = { orderBy: { createdAt: "desc" as const }, take: PER_SOURCE };
   const [logins, attempts, progress, reports, outcomes, payments, entitlements, audit] = await Promise.all([
-    db.loginEvent.findMany({ where: { userId }, ...newest, select: { kind: true, ip: true, createdAt: true } }),
+    // Refused tries are listed apart (failedLogins): a flood of them would push the sign-ins out.
+    db.loginEvent.findMany({ where: { userId, kind: { notIn: [...FAILED_KINDS] } }, ...newest, select: { kind: true, ip: true, createdAt: true } }),
     db.attempt.findMany({ where: { userId }, ...newest, select: { createdAt: true, mode: true, status: true, submittedAt: true, deadlineAt: true, scaledScore: true, passed: true, certification: { select: { code: true } } } }),
     db.courseProgress.findMany({
       where: { userId },

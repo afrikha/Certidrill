@@ -11,7 +11,7 @@ import { loadCourse } from "@/lib/content/course";
 import { seedBank, seedCourse, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { audit } from "@/lib/audit";
-import { LOGIN_RETENTION_DAYS, loggedIp, purgeLogins, recordLogin, recordLoginByEmail } from "@/lib/activity/logins";
+import { LOGIN_RETENTION_DAYS, failedLogins, loggedIp, purgeLogins, recordLogin, recordLoginByEmail } from "@/lib/activity/logins";
 import { userActivity } from "@/lib/activity/timeline";
 import { siteActivity } from "@/lib/activity/overview";
 import { publishSampleBank } from "./sample-bank";
@@ -102,6 +102,13 @@ describe("a user's timeline", () => {
     expect(events.find((e) => e.kind === "exam_finished")).toMatchObject({ certification: "az-104", mode: "exam", status: "submitted" });
     expect(events.find((e) => e.kind === "admin")).toMatchObject({ action: "entitlement.revoke", actor: "admin-activity@example.com" });
     expect(events.find((e) => e.kind === "outcome")).toMatchObject({ passed: true, score: 812 });
+    // Refused tries are listed apart, so that a flood of them cannot hide the sign-ins.
+    expect(events.filter((e) => e.kind === "login").map((e) => e.kind === "login" && e.login)).toEqual(["password"]);
+    for (let i = 0; i < 3; i++) await recordLogin(db, { userId: alice, kind: "failed", ip: "198.51.100.9" });
+    const failed = await failedLogins(db, alice, 2);
+    expect(failed.total).toBe(4);
+    expect(failed.rows.map((r) => [r.kind, r.ip])).toEqual([["failed", "198.51.100.9"], ["failed", "198.51.100.9"]]);
+    expect((await userActivity(db, alice))!.filter((e) => e.kind === "login")).toHaveLength(1);
     // Another user's timeline holds none of Alice's events.
     const bobs = (await userActivity(db, bob))!.map((e) => e.kind);
     for (const kind of ["exam_started", "course_read", "report", "outcome", "pass_granted"]) expect(bobs).not.toContain(kind);

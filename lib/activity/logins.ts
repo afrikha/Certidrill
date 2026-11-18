@@ -50,3 +50,16 @@ export async function purgeLogins(db: PrismaClient, now = new Date()): Promise<n
   const { count } = await db.loginEvent.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - LOGIN_RETENTION_DAYS * DAY_MS) } } });
   return count;
 }
+
+/** Kinds that are a try refused, not a sign-in: listed apart, so that a flood of them cannot hide the real sign-ins. */
+export const FAILED_KINDS = ["failed", "blocked"] as const satisfies readonly LoginKind[];
+
+/** The latest refused tries on one account, newest first, and how many are kept in all. */
+export async function failedLogins(db: PrismaClient, userId: string, take = 50) {
+  const where = { userId, kind: { in: [...FAILED_KINDS] } };
+  const [rows, total] = await Promise.all([
+    db.loginEvent.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, kind: true, ip: true, createdAt: true } }),
+    db.loginEvent.count({ where }),
+  ]);
+  return { rows, total };
+}

@@ -5,12 +5,14 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/guards";
 import { pick, type Locale } from "@/lib/i18n/config";
 import { userActivity, type ActivityEvent } from "@/lib/activity/timeline";
+import { failedLogins } from "@/lib/activity/logins";
 import { Card } from "@/components/ui/card";
 
 export const metadata = { title: "User activity" };
 export const dynamic = "force-dynamic";
 
 const TAKE = 200;
+const FAILED_TAKE = 50;
 
 /** What one user did on the site, newest first (lib/activity/timeline.ts). */
 export default async function UserActivityPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
@@ -20,6 +22,7 @@ export default async function UserActivityPage({ params }: Readonly<{ params: Pr
   const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
   const events = user ? await userActivity(prisma, user.id, TAKE) : null;
   if (!user || !events) notFound();
+  const failed = await failedLogins(prisma, user.id, FAILED_TAKE);
   const t = await getTranslations("activityAdmin");
   const tb = await getTranslations("billingAdmin");
   const tp = await getTranslations("billing");
@@ -94,6 +97,31 @@ export default async function UserActivityPage({ params }: Readonly<{ params: Pr
                 </tr>
               );
             })}
+          </tbody>
+        </table>
+      </Card>
+      <h2 className="text-lg font-semibold">{t("failedTitle")}</h2>
+      <p className="text-sm text-muted-foreground">{t("failedHelp", { shown: failed.rows.length, total: failed.total })}</p>
+      <Card className="overflow-x-auto p-0">
+        <table className="w-full text-left text-sm" data-testid="user-failed-logins">
+          <thead className="bg-muted">
+            <tr>
+              <th scope="col" className="px-4 py-2">{t("when")}</th>
+              <th scope="col" className="px-4 py-2">{t("what")}</th>
+              <th scope="col" className="px-4 py-2">{t("details")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {failed.rows.length === 0 && (
+              <tr><td colSpan={3} className="px-4 py-3 text-muted-foreground">{t("noFailed")}</td></tr>
+            )}
+            {failed.rows.map((l) => (
+              <tr key={l.id} className="border-t border-border align-top" data-kind={l.kind}>
+                <td className="whitespace-nowrap px-4 py-2 tabular-nums">{when(l.createdAt)}</td>
+                <td className="px-4 py-2 font-medium">{t(`login_${l.kind}`)}</td>
+                <td className="px-4 py-2 text-muted-foreground">{t("ip", { ip: l.ip })}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </Card>

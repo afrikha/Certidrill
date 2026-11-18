@@ -40,9 +40,12 @@ test("a user's sign-ins are recorded with their IP and shown to the administrato
   await admin.getByRole("link", { name: USER.email }).click();
   await expect(admin.getByRole("heading", { name: `Activity of ${USER.email}` })).toBeVisible();
   const timeline = admin.getByTestId("user-activity");
-  await expect(timeline.locator('[data-kind="login"]')).toHaveCount(2);
+  await expect(timeline.locator('[data-kind="login"]')).toHaveCount(1);
   await expect(timeline.locator('[data-kind="account_created"]')).toHaveCount(1);
-  await expect(timeline).toContainText("Wrong password");
+  // The wrong password is listed apart from the sign-ins.
+  const failed = admin.getByTestId("user-failed-logins");
+  await expect(failed.locator('[data-kind="failed"]')).toHaveCount(1);
+  await expect(failed).toContainText("Wrong password");
 
   await admin.goto("/admin/activity");
   const today = new Date().toISOString().slice(0, 10);
