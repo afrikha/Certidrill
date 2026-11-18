@@ -667,6 +667,42 @@ describe("cart: several Passes in one purchase", () => {
     expect((await db.payment.findMany({ where: { checkoutId: abandoned[0]!.checkoutId } })).map((p) => p.status)).toEqual(["expired", "expired"]);
   });
 
+  it("lists held carts whole, whatever the page size", async () => {
+    await openSales();
+    const user = await verifiedUser("cart-page@example.com");
+    for (const codes of [["az-104", "az-900"], ["az-104", "az-900"]]) {
+      const payments = await cart(user, codes);
+      await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payments[0]!, { amount_total: 100 })), T0);
+    }
+    // Every held payment in page order (other tests hold some too).
+    const all = await heldPayments(db, 10_000);
+    expect(new Set(all.map((p) => p.checkoutId)).size).toBeGreaterThanOrEqual(2);
+    // A page size that ends in the middle of a cart: the page goes on to its end.
+    const cut = all.findIndex((p, i) => i > 0 && p.checkoutId === all[i - 1]!.checkoutId);
+    expect(cut).toBeGreaterThan(0);
+    expect((await heldPayments(db, cut)).length).toBeGreaterThan(cut);
+    for (const take of [1, 2, 3, cut, all.length]) {
+      // The carts of the first `take` rows, each with all its rows, in the same order.
+      const carts = new Set(all.slice(0, take).map((p) => p.checkoutId));
+      expect((await heldPayments(db, take)).map((p) => p.id)).toEqual(all.filter((p) => carts.has(p.checkoutId)).map((p) => p.id));
+    }
+  });
+
+  it("fulfils only the open lines of a cart replayed with one already paid, against the price of the whole cart", async () => {
+    await openSales();
+    const user = await verifiedUser("cart-replay@example.com");
+    const [az104, az900] = await cart(user, ["az-104", "az-900"]);
+    // Not a state a cart reaches by itself (its lines are settled together): the replay must still be sound.
+    await db.payment.update({ where: { id: az104!.id }, data: { status: "paid" } });
+    // amount_total is for the whole session, so it is checked against every line's price.
+    const total = az104!.amountCents + az900!.amountCents;
+    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(az900!, { amount_total: total, total_details: { amount_tax: 0 } })), T0)).toBe("processed");
+    // Charged exactly the prices: each line's part is its own price.
+    expect(await db.payment.findUniqueOrThrow({ where: { id: az900!.id } })).toMatchObject({ status: "paid", chargedCents: az900!.amountCents });
+    expect(await db.payment.findUniqueOrThrow({ where: { id: az104!.id } })).toMatchObject({ status: "paid", chargedCents: null });
+    expect((await db.entitlement.findMany({ where: { userId: user } })).map((e) => e.paymentId)).toEqual([az900!.id]);
+  });
+
   it("still fulfils a session started before carts, which names its one payment", async () => {
     await openSales();
     const user = await verifiedUser("legacy@example.com");
