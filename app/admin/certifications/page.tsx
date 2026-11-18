@@ -57,7 +57,7 @@ export default async function AdminCertificationsPage() {
                   <td className="px-4 py-3">
                     <span className="tabular-nums" data-testid="published-questions">{t("publishedOf", { published, total })}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {(["draft", "reviewed", "needs_review"] as const).filter((s) => r.questions[s]).map((s) => `${t(`status_${s}`)} ${r.questions[s]}`).join(" · ")}
+                      {(["draft", "reviewed", "needs_review"] as const).filter((s) => r.questions[s]).map((s) => t("statusCount", { status: t(`status_${s}`), count: r.questions[s] ?? 0 })).join(" · ")}
                     </span>
                     <Link href={`/admin/questions?${new URLSearchParams({ certification: r.code })}`} className="text-xs text-primary underline">{t("publishQuestions")}</Link>
                   </td>

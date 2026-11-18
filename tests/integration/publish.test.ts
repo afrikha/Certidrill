@@ -14,7 +14,7 @@ import type { QuestionBank } from "@/lib/content/bank";
 import { bankStatusAfterSeed, seedBank, seedReferential } from "@/lib/content/seed";
 import { createUser } from "@/lib/users";
 import { loadAssemblyBank } from "@/lib/exam/bank-query";
-import { batchWhere, certificationRows, checkExamBank, PublishError, setCertificationActive, setQuestionStatuses } from "@/lib/content/publish";
+import { batchWhere, certificationRows, checkExamBank, groupsToPublish, PublishError, setCertificationActive, setQuestionStatuses } from "@/lib/content/publish";
 
 let content: CertificationContent;
 let bank: QuestionBank;
@@ -95,12 +95,12 @@ describe("questions by batch", () => {
     const domain = content.blueprint.domains[0]!.code;
     const expected = await db.question.count({ where: batchWhere(certificationId, { domain, type: "single" }) });
     expect(expected).toBeGreaterThan(0);
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", domain, type: "single", to: "reviewed" })).toBe(expected);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", domain, type: "single", to: "reviewed" })).questions).toBe(expected);
     expect((await statuses()).reviewed).toBe(expected);
     // Again: nothing left to change.
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", domain, type: "single", to: "reviewed" })).toBe(0);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", domain, type: "single", to: "reviewed" })).questions).toBe(0);
     // From reviewed only.
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", status: "reviewed", to: "published" })).toBe(expected);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", status: "reviewed", to: "published" })).questions).toBe(expected);
     expect(await statuses()).toEqual({ published: expected, draft: bank.questions.length - expected });
 
     const log = await db.auditLog.findMany({ where: { action: "question.status" }, orderBy: { createdAt: "asc" } });
@@ -112,16 +112,16 @@ describe("questions by batch", () => {
   it("never republishes a question reported by users (needs_review), even when filtered on it", async () => {
     const [reported] = bank.questions;
     await db.question.update({ where: { id: reported!.id }, data: { status: "needs_review" } });
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" })).toBe(bank.questions.length - 1);
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", status: "needs_review", to: "published" })).toBe(0);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" })).questions).toBe(bank.questions.length - 1);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", status: "needs_review", to: "published" })).questions).toBe(0);
     expect((await db.question.findUniqueOrThrow({ where: { id: reported!.id } })).status).toBe("needs_review");
   });
 
   it("never touches retired questions, and publishes the case studies and series of the batch", async () => {
     const [first] = bank.questions;
     await db.question.update({ where: { id: first!.id }, data: { status: "retired" } });
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" })).toBe(bank.questions.length - 1);
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", status: "retired", to: "published" })).toBe(0);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" })).questions).toBe(bank.questions.length - 1);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", status: "retired", to: "published" })).questions).toBe(0);
     expect((await db.question.findUniqueOrThrow({ where: { id: first!.id } })).status).toBe("retired");
 
     // AZ-900 has neither: a case study and a series added by hand follow their questions.
@@ -130,7 +130,7 @@ describe("questions by batch", () => {
     await db.questionSeries.create({ data: { id: "sr-test", certificationId, stem: {}, status: "draft" } });
     await db.question.update({ where: { id: a!.id }, data: { caseStudyId: "cs-test", status: "draft" } });
     await db.question.update({ where: { id: b!.id }, data: { seriesId: "sr-test", status: "draft" } });
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", status: "draft", to: "published" })).toBe(2);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", status: "draft", to: "published" })).questions).toBe(2);
     expect((await db.caseStudy.findUniqueOrThrow({ where: { id: "cs-test" } })).status).toBe("published");
     expect((await db.questionSeries.findUniqueOrThrow({ where: { id: "sr-test" } })).status).toBe("published");
   });
@@ -146,7 +146,7 @@ describe("questions by batch", () => {
     const caseStudy = () => db.caseStudy.findUniqueOrThrow({ where: { id: "cs-mixed" } }).then((x) => x.status);
 
     // One of its questions back to draft: the case study leaves the exams with it, rather than being drawn truncated.
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a.type, status: "published", to: "draft" })).toBe(1);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", type: a.type, status: "published", to: "draft" })).questions).toBe(1);
     expect(await caseStudy()).toBe("draft");
 
     // Questions at different statuses: a batch publishing one of them leaves the case study as it is…
@@ -156,6 +156,31 @@ describe("questions by batch", () => {
     // …and the batch completing it publishes it (the retired question does not count).
     await setQuestionStatuses(db, adminId, { certification: "az-900", status: "reviewed", to: "published" });
     expect(await caseStudy()).toBe("published");
+  });
+
+  it("publishes a group left in draft under questions already published, and records it", async () => {
+    await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" });
+    const [a, b] = bank.questions;
+    await db.caseStudy.create({ data: { id: "cs-late", certificationId, title: {}, tabs: [], status: "draft" } });
+    await db.questionSeries.create({ data: { id: "sr-other", certificationId, stem: {}, status: "draft" } });
+    await db.question.update({ where: { id: a!.id }, data: { caseStudyId: "cs-late" } });
+    await db.question.update({ where: { id: b!.id }, data: { seriesId: "sr-other", status: "draft" } });
+
+    // A batch on the case study's question only: nothing to change on the questions, the case study is published.
+    expect(await groupsToPublish(db, certificationId, { type: a!.type, status: "published" })).toBe(1);
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a!.type, status: "published", to: "published" })).toEqual({ questions: 0, groups: 1 });
+    expect((await db.caseStudy.findUniqueOrThrow({ where: { id: "cs-late" } })).status).toBe("published");
+    expect(await groupsToPublish(db, certificationId, {})).toBe(0);
+    const last = await db.auditLog.findFirstOrThrow({ where: { action: "question.status" }, orderBy: { createdAt: "desc" } });
+    expect(last.details).toMatchObject({ count: 0, ids: [], caseStudies: ["cs-late"], series: [] });
+    // A group reported by users stays out of any batch, like its questions.
+    await db.caseStudy.update({ where: { id: "cs-late" }, data: { status: "needs_review" } });
+    expect(await groupsToPublish(db, certificationId, {})).toBe(0);
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a!.type, status: "published", to: "published" })).toEqual({ questions: 0, groups: 0 });
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a!.type, status: "published", to: "draft" })).toMatchObject({ groups: 0 });
+    expect((await db.caseStudy.findUniqueOrThrow({ where: { id: "cs-late" } })).status).toBe("needs_review");
+    // The series has a question in draft and is not in that batch.
+    expect((await db.questionSeries.findUniqueOrThrow({ where: { id: "sr-other" } })).status).toBe("draft");
   });
 
   it("never draws a published case study or series while one of its questions may not enter an exam", async () => {
@@ -201,7 +226,7 @@ describe("questions by batch", () => {
 
     // A few questions less still build complete exams: allowed, and the audit lists the ids changed.
     const [one] = bank.questions;
-    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: one!.type, domain: content.blueprint.domains[0]!.code, to: "reviewed" })).toBeGreaterThan(0);
+    expect((await setQuestionStatuses(db, adminId, { certification: "az-900", type: one!.type, domain: content.blueprint.domains[0]!.code, to: "reviewed" })).questions).toBeGreaterThan(0);
     const last = await db.auditLog.findFirstOrThrow({ where: { action: "question.status" }, orderBy: { createdAt: "desc" } });
     const details = last.details as { ids: string[]; count: number };
     expect(details.ids).toHaveLength(details.count);

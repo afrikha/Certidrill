@@ -10,20 +10,25 @@ import { isChapterStatus } from "@/lib/course/admin";
 import { isBatchStatus } from "@/lib/content/batch-status";
 import { PublishError, setCertificationActive, setCourseStatuses, setQuestionStatuses } from "@/lib/content/publish";
 
-export type PublishState = { ok?: true; count?: number; active?: boolean; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "breaks_active" | "unconfirmed" } | undefined;
+export type PublishState = { ok?: true; count?: number; groups?: number; active?: boolean; unchanged?: true; error?: "invalid" | "not_found" | "incomplete_bank" | "breaks_active" | "unconfirmed" } | undefined;
 
 /** Everything a certification's visibility touches. */
 function revalidateCertification() {
   revalidatePath("/", "layout");
 }
 
-async function run(work: () => Promise<number | boolean>): Promise<PublishState> {
-  let result: number | boolean;
+async function run(work: () => Promise<number | boolean | { questions: number; groups: number }>): Promise<PublishState> {
+  let result: number | boolean | { questions: number; groups: number };
   try {
     result = await work();
   } catch (err) {
     if (err instanceof PublishError) return { error: err.code };
     throw err;
+  }
+  if (typeof result === "object") {
+    if (result.questions === 0 && result.groups === 0) return { unchanged: true };
+    revalidateCertification();
+    return { ok: true, count: result.questions, groups: result.groups };
   }
   if (result === false || result === 0) return { unchanged: true };
   revalidateCertification();
