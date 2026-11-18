@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/guards";
@@ -35,7 +36,7 @@ export default async function AdminUsersPage() {
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className="border-t border-border">
-                <td className="px-4 py-2">{u.email}</td>
+                <td className="px-4 py-2"><Link href={`/admin/users/${u.id}`} className="text-primary underline">{u.email}</Link></td>
                 <td className="px-4 py-2">{u.name}</td>
                 <td className="px-4 py-2">{u.role}</td>
                 <td className="px-4 py-2 uppercase">{u.locale}</td>

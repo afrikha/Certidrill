@@ -53,6 +53,16 @@ describe("rate limiter", () => {
     again.release(5000);
     expect(rl.blocked("j", 10)).toBe(true);
   });
+
+  it("flags only the first refusal of each window", () => {
+    const rl = createRateLimiter({ limit: 1, windowMs: 1000 });
+    expect(rl.take("k", 0)).toMatchObject({ ok: true, firstRefusal: false });
+    expect(rl.take("k", 10)).toMatchObject({ ok: false, firstRefusal: true });
+    expect(rl.take("k", 20)).toMatchObject({ ok: false, firstRefusal: false });
+    // A new window: the next refusal is flagged again.
+    rl.take("k", 1500);
+    expect(rl.take("k", 1510)).toMatchObject({ ok: false, firstRefusal: true });
+  });
 });
 
 describe("passwords", () => {

@@ -50,9 +50,13 @@ export async function SiteHeader() {
 
 export async function SiteFooter() {
   const t = await getTranslations("common");
+  const tp = await getTranslations("privacy");
   return (
     <footer className="mt-16 border-t border-border">
-      <p className="mx-auto max-w-6xl px-4 py-6 text-xs text-muted-foreground">{t("disclaimer")}</p>
+      <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-xs text-muted-foreground">
+        <p>{t("disclaimer")}</p>
+        <p><Link href="/privacy" className="underline hover:text-foreground">{tp("link")}</Link></p>
+      </div>
     </footer>
   );
 }

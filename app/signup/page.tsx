@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function SignupPage({ searchParams }: Readonly<{ searchParams: Promise<{ verify?: string | string[] }> }>) {
   if ((await auth())?.user) redirect("/dashboard");
   const { verify } = await searchParams;
-  const [{ signupOpen }, locale, t] = await Promise.all([readSwitches(prisma), getLocale(), getTranslations("signup")]);
+  const [{ signupOpen }, locale, t, tp] = await Promise.all([readSwitches(prisma), getLocale(), getTranslations("signup"), getTranslations("privacy")]);
 
   return (
     <>
@@ -31,6 +31,9 @@ export default async function SignupPage({ searchParams }: Readonly<{ searchPara
         {signupOpen ? (
           <Card>
             <SignupForm locale={locale} hours={EMAIL_VERIFY_HOURS} minLength={MIN_PASSWORD_LENGTH} />
+            <p className="mt-4 text-xs text-muted-foreground" data-testid="signup-privacy">
+              {tp("signupNotice")} <Link href="/privacy" className="text-primary underline">{tp("link").toLowerCase()}</Link>.
+            </p>
           </Card>
         ) : (
           <Alert tone="info" data-testid="signup-closed">{t("closed")}</Alert>

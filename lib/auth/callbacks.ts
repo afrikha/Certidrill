@@ -3,6 +3,7 @@ import { z } from "zod";
 import { verifyPassword } from "@/lib/auth/password";
 import { clientIp, type RateLimiter } from "@/lib/security/rate-limit";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
+import { recordLogin, recordLoginByEmail } from "@/lib/activity/logins";
 
 /**
  * Auth.js logic kept out of auth.ts so that it can be tested against a real
@@ -40,16 +41,24 @@ export async function authorizeCredentials(db: PrismaClient, limiter: RateLimite
     // the other way round. The refusing key stays blocked until its window ends.
     if (byEmail.ok) byEmail.release();
     if (byIp.ok) byIp.release();
+    // Noted once per refusing key and window, not on every refused try: a
+    // flood on a locked account or address would otherwise write a row a try.
+    if (byEmail.firstRefusal || byIp.firstRefusal) await recordLoginByEmail(db, { email, kind: "blocked", ip });
     throw new RateLimitedError();
   }
 
   const user = await db.user.findUnique({ where: { email } });
-  if (!user?.passwordHash || !(await verifyPassword(user.passwordHash, password))) return null;
+  if (!user) return null;
+  if (!user.passwordHash || !(await verifyPassword(user.passwordHash, password))) {
+    await recordLogin(db, { userId: user.id, kind: "failed", ip });
+    return null;
+  }
   // The right password clears the e-mail's count, failures sent at the same
   // time included: whoever holds the password is not the one guessing it.
   // The address only gets this try back: others may share it (an office).
   limiter.reset(`email:${email}`);
   byIp.release();
+  await recordLogin(db, { userId: user.id, kind: "password", ip });
   return { id: user.id, email: user.email, name: user.name };
 }
 

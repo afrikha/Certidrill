@@ -35,6 +35,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
   const q = one(sp.q);
   const userId = one(sp.user);
   const t = await getTranslations("billingAdmin");
+  const ta = await getTranslations("activityAdmin");
   const format = await getFormatter();
   const date = (d: Date) => format.dateTime(d, { dateStyle: "medium" });
   const now = new Date();
@@ -184,6 +185,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
       {selected && (
         <section className="space-y-4" data-testid="billing-user" aria-labelledby="billing-user-title">
           <h2 id="billing-user-title" className="text-xl font-semibold">{selected.email}</h2>
+          <p className="text-sm"><Link href={`/admin/users/${selected.id}`} className="text-primary underline">{ta("viewActivity")}</Link></p>
           <p className="text-sm text-muted-foreground">
             {selected.name && <>{selected.name} · </>}{selected.role} · {t("createdOn", { date: date(selected.createdAt) })} ·{" "}
             {selected.emailVerified ? t("verified") : t("unverified")}
