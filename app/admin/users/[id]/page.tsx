@@ -29,6 +29,12 @@ export default async function UserActivityPage({ params }: Readonly<{ params: Pr
   const money = (cents: number, currency: string) => format.number(cents / 100, { style: "currency", currency: currency.toUpperCase() });
   const yesNo = (v: boolean | null) => (v === null ? "other" : v ? "yes" : "no");
 
+  // An action written before its label exists shows as written, not as a broken page.
+  const actionLabel = (action: string) => {
+    const key = `action_${action.replaceAll(".", "_")}`;
+    return tb.has(key) ? tb(key as "action_user_create") : action;
+  };
+
   function describe(e: ActivityEvent): { what: string; details: string } {
     switch (e.kind) {
       case "login":
@@ -53,7 +59,7 @@ export default async function UserActivityPage({ params }: Readonly<{ params: Pr
       case "pass_revoked":
         return { what: t("kind_pass_revoked"), details: e.certification.toUpperCase() };
       case "admin":
-        return { what: tb(`action_${e.action.replaceAll(".", "_")}` as "action_user_create"), details: e.actor ? t("byActor", { actor: e.actor }) : t("byCli") };
+        return { what: actionLabel(e.action), details: e.actor ? t("byActor", { actor: e.actor }) : t("byCli") };
       default:
         return { what: t(`kind_${e.kind}`), details: "" };
     }

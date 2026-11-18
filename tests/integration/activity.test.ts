@@ -121,6 +121,11 @@ describe("site overview", () => {
     await db.payment.create({ data: { ...paid, checkoutId: "co-1", paidAt: day(1) } });
     await db.payment.create({ data: { ...paid, checkoutId: "co-2", paidAt: day(1) } });
     await db.payment.create({ data: { ...paid, checkoutId: "co-3", status: "pending" } });
+    // An attempt left to expire is never handed in: it ends at its deadline.
+    const blueprint = await db.blueprint.findFirstOrThrow({ where: { certificationId: certification.id } });
+    await db.attempt.create({
+      data: { userId: dan, certificationId: certification.id, blueprintId: blueprint.id, locale: "en", seed: "expired", status: "expired", createdAt: day(1), deadlineAt: new Date(day(1).getTime() + 60_000) },
+    });
 
     const activity = await siteActivity(db, NOW, 30);
     expect(activity.days).toHaveLength(30);
@@ -134,8 +139,9 @@ describe("site overview", () => {
     // Alice (exam, course, sign-ins of the earlier tests) and Dan this week; Bob only over the month.
     expect(activity.activeWeek).toBe(2);
     expect(activity.activeTotal).toBe(3);
-    expect(activity.days.reduce((n, d) => n + d.examsStarted, 0)).toBe(1);
-    expect(activity.days.reduce((n, d) => n + d.examsFinished, 0)).toBe(1);
+    // Alice's handed-in exam and Dan's expired one.
+    expect(activity.days.reduce((n, d) => n + d.examsStarted, 0)).toBe(2);
+    expect(activity.days.reduce((n, d) => n + d.examsFinished, 0)).toBe(2);
     expect(activity.revenue).toEqual([{ currency: "eur", cents: 3800, passes: 2 }]);
   });
 });

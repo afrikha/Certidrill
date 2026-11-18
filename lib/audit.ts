@@ -6,7 +6,9 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-export type AuditAction = "certification.active" | "course.status" | "entitlement.grant" | "entitlement.revoke" | "price.update" | "question.status" | "setting.update" | "user.create";
+/** Every action written to audit_log; each has a billingAdmin.action_* label in both languages (tests/unit/audit-labels.test.ts). */
+export const AUDIT_ACTIONS = ["certification.active", "course.status", "entitlement.grant", "entitlement.revoke", "price.update", "question.status", "setting.update", "user.create"] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 type Db = PrismaClient | Prisma.TransactionClient;
 

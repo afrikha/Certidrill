@@ -39,7 +39,11 @@ export async function siteActivity(db: PrismaClient, now = new Date(), days = 30
     // A failed or blocked try is not activity.
     db.loginEvent.findMany({ where: { createdAt: range, kind: { in: ["password", "magic_link"] } }, select: { userId: true, createdAt: true } }),
     db.attempt.findMany({ where: { createdAt: range }, select: { userId: true, createdAt: true } }),
-    db.attempt.findMany({ where: { submittedAt: range, status: { not: "in_progress" } }, select: { submittedAt: true } }),
+    // Ended as in the timeline: handed in, or expired (at its deadline when never handed in).
+    db.attempt.findMany({
+      where: { OR: [{ status: "submitted", submittedAt: range }, { status: "expired", OR: [{ submittedAt: range }, { submittedAt: null, deadlineAt: range }] }] },
+      select: { submittedAt: true, deadlineAt: true },
+    }),
     db.courseProgress.findMany({ where: { readAt: range }, select: { userId: true, readAt: true } }),
     db.payment.findMany({ where: { status: "paid", paidAt: range }, select: { paidAt: true, amountCents: true, currency: true } }),
   ]);
@@ -64,7 +68,11 @@ export async function siteActivity(db: PrismaClient, now = new Date(), days = 30
     row(a.createdAt)!.examsStarted += 1;
     active(a.userId, a.createdAt);
   }
-  for (const a of finished) row(a.submittedAt!)!.examsFinished += 1;
+  for (const a of finished) {
+    const end = a.submittedAt ?? a.deadlineAt;
+    const line = end && row(end);
+    if (line) line.examsFinished += 1;
+  }
   for (const p of progress) active(p.userId, p.readAt);
   const revenue = new Map<string, { currency: string; cents: number; passes: number }>();
   for (const p of paid) {
