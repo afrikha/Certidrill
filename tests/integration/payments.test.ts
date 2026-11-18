@@ -667,6 +667,37 @@ describe("cart: several Passes in one purchase", () => {
     expect((await db.payment.findMany({ where: { checkoutId: abandoned[0]!.checkoutId } })).map((p) => p.status)).toEqual(["expired", "expired"]);
   });
 
+  it("lists held carts whole, whatever the page size", async () => {
+    await openSales();
+    const user = await verifiedUser("cart-page@example.com");
+    for (const codes of [["az-104", "az-900"], ["az-104", "az-900"]]) {
+      const payments = await cart(user, codes);
+      await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payments[0]!, { amount_total: 100 })), T0);
+    }
+    const all = await db.payment.groupBy({ by: ["checkoutId"], where: { status: "held" }, _count: true });
+    const sizes = new Map(all.map((g) => [g.checkoutId, g._count]));
+    for (const take of [1, 2, 3, 100]) {
+      const page = await heldPayments(db, take);
+      const shown = new Map<string, number>();
+      for (const p of page) shown.set(p.checkoutId, (shown.get(p.checkoutId) ?? 0) + 1);
+      for (const [checkoutId, count] of shown) expect(count).toBe(sizes.get(checkoutId));
+      expect(page.length).toBeGreaterThanOrEqual(Math.min(take, sizes.size));
+    }
+  });
+
+  it("fulfils only the open lines of a cart replayed with one already paid, against the price of the whole cart", async () => {
+    await openSales();
+    const user = await verifiedUser("cart-replay@example.com");
+    const [az104, az900] = await cart(user, ["az-104", "az-900"]);
+    // Not a state a cart reaches by itself (its lines are settled together): the replay must still be sound.
+    await db.payment.update({ where: { id: az104!.id }, data: { status: "paid" } });
+    // amount_total is for the whole session, so it is checked against every line's price.
+    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(az900!, { amount_total: 2800, total_details: { amount_tax: 0 } })), T0)).toBe("processed");
+    expect(await db.payment.findUniqueOrThrow({ where: { id: az900!.id } })).toMatchObject({ status: "paid", chargedCents: 900 });
+    expect(await db.payment.findUniqueOrThrow({ where: { id: az104!.id } })).toMatchObject({ status: "paid", chargedCents: null });
+    expect((await db.entitlement.findMany({ where: { userId: user } })).map((e) => e.paymentId)).toEqual([az900!.id]);
+  });
+
   it("still fulfils a session started before carts, which names its one payment", async () => {
     await openSales();
     const user = await verifiedUser("legacy@example.com");

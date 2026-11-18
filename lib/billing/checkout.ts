@@ -260,14 +260,17 @@ export function paymentHistory(db: PrismaClient, userId: string) {
 /**
  * Payments held for an administrator (charged below the plan price, or in
  * another currency), oldest first: refund them in Stripe or grant the Pass
- * by hand (/admin/billing).
+ * by hand (/admin/billing). The first `take` set the carts shown, and each
+ * cart comes whole, so that its total is right (a page can then hold a few
+ * more rows).
  */
-export function heldPayments(db: PrismaClient) {
+export async function heldPayments(db: PrismaClient, take = 100) {
+  // The payments of one cart side by side.
+  const orderBy = [{ paidAt: "asc" }, { checkoutId: "asc" }, { id: "asc" }] satisfies Prisma.PaymentOrderByWithRelationInput[];
+  const page = await db.payment.findMany({ where: { status: "held" }, orderBy, take, select: { checkoutId: true } });
   return db.payment.findMany({
-    where: { status: "held" },
-    // The payments of one cart side by side.
-    orderBy: [{ paidAt: "asc" }, { checkoutId: "asc" }, { id: "asc" }],
-    take: 100,
+    where: { status: "held", checkoutId: { in: [...new Set(page.map((p) => p.checkoutId))] } },
+    orderBy,
     select: {
       id: true,
       checkoutId: true,

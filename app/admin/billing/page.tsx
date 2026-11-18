@@ -220,7 +220,10 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
 
           <Card className="overflow-x-auto p-0">
             <table className="w-full text-left text-sm" data-testid="entitlements">
-              <caption className="px-4 pt-3 text-left font-semibold">{t("passes")}</caption>
+              <caption className="px-4 pt-3 text-left">
+                <span className="block font-semibold">{t("passes")}</span>
+                <span className="block text-muted-foreground">{t("passesRefund")}</span>
+              </caption>
               <thead className="bg-muted">
                 <tr>
                   <th scope="col" className="px-4 py-2">{t("certification")}</th>
