@@ -4,7 +4,8 @@
  * deletes at Stripe the customers of deleted accounts (lib/billing/erase.ts)
  * and, once an hour, the sign-ins older than a year (lib/activity/logins.ts).
  * Started by instrumentation.ts; set EMAIL_WORKER=off to run it elsewhere or
- * not at all.
+ * not at all (then nothing deletes the old sign-ins: the retention announced
+ * to users is no longer kept). A failed purge is tried again the next hour.
  */
 import type { PrismaClient } from "@prisma/client";
 import { eraseDeletedCustomers } from "@/lib/billing/erase";
