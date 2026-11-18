@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import { setCertificationActiveAction, setCourseStatusesAction, setQuestionStatusesAction, type PublishState } from "@/lib/actions/publish";
-import { BATCH_STATUSES } from "@/lib/content/batch-status";
+import { BATCH_STATUSES, isBatchStatus, type BatchStatus } from "@/lib/content/batch-status";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 
@@ -40,12 +40,12 @@ function Confirm({ id, label }: Readonly<{ id: string; label: string }>) {
   );
 }
 
-function StatusSelect({ name, label, defaultValue }: Readonly<{ name: string; label: string; defaultValue: string }>) {
+function StatusSelect({ name, label, defaultValue, onChange }: Readonly<{ name: string; label: string; defaultValue: string; onChange?: (value: string) => void }>) {
   const t = useTranslations("publishAdmin");
   return (
     <label className="text-sm">
       <span className="sr-only">{label}</span>
-      <Select name={name} defaultValue={defaultValue} aria-label={label}>
+      <Select name={name} defaultValue={defaultValue} aria-label={label} onChange={onChange && ((e) => onChange(e.target.value))}>
         {BATCH_STATUSES.map((s) => <option key={s} value={s}>{t(`status_${s}`)}</option>)}
       </Select>
     </label>
@@ -67,18 +67,25 @@ export function CourseBatchForm({ code }: Readonly<{ code: string }>) {
   );
 }
 
-/** The questions selected by the filters of the questions page, to one status. */
-export function QuestionBatchForm({ code, filters, count }: Readonly<{ code: string; filters: { type?: string; status?: string; domain?: string }; count: number }>) {
+/**
+ * The questions selected by the filters of the questions page, to one status.
+ * `byStatus`: the questions a batch may change, by status; the count shown is
+ * those not yet at the status chosen, the ones the batch will change.
+ */
+export function QuestionBatchForm({ code, filters, byStatus }: Readonly<{ code: string; filters: { type?: string; status?: string; domain?: string }; byStatus: Record<BatchStatus, number> }>) {
   const t = useTranslations("publishAdmin");
   const [state, action, pending] = useActionState(setQuestionStatusesAction, undefined);
+  const [to, setTo] = useState<BatchStatus>("published");
+  const total = BATCH_STATUSES.reduce((n, s) => n + byStatus[s], 0);
+  const count = total - byStatus[to];
   return (
     <form action={action} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3" data-testid="question-batch">
       <input type="hidden" name="certification" value={code} />
       <input type="hidden" name="type" value={filters.type ?? ""} />
       <input type="hidden" name="status" value={filters.status ?? ""} />
       <input type="hidden" name="domain" value={filters.domain ?? ""} />
-      <span className="text-sm font-medium">{t("batchTitle", { count, code: code.toUpperCase() })}</span>
-      <StatusSelect name="to" label={t("questionsTo")} defaultValue="published" />
+      <span className="text-sm font-medium">{t("batchTitle", { count: total, code: code.toUpperCase() })}</span>
+      <StatusSelect name="to" label={t("questionsTo")} defaultValue="published" onChange={(v) => isBatchStatus(v) && setTo(v)} />
       <Confirm id="question-batch-confirm" label={t("confirmQuestions", { count })} />
       <Button type="submit" variant="secondary" disabled={pending || count === 0}>{t("apply")}</Button>
       <Result state={state} done={(n) => t("questionsChanged", { count: n ?? 0 })} />

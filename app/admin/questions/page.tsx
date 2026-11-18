@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QuestionBatchForm } from "../certifications/forms";
-import { OUT_OF_BATCH } from "@/lib/content/publish";
+import { BATCH_STATUSES, type BatchStatus } from "@/lib/content/batch-status";
 
 export const metadata = { title: "Questions" };
 
@@ -76,7 +76,7 @@ export default async function AdminQuestionsPage({ searchParams }: Readonly<{ se
           key={`${certification.code}-${type ?? ""}-${status ?? ""}-${domain ?? ""}`}
           code={certification.code}
           filters={{ type, status, domain }}
-          count={questions.filter((q) => !OUT_OF_BATCH.includes(q.status)).length}
+          byStatus={Object.fromEntries(BATCH_STATUSES.map((s) => [s, questions.filter((q) => q.status === s).length])) as Record<BatchStatus, number>}
         />
       )}
       <Card className="overflow-x-auto p-0">

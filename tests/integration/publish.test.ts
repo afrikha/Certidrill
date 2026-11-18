@@ -158,6 +158,23 @@ describe("questions by batch", () => {
     expect(await caseStudy()).toBe("published");
   });
 
+  it("publishes a group left in draft under questions already published, and records it", async () => {
+    await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" });
+    const [a, b] = bank.questions;
+    await db.caseStudy.create({ data: { id: "cs-late", certificationId, title: {}, tabs: [], status: "draft" } });
+    await db.questionSeries.create({ data: { id: "sr-other", certificationId, stem: {}, status: "draft" } });
+    await db.question.update({ where: { id: a!.id }, data: { caseStudyId: "cs-late" } });
+    await db.question.update({ where: { id: b!.id }, data: { seriesId: "sr-other", status: "draft" } });
+
+    // A batch on the case study's question only: nothing to change on the questions, the case study is published.
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a!.type, status: "published", to: "published" })).toBe(0);
+    expect((await db.caseStudy.findUniqueOrThrow({ where: { id: "cs-late" } })).status).toBe("published");
+    // The series has a question in draft and is not in that batch.
+    expect((await db.questionSeries.findUniqueOrThrow({ where: { id: "sr-other" } })).status).toBe("draft");
+    const last = await db.auditLog.findFirstOrThrow({ where: { action: "question.status" }, orderBy: { createdAt: "desc" } });
+    expect(last.details).toMatchObject({ count: 0, ids: [], caseStudies: ["cs-late"], series: [] });
+  });
+
   it("never draws a published case study or series while one of its questions may not enter an exam", async () => {
     await setQuestionStatuses(db, adminId, { certification: "az-900", to: "published" });
     const [a, b, c, d] = bank.questions;
