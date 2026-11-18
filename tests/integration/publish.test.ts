@@ -171,10 +171,16 @@ describe("questions by batch", () => {
     expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a!.type, status: "published", to: "published" })).toEqual({ questions: 0, groups: 1 });
     expect((await db.caseStudy.findUniqueOrThrow({ where: { id: "cs-late" } })).status).toBe("published");
     expect(await groupsToPublish(db, certificationId, {})).toBe(0);
-    // The series has a question in draft and is not in that batch.
-    expect((await db.questionSeries.findUniqueOrThrow({ where: { id: "sr-other" } })).status).toBe("draft");
     const last = await db.auditLog.findFirstOrThrow({ where: { action: "question.status" }, orderBy: { createdAt: "desc" } });
     expect(last.details).toMatchObject({ count: 0, ids: [], caseStudies: ["cs-late"], series: [] });
+    // A group reported by users stays out of any batch, like its questions.
+    await db.caseStudy.update({ where: { id: "cs-late" }, data: { status: "needs_review" } });
+    expect(await groupsToPublish(db, certificationId, {})).toBe(0);
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a!.type, status: "published", to: "published" })).toEqual({ questions: 0, groups: 0 });
+    expect(await setQuestionStatuses(db, adminId, { certification: "az-900", type: a!.type, status: "published", to: "draft" })).toMatchObject({ groups: 0 });
+    expect((await db.caseStudy.findUniqueOrThrow({ where: { id: "cs-late" } })).status).toBe("needs_review");
+    // The series has a question in draft and is not in that batch.
+    expect((await db.questionSeries.findUniqueOrThrow({ where: { id: "sr-other" } })).status).toBe("draft");
   });
 
   it("never draws a published case study or series while one of its questions may not enter an exam", async () => {

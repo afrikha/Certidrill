@@ -162,8 +162,8 @@ async function groupsToChange(
   });
   if (to !== "published") return ids(changed);
   const candidates = ids(selected);
-  // None of the group's questions at another status (retired ones aside).
-  const complete = { status: { notIn: [to, "retired"] as ContentStatus[] }, questions: { none: { status: { notIn: [to, "retired"] as ContentStatus[] } } } };
+  // Never a group reported (needs_review) or retired, like its questions; none of its questions at another status (retired ones aside).
+  const complete = { status: { notIn: [to, ...OUT_OF_BATCH] }, questions: { none: { status: { notIn: [to, "retired"] as ContentStatus[] } } } };
   const [caseStudies, series] = await Promise.all([
     candidates.caseStudies.length > 0 ? tx.caseStudy.findMany({ where: { id: { in: candidates.caseStudies }, ...complete }, select: { id: true } }) : [],
     candidates.series.length > 0 ? tx.questionSeries.findMany({ where: { id: { in: candidates.series }, ...complete }, select: { id: true } }) : [],
@@ -210,7 +210,8 @@ export async function setQuestionStatuses(db: PrismaClient, actorId: string, bat
               select: { id: true, caseStudyId: true, seriesId: true },
             });
       const { caseStudies, series } = await groupsToChange(tx, selected, changed, batch.to);
-      const groups = { status: { notIn: [batch.to, "retired"] as ContentStatus[] } };
+      // A batch never changes a group reported (needs_review) or retired, like its questions.
+      const groups = { status: { notIn: [batch.to, ...OUT_OF_BATCH] } };
       const changedCaseStudies = caseStudies.length > 0 ? await tx.caseStudy.updateManyAndReturn({ where: { id: { in: caseStudies }, ...groups }, data: { status: batch.to }, select: { id: true } }) : [];
       const changedSeries = series.length > 0 ? await tx.questionSeries.updateManyAndReturn({ where: { id: { in: series }, ...groups }, data: { status: batch.to }, select: { id: true } }) : [];
       const groupCount = changedCaseStudies.length + changedSeries.length;
