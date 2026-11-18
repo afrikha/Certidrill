@@ -6,6 +6,8 @@ import { allowSignIn, authorizeCredentials, RateLimitedError, refreshToken, sess
 import { MAGIC_LINK_MINUTES, sendMagicLink } from "@/lib/auth/email";
 import { authLimiter } from "@/lib/security/rate-limit";
 import type { Role } from "@prisma/client";
+import { recordLogin } from "@/lib/activity/logins";
+import { requestIp } from "@/lib/activity/request-ip";
 
 declare module "next-auth" {
   interface Session {
@@ -48,6 +50,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     },
   ],
+  events: {
+    // Password sign-ins are recorded in authorizeCredentials, which also sees the failures.
+    async signIn({ user, account }) {
+      if (account?.provider === "email" && user.id) await recordLogin(prisma, { userId: user.id, kind: "magic_link", ip: await requestIp() });
+    },
+  },
   callbacks: {
     signIn: ({ user, account }) => allowSignIn(prisma, authLimiter, account?.provider, user.email),
     jwt: ({ token, user }) => refreshToken(prisma, token, user?.id),

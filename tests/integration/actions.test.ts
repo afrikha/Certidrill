@@ -28,6 +28,7 @@ const h = vi.hoisted(() => {
   return {
     session: null as null | { user: { id: string; role: string; locale: string } },
     cookies: new Map<string, { value: string; options: unknown }>(),
+    headers: new Headers(),
     signIn: vi.fn(),
     revalidatePath: vi.fn(),
     AuthError,
@@ -53,7 +54,7 @@ vi.mock("next/headers", () => ({
     set: (name: string, value: string, options: unknown) => h.cookies.set(name, { value, options }),
     delete: (name: string) => h.cookies.set(name, { value: "", options: { deleted: true } }),
   }),
-  headers: async () => new Headers(),
+  headers: async () => h.headers,
 }));
 
 import { changePassword } from "@/lib/actions/account";
@@ -107,6 +108,7 @@ beforeEach(() => {
   h.signIn.mockReset();
   h.revalidatePath.mockReset();
   h.cookies.clear();
+  h.headers = new Headers();
 });
 
 describe("password sign-in (authorizeCredentials)", () => {
@@ -118,6 +120,23 @@ describe("password sign-in (authorizeCredentials)", () => {
     expect(await authorizeCredentials(prisma, limiter, { email: "not-an-email", password: PASSWORD }, request())).toBeNull();
     // An account without password (magic link only) cannot sign in with a password.
     expect(await authorizeCredentials(prisma, limiter, { email: "admin-actions@example.com", password: PASSWORD }, request())).toBeNull();
+  });
+
+  it("records each sign-in, wrong password and blocked try of an existing account, with its IP; nothing for an unknown address", async () => {
+    const limiter = createRateLimiter({ limit: 2, windowMs: 60_000 });
+    const before = new Date();
+    await authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: PASSWORD }, request("1.2.3.4"));
+    await authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: "wrong password!" }, request("1.2.3.5"));
+    await authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: "wrong password!" }, request("1.2.3.5"));
+    await expect(authorizeCredentials(prisma, limiter, { email: "carol@example.com", password: PASSWORD }, request("1.2.3.6"))).rejects.toBeInstanceOf(RateLimitedError);
+    await authorizeCredentials(prisma, limiter, { email: "nobody-logs@example.com", password: PASSWORD }, request("1.2.3.7"));
+    const events = await prisma.loginEvent.findMany({ where: { createdAt: { gte: before } }, orderBy: { createdAt: "asc" }, select: { userId: true, kind: true, ip: true } });
+    expect(events).toEqual([
+      { userId, kind: "password", ip: "1.2.3.4" },
+      { userId, kind: "failed", ip: "1.2.3.5" },
+      { userId, kind: "failed", ip: "1.2.3.5" },
+      { userId, kind: "blocked", ip: "1.2.3.6" },
+    ]);
   });
 
   it("blocks an e-mail after repeated failures, even with the right password, and per IP", async () => {
@@ -217,7 +236,10 @@ describe("server actions", () => {
   it("change password: checks the current one and the minimum length", async () => {
     expect(await changePassword(undefined, form({ current: PASSWORD, next: "short" }))).toEqual({ error: "passwordTooShort" });
     expect(await changePassword(undefined, form({ current: "not the password", next: "a brand new passphrase" }))).toEqual({ error: "passwordInvalid" });
+    h.headers = new Headers({ "x-forwarded-for": "4.3.2.1" });
     expect(await changePassword(undefined, form({ current: PASSWORD, next: "a brand new passphrase" }))).toEqual({ ok: true });
+    // Recorded with its address; the refused tries are not.
+    expect(await prisma.loginEvent.findMany({ where: { userId, kind: "password_changed" }, select: { ip: true } })).toEqual([{ ip: "4.3.2.1" }]);
     const { passwordHash } = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     expect(await verifyPassword(passwordHash!, "a brand new passphrase")).toBe(true);
     // Accounts without a password (magic link) can set one without the current one.

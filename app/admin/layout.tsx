@@ -19,6 +19,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
           <Link href="/admin/questions" className="hover:underline">{t("questions")}</Link>
           <Link href="/admin/course" className="hover:underline">{t("course")}</Link>
           <Link href="/admin/users" className="hover:underline">{t("users")}</Link>
+          <Link href="/admin/activity" className="hover:underline">{t("activity")}</Link>
           <Link href="/admin/billing" className="hover:underline">{t("billing")}</Link>
           <Link href="/admin/calibration" className="hover:underline">{t("calibration")}</Link>
         </nav>
