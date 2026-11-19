@@ -6,7 +6,7 @@ import { getOffers, type Offer } from "@/lib/access/offers";
 import { passPricing } from "@/lib/billing/checkout";
 import { stripeApi } from "@/lib/billing/stripe";
 import { BuyPass } from "@/components/billing/buy-pass";
-import { VAT_EXEMPT } from "@/lib/billing/terms";
+import { taxLabelKey } from "@/lib/billing/terms";
 import { Card } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -55,8 +55,7 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
   };
   const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, amountCents: c.amountCents, currency: c.currency }));
   const terms = (o: Offer) => {
-    // Under the VAT franchise, no VAT: the legal mention instead of "incl. VAT".
-    const tax = t(VAT_EXEMPT ? "vatExempt" : o.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded");
+      const tax = t(taxLabelKey(o.taxBehavior));
     if (o.kind === "pass") return t("termsPass", { tax, days: o.durationDays ?? 0 });
     if (o.kind === "team") return t("termsTeam", { tax, seats: o.minSeats ?? 1 });
     return t(o.interval === "year" ? "termsYear" : "termsMonth", { tax });

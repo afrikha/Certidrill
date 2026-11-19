@@ -27,6 +27,25 @@ export const VAT_MENTION = "TVA non applicable, art. 293 B du CGI";
 /** The footer of Stripe invoices: the seller, and the VAT mention under the franchise. */
 export const INVOICE_FOOTER = VAT_EXEMPT ? `${SELLER}. ${VAT_MENTION}.` : `${SELLER}.`;
 
+/** The offer message that follows a price: the VAT mention under the franchise, else incl. or excl. VAT. */
+export function taxLabelKey(taxBehavior: string): "vatExempt" | "taxIncluded" | "taxExcluded" {
+  if (VAT_EXEMPT) return "vatExempt";
+  return taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded";
+}
+
+/** The passages between square brackets of a text, brackets included. */
+function bracketed(text: string): string[] {
+  const found: string[] = [];
+  let open = text.indexOf("[");
+  while (open !== -1) {
+    const close = text.indexOf("]", open + 1);
+    if (close === -1) break;
+    found.push(text.slice(open, close + 1));
+    open = text.indexOf("[", close + 1);
+  }
+  return found;
+}
+
 const localeOf = (locale: string): Locale => (isLocale(locale) ? locale : defaultLocale);
 
 /** The exact text of the waiver box, in a locale: what the buyer ticks is what is stored. */
@@ -49,7 +68,7 @@ function strings(value: unknown, path: string): { path: string; text: string }[]
 export function termsPlaceholders(messages: Record<string, { terms?: unknown; billing?: { waiver?: unknown } }> = MESSAGES): string[] {
   return Object.entries(messages).flatMap(([locale, m]) =>
     [...strings(m.terms, `${locale}.terms`), ...strings(m.billing?.waiver, `${locale}.billing.waiver`)].flatMap(({ path, text }) =>
-      [...text.matchAll(/\[[^\]]*\]/g)].map((match) => `${path}: ${match[0]}`),
+      bracketed(text).map((passage) => `${path}: ${passage}`),
     ),
   );
 }

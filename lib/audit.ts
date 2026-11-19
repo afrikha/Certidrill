@@ -19,6 +19,11 @@ export function audit(
   return db.auditLog.create({ data: { actorId: entry.actorId, action: entry.action, targetUserId: entry.targetUserId ?? null, details: entry.details } });
 }
 
+/** Several entries at once, in the same transaction as their action. */
+export function auditMany(db: Db, entries: { actorId: string | null; action: AuditAction; targetUserId?: string | null; details: Prisma.InputJsonObject }[]) {
+  return db.auditLog.createMany({ data: entries.map((e) => ({ actorId: e.actorId, action: e.action, targetUserId: e.targetUserId ?? null, details: e.details })) });
+}
+
 /** Latest entries, newest first; for one user when `targetUserId` is given, of one kind when `action` is. */
 export function recentAudit(db: PrismaClient, { targetUserId, action, take = 50 }: { targetUserId?: string; action?: AuditAction; take?: number } = {}) {
   return db.auditLog.findMany({

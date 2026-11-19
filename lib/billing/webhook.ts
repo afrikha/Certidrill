@@ -21,7 +21,7 @@
 import type { PaymentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type Stripe from "stripe";
 import { addPass } from "@/lib/access/passes";
-import { audit } from "@/lib/audit";
+import { auditMany } from "@/lib/audit";
 import { enqueuePassEmails } from "@/lib/email/outbox";
 import { logEvent } from "@/lib/log";
 
@@ -38,6 +38,9 @@ export const HELD_NOTE = "held for review: charged below the plan price or in an
 /** Kept in stripe_event.error for an event an administrator settles by hand. */
 export const REVIEW_NOTE = "for review: a partial refund (no Pass withdrawn: revoke the one it is for) or a dispute won (Passes still withdrawn: grant them again if wanted), in /admin/billing";
 
+/** What stripe_event.error keeps for an event an administrator has to look at. */
+const NOTES: Partial<Record<WebhookOutcome, string>> = { held: HELD_NOTE, review: REVIEW_NOTE };
+
 type Tx = Prisma.TransactionClient;
 
 export async function handleStripeEvent(db: PrismaClient, event: Stripe.Event, now = new Date()): Promise<WebhookOutcome> {
@@ -51,7 +54,7 @@ export async function handleStripeEvent(db: PrismaClient, event: Stripe.Event, n
         RETURNING "id"`;
       if (claimed.length === 0) return "duplicate";
       const outcome = await apply(tx, event, now);
-      await tx.stripeEvent.update({ where: { id: event.id }, data: { processedAt: now, error: outcome === "held" ? HELD_NOTE : outcome === "review" ? REVIEW_NOTE : null } });
+      await tx.stripeEvent.update({ where: { id: event.id }, data: { processedAt: now, error: NOTES[outcome] ?? null } });
       return outcome;
     });
   } catch (err) {
@@ -259,17 +262,19 @@ type IntentPayment = Awaited<ReturnType<typeof lockByIntent>>[number];
 
 /** Withdraws the Passes of these payments, each with its trace in the audit log (no actor: Stripe). */
 async function revokePasses(tx: Tx, payments: IntentPayment[], reason: "refund" | "dispute", event: Stripe.Event, now: Date) {
-  for (const { entitlement: e } of payments) {
-    if (!e || e.revokedAt) continue;
-    await tx.entitlement.update({ where: { id: e.id }, data: { revokedAt: now } });
-    await audit(tx, {
+  const passes = payments.flatMap(({ entitlement: e }) => (e && !e.revokedAt ? [e] : []));
+  if (passes.length === 0) return;
+  await tx.entitlement.updateMany({ where: { id: { in: passes.map((e) => e.id) } }, data: { revokedAt: now } });
+  await auditMany(
+    tx,
+    passes.map((e) => ({
       actorId: null,
       action: "entitlement.revoke",
       targetUserId: e.userId,
       details: { entitlementId: e.id, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason, stripeEvent: event.id },
-    });
-    logEvent("billing.pass_revoked", { entitlementId: e.id, reason });
-  }
+    })),
+  );
+  for (const e of passes) logEvent("billing.pass_revoked", { entitlementId: e.id, reason });
 }
 
 /**
