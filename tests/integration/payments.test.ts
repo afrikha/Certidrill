@@ -1303,8 +1303,40 @@ describe("terms, invoices, refunds and disputes (offers lot C)", () => {
     // Paid again; the Pass stays withdrawn until an administrator grants it again.
     expect(await statuses(won.ids)).toEqual(["paid"]);
     expect((await passes(won.ids))[0]!.revokedAt).toEqual(at(1));
+    // A dispute won after a refund: the refund stands.
+    const refunded = await bought("dispute-refunded@example.com");
+    await handleStripeEvent(db, event("charge.refunded", charge(refunded.intent)), at(1));
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest(refunded.intent, "needs_response")), at(2))).toBe("processed");
+    await handleStripeEvent(db, event("charge.dispute.closed", contest(refunded.intent, "won")), at(30));
+    expect(await statuses(refunded.ids)).toEqual(["refunded"]);
     // A dispute on a payment Certidrill does not know: ignored.
     expect(await handleStripeEvent(db, event("charge.dispute.created", contest("pi_unknown", "needs_response")), at(1))).toBe("ignored");
+  });
+
+  it("withdraws the Pass when an inquiry becomes a dispute, and never on a late update of a closed one", async () => {
+    const { intent, ids } = await bought("inquiry@example.com");
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest(intent, "warning_needs_response")), at(1))).toBe("processed");
+    expect(await handleStripeEvent(db, event("charge.dispute.updated", contest(intent, "warning_under_review")), at(2))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["paid"]);
+    expect(await handleStripeEvent(db, event("charge.dispute.updated", contest(intent, "needs_response")), at(3))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["disputed"]);
+    expect((await passes(ids))[0]!.revokedAt).toEqual(at(3));
+    await handleStripeEvent(db, event("charge.dispute.closed", contest(intent, "won")), at(30));
+    // An update after the close (status won): nothing withdrawn again.
+    expect(await handleStripeEvent(db, event("charge.dispute.updated", contest(intent, "won")), at(31))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["paid"]);
+  });
+
+  it("leaves a held payment held through a dispute, so that it stays to check", async () => {
+    await openSales();
+    const user = await verifiedUser("held-dispute@example.com");
+    const payment = await checkout(user);
+    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { amount_total: 100, payment_intent: "pi_held_dispute" })), T0)).toBe("held");
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest("pi_held_dispute", "needs_response")), at(1))).toBe("processed");
+    expect(await statuses([payment.id])).toEqual(["held"]);
+    await handleStripeEvent(db, event("charge.dispute.closed", contest("pi_held_dispute", "won")), at(30));
+    expect(await statuses([payment.id])).toEqual(["held"]);
+    expect((await heldPayments(db)).some((p) => p.id === payment.id)).toBe(true);
   });
 
   it("sends no confirmation e-mail for a Pass refunded before it left", async () => {

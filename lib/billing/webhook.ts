@@ -13,8 +13,8 @@
  * After the purchase (offers lot C): the invoice's page is recorded
  * (invoice.finalized, invoice.paid), a full refund withdraws the Passes of the
  * payment (charge.refunded), and so does a dispute while it lasts
- * (charge.dispute.created); a dispute won gives them back
- * (charge.dispute.closed). A cart shares one Stripe payment: its Passes go
+ * (charge.dispute.created, or charge.dispute.updated when an inquiry becomes
+ * one); a dispute won makes the payments paid again (charge.dispute.closed). A cart shares one Stripe payment: its Passes go
  * together. A partial refund is left to an administrator, who knows which
  * Pass it is for.
  */
@@ -82,6 +82,7 @@ function apply(tx: Tx, event: Stripe.Event, now: Date): Promise<WebhookOutcome> 
     case "charge.refunded":
       return refund(tx, event, now);
     case "charge.dispute.created":
+    case "charge.dispute.updated":
       return dispute(tx, event, now);
     case "charge.dispute.closed":
       return closeDispute(tx, event);
@@ -290,17 +291,22 @@ async function refund(tx: Tx, event: Stripe.ChargeRefundedEvent, now: Date): Pro
   return "processed";
 }
 
+/** A dispute still open (an inquiry, warning_*, is only a question from the bank; won and lost are over). */
+const OPEN_DISPUTE = new Set<Stripe.Dispute.Status>(["needs_response", "under_review"]);
+
 /**
  * Contested by the buyer with their bank: the Passes are withdrawn while the
- * dispute lasts. An inquiry (warning_*) is only a question from the bank:
- * nothing changes.
+ * dispute lasts. Opened directly (created), or by an inquiry the bank turns
+ * into a dispute (updated). Only paid payments change: a held one has no Pass
+ * and stays in the list for an administrator, so that closing the dispute
+ * never makes it paid.
  */
-async function dispute(tx: Tx, event: Stripe.ChargeDisputeCreatedEvent, now: Date): Promise<WebhookOutcome> {
+async function dispute(tx: Tx, event: Stripe.ChargeDisputeCreatedEvent | Stripe.ChargeDisputeUpdatedEvent, now: Date): Promise<WebhookOutcome> {
   const contest = event.data.object;
   const payments = await lockByIntent(tx, idOf(contest.payment_intent));
   if (payments.length === 0) return "ignored";
-  if (contest.status.startsWith("warning_")) return "processed";
-  const open = payments.filter((p) => p.status === "paid" || p.status === "held");
+  if (!OPEN_DISPUTE.has(contest.status)) return "processed";
+  const open = payments.filter((p) => p.status === "paid");
   if (open.length === 0) return "processed";
   await tx.payment.updateMany({ where: { id: { in: open.map((p) => p.id) } }, data: { status: "disputed" } });
   await revokePasses(tx, open, "dispute", event, now);
