@@ -28,6 +28,8 @@ import { caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../li
 import { compareCodeUnits } from "../lib/sort";
 import { certOfFile, parseCertArgs } from "./cert-args";
 import { referenceWarnings, vendorOf, vendorWarnings, type Vendor } from "../lib/vendors";
+import type { ScoringRules } from "../lib/content/schema";
+import { allOrNothing } from "../lib/questions/schema";
 
 async function listYaml(dir: string): Promise<string[]> {
   try {
@@ -44,8 +46,11 @@ function schemaFor(folder: string | undefined) {
   return questionFileSchema;
 }
 
-type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string>; vendor: Vendor };
-type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string; references?: { url: string }[] };
+type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string>; vendor: Vendor; scoring: ScoringRules };
+type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string; stem?: { en: string; fr: string }; references?: { url: string }[] };
+
+/** The note that states per-element scoring, in each language (tools/questions/WRITING_GUIDE.md, rule 7). */
+const PER_ELEMENT_NOTE = [/worth one point/i, /vaut un point/i];
 
 /** Problems of a question that passed its schema: objective, folder, case study, series. */
 function questionProblems(data: FileData, folder: string | undefined, ctx: Context): string[] {
@@ -55,6 +60,9 @@ function questionProblems(data: FileData, folder: string | undefined, ctx: Conte
   else if (folder !== domain) problems.push(`objective ${data.objective} belongs to ${domain}/, file is in ${folder}/`);
   if (data.caseStudy && !ctx.caseIds.has(data.caseStudy)) problems.push(`unknown case study ${data.caseStudy}`);
   if (data.series && !ctx.seriesIds.has(data.series)) problems.push(`unknown series ${data.series}`);
+  // Scored all or nothing (blueprint.scoring): a note promising a point per selection would be false.
+  if (data.type && data.stem && allOrNothing(data.type as Parameters<typeof allOrNothing>[0], ctx.scoring) && PER_ELEMENT_NOTE.some((re) => re.test(data.stem!.en) || re.test(data.stem!.fr)))
+    problems.push(`stem says each selection is worth one point, but blueprint.scoring scores ${data.type} all or nothing`);
   return problems;
 }
 
@@ -134,14 +142,16 @@ async function validateQuestions(root: string, opts: Options, wholeBank: boolean
     caseIds: new Set(caseStudies!.map((f) => path.basename(f, ".yaml"))),
     seriesIds: new Set(series!.map((f) => path.basename(f, ".yaml"))),
     vendor: vendorOf(content.blueprint.certification.vendor),
+    scoring: content.blueprint.blueprint.scoring,
   };
-  for (const w of vendorWarnings(content.blueprint)) console.log(`⚠ ${path.relative(process.cwd(), path.join(root, "blueprint.yaml"))}: ${w}`);
+  const blueprintWarnings = vendorWarnings(content.blueprint);
+  for (const w of blueprintWarnings) console.log(`⚠ ${path.relative(process.cwd(), path.join(root, "blueprint.yaml"))}: ${w}`);
 
   files.sort(compareCodeUnits);
   // Files are independent: read them all at once, then report in order.
   const texts = await Promise.all(files.map((file) => readFile(file, "utf8")));
   let errors = 0;
-  let warned = 0;
+  let warned = blueprintWarnings.length;
   const byType = new Map<string, number>();
   files.forEach((file, n) => {
     const { problems, warnings = [], type } = validateFile(file, texts[n]!, ctx);

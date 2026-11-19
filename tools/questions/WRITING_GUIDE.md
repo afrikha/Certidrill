@@ -51,6 +51,8 @@ people and agents who author or review questions.
    `dragdrop` stem ends with "NOTE: Each correct selection is worth one point." /
    « Remarque : chaque sélection correcte vaut un point. » (they are scored per
    element). Not on `single`, `ordering` (all or nothing) or series.
+   Not either on `multi` or `dragdrop` when `blueprint.scoring` scores that type
+   `all_or_nothing` (AWS exams): `content:validate` rejects the note there.
 
 ## Recurring problems found by the full review (Nov. 2026) — check each one
 
