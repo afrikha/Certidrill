@@ -1,0 +1,21 @@
+# C-saa-c03-1 — COURSE SAA-C03, chapters 00, 11, 12, 13 (2026-11-19)
+
+## Result
+- 8 files written: `content/saa-c03/course/chapters/{00-getting-started,11-secure-access,12-secure-workloads,13-data-security}.{en,fr}.md`, all objectives 1.1.1–1.1.11, 1.2.1–1.2.10, 1.3.1–1.3.11 covered.
+- `npx tsx factory/check-cert.ts saa-c03 00-getting-started 11-secure-access 12-secure-workloads 13-data-security`: course problems (your chapters) 0.
+- English length (prose words, code blocks and table separator rows excluded): 00 = 1,404; 11 = 2,190; 12 = 2,144; 13 = 2,186. A plain `wc -w` gives about 2,600 for 11–13 because table pipes count as words. 00 is longer than the AZ-900 model because it follows the AZ-305 associate/expert model (format, reading, Well-Architected pillars, confusing pairs, study plan).
+- No links in the chapters (none required; avoids EN/FR link mismatch).
+
+## Verified on docs.aws.amazon.com (WebFetch, 2026-11-19)
+SCP behavior and syntax (Allow with conditions, `Resource: "*"` only), RCPs, centralized root access, root MFA enforced, 8 MFA devices, STS session durations and 1-hour role chaining, cross-account evaluation, Identity Center organization vs account instance, Directory Service options (AD Connector "without caching any information in the cloud"), Control Tower control behaviors and guidance, IAM Access Analyzer capabilities, regional NAT gateway (no public subnet, no private NAT), gateway endpoints, SG vs NACL, WAF supported resources ("protection pack (web ACL)"), Shield Standard / Advanced resources and billing, Direct Connect MACsec (10/100/400 Gbps, not hosted), private IP VPN over transit VIF, Site-to-Site VPN tunnels and bandwidth, Client VPN, GuardDuty foundational sources, Inspector, Macie, new Security Hub vs Security Hub CSPM, Cognito user/identity pools, Secrets Manager managed rotation services and 4-hour minimum, Parameter Store tiers, IMDS defaults, KMS key types, key policies, rotation (90–2,560 days, imported material on-demand only), EBS encryption by default, RDS encryption rules, S3 SSE-C disabled by default for new buckets since April 2026, Object Ownership, Block Public Access ("meaning of public"), Object Lock, Backup Vault Lock (grace time ≥ 3 days), logically air-gapped vault, S3 replication, DynamoDB PITR 1–35 days, ACM validity 198 days, renewal at 45 days, export of public certificates created on or after June 17, 2025, opt-in Regions. French terms checked on fr_fr pages (VPC, Organizations, IAM roles, KMS, S3 Object Lock).
+
+## Stated from general AWS knowledge (not fetched; considered stable)
+Control Tower landing zone Security OU with log archive and audit accounts; Shield Advanced Shield Response Team and DDoS cost protection; GuardDuty EKS, malware and RDS protection plans; ACM certificate for CloudFront in us-east-1; accelerated VPN only on transit gateway attachments; S3 storage class minimum durations and the 30-day rule before IA transitions; RDS backup retention up to 35 days; EBS Recycle Bin; AWS Backup Audit Manager and organization backup policies; ALB authentication with Cognito/OIDC; DynamoDB key options; cross-account sharing of encrypted snapshots requires a customer managed key; `rds.force_ssl`; "blank answer counts as wrong, no penalty for guessing" (AWS exam guide wording, not re-fetched).
+
+## Left out (could not verify)
+Cross-Region interface endpoints for AWS services; pricing of ACM certificate export; numeric limit of KMS on-demand rotations; S3 RTC percentage (the S3 page is inconsistent: 99.99 % vs 99.9 %), so the chapter says "most objects within 15 minutes, with an SLA".
+
+## Terminology deviations
+- French: "policy" is written « politique » (AWS fr_fr and BRIEF-AWS §6), including « politiques de contrôle des services (SCP) », although `objectives.yaml` (official FR guide) uses « stratégies de contrôle des services [SCP] » in 1.1.9 and « stratégies » in 1.3.8 / 1.3.10.
+- Pilot light / warm standby in 00 follow the FR guide (2.2.4): « environnement de veille (pilot light) », « secours semi-automatique (warm standby) ».
+- Feature names kept in English with a French gloss at first use: S3 Object Lock (verrouillage d'objet), legal hold (conservation légale), logically air-gapped vault (coffre isolé logiquement), Recycle Bin (Corbeille), landing zone (zone d'atterrissage).

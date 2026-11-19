@@ -1,0 +1,22 @@
+# Task A-aws-1 — role ARCHITECT for: AWS Certified Solutions Architect – Associate (SAA-C03)
+
+Read `factory/BRIEF.md`, then `factory/BRIEF-AWS.md`. Work in `content/saa-c03/`.
+
+1. WebFetch the official exam guide, English then French. Start from `https://docs.aws.amazon.com/aws-certification/latest/userguide/solutions-architect-associate-03.html` (or search "SAA-C03 exam guide docs.aws.amazon.com"); the French version is the same path under `https://docs.aws.amazon.com/fr_fr/...`. Also fetch the certification page `https://aws.amazon.com/certification/certified-solutions-architect-associate/`. Confirm that SAA-C03 is the current version (no successor announced with a date) and note any "exam guide version" date. If SAA-C03 is retired or replaced by a version already open, write `content/saa-c03/NOT-AVAILABLE.md` and stop.
+2. Exam facts from those pages: duration, number of questions (scored + unscored), passing score, scaled score range, question types, in-scope and out-of-scope services.
+3. Write `blueprint.yaml` copying the structure of `content/az-104/blueprint.yaml` (keep `readiness` and `progression` values; rewrite the 10 level titles en/fr for an AWS solutions architect, no Microsoft wording) with:
+   - `certification`: code `saa-c03`, title `AWS Certified Solutions Architect – Associate`, vendor `AWS`, `active: false`;
+   - `blueprint.version`: the exam guide version / date if printed (ISO, quoted), else `'SAA-C03'` and say so in the header comment;
+   - `durationMin`: 130 (or the value on the page); `questionCount`: `{min: 65, max: 65}` (the mock exam scores all 65); `passScore: 720`, `maxScore: 1000`;
+   - `typeMix`: `single {min: 0.78, max: 0.88}`, `multi {min: 0.12, max: 0.22}`, no other type;
+   - `difficultyMix`: as AZ-104;
+   - `structure.caseStudies`: `count {min: 0, max: 0}`, `questionsEach {min: 0, max: 0}`, `placement: end`; `structure.series`: `count {min: 0, max: 0}`, `questionsEach {min: 0, max: 0}`; other structure keys as AZ-104;
+   - `domains`: the four domains, codes `secure`, `resilient`, `performance`, `cost`, `order` 1–4, `weight` = the published percentage as `{min, max}` equal shares (e.g. 0.30/0.30), official titles en/fr;
+   - a header comment: sources, guide version, date checked (2026-11-19), exam facts, and that unscored questions are not modelled.
+4. Write `objectives.yaml` in the format of `content/az-900/objectives.yaml`: one **group per task statement** (e.g. "Task Statement 1.1: Design secure access to AWS resources" → group title without the "Task Statement 1.1:" prefix), and as objectives **every "Knowledge of" bullet then every "Skills in" bullet** of that task statement, English verbatim, French from the fr_fr guide (straight apostrophes; if the fr_fr page is missing or machine-like, translate following BRIEF-AWS §6 and list those in the header comment). Codes `<domain>.<task>.<n>`.
+5. Write `course/course.yaml` in the format of `content/az-900/course/course.yaml`: modules `intro` + the four domains; chapters `00-getting-started` (module `intro`, about the exam: format, qualifiers, how to read a scenario, AWS Well-Architected pillars as a lens) + **one chapter per task statement** (split one with more than 12 objectives in two), ids `<domain order><n>-<slug>`, `status: draft`, `free: true` on `00-getting-started` and on the first domain chapter only, titles en/fr, `minutes` 15–30, `references: []`.
+6. Write `factory/plans/saa-c03.json`: `{"level": "associate", "chapters": [{"id": ..., "objectives": [...]}, ...]}` — every objective in exactly one chapter, `00-getting-started` with `[]`.
+7. Write `factory/profiles/saa-c03.md` (250–450 words, English): exam format and timing, question types and their shares, stem style and the deciding qualifiers (LEAST operational overhead, MOST cost-effective...), typical traps (e.g. S3 storage class minimum durations, Multi-AZ vs read replicas, NAT gateway per AZ, gateway vs interface endpoints, SQS vs SNS vs EventBridge, Global Accelerator vs CloudFront), the **in-scope services list** and the **out-of-scope services list** copied from the guide, and the reminder to verify service availability in November 2026.
+8. Check: `npx tsx factory/check-cert.ts saa-c03` must print `referential OK` (missing-chapter problems are expected).
+
+Notes for the report file `factory/reports/A-aws-1.md`: guide version, counts (domains, task statements, objectives, chapters), anything unusual (French guide availability, service retirements spotted in the guide).
