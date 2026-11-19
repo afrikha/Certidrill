@@ -1347,6 +1347,16 @@ describe("terms, invoices, refunds and disputes (offers lot C)", () => {
     expect(await handleStripeEvent(db, event("charge.refunded", charge(intent, { refunded: false, amount_refunded: 500 })), at(2))).toBe("processed");
   });
 
+  it("still withdraws the Pass when the bank opens a dispute after an inquiry closed", async () => {
+    const { intent, ids } = await bought("inquiry-closed@example.com");
+    await handleStripeEvent(db, event("charge.dispute.created", contest(intent, "warning_needs_response")), at(1));
+    expect(await handleStripeEvent(db, event("charge.dispute.closed", contest(intent, "warning_closed")), at(2))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["paid"]);
+    expect(await handleStripeEvent(db, event("charge.dispute.created", { ...contest(intent, "needs_response"), id: `dp2_${intent}` }), at(3))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["disputed"]);
+    expect((await passes(ids))[0]!.revokedAt).toEqual(at(3));
+  });
+
   it("leaves a held payment held through a dispute, so that it stays to check", async () => {
     await openSales();
     const user = await verifiedUser("held-dispute@example.com");

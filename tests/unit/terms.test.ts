@@ -41,3 +41,15 @@ describe("terms of sale", () => {
     expect(fr.billing.waiver).toContain("rétractation");
   });
 });
+
+describe("terms version", () => {
+  it("is a date, shown as one in the purchase e-mail; any other value is shown as stored", async () => {
+    const { TERMS_VERSION } = await import("@/lib/billing/terms");
+    const { purchaseMessage } = await import("@/lib/email/billing");
+    expect(TERMS_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const mail = (termsVersion: string) =>
+      purchaseMessage({ locale: "fr", certification: "az-104", expiresAt: new Date("2027-02-11T10:00:00Z"), amountCents: 1900, currency: "eur", url: "https://x.test/account/billing", waiver: { acceptedAt: new Date("2026-11-13T10:00:00Z"), text: "J'accepte.", termsVersion, termsUrl: "https://x.test/terms" } }).text;
+    expect(mail("2026-11-19")).toContain("version du 19 novembre 2026");
+    expect(mail("v2")).toContain("version du v2");
+  });
+});

@@ -19,6 +19,12 @@ function formatters(locale: string) {
 
 const label = (code: string) => code.toUpperCase();
 
+/** The version of the terms as a date (YYYY-MM-DD), or as stored when it is not one: never an error. */
+function termsVersionLabel(version: string, date: (d: Date) => string): string {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(version) ? new Date(`${version}T12:00:00Z`) : null;
+  return d && !Number.isNaN(d.getTime()) ? date(d) : version;
+}
+
 /** The waiver ticked at purchase (lib/billing/terms.ts), restated in the confirmation: the durable record the buyer keeps. */
 export interface WaiverRecord {
   acceptedAt: Date;
@@ -33,7 +39,7 @@ export function purchaseMessage(p: { locale: string; certification: string; expi
   const values = { certification: label(p.certification), date: f.date(p.expiresAt) };
   const waiver = p.waiver
     ? [
-        t("purchaseWaiver", { date: f.dateTime(p.waiver.acceptedAt), version: f.date(new Date(`${p.waiver.termsVersion}T12:00:00Z`)), text: p.waiver.text }),
+        t("purchaseWaiver", { date: f.dateTime(p.waiver.acceptedAt), version: termsVersionLabel(p.waiver.termsVersion, f.date), text: p.waiver.text }),
         t("purchaseTerms", { url: p.waiver.termsUrl }),
       ]
     : [];

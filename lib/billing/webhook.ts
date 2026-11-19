@@ -333,7 +333,9 @@ async function closeDispute(tx: Tx, event: Stripe.ChargeDisputeClosedEvent, now:
   const contest = event.data.object;
   const payments = await lockByIntent(tx, idOf(contest.payment_intent));
   if (payments.length === 0) return "ignored";
-  // Closed, whatever the outcome: a late event that opens it again is ignored (dispute()).
+  // An inquiry closed (warning_closed) was never a dispute: the bank may still open one.
+  if (contest.status !== "won" && contest.status !== "lost") return "processed";
+  // A dispute over: a late event that opens it again is ignored (dispute()).
   await tx.payment.updateMany({ where: { id: { in: payments.map((p) => p.id) }, disputeClosedAt: null }, data: { disputeClosedAt: now } });
   if (contest.status === "lost") {
     // Never seen open (events out of order): withdrawn now, as an open dispute would have.
