@@ -59,7 +59,7 @@ export async function userActivity(db: PrismaClient, userId: string, take = 200)
       select: { createdAt: true, paidAt: true, status: true, amountCents: true, currency: true, certification: { select: { code: true } } },
     }),
     db.entitlement.findMany({ where: { userId }, ...newest, select: { createdAt: true, revokedAt: true, source: true, expiresAt: true, certification: { select: { code: true } } } }),
-    db.auditLog.findMany({ where: { targetUserId: userId }, ...newest, select: { createdAt: true, action: true, actor: { select: { email: true } } } }),
+    db.auditLog.findMany({ where: { targetUserId: userId }, ...newest, select: { createdAt: true, action: true, details: true, actor: { select: { email: true } } } }),
   ]);
 
   const events: ActivityEvent[] = [{ at: user.createdAt, kind: "account_created" }];
@@ -96,7 +96,9 @@ export async function userActivity(db: PrismaClient, userId: string, take = 200)
     events.push({ at: e.createdAt, kind: "pass_granted", certification: e.certification.code, source: e.source, expiresAt: e.expiresAt });
     if (e.revokedAt) events.push({ at: e.revokedAt, kind: "pass_revoked", certification: e.certification.code });
   }
-  for (const a of audit) events.push({ at: a.createdAt, kind: "admin", action: a.action, actor: a.actor?.email ?? null });
+  // No actor: a command (CLI), or a Stripe event (a refund or a dispute withdrew a Pass).
+  const stripe = (details: unknown) => typeof details === "object" && details !== null && "stripeEvent" in details;
+  for (const a of audit) events.push({ at: a.createdAt, kind: "admin", action: a.action, actor: a.actor?.email ?? (stripe(a.details) ? "Stripe" : null) });
 
   return events.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, take);
 }

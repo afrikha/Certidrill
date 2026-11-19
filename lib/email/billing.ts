@@ -12,23 +12,38 @@ function formatters(locale: string) {
   const l = isLocale(locale) ? locale : defaultLocale;
   return {
     date: (d: Date) => new Intl.DateTimeFormat(l, { dateStyle: "long", timeZone: TIME_ZONE }).format(d),
+    dateTime: (d: Date) => new Intl.DateTimeFormat(l, { dateStyle: "long", timeStyle: "short", timeZone: TIME_ZONE }).format(d),
     money: (cents: number, currency: string) => new Intl.NumberFormat(l, { style: "currency", currency: currency.toUpperCase() }).format(cents / 100),
   };
 }
 
 const label = (code: string) => code.toUpperCase();
 
-export function purchaseMessage(p: { locale: string; certification: string; expiresAt: Date; amountCents: number; currency: string; url: string }): EmailMessage {
+/** The waiver ticked at purchase (lib/billing/terms.ts), restated in the confirmation: the durable record the buyer keeps. */
+export interface WaiverRecord {
+  acceptedAt: Date;
+  text: string;
+  termsVersion: string;
+  termsUrl: string;
+}
+
+export function purchaseMessage(p: { locale: string; certification: string; expiresAt: Date; amountCents: number; currency: string; url: string; waiver?: WaiverRecord | null }): EmailMessage {
   const t = translator(p.locale);
   const f = formatters(p.locale);
   const values = { certification: label(p.certification), date: f.date(p.expiresAt) };
+  const waiver = p.waiver
+    ? [
+        t("purchaseWaiver", { date: f.dateTime(p.waiver.acceptedAt), version: f.date(new Date(`${p.waiver.termsVersion}T12:00:00Z`)), text: p.waiver.text }),
+        t("purchaseTerms", { url: p.waiver.termsUrl }),
+      ]
+    : [];
   return render({
     locale: p.locale,
     subject: t("purchaseSubject", values),
     preheader: t("purchasePreheader", values),
     intro: t("purchaseIntro", values),
     button: { label: t("purchaseButton"), url: p.url },
-    notes: [t("purchaseAmount", { amount: f.money(p.amountCents, p.currency) }), t("purchaseNote"), t("billingWhy")],
+    notes: [t("purchaseAmount", { amount: f.money(p.amountCents, p.currency) }), ...waiver, t("purchaseNote"), t("billingWhy")],
     fallback: t("fallback"),
   });
 }

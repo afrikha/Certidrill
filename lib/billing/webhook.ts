@@ -9,18 +9,34 @@
  * (checkout.session.completed, then async_payment_succeeded): its payment
  * rows (one per Pass, see checkoutId) are locked and a paid payment is never
  * fulfilled twice; entitlement.paymentId is unique as a last guard.
+ *
+ * After the purchase (offers lot C): the invoice's page is recorded
+ * (invoice.finalized, invoice.paid), a full refund withdraws the Passes of the
+ * payment (charge.refunded), and so does a dispute while it lasts
+ * (charge.dispute.created); a dispute won gives them back
+ * (charge.dispute.closed). A cart shares one Stripe payment: its Passes go
+ * together. A partial refund is left to an administrator, who knows which
+ * Pass it is for.
  */
 import type { PaymentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type Stripe from "stripe";
 import { addPass } from "@/lib/access/passes";
+import { audit } from "@/lib/audit";
 import { enqueuePassEmails } from "@/lib/email/outbox";
 import { logEvent } from "@/lib/log";
 
-/** held: paid, but no Pass can be granted (charged too little, another currency, account deleted): payment status held, for an administrator. */
-export type WebhookOutcome = "processed" | "duplicate" | "ignored" | "held";
+/**
+ * held: paid, but no Pass can be granted (charged too little, another
+ * currency, account deleted): payment status held, for an administrator.
+ * review: a partial refund, or a dispute won, that an administrator settles
+ * by hand (which Pass to withdraw, or give back).
+ */
+export type WebhookOutcome = "processed" | "duplicate" | "ignored" | "held" | "review";
 
 /** Kept in stripe_event.error for a held payment, so that it stands out. */
 export const HELD_NOTE = "held for review: charged below the plan price or in another currency, or the account was deleted; no Pass granted";
+/** Kept in stripe_event.error for an event an administrator settles by hand. */
+export const REVIEW_NOTE = "for review: a partial refund (no Pass withdrawn: revoke the one it is for) or a dispute won (Passes still withdrawn: grant them again if wanted), in /admin/billing";
 
 type Tx = Prisma.TransactionClient;
 
@@ -35,7 +51,7 @@ export async function handleStripeEvent(db: PrismaClient, event: Stripe.Event, n
         RETURNING "id"`;
       if (claimed.length === 0) return "duplicate";
       const outcome = await apply(tx, event, now);
-      await tx.stripeEvent.update({ where: { id: event.id }, data: { processedAt: now, error: outcome === "held" ? HELD_NOTE : null } });
+      await tx.stripeEvent.update({ where: { id: event.id }, data: { processedAt: now, error: outcome === "held" ? HELD_NOTE : outcome === "review" ? REVIEW_NOTE : null } });
       return outcome;
     });
   } catch (err) {
@@ -60,6 +76,15 @@ function apply(tx: Tx, event: Stripe.Event, now: Date): Promise<WebhookOutcome> 
       return settle(tx, event.data.object, "failed");
     case "checkout.session.expired":
       return settle(tx, event.data.object, "expired");
+    case "invoice.finalized":
+    case "invoice.paid":
+      return recordInvoice(tx, event.data.object);
+    case "charge.refunded":
+      return refund(tx, event, now);
+    case "charge.dispute.created":
+      return dispute(tx, event, now);
+    case "charge.dispute.closed":
+      return closeDispute(tx, event);
     default:
       return Promise.resolve("ignored");
   }
@@ -194,4 +219,107 @@ async function settle(tx: Tx, session: Stripe.Checkout.Session, status: Extract<
   const pending = payments.filter((p) => p.status === "pending").map((p) => p.id);
   if (pending.length > 0) await tx.payment.updateMany({ where: { id: { in: pending } }, data: { status } });
   return "processed";
+}
+
+/**
+ * The invoice of a purchase (invoice_creation, ./checkout.ts): its page is
+ * shown on /account/billing. Found by the checkoutId of its metadata, so the
+ * order of the events does not matter; only Stripe's HTTPS page is kept.
+ */
+async function recordInvoice(tx: Tx, invoice: Stripe.Invoice): Promise<WebhookOutcome> {
+  const checkoutId = invoice.metadata?.checkoutId;
+  if (!checkoutId) return "ignored";
+  const url = invoice.hosted_invoice_url?.startsWith("https://") ? invoice.hosted_invoice_url : null;
+  const { count } = await tx.payment.updateMany({ where: { checkoutId }, data: { stripeInvoiceId: invoice.id, ...(url && { invoiceUrl: url }) } });
+  return count === 0 ? "ignored" : "processed";
+}
+
+const idOf = (value: string | { id: string } | null | undefined) => (typeof value === "string" ? value : (value?.id ?? null));
+
+/** The payments of a Stripe payment intent (one per Pass of the purchase), locked, with their Pass. */
+async function lockByIntent(tx: Tx, intent: string | null) {
+  if (!intent) return [];
+  const rows = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "payment" WHERE "stripePaymentIntentId" = ${intent} ORDER BY "id" FOR UPDATE`;
+  if (rows.length === 0) return [];
+  return tx.payment.findMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      status: true,
+      customer: { select: { userId: true } },
+      entitlement: { select: { id: true, userId: true, source: true, expiresAt: true, revokedAt: true, certification: { select: { code: true } } } },
+    },
+  });
+}
+
+type IntentPayment = Awaited<ReturnType<typeof lockByIntent>>[number];
+
+/** Withdraws the Passes of these payments, each with its trace in the audit log (no actor: Stripe). */
+async function revokePasses(tx: Tx, payments: IntentPayment[], reason: "refund" | "dispute", event: Stripe.Event, now: Date) {
+  for (const { entitlement: e } of payments) {
+    if (!e || e.revokedAt) continue;
+    await tx.entitlement.update({ where: { id: e.id }, data: { revokedAt: now } });
+    await audit(tx, {
+      actorId: null,
+      action: "entitlement.revoke",
+      targetUserId: e.userId,
+      details: { entitlementId: e.id, certification: e.certification.code, source: e.source, expiresAt: e.expiresAt.toISOString(), reason, stripeEvent: event.id },
+    });
+    logEvent("billing.pass_revoked", { entitlementId: e.id, reason });
+  }
+}
+
+/**
+ * Refunded in Stripe. In full: every Pass of the payment is withdrawn and the
+ * payments read refunded. In part: nothing changes here, as the part refunded
+ * may be for one Pass of a cart, or a gesture: an administrator decides.
+ */
+async function refund(tx: Tx, event: Stripe.ChargeRefundedEvent, now: Date): Promise<WebhookOutcome> {
+  const charge = event.data.object;
+  const payments = await lockByIntent(tx, idOf(charge.payment_intent));
+  if (payments.length === 0) return "ignored";
+  if (!charge.refunded) {
+    logEvent("billing.partial_refund", { paymentIntent: idOf(charge.payment_intent), refunded: charge.amount_refunded, amount: charge.amount });
+    return "review";
+  }
+  const settled = payments.filter((p) => p.status === "paid" || p.status === "held" || p.status === "disputed");
+  if (settled.length === 0) return "processed";
+  await tx.payment.updateMany({ where: { id: { in: settled.map((p) => p.id) } }, data: { status: "refunded" } });
+  await revokePasses(tx, settled, "refund", event, now);
+  return "processed";
+}
+
+/**
+ * Contested by the buyer with their bank: the Passes are withdrawn while the
+ * dispute lasts. An inquiry (warning_*) is only a question from the bank:
+ * nothing changes.
+ */
+async function dispute(tx: Tx, event: Stripe.ChargeDisputeCreatedEvent, now: Date): Promise<WebhookOutcome> {
+  const contest = event.data.object;
+  const payments = await lockByIntent(tx, idOf(contest.payment_intent));
+  if (payments.length === 0) return "ignored";
+  if (contest.status.startsWith("warning_")) return "processed";
+  const open = payments.filter((p) => p.status === "paid" || p.status === "held");
+  if (open.length === 0) return "processed";
+  await tx.payment.updateMany({ where: { id: { in: open.map((p) => p.id) } }, data: { status: "disputed" } });
+  await revokePasses(tx, open, "dispute", event, now);
+  return "processed";
+}
+
+/**
+ * The dispute is over. Lost: the money went back to the buyer, the Passes
+ * stay withdrawn. Won: the payments are paid again, and an administrator
+ * gives the Passes back by hand if they are still wanted (a Pass may have
+ * been bought again meanwhile, or the account closed).
+ */
+async function closeDispute(tx: Tx, event: Stripe.ChargeDisputeClosedEvent): Promise<WebhookOutcome> {
+  const contest = event.data.object;
+  const payments = await lockByIntent(tx, idOf(contest.payment_intent));
+  if (payments.length === 0) return "ignored";
+  const disputed = payments.filter((p) => p.status === "disputed");
+  if (contest.status !== "won" || disputed.length === 0) return "processed";
+  await tx.payment.updateMany({ where: { id: { in: disputed.map((p) => p.id) } }, data: { status: "paid" } });
+  logEvent("billing.dispute_won", { paymentIntent: idOf(contest.payment_intent), payments: disputed.length });
+  return "review";
 }

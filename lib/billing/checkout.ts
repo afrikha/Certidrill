@@ -17,6 +17,7 @@ import { readSwitches } from "@/lib/settings";
 import { priceFor, priceRange, pricesByCertification, type CertificationPrice } from "./prices";
 import type { StripeApi } from "./stripe";
 import { MAX_CART } from "./cart";
+import { INVOICE_FOOTER, liveSalesBlocked, TERMS_VERSION, waiverText } from "./terms";
 
 export type BillingErrorCode = "sales_closed" | "unavailable" | "not_found" | "rate_limited";
 
@@ -36,18 +37,24 @@ const code = z.string().trim().min(1).max(32);
 /**
  * The plan and the certifications of a purchase: `certificationCodes` (a
  * cart), or `certificationCode` for one Pass. Codes are lower-cased and
- * deduplicated: one Pass per certification in a purchase.
+ * deduplicated: one Pass per certification in a purchase. `waiver` is the
+ * box the buyer ticked (immediate access, right of withdrawal waived, terms
+ * accepted): no purchase without it. `locale` is the language of the page,
+ * that of the text ticked (the account's otherwise).
  */
 export const checkoutSchema = z
   .object({
     planCode: z.string().trim().min(1).max(64),
     certificationCode: code.optional(),
     certificationCodes: z.array(code).min(1).max(MAX_CART).optional(),
+    waiver: z.literal(true),
+    locale: z.enum(["en", "fr"]).optional(),
   })
   .refine((v) => (v.certificationCode === undefined) !== (v.certificationCodes === undefined), "certificationCode or certificationCodes")
-  .transform(({ planCode, certificationCode, certificationCodes }) => ({
+  .transform(({ planCode, certificationCode, certificationCodes, locale }) => ({
     planCode,
     certificationCodes: [...new Set((certificationCodes ?? [certificationCode!]).map((c) => c.toLowerCase()))],
+    locale,
   }));
 
 /** A Checkout session stays payable this long (Stripe accepts 30 minutes to 24 hours). */
@@ -59,7 +66,7 @@ export const CHECKOUT_MINUTES = 60;
  * certification's price. Empty when nothing can be bought.
  */
 export async function buyableCertifications(db: PrismaClient, planCode: string, stripe: StripeApi | null): Promise<CertificationPrice[]> {
-  if (!stripe || !process.env.AUTH_URL) return [];
+  if (!stripe || !process.env.AUTH_URL || liveSalesBlocked()) return [];
   const [switches, prices] = await Promise.all([readSwitches(db), pricesByCertification(db, planCode)]);
   return switches.checkoutOpen ? prices.filter((p) => p.stripePriceId) : [];
 }
@@ -128,7 +135,7 @@ export async function startCheckout(
   input: z.input<typeof checkoutSchema>,
   { base = process.env.AUTH_URL, now = new Date() }: { base?: string; now?: Date } = {},
 ): Promise<{ url: string }> {
-  const { planCode, certificationCodes } = checkoutSchema.parse(input);
+  const { planCode, certificationCodes, locale } = checkoutSchema.parse(input);
   const [switches, offers, user, plan, found] = await Promise.all([
     readSwitches(db),
     getOffers(db),
@@ -136,7 +143,8 @@ export async function startCheckout(
     db.plan.findUnique({ where: { code: planCode } }),
     db.certification.findMany({ where: { code: { in: certificationCodes }, active: true }, select: { id: true, code: true, title: true } }),
   ]);
-  if (!switches.checkoutOpen) throw new BillingError("sales_closed");
+  // Live payment waits for final terms (lib/billing/terms.ts), whatever the switch says.
+  if (!switches.checkoutOpen || liveSalesBlocked()) throw new BillingError("sales_closed");
   if (!user) throw new BillingError("not_found");
   // Paying needs a verified address (specs des offres §4), like taking an exam.
   if (!user.emailVerified) throw new AccessError("email_unverified");
@@ -153,8 +161,10 @@ export async function startCheckout(
 
   const customer = await ensureCustomer(db, stripe, user);
   const checkoutId = randomUUID();
+  // The waiver as ticked, kept with each Pass of the purchase (proof of the express consent).
+  const waiver = { waiverAcceptedAt: now, waiverText: waiverText(locale ?? user.locale), termsVersion: TERMS_VERSION };
   await db.payment.createMany({
-    data: lines.map((l) => ({ checkoutId, billingCustomerId: customer.id, planId: plan.id, certificationId: l.certification.id, amountCents: l.price.amountCents, currency: l.price.currency })),
+    data: lines.map((l) => ({ checkoutId, billingCustomerId: customer.id, planId: plan.id, certificationId: l.certification.id, amountCents: l.price.amountCents, currency: l.price.currency, ...waiver })),
   });
   const codes = lines.map((l) => l.certification.code.toUpperCase());
   let session;
@@ -167,6 +177,8 @@ export async function startCheckout(
         line_items: lines.map((l) => ({ price: l.price.stripePriceId!, quantity: 1 })),
         metadata: { checkoutId, planCode: plan.code, certificationCodes: lines.map((l) => l.certification.code).join(",") },
         payment_intent_data: { metadata: { checkoutId }, description: `Pass ${codes.join(", ")} — ${plan.durationDays} days` },
+        // A Stripe invoice for the purchase, found again by its metadata (webhook: invoice.finalized).
+        invoice_creation: { enabled: true, invoice_data: { metadata: { checkoutId }, footer: INVOICE_FOOTER, description: `Pass ${codes.join(", ")} — ${plan.durationDays} days` } },
         custom_text: { submit: { message: lines.length === 1 ? `${codes[0]} — ${lines[0]!.certification.title}` : codes.join(", ") } },
         locale: user.locale === "fr" ? "fr" : "en",
         expires_at: Math.floor(now.getTime() / 1000) + CHECKOUT_MINUTES * 60,
@@ -202,7 +214,7 @@ function refusedByStripe(err: unknown): boolean {
 }
 
 /** The statuses a purchase's Passes share; the order says which one a purchase shows when they differ. */
-const PURCHASE_ORDER = ["pending", "held", "failed", "expired", "refunded", "paid"] as const;
+const PURCHASE_ORDER = ["pending", "held", "failed", "expired", "disputed", "refunded", "paid"] as const;
 
 /**
  * State of one of the user's purchases, by its Checkout session (the return
@@ -237,7 +249,7 @@ export async function purchaseStatus(db: PrismaClient, userId: string, sessionId
 /** The user's payments, newest first (/account/billing): abandoned or unfinished checkouts left out. */
 export function paymentHistory(db: PrismaClient, userId: string) {
   return db.payment.findMany({
-    where: { customer: { userId }, status: { in: ["paid", "held", "refunded", "failed"] } },
+    where: { customer: { userId }, status: { in: ["paid", "held", "refunded", "disputed", "failed"] } },
     orderBy: { createdAt: "desc" },
     take: 100,
     select: {

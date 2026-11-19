@@ -274,7 +274,7 @@ export default async function AdminBillingPage({ searchParams }: Readonly<{ sear
             {log.map((entry) => (
               <tr key={entry.id} className="border-t border-border align-top" data-action={entry.action}>
                 <td className="whitespace-nowrap px-4 py-2">{format.dateTime(entry.createdAt, { dateStyle: "short", timeStyle: "short" })}</td>
-                <td className="px-4 py-2">{entry.actor?.email ?? t("cli")}</td>
+                <td className="px-4 py-2">{entry.actor?.email ?? (byStripe(entry.details) ? t("byStripe") : t("cli"))}</td>
                 <td className="px-4 py-2">
                   <span className="font-medium">{t(`action_${entry.action.replaceAll(".", "_")}`)}</span>
                   {entry.target ? <> — {entry.target.email}</> : ON_USER.has(entry.action) && <> — <span className="italic text-muted-foreground">{t("deletedUser")}</span></>}
@@ -316,4 +316,9 @@ function describe(details: unknown, reason: (code: string) => string): string {
     .filter(([k]) => k !== "entitlementId")
     .map(([k, v]) => `${k}: ${text(k, v)}`)
     .join(" · ");
+}
+
+/** An entry written by a Stripe event (a refund or a dispute withdrew a Pass), not by a command. */
+function byStripe(details: unknown): boolean {
+  return typeof details === "object" && details !== null && "stripeEvent" in details;
 }

@@ -17,7 +17,10 @@ import { revokeEntitlement } from "@/lib/access/admin";
 import { BillingError, buyableCertifications, CHECKOUT_MINUTES, heldPayments, paymentHistory, purchaseStatus, startCheckout } from "@/lib/billing/checkout";
 import { apiBase, stripeApi, verifyEvent, WebhookSignatureError, type StripeApi } from "@/lib/billing/stripe";
 import { eraseDeletedCustomers, eraseRetryDelay } from "@/lib/billing/erase";
-import { handleStripeEvent, HELD_NOTE, share } from "@/lib/billing/webhook";
+import { handleStripeEvent, HELD_NOTE, REVIEW_NOTE, share } from "@/lib/billing/webhook";
+import { TERMS_VERSION } from "@/lib/billing/terms";
+import en from "@/messages/en.json";
+import fr from "@/messages/fr.json";
 import { drainOutbox, MAX_ATTEMPTS, type Mail } from "@/lib/email/outbox";
 import { kickEmailWorker, startEmailWorker, stopEmailWorker } from "@/lib/email/worker";
 import { SWITCHES } from "@/lib/settings";
@@ -93,7 +96,7 @@ async function verifiedUser(email: string, locale: "en" | "fr" = "en") {
 
 /** A checkout started by `userId`; returns its payment row. */
 async function checkout(userId: string, stripe = fakeStripe().api) {
-  const { url } = await startCheckout(db, stripe, userId, { planCode: "pass_90", certificationCode: "az-104" }, { base: BASE, now: T0 });
+  const { url } = await startCheckout(db, stripe, userId, { planCode: "pass_90", certificationCode: "az-104", waiver: true }, { base: BASE, now: T0 });
   const id = url.split("/").at(-1)!;
   return db.payment.findFirstOrThrow({ where: { stripeCheckoutSessionId: id } });
 }
@@ -142,7 +145,7 @@ afterAll(async () => {
 describe("checkout", () => {
   it("is refused while online payment is closed, and for an unverified address", async () => {
     const user = await verifiedUser("closed@example.com");
-    const input = { planCode: "pass_90", certificationCode: "az-104" };
+    const input = { planCode: "pass_90", certificationCode: "az-104", waiver: true as const };
     await expect(startCheckout(db, fakeStripe().api, user, input, { base: BASE })).rejects.toMatchObject({ code: "sales_closed", status: 403 });
     expect(await canBuyOnline(db, "pass_90", fakeStripe().api)).toBe(false);
 
@@ -157,13 +160,13 @@ describe("checkout", () => {
     const user = await verifiedUser("catalogue@example.com");
     const stripe = fakeStripe().api;
     const tryBuy = (planCode: string, certificationCode = "az-104", options: { base?: string; api?: StripeApi | null } = {}) =>
-      startCheckout(db, options.api === undefined ? stripe : options.api, user, { planCode, certificationCode }, { base: options.base ?? BASE });
+      startCheckout(db, options.api === undefined ? stripe : options.api, user, { planCode, certificationCode, waiver: true }, { base: options.base ?? BASE });
     await expect(tryBuy("all_monthly")).rejects.toMatchObject({ code: "not_found" });
     await expect(tryBuy("free")).rejects.toMatchObject({ code: "not_found" });
     await expect(tryBuy("nope")).rejects.toMatchObject({ code: "not_found" });
     await expect(tryBuy("pass_90", "az-999")).rejects.toMatchObject({ code: "not_found" });
     await expect(tryBuy("pass_90", "az-104", { api: null })).rejects.toMatchObject({ code: "unavailable", status: 503 });
-    await expect(startCheckout(db, stripe, user, { planCode: "pass_90", certificationCode: "az-104" }, { base: "" })).rejects.toMatchObject({ code: "unavailable" });
+    await expect(startCheckout(db, stripe, user, { planCode: "pass_90", certificationCode: "az-104", waiver: true }, { base: "" })).rejects.toMatchObject({ code: "unavailable" });
     await expect(tryBuy("")).rejects.toThrow();
 
     await db.plan.update({ where: { code: "pass_90" }, data: { active: false } });
@@ -344,16 +347,19 @@ describe("checkout", () => {
     const user = await verifiedUser("api-buyer@example.com");
     const post = (body: unknown) =>
       checkoutRoute.POST(new Request(`${BASE}/api/billing/checkout`, { method: "POST", headers: { origin: BASE, "content-type": "application/json" }, body: JSON.stringify(body) }), { params: Promise.resolve({}) });
-    expect((await post({ planCode: "pass_90", certificationCode: "az-104" })).status).toBe(401);
+    expect((await post({ planCode: "pass_90", certificationCode: "az-104", waiver: true })).status).toBe(401);
     session.current = { user: { id: user, role: "user", locale: "en" } };
+    // Without the waiver box ticked: refused, and not counted either.
+    for (let i = 0; i < 12; i++) expect((await post({ planCode: "pass_90", certificationCode: "az-104" })).status).toBe(400);
+    expect((await post({ planCode: "pass_90", certificationCode: "az-104", waiver: false })).status).toBe(400);
     // Refused before Stripe is asked anything: not counted.
-    for (let i = 0; i < 12; i++) expect((await post({ planCode: "nope", certificationCode: "az-104" })).status).toBe(404);
+    for (let i = 0; i < 12; i++) expect((await post({ planCode: "nope", certificationCode: "az-104", waiver: true })).status).toBe(404);
     // No STRIPE_SECRET_KEY in the tests: payment is unavailable.
-    const res = await post({ planCode: "pass_90", certificationCode: "az-104" });
+    const res = await post({ planCode: "pass_90", certificationCode: "az-104", waiver: true });
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "unavailable" });
-    for (let i = 0; i < 9; i++) await post({ planCode: "pass_90", certificationCode: "az-104" });
-    const limited = await post({ planCode: "pass_90", certificationCode: "az-104" });
+    for (let i = 0; i < 9; i++) await post({ planCode: "pass_90", certificationCode: "az-104", waiver: true });
+    const limited = await post({ planCode: "pass_90", certificationCode: "az-104", waiver: true });
     expect(limited.status).toBe(429);
     expect(await limited.json()).toEqual({ error: "rate_limited" });
   });
@@ -579,7 +585,7 @@ describe("cart: several Passes in one purchase", () => {
   });
 
   async function cart(userId: string, codes: string[], stripe = fakeStripe().api) {
-    const { url } = await startCheckout(db, stripe, userId, { planCode: "pass_90", certificationCodes: codes }, { base: BASE, now: T0 });
+    const { url } = await startCheckout(db, stripe, userId, { planCode: "pass_90", certificationCodes: codes, waiver: true }, { base: BASE, now: T0 });
     return db.payment.findMany({ where: { stripeCheckoutSessionId: url.split("/").at(-1)! }, include: { certification: { select: { code: true } } }, orderBy: { certification: { code: "asc" } } });
   }
 
@@ -827,6 +833,10 @@ describe("e-mail queue", () => {
     expect(sent[0]!.message.subject).toBe("Votre Pass AZ-104 est actif");
     expect(sent[0]!.message.text).toContain("11 février 2027");
     expect(sent[0]!.message.text).toMatch(/19,00\s€/);
+    // The waiver ticked at purchase, restated word for word, with the terms.
+    expect(sent[0]!.message.text).toContain(fr.billing.waiver);
+    expect(sent[0]!.message.text).toContain("renoncé à votre droit de rétractation");
+    expect(sent[0]!.message.text).toContain(`${BASE}/terms`);
     expect(await drainOutbox(db, { now: at(82), sender, base: BASE })).toMatchObject({ sent: 0 });
     expect(await drainOutbox(db, { now: at(83), sender, base: BASE })).toMatchObject({ sent: 1 });
     expect(sent[1]!.message.subject).toBe("Votre Pass AZ-104 expire dans 7 jours");
@@ -1128,5 +1138,181 @@ describe("certification prices", () => {
     expect(priceRange([])).toBeNull();
     expect(priceRange([{ amountCents: 1900, currency: "eur" }, { amountCents: 900, currency: "EUR" }])).toEqual({ min: 900, max: 1900, currency: "eur" });
     expect(priceRange([{ amountCents: 1900, currency: "eur" }, { amountCents: 900, currency: "usd" }])).toBeNull();
+  });
+});
+
+describe("terms, invoices, refunds and disputes (offers lot C)", () => {
+  // AZ-900 on sale for the carts, as in the cart tests.
+  let fundamentalsId: string;
+  beforeAll(async () => {
+    const c = await db.certification.update({ where: { code: "az-900" }, data: { active: true } });
+    fundamentalsId = c.id;
+    const pass = await db.plan.findUniqueOrThrow({ where: { code: "pass_90" } });
+    await db.planPrice.create({ data: { planId: pass.id, certificationId: c.id, amountCents: 900, currency: "eur", stripePriceId: "price_pass_90_az900" } });
+  });
+  afterAll(async () => {
+    await db.planPrice.deleteMany({ where: { certificationId: fundamentalsId } });
+    await db.certification.update({ where: { code: "az-900" }, data: { active: false } });
+  });
+  /** A paid purchase of `codes` (one Pass, or a cart), charged on its own payment intent. */
+  async function bought(email: string, { locale = "en" as "en" | "fr", codes = ["az-104"], intent = `pi_${email}` } = {}) {
+    await openSales();
+    const user = await verifiedUser(email, locale);
+    const { url } = await startCheckout(db, fakeStripe().api, user, { planCode: "pass_90", certificationCodes: codes, waiver: true, locale }, { base: BASE, now: T0 });
+    const sessionId = url.split("/").at(-1)!;
+    const payments = await db.payment.findMany({ where: { stripeCheckoutSessionId: sessionId }, orderBy: { id: "asc" } });
+    const total = payments.reduce((n, p) => n + p.amountCents, 0);
+    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payments[0]!, { amount_total: total, payment_intent: intent })), T0)).toBe("processed");
+    return { user, intent, checkoutId: payments[0]!.checkoutId, ids: payments.map((p) => p.id) };
+  }
+  const charge = (intent: string, extra: Record<string, unknown> = {}) => ({ id: `ch_${intent}`, object: "charge", payment_intent: intent, amount: 1900, amount_refunded: 1900, refunded: true, ...extra });
+  const contest = (intent: string, status: string) => ({ id: `dp_${intent}`, object: "dispute", payment_intent: intent, charge: `ch_${intent}`, status });
+  const passes = (ids: string[]) => db.entitlement.findMany({ where: { paymentId: { in: ids } }, orderBy: { paymentId: "asc" } });
+  const statuses = async (ids: string[]) => (await db.payment.findMany({ where: { id: { in: ids } }, orderBy: { id: "asc" } })).map((p) => p.status);
+
+  it("stores the waiver ticked, in the page's language, and asks Stripe for an invoice with the VAT mention", async () => {
+    await openSales();
+    const user = await verifiedUser("waiver@example.com", "en");
+    const { api, calls } = fakeStripe();
+    const later = new Date(T0.getTime() + 60_000);
+    // The page was in French, the account in English: the French text is the one ticked.
+    await startCheckout(db, api, user, { planCode: "pass_90", certificationCode: "az-104", waiver: true, locale: "fr" }, { base: BASE, now: later });
+    const payment = await db.payment.findFirstOrThrow({ where: { customer: { userId: user } } });
+    expect(payment).toMatchObject({ waiverAcceptedAt: later, waiverText: fr.billing.waiver, termsVersion: TERMS_VERSION });
+    const [params] = calls.sessions[0] as [Stripe.Checkout.SessionCreateParams];
+    expect(params.invoice_creation).toMatchObject({ enabled: true, invoice_data: { metadata: { checkoutId: payment.checkoutId } } });
+    expect(params.invoice_creation?.invoice_data?.footer).toContain("Square-soft");
+    expect(params.invoice_creation?.invoice_data?.footer).toContain("TVA non applicable, art. 293 B du CGI");
+
+    // Without a page language, the account's.
+    await startCheckout(db, api, user, { planCode: "pass_90", certificationCode: "az-104", waiver: true }, { base: BASE, now: later });
+    expect((await db.payment.findFirstOrThrow({ where: { customer: { userId: user } }, orderBy: { createdAt: "desc" } })).waiverText).toBe(en.billing.waiver);
+    // Without the box ticked, nothing is asked of Stripe.
+    await expect(startCheckout(db, api, user, { planCode: "pass_90", certificationCode: "az-104" } as never, { base: BASE })).rejects.toThrow();
+    await expect(startCheckout(db, api, user, { planCode: "pass_90", certificationCode: "az-104", waiver: false } as never, { base: BASE })).rejects.toThrow();
+    expect(calls.sessions).toHaveLength(2);
+  });
+
+  it("keeps live payment closed while the terms have a passage between brackets, whatever the switch", async () => {
+    await openSales();
+    const user = await verifiedUser("live@example.com");
+    const { api, calls } = fakeStripe();
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_example");
+    try {
+      // The terms still name the mediator between brackets.
+      await expect(startCheckout(db, api, user, { planCode: "pass_90", certificationCode: "az-104", waiver: true }, { base: BASE })).rejects.toMatchObject({ code: "sales_closed" });
+      vi.stubEnv("AUTH_URL", BASE);
+      expect(await canBuyOnline(db, "pass_90", api)).toBe(false);
+      vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_example");
+      expect(await canBuyOnline(db, "pass_90", api)).toBe(true);
+      await startCheckout(db, api, user, { planCode: "pass_90", certificationCode: "az-104", waiver: true }, { base: BASE });
+      expect(calls.sessions).toHaveLength(1);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("records the invoice of a purchase, for each Pass of a cart, whatever the order of the events", async () => {
+    await openSales();
+    const user = await verifiedUser("invoice@example.com");
+    await startCheckout(db, fakeStripe().api, user, { planCode: "pass_90", certificationCode: "az-104", waiver: true }, { base: BASE, now: T0 });
+    const payment = await db.payment.findFirstOrThrow({ where: { customer: { userId: user } } });
+    const invoice = (url: string | null) => ({ id: "in_1", object: "invoice", metadata: { checkoutId: payment.checkoutId }, hosted_invoice_url: url });
+    // Before the payment is confirmed, and with a page that is not Stripe's HTTPS one: the id only.
+    expect(await handleStripeEvent(db, event("invoice.finalized", invoice("http://example.com/x")), T0)).toBe("processed");
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ stripeInvoiceId: "in_1", invoiceUrl: null });
+    expect(await handleStripeEvent(db, event("invoice.paid", invoice("https://invoice.stripe.com/i/acct_1/test_1")), T0)).toBe("processed");
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).toMatchObject({ invoiceUrl: "https://invoice.stripe.com/i/acct_1/test_1" });
+    // Another application's invoice, or one without metadata: ignored.
+    expect(await handleStripeEvent(db, event("invoice.paid", { ...invoice("https://invoice.stripe.com/i/x"), metadata: { checkoutId: "other" } }), T0)).toBe("ignored");
+    expect(await handleStripeEvent(db, event("invoice.paid", { ...invoice("https://invoice.stripe.com/i/x"), metadata: null }), T0)).toBe("ignored");
+
+    // A cart: one invoice for all its Passes.
+    const { checkoutId, ids } = await bought("invoice-cart@example.com", { codes: ["az-104", "az-900"] });
+    await handleStripeEvent(db, event("invoice.finalized", { id: "in_2", object: "invoice", metadata: { checkoutId }, hosted_invoice_url: "https://invoice.stripe.com/i/acct_1/test_2" }), T0);
+    for (const p of await db.payment.findMany({ where: { id: { in: ids } } })) expect(p).toMatchObject({ stripeInvoiceId: "in_2", invoiceUrl: "https://invoice.stripe.com/i/acct_1/test_2" });
+  });
+
+  it("withdraws the Pass on a full refund, once, with its trace in the audit log", async () => {
+    const { user, intent, ids } = await bought("refund@example.com");
+    expect((await getAccess(db, user, certificationId, at(1))).level).toBe("full");
+    const refunded = event("charge.refunded", charge(intent));
+    expect(await handleStripeEvent(db, refunded, at(1))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["refunded"]);
+    const [pass] = await passes(ids);
+    expect(pass!.revokedAt).toEqual(at(1));
+    expect((await getAccess(db, user, certificationId, at(2))).level).not.toBe("full");
+    const log = await db.auditLog.findMany({ where: { targetUserId: user, action: "entitlement.revoke" } });
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({ actorId: null, details: { entitlementId: pass!.id, reason: "refund", stripeEvent: refunded.id } });
+    // Received again, or another refund event of the same charge: nothing more.
+    expect(await handleStripeEvent(db, refunded, at(2))).toBe("duplicate");
+    expect(await handleStripeEvent(db, event("charge.refunded", charge(intent)), at(3))).toBe("processed");
+    expect((await passes(ids))[0]!.revokedAt).toEqual(at(1));
+    expect(await db.auditLog.count({ where: { targetUserId: user, action: "entitlement.revoke" } })).toBe(1);
+    // A payment Certidrill does not know (another application on the account): ignored.
+    expect(await handleStripeEvent(db, event("charge.refunded", charge("pi_unknown")), at(3))).toBe("ignored");
+    expect(await handleStripeEvent(db, event("charge.refunded", charge("", { payment_intent: null })), at(3))).toBe("ignored");
+  });
+
+  it("leaves a partial refund to an administrator, and withdraws every Pass of a cart refunded in full", async () => {
+    const { user, intent, ids } = await bought("partial@example.com", { codes: ["az-104", "az-900"] });
+    const partial = event("charge.refunded", charge(intent, { amount: 2800, amount_refunded: 900, refunded: false }));
+    expect(await handleStripeEvent(db, partial, at(1))).toBe("review");
+    expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: partial.id } })).toMatchObject({ error: REVIEW_NOTE });
+    expect(await statuses(ids)).toEqual(["paid", "paid"]);
+    expect((await passes(ids)).every((p) => p.revokedAt === null)).toBe(true);
+
+    expect(await handleStripeEvent(db, event("charge.refunded", charge(intent, { amount: 2800, amount_refunded: 2800 })), at(2))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["refunded", "refunded"]);
+    expect((await passes(ids)).every((p) => p.revokedAt?.getTime() === at(2).getTime())).toBe(true);
+    expect(await db.auditLog.count({ where: { targetUserId: user, action: "entitlement.revoke" } })).toBe(2);
+    expect((await paymentHistory(db, user)).map((p) => p.status)).toEqual(["refunded", "refunded"]);
+  });
+
+  it("clears a held payment refunded in Stripe from the list of payments to check", async () => {
+    await openSales();
+    const user = await verifiedUser("held-refund@example.com");
+    const payment = await checkout(user);
+    // Charged below the price: held, no Pass.
+    expect(await handleStripeEvent(db, event("checkout.session.completed", sessionObject(payment, { amount_total: 100, payment_intent: "pi_held_refund" })), T0)).toBe("held");
+    expect((await heldPayments(db)).some((p) => p.id === payment.id)).toBe(true);
+    expect(await handleStripeEvent(db, event("charge.refunded", charge("pi_held_refund", { amount: 100, amount_refunded: 100 })), at(1))).toBe("processed");
+    expect(await statuses([payment.id])).toEqual(["refunded"]);
+    expect((await heldPayments(db)).some((p) => p.id === payment.id)).toBe(false);
+  });
+
+  it("withdraws the Pass while a dispute lasts, keeps it withdrawn if lost, and flags a dispute won", async () => {
+    const lost = await bought("dispute-lost@example.com");
+    // An inquiry from the bank is not a dispute: nothing changes.
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest(lost.intent, "warning_needs_response")), at(1))).toBe("processed");
+    expect(await statuses(lost.ids)).toEqual(["paid"]);
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest(lost.intent, "needs_response")), at(1))).toBe("processed");
+    expect(await statuses(lost.ids)).toEqual(["disputed"]);
+    expect((await passes(lost.ids))[0]!.revokedAt).toEqual(at(1));
+    expect(await db.auditLog.findFirstOrThrow({ where: { targetUserId: lost.user, action: "entitlement.revoke" } })).toMatchObject({ details: { reason: "dispute" } });
+    expect(await handleStripeEvent(db, event("charge.dispute.closed", contest(lost.intent, "lost")), at(30))).toBe("processed");
+    expect(await statuses(lost.ids)).toEqual(["disputed"]);
+    expect((await paymentHistory(db, lost.user))[0]!.status).toBe("disputed");
+
+    const won = await bought("dispute-won@example.com");
+    await handleStripeEvent(db, event("charge.dispute.created", contest(won.intent, "needs_response")), at(1));
+    const closed = event("charge.dispute.closed", contest(won.intent, "won"));
+    expect(await handleStripeEvent(db, closed, at(30))).toBe("review");
+    expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: closed.id } })).toMatchObject({ error: REVIEW_NOTE });
+    // Paid again; the Pass stays withdrawn until an administrator grants it again.
+    expect(await statuses(won.ids)).toEqual(["paid"]);
+    expect((await passes(won.ids))[0]!.revokedAt).toEqual(at(1));
+    // A dispute on a payment Certidrill does not know: ignored.
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest("pi_unknown", "needs_response")), at(1))).toBe("ignored");
+  });
+
+  it("sends no confirmation e-mail for a Pass refunded before it left", async () => {
+    await db.emailOutbox.deleteMany();
+    const { intent } = await bought("refund-mail@example.com");
+    await handleStripeEvent(db, event("charge.refunded", charge(intent)), T0);
+    const sent: Mail[] = [];
+    await drainOutbox(db, { now: T0, sender: async (m) => void sent.push(m), base: BASE });
+    expect(sent.filter((m) => m.kind === "purchase")).toHaveLength(0);
   });
 });

@@ -50,7 +50,7 @@ export async function SiteHeader() {
 
 export async function SiteFooter() {
   const t = await getTranslations("common");
-  const [tp, tl] = await Promise.all([getTranslations("privacy"), getTranslations("legal")]);
+  const [tp, tl, tt] = await Promise.all([getTranslations("privacy"), getTranslations("legal"), getTranslations("terms")]);
   return (
     <footer className="mt-16 border-t border-border">
       <div className="mx-auto max-w-6xl space-y-2 px-4 py-6 text-xs text-muted-foreground">
@@ -58,6 +58,7 @@ export async function SiteFooter() {
         <p className="space-x-4">
           <Link href="/legal" className="underline hover:text-foreground">{tl("link")}</Link>
           <Link href="/privacy" className="underline hover:text-foreground">{tp("link")}</Link>
+          <Link href="/terms" className="underline hover:text-foreground">{tt("link")}</Link>
         </p>
       </div>
     </footer>

@@ -137,14 +137,30 @@ async function compose(db: PrismaClient, row: EmailOutbox & { user: { email: str
   if (row.kind === "purchase") {
     const payment = await db.payment.findUnique({
       where: { id: String(payload.paymentId) },
-      select: { status: true, amountCents: true, currency: true, chargedCents: true, chargedCurrency: true, certification: { select: { code: true } }, entitlement: { select: { expiresAt: true, revokedAt: true } } },
+      select: {
+        status: true,
+        amountCents: true,
+        currency: true,
+        chargedCents: true,
+        chargedCurrency: true,
+        waiverAcceptedAt: true,
+        waiverText: true,
+        termsVersion: true,
+        certification: { select: { code: true } },
+        entitlement: { select: { expiresAt: true, revokedAt: true } },
+      },
     });
     // Refunded or revoked before the e-mail left: no confirmation.
     if (payment?.status !== "paid" || !payment.entitlement || payment.entitlement.revokedAt) return null;
     const url = link("/account/billing");
     // What Stripe charged, in its currency, as on /account/billing; the plan's price before that is known.
     const charged = payment.chargedCents === null ? { amountCents: payment.amountCents, currency: payment.currency } : { amountCents: payment.chargedCents, currency: payment.chargedCurrency ?? payment.currency };
-    const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, ...charged, url });
+    // Payments made before the waiver box (offers lot C) have none to restate.
+    const waiver =
+      payment.waiverAcceptedAt && payment.waiverText && payment.termsVersion
+        ? { acceptedAt: payment.waiverAcceptedAt, text: payment.waiverText, termsVersion: payment.termsVersion, termsUrl: link("/terms") }
+        : null;
+    const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, ...charged, url, waiver });
     return { to, kind: row.kind, message, link: url };
   }
   if (row.kind !== "pass_reminder" && row.kind !== "pass_expired") throw new Error(`unknown e-mail kind: ${row.kind}`);
