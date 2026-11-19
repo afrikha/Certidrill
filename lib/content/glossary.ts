@@ -180,14 +180,16 @@ const escape = (s: string) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * The variants to avoid (glossary `avoid`) found in a French text, outside
- * code: one message per variant, with its count. Case-sensitive, whole words.
+ * code and except as « term (variant) »: one message per variant, with its
+ * count. Case-sensitive, whole words.
  */
 export function terminologyWarnings(fr: string, terms: readonly GlossaryTerm[]): string[] {
   const prose = withoutCode(fr);
   const warnings: string[] = [];
   for (const t of terms) {
     for (const a of t.avoid ?? []) {
-      const n = prose.match(new RegExp(`(?<![\\p{L}\\p{N}_-])${escape(a)}(?![\\p{L}\\p{N}_-])`, "gu"))?.length ?? 0;
+      // The English term in parentheses after the French one, « rubrique (topic) », is allowed.
+      const n = prose.replaceAll(`(${a})`, " ").match(new RegExp(`(?<![\\p{L}\\p{N}_-])${escape(a)}(?![\\p{L}\\p{N}_-])`, "gu"))?.length ?? 0;
       if (n > 0) warnings.push(`French text uses « ${a} »${n > 1 ? ` (${n}×)` : ""}: the glossary says « ${t.fr} » for "${t.en}"`);
     }
   }
