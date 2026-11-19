@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
-import { useFormatter, useLocale, useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { api, ApiError } from "@/components/exam/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,6 @@ export function BuyPass({
     if (wanted.length > 0) return [...new Set(wanted)].slice(0, MAX_CART);
     return first ? [first] : [];
   });
-  const locale = useLocale();
   const waiverId = useId();
   const [waived, setWaived] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -64,7 +63,7 @@ export function BuyPass({
     try {
       // In the order of the list, whatever the order of the clicks.
       const certificationCodes = certifications.filter((c) => selected.includes(c.code)).map((c) => c.code);
-      const { url } = await api<{ url: unknown }>("/api/billing/checkout", { method: "POST", body: { planCode, certificationCodes, waiver: true, locale } });
+      const { url } = await api<{ url: unknown }>("/api/billing/checkout", { method: "POST", body: { planCode, certificationCodes, waiver: true } });
       if (!isPaymentUrl(url)) throw new Error("unexpected payment page address");
       window.location.assign(url);
     } catch (err) {

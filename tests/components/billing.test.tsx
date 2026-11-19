@@ -35,7 +35,7 @@ describe("BuyPass", () => {
     await waive();
     expect(screen.queryByText("Tick the box to continue.")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Buy the Pass" }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout", expect.objectContaining({ method: "POST", body: JSON.stringify({ planCode: "pass_90", certificationCodes: ["az-104"], waiver: true, locale: "en" }) }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout", expect.objectContaining({ method: "POST", body: JSON.stringify({ planCode: "pass_90", certificationCodes: ["az-104"], waiver: true }) }));
     expect(assign).toHaveBeenCalledWith("https://checkout.stripe.test/cs_1");
     expect(screen.getByRole("button", { name: "Redirecting to payment…" })).toBeDisabled();
   });
@@ -52,7 +52,7 @@ describe("BuyPass", () => {
     expect(screen.getByTestId("pass-price")).toHaveTextContent("Total pour 3 Pass : 47,00 €");
     await waive(/J'accepte les conditions générales de vente/);
     await userEvent.click(screen.getByRole("button", { name: "Acheter les 3 Pass" }));
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCodes: ["az-104", "az-305", "az-900"], waiver: true, locale: "fr" });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCodes: ["az-104", "az-305", "az-900"], waiver: true });
   });
 
   it("ticks a whole cart again on the way back from Stripe, ignoring unknown codes", async () => {
@@ -178,7 +178,7 @@ describe("PurchaseStatus", () => {
       ["failed", "The payment did not go through"],
       ["expired", "The payment session expired without payment."],
       ["refunded", "This payment was refunded."],
-      ["disputed", "This payment is disputed with the bank: the Pass is suspended."],
+      ["disputed", "This payment was disputed with the bank: the Pass was withdrawn."],
       ["held", "We are checking it before activating your Pass"],
     ] as const) {
       const { unmount } = renderIntl(<PurchaseStatus sessionId="cs" initial={purchase({ status })} />);

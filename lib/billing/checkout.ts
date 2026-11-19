@@ -40,7 +40,8 @@ const code = z.string().trim().min(1).max(32);
  * deduplicated: one Pass per certification in a purchase. `waiver` is the
  * box the buyer ticked (immediate access, right of withdrawal waived, terms
  * accepted): no purchase without it. `locale` is the language of the page,
- * that of the text ticked (the account's otherwise).
+ * that of the text ticked (the account's otherwise): the API route sets it
+ * from the request, never from the body.
  */
 export const checkoutSchema = z
   .object({

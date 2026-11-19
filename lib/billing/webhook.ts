@@ -14,7 +14,9 @@
  * (invoice.finalized, invoice.paid), a full refund withdraws the Passes of the
  * payment (charge.refunded), and so does a dispute while it lasts
  * (charge.dispute.created, or charge.dispute.updated when an inquiry becomes
- * one); a dispute won makes the payments paid again (charge.dispute.closed). A cart shares one Stripe payment: its Passes go
+ * one). A dispute over (charge.dispute.closed) leaves the payments disputed:
+ * lost, the Passes stay withdrawn; won, an administrator decides whether to
+ * grant them again. A cart shares one Stripe payment: its Passes go
  * together. A partial refund is left to an administrator, who knows which
  * Pass it is for.
  */
@@ -348,7 +350,9 @@ async function closeDispute(tx: Tx, event: Stripe.ChargeDisputeClosedEvent, now:
   }
   const disputed = payments.filter((p) => p.status === "disputed");
   if (contest.status !== "won" || disputed.length === 0) return "processed";
-  await tx.payment.updateMany({ where: { id: { in: disputed.map((p) => p.id) } }, data: { status: "paid" } });
+  // Still disputed, not paid: "paid" means a Pass given, and this one stays
+  // withdrawn until an administrator grants it again (it may have been bought
+  // again meanwhile).
   logEvent("billing.dispute_won", { paymentIntent: idOf(contest.payment_intent), payments: disputed.length });
   return "review";
 }

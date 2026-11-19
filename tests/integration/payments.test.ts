@@ -1300,9 +1300,10 @@ describe("terms, invoices, refunds and disputes (offers lot C)", () => {
     const closed = event("charge.dispute.closed", contest(won.intent, "won"));
     expect(await handleStripeEvent(db, closed, at(30))).toBe("review");
     expect(await db.stripeEvent.findUniqueOrThrow({ where: { id: closed.id } })).toMatchObject({ error: REVIEW_NOTE });
-    // Paid again; the Pass stays withdrawn until an administrator grants it again.
-    expect(await statuses(won.ids)).toEqual(["paid"]);
+    // Still disputed, as shown to the buyer: the Pass stays withdrawn until an administrator grants it again.
+    expect(await statuses(won.ids)).toEqual(["disputed"]);
     expect((await passes(won.ids))[0]!.revokedAt).toEqual(at(1));
+    expect((await paymentHistory(db, won.user))[0]!.status).toBe("disputed");
     // A dispute won after a refund: the refund stands.
     const refunded = await bought("dispute-refunded@example.com");
     await handleStripeEvent(db, event("charge.refunded", charge(refunded.intent)), at(1));
@@ -1326,7 +1327,7 @@ describe("terms, invoices, refunds and disputes (offers lot C)", () => {
     expect(await handleStripeEvent(db, event("charge.dispute.updated", contest(intent, "won")), at(31))).toBe("processed");
     expect(await handleStripeEvent(db, event("charge.dispute.updated", contest(intent, "under_review")), at(32))).toBe("processed");
     expect(await handleStripeEvent(db, event("charge.dispute.created", contest(intent, "needs_response")), at(33))).toBe("processed");
-    expect(await statuses(ids)).toEqual(["paid"]);
+    expect(await statuses(ids)).toEqual(["disputed"]);
     expect(await db.auditLog.count({ where: { action: "entitlement.revoke", details: { path: ["entitlementId"], equals: (await passes(ids))[0]!.id } } })).toBe(1);
   });
 
