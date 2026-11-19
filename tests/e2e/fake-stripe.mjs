@@ -2,7 +2,8 @@
 // It answers the two API calls Certidrill makes (customers, Checkout
 // sessions), serves a payment page, and on "Pay" sends the webhook signed
 // with the test secret, as Stripe does: after the redirect, so the return
-// page has to wait for it, then a second time, as Stripe may.
+// page has to wait for it, then a second time, as Stripe may, then the
+// invoice of the purchase (invoice_creation).
 //   FAKE_STRIPE_PORT=12111 APP_URL=http://localhost:3100 STRIPE_WEBHOOK_SECRET=whsec_… node tests/e2e/fake-stripe.mjs
 import { createServer } from "node:http";
 import Stripe from "stripe";
@@ -27,6 +28,22 @@ async function readForm(req) {
   for await (const chunk of req) body += chunk;
   return new URLSearchParams(body);
 }
+
+async function post(id, type, object) {
+  const payload = JSON.stringify({ id, object: "event", type, created: Math.floor(Date.now() / 1000), data: { object } });
+  const signature = Stripe.webhooks.generateTestHeaderString({ payload, secret: SECRET });
+  const res = await fetch(`${APP_URL}/api/webhooks/stripe`, { method: "POST", headers: { "content-type": "application/json", "stripe-signature": signature }, body: payload });
+  console.log(`[fake-stripe] ${type} ${id}: ${res.status}`);
+}
+
+/** The invoice Stripe makes for a paid session with invoice_creation, found by its metadata. */
+const sendInvoice = (session) =>
+  post(`evt_fake_invoice_${session.id}`, "invoice.finalized", {
+    id: `in_fake_${session.id}`,
+    object: "invoice",
+    metadata: { checkoutId: session.metadata.checkoutId },
+    hosted_invoice_url: `https://invoice.stripe.com/i/acct_fake/${session.id}`,
+  });
 
 async function sendWebhook(session) {
   const payload = JSON.stringify({
@@ -89,7 +106,7 @@ createServer(async (req, res) => {
   if (session && req.method === "POST") {
     res.writeHead(303, { location: session.successUrl.replace("{CHECKOUT_SESSION_ID}", session.id) });
     res.end();
-    setTimeout(() => void sendWebhook(session).then(() => sendWebhook(session)).catch((err) => console.error("[fake-stripe]", err)), 1500);
+    setTimeout(() => void sendWebhook(session).then(() => sendWebhook(session)).then(() => sendInvoice(session)).catch((err) => console.error("[fake-stripe]", err)), 1500);
     return;
   }
   if (url.pathname === "/health") return json(res, 200, { ok: true });

@@ -63,6 +63,18 @@ describe("rate limiter", () => {
     rl.take("k", 1500);
     expect(rl.take("k", 1510)).toMatchObject({ ok: false, firstRefusal: true });
   });
+
+  it("flags the first refusal once per window, even after hits are given back", () => {
+    const rl = createRateLimiter({ limit: 2, windowMs: 1000 });
+    rl.take("k", 0);
+    const second = rl.take("k", 10);
+    expect(rl.take("k", 20)).toMatchObject({ ok: false, firstRefusal: true });
+    // A hit given back brings the count to the limit: the next try reaches limit + 1 again.
+    second.release(30);
+    rl.take("k", 40);
+    second.release(45);
+    expect(rl.take("k", 50)).toMatchObject({ ok: false, firstRefusal: false });
+  });
 });
 
 describe("passwords", () => {

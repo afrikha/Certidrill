@@ -9,6 +9,7 @@ import { getOffers, type Offer } from "@/lib/access/offers";
 import { passPricing } from "@/lib/billing/checkout";
 import { stripeApi } from "@/lib/billing/stripe";
 import { BuyPass } from "@/components/billing/buy-pass";
+import { taxLabelKey } from "@/lib/billing/terms";
 import { buttonClasses } from "@/components/ui/button";
 import { Icon } from "../landing-visuals";
 import { defaultLocale, isLocale } from "@/lib/i18n/config";
@@ -48,7 +49,7 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
     return perCertification ? tOffer("priceFrom", { price: money(range.min, range.currency) }) : money(range.min, range.currency);
   };
   const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, amountCents: c.amountCents, currency: c.currency }));
-  const tax = (o: Offer) => tOffer(o.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded");
+  const tax = (o: Offer) => tOffer(taxLabelKey(o.taxBehavior));
   const freeExams = quota === null ? null : tHome("freeExams", { count: quota });
   const signIn = signupOpen ? { href: "/signup", label: t("signUpToBuy") } : { href: "/login", label: t("signInToBuy") };
 

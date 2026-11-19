@@ -11,7 +11,8 @@ export interface RateLimiter {
    * hit was counted in: once that window has ended, or the key was reset, it
    * does nothing, so it never lowers the count of a later window.
    * `firstRefusal` is true for the one hit that first went over the limit in
-   * its window: what follows a refusal can be noted once, not once per try.
+   * its window: what follows a refusal can be noted once, not once per try,
+   * even when hits given back bring the count under the limit again.
    */
   take(key: string, now?: number): { ok: boolean; firstRefusal: boolean; release(now?: number): void };
   /** True when the key has reached the limit in the current window (does not record a hit). */
@@ -21,11 +22,11 @@ export interface RateLimiter {
 }
 
 export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs: number }): RateLimiter {
-  const buckets = new Map<string, { count: number; resetAt: number }>();
+  const buckets = new Map<string, { count: number; resetAt: number; refusalNoted: boolean }>();
   function take(key: string, now = Date.now()) {
     let bucket = buckets.get(key);
     if (!bucket || bucket.resetAt <= now) {
-      bucket = { count: 0, resetAt: now + windowMs };
+      bucket = { count: 0, resetAt: now + windowMs, refusalNoted: false };
       buckets.set(key, bucket);
       if (buckets.size > 10_000) {
         for (const [k, b] of buckets) if (b.resetAt <= now) buckets.delete(k);
@@ -33,9 +34,12 @@ export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs
     }
     bucket.count += 1;
     const counted = bucket;
+    const ok = counted.count <= limit;
+    const firstRefusal = !ok && !counted.refusalNoted;
+    if (firstRefusal) counted.refusalNoted = true;
     return {
-      ok: counted.count <= limit,
-      firstRefusal: counted.count === limit + 1,
+      ok,
+      firstRefusal,
       release(at = Date.now()) {
         // The same bucket object: a new window or a reset made a new one.
         if (buckets.get(key) === counted && counted.resetAt > at && counted.count > 0) counted.count -= 1;

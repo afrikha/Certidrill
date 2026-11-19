@@ -6,7 +6,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { api } from "@/components/exam/api";
 import { buttonClasses } from "@/components/ui/button";
 
-type Status = "pending" | "paid" | "held" | "failed" | "expired" | "refunded";
+type Status = "pending" | "paid" | "held" | "failed" | "expired" | "refunded" | "disputed";
 
 /** One purchase (one payment at Stripe): one Pass or several (a cart). */
 export interface Purchase {
@@ -66,7 +66,7 @@ export function PurchaseStatus({ sessionId, initial }: Readonly<{ sessionId: str
     // Paid but no Pass (yet): held for a check, nothing more to wait for here.
     message = t("successHeld");
   } else {
-    const key = { failed: "successFailed", expired: "successExpired", refunded: "successRefunded" } as const;
+    const key = { failed: "successFailed", expired: "successExpired", refunded: "successRefunded", disputed: "successDisputed" } as const;
     message = t(key[purchase.status]);
   }
 

@@ -9,6 +9,7 @@ import { freeExamQuota } from "@/lib/access";
 import { getOffers, type Offer } from "@/lib/access/offers";
 import { passPricing } from "@/lib/billing/checkout";
 import { stripeApi } from "@/lib/billing/stripe";
+import { taxLabelKey } from "@/lib/billing/terms";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
@@ -208,7 +209,7 @@ export default async function HomePage() {
               <h3 className="text-lg font-semibold">{tOffer("name_pass")}</h3>
               <p className="mt-4 text-4xl font-bold tracking-tight tabular-nums">{price(pass)}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {tOffer("termsPass", { tax: tOffer(pass.taxBehavior === "inclusive" ? "taxIncluded" : "taxExcluded"), days: pass.durationDays ?? 0 })}
+                {tOffer("termsPass", { tax: tOffer(taxLabelKey(pass.taxBehavior)), days: pass.durationDays ?? 0 })}
               </p>
               <ul className="mt-6 space-y-3 text-sm">
                 {(["benefitExams", "benefitCorrection", "benefitProgress"] as const).map((k) => (

@@ -6,6 +6,8 @@ import { PurchaseStatus, type Purchase } from "@/components/billing/purchase-sta
 import { renderIntl } from "./render";
 
 const AZ = [{ code: "az-104", title: "Microsoft Azure Administrator", amountCents: 1900, currency: "eur" }];
+/** Ticks the waiver box (terms accepted, right of withdrawal waived): no purchase without it. */
+const waive = (name: RegExp = /I accept the terms of sale/) => userEvent.click(screen.getByRole("checkbox", { name }));
 const reply = (status: number, body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -22,12 +24,18 @@ afterEach(() => {
 });
 
 describe("BuyPass", () => {
-  it("sends only the plan and the certification, then goes to the payment page", async () => {
+  it("sends only the plan, the certification and the waiver, then goes to the payment page", async () => {
     fetchMock.mockReturnValue(reply(200, { url: "https://checkout.stripe.test/cs_1" }));
     renderIntl(<BuyPass planCode="pass_90" certifications={AZ} />);
-    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByTestId("cart")).toBeNull();
+    // Nothing can be bought before the waiver box is ticked.
+    expect(screen.getByRole("button", { name: "Buy the Pass" })).toBeDisabled();
+    expect(screen.getByText("Tick the box to continue.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Read the terms of sale" })).toHaveAttribute("href", "/terms");
+    await waive();
+    expect(screen.queryByText("Tick the box to continue.")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Buy the Pass" }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout", expect.objectContaining({ method: "POST", body: JSON.stringify({ planCode: "pass_90", certificationCodes: ["az-104"] }) }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/checkout", expect.objectContaining({ method: "POST", body: JSON.stringify({ planCode: "pass_90", certificationCodes: ["az-104"], waiver: true }) }));
     expect(assign).toHaveBeenCalledWith("https://checkout.stripe.test/cs_1");
     expect(screen.getByRole("button", { name: "Redirecting to payment…" })).toBeDisabled();
   });
@@ -42,21 +50,26 @@ describe("BuyPass", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: /AZ-900/ }));
     await userEvent.click(screen.getByRole("checkbox", { name: /AZ-104/ }));
     expect(screen.getByTestId("pass-price")).toHaveTextContent("Total pour 3 Pass : 47,00 €");
+    await waive(/J'accepte les conditions générales de vente/);
     await userEvent.click(screen.getByRole("button", { name: "Acheter les 3 Pass" }));
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCodes: ["az-104", "az-305", "az-900"] });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ planCode: "pass_90", certificationCodes: ["az-104", "az-305", "az-900"], waiver: true });
   });
 
-  it("ticks a whole cart again on the way back from Stripe, ignoring unknown codes", () => {
+  it("ticks a whole cart again on the way back from Stripe, ignoring unknown codes", async () => {
     const certifications = [...AZ, { code: "az-900", title: "Azure Fundamentals", amountCents: 900, currency: "eur" }];
     renderIntl(<BuyPass planCode="pass_90" certifications={certifications} defaultCertification="az-900,nope,az-104" />);
     expect(screen.getByRole("checkbox", { name: /AZ-104/ })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /AZ-900/ })).toBeChecked();
+    // The waiver is never ticked for the buyer, even on the way back.
+    expect(screen.getByRole("checkbox", { name: /I accept the terms of sale/ })).not.toBeChecked();
+    await waive();
     expect(screen.getByRole("button", { name: "Buy the 2 Passes" })).toBeEnabled();
   });
 
   it("needs a certification, and stops at the largest cart", async () => {
     const many = Array.from({ length: 12 }, (_, i) => ({ code: `c-${String(i).padStart(2, "0")}`, title: `Cert ${i}`, amountCents: 1000, currency: "eur" }));
     renderIntl(<BuyPass planCode="pass_90" certifications={many} />);
+    await waive();
     await userEvent.click(screen.getByRole("checkbox", { name: /C-00/ }));
     expect(screen.getByRole("button", { name: "Choose a certification" })).toBeDisabled();
     for (const c of many.slice(0, 10)) await userEvent.click(screen.getByRole("checkbox", { name: new RegExp(c.code.toUpperCase()) }));
@@ -67,6 +80,7 @@ describe("BuyPass", () => {
 
   it("explains a refusal and lets the buyer try again", async () => {
     renderIntl(<BuyPass planCode="pass_90" certifications={AZ} defaultCertification="unknown" />);
+    await waive();
     for (const [code, text] of [
       ["sales_closed", "Online payment is not open yet."],
       ["email_unverified", "Please verify your e-mail address first"],
@@ -88,6 +102,7 @@ describe("BuyPass", () => {
     for (const url of ["javascript:alert(1)", "http://evil.example/pay", "/relative", "not a url", 42]) {
       fetchMock.mockReturnValueOnce(reply(200, { url }));
       const { unmount } = renderIntl(<BuyPass planCode="pass_90" certifications={AZ} />);
+      await waive();
       await userEvent.click(screen.getByRole("button", { name: "Buy the Pass" }));
       expect(await screen.findByRole("alert"), String(url)).toHaveTextContent("The payment could not start.");
       unmount();
@@ -158,11 +173,12 @@ describe("PurchaseStatus", () => {
     expect(fetchMock.mock.calls.length).toBe(calls);
   });
 
-  it("says when the payment failed, expired or was refunded", () => {
+  it("says when the payment failed, expired, was refunded or is disputed", () => {
     for (const [status, text] of [
       ["failed", "The payment did not go through"],
       ["expired", "The payment session expired without payment."],
       ["refunded", "This payment was refunded."],
+      ["disputed", "This payment was disputed with the bank: the Pass was withdrawn."],
       ["held", "We are checking it before activating your Pass"],
     ] as const) {
       const { unmount } = renderIntl(<PurchaseStatus sessionId="cs" initial={purchase({ status })} />);

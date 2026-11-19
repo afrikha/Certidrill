@@ -87,7 +87,10 @@ enum PaymentStatus {
   failed
   /// The checkout session expired without payment.
   expired
+  /// Refunded in Stripe (in full): the Pass is withdrawn.
   refunded
+  /// Contested by the buyer with their bank (a dispute): the Pass is withdrawn while it lasts, and stays withdrawn if lost.
+  disputed
   /// Paid, but below the plan price or in another currency: no Pass until an administrator refunds it or grants the Pass by hand.
   held
 }
@@ -673,7 +676,7 @@ model Payment {
   /// Shared by the payments of one purchase.
   stripeCheckoutSessionId String?
   stripePaymentIntentId   String?
-  /// Invoices come with offers lot C.
+  /// The Stripe invoice of the purchase (shared by the payments of a cart), and its page (invoiceUrl).
   stripeInvoiceId         String?
   /// The price asked (the plan's).
   amountCents             Int
@@ -684,6 +687,12 @@ model Payment {
   currency                String
   status                  PaymentStatus @default(pending)
   invoiceUrl              String?
+  /// When the buyer asked for immediate access and waived the right of withdrawal (Code de la consommation, art. L221-28 13°), the exact text they ticked, and the version of the terms (CGV) shown.
+  waiverAcceptedAt        DateTime?
+  waiverText              String?
+  termsVersion            String?
+  /// When Stripe closed a dispute on this payment: a charge has one dispute only, so a later event that opens it (delivered late) is ignored.
+  disputeClosedAt         DateTime?
   paidAt                  DateTime?
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
@@ -696,6 +705,7 @@ model Payment {
   @@index([billingCustomerId, createdAt])
   @@index([checkoutId])
   @@index([stripeCheckoutSessionId])
+  @@index([stripePaymentIntentId])
   @@map("payment")
 }
 

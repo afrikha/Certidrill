@@ -55,6 +55,10 @@ test("a user buys a Pass: paid on Stripe, active once the webhook arrives, once"
   await buyer.waitForURL("**/dashboard");
 
   await buyer.goto("/pricing");
+  // No purchase before the waiver box is ticked (terms, immediate access, right of withdrawal).
+  await expect(buyer.getByTestId("buy-pass")).toBeDisabled();
+  await expect(buyer.getByTestId("waiver").getByRole("link", { name: "Read the terms of sale" })).toHaveAttribute("href", "/terms");
+  await buyer.getByRole("checkbox", { name: /I accept the terms of sale/ }).check();
   await buyer.getByTestId("buy-pass").click();
   await buyer.waitForURL(/\/pay\/cs_fake_/);
   await expect(buyer.getByRole("heading", { name: "Fake Stripe Checkout" })).toBeVisible();
@@ -73,15 +77,22 @@ test("a user buys a Pass: paid on Stripe, active once the webhook arrives, once"
   await buyer.waitForTimeout(1500);
   expect(await db.entitlement.count({ where: { userId: user.id, source: "purchase" } })).toBe(1);
   expect(await db.payment.count({ where: { customer: { userId: user.id }, status: "paid" } })).toBe(1);
+  // The waiver ticked is stored with the payment.
+  expect(await db.payment.findFirstOrThrow({ where: { customer: { userId: user.id } } })).toMatchObject({ termsVersion: expect.any(String), waiverText: expect.stringContaining("I ask for immediate access") });
 
   await buyer.getByRole("link", { name: "See billing" }).click();
   await buyer.waitForURL("**/account/billing");
   await expect(buyer.getByTestId("billing-access").locator('[data-certification="az-104"]')).toHaveAttribute("data-level", "full");
   await expect(buyer.getByTestId("payments").locator('tr[data-status="paid"]')).toHaveCount(1);
   await expect(buyer.getByTestId("payments")).toContainText("€19.00");
+  // The invoice the fake Stripe finalized after the payment.
+  await expect.poll(async () => (await db.payment.findFirstOrThrow({ where: { customer: { userId: user.id } } })).invoiceUrl, { timeout: 10_000 }).toMatch(/^https:/);
+  await buyer.reload();
+  await expect(buyer.getByTestId("payments").getByRole("link", { name: "Invoice" })).toHaveAttribute("href", /^https:\/\/invoice\.stripe\.com\//);
 
   // Leaving the payment page: nothing charged, nothing granted.
   await buyer.goto("/pricing");
+  await buyer.getByRole("checkbox", { name: /I accept the terms of sale/ }).check();
   await buyer.getByTestId("buy-pass").click();
   await buyer.waitForURL(/\/pay\/cs_fake_/);
   await buyer.getByRole("link", { name: "Cancel" }).click();
@@ -116,6 +127,7 @@ test("a user buys two Passes at once: one payment, both active", async ({ browse
     await expect(cart.getByRole("checkbox", { name: /AZ-104/ })).toBeChecked();
     await cart.getByRole("checkbox", { name: /AZ-900/ }).check();
     await expect(buyer.getByTestId("pass-price")).toHaveText("Total for 2 Passes: €28.00");
+    await buyer.getByRole("checkbox", { name: /I accept the terms of sale/ }).check();
     await buyer.getByRole("button", { name: "Buy the 2 Passes" }).click();
     await buyer.waitForURL(/\/pay\/cs_fake_/);
     await expect(buyer.getByText("Amount: 28.00 EUR")).toBeVisible();

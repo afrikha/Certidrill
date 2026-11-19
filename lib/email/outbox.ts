@@ -134,19 +134,7 @@ async function compose(db: PrismaClient, row: EmailOutbox & { user: { email: str
   const { email: to, locale } = row.user;
   const payload = (row.payload ?? {}) as Record<string, unknown>;
   const link = (path: string) => new URL(path, base).toString();
-  if (row.kind === "purchase") {
-    const payment = await db.payment.findUnique({
-      where: { id: String(payload.paymentId) },
-      select: { status: true, amountCents: true, currency: true, chargedCents: true, chargedCurrency: true, certification: { select: { code: true } }, entitlement: { select: { expiresAt: true, revokedAt: true } } },
-    });
-    // Refunded or revoked before the e-mail left: no confirmation.
-    if (payment?.status !== "paid" || !payment.entitlement || payment.entitlement.revokedAt) return null;
-    const url = link("/account/billing");
-    // What Stripe charged, in its currency, as on /account/billing; the plan's price before that is known.
-    const charged = payment.chargedCents === null ? { amountCents: payment.amountCents, currency: payment.currency } : { amountCents: payment.chargedCents, currency: payment.chargedCurrency ?? payment.currency };
-    const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, ...charged, url });
-    return { to, kind: row.kind, message, link: url };
-  }
+  if (row.kind === "purchase") return composePurchase(db, { to, locale, paymentId: String(payload.paymentId) }, link);
   if (row.kind !== "pass_reminder" && row.kind !== "pass_expired") throw new Error(`unknown e-mail kind: ${row.kind}`);
 
   const certificationId = String(payload.certificationId);
@@ -166,4 +154,35 @@ async function compose(db: PrismaClient, row: EmailOutbox & { user: { email: str
   const ended = await db.entitlement.count({ where: { userId: row.userId, certificationId, revokedAt: null, expiresAt } });
   if (ended === 0) return null;
   return { to, kind: row.kind, message: expiredMessage({ locale, certification: certification.code, expiresAt, url }), link: url };
+}
+
+/** The confirmation of a purchase, with the waiver ticked; null once refunded or revoked. */
+async function composePurchase(db: PrismaClient, { to, locale, paymentId }: { to: string; locale: string; paymentId: string }, link: (path: string) => string): Promise<Mail | null> {
+  const payment = await db.payment.findUnique({
+    where: { id: paymentId },
+    select: {
+      status: true,
+      amountCents: true,
+      currency: true,
+      chargedCents: true,
+      chargedCurrency: true,
+      waiverAcceptedAt: true,
+      waiverText: true,
+      termsVersion: true,
+      certification: { select: { code: true } },
+      entitlement: { select: { expiresAt: true, revokedAt: true } },
+    },
+  });
+  // Refunded or revoked before the e-mail left: no confirmation.
+  if (payment?.status !== "paid" || !payment.entitlement || payment.entitlement.revokedAt) return null;
+  const url = link("/account/billing");
+  // What Stripe charged, in its currency, as on /account/billing; the plan's price before that is known.
+  const charged = payment.chargedCents === null ? { amountCents: payment.amountCents, currency: payment.currency } : { amountCents: payment.chargedCents, currency: payment.chargedCurrency ?? payment.currency };
+  // Payments made before the waiver box (offers lot C) have none to restate.
+  const waiver =
+    payment.waiverAcceptedAt && payment.waiverText && payment.termsVersion
+      ? { acceptedAt: payment.waiverAcceptedAt, text: payment.waiverText, termsVersion: payment.termsVersion, termsUrl: link("/terms") }
+      : null;
+  const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, ...charged, url, waiver });
+  return { to, kind: "purchase", message, link: url };
 }

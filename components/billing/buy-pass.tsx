@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useId, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { api, ApiError } from "@/components/exam/api";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,9 @@ export function isPaymentUrl(value: unknown): value is string {
  * certification, one payment): asks the server for a Stripe Checkout session
  * (only the plan and the certifications are sent, never a price), then goes
  * to Stripe's payment page. The total shown is for information: the server
- * reads the prices again.
+ * reads the prices again. The waiver box (terms accepted, immediate access,
+ * right of withdrawal waived) must be ticked first: the server refuses a
+ * purchase without it, and stores the text shown, in the page's language.
  */
 export function BuyPass({
   planCode,
@@ -49,6 +52,8 @@ export function BuyPass({
     if (wanted.length > 0) return [...new Set(wanted)].slice(0, MAX_CART);
     return first ? [first] : [];
   });
+  const waiverId = useId();
+  const [waived, setWaived] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +63,7 @@ export function BuyPass({
     try {
       // In the order of the list, whatever the order of the clicks.
       const certificationCodes = certifications.filter((c) => selected.includes(c.code)).map((c) => c.code);
-      const { url } = await api<{ url: unknown }>("/api/billing/checkout", { method: "POST", body: { planCode, certificationCodes } });
+      const { url } = await api<{ url: unknown }>("/api/billing/checkout", { method: "POST", body: { planCode, certificationCodes, waiver: true } });
       if (!isPaymentUrl(url)) throw new Error("unexpected payment page address");
       window.location.assign(url);
     } catch (err) {
@@ -109,9 +114,17 @@ export function BuyPass({
           {t("cartTotal", { count: chosen.length, total })}
         </p>
       )}
-      <Button type="button" onClick={buy} disabled={busy || chosen.length === 0} className="w-full py-2.5" data-testid="buy-pass">
+      <div className="space-y-1 text-left text-xs" data-testid="waiver">
+        <label htmlFor={waiverId} className="flex items-start gap-2">
+          <input id={waiverId} type="checkbox" className="mt-0.5 size-4 shrink-0 accent-primary" checked={waived} onChange={(e) => setWaived(e.target.checked)} required />
+          <span>{t("waiver")}</span>
+        </label>
+        <Link href="/terms" className="ml-6 inline-block text-primary underline" target="_blank" rel="noopener">{t("waiverRead")}</Link>
+      </div>
+      <Button type="button" onClick={buy} disabled={busy || chosen.length === 0 || !waived} className="w-full py-2.5" data-testid="buy-pass">
         {busy ? t("redirecting") : t("buyMany", { count: chosen.length })}
       </Button>
+      {!waived && chosen.length > 0 && <p className="text-xs text-muted-foreground">{t("waiverRequired")}</p>}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     </div>
   );

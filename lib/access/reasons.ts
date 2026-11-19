@@ -6,4 +6,4 @@
  * support exchange, outside the audit log.
  */
 export const GRANT_REASONS = ["goodwill", "technical_issue", "held_payment", "test", "other"] as const;
-export const REVOKE_REASONS = ["refund", "mistake", "test", "other"] as const;
+export const REVOKE_REASONS = ["refund", "dispute", "mistake", "test", "other"] as const;
