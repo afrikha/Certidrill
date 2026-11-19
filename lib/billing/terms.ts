@@ -54,6 +54,9 @@ export function termsPlaceholders(messages: Record<string, { terms?: unknown; bi
   );
 }
 
+/** Read once: the messages are part of the build. */
+const PLACEHOLDERS = termsPlaceholders();
+
 /** A live Stripe key: real cards are charged. */
 export function isLiveKey(key = process.env.STRIPE_SECRET_KEY ?? ""): boolean {
   return /^(sk|rk)_live_/.test(key.trim());
@@ -64,6 +67,6 @@ export function isLiveKey(key = process.env.STRIPE_SECRET_KEY ?? ""): boolean {
  * live key, nothing can be bought, whatever the switch says. Test keys are
  * not concerned (nothing real is sold).
  */
-export function liveSalesBlocked(key = process.env.STRIPE_SECRET_KEY ?? "", placeholders = termsPlaceholders()): boolean {
+export function liveSalesBlocked(key = process.env.STRIPE_SECRET_KEY ?? "", placeholders = PLACEHOLDERS): boolean {
   return isLiveKey(key) && placeholders.length > 0;
 }

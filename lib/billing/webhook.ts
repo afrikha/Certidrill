@@ -85,7 +85,7 @@ function apply(tx: Tx, event: Stripe.Event, now: Date): Promise<WebhookOutcome> 
     case "charge.dispute.updated":
       return dispute(tx, event, now);
     case "charge.dispute.closed":
-      return closeDispute(tx, event);
+      return closeDispute(tx, event, now);
     default:
       return Promise.resolve("ignored");
   }
@@ -248,6 +248,7 @@ async function lockByIntent(tx: Tx, intent: string | null) {
     select: {
       id: true,
       status: true,
+      disputeClosedAt: true,
       customer: { select: { userId: true } },
       entitlement: { select: { id: true, userId: true, source: true, expiresAt: true, revokedAt: true, certification: { select: { code: true } } } },
     },
@@ -306,7 +307,8 @@ async function dispute(tx: Tx, event: Stripe.ChargeDisputeCreatedEvent | Stripe.
   const payments = await lockByIntent(tx, idOf(contest.payment_intent));
   if (payments.length === 0) return "ignored";
   if (!OPEN_DISPUTE.has(contest.status)) return "processed";
-  const open = payments.filter((p) => p.status === "paid");
+  // Stripe does not keep the order of events: one opening the dispute that comes after its close changes nothing.
+  const open = payments.filter((p) => p.status === "paid" && !p.disputeClosedAt);
   if (open.length === 0) return "processed";
   await tx.payment.updateMany({ where: { id: { in: open.map((p) => p.id) } }, data: { status: "disputed" } });
   await revokePasses(tx, open, "dispute", event, now);
@@ -319,10 +321,12 @@ async function dispute(tx: Tx, event: Stripe.ChargeDisputeCreatedEvent | Stripe.
  * gives the Passes back by hand if they are still wanted (a Pass may have
  * been bought again meanwhile, or the account closed).
  */
-async function closeDispute(tx: Tx, event: Stripe.ChargeDisputeClosedEvent): Promise<WebhookOutcome> {
+async function closeDispute(tx: Tx, event: Stripe.ChargeDisputeClosedEvent, now: Date): Promise<WebhookOutcome> {
   const contest = event.data.object;
   const payments = await lockByIntent(tx, idOf(contest.payment_intent));
   if (payments.length === 0) return "ignored";
+  // Closed, whatever the outcome: a late event that opens it again is ignored (dispute()).
+  await tx.payment.updateMany({ where: { id: { in: payments.map((p) => p.id) }, disputeClosedAt: null }, data: { disputeClosedAt: now } });
   const disputed = payments.filter((p) => p.status === "disputed");
   if (contest.status !== "won" || disputed.length === 0) return "processed";
   await tx.payment.updateMany({ where: { id: { in: disputed.map((p) => p.id) } }, data: { status: "paid" } });

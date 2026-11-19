@@ -1322,9 +1322,12 @@ describe("terms, invoices, refunds and disputes (offers lot C)", () => {
     expect(await statuses(ids)).toEqual(["disputed"]);
     expect((await passes(ids))[0]!.revokedAt).toEqual(at(3));
     await handleStripeEvent(db, event("charge.dispute.closed", contest(intent, "won")), at(30));
-    // An update after the close (status won): nothing withdrawn again.
+    // An update after the close (status won), or one still open delivered late: nothing withdrawn again.
     expect(await handleStripeEvent(db, event("charge.dispute.updated", contest(intent, "won")), at(31))).toBe("processed");
+    expect(await handleStripeEvent(db, event("charge.dispute.updated", contest(intent, "under_review")), at(32))).toBe("processed");
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest(intent, "needs_response")), at(33))).toBe("processed");
     expect(await statuses(ids)).toEqual(["paid"]);
+    expect(await db.auditLog.count({ where: { action: "entitlement.revoke", details: { path: ["entitlementId"], equals: (await passes(ids))[0]!.id } } })).toBe(1);
   });
 
   it("leaves a held payment held through a dispute, so that it stays to check", async () => {
