@@ -130,6 +130,55 @@ people and agents who author or review questions.
 - Language-neutral texts (a command, `Standard_LRS`, a role name) can be a plain
   string instead of `{ en, fr }`.
 
+## AWS certifications (`vendor: AWS`: SAA-C03, CLF-C02, AIF-C01…)
+
+The rules above apply, except the points below, which replace the
+Microsoft-specific ones (from `factory/BRIEF-AWS.md`).
+
+1. **Sources.** The scope is the official AWS exam guide; the facts come from
+   the AWS documentation (`docs.aws.amazon.com`, the FAQs under
+   `aws.amazon.com/<service>/faqs/`, the Well-Architected Framework). Check
+   every limit, quota, default, storage class, instance family and price model
+   you are not sure of. AWS renames and retires services: check that a service
+   is still open to new customers before you use it (for example AWS CodeCommit,
+   Amazon QLDB, AWS Snowmobile, Amazon S3 Select, AWS OpsWorks, AWS Cloud9 are
+   closed). If you cannot verify a fact, leave it out.
+2. **Company names.** Never the Microsoft placeholders (Contoso, Fabrikam,
+   Litware…). Use neutral names: "a media company", "a retail company",
+   "AnyCompany", "Example Corp".
+3. **Types.** Those of the exam guide only. SAA-C03 and CLF-C02: `single`
+   (1 correct of 4) and `multi` (5 options with 2 correct, or 6 with 3,
+   "(Choose two.)" / « (Choisissez deux réponses.) » at the end of the stem).
+   AIF-C01 also has `ordering` and matching (`dragdrop`). No case study, no
+   Yes/No series.
+4. **Scoring.** AWS scores `multi` and matching all or nothing
+   (`blueprint.scoring`): **no** "NOTE: Each correct selection is worth one
+   point." (`content:validate` rejects it), and no Microsoft sentence "Each
+   correct answer presents part of the solution".
+5. **Stems.** A scenario of 2–5 sentences: a company, its architecture, one or
+   more requirements with a deciding qualifier ("with the LEAST operational
+   overhead", "MOST cost-effective", "without changing the application code"),
+   then the question ("Which solution will meet these requirements?"). Options
+   are full solutions, all plausible AWS designs; each distractor fails one
+   stated requirement, said in `explanation.options`.
+6. **References.** 1–2 AWS documentation pages you fetched, English URL
+   (`https://docs.aws.amazon.com/...` or `https://aws.amazon.com/.../faqs/`),
+   title = page title. Another host is reported by `content:validate` (⚠).
+   Course links use the same English URL in both languages: the application
+   opens `docs.aws.amazon.com/fr_fr/...` for a French reader.
+7. **French terminology: AWS's, not Microsoft's.** Use the AWS glossary
+   `content/_shared/glossary-aws.yaml` (terms checked on
+   `docs.aws.amazon.com/fr_fr/`), not `content/glossary.yaml`. AWS service and
+   feature names stay in English (`keep_in_english`). Common nouns are
+   translated as AWS does: « compartiment » (bucket), « politique » (policy,
+   never « stratégie IAM »), « Région » (capital R), « zone de disponibilité »,
+   « sous-réseau », « groupe de sécurité », « passerelle NAT », « table de
+   routage », « point de terminaison ». `content:validate` reports (⚠) every
+   French variant listed under `avoid` in that glossary, outside code. The
+   typography rules above apply.
+8. **Code in courses:** `bash` (AWS CLI), `json` (IAM and bucket policies),
+   `yaml` (CloudFormation, SAM), `text`.
+
 ## File format
 
 One file per question: `content/az-104/questions/<domain>/<id>.yaml`, where

@@ -21,6 +21,8 @@ export const glossaryTermSchema = z.strictObject({
   confirmed: z.boolean(),
   source: z.url().optional(),
   also_seen: z.array(text).optional(),
+  /** French variants not to use for this term (checked in the French texts, outside code: content:validate). */
+  avoid: z.array(text).optional(),
   note: text.optional(),
 });
 export type GlossaryTerm = z.infer<typeof glossaryTermSchema>;
@@ -52,7 +54,19 @@ export const certificationGlossarySchema = z
   })
   .strict();
 
+/**
+ * The glossary of another vendor's documentation (content/_shared/glossary-<vendor>.yaml,
+ * lib/vendors.ts): its French terms replace those of content/glossary.yaml,
+ * which come from Microsoft Learn.
+ */
+export const vendorGlossarySchema = z.strictObject({
+  source_note: text.optional(),
+  keep_in_english: z.array(text).default([]),
+  terms: z.array(glossaryTermSchema),
+});
+
 export type SharedGlossary = z.infer<typeof sharedGlossarySchema>;
+export type VendorGlossary = z.infer<typeof vendorGlossarySchema>;
 export type CertificationGlossary = z.infer<typeof certificationGlossarySchema>;
 
 const key = (en: string) => en.trim().toLowerCase();
@@ -125,4 +139,57 @@ export async function loadGlossaries(dirs: readonly string[], root = CONTENT_ROO
   const conflicts = glossaryConflicts(r.data, perCertification);
   if (conflicts.length > 0) throw new Error(`glossary conflicts:\n  ${conflicts.join("\n  ")}`);
   return { shared: r.data, perCertification };
+}
+
+/**
+ * The conflicts of a vendor glossary: one English term with two French forms,
+ * a term both kept in English and translated, or a variant to avoid that is
+ * the term itself or a form the vendor also uses.
+ */
+export function vendorGlossaryConflicts(g: VendorGlossary, file: string): string[] {
+  const problems: string[] = [];
+  const seen = new Map<string, string>();
+  for (const t of g.terms) {
+    const before = seen.get(key(t.en));
+    if (before !== undefined) problems.push(`"${t.en}": listed twice in ${file}${sameFr(before, t.fr) ? "" : ` (« ${before} » and « ${t.fr} »)`}`);
+    seen.set(key(t.en), t.fr);
+    for (const a of t.avoid ?? []) if ([t.fr, ...(t.also_seen ?? [])].some((f) => sameFr(f, a))) problems.push(`"${t.en}": « ${a} » is both used and to avoid (${file})`);
+  }
+  const english = new Set(g.keep_in_english.map(key));
+  for (const t of g.terms) if (english.has(key(t.en)) && !sameFr(t.en, t.fr)) problems.push(`"${t.en}" is both kept in English and translated (${file})`);
+  return problems;
+}
+
+/** Loads and checks a vendor glossary (path relative to the content root); null when the file does not exist. */
+export async function loadVendorGlossary(file: string, root = CONTENT_ROOT): Promise<VendorGlossary | null> {
+  const raw = await readYaml(path.join(root, file));
+  if (raw === undefined) return null;
+  const r = vendorGlossarySchema.safeParse(raw);
+  if (!r.success) throw new Error(`${file}: ${issues(r.error)}`);
+  const conflicts = vendorGlossaryConflicts(r.data, file);
+  if (conflicts.length > 0) throw new Error(`glossary conflicts:\n  ${conflicts.join("\n  ")}`);
+  return r.data;
+}
+
+/** Code is not prose: fenced blocks and inline code are left out of the terminology check. */
+function withoutCode(markdown: string): string {
+  return markdown.replaceAll(/```[\s\S]*?```/g, " ").replaceAll(/`[^`\n]*`/g, " ");
+}
+
+const escape = (s: string) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The variants to avoid (glossary `avoid`) found in a French text, outside
+ * code: one message per variant, with its count. Case-sensitive, whole words.
+ */
+export function terminologyWarnings(fr: string, terms: readonly GlossaryTerm[]): string[] {
+  const prose = withoutCode(fr);
+  const warnings: string[] = [];
+  for (const t of terms) {
+    for (const a of t.avoid ?? []) {
+      const n = prose.match(new RegExp(`(?<![\\p{L}\\p{N}_-])${escape(a)}(?![\\p{L}\\p{N}_-])`, "gu"))?.length ?? 0;
+      if (n > 0) warnings.push(`French text uses « ${a} »${n > 1 ? ` (${n}×)` : ""}: the glossary says « ${t.fr} » for "${t.en}"`);
+    }
+  }
+  return warnings;
 }

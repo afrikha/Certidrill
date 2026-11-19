@@ -23,6 +23,12 @@ export interface Vendor {
   docsPage: (url: string) => string;
   /** How its exam scores the types with several elements, which blueprint.scoring should state. */
   scoring: ScoringRules;
+  /**
+   * Its French terminology, relative to content/: the vendor's glossary when
+   * its documentation translates otherwise than Microsoft Learn (content:validate
+   * reports its `avoid` variants); null for content/glossary.yaml.
+   */
+  glossary: string | null;
 }
 
 const LEARN_LOCALE = /^https:\/\/learn\.microsoft\.com\/[a-z]{2}-[a-z]{2}\//i;
@@ -39,6 +45,7 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     localizeDocsUrl: (url, locale) => url.replace(LEARN_LOCALE, `https://learn.microsoft.com/${locale === "fr" ? "fr-fr" : "en-us"}/`),
     docsPage: (url) => url.replace(LEARN_LOCALE, "https://learn.microsoft.com/"),
     scoring: { multi: "per_option", dragdrop: "per_element" },
+    glossary: null,
   },
   aws: {
     key: "aws",
@@ -49,6 +56,7 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     localizeDocsUrl: (url, locale) => url.replace(AWS_DOCS, `https://docs.aws.amazon.com/${locale === "fr" ? "fr_fr/" : ""}`),
     docsPage: (url) => url.replace(AWS_DOCS, "https://docs.aws.amazon.com/"),
     scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" },
+    glossary: "_shared/glossary-aws.yaml",
   },
 };
 

@@ -24,6 +24,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
 import { formatProblem, validateCourse } from "../lib/content/course";
+import { loadVendorGlossary, terminologyWarnings, type GlossaryTerm } from "../lib/content/glossary";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
 import { compareCodeUnits } from "../lib/sort";
 import { certOfFile, parseCertArgs } from "./cert-args";
@@ -46,7 +47,7 @@ function schemaFor(folder: string | undefined) {
   return questionFileSchema;
 }
 
-type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string>; vendor: Vendor; scoring: ScoringRules };
+type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string>; vendor: Vendor; scoring: ScoringRules; terms: readonly GlossaryTerm[] };
 type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string; stem?: { en: string; fr: string }; references?: { url: string }[] };
 
 /** The note that states per-element scoring, in each language (tools/questions/WRITING_GUIDE.md, rule 7). */
@@ -66,6 +67,21 @@ function questionProblems(data: FileData, folder: string | undefined, ctx: Conte
   return problems;
 }
 
+/** Every French text of a file ({ en, fr } values), for the terminology check. */
+function frenchTexts(node: unknown): string[] {
+  if (Array.isArray(node)) return node.flatMap(frenchTexts);
+  if (!node || typeof node !== "object") return [];
+  return Object.entries(node).flatMap(([k, v]) => (k === "fr" && typeof v === "string" ? [v] : frenchTexts(v)));
+}
+
+/** The terms of a vendor's glossary (lib/vendors.ts), read once per run; none for content/glossary.yaml. */
+const vendorTerms = new Map<string, Promise<readonly GlossaryTerm[]>>();
+function termsOf(vendor: Vendor): Promise<readonly GlossaryTerm[]> {
+  if (!vendor.glossary) return Promise.resolve([]);
+  if (!vendorTerms.has(vendor.glossary)) vendorTerms.set(vendor.glossary, loadVendorGlossary(vendor.glossary).then((g) => g?.terms ?? []));
+  return vendorTerms.get(vendor.glossary)!;
+}
+
 /** Every problem of one file, its warnings, and its question type (questions only). */
 function validateFile(file: string, text: string, ctx: Context): { problems: string[]; warnings?: string[]; type?: string } {
   let raw: unknown;
@@ -80,7 +96,8 @@ function validateFile(file: string, text: string, ctx: Context): { problems: str
   const data = r.data as FileData;
   const problems = path.basename(file, ".yaml") === data.id ? [] : [`file name must be ${data.id}.yaml`];
   if (rel[0] !== "questions") return { problems };
-  return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], warnings: referenceWarnings(data.references ?? [], ctx.vendor), type: data.type };
+  const warnings = [...referenceWarnings(data.references ?? [], ctx.vendor), ...terminologyWarnings(frenchTexts(raw).join("\n"), ctx.terms)];
+  return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], warnings, type: data.type };
 }
 
 interface Options {
@@ -143,6 +160,7 @@ async function validateQuestions(root: string, opts: Options, wholeBank: boolean
     seriesIds: new Set(series!.map((f) => path.basename(f, ".yaml"))),
     vendor: vendorOf(content.blueprint.certification.vendor),
     scoring: content.blueprint.blueprint.scoring,
+    terms: await termsOf(vendorOf(content.blueprint.certification.vendor)),
   };
   const blueprintWarnings = vendorWarnings(content.blueprint);
   for (const w of blueprintWarnings) console.log(`⚠ ${path.relative(process.cwd(), path.join(root, "blueprint.yaml"))}: ${w}`);
@@ -166,21 +184,32 @@ async function validateQuestions(root: string, opts: Options, wholeBank: boolean
   return errors;
 }
 
+/** The terminology warnings of the French chapters of a course (course/chapters/*.fr.md); none without vendor glossary terms. */
+async function courseTermWarnings(dir: string, terms: readonly GlossaryTerm[]): Promise<{ file: string; message: string }[]> {
+  if (terms.length === 0) return [];
+  const chapters = path.join(dir, "course", "chapters");
+  const files = (await readdir(chapters).catch(() => [] as string[])).filter((f) => f.endsWith(".fr.md")).sort(compareCodeUnits);
+  const texts = await Promise.all(files.map((f) => readFile(path.join(chapters, f), "utf8")));
+  return files.flatMap((f, i) => terminologyWarnings(texts[i]!, terms).map((message) => ({ file: path.relative(process.cwd(), path.join(chapters, f)), message })));
+}
+
 /** Checks the course of each certification that has one; returns the number of problems. */
 async function validateCourses(dirs: string[], chapters: string[]): Promise<number> {
   // Certifications are independent: check them all at once, report in order.
   const reports = await Promise.all(
     dirs.map(async (dir) => {
       const content = await loadCertification(dir);
-      return { code: content.blueprint.certification.code, objectives: Object.values(content.objectives).flat().flatMap((g) => g.objectives).length, report: await validateCourse(content) };
+      const terms = await termsOf(vendorOf(content.blueprint.certification.vendor));
+      return { code: content.blueprint.certification.code, objectives: Object.values(content.objectives).flat().flatMap((g) => g.objectives).length, report: await validateCourse(content), terms: await courseTermWarnings(dir, terms) };
     }),
   );
   const mine = (file: string) => chapters.length === 0 || chapters.some((id) => path.basename(file).startsWith(`${id}.`));
   let problems = 0;
-  for (const { code, objectives, report } of reports) {
+  for (const { code, objectives, report, terms } of reports) {
     if (!report) continue;
     const shown = report.problems.filter((p) => mine(p.file));
     for (const p of shown) console.log(`✘ ${formatProblem(p)}`);
+    for (const w of terms.filter((t) => mine(t.file))) console.log(`⚠ ${w.file}: ${w.message}`);
     problems += shown.length;
     const all = report.course?.chapters ?? [];
     const sections = all.flatMap((c) => c.sections);
