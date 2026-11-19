@@ -86,6 +86,55 @@ describe("score report", () => {
     expect(r.domains.map((d) => d.key)).toEqual(["identities", "storage", "compute", "networking", "monitoring"]);
   });
 
+  it("scores multi and dragdrop all or nothing when the blueprint says so (the AWS rule), the report included", async () => {
+    const blueprint = await db.blueprint.findFirstOrThrow({ where: { current: true, certification: { code: "az-104" } } });
+    // The same answers as the manual calculation: the Microsoft rule first, as stored by the seed.
+    expect(blueprint.scoring).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    const answers = (id: string, key: unknown) => {
+      if (id.startsWith("stor-") || id.startsWith("cs-nw-lab") || id === "cs-nw-lifecycle") return key;
+      if (id === "net-peering-transitivity") return { optionIds: ["b"] };
+      return key && typeof key === "object" && "mapping" in key ? key : undefined;
+    };
+    // Another user: the progress tests below count this user's attempts.
+    const other = (await createUser(db, { email: "rules@example.com" })).id;
+    await grantFullAccess(db, other);
+    const perOption = await getAttemptResults(db, { attemptId: await play("rule-microsoft", at(400), answers, other), userId: other });
+    await db.blueprint.update({ where: { id: blueprint.id }, data: { scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" } } });
+    try {
+      const attemptId = await play("rule-microsoft", at(500), answers, other);
+      const r = await getAttemptResults(db, { attemptId, userId: other });
+      const item = (report: typeof r, id: string) => report.items.find((i) => i.question.id === id);
+      // A multi half right: 1 of 2 per option, 0 of 1 all or nothing.
+      const peering = item(r, "net-peering-transitivity");
+      expect(peering).toBeDefined();
+      expect(r.items.some((i) => i.question.type === "dragdrop")).toBe(true);
+      if (peering) {
+        expect(item(perOption, "net-peering-transitivity")).toMatchObject({ earned: 1, max: 2 });
+        expect(peering).toMatchObject({ earned: 0, max: 1 });
+      }
+      // A right multi or dragdrop is worth 1 point; the other types keep their points.
+      for (const i of r.items) {
+        if (i.question.type === "multi" || i.question.type === "dragdrop") expect(i.max).toBe(1);
+        else expect(i.max).toBe(item(perOption, i.question.id)?.max ?? i.max);
+      }
+      const multi = r.items.find((i) => i.question.type === "multi" && i.question.id.startsWith("stor-"));
+      expect(multi).toMatchObject({ earned: 1, max: 1 });
+      // A dragdrop answered right: 1 point of 1 (per element: one per target).
+      const dragdrop = r.items.find((i) => i.question.type === "dragdrop")!;
+      expect(dragdrop).toMatchObject({ earned: 1, max: 1 });
+      expect(item(perOption, dragdrop.question.id)!.max).toBeGreaterThan(1);
+      // Totals and the breakdown by type come from the same points.
+      expect(r.possible).toBe(r.items.reduce((n, i) => n + i.max, 0));
+      expect(r.earned).toBe(r.items.reduce((n, i) => n + i.earned, 0));
+      const byType = r.types.find((t) => t.key === "multi");
+      if (byType) expect(byType.possible).toBe(r.items.filter((i) => i.question.type === "multi").length);
+      expect(r.scaledScore).toBe(Math.round((1000 * r.earned) / r.possible));
+      expect(r.certification.vendor).toBe("Microsoft");
+    } finally {
+      await db.blueprint.update({ where: { id: blueprint.id }, data: { scoring: {} } });
+    }
+  });
+
   it("returns a full correction with explanations and Microsoft Learn links, in both languages", async () => {
     const attemptId = await play("correction-1", at(100), (_id, key) => key);
     const en = await getAttemptResults(db, { attemptId, userId });

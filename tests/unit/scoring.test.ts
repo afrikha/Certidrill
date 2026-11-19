@@ -1,5 +1,9 @@
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { breakdownBy, scaledScore, scoreExam, scoreItem } from "@/lib/exam/scoring";
+import { breakdownBy, scaledScore, scoreExam, scoreItem, scoringRules } from "@/lib/exam/scoring";
+import { DEFAULT_SCORING, blueprintFileSchema, scoringRulesSchema } from "@/lib/content/schema";
+import { maxPoints } from "@/lib/questions/schema";
 
 const opts = (...ids: string[]) => ids.map((id) => ({ id, text: id }));
 
@@ -54,6 +58,72 @@ describe("scoreItem", () => {
     const q = { type: "series_yesno" as const, body: {}, answer: { value: false } };
     expect(scoreItem(q, { value: false })).toEqual({ earned: 1, max: 1 });
     expect(scoreItem(q, { value: true })).toEqual({ earned: 0, max: 1 });
+  });
+});
+
+describe("scoring rules (blueprint.scoring)", () => {
+  const multi = { type: "multi" as const, body: { choose: 2, options: opts("a", "b", "c", "d", "e") }, answer: { optionIds: ["a", "c"] } };
+  const dragdrop = { type: "dragdrop" as const, body: { targets: opts("t1", "t2", "t3") }, answer: { mapping: { t1: "i1", t2: "i2", t3: "i3" } } };
+  const aws = scoringRulesSchema.parse({ multi: "all_or_nothing", dragdrop: "all_or_nothing" });
+
+  it("defaults to the Microsoft rule: per option, per element", () => {
+    expect(DEFAULT_SCORING).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    expect(scoringRules(undefined)).toEqual(DEFAULT_SCORING);
+    expect(scoringRules({})).toEqual(DEFAULT_SCORING);
+    expect(scoringRules({ multi: "bogus" })).toEqual(DEFAULT_SCORING);
+    expect(scoringRules({ dragdrop: "all_or_nothing" })).toEqual({ multi: "per_option", dragdrop: "all_or_nothing" });
+  });
+
+  it("multi: the same answers scored per option and all or nothing", () => {
+    const perOption = DEFAULT_SCORING;
+    expect(scoreItem(multi, { optionIds: ["a", "c"] }, perOption)).toEqual({ earned: 2, max: 2 });
+    expect(scoreItem(multi, { optionIds: ["a", "c"] }, aws)).toEqual({ earned: 1, max: 1 });
+    // Partly right: a point per option, nothing all or nothing.
+    expect(scoreItem(multi, { optionIds: ["a", "b"] }, perOption)).toEqual({ earned: 1, max: 2 });
+    expect(scoreItem(multi, { optionIds: ["a", "b"] }, aws)).toEqual({ earned: 0, max: 1 });
+    expect(scoreItem(multi, { optionIds: ["c"] }, aws)).toEqual({ earned: 0, max: 1 });
+    expect(scoreItem(multi, { optionIds: ["a", "c", "e"] }, aws)).toEqual({ earned: 0, max: 1 });
+    expect(scoreItem(multi, { optionIds: ["c", "a", "a"] }, aws)).toEqual({ earned: 1, max: 1 });
+    expect(scoreItem(multi, null, aws)).toEqual({ earned: 0, max: 1 });
+    expect(maxPoints("multi", multi.body, aws)).toBe(1);
+    expect(maxPoints("multi", multi.body)).toBe(2);
+  });
+
+  it("dragdrop: the same answers scored per element and all or nothing", () => {
+    const right = { mapping: { t1: "i1", t2: "i2", t3: "i3" } };
+    const twoOfThree = { mapping: { t1: "i1", t2: "i3", t3: "i3" } };
+    expect(scoreItem(dragdrop, right, DEFAULT_SCORING)).toEqual({ earned: 3, max: 3 });
+    expect(scoreItem(dragdrop, right, aws)).toEqual({ earned: 1, max: 1 });
+    expect(scoreItem(dragdrop, twoOfThree, DEFAULT_SCORING)).toEqual({ earned: 2, max: 3 });
+    expect(scoreItem(dragdrop, twoOfThree, aws)).toEqual({ earned: 0, max: 1 });
+    expect(scoreItem(dragdrop, { mapping: { t1: "i1", t2: "i2" } }, aws)).toEqual({ earned: 0, max: 1 });
+  });
+
+  it("leaves the other types as they are", () => {
+    const yesno = { type: "yesno_statements" as const, body: { statements: opts("s1", "s2") }, answer: { values: { s1: true, s2: false } } };
+    expect(scoreItem(yesno, { values: { s1: true, s2: true } }, aws)).toEqual({ earned: 1, max: 2 });
+    const ordering = { type: "ordering" as const, body: { count: 2 }, answer: { sequence: ["a", "b"] } };
+    expect(scoreItem(ordering, { sequence: ["a", "b"] }, aws)).toEqual({ earned: 1, max: 1 });
+  });
+
+  it("a partly right multi weighs on the exam score only per option", () => {
+    const items = [scoreItem(multi, { optionIds: ["a", "b"] }, aws), { earned: 1, max: 1 }];
+    expect(scoreExam(items, { maxScore: 1000, passScore: 720 })).toMatchObject({ earned: 1, possible: 2, scaledScore: 500 });
+  });
+
+  it("is read from the blueprint, unknown rules refused", () => {
+    expect(() => scoringRulesSchema.parse({ multi: "half" })).toThrow();
+    expect(() => scoringRulesSchema.parse({ ordering: "all_or_nothing" })).toThrow();
+  });
+
+  it("AZ-104 keeps the Microsoft rule; a blueprint can ask for all or nothing", () => {
+    const az104 = blueprintFileSchema.parse(parse(readFileSync("content/az-104/blueprint.yaml", "utf8")));
+    expect(az104.blueprint.scoring).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    const raw = parse(readFileSync("content/az-104/blueprint.yaml", "utf8"));
+    raw.blueprint.scoring = { multi: "all_or_nothing" };
+    expect(blueprintFileSchema.parse(raw).blueprint.scoring).toEqual({ multi: "all_or_nothing", dragdrop: "per_element" });
+    raw.blueprint.scoring = { multi: "per_element" };
+    expect(blueprintFileSchema.safeParse(raw).success).toBe(false);
   });
 });
 

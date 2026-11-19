@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { localizeLearnUrl, renderCourseMarkdown } from "@/lib/markdown";
+import { renderCourseMarkdown } from "@/lib/markdown";
+import { localizeDocsUrl } from "@/lib/vendors";
 import { courseHtml } from "@/lib/course/render";
 
 const options = { locale: "fr" as const, callouts: { "Piège d'examen.": "trap", "Conseil d'examen.": "tip" }, labels: { table: "Tableau", copy: "Copier" } };
@@ -33,11 +34,26 @@ describe("renderCourseMarkdown", () => {
   });
 });
 
-describe("localizeLearnUrl", () => {
+describe("localizeDocsUrl", () => {
   it("gives Learn pages in the reader's language and leaves other sites alone", () => {
-    expect(localizeLearnUrl("https://learn.microsoft.com/en-us/azure/storage/", "fr")).toBe("https://learn.microsoft.com/fr-fr/azure/storage/");
-    expect(localizeLearnUrl("https://learn.microsoft.com/fr-fr/azure/storage/", "en")).toBe("https://learn.microsoft.com/en-us/azure/storage/");
-    expect(localizeLearnUrl("https://example.com/en-us/x", "fr")).toBe("https://example.com/en-us/x");
+    expect(localizeDocsUrl("https://learn.microsoft.com/en-us/azure/storage/", "fr")).toBe("https://learn.microsoft.com/fr-fr/azure/storage/");
+    expect(localizeDocsUrl("https://learn.microsoft.com/fr-fr/azure/storage/", "en")).toBe("https://learn.microsoft.com/en-us/azure/storage/");
+    expect(localizeDocsUrl("https://example.com/en-us/x", "fr")).toBe("https://example.com/en-us/x");
+  });
+
+  it("gives AWS guides in French under /fr_fr/, and leaves aws.amazon.com alone", () => {
+    expect(localizeDocsUrl("https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html", "fr")).toBe("https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/Welcome.html");
+    expect(localizeDocsUrl("https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/Welcome.html", "en")).toBe("https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html");
+    expect(localizeDocsUrl("https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/Welcome.html", "fr")).toBe("https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/Welcome.html");
+    expect(localizeDocsUrl("https://docs.aws.amazon.com/ja_jp/vpc/latest/userguide/", "fr")).toBe("https://docs.aws.amazon.com/fr_fr/vpc/latest/userguide/");
+    expect(localizeDocsUrl("https://aws.amazon.com/s3/faqs/", "fr")).toBe("https://aws.amazon.com/s3/faqs/");
+    // Not the documentation: a look-alike host is left alone.
+    expect(localizeDocsUrl("https://docs.aws.amazon.com.example.com/x", "fr")).toBe("https://docs.aws.amazon.com.example.com/x");
+  });
+
+  it("opens AWS links of a French course chapter in French", async () => {
+    const html = await renderCourseMarkdown("See [S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html).", { locale: "fr", callouts: {}, labels: { table: "t", copy: "c" } });
+    expect(html).toContain('href="https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/Welcome.html"');
   });
 });
 

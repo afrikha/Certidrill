@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { CHAPTER_STATUSES, chapterForReview, type ReviewChapter } from "@/lib/course/admin";
 import { courseHtml } from "@/lib/course/render";
 import { locales, type Locale } from "@/lib/i18n/config";
-import { localizeLearnUrl } from "@/lib/markdown";
+import { localizeDocsUrl } from "@/lib/vendors";
 import { setChapterStatusAction } from "@/lib/actions/course";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -132,7 +132,7 @@ export default async function AdminCoursePreviewPage({ params, searchParams }: R
               <li key={r.url}>
                 {r.title}{" "}
                 {shown.map((l) => (
-                  <a key={l} href={localizeLearnUrl(r.url, l)} target="_blank" rel="noopener noreferrer" className="ml-2 text-primary underline">{l.toUpperCase()}</a>
+                  <a key={l} href={localizeDocsUrl(r.url, l)} target="_blank" rel="noopener noreferrer" className="ml-2 text-primary underline">{l.toUpperCase()}</a>
                 ))}
               </li>
             ))}

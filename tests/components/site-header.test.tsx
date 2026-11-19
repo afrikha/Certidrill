@@ -3,9 +3,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { serverLocale } from "./server-intl";
 
-const { auth, signOut, hasVisibleCourse } = vi.hoisted(() => ({ auth: vi.fn(), signOut: vi.fn(async () => undefined), hasVisibleCourse: vi.fn(async () => false) }));
+const { auth, signOut, hasVisibleCourse, active } = vi.hoisted(() => ({
+  auth: vi.fn(),
+  signOut: vi.fn(async () => undefined),
+  hasVisibleCourse: vi.fn(async () => false),
+  // The active certifications the footer reads (their vendors).
+  active: { current: [{ code: "az-104", title: "Azure Administrator", vendor: "Microsoft", blueprints: [] }] as { code: string; title: string; vendor: string; blueprints: unknown[] }[] },
+}));
 vi.mock("@/auth", () => ({ auth, signOut }));
-vi.mock("@/lib/db", () => ({ prisma: {} }));
+vi.mock("@/lib/db", () => ({ prisma: { certification: { findMany: async () => active.current } } }));
 vi.mock("@/lib/course/read", () => ({ hasVisibleCourse }));
 vi.mock("next-intl/server", async () => {
   const m = await import("./server-intl");
@@ -22,6 +28,7 @@ beforeEach(() => {
   hasVisibleCourse.mockReset();
   hasVisibleCourse.mockResolvedValue(false);
   serverLocale.current = "en";
+  active.current = [{ code: "az-104", title: "Azure Administrator", vendor: "Microsoft", blueprints: [] }];
 });
 
 describe("SiteHeader", () => {
@@ -58,7 +65,7 @@ describe("SiteHeader", () => {
     hasVisibleCourse.mockResolvedValue(true);
     render(await SiteHeader());
     expect(screen.getByRole("link", { name: "Course" })).toHaveAttribute("href", "/course");
-    expect(hasVisibleCourse).toHaveBeenCalledWith({}, { userId: "u", isAdmin: false });
+    expect(hasVisibleCourse).toHaveBeenCalledWith(expect.anything(), { userId: "u", isAdmin: false });
   });
 
   it("shows the admin link to admins and signs out through the form action", async () => {
@@ -71,15 +78,38 @@ describe("SiteHeader", () => {
 });
 
 describe("SiteFooter", () => {
-  it("shows the disclaimer", async () => {
+  it("shows the disclaimer of the Microsoft certifications, as before", async () => {
     render(await SiteFooter());
-    expect(screen.getByRole("contentinfo")).toHaveTextContent(/not affiliated with/);
+    expect(screen.getByTestId("disclaimer")).toHaveTextContent(
+      "Certidrill is an independent website. It is not affiliated with, endorsed or sponsored by Microsoft. Microsoft and Azure are trademarks of the Microsoft group of companies. All questions are original and written from public documentation; none comes from a real exam.",
+    );
   });
 
   it("shows the French disclaimer", async () => {
     serverLocale.current = "fr";
     render(await SiteFooter());
-    expect(screen.getByRole("contentinfo")).toHaveTextContent(/non affilié à Microsoft/);
+    expect(screen.getByTestId("disclaimer")).toHaveTextContent(
+      "Certidrill est un site indépendant, non affilié à Microsoft ni approuvé ou parrainé par Microsoft. Microsoft et Azure sont des marques du groupe Microsoft. Toutes les questions sont originales et rédigées à partir de la documentation publique ; aucune ne provient d'un examen réel.",
+    );
+  });
+
+  it("names the vendor of every active certification, and its trademarks", async () => {
+    serverLocale.current = "fr";
+    active.current = [...active.current, { code: "saa-c03", title: "Solutions Architect – Associate", vendor: "AWS", blueprints: [] }];
+    render(await SiteFooter());
+    const text = screen.getByTestId("disclaimer").textContent;
+    expect(text).toContain("non affilié à Microsoft ou AWS");
+    expect(text).toContain("Microsoft et Azure sont des marques du groupe Microsoft. AWS, Amazon Web Services et les noms de services AWS sont des marques d'Amazon.com, Inc. ou de ses filiales.");
+  });
+
+  it("names AWS alone when only AWS certifications are active, and no vendor without any", async () => {
+    active.current = [{ code: "saa-c03", title: "Solutions Architect – Associate", vendor: "AWS", blueprints: [] }];
+    render(await SiteFooter());
+    expect(screen.getByTestId("disclaimer").textContent).toMatch(/sponsored by AWS\. AWS, Amazon Web Services .* affiliates\. All questions/);
+    expect(screen.getByTestId("disclaimer").textContent).not.toContain("Microsoft");
+    active.current = [];
+    render(await SiteFooter());
+    expect(screen.getAllByTestId("disclaimer")[1]).toHaveTextContent("Certidrill is an independent website. All questions are original and written from public documentation; none comes from a real exam.");
   });
 
   it("links to the privacy policy", async () => {

@@ -104,7 +104,7 @@ export async function coursesFor(db: PrismaClient, viewer: Viewer) {
   return db.certification.findMany({
     where: { active: true, courseChapters: { some: { status: { in: visibleStatuses(viewer) } } } },
     orderBy: { code: "asc" },
-    select: { code: true, title: true },
+    select: { code: true, title: true, vendor: true },
   });
 }
 

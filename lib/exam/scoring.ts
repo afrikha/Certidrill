@@ -5,11 +5,14 @@
  * - multi "choose N": 1 point per correct option checked, 0 if more options
  *   are checked than requested.
  * - yesno_statements, dropdown, dragdrop, hotarea: 1 point per correct element.
+ * - The blueprint may score multi or dragdrop all or nothing instead
+ *   (blueprint.scoring, the AWS rule): 1 point, only for the exact answer.
  * - ordering: 1 point only if the sequence is exactly right.
  * - No negative points; no answer (or an invalid one) scores 0.
  * - Scaled score = round(maxScore × earned / possible); pass at passScore.
  */
-import { maxPoints, parseResponse, type QuestionAnswer, type QuestionBody, type QuestionTypeCode } from "@/lib/questions/schema";
+import { DEFAULT_SCORING, scoringRulesSchema, type ScoringRules } from "@/lib/content/schema";
+import { allOrNothing, maxPoints, parseResponse, type QuestionAnswer, type QuestionBody, type QuestionTypeCode } from "@/lib/questions/schema";
 
 export interface ItemScore {
   earned: number;
@@ -22,12 +25,21 @@ export interface ScorableQuestion {
   answer: unknown;
 }
 
-export function scoreItem(question: ScorableQuestion, response: unknown): ItemScore {
-  const max = maxPoints(question.type, question.body);
+/** The scoring rules stored with a blueprint (blueprint.scoring); the Microsoft rule when absent or unreadable. */
+export function scoringRules(stored: unknown): ScoringRules {
+  const parsed = scoringRulesSchema.safeParse(stored ?? undefined);
+  return parsed.success ? parsed.data : DEFAULT_SCORING;
+}
+
+export function scoreItem(question: ScorableQuestion, response: unknown, rules: ScoringRules = DEFAULT_SCORING): ItemScore {
+  const max = maxPoints(question.type, question.body, rules);
   if (response === null || response === undefined) return { earned: 0, max };
   const parsed = parseResponse(question.type, response);
   if (!parsed.success) return { earned: 0, max };
-  return { earned: Math.min(max, earnedPoints(question, parsed.data)), max };
+  const earned = earnedPoints(question, parsed.data);
+  // All or nothing: the point only when every element is right (no extra option checked).
+  if (allOrNothing(question.type, rules)) return { earned: earned === maxPoints(question.type, question.body) ? 1 : 0, max };
+  return { earned: Math.min(max, earned), max };
 }
 
 function countMatches(expected: Record<string, unknown>, given: Record<string, unknown>): number {

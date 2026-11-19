@@ -34,6 +34,8 @@ export async function priceFor(db: PrismaClient, plan: Plan, certificationId: st
 export interface CertificationPrice extends Price {
   code: string;
   title: string;
+  /** certification.vendor: the Pass are grouped by vendor on the pricing page. */
+  vendor: string;
 }
 
 /** The price of a plan for every active certification, in code order. */
@@ -41,11 +43,11 @@ export async function pricesByCertification(db: PrismaClient, planCode: string):
   const plan = await db.plan.findUnique({ where: { code: planCode } });
   if (!plan) return [];
   const [certifications, own] = await Promise.all([
-    db.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, title: true } }),
+    db.certification.findMany({ where: { active: true }, orderBy: { code: "asc" }, select: { id: true, code: true, title: true, vendor: true } }),
     db.planPrice.findMany({ where: { planId: plan.id } }),
   ]);
   const byCertification = new Map(own.map((p) => [p.certificationId, p]));
-  return certifications.map((c) => ({ code: c.code, title: c.title, ...resolvePrice(plan, byCertification.get(c.id)) }));
+  return certifications.map((c) => ({ code: c.code, title: c.title, vendor: c.vendor, ...resolvePrice(plan, byCertification.get(c.id)) }));
 }
 
 /** The lowest and highest amounts of a list of prices in one currency, for "from X" labels; null when empty or mixed. */

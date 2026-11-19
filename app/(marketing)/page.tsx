@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 import { localizedPath } from "@/lib/i18n/routing";
 import { SITE_NAME, activeCodes, jsonLd, publicPageMetadata, siteUrl } from "@/lib/seo";
+import { activeCatalog, joinNames } from "@/lib/catalog";
+import { groupByVendor } from "@/lib/vendors";
+import { VendorGroups } from "@/components/vendor-groups";
 import { ExamPreview, Icon } from "./landing-visuals";
 
 export const dynamic = "force-dynamic";
@@ -25,8 +28,11 @@ async function pageLocale(): Promise<Locale> {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [locale, t, codes] = await Promise.all([pageLocale(), getTranslations("seo"), activeCodes()]);
-  return publicPageMetadata({ locale, path: "/", title: t("homeTitle", { codes }), description: t("homeDescription", { codes }), imageAlt: t("shareImageAlt") });
+  const [locale, t, codes, catalog] = await Promise.all([pageLocale(), getTranslations("seo"), activeCodes(), activeCatalog()]);
+  // Case studies and Yes/No series only when an active exam has them; the documentation of the vendors on sale.
+  const features = [catalog.caseStudies && t("featureCaseStudies"), catalog.series && t("featureSeries"), t("featureReview")].filter(Boolean).join(", ");
+  const docs = catalog.vendors.length ? joinNames(locale, catalog.vendors.map((v) => v.docsName)) : t("docsFallback");
+  return publicPageMetadata({ locale, path: "/", title: t("homeTitle", { codes }), description: t("homeDescription", { codes, features, docsNames: docs }), imageAlt: t("shareImageAlt") });
 }
 
 /** schema.org: who publishes the site, and the site itself in the language of the page. */
@@ -70,7 +76,7 @@ export default async function HomePage() {
     prisma.certification.findMany({
       where: { active: true },
       orderBy: { code: "asc" },
-      select: { id: true, code: true, title: true, blueprints: { where: { current: true }, take: 1, select: { durationMin: true, minQuestions: true, maxQuestions: true, passScore: true, maxScore: true, _count: { select: { domains: true } } } } },
+      select: { id: true, code: true, title: true, vendor: true, blueprints: { where: { current: true }, take: 1, select: { durationMin: true, minQuestions: true, maxQuestions: true, passScore: true, maxScore: true, _count: { select: { domains: true } } } } },
     }),
     readSwitches(prisma),
     getOffers(prisma),
@@ -91,6 +97,11 @@ export default async function HomePage() {
     return range ? money(range.min, range.currency) : money(o.amountCents, o.currency);
   };
   const freeExams = quota === null ? null : t("freeExams", { count: quota });
+  // The vendors of the certifications on offer: their documentation, their names.
+  const groups = groupByVendor(certifications);
+  const vendors = groups.map((g) => g.vendor);
+  const docsNames = vendors.length ? joinNames(locale, vendors.map((v) => v.docsName)) : t("docsOfficial");
+  const vendorNames = vendors.length ? joinNames(locale, vendors.map((v) => v.name)) : t("vendorFallback");
 
   // The main call to action, the same in every section that offers one.
   let primary = { href: "/login", label: t("cta") };
@@ -157,7 +168,7 @@ export default async function HomePage() {
             <li key={s} className="relative">
               <span aria-hidden className="grid size-10 place-items-center rounded-full bg-primary text-lg font-bold text-primary-foreground">{i + 1}</span>
               <h3 className="mt-4 text-lg font-semibold">{t(`steps.${s}`)}</h3>
-              <p className="mt-2 text-muted-foreground">{t(`steps.${s}Text`)}</p>
+              <p className="mt-2 text-muted-foreground">{t(`steps.${s}Text`, { docsNames })}</p>
             </li>
           ))}
         </ol>
@@ -237,7 +248,7 @@ export default async function HomePage() {
                   {t(`faq.${q}Q`)}
                   <span aria-hidden className="text-xl leading-none text-muted-foreground transition-transform group-open:rotate-45">+</span>
                 </summary>
-                <p className="mt-3 text-muted-foreground">{t(`faq.${q}A`, { maxScore: blueprint?.maxScore ?? 0, passScore: blueprint?.passScore ?? 0, exams: freeExams ?? "" })}</p>
+                <p className="mt-3 text-muted-foreground">{t(`faq.${q}A`, { maxScore: blueprint?.maxScore ?? 0, passScore: blueprint?.passScore ?? 0, exams: freeExams ?? "", vendors: vendorNames })}</p>
               </details>
             ))}
           </div>
@@ -258,13 +269,22 @@ export default async function HomePage() {
         {certifications.length > 0 && (
           <div className="mt-12 text-center">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{t("available")}</h2>
-            <ul className="mt-4 flex flex-wrap justify-center gap-3">
-              {certifications.map((c) => (
-                <li key={c.id} className="rounded-md border border-border px-4 py-2">
-                  <span className="font-mono text-sm font-semibold uppercase">{c.code}</span> — {c.title}
-                </li>
-              ))}
-            </ul>
+            {/* Grouped by vendor, with a filter, once several vendors are on offer: named, never a logo. */}
+            <VendorGroups
+              groups={groups.map((g) => ({
+                key: g.vendor.key,
+                name: g.vendor.name,
+                content: (
+                  <ul className="mt-4 flex flex-wrap justify-center gap-3">
+                    {g.certifications.map((c) => (
+                      <li key={c.id} className="rounded-md border border-border px-4 py-2">
+                        <span className="font-mono text-sm font-semibold uppercase">{c.code}</span> — {c.title}
+                      </li>
+                    ))}
+                  </ul>
+                ),
+              }))}
+            />
           </div>
         )}
       </section>

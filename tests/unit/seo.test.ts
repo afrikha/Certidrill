@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const h = vi.hoisted(() => ({ codes: [] as string[], headers: new Headers(), planAt: null as Date | null, dbDown: false }));
+const h = vi.hoisted(() => ({ codes: [] as string[], headers: new Headers(), planAt: null as Date | null, examAt: null as Date | null, dbDown: false }));
 vi.mock("@/lib/db", () => ({
   prisma: {
     certification: { findMany: async () => h.codes.map((code) => ({ code })) },
@@ -11,6 +11,7 @@ vi.mock("@/lib/db", () => ({
         return { _max: { createdAt: h.planAt } };
       },
     },
+    blueprint: { aggregate: async () => ({ _max: { createdAt: h.examAt } }) },
   },
 }));
 vi.mock("next/headers", () => ({ headers: async () => h.headers }));
@@ -184,6 +185,10 @@ describe("robots.txt and sitemap.xml", () => {
     expect(await publicPagesModifiedAt("2026-11-14T10:00:00Z")).toEqual(new Date("2026-12-01T00:00:00Z"));
     expect(await publicPagesModifiedAt("2027-01-01T00:00:00Z")).toEqual(new Date("2027-01-01T00:00:00Z"));
     expect(await publicPagesModifiedAt("not a date")).toEqual(new Date("2026-12-01T00:00:00Z"));
+    // A certification put on offer (a new current blueprint), whatever its vendor.
+    h.examAt = new Date("2026-12-15T00:00:00Z");
+    expect(await publicPagesModifiedAt("2026-11-14T10:00:00Z")).toEqual(new Date("2026-12-15T00:00:00Z"));
+    h.examAt = null;
     // Without the database, the build date: the sitemap still answers.
     h.dbDown = true;
     const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);

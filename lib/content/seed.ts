@@ -44,6 +44,7 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
       typeMix: b.typeMix,
       difficultyMix: b.difficultyMix,
       structure: b.structure,
+      scoring: b.scoring,
       current: true,
     };
     await tx.blueprint.updateMany({

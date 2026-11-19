@@ -9,6 +9,7 @@ import { z } from "zod";
 import { localizedSchema, type QuestionTypeCode } from "@/lib/content/schema";
 
 export { questionTypes, type QuestionTypeCode } from "@/lib/content/schema";
+import { DEFAULT_SCORING, type ScoringRules } from "@/lib/content/schema";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/, "ids are 1-40 chars of [a-zA-Z0-9_-]");
 
@@ -168,7 +169,7 @@ const envelope = {
   stem: localizedSchema,
   exhibits: z.array(exhibitSchema).default([]),
   explanation: explanationSchema,
-  references: z.array(referenceSchema).min(1, "at least one Microsoft Learn reference"),
+  references: z.array(referenceSchema).min(1, "at least one documentation reference"),
 };
 
 const variant = <T extends keyof Schemas>(type: T) =>
@@ -267,8 +268,19 @@ export function answerIssues(q: { type: string; body: unknown; answer: unknown }
   return issues;
 }
 
-/** Maximum points of a question (spec §5 "Notation"). */
-export function maxPoints(type: keyof Schemas, body: unknown): number {
+/** A type scored on its exact answer only by the blueprint's rules (blueprint.scoring). */
+export function allOrNothing(type: keyof Schemas, rules: ScoringRules = DEFAULT_SCORING): boolean {
+  return (type === "multi" || type === "dragdrop") && rules[type] === "all_or_nothing";
+}
+
+/** Maximum points of a question (spec §5 "Notation"), under the blueprint's scoring rules. */
+export function maxPoints(type: keyof Schemas, body: unknown, rules: ScoringRules = DEFAULT_SCORING): number {
+  if (allOrNothing(type, rules)) return 1;
+  return elementCount(type, body);
+}
+
+/** Points of a question scored element by element (the Microsoft rule). */
+function elementCount(type: keyof Schemas, body: unknown): number {
   switch (type) {
     case "multi":
       return (body as QuestionBody<"multi">).choose;

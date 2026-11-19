@@ -14,6 +14,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { Icon } from "../landing-visuals";
 import { defaultLocale, isLocale } from "@/lib/i18n/config";
 import { activeCodes, publicPageMetadata } from "@/lib/seo";
+import { groupByVendor } from "@/lib/vendors";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [locale, t, codes] = await Promise.all([getLocale(), getTranslations("seo"), activeCodes()]);
@@ -48,7 +49,9 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
     if (o.kind !== "pass" || !range) return money(o.amountCents, o.currency);
     return perCertification ? tOffer("priceFrom", { price: money(range.min, range.currency) }) : money(range.min, range.currency);
   };
-  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, amountCents: c.amountCents, currency: c.currency }));
+  const certifications = (pricing?.buyable ?? []).map((c) => ({ code: c.code, title: c.title, vendor: c.vendor, amountCents: c.amountCents, currency: c.currency }));
+  // The Pass of each vendor together; a vendor's name above its rows once there are several.
+  const priceGroups = groupByVendor(pricing?.prices ?? []);
   const tax = (o: Offer) => tOffer(taxLabelKey(o.taxBehavior));
   const freeExams = quota === null ? null : tHome("freeExams", { count: quota });
   const signIn = signupOpen ? { href: "/signup", label: t("signUpToBuy") } : { href: "/login", label: t("signInToBuy") };
@@ -94,14 +97,21 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
               <details className="mt-6 text-sm" data-testid="pass-prices">
                 <summary className="cursor-pointer font-medium">{t("pricesTitle")}</summary>
                 <table className="mt-3 w-full text-left">
-                  <tbody>
-                    {pricing.prices.map((c) => (
-                      <tr key={c.code} className="border-b border-border">
-                        <th scope="row" className="py-1.5 pr-3 font-normal"><span className="font-mono uppercase">{c.code}</span> <span className="text-muted-foreground">{c.title}</span></th>
-                        <td className="py-1.5 text-right font-semibold tabular-nums">{money(c.amountCents, c.currency)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {priceGroups.map((g) => (
+                    <tbody key={g.vendor.key} data-vendor={g.vendor.key}>
+                      {priceGroups.length > 1 && (
+                        <tr>
+                          <th scope="rowgroup" colSpan={2} className="pt-3 pb-1 font-semibold">{g.vendor.name}</th>
+                        </tr>
+                      )}
+                      {g.certifications.map((c) => (
+                        <tr key={c.code} className="border-b border-border">
+                          <th scope="row" className="py-1.5 pr-3 font-normal"><span className="font-mono uppercase">{c.code}</span> <span className="text-muted-foreground">{c.title}</span></th>
+                          <td className="py-1.5 text-right font-semibold tabular-nums">{money(c.amountCents, c.currency)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  ))}
                 </table>
               </details>
             )}

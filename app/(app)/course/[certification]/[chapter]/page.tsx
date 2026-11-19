@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { getChapter, offerUrl, type ChapterPage } from "@/lib/course/read";
 import { courseHtml, type CourseLabels } from "@/lib/course/render";
 import { defaultLocale, isLocale } from "@/lib/i18n/config";
-import { localizeLearnUrl } from "@/lib/markdown";
+import { localizeDocsUrl } from "@/lib/vendors";
 import { Alert, Card } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { CodeCopy } from "@/components/course/code-copy";
@@ -120,7 +120,7 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
             <h2 id="references-title" className="text-xl font-semibold">{t("references")}</h2>
             <ul className="list-disc space-y-1 pl-5">
               {chapter.references.map((r) => (
-                <li key={r.url}><a href={localizeLearnUrl(r.url, locale)} target="_blank" rel="noopener noreferrer" className="text-primary underline">{r.title}</a></li>
+                <li key={r.url}><a href={localizeDocsUrl(r.url, locale)} target="_blank" rel="noopener noreferrer" className="text-primary underline">{r.title}</a></li>
               ))}
             </ul>
           </section>

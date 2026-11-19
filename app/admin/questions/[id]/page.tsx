@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/guards";
 import { isLocale, pick, type Locale } from "@/lib/i18n/config";
 import { presentQuestion } from "@/lib/questions/present";
+import { scoringRules } from "@/lib/exam/scoring";
 import { buildOptionOrder } from "@/lib/questions/order";
 import { renderMarkdown } from "@/lib/markdown";
 import { Card } from "@/components/ui/card";
@@ -26,7 +27,9 @@ export default async function QuestionPreviewPage({ params, searchParams }: Read
   if (!q) notFound();
 
   const order = sp.shuffle ? buildOptionOrder(q.type, q.body, q.shuffle, Math.random) : {};
-  const question = await presentQuestion(q, locale, order);
+  // Points under the scoring rules of the certification's current blueprint.
+  const blueprint = await prisma.blueprint.findFirst({ where: { certificationId: q.certificationId, current: true }, select: { scoring: true } });
+  const question = await presentQuestion(q, locale, order, scoringRules(blueprint?.scoring));
   const seriesStemHtml = q.series ? await renderMarkdown(pick(q.series.stem as { en: string; fr: string }, locale)) : undefined;
   const explanation = q.explanation as { correct: { en: string; fr: string }; options?: Record<string, { en: string; fr: string }> };
   const explanationHtml = await renderMarkdown(pick(explanation.correct, locale));

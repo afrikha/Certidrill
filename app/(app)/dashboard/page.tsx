@@ -19,6 +19,7 @@ import { getCourseOutline, suggestedSections } from "@/lib/course/read";
 import { CourseCard } from "./course-card";
 import { OverviewCard } from "@/components/progress/overview-card";
 import { progressOverview, selectedCertification } from "@/lib/progress/overview";
+import { groupByVendor } from "@/lib/vendors";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -89,9 +90,11 @@ export default async function DashboardPage({ searchParams }: Readonly<{ searchP
           <div>
             <label htmlFor="dashboard-certification" className="block text-sm font-medium">{t("chooseCertification")}</label>
             <select id="dashboard-certification" name="certification" defaultValue={selected ?? undefined} className="mt-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
-              {certifications.map((c) => (
-                <option key={c.code} value={c.code}>{c.code.toUpperCase()} — {c.title}</option>
-              ))}
+              {/* Several vendors: one group per vendor, named. */}
+              {groupByVendor(certifications).map((g, _, groups) => {
+                const options = g.certifications.map((c) => <option key={c.code} value={c.code}>{c.code.toUpperCase()} — {c.title}</option>);
+                return groups.length > 1 ? <optgroup key={g.vendor.key} label={g.vendor.name}>{options}</optgroup> : options;
+              })}
             </select>
           </div>
           <Button type="submit" variant="secondary">{t("show")}</Button>

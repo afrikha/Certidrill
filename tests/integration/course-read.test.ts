@@ -54,7 +54,7 @@ describe("visibility", () => {
     await publish(PUBLISHED);
     const retired = await db.courseChapter.findFirstOrThrow({ where: { module: { code: "identities" }, code: { notIn: PUBLISHED } } });
     await db.courseChapter.update({ where: { id: retired.id }, data: { status: "retired" } });
-    expect(await coursesFor(db, reader)).toEqual([{ code: "az-104", title: expect.any(String) }]);
+    expect(await coursesFor(db, reader)).toEqual([{ code: "az-104", title: expect.any(String), vendor: "Microsoft" }]);
     const outline = (await getCourseOutline(db, { certification: "az-104", viewer: reader, locale: "fr" }))!;
     expect(outline.modules.map((m) => m.code)).toEqual(["intro", "identities"]);
     expect(outline.modules.flatMap((m) => m.chapters.map((c) => c.code))).toEqual(PUBLISHED);

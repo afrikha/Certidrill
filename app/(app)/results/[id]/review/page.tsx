@@ -14,6 +14,7 @@ import { AnsweredQuestion } from "./answered-question";
 import { ReportForm } from "./report-form";
 import { withKeys } from "@/components/with-keys";
 import { sectionsForObjectives } from "@/lib/course/read";
+import { localizeDocsUrl, vendorOf, vendorOfUrl } from "@/lib/vendors";
 
 export const metadata = { title: "Correction" };
 export const dynamic = "force-dynamic";
@@ -166,7 +167,10 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
               )}
               <ul className="mt-3 space-y-1">
                 {i.references.map((ref) => (
-                  <li key={ref.url}><a href={ref.url} target="_blank" rel="noreferrer" className="text-primary underline">{t("learnMore")} — {ref.title}</a></li>
+                  <li key={ref.url}>
+                    {/* The documentation in the language of the correction, named after its site (else the certification's vendor). */}
+                    <a href={localizeDocsUrl(ref.url, r.locale)} target="_blank" rel="noreferrer" className="text-primary underline">{(vendorOfUrl(ref.url) ?? vendorOf(r.certification.vendor)).docsName} — {ref.title}</a>
+                  </li>
                 ))}
               </ul>
             </section>

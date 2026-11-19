@@ -137,6 +137,21 @@ export const structureSchema = z.object({
 });
 export type BlueprintStructure = z.infer<typeof structureSchema>;
 
+/**
+ * How the question types with several elements are scored (blueprint.scoring).
+ * per_option / per_element: 1 point per correct option or element (Microsoft).
+ * all_or_nothing: 1 point, only for the exact answer (AWS). Absent: the
+ * Microsoft rule, as before.
+ */
+export const scoringRulesSchema = z
+  .strictObject({
+    multi: z.enum(["per_option", "all_or_nothing"]).default("per_option"),
+    dragdrop: z.enum(["per_element", "all_or_nothing"]).default("per_element"),
+  })
+  .default({ multi: "per_option", dragdrop: "per_element" });
+export type ScoringRules = z.infer<typeof scoringRulesSchema>;
+export const DEFAULT_SCORING: ScoringRules = scoringRulesSchema.parse(undefined);
+
 export const domainFileSchema = z.object({
   code: z.string().regex(/^[a-z0-9-]+$/),
   order: z.number().int().min(1),
@@ -161,6 +176,7 @@ export const blueprintFileSchema = z
       typeMix: typeMixSchema,
       difficultyMix: difficultyMixSchema,
       structure: structureSchema,
+      scoring: scoringRulesSchema,
     }),
     domains: z.array(domainFileSchema).min(1),
   })
