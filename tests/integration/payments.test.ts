@@ -1330,6 +1330,23 @@ describe("terms, invoices, refunds and disputes (offers lot C)", () => {
     expect(await db.auditLog.count({ where: { action: "entitlement.revoke", details: { path: ["entitlementId"], equals: (await passes(ids))[0]!.id } } })).toBe(1);
   });
 
+  it("withdraws the Pass when a dispute is lost before its opening event arrives", async () => {
+    const { user, intent, ids } = await bought("lost-first@example.com");
+    expect(await handleStripeEvent(db, event("charge.dispute.closed", contest(intent, "lost")), at(5))).toBe("processed");
+    expect(await statuses(ids)).toEqual(["disputed"]);
+    expect((await passes(ids))[0]!.revokedAt).toEqual(at(5));
+    expect(await db.auditLog.findFirstOrThrow({ where: { targetUserId: user, action: "entitlement.revoke" } })).toMatchObject({ details: { reason: "dispute" } });
+    // The opening event, late: nothing more.
+    expect(await handleStripeEvent(db, event("charge.dispute.created", contest(intent, "needs_response")), at(6))).toBe("processed");
+    expect(await db.auditLog.count({ where: { targetUserId: user, action: "entitlement.revoke" } })).toBe(1);
+  });
+
+  it("does not flag a partial refund event of a payment already refunded in full", async () => {
+    const { intent } = await bought("refunded-then-partial@example.com");
+    await handleStripeEvent(db, event("charge.refunded", charge(intent)), at(1));
+    expect(await handleStripeEvent(db, event("charge.refunded", charge(intent, { refunded: false, amount_refunded: 500 })), at(2))).toBe("processed");
+  });
+
   it("leaves a held payment held through a dispute, so that it stays to check", async () => {
     await openSales();
     const user = await verifiedUser("held-dispute@example.com");

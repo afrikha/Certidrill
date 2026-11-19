@@ -286,6 +286,8 @@ async function refund(tx: Tx, event: Stripe.ChargeRefundedEvent, now: Date): Pro
   const charge = event.data.object;
   const payments = await lockByIntent(tx, idOf(charge.payment_intent));
   if (payments.length === 0) return "ignored";
+  // Already refunded in full: a later partial refund event (or a repeat) has nothing left to decide.
+  if (payments.every((p) => p.status === "refunded")) return "processed";
   if (!charge.refunded) {
     logEvent("billing.partial_refund", { paymentIntent: idOf(charge.payment_intent), refunded: charge.amount_refunded, amount: charge.amount });
     return "review";
@@ -322,7 +324,8 @@ async function dispute(tx: Tx, event: Stripe.ChargeDisputeCreatedEvent | Stripe.
 
 /**
  * The dispute is over. Lost: the money went back to the buyer, the Passes
- * stay withdrawn. Won: the payments are paid again, and an administrator
+ * stay withdrawn, or are withdrawn now if the close comes before the event
+ * that opened the dispute (Stripe does not keep the order). Won: the payments are paid again, and an administrator
  * gives the Passes back by hand if they are still wanted (a Pass may have
  * been bought again meanwhile, or the account closed).
  */
@@ -332,6 +335,15 @@ async function closeDispute(tx: Tx, event: Stripe.ChargeDisputeClosedEvent, now:
   if (payments.length === 0) return "ignored";
   // Closed, whatever the outcome: a late event that opens it again is ignored (dispute()).
   await tx.payment.updateMany({ where: { id: { in: payments.map((p) => p.id) }, disputeClosedAt: null }, data: { disputeClosedAt: now } });
+  if (contest.status === "lost") {
+    // Never seen open (events out of order): withdrawn now, as an open dispute would have.
+    const paid = payments.filter((p) => p.status === "paid");
+    if (paid.length > 0) {
+      await tx.payment.updateMany({ where: { id: { in: paid.map((p) => p.id) } }, data: { status: "disputed" } });
+      await revokePasses(tx, paid, "dispute", event, now);
+    }
+    return "processed";
+  }
   const disputed = payments.filter((p) => p.status === "disputed");
   if (contest.status !== "won" || disputed.length === 0) return "processed";
   await tx.payment.updateMany({ where: { id: { in: disputed.map((p) => p.id) } }, data: { status: "paid" } });
