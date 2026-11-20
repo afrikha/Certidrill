@@ -1,0 +1,79 @@
+id: sapc03-1a-kinesis-poison-record
+objective: "1.1.1"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A media company processes clickstream records from an Amazon Kinesis Data Streams stream with an AWS Lambda function. The function uses an event source mapping with the default settings and updates aggregated counters in an Amazon DynamoDB table by incrementing attribute values. Last week, a single malformed record made the function fail repeatedly, and processing stopped on that shard for many hours while the iterator age grew. After the engineers fixed the function, several counters were higher than expected because records that had already been processed were processed again. The company wants failed records to be isolated and kept for later analysis without blocking the shard. The counters must stay accurate when batches are retried.
+
+    Which combination of actions will meet these requirements? (Choose two.)
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Une entreprise de médias traite les enregistrements de parcours de navigation (clickstream) d'un flux Amazon Kinesis Data Streams avec une fonction AWS Lambda. La fonction utilise un mappage des sources d'événements avec les paramètres par défaut et met à jour des compteurs agrégés dans une table Amazon DynamoDB en incrémentant des valeurs d'attribut. La semaine dernière, un seul enregistrement mal formé a fait échouer la fonction de manière répétée, et le traitement s'est arrêté sur cette partition pendant de nombreuses heures tandis que l'âge de l'itérateur augmentait. Après la correction de la fonction, plusieurs compteurs étaient plus élevés que prévu, car des enregistrements déjà traités ont été traités à nouveau. L'entreprise veut que les enregistrements en échec soient isolés et conservés pour une analyse ultérieure, sans bloquer la partition. Les compteurs doivent rester exacts lorsque des lots sont relancés.
+
+    Quelle combinaison d'actions permet de répondre à ces exigences ? (Choisissez deux réponses.)
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: |-
+          Increase the data retention period of the stream to 7 days so that the failed records can be read again from the stream after the engineers fix the function.
+        fr: |-
+          Porter la durée de conservation des données du flux à 7 jours pour que les enregistrements en échec puissent être relus dans le flux après la correction de la fonction par les ingénieurs.
+    - id: b
+      text:
+        en: |-
+          Configure the event source mapping to split a batch on function error, with a maximum number of retry attempts, a maximum record age, and an Amazon SQS or Amazon S3 on-failure destination.
+        fr: |-
+          Configurer le mappage des sources d'événements pour qu'il scinde un lot en cas d'erreur de la fonction, avec un nombre maximal de tentatives, un âge maximal des enregistrements et une destination en cas d'échec Amazon SQS ou Amazon S3.
+    - id: c
+      text:
+        en: |-
+          Register an enhanced fan-out consumer for the function so that it receives dedicated read throughput on each shard and is not slowed down by the other consumers.
+        fr: |-
+          Enregistrer un consommateur à diffusion améliorée (enhanced fan-out) pour la fonction afin qu'elle reçoive un débit de lecture dédié sur chaque partition et ne soit pas ralentie par les autres consommateurs.
+    - id: d
+      text:
+        en: |-
+          Replace the counter increments with a DynamoDB transaction that inserts the record's unique event ID with a condition that it does not exist yet and updates the counter in the same transaction.
+        fr: |-
+          Remplacer les incréments de compteur par une transaction DynamoDB qui insère l'ID d'événement unique de l'enregistrement à condition qu'il n'existe pas encore et met à jour le compteur dans la même transaction.
+    - id: e
+      text:
+        en: |-
+          Ask the producers to use a random partition key for each record so that malformed records are spread evenly across all the shards instead of blocking a single shard.
+        fr: |-
+          Demander aux producteurs d'utiliser une clé de partition aléatoire pour chaque enregistrement afin que les enregistrements mal formés soient répartis uniformément sur toutes les partitions au lieu de bloquer une seule partition.
+answer: { optionIds: [ b, d ] }
+explanation:
+  correct:
+    en: |-
+      With default settings, a bad record can block its shard until it expires; splitting failed batches isolates the bad record, a retry limit and a maximum record age stop the blocking, and an on-failure destination keeps the details of the discarded batch (with the payload when the destination is S3). Event source mappings process records at least once and atomic counters are not idempotent, so the counter update must be made conditional on an event ID that has not been seen before.
+    fr: |-
+      Avec les paramètres par défaut, un enregistrement défectueux peut bloquer sa partition jusqu'à son expiration ; scinder les lots en échec isole l'enregistrement fautif, une limite de tentatives et un âge maximal mettent fin au blocage, et une destination en cas d'échec conserve les détails du lot écarté (avec la charge utile quand la destination est S3). Les mappages des sources d'événements traitent les enregistrements au moins une fois et les compteurs atomiques ne sont pas idempotents : la mise à jour du compteur doit donc être conditionnée à un ID d'événement jamais vu.
+  options:
+    a:
+      en: |-
+        A longer retention period keeps records available longer but does not stop a failing record from blocking the shard or prevent double counting.
+      fr: |-
+        Une conservation plus longue garde les enregistrements disponibles plus longtemps, mais n'empêche ni un enregistrement en échec de bloquer la partition ni le double comptage.
+    c:
+      en: |-
+        Enhanced fan-out improves read throughput and latency; it does not change how the mapping handles function errors.
+      fr: |-
+        La diffusion améliorée améliore le débit de lecture et la latence ; elle ne change pas la façon dont le mappage gère les erreurs de la fonction.
+    e:
+      en: |-
+        Random keys only move the bad record to another shard, where it blocks processing in the same way, and they break any per-key ordering.
+      fr: |-
+        Des clés aléatoires ne font que déplacer l'enregistrement défectueux vers une autre partition, où il bloque le traitement de la même façon, et elles suppriment tout ordre par clé.
+references:
+  - title: Retain discarded batch records for a Kinesis Data Streams event source in Lambda - AWS Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/kinesis-on-failure-destination.html
+  - title: Working with items and attributes in DynamoDB - Amazon DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html

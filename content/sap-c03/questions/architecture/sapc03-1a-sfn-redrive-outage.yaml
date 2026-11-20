@@ -1,0 +1,66 @@
+id: sapc03-1a-sfn-redrive-outage
+objective: "1.1.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A bank runs a loan disbursement process as an AWS Step Functions Standard workflow with 20 steps that takes about 6 hours. Steps 1 to 17 include ledger postings that are not idempotent. Two days ago, a 3-hour outage of a partner API caused about 300 executions to fail at step 18 after their retries were exhausted. The partner API is available again, and the state machine definition does not need to change. The bank must complete the failed executions without running the completed steps again, and the auditors want the history of each loan to stay in a single execution. The bank wants the LEAST effort.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une banque exécute un processus de décaissement de prêts sous forme de flux de travail Standard AWS Step Functions de 20 étapes qui dure environ 6 heures. Les étapes 1 à 17 comprennent des écritures comptables non idempotentes. Il y a deux jours, une panne de 3 heures d'une API partenaire a fait échouer environ 300 exécutions à l'étape 18 après épuisement de leurs relances. L'API partenaire est de nouveau disponible, et la définition de la machine d'état n'a pas besoin de changer. La banque doit terminer les exécutions en échec sans réexécuter les étapes terminées, et les auditeurs veulent que l'historique de chaque prêt reste dans une seule exécution. La banque veut le MOINS d'effort.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Start a new execution of the state machine for each failed loan with the same input as the failed execution, and link the new execution to the old one in the loan record.
+        fr: |-
+          Démarrer une nouvelle exécution de la machine d'état pour chaque prêt en échec avec la même entrée que l'exécution en échec, et relier la nouvelle exécution à l'ancienne dans la fiche du prêt.
+    - id: b
+      text:
+        en: |-
+          Add a Choice state at the start of the definition that skips to step 18 when the input contains a resume flag, and start new executions with that flag for each failed loan.
+        fr: |-
+          Ajouter au début de la définition un état Choice qui passe directement à l'étape 18 quand l'entrée contient un indicateur de reprise, et démarrer de nouvelles exécutions avec cet indicateur pour chaque prêt en échec.
+    - id: c
+      text:
+        en: |-
+          Export the input of the failed executions to an Amazon SQS queue, and have an AWS Lambda function call the partner API and the remaining steps for each message.
+        fr: |-
+          Exporter l'entrée des exécutions en échec vers une file d'attente Amazon SQS, et faire appeler l'API partenaire et les étapes restantes par une fonction AWS Lambda pour chaque message.
+    - id: d
+      text:
+        en: |-
+          Redrive each failed execution with the RedriveExecution API, so that the execution restarts from the failed step and keeps the results and history of the steps that succeeded.
+        fr: |-
+          Relancer (redrive) chaque exécution en échec avec l'API RedriveExecution, pour que l'exécution reprenne à l'étape en échec et conserve les résultats et l'historique des étapes réussies.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Redrive restarts a failed, aborted, or timed-out Standard workflow execution from the step that failed, with the same definition and input; the steps that already succeeded are not run again and their results and history are kept in the same execution. Executions can be redriven for 14 days after they complete, so the 2-day-old failures are eligible.
+    fr: |-
+      Le redrive relance une exécution de flux de travail Standard en échec, abandonnée ou expirée à partir de l'étape qui a échoué, avec la même définition et la même entrée ; les étapes déjà réussies ne sont pas réexécutées, et leurs résultats et leur historique sont conservés dans la même exécution. Les exécutions peuvent être relancées pendant 14 jours après leur fin : les échecs vieux de 2 jours sont donc éligibles.
+  options:
+    a:
+      en: |-
+        A new execution runs steps 1 to 17 again, which would repeat the non-idempotent ledger postings, and it splits the loan history across two executions.
+      fr: |-
+        Une nouvelle exécution réexécute les étapes 1 à 17, ce qui répéterait les écritures comptables non idempotentes, et répartit l'historique du prêt sur deux exécutions.
+    b:
+      en: |-
+        Changing the definition is extra effort, the new executions do not have the outputs of the earlier steps, and the history of each loan is still split.
+      fr: |-
+        Modifier la définition représente un effort supplémentaire, les nouvelles exécutions ne disposent pas des sorties des étapes précédentes, et l'historique de chaque prêt reste réparti.
+    c:
+      en: |-
+        Reimplementing the remaining steps in a function duplicates the workflow logic and moves the end of the process outside the Step Functions history.
+      fr: |-
+        Réimplémenter les étapes restantes dans une fonction duplique la logique du flux de travail et sort la fin du processus de l'historique Step Functions.
+references:
+  - title: Restarting state machine executions with redrive in Step Functions - AWS Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/redrive-executions.html

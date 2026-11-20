@@ -1,0 +1,66 @@
+id: sapc03-1a-presigned-upload-stateless
+objective: "1.1.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A document processing company runs an API on Amazon ECS with AWS Fargate behind an Application Load Balancer. Users upload scanned files of up to 2 GB through the API. Each task writes the uploaded file to its ephemeral storage and then processes it in a background thread. When the service scales in, the terminated tasks lose the uploads and the processing that are in progress. The company wants the API tasks to hold no state so that the service can scale in at any time. The upload traffic must no longer pass through the API tasks, to reduce compute costs, and the processing must start automatically when an upload completes.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de traitement de documents exécute une API sur Amazon ECS avec AWS Fargate derrière un Application Load Balancer. Les utilisateurs envoient par l'API des fichiers numérisés pouvant atteindre 2 Go. Chaque tâche écrit le fichier reçu dans son stockage éphémère, puis le traite dans un thread d'arrière-plan. Quand le service réduit sa capacité, les tâches arrêtées perdent les envois et les traitements en cours. L'entreprise veut que les tâches de l'API ne conservent aucun état, afin que le service puisse réduire sa capacité à tout moment. Le trafic d'envoi ne doit plus passer par les tâches de l'API, pour réduire les coûts de calcul, et le traitement doit démarrer automatiquement à la fin d'un envoi.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Mount an Amazon EFS file system in all the tasks, write the uploaded files to the shared file system, and let any task's background thread pick up and process the files that are waiting.
+        fr: |-
+          Monter un système de fichiers Amazon EFS dans toutes les tâches, écrire les fichiers reçus dans le système de fichiers partagé et laisser le thread d'arrière-plan de n'importe quelle tâche prendre en charge et traiter les fichiers en attente.
+    - id: b
+      text:
+        en: |-
+          Have the API return an Amazon S3 presigned URL so that clients upload directly to an S3 bucket, and use S3 event notifications to queue each new object for a separate processing service.
+        fr: |-
+          Faire renvoyer par l'API une URL présignée Amazon S3 pour que les clients envoient directement dans un compartiment S3, et utiliser les notifications d'événements S3 pour mettre chaque nouvel objet en file d'attente pour un service de traitement distinct.
+    - id: c
+      text:
+        en: |-
+          Enable stickiness on the target group and raise the deregistration delay to 1 hour so that the tasks finish their uploads and their processing before they are stopped during scale-in.
+        fr: |-
+          Activer la persistance sur le groupe cible et porter le délai de désinscription à 1 heure pour que les tâches terminent leurs envois et leurs traitements avant d'être arrêtées pendant la réduction de capacité.
+    - id: d
+      text:
+        en: |-
+          Increase the ephemeral storage of the tasks to 200 GiB, and have each task turn on task scale-in protection while it has uploads or processing in progress.
+        fr: |-
+          Porter le stockage éphémère des tâches à 200 Gio, et faire activer par chaque tâche la protection contre la réduction de capacité tant que des envois ou des traitements sont en cours.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      A presigned URL lets a client upload an object to the bucket without AWS credentials, with the permissions of the API's role, so the file bytes no longer flow through the tasks. The uploaded object is durable in S3, and an event notification starts the processing in a separate service, so the API tasks keep no state and can be stopped at any time.
+    fr: |-
+      Une URL présignée permet à un client d'envoyer un objet dans le compartiment sans informations d'identification AWS, avec les autorisations du rôle de l'API : les octets du fichier ne transitent plus par les tâches. L'objet envoyé est durable dans S3, et une notification d'événement démarre le traitement dans un service distinct : les tâches de l'API ne conservent aucun état et peuvent être arrêtées à tout moment.
+  options:
+    a:
+      en: |-
+        EFS externalizes the files, but the uploads still pass through the tasks, and the processing still runs inside API tasks that scale-in can stop.
+      fr: |-
+        EFS externalise les fichiers, mais les envois passent toujours par les tâches, et le traitement s'exécute toujours dans des tâches de l'API que la réduction de capacité peut arrêter.
+    c:
+      en: |-
+        Stickiness and a long deregistration delay keep the state inside the tasks and keep the upload traffic on them, which slows scale-in instead of making the tasks stateless.
+      fr: |-
+        La persistance et un long délai de désinscription gardent l'état dans les tâches et y maintiennent le trafic d'envoi, ce qui ralentit la réduction de capacité au lieu de rendre les tâches sans état.
+    d:
+      en: |-
+        Scale-in protection blocks scale-in while work is in progress, and the uploads still pass through the tasks, so the tasks remain stateful and the compute cost stays the same.
+      fr: |-
+        La protection contre la réduction de capacité bloque la réduction tant que du travail est en cours, et les envois passent toujours par les tâches : les tâches restent avec état et le coût de calcul ne change pas.
+references:
+  - title: Uploading objects with presigned URLs - Amazon Simple Storage Service
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html

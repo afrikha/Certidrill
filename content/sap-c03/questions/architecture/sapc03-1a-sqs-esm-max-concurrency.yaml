@@ -1,0 +1,66 @@
+id: sapc03-1a-sqs-esm-max-concurrency
+objective: "1.1.9"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AWS Lambda function consumes messages from two Amazon SQS queues through two event source mappings: an orders queue and a reports queue. Each invocation opens one connection to a database that supports at most 50 concurrent connections. During large report backlogs, report messages use all the available concurrency, order processing is delayed, and throttled messages return to the queues, some of them reaching the dead-letter queue after too many receives. The company wants orders to use up to 35 concurrent invocations and reports up to 15, with no more than 50 in total. Messages must not be retried because of throttling. The company wants the LEAST effort.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une fonction AWS Lambda consomme les messages de deux files d'attente Amazon SQS au moyen de deux mappages des sources d'événements : une file de commandes et une file de rapports. Chaque appel ouvre une connexion à une base de données qui accepte au plus 50 connexions simultanées. Pendant les gros arriérés de rapports, les messages de rapport utilisent toute la simultanéité disponible, le traitement des commandes est retardé, et les messages limités reviennent dans les files, certains atteignant la file d'attente de lettres mortes après trop de réceptions. L'entreprise veut que les commandes utilisent jusqu'à 35 appels simultanés et les rapports jusqu'à 15, sans dépasser 50 au total. Les messages ne doivent pas être relancés à cause d'une limitation. L'entreprise veut le MOINS d'effort.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Set the reserved concurrency of the function to 50 and keep the two event source mappings unchanged, so that the function never runs more than 50 invocations.
+        fr: |-
+          Définir la simultanéité réservée de la fonction sur 50 et conserver les deux mappages des sources d'événements sans modification, pour que la fonction n'exécute jamais plus de 50 appels.
+    - id: b
+      text:
+        en: |-
+          Set the maximum concurrency of the orders event source mapping to 35 and of the reports event source mapping to 15, and set the reserved concurrency of the function to 50.
+        fr: |-
+          Définir la simultanéité maximale du mappage des sources d'événements des commandes sur 35 et celle du mappage des rapports sur 15, et définir la simultanéité réservée de la fonction sur 50.
+    - id: c
+      text:
+        en: |-
+          Switch both event source mappings to provisioned mode, with 35 event pollers for the orders queue and 15 event pollers for the reports queue as both the minimum and the maximum.
+        fr: |-
+          Passer les deux mappages des sources d'événements en mode provisionné, avec 35 sondeurs d'événements (event pollers) pour la file de commandes et 15 pour la file de rapports, comme minimum et comme maximum.
+    - id: d
+      text:
+        en: |-
+          Reduce the batch size of both event source mappings to 1, and increase the visibility timeout and the maxReceiveCount of both queues.
+        fr: |-
+          Réduire à 1 la taille de lot des deux mappages des sources d'événements, et augmenter le délai de visibilité et la valeur maxReceiveCount des deux files.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Maximum concurrency is a setting of each SQS event source mapping that limits how many concurrent invocations that queue can drive, so one queue can no longer consume all the function's concurrency. AWS recommends that the function's reserved concurrency be greater than or equal to the total maximum concurrency of its SQS event sources, which here caps the function at 50 without making the mappings poll more than the function can run.
+    fr: |-
+      La simultanéité maximale est un paramètre de chaque mappage des sources d'événements SQS qui limite le nombre d'appels simultanés que la file peut déclencher : une file ne peut plus consommer toute la simultanéité de la fonction. AWS recommande que la simultanéité réservée de la fonction soit supérieure ou égale au total des simultanéités maximales de ses sources SQS, ce qui plafonne ici la fonction à 50 sans que les mappages interrogent plus de messages que la fonction ne peut en exécuter.
+  options:
+    a:
+      en: |-
+        Reserved concurrency caps the total, but the mappings keep polling beyond it, so messages are throttled and retried, and the reports queue can still starve the orders queue.
+      fr: |-
+        La simultanéité réservée plafonne le total, mais les mappages continuent d'interroger au-delà : des messages sont limités et relancés, et la file de rapports peut toujours priver la file de commandes.
+    c:
+      en: |-
+        An event poller can drive up to 10 concurrent invocations, so poller counts do not cap concurrency at 35 and 15, and provisioned mode adds cost.
+      fr: |-
+        Un sondeur d'événements peut déclencher jusqu'à 10 appels simultanés : le nombre de sondeurs ne plafonne pas la simultanéité à 35 et 15, et le mode provisionné ajoute des coûts.
+    d:
+      en: |-
+        Smaller batches and more receives hide the symptom; they do not limit the concurrency of each queue or stop the throttling.
+      fr: |-
+        Des lots plus petits et davantage de réceptions masquent le symptôme ; ils ne limitent pas la simultanéité de chaque file et n'arrêtent pas la limitation.
+references:
+  - title: Configuring scaling behavior for SQS event source mappings - AWS Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-scaling.html

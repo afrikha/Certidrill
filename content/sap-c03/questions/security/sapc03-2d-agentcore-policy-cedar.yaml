@@ -1,0 +1,44 @@
+id: sapc03-2d-agentcore-policy-cedar
+objective: "2.5.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An online retailer runs several customer service agents built with different open-source frameworks. All agents reach internal tools through one Amazon Bedrock AgentCore Gateway that uses a JWT inbound authorizer; the tokens carry a role claim for each support employee. One tool, issueRefund, is a Lambda target owned by the payments team, which will not change its code. A threat model concluded that a prompt injection could make any agent call issueRefund with an arbitrary amount. The mitigation must allow issueRefund only for employees whose role claim is tier2 and only for amounts up to 500 USD, must be enforced outside the agents' code and prompts, and must log every allow or deny decision.
+
+    Which solution will meet these requirements?
+  fr: |
+    Un détaillant en ligne exploite plusieurs agents de service client construits avec différents frameworks open source. Tous les agents accèdent aux outils internes par une seule passerelle Amazon Bedrock AgentCore Gateway qui utilise un mécanisme d'autorisation entrante JWT ; les jetons portent une revendication de rôle pour chaque employé du support. Un outil, issueRefund, est une cible Lambda détenue par l'équipe paiements, qui ne modifiera pas son code. Un modèle de menaces a conclu qu'une injection d'invite pourrait faire appeler issueRefund par n'importe quel agent avec un montant arbitraire. La mesure d'atténuation doit n'autoriser issueRefund que pour les employés dont la revendication de rôle vaut tier2 et seulement pour des montants jusqu'à 500 USD, doit être appliquée en dehors du code et des invites des agents, et doit journaliser chaque décision d'autorisation ou de refus.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Create a policy engine in Policy in AgentCore with a Cedar policy that permits issueRefund when the principal's role tag is tier2 and the tool input amount is at most 500, and associate the engine with the gateway.", fr: "Créer un moteur de politiques dans Policy in AgentCore avec une politique Cedar qui autorise issueRefund lorsque l'étiquette de rôle du principal vaut tier2 et que le montant en entrée de l'outil est au plus 500, et associer le moteur à la passerelle." }
+    - id: b
+      text: { en: "Add a denied topic about large refunds to a guardrail on every agent, and add system prompt instructions that tell each agent to check the employee's role claim before it calls issueRefund.", fr: "Ajouter à un guardrail de chaque agent un sujet refusé sur les remboursements importants, et ajouter dans l'invite système des instructions demandant à chaque agent de vérifier la revendication de rôle de l'employé avant d'appeler issueRefund." }
+    - id: c
+      text: { en: "Restrict the gateway's IAM service role so that lambda:InvokeFunction on the issueRefund function is allowed only when the request carries the tier2 role claim and an amount below 500.", fr: "Restreindre le rôle de service IAM de la passerelle pour que lambda:InvokeFunction sur la fonction issueRefund ne soit autorisé que si la requête porte la revendication de rôle tier2 et un montant inférieur à 500." }
+    - id: d
+      text: { en: "Add a shared validation library to every agent that decodes the JWT, checks the role claim and the amount before each issueRefund call, and writes the decision to Amazon CloudWatch Logs.", fr: "Ajouter à chaque agent une bibliothèque de validation partagée qui décode le JWT, vérifie la revendication de rôle et le montant avant chaque appel à issueRefund, et écrit la décision dans Amazon CloudWatch Logs." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "Policy in AgentCore intercepts every tool call that goes through the gateway and evaluates it against deterministic Cedar policies before the tool runs, independently of how the agent is built. OAuth principals carry JWT claims as tags and policies can test tool input parameters, the engine applies default-deny and forbid-wins semantics, and every decision is logged to CloudWatch."
+    fr: "Policy in AgentCore intercepte chaque appel d'outil qui passe par la passerelle et l'évalue par rapport à des politiques Cedar déterministes avant l'exécution de l'outil, indépendamment de la façon dont l'agent est construit. Les principaux OAuth portent les revendications JWT sous forme d'étiquettes et les politiques peuvent tester les paramètres d'entrée de l'outil ; le moteur applique un refus par défaut et la priorité aux interdictions (forbid), et chaque décision est journalisée dans CloudWatch."
+  options:
+    b:
+      en: "Guardrails and prompt instructions act inside the agent's reasoning, which is exactly what a prompt injection manipulates, and they are probabilistic rather than an enforced authorization decision."
+      fr: "Les guardrails et les instructions d'invite agissent dans le raisonnement de l'agent, précisément ce que manipule une injection d'invite, et ils sont probabilistes plutôt qu'une décision d'autorisation appliquée."
+    c:
+      en: "IAM evaluates the gateway's own role when it invokes Lambda; IAM conditions cannot read the end user's JWT claims or the refund amount in the tool input."
+      fr: "IAM évalue le propre rôle de la passerelle lorsqu'elle appelle Lambda ; les conditions IAM ne peuvent lire ni les revendications JWT de l'utilisateur final ni le montant du remboursement dans l'entrée de l'outil."
+    d:
+      en: "A library inside each agent is enforcement in the agents' code, which the requirement excludes; an agent that skips or misuses it can still call the tool."
+      fr: "Une bibliothèque dans chaque agent est une application dans le code des agents, ce que l'exigence exclut ; un agent qui l'ignore ou l'utilise mal peut toujours appeler l'outil."
+references:
+  - title: "Policy in Amazon Bedrock AgentCore: Control Agent Interactions"
+    url: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html
+  - title: Core concepts
+    url: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy-core-concepts.html

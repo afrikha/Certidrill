@@ -1,0 +1,73 @@
+id: sapc03-1d-dax-strong-reads-split
+objective: "1.5.6"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An e-commerce company stores product data and shopping carts in Amazon DynamoDB. A back-office system updates prices and stock levels by writing directly to the table. During flash sales, a few very popular products receive millions of GetItem requests per minute, and these reads are throttled on the hot keys. Product reads need microsecond latency during sales and can return data that is up to a few minutes old. Checkout reads the cart and stock items with strongly consistent reads and must always see the latest committed data. The developers want minimal changes to the existing DynamoDB code.
+
+    Which combination of actions will meet these requirements? (Choose two.)
+
+    Each correct answer presents part of the solution.
+
+    NOTE: Each correct selection is worth one point.
+  fr: |
+    Une entreprise de commerce en ligne stocke les données des produits et les paniers dans Amazon DynamoDB. Un système de back-office met à jour les prix et les niveaux de stock en écrivant directement dans la table. Pendant les ventes flash, quelques produits très populaires reçoivent des millions de requêtes GetItem par minute, et ces lectures sont limitées (throttling) sur les clés très sollicitées. Les lectures de produits exigent une latence de l'ordre de la microseconde pendant les ventes et peuvent renvoyer des données datant de quelques minutes au plus. Le paiement lit le panier et les éléments de stock avec des lectures fortement cohérentes et doit toujours voir les dernières données validées. Les développeurs veulent modifier le moins possible le code DynamoDB existant.
+
+    Quelle combinaison d'actions répond à ces exigences ? (Choisissez deux réponses.)
+
+    Chaque bonne réponse présente une partie de la solution.
+
+    Remarque : chaque sélection correcte vaut un point.
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: "Deploy a DynamoDB Accelerator (DAX) cluster with three nodes in different Availability Zones, and send the product reads through the DAX client."
+        fr: "Déployer un cluster DynamoDB Accelerator (DAX) de trois nœuds dans des zones de disponibilité différentes, et envoyer les lectures de produits via le client DAX."
+    - id: b
+      text:
+        en: "Send the checkout reads through the DAX cluster as well, so that DAX caches the strongly consistent results and shields the table from that load."
+        fr: "Envoyer aussi les lectures du paiement via le cluster DAX, afin que DAX mette en cache les résultats fortement cohérents et protège la table de cette charge."
+    - id: c
+      text:
+        en: "Replace the product reads with an Amazon ElastiCache lazy-loading cache that the application populates and invalidates in its own code."
+        fr: "Remplacer les lectures de produits par un cache Amazon ElastiCache à chargement différé que l'application remplit et invalide dans son propre code."
+    - id: d
+      text:
+        en: "Keep the checkout reads as strongly consistent GetItem calls that the application sends directly to the DynamoDB table endpoint."
+        fr: "Conserver les lectures du paiement sous forme d'appels GetItem fortement cohérents que l'application envoie directement au point de terminaison de la table DynamoDB."
+    - id: e
+      text:
+        en: "Raise the DAX item cache TTL to 24 hours so that the hot product items stay in the cache for the whole duration of each flash sale."
+        fr: "Porter la TTL du cache d'éléments DAX à 24 heures afin que les éléments de produits très sollicités restent en cache pendant toute la durée de chaque vente flash."
+answer: { optionIds: [ a, d ] }
+explanation:
+  correct:
+    en: |
+      DAX is API-compatible with DynamoDB, so the product reads only switch to the DAX client, and it serves eventually consistent reads of hot keys in microseconds, with a default 5-minute TTL that matches the allowed staleness. DAX does not cache strongly consistent reads, so checkout keeps its strongly consistent GetItem calls on the table, which always return the latest committed data.
+    fr: |
+      DAX est compatible avec l'API DynamoDB : les lectures de produits passent simplement au client DAX, et il sert en microsecondes les lectures à cohérence éventuelle des clés très sollicitées, avec une TTL par défaut de 5 minutes qui correspond à l'obsolescence admise. DAX ne met pas en cache les lectures fortement cohérentes : le paiement conserve ses appels GetItem fortement cohérents sur la table, qui renvoient toujours les dernières données validées.
+  options:
+    b:
+      en: |
+        DAX passes strongly consistent reads through to DynamoDB and does not cache their results, so it neither caches checkout data nor removes that load from the table.
+      fr: |
+        DAX transmet les lectures fortement cohérentes à DynamoDB sans mettre leurs résultats en cache : il ne met pas en cache les données du paiement et ne retire pas cette charge de la table.
+    c:
+      en: |
+        A self-managed lazy-loading cache requires new caching and invalidation code, which goes against the minimal-change requirement.
+      fr: |
+        Un cache à chargement différé autogéré exige un nouveau code de mise en cache et d'invalidation, ce qui va à l'encontre de l'exigence de modifications minimales.
+    e:
+      en: |
+        The back-office writes bypass DAX and do not update its item cache, so a 24-hour TTL could show prices and stock that are a day old.
+      fr: |
+        Les écritures du back-office contournent DAX et ne mettent pas à jour son cache d'éléments : une TTL de 24 heures pourrait afficher des prix et des stocks vieux d'une journée.
+references:
+  - title: In-memory acceleration with DynamoDB Accelerator (DAX)
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DAX.html
+  - title: DAX and DynamoDB consistency models
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DAX.consistency.html

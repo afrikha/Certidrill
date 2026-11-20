@@ -1,0 +1,66 @@
+id: sapc03-5c-maintenance-window-cluster-patch
+objective: "5.4.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A bank runs a three-node Windows Server failover cluster on Amazon EC2 for a payment application. Patching must run only on Sundays between 01:00 and 05:00, one node at a time. For each node, the procedure must first drain the node's cluster roles with a PowerShell command, then install approved patches and reboot, then verify that the node has rejoined the cluster before the next node starts, and the whole procedure must stop if any node fails. No new task may start after 04:30. The bank wants a Systems Manager solution with the LEAST custom orchestration.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une banque exploite sur Amazon EC2 un cluster de basculement Windows Server à trois nœuds pour une application de paiement. L'application des correctifs ne doit avoir lieu que le dimanche entre 01:00 et 05:00, un nœud à la fois. Pour chaque nœud, la procédure doit d'abord vider les rôles de cluster du nœud avec une commande PowerShell, puis installer les correctifs approuvés et redémarrer, puis vérifier que le nœud a rejoint le cluster avant que le nœud suivant commence, et toute la procédure doit s'arrêter si un nœud échoue. Aucune nouvelle tâche ne doit démarrer après 04:30. La banque veut une solution Systems Manager avec le MOINS d'orchestration personnalisée.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Create a State Manager association that runs AWS-RunPatchBaseline on the three cluster nodes every Sunday at 01:00 with a maximum concurrency of 1 and a maximum error rate of 1.
+        fr: |-
+          Créer une association State Manager qui exécute AWS-RunPatchBaseline sur les trois nœuds du cluster chaque dimanche à 01:00 avec une concurrence maximale de 1 et un taux d'erreur maximal de 1.
+    - id: b
+      text:
+        en: |-
+          Create a weekly 01:00 to 05:00 maintenance window with a 30-minute cutoff, and register an Automation task for a custom drain, patch, and verify runbook with concurrency 1 and error threshold 1.
+        fr: |-
+          Créer une fenêtre de maintenance hebdomadaire de 01:00 à 05:00 avec un délai de coupure de 30 minutes, et y enregistrer une tâche Automation pour un runbook personnalisé de vidage, correctifs et vérification avec une concurrence de 1 et un seuil d'erreur de 1.
+    - id: c
+      text:
+        en: |-
+          Create an EventBridge Scheduler schedule for Sunday 01:00 that starts an AWS Lambda function, which drains, patches, and verifies each node in turn by calling Run Command.
+        fr: |-
+          Créer une planification EventBridge Scheduler pour le dimanche à 01:00 qui démarre une fonction AWS Lambda chargée de vider, corriger et vérifier chaque nœud tour à tour en appelant Run Command.
+    - id: d
+      text:
+        en: |-
+          Put the three nodes in an Auto Scaling group, and run an instance refresh with a patched AMI every Sunday at 01:00 with a minimum healthy percentage of 66.
+        fr: |-
+          Placer les trois nœuds dans un groupe Auto Scaling, et lancer chaque dimanche à 01:00 une actualisation d'instances avec une AMI corrigée et un pourcentage minimal d'instances saines de 66.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      A maintenance window runs tasks only within its time slot, and its cutoff stops new tasks from starting near the end of the window. A registered Automation task with a concurrency of 1 runs the custom runbook on one node at a time, and an error threshold of 1 stops the rollout after a failure, while the runbook sequences the drain, patch, and verification steps for each node.
+    fr: |-
+      Une fenêtre de maintenance n'exécute des tâches que dans sa plage horaire, et son délai de coupure empêche le démarrage de nouvelles tâches à l'approche de la fin de la fenêtre. Une tâche Automation enregistrée avec une concurrence de 1 exécute le runbook personnalisé sur un nœud à la fois, et un seuil d'erreur de 1 arrête le déploiement après un échec, tandis que le runbook enchaîne les étapes de vidage, de correctifs et de vérification pour chaque nœud.
+  options:
+    a:
+      en: |-
+        An association runs a single document, so it can't drain the cluster roles and verify cluster membership around the patch, and it has no window end or cutoff.
+      fr: |-
+        Une association exécute un seul document : elle ne peut pas vider les rôles de cluster ni vérifier l'appartenance au cluster autour des correctifs, et elle n'a ni fin de fenêtre ni délai de coupure.
+    c:
+      en: |-
+        The function is custom orchestration that must implement sequencing, error handling, and the time limits itself.
+      fr: |-
+        La fonction est une orchestration personnalisée qui doit mettre en œuvre elle-même l'enchaînement, la gestion des erreurs et les limites horaires.
+    d:
+      en: |-
+        Failover cluster nodes keep their identities and cluster membership, so replacing them with new instances from an AMI breaks the cluster, and nothing drains roles first.
+      fr: |-
+        Les nœuds d'un cluster de basculement conservent leur identité et leur appartenance au cluster : les remplacer par de nouvelles instances issues d'une AMI casse le cluster, et rien ne vide les rôles au préalable.
+references:
+  - title: "Choosing between State Manager and Maintenance Windows - AWS Systems Manager"
+    url: https://docs.aws.amazon.com/systems-manager/latest/userguide/state-manager-vs-maintenance-windows.html

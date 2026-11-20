@@ -1,0 +1,66 @@
+id: sapc03-1a-sfn-callback-approval
+objective: "1.1.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An equipment leasing company is automating its contract process. Each contract runs a credit check in an AWS Lambda function and then waits for a credit officer to approve the contract in an internal web application, which can take up to 5 days. After approval, the process charges a deposit through a payment API that is not idempotent and then creates the contract in the leasing system. The deposit must never be charged twice for the same contract. The process must not poll for the approval decision, and the operations team wants to see the history of each run for 90 days. The company wants the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de location d'équipements automatise son processus de contrat. Chaque contrat exécute une vérification de crédit dans une fonction AWS Lambda, puis attend qu'un responsable du crédit approuve le contrat dans une application web interne, ce qui peut prendre jusqu'à 5 jours. Après l'approbation, le processus débite un dépôt de garantie au moyen d'une API de paiement non idempotente, puis crée le contrat dans le système de location. Le dépôt ne doit jamais être débité deux fois pour un même contrat. Le processus ne doit pas interroger périodiquement la décision d'approbation, et l'équipe d'exploitation veut consulter l'historique de chaque exécution pendant 90 jours. L'entreprise veut le MOINS de charge opérationnelle.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Create an asynchronous Express workflow that runs the credit check, loops on a Wait state that checks an Amazon DynamoDB approval table every hour, and then calls the payment and leasing steps.
+        fr: |-
+          Créer un flux de travail Express asynchrone qui exécute la vérification de crédit, boucle sur un état Wait qui consulte toutes les heures une table d'approbation Amazon DynamoDB, puis appelle les étapes de paiement et de location.
+    - id: b
+      text:
+        en: |-
+          Create a Standard workflow that runs the credit check, sends a task token to the approval application with the waitForTaskToken pattern, resumes when the application returns the token, and then calls the payment and leasing steps.
+        fr: |-
+          Créer un flux de travail Standard qui exécute la vérification de crédit, envoie un jeton de tâche à l'application d'approbation avec le modèle waitForTaskToken, reprend quand l'application renvoie le jeton, puis appelle les étapes de paiement et de location.
+    - id: c
+      text:
+        en: |-
+          Create a synchronous Express workflow that Amazon API Gateway starts when the officer approves the contract, and have the workflow run the credit check, the payment, and the leasing steps in sequence.
+        fr: |-
+          Créer un flux de travail Express synchrone qu'Amazon API Gateway démarre quand le responsable approuve le contrat, et faire exécuter par le flux de travail la vérification de crédit, le paiement et les étapes de location à la suite.
+    - id: d
+      text:
+        en: |-
+          Chain Lambda functions through Amazon SQS queues, store the progress of each contract in an Amazon DynamoDB table, and use delayed messages to check the approval status until the officer decides.
+        fr: |-
+          Enchaîner des fonctions Lambda au moyen de files d'attente Amazon SQS, stocker la progression de chaque contrat dans une table Amazon DynamoDB et utiliser des messages différés pour vérifier l'état de l'approbation jusqu'à la décision du responsable.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Standard workflows run for up to one year with exactly-once execution of their states, which suits non-idempotent actions such as a payment, and their execution history can be retrieved for 90 days. The callback pattern (waitForTaskToken) pauses the execution until the approval application returns the task token, so the workflow waits days without polling.
+    fr: |-
+      Les flux de travail Standard s'exécutent jusqu'à un an avec une exécution exactement une fois de leurs états, ce qui convient aux actions non idempotentes comme un paiement, et leur historique d'exécution peut être consulté pendant 90 jours. Le modèle de rappel (waitForTaskToken) met l'exécution en pause jusqu'à ce que l'application d'approbation renvoie le jeton de tâche : le flux de travail attend plusieurs jours sans interrogation périodique.
+  options:
+    a:
+      en: |-
+        Express workflows last at most five minutes and run at least once when they are asynchronous, so they cannot wait 5 days and could charge the deposit twice; the hourly check is also polling.
+      fr: |-
+        Les flux de travail Express durent au plus cinq minutes et s'exécutent au moins une fois lorsqu'ils sont asynchrones : ils ne peuvent pas attendre 5 jours et pourraient débiter le dépôt deux fois ; la vérification horaire est en outre une interrogation périodique.
+    c:
+      en: |-
+        Starting the workflow only after approval puts the credit check after the officer's decision, and synchronous Express workflows have no execution history in Step Functions for 90 days.
+      fr: |-
+        Démarrer le flux de travail seulement après l'approbation place la vérification de crédit après la décision du responsable, et les flux de travail Express synchrones n'ont pas d'historique d'exécution dans Step Functions pendant 90 jours.
+    d:
+      en: |-
+        A custom chain of queues, functions, and a state table is code to build and operate, and the delayed messages are still polling for the approval.
+      fr: |-
+        Une chaîne personnalisée de files d'attente, de fonctions et d'une table d'état est du code à construire et à exploiter, et les messages différés interrogent toujours l'approbation.
+references:
+  - title: Choosing workflow type in Step Functions - AWS Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html

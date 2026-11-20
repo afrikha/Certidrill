@@ -1,0 +1,52 @@
+id: sapc03-1b-tenant-leadingkeys-session-tags
+objective: "1.1.13"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A SaaS company stores the data of 40,000 tenants in one Amazon DynamoDB table whose partition key is tenantId. Requests arrive through Amazon API Gateway with a JSON Web Token (JWT) that contains a validated tenant_id claim, and AWS Lambda functions process them. After a bug returned another tenant's items, the security team now requires that the credentials used for each DynamoDB request can reach only the items of the requesting tenant. This isolation must be enforced by IAM, not by application code. The company wants a solution that scales to all tenants with the least operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise SaaS stocke les données de 40 000 locataires dans une seule table Amazon DynamoDB dont la clé de partition est tenantId. Les requêtes arrivent via Amazon API Gateway avec un jeton web JSON (JWT) qui contient une revendication tenant_id validée, et des fonctions AWS Lambda les traitent. Après qu'un bogue a renvoyé les éléments d'un autre locataire, l'équipe de sécurité exige que les informations d'identification utilisées pour chaque requête DynamoDB n'atteignent que les éléments du locataire demandeur. Cette isolation doit être appliquée par IAM, et non par le code de l'application. L'entreprise veut une solution qui s'étend à tous les locataires avec le moins de charge opérationnelle possible.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Create one IAM role for each tenant with a policy that allows item actions only when the partition key equals that tenant's ID, and have the functions assume the role of the tenant of each request."
+        fr: "Créer un rôle IAM par locataire avec une politique qui n'autorise les actions sur les éléments que si la clé de partition est égale à l'ID de ce locataire, et faire assumer par les fonctions le rôle du locataire de chaque requête."
+    - id: b
+      text:
+        en: "Add a tenant_id tag to the Lambda execution role, and add a condition on dynamodb:LeadingKeys equal to ${aws:PrincipalTag/tenant_id} to the policy of the execution role."
+        fr: "Ajouter une étiquette tenant_id au rôle d'exécution Lambda, et ajouter à la politique du rôle d'exécution une condition sur dynamodb:LeadingKeys égale à ${aws:PrincipalTag/tenant_id}."
+    - id: c
+      text:
+        en: "Create one tenant-access role that allows item actions with a ForAllValues:StringEquals condition on dynamodb:LeadingKeys equal to ${aws:PrincipalTag/tenant_id}, allow sts:TagSession in its trust policy, and have the functions assume it with a tenant_id session tag taken from the JWT."
+        fr: "Créer un rôle d'accès locataire qui autorise les actions sur les éléments avec une condition ForAllValues:StringEquals sur dynamodb:LeadingKeys égale à ${aws:PrincipalTag/tenant_id}, autoriser sts:TagSession dans sa politique d'approbation, et faire assumer ce rôle par les fonctions avec une étiquette de session tenant_id tirée du JWT."
+    - id: d
+      text:
+        en: "Keep the current execution role, and add a FilterExpression on tenantId to every Query and Scan call through a shared data access library that all functions must use."
+        fr: "Conserver le rôle d'exécution actuel, et ajouter une FilterExpression sur tenantId à chaque appel Query et Scan via une bibliothèque d'accès aux données partagée que toutes les fonctions doivent utiliser."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "Session tags passed with AssumeRole become principal tags that a policy can reference with aws:PrincipalTag, and dynamodb:LeadingKeys restricts item access to the partition key values that match. One role therefore produces credentials scoped to the tenant of each request, enforced by IAM. The trust policy must allow sts:TagSession, and the ForAllValues modifier is required with LeadingKeys."
+    fr: "Les étiquettes de session transmises avec AssumeRole deviennent des étiquettes de principal qu'une politique peut référencer avec aws:PrincipalTag, et dynamodb:LeadingKeys limite l'accès aux éléments aux valeurs de clé de partition correspondantes. Un seul rôle produit donc des informations d'identification limitées au locataire de chaque requête, appliquées par IAM. La politique d'approbation doit autoriser sts:TagSession, et le modificateur ForAllValues est obligatoire avec LeadingKeys."
+  options:
+    a:
+      en: "40,000 roles exceed the IAM quota of roles per account, whose maximum is 10,000, and managing one role per tenant adds heavy overhead."
+      fr: "40 000 rôles dépassent le quota IAM de rôles par compte, dont le maximum est 10 000, et gérer un rôle par locataire alourdit fortement l'exploitation."
+    b:
+      en: "A tag on the execution role has one fixed value for all invocations, so the condition cannot change with the tenant of each request."
+      fr: "Une étiquette sur le rôle d'exécution a une valeur fixe pour toutes les invocations : la condition ne peut pas varier selon le locataire de chaque requête."
+    d:
+      en: "Filter expressions are application code applied after the read, so a bug can still read another tenant's items with credentials that allow the whole table."
+      fr: "Les expressions de filtre sont du code applicatif appliqué après la lecture : un bogue peut toujours lire les éléments d'un autre locataire avec des informations d'identification qui autorisent toute la table."
+references:
+  - title: Using IAM policy conditions for fine-grained access control
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html
+  - title: Pass session tags in AWS STS
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html

@@ -1,0 +1,66 @@
+id: sapc03-1a-sfn-sync-ecs-task
+objective: "1.1.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    A company uses an AWS Step Functions Standard workflow to orchestrate a nightly data export. One step runs a containerized export as an Amazon ECS task on AWS Fargate, which takes about 40 minutes. The workflow must continue only after the task stops and must fail if the container exits with an error. Today, an AWS Lambda function in a Wait and Choice loop calls the DescribeTasks API every minute to check the status of the task. The company wants to remove this polling logic with the LEAST custom code.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise utilise un flux de travail Standard AWS Step Functions pour orchestrer une exportation de données nocturne. Une étape exécute une exportation conteneurisée sous forme de tâche Amazon ECS sur AWS Fargate, qui dure environ 40 minutes. Le flux de travail ne doit continuer qu'après l'arrêt de la tâche et doit échouer si le conteneur se termine par une erreur. Aujourd'hui, une fonction AWS Lambda placée dans une boucle d'états Wait et Choice appelle l'API DescribeTasks toutes les minutes pour vérifier le statut de la tâche. L'entreprise veut supprimer cette logique d'interrogation avec le MOINS de code personnalisé.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Replace the Lambda function with a direct ecs:describeTasks AWS SDK integration in the same Wait and Choice loop, so that the workflow checks the task status without a function.
+        fr: |-
+          Remplacer la fonction Lambda par une intégration directe du kit SDK AWS ecs:describeTasks dans la même boucle d'états Wait et Choice, pour que le flux de travail vérifie le statut de la tâche sans fonction.
+    - id: b
+      text:
+        en: |-
+          Start the task with the waitForTaskToken pattern, and create an Amazon EventBridge rule on ECS task state changes that invokes a Lambda function that returns the token with SendTaskSuccess or SendTaskFailure.
+        fr: |-
+          Démarrer la tâche avec le modèle waitForTaskToken, et créer une règle Amazon EventBridge sur les changements d'état des tâches ECS qui appelle une fonction Lambda renvoyant le jeton avec SendTaskSuccess ou SendTaskFailure.
+    - id: c
+      text:
+        en: |-
+          Start the task with the ecs:runTask.sync integration, so that Step Functions waits until the task stops and fails the step if the task does not succeed.
+        fr: |-
+          Démarrer la tâche avec l'intégration ecs:runTask.sync, pour que Step Functions attende l'arrêt de la tâche et fasse échouer l'étape si la tâche ne réussit pas.
+    - id: d
+      text:
+        en: |-
+          Move the export step to a nested Express workflow that starts the task with the ecs:runTask.sync integration and returns the result to the parent workflow.
+        fr: |-
+          Déplacer l'étape d'exportation dans un flux de travail Express imbriqué qui démarre la tâche avec l'intégration ecs:runTask.sync et renvoie le résultat au flux de travail parent.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      The job-run (.sync) integration pattern starts the ECS task and makes Step Functions wait for it to complete before it moves to the next state, without any polling code. Standard workflows support this pattern and can wait the 40 minutes that the export needs.
+    fr: |-
+      Le modèle d'intégration d'exécution de tâche (.sync) démarre la tâche ECS et fait attendre Step Functions jusqu'à sa fin avant de passer à l'état suivant, sans aucun code d'interrogation. Les flux de travail Standard prennent en charge ce modèle et peuvent attendre les 40 minutes nécessaires à l'exportation.
+  options:
+    a:
+      en: |-
+        An SDK integration removes the function but keeps the polling loop, with its extra states and transitions to maintain.
+      fr: |-
+        Une intégration SDK supprime la fonction mais conserve la boucle d'interrogation, avec ses états et transitions supplémentaires à maintenir.
+    b:
+      en: |-
+        The callback pattern works, but it adds an EventBridge rule and a custom function to match the task to its token, which is more code than the built-in .sync pattern.
+      fr: |-
+        Le modèle de rappel fonctionne, mais il ajoute une règle EventBridge et une fonction personnalisée pour associer la tâche à son jeton, soit plus de code que le modèle .sync intégré.
+    d:
+      en: |-
+        Express workflows do not support the .sync pattern and last at most five minutes, so they cannot wait for a 40-minute task.
+      fr: |-
+        Les flux de travail Express ne prennent pas en charge le modèle .sync et durent au plus cinq minutes : ils ne peuvent pas attendre une tâche de 40 minutes.
+references:
+  - title: Choosing workflow type in Step Functions - AWS Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html

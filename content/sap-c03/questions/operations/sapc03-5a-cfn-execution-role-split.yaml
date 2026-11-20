@@ -1,0 +1,66 @@
+id: sapc03-5a-cfn-execution-role-split
+objective: "5.2.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A company's AWS CodePipeline pipeline in a tooling account deploys AWS CloudFormation stacks into a production account by assuming a role named PipelineDeployRole in the production account. PipelineDeployRole has the AdministratorAccess policy so that CloudFormation can create any resource, and the security team rejects this design. PipelineDeployRole must be able only to start and monitor CloudFormation operations and to read the pipeline artifacts. The permissions to create the stacks' resources must belong to a separate role in the production account that only CloudFormation can assume. No long-term credentials may be used, and the pipeline must keep deploying with CloudFormation.
+
+    Which solution will meet these requirements?
+  fr: |
+    Le pipeline AWS CodePipeline d'une entreprise, dans un compte d'outillage, déploie des piles AWS CloudFormation dans un compte de production en endossant un rôle nommé PipelineDeployRole dans le compte de production. PipelineDeployRole possède la politique AdministratorAccess pour que CloudFormation puisse créer n'importe quelle ressource, et l'équipe de sécurité rejette cette conception. PipelineDeployRole doit seulement pouvoir lancer et suivre des opérations CloudFormation et lire les artefacts du pipeline. Les autorisations de création des ressources des piles doivent appartenir à un rôle distinct du compte de production que seul CloudFormation peut endosser. Aucune information d'identification à long terme ne doit être utilisée, et le pipeline doit continuer à déployer avec CloudFormation.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Keep AdministratorAccess on PipelineDeployRole, and add a permissions boundary that allows only CloudFormation actions and read access to the artifact bucket and key.
+        fr: |-
+          Conserver AdministratorAccess sur PipelineDeployRole, et ajouter une limite d'autorisations qui n'autorise que les actions CloudFormation et la lecture du compartiment et de la clé d'artefacts.
+    - id: b
+      text:
+        en: |-
+          Create CfnExecutionRole in the production account, trusted by cloudformation.amazonaws.com, with the resource permissions; limit PipelineDeployRole to CloudFormation, artifacts, and iam:PassRole on it; set it as the deploy action's RoleArn.
+        fr: |-
+          Créer CfnExecutionRole dans le compte de production, approuvé par cloudformation.amazonaws.com, avec les autorisations sur les ressources ; limiter PipelineDeployRole à CloudFormation, aux artefacts et à iam:PassRole sur ce rôle ; le définir comme RoleArn de l'action.
+    - id: c
+      text:
+        en: |-
+          Create CfnExecutionRole in the tooling account with the resource permissions, and set it as the RoleArn of the deploy action so that CloudFormation uses it in the production account, and limit PipelineDeployRole to CloudFormation and artifact permissions.
+        fr: |-
+          Créer CfnExecutionRole dans le compte d'outillage avec les autorisations sur les ressources, et le définir comme RoleArn de l'action de déploiement pour que CloudFormation l'utilise dans le compte de production, et limiter PipelineDeployRole aux autorisations CloudFormation et d'accès aux artefacts.
+    - id: d
+      text:
+        en: |-
+          Remove PipelineDeployRole, and let the pipeline's service role in the tooling account call CloudFormation in the production account through a resource-based policy on the stacks.
+        fr: |-
+          Supprimer PipelineDeployRole, et laisser le rôle de service du pipeline du compte d'outillage appeler CloudFormation dans le compte de production au moyen d'une politique basée sur les ressources sur les piles.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      A CloudFormation deploy action uses two roles: the action role, which CodePipeline assumes to run the action and which needs access to the artifact bucket, and the CloudFormation service role (RoleArn in the action configuration), which CloudFormation assumes to create the resources. The service role must be in the same account as the action role, and passing it requires iam:PassRole, so the action role keeps only CloudFormation, artifact, and PassRole permissions.
+    fr: |-
+      Une action de déploiement CloudFormation utilise deux rôles : le rôle de l'action, que CodePipeline endosse pour exécuter l'action et qui a besoin d'accéder au compartiment d'artefacts, et le rôle de service CloudFormation (RoleArn dans la configuration de l'action), que CloudFormation endosse pour créer les ressources. Le rôle de service doit être dans le même compte que le rôle de l'action, et sa transmission exige iam:PassRole : le rôle de l'action ne conserve que les autorisations CloudFormation, d'accès aux artefacts et PassRole.
+  options:
+    a:
+      en: |-
+        Without a service role, CloudFormation creates resources with the caller's permissions; a boundary limited to CloudFormation would make every resource creation fail.
+      fr: |-
+        Sans rôle de service, CloudFormation crée les ressources avec les autorisations de l'appelant ; une limite restreinte à CloudFormation ferait échouer toute création de ressource.
+    c:
+      en: |-
+        The CloudFormation service role must be in the same account as the action role, so a role in the tooling account can't create resources in the production account.
+      fr: |-
+        Le rôle de service CloudFormation doit être dans le même compte que le rôle de l'action : un rôle du compte d'outillage ne peut pas créer de ressources dans le compte de production.
+    d:
+      en: |-
+        CloudFormation stacks don't support resource-based policies, so cross-account deployment needs a role in the target account.
+      fr: |-
+        Les piles CloudFormation ne prennent pas en charge les politiques basées sur les ressources : un déploiement entre comptes exige un rôle dans le compte cible.
+references:
+  - title: CloudFormation deploy action reference - AWS CodePipeline
+    url: https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-CloudFormation.html

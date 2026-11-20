@@ -1,0 +1,46 @@
+id: sapc03-4a-saga-step-functions
+objective: "4.1.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A travel company is refactoring its booking monolith into three microservices: reservations on Amazon Aurora PostgreSQL, inventory on Amazon DynamoDB, and payments, which calls an external payment provider. A booking must either complete in all three services or be undone in the services that already succeeded. The payment provider confirms each payment asynchronously through a callback that can arrive up to six hours later. Compliance requires a central, step-by-step view of the state of each booking. Payment steps must not run twice unless a retry is explicitly configured.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de voyages refactorise son monolithe de réservation en trois microservices : les réservations sur Amazon Aurora PostgreSQL, l'inventaire sur Amazon DynamoDB et les paiements, qui appellent un prestataire de paiement externe. Une réservation doit soit aboutir dans les trois services, soit être annulée dans les services qui ont déjà réussi. Le prestataire confirme chaque paiement de façon asynchrone par un rappel qui peut arriver jusqu'à six heures plus tard. La conformité exige une vue centrale, étape par étape, de l'état de chaque réservation. Les étapes de paiement ne doivent pas s'exécuter deux fois, sauf si une nouvelle tentative est explicitement configurée.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Orchestrate a saga with an AWS Step Functions Standard workflow that calls each service, waits for the payment callback with a task token, and runs compensating steps in reverse order from Catch handlers."
+        fr: "Orchestrer une saga avec un flux de travail AWS Step Functions Standard qui appelle chaque service, attend le rappel de paiement avec un jeton de tâche et exécute des étapes de compensation dans l'ordre inverse depuis des gestionnaires Catch."
+    - id: b
+      text:
+        en: "Orchestrate a saga with an AWS Step Functions Express workflow that calls each service, waits for the payment callback with a task token, and runs compensating steps from Catch handlers."
+        fr: "Orchestrer une saga avec un flux de travail AWS Step Functions Express qui appelle chaque service, attend le rappel de paiement avec un jeton de tâche et exécute des étapes de compensation depuis des gestionnaires Catch."
+    - id: c
+      text:
+        en: "Let each service publish its result to an Amazon EventBridge event bus, and have the other services react to these events and run their own compensating actions when they receive a failure event."
+        fr: "Laisser chaque service publier son résultat sur un bus d'événements Amazon EventBridge, et laisser les autres services réagir à ces événements et exécuter leurs propres actions de compensation lorsqu'ils reçoivent un événement d'échec."
+    - id: d
+      text:
+        en: "Coordinate a two-phase commit across Aurora PostgreSQL, DynamoDB and the payment provider from a coordinator service on Amazon ECS that holds locks until the payment callback arrives."
+        fr: "Coordonner une validation en deux phases entre Aurora PostgreSQL, DynamoDB et le prestataire de paiement depuis un service coordinateur sur Amazon ECS qui conserve des verrous jusqu'à l'arrivée du rappel de paiement."
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "Saga orchestration runs local transactions in sequence and compensating transactions in reverse when a step fails. A Standard workflow runs for up to one year with exactly-once execution, supports the .waitForTaskToken callback pattern for the delayed payment confirmation, and keeps an execution history that gives a central view of each booking."
+    fr: "L'orchestration de saga exécute les transactions locales en séquence et les transactions de compensation dans l'ordre inverse quand une étape échoue. Un flux de travail Standard dure jusqu'à un an avec une exécution exactement une fois, prend en charge le modèle de rappel .waitForTaskToken pour la confirmation de paiement différée et conserve un historique d'exécution qui donne une vue centrale de chaque réservation."
+  options:
+    b: { en: "Express workflows last at most five minutes, do not support the .waitForTaskToken pattern, and run at least once when started asynchronously.", fr: "Les flux de travail Express durent au plus cinq minutes, ne prennent pas en charge le modèle .waitForTaskToken et s'exécutent au moins une fois lorsqu'ils sont démarrés de façon asynchrone." }
+    c: { en: "Choreography has no central coordinator, so there is no single step-by-step view of each booking as compliance requires.", fr: "La chorégraphie n'a pas de coordinateur central : il n'existe aucune vue unique, étape par étape, de chaque réservation comme l'exige la conformité." }
+    d: { en: "DynamoDB and an external provider cannot take part in a two-phase commit, and holding locks for hours would block other bookings.", fr: "DynamoDB et un prestataire externe ne peuvent pas participer à une validation en deux phases, et conserver des verrous pendant des heures bloquerait les autres réservations." }
+references:
+  - title: Saga orchestration pattern
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html
+  - title: Choosing workflow type in Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html

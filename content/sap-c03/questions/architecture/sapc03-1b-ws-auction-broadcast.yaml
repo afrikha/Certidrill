@@ -1,0 +1,52 @@
+id: sapc03-1b-ws-auction-broadcast
+objective: "1.1.12"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An online auction company is building a serverless live-bidding feature. Browsers connect to an Amazon API Gateway WebSocket API, and each client subscribes to one or more auctions by sending a subscribe message. Accepted bids are written to an Amazon DynamoDB table. When a bid is accepted, every client that watches the auction must receive the new price within one second, and popular auctions have up to 30,000 watchers. The company wants to keep track of which connections watch which auction and to push updates without client polling, with the least operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise d'enchères en ligne crée une fonctionnalité serverless d'enchères en direct. Les navigateurs se connectent à une API WebSocket Amazon API Gateway, et chaque client s'abonne à une ou plusieurs ventes en envoyant un message d'abonnement. Les offres acceptées sont écrites dans une table Amazon DynamoDB. Quand une offre est acceptée, chaque client qui suit la vente doit recevoir le nouveau prix en moins d'une seconde, et les ventes populaires comptent jusqu'à 30 000 spectateurs. L'entreprise veut savoir quelles connexions suivent quelle vente et envoyer les mises à jour sans interrogation par les clients, avec le moins de charge opérationnelle possible.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Create one Amazon SNS topic per auction, subscribe each browser to the topics of its auctions with an HTTPS subscription, and publish every accepted bid to the topic of its auction with message filtering."
+        fr: "Créer une rubrique Amazon SNS par vente, abonner chaque navigateur aux rubriques de ses ventes avec un abonnement HTTPS, et publier chaque offre acceptée dans la rubrique de sa vente avec un filtrage des messages."
+    - id: b
+      text:
+        en: "Keep the connection IDs and auction IDs in the memory of the Lambda function that handles the subscribe route, and have the same function send each accepted bid to all the connections that it holds in memory."
+        fr: "Conserver les ID de connexion et les ID de vente dans la mémoire de la fonction Lambda qui traite la route d'abonnement, et faire envoyer par cette même fonction chaque offre acceptée à toutes les connexions qu'elle garde en mémoire."
+    - id: c
+      text:
+        en: "Add a REST API method that returns the latest bid of an auction through DynamoDB Accelerator (DAX), and have each browser call the method every second for each of the auctions that it watches."
+        fr: "Ajouter une méthode d'API REST qui renvoie la dernière offre d'une vente via DynamoDB Accelerator (DAX), et faire appeler cette méthode chaque seconde par chaque navigateur pour chacune des ventes qu'il suit."
+    - id: d
+      text:
+        en: "Store connection IDs with auction IDs in a DynamoDB table from the subscribe and $disconnect routes, and have DynamoDB Streams on the bids table invoke a function that posts each bid to the watchers with the @connections API."
+        fr: "Stocker les ID de connexion avec les ID de vente dans une table DynamoDB depuis les routes d'abonnement et $disconnect, et faire invoquer par DynamoDB Streams sur la table des offres une fonction qui publie chaque offre vers les spectateurs avec l'API @connections."
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "API Gateway keeps the WebSocket connections, and the backend sends messages to a client with a signed POST request to the @connections endpoint for its connection ID. There is no broadcast operation, so the backend must track the connections of each auction in a durable store such as DynamoDB and loop over them. DynamoDB Streams triggers the fan-out function as soon as a bid is written."
+    fr: "API Gateway maintient les connexions WebSocket, et le backend envoie des messages à un client avec une requête POST signée vers le point de terminaison @connections de son ID de connexion. Il n'existe pas d'opération de diffusion : le backend doit suivre les connexions de chaque vente dans un stockage durable comme DynamoDB et les parcourir. DynamoDB Streams déclenche la fonction de diffusion dès qu'une offre est écrite."
+  options:
+    a:
+      en: "Browsers cannot act as SNS HTTPS subscription endpoints, and SNS cannot deliver messages over the clients' WebSocket connections."
+      fr: "Les navigateurs ne peuvent pas servir de points de terminaison d'abonnement HTTPS SNS, et SNS ne peut pas livrer de messages sur les connexions WebSocket des clients."
+    b:
+      en: "Lambda execution environments are short-lived and many run in parallel, so connection data kept in memory is lost or split across instances, and the bid writer cannot see it."
+      fr: "Les environnements d'exécution Lambda sont éphémères et nombreux à s'exécuter en parallèle : les données de connexion gardées en mémoire sont perdues ou réparties entre instances, et la fonction qui écrit les offres ne les voit pas."
+    c:
+      en: "Polling every second fails the requirement to push updates without client polling and generates a large number of requests."
+      fr: "Une interrogation chaque seconde ne respecte pas l'exigence d'envoyer les mises à jour sans interrogation par les clients et génère un très grand nombre de requêtes."
+references:
+  - title: Use @connections commands in your backend service
+    url: https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-how-to-call-websocket-api-connections.html
+  - title: Create routes for WebSocket APIs in API Gateway
+    url: https://docs.aws.amazon.com/apigateway/latest/developerguide/websocket-api-develop-routes.html

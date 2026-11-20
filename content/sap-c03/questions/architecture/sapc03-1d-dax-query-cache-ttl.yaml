@@ -1,0 +1,60 @@
+id: sapc03-1d-dax-query-cache-ttl
+objective: "1.5.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An online retailer stores its product catalog in Amazon DynamoDB and serves it through a DynamoDB Accelerator (DAX) cluster that uses the default parameter group. Product pages read single items with GetItem, and category pages list products with Query. All price changes are written through DAX with UpdateItem. After a price change, product pages show the new price immediately, but category pages keep showing the old price for several minutes. The business now requires category pages to show a price change within 60 seconds, while both page types keep being served from the cache with microsecond latency.
+
+    Which solution will meet these requirements MOST cost-effectively?
+  fr: |
+    Un détaillant en ligne stocke son catalogue de produits dans Amazon DynamoDB et le sert via un cluster DynamoDB Accelerator (DAX) qui utilise le groupe de paramètres par défaut. Les pages produits lisent des éléments individuels avec GetItem, et les pages de catégories listent les produits avec Query. Toutes les modifications de prix sont écrites via DAX avec UpdateItem. Après une modification de prix, les pages produits affichent immédiatement le nouveau prix, mais les pages de catégories continuent d'afficher l'ancien prix pendant plusieurs minutes. L'entreprise exige désormais que les pages de catégories reflètent une modification de prix en 60 secondes au plus, tandis que les deux types de pages continuent d'être servis depuis le cache avec une latence de l'ordre de la microseconde.
+
+    Quelle solution répond à ces exigences de la manière la PLUS rentable ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Create a custom DAX parameter group with query-ttl-millis set to 60000 and the default item cache TTL, and associate the parameter group with the cluster."
+        fr: "Créer un groupe de paramètres DAX personnalisé avec query-ttl-millis défini sur 60000 et la TTL par défaut du cache d'éléments, et associer ce groupe de paramètres au cluster."
+    - id: b
+      text:
+        en: "Set ConsistentRead to true on the Query requests of the category pages so that DAX returns the latest prices for those pages."
+        fr: "Définir ConsistentRead sur true dans les requêtes Query des pages de catégories afin que DAX renvoie les derniers prix pour ces pages."
+    - id: c
+      text:
+        en: "Write the price changes directly to DynamoDB instead of through DAX, and use DynamoDB Streams with a Lambda function to refresh the cached items."
+        fr: "Écrire les modifications de prix directement dans DynamoDB au lieu de passer par DAX, et utiliser DynamoDB Streams avec une fonction Lambda pour actualiser les éléments en cache."
+    - id: d
+      text:
+        en: "Add nodes to the DAX cluster so that writes replicate faster to every node and the category page results are refreshed sooner."
+        fr: "Ajouter des nœuds au cluster DAX afin que les écritures soient répliquées plus vite vers chaque nœud et que les résultats des pages de catégories soient actualisés plus tôt."
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      DAX keeps an item cache for GetItem and a separate query cache for Query and Scan results. A write through DAX updates the item cache, but cached query results change only when their TTL expires, and both caches default to a 5-minute TTL. A custom parameter group with query-ttl-millis at 60000 bounds category page staleness to 60 seconds and keeps both page types cached, with no extra infrastructure.
+    fr: |
+      DAX conserve un cache d'éléments pour GetItem et un cache de requêtes distinct pour les résultats de Query et de Scan. Une écriture via DAX met à jour le cache d'éléments, mais les résultats de requêtes en cache ne changent qu'à l'expiration de leur TTL, et les deux caches ont une TTL par défaut de 5 minutes. Un groupe de paramètres personnalisé avec query-ttl-millis à 60000 limite l'obsolescence des pages de catégories à 60 secondes et garde les deux types de pages en cache, sans infrastructure supplémentaire.
+  options:
+    b:
+      en: |
+        DAX passes strongly consistent reads through to DynamoDB and does not cache them, so category pages would lose microsecond latency and consume more read capacity.
+      fr: |
+        DAX transmet les lectures fortement cohérentes à DynamoDB sans les mettre en cache : les pages de catégories perdraient la latence en microsecondes et consommeraient davantage de capacité de lecture.
+    c:
+      en: |
+        Writes that bypass DAX leave the item cache stale, so product pages would also show old prices, and refreshing items does not update cached query results.
+      fr: |
+        Les écritures qui contournent DAX laissent le cache d'éléments obsolète, de sorte que les pages produits afficheraient aussi d'anciens prix, et actualiser des éléments ne met pas à jour les résultats de requêtes en cache.
+    d:
+      en: |
+        Replication between DAX nodes usually takes less than a second; the delay comes from the query cache TTL, so more nodes only add cost.
+      fr: |
+        La réplication entre les nœuds DAX prend généralement moins d'une seconde ; le délai vient de la TTL du cache de requêtes, donc davantage de nœuds ne font qu'ajouter des coûts.
+references:
+  - title: DAX and DynamoDB consistency models
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DAX.consistency.html
+  - title: Managing DAX clusters
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DAX.cluster-management.html
