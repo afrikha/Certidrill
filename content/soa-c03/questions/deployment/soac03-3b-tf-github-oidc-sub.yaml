@@ -1,0 +1,66 @@
+id: soac03-3b-tf-github-oidc-sub
+objective: "3.1.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    GitHub Actions workflows assume an IAM role to run `terraform apply`. The role has the following trust policy statement:
+
+    ```json
+    {
+      "Effect": "Allow",
+      "Principal": { "Federated": "arn:aws:iam::111122223333:oidc-provider/token.actions.githubusercontent.com" },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+        "StringLike": { "token.actions.githubusercontent.com:sub": "repo:example-org/*" }
+      }
+    }
+    ```
+
+    The role must be usable only by workflows that run on the main branch of the example-org/infra repository. The workflows do not use GitHub environments.
+
+    How should the operations team change the StringLike condition?
+  fr: |
+    Des workflows GitHub Actions endossent un rôle IAM pour exécuter `terraform apply`. Le rôle a l'instruction de politique d'approbation suivante :
+
+    ```json
+    {
+      "Effect": "Allow",
+      "Principal": { "Federated": "arn:aws:iam::111122223333:oidc-provider/token.actions.githubusercontent.com" },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+        "StringLike": { "token.actions.githubusercontent.com:sub": "repo:example-org/*" }
+      }
+    }
+    ```
+
+    Le rôle ne doit être utilisable que par les workflows qui s'exécutent sur la branche main du dépôt example-org/infra. Les workflows n'utilisent pas d'environnements GitHub.
+
+    Comment l'équipe d'exploitation doit-elle modifier la condition StringLike ?
+body:
+  options:
+    - { id: a, text: { en: "Change the StringLike value of the sub key to `repo:example-org/infra:*`.", fr: "Changer la valeur StringLike de la clé sub en `repo:example-org/infra:*`." } }
+    - { id: b, text: { en: "Remove the StringLike condition so that only the aud condition remains.", fr: "Supprimer la condition StringLike pour que seule la condition aud reste." } }
+    - { id: c, text: { en: "Replace it with a StringEquals condition on the sub key with the value `repo:example-org/infra:ref:refs/heads/main`.", fr: "La remplacer par une condition StringEquals sur la clé sub avec la valeur `repo:example-org/infra:ref:refs/heads/main`." } }
+    - { id: d, text: { en: "Replace it with a StringEquals condition on the sub key with the value `repo:example-org/infra:environment:main`.", fr: "La remplacer par une condition StringEquals sur la clé sub avec la valeur `repo:example-org/infra:environment:main`." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "For a workflow on a branch, GitHub's token carries a sub claim of the form repo:ORG/REPO:ref:refs/heads/BRANCH. An exact StringEquals match on that value limits the role to the main branch of that one repository, while the aud condition stays sts.amazonaws.com."
+    fr: "Pour un workflow sur une branche, le jeton GitHub porte une revendication sub de la forme repo:ORG/REPO:ref:refs/heads/BRANCHE. Une correspondance exacte StringEquals sur cette valeur limite le rôle à la branche main de ce seul dépôt, tandis que la condition aud reste sts.amazonaws.com."
+  options:
+    a:
+      en: "The wildcard still allows every branch, tag, and pull request workflow of the repository."
+      fr: "Le caractère générique autorise toujours tous les workflows de branche, de balise et de pull request du dépôt."
+    b:
+      en: "IAM rejects a GitHub OIDC trust policy without a sub condition, and without it any GitHub repository could assume the role."
+      fr: "IAM rejette une politique d'approbation OIDC GitHub sans condition sub, et sans elle n'importe quel dépôt GitHub pourrait endosser le rôle."
+    d:
+      en: "The environment form of the sub claim appears only for jobs that use a GitHub environment, which these workflows do not."
+      fr: "La forme environment de la revendication sub n'apparaît que pour les jobs qui utilisent un environnement GitHub, ce qui n'est pas le cas ici."
+references:
+  - title: Create a role for OpenID Connect federation (console)
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html

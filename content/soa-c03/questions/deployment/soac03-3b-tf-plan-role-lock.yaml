@@ -1,0 +1,38 @@
+id: soac03-3b-tf-plan-role-lock
+objective: "3.1.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Pull request checks run `terraform plan` with a read-only IAM role. The state is stored at `network/prod/terraform.tfstate` in an Amazon S3 bucket that uses SSE-S3, with use_lockfile = true. The role allows s3:ListBucket on the bucket and s3:GetObject on the state key. Each plan fails with `Error acquiring the state lock` and an AccessDenied error for `network/prod/terraform.tfstate.tflock`. The role must follow least privilege, and plans must keep using the lock.
+
+    Which permissions should the operations team add to the role?
+  fr: |
+    Des vérifications de pull request exécutent `terraform plan` avec un rôle IAM en lecture seule. L'état est stocké sous `network/prod/terraform.tfstate` dans un compartiment Amazon S3 qui utilise SSE-S3, avec use_lockfile = true. Le rôle autorise s3:ListBucket sur le compartiment et s3:GetObject sur la clé d'état. Chaque plan échoue avec `Error acquiring the state lock` et une erreur AccessDenied pour `network/prod/terraform.tfstate.tflock`. Le rôle doit respecter le moindre privilège, et les plans doivent continuer à utiliser le verrou.
+
+    Quelles autorisations l'équipe d'exploitation doit-elle ajouter au rôle ?
+body:
+  options:
+    - { id: a, text: { en: "s3:PutObject on the state key and on the .tflock object", fr: "s3:PutObject sur la clé d'état et sur l'objet .tflock" } }
+    - { id: b, text: { en: "s3:* on the bucket and on all the objects that it contains", fr: "s3:* sur le compartiment et sur tous les objets qu'il contient" } }
+    - { id: c, text: { en: "s3:GetObject, s3:PutObject, and s3:DeleteObject on the .tflock object", fr: "s3:GetObject, s3:PutObject et s3:DeleteObject sur l'objet .tflock" } }
+    - { id: d, text: { en: "s3:PutObject and s3:DeleteObject on the state key only", fr: "s3:PutObject et s3:DeleteObject uniquement sur la clé d'état" } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "terraform plan takes the state lock, which means creating, reading, and finally deleting the .tflock object next to the state. A plan-only role therefore needs s3:GetObject, s3:PutObject, and s3:DeleteObject on the lock object, but it does not need s3:PutObject on the state key."
+    fr: "terraform plan prend le verrou de l'état, ce qui signifie créer, lire puis supprimer l'objet .tflock à côté de l'état. Un rôle réservé au plan a donc besoin de s3:GetObject, s3:PutObject et s3:DeleteObject sur l'objet de verrou, mais pas de s3:PutObject sur la clé d'état."
+  options:
+    a:
+      en: "Write access to the state key is not needed for a plan, and releasing the lock also needs s3:DeleteObject."
+      fr: "L'écriture sur la clé d'état n'est pas nécessaire pour un plan, et la libération du verrou exige aussi s3:DeleteObject."
+    b:
+      en: "Full S3 access to the bucket breaks least privilege."
+      fr: "Un accès S3 complet au compartiment enfreint le moindre privilège."
+    d:
+      en: "These permissions target the state file instead of the lock object, so acquiring the lock still fails."
+      fr: "Ces autorisations visent le fichier d'état au lieu de l'objet de verrou : l'obtention du verrou échoue toujours."
+references:
+  - title: Security best practices
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/terraform-aws-provider-best-practices/security.html

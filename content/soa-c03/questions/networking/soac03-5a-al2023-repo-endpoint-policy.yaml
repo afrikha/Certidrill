@@ -1,0 +1,80 @@
+id: soac03-5a-al2023-repo-endpoint-policy
+objective: "5.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Amazon Linux 2023 instances run in private subnets of a VPC in the eu-west-1 Region with no NAT gateway. They reach Amazon S3 through a gateway VPC endpoint. To meet a least-privilege requirement, a CloudOps engineer replaced the endpoint's full-access policy with the policy below. Since the change, `dnf update` fails with HTTP 403 errors for files in the `al2023-repos-eu-west-1-de612dc2` bucket. The instances must not use an internet path.
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": "*",
+          "Action": ["s3:GetObject", "s3:PutObject"],
+          "Resource": "arn:aws:s3:::example-corp-app-data/*"
+        }
+      ]
+    }
+    ```
+
+    Which solution will fix the updates while keeping least privilege?
+  fr: |
+    Des instances Amazon Linux 2023 s'exécutent dans les sous-réseaux privés d'un VPC de la Région eu-west-1, sans passerelle NAT. Elles joignent Amazon S3 par un point de terminaison de VPC de passerelle. Pour respecter une exigence de moindre privilège, un ingénieur CloudOps a remplacé la politique d'accès complet du point de terminaison par la politique ci-dessous. Depuis cette modification, `dnf update` échoue avec des erreurs HTTP 403 pour des fichiers du compartiment `al2023-repos-eu-west-1-de612dc2`. Les instances ne doivent pas utiliser de chemin Internet.
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": "*",
+          "Action": ["s3:GetObject", "s3:PutObject"],
+          "Resource": "arn:aws:s3:::example-corp-app-data/*"
+        }
+      ]
+    }
+    ```
+
+    Quelle solution corrige les mises à jour tout en respectant le moindre privilège ?
+body:
+  options:
+    - id: a
+      text: { en: "Restore the default endpoint policy that allows all actions on all resources.", fr: "Rétablir la politique par défaut du point de terminaison, qui autorise toutes les actions sur toutes les ressources." }
+    - id: b
+      text: { en: "Add a NAT gateway and route the repository bucket's traffic through it.", fr: "Ajouter une passerelle NAT et y faire passer le trafic vers le compartiment des dépôts." }
+    - id: c
+      text: { en: "Add a statement that allows s3:GetObject on arn:aws:s3:::al2023-repos-eu-west-1-de612dc2/*.", fr: "Ajouter une instruction qui autorise s3:GetObject sur arn:aws:s3:::al2023-repos-eu-west-1-de612dc2/*." }
+    - id: d
+      text: { en: "Add a bucket policy to al2023-repos-eu-west-1-de612dc2 that allows the endpoint ID.", fr: "Ajouter à al2023-repos-eu-west-1-de612dc2 une politique de compartiment qui autorise l'ID du point de terminaison." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      An endpoint policy applies to every request that goes through the gateway endpoint, including requests to buckets owned by AWS. The Amazon Linux 2023 repositories are served from the `al2023-repos-<region>-de612dc2` bucket, so the policy must allow `s3:GetObject` on that bucket's objects. A read-only statement for that one bucket restores the updates without widening access to other buckets.
+    fr: |
+      Une politique de point de terminaison s'applique à toutes les requêtes qui passent par le point de terminaison de passerelle, y compris celles destinées à des compartiments qui appartiennent à AWS. Les dépôts Amazon Linux 2023 sont servis depuis le compartiment `al2023-repos-<region>-de612dc2` : la politique doit donc autoriser `s3:GetObject` sur les objets de ce compartiment. Une instruction en lecture seule pour ce seul compartiment rétablit les mises à jour sans étendre l'accès aux autres compartiments.
+  options:
+    a:
+      en: |
+        The full-access policy works but removes the restriction that the least-privilege requirement asked for.
+      fr: |
+        La politique d'accès complet fonctionne mais supprime la restriction exigée par le principe du moindre privilège.
+    b:
+      en: |
+        A NAT gateway adds an internet path, which the requirements forbid, and adds hourly and data processing charges.
+      fr: |
+        Une passerelle NAT ajoute un chemin Internet, ce que les exigences interdisent, ainsi que des frais horaires et de traitement des données.
+    d:
+      en: |
+        The repository bucket belongs to AWS, so the company cannot change its bucket policy, and the endpoint policy would still deny the requests.
+      fr: |
+        Le compartiment des dépôts appartient à AWS : l'entreprise ne peut pas modifier sa politique de compartiment, et la politique du point de terminaison refuserait toujours les requêtes.
+references:
+  - title: Gateway endpoints for Amazon S3
+    url: https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html
+  - title: Manage package and operating system updates in AL2023
+    url: https://docs.aws.amazon.com/linux/al2023/ug/managing-repos-os-updates.html

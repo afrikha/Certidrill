@@ -1,0 +1,50 @@
+id: soac03-5a-bucket-policy-vpcsourceip
+objective: "5.1.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Amazon EC2 instances in a VPC (`10.40.0.0/16`) used to reach an Amazon S3 bucket through a NAT gateway. The bucket policy denied every request whose `aws:SourceIp` was not the NAT gateway's Elastic IP address. A CloudOps engineer created a gateway VPC endpoint for S3 and changed the condition to deny requests whose `aws:SourceIp` is not in `10.40.0.0/16`. Now every request from the instances fails with AccessDenied. The bucket must still accept requests only from the VPC's address range.
+
+    Which solution will meet these requirements?
+  fr: |
+    Des instances Amazon EC2 d'un VPC (`10.40.0.0/16`) joignaient un compartiment Amazon S3 par une passerelle NAT. La politique de compartiment refusait toute requête dont `aws:SourceIp` n'était pas l'adresse IP Elastic de la passerelle NAT. Un ingénieur CloudOps a créé un point de terminaison de VPC de passerelle pour S3 et a modifié la condition pour refuser les requêtes dont `aws:SourceIp` n'est pas dans `10.40.0.0/16`. Désormais, toutes les requêtes des instances échouent avec AccessDenied. Le compartiment ne doit toujours accepter que les requêtes provenant de la plage d'adresses du VPC.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Set the aws:SourceIp condition back to the NAT gateway's Elastic IP address and keep the endpoint.", fr: "Remettre l'adresse IP Elastic de la passerelle NAT dans la condition aws:SourceIp et conserver le point de terminaison." }
+    - id: b
+      text: { en: "Add an inbound network ACL rule that allows HTTPS from the S3 prefix list to the private subnets.", fr: "Ajouter une règle entrante d'ACL réseau qui autorise le HTTPS depuis la liste de préfixes S3 vers les sous-réseaux privés." }
+    - id: c
+      text: { en: "Replace the gateway endpoint with an S3 interface endpoint and keep the aws:SourceIp condition.", fr: "Remplacer le point de terminaison de passerelle par un point de terminaison d'interface S3 et conserver la condition aws:SourceIp." }
+    - id: d
+      text: { en: "Replace aws:SourceIp with aws:VpcSourceIp in the condition and keep the 10.40.0.0/16 range.", fr: "Remplacer aws:SourceIp par aws:VpcSourceIp dans la condition et conserver la plage 10.40.0.0/16." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      Requests that arrive through a VPC endpoint carry the instances' private addresses, and `aws:SourceIp` cannot be used to match them. AWS says to use `aws:VpcSourceIp` to restrict requests through an endpoint to a CIDR range (or `aws:sourceVpce` and `aws:sourceVpc` to restrict them to an endpoint or a VPC). With `aws:VpcSourceIp`, the bucket accepts only requests from `10.40.0.0/16`.
+    fr: |
+      Les requêtes qui arrivent par un point de terminaison de VPC portent les adresses privées des instances, et `aws:SourceIp` ne permet pas de les reconnaître. AWS recommande d'utiliser `aws:VpcSourceIp` pour limiter à une plage CIDR les requêtes qui passent par un point de terminaison (ou `aws:sourceVpce` et `aws:sourceVpc` pour les limiter à un point de terminaison ou à un VPC). Avec `aws:VpcSourceIp`, le compartiment n'accepte que les requêtes provenant de `10.40.0.0/16`.
+  options:
+    a:
+      en: |
+        The S3 traffic now uses the endpoint instead of the NAT gateway, so the requests no longer come from the Elastic IP address and would still be denied.
+      fr: |
+        Le trafic S3 passe désormais par le point de terminaison et non plus par la passerelle NAT : les requêtes ne proviennent plus de l'adresse IP Elastic et seraient toujours refusées.
+    b:
+      en: |
+        Network ACLs cannot reference prefix lists, and the error is an authorization denial from the bucket policy, not a network block.
+      fr: |
+        Les ACL réseau ne peuvent pas référencer de listes de préfixes, et l'erreur est un refus d'autorisation de la politique de compartiment, pas un blocage réseau.
+    c:
+      en: |
+        Requests through an interface endpoint also use private source addresses, so the `aws:SourceIp` condition still does not match, and the interface endpoint adds charges.
+      fr: |
+        Les requêtes qui passent par un point de terminaison d'interface utilisent aussi des adresses source privées : la condition `aws:SourceIp` ne correspond toujours pas, et le point de terminaison d'interface ajoute des frais.
+references:
+  - title: Gateway endpoints for Amazon S3
+    url: https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html
