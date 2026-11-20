@@ -413,7 +413,7 @@ export async function submitAttempt(
     for (const s of scores) await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max } }); // NOSONAR: one interactive transaction (single connection)
     await tx.attemptSection.updateMany({ where: { attemptId, lockedAt: null }, data: { lockedAt: submittedAt } });
     return total;
-  }, { maxWait: 10_000, timeout: 30_000 }); // ~60 item updates: leave room on a slow or busy database
+  }, { maxWait: 10_000, timeout: 30_000 }); // up to ~75 item updates (SAP-C03): leave room on a slow or busy database
   if (result) logEvent(reason === "expired" ? "exam.expired" : "exam.submitted", { attemptId, userId, scaledScore: result.scaledScore, passed: result.passed });
   return db.attempt.findUniqueOrThrow({ where: { id: attemptId } });
 }

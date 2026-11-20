@@ -150,6 +150,20 @@ describe("markdown", () => {
     expect(html).toContain("Get-AzVM");
   });
 
+  it.each([
+    ["python", "python", "import boto3"],
+    ["py", "python", "import boto3"],
+    ["javascript", "javascript", "const x = 1;"],
+    ["js", "javascript", "const x = 1;"],
+    ["typescript", "typescript", "const x: number = 1;"],
+    ["ts", "typescript", "const x: number = 1;"],
+    ["java", "java", "public class App {}"],
+  ])("highlights ```%s code as %s", async (fence, lang, code) => {
+    const html = await renderMarkdown(`\`\`\`${fence}\n${code}\n\`\`\``);
+    expect(html).toContain(`data-language="${lang}"`);
+    expect(html).toContain('class="shiki');
+  });
+
   it("renders inline markdown without a paragraph", async () => {
     expect(await renderInline("Use `az vm list`")).toBe("Use <code>az vm list</code>");
   });

@@ -171,9 +171,12 @@ export async function loadVendorGlossary(file: string, root = CONTENT_ROOT): Pro
   return r.data;
 }
 
-/** Code is not prose: fenced blocks and inline code are left out of the terminology check. */
+/**
+ * Code is not prose: fenced blocks, inline code and HTML comments (the section
+ * markers, whose ids match the English chapter) are left out of the terminology check.
+ */
 function withoutCode(markdown: string): string {
-  return markdown.replaceAll(/```[\s\S]*?```/g, " ").replaceAll(/`[^`\n]*`/g, " ");
+  return markdown.replaceAll(/```[\s\S]*?```/g, " ").replaceAll(/`[^`\n]*`/g, " ").replaceAll(/<!--[\s\S]*?-->/g, " ");
 }
 
 const escape = (s: string) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -184,8 +187,9 @@ const escape = (s: string) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * count. Case-sensitive, whole words.
  */
 export function terminologyWarnings(fr: string, terms: readonly GlossaryTerm[]): string[] {
-  // An English gloss in parentheses after the French term, « rubrique (topic) », « (system prompt) », is allowed.
-  const prose = withoutCode(fr).replaceAll(/\([^()\n]*\)/g, " ");
+  // An English gloss in parentheses after the French term, « rubrique (topic) », « (system prompt) », is allowed,
+  // and so is a quotation in guillemets: the exam's own English words, « find PII in S3 buckets ».
+  const prose = withoutCode(fr).replaceAll(/\([^()\n]*\)/g, " ").replaceAll(/«[^«»\n]*»/g, " ");
   const warnings: string[] = [];
   for (const t of terms) {
     for (const a of t.avoid ?? []) {
