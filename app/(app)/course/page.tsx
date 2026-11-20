@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { coursesFor } from "@/lib/course/read";
 import { Card } from "@/components/ui/card";
+import { VendorGroups } from "@/components/vendor-groups";
+import { groupByVendor } from "@/lib/vendors";
 
 export const metadata = { title: "Course" };
 export const dynamic = "force-dynamic";
@@ -19,16 +21,26 @@ export default async function CoursesPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("chooseTitle")}</h1>
       {courses.length === 0 && <p className="text-muted-foreground">{t("none")}</p>}
-      <ul className="grid gap-4 sm:grid-cols-2">
-        {courses.map((c) => (
-          <li key={c.code}>
-            <Card>
-              <Link href={`/course/${c.code}`} className="font-semibold text-primary underline">{t("title", { code: c.code.toUpperCase() })}</Link>
-              <p className="mt-1 text-sm text-muted-foreground">{c.title}</p>
-            </Card>
-          </li>
-        ))}
-      </ul>
+      {/* Grouped by vendor, with a filter, once there are several. */}
+      <VendorGroups
+        headingLevel={2}
+        groups={groupByVendor(courses).map((g) => ({
+          key: g.vendor.key,
+          name: g.vendor.name,
+          content: (
+            <ul className="grid gap-4 sm:grid-cols-2">
+              {g.certifications.map((c) => (
+                <li key={c.code}>
+                  <Card>
+                    <Link href={`/course/${c.code}`} className="font-semibold text-primary underline">{t("title", { code: c.code.toUpperCase() })}</Link>
+                    <p className="mt-1 text-sm text-muted-foreground">{c.title}</p>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          ),
+        }))}
+      />
     </div>
   );
 }

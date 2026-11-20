@@ -327,9 +327,11 @@ async function dispute(tx: Tx, event: Stripe.ChargeDisputeCreatedEvent | Stripe.
 /**
  * The dispute is over. Lost: the money went back to the buyer, the Passes
  * stay withdrawn, or are withdrawn now if the close comes before the event
- * that opened the dispute (Stripe does not keep the order). Won: the payments are paid again, and an administrator
- * gives the Passes back by hand if they are still wanted (a Pass may have
- * been bought again meanwhile, or the account closed).
+ * that opened the dispute (Stripe does not keep the order). Won: the money
+ * stays with us but the payments stay "disputed" and the Passes withdrawn; the
+ * event goes to review (/admin/billing), where an administrator gives the
+ * Passes back by hand if they are still wanted (a Pass may have been bought
+ * again meanwhile, or the account closed).
  */
 async function closeDispute(tx: Tx, event: Stripe.ChargeDisputeClosedEvent, now: Date): Promise<WebhookOutcome> {
   const contest = event.data.object;

@@ -5,7 +5,8 @@
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
 import { loadBank } from "../lib/content/bank";
 import { loadCourse } from "../lib/content/course";
-import { loadGlossaries } from "../lib/content/glossary";
+import { loadGlossaries, loadVendorGlossary } from "../lib/content/glossary";
+import { VENDORS } from "../lib/vendors";
 
 /** "a=1 b=2" from the counts of `key` over the items. */
 function countBy<T>(items: readonly T[], key: (item: T) => string): string {
@@ -39,6 +40,16 @@ async function main() {
   const glossary = await loadGlossaries(dirs);
   const additions = [...glossary.perCertification].map(([c, g]) => c + " +" + g.terms.length).join(", ") || "no certification glossary";
   console.log(`✔ glossary: ${glossary.shared.terms.length} shared terms, ${glossary.shared.undecided.length} undecided; ${additions}`);
+  // The glossaries of the other vendors' documentation (lib/vendors.ts).
+  for (const v of Object.values(VENDORS)) {
+    if (!v.glossary) continue;
+    const g = await loadVendorGlossary(v.glossary);
+    if (!g) {
+      console.log(`⚠ glossary ${v.name}: ${v.glossary} missing (lib/vendors.ts)`);
+      continue;
+    }
+    console.log(`✔ glossary ${v.name}: ${g.terms.length} terms, ${g.terms.filter((t) => t.confirmed).length} confirmed`);
+  }
 }
 
 try {

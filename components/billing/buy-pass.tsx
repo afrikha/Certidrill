@@ -7,6 +7,7 @@ import { api, ApiError } from "@/components/exam/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MAX_CART } from "@/lib/billing/cart";
+import { groupByVendor } from "@/lib/vendors";
 
 const KNOWN_ERRORS = new Set(["sales_closed", "unavailable", "email_unverified", "rate_limited"]);
 
@@ -37,14 +38,18 @@ export function BuyPass({
   className,
 }: Readonly<{
   planCode: string;
-  /** The certifications on sale, with their price. */
-  certifications: readonly { code: string; title: string; amountCents: number; currency: string }[];
+  /** The certifications on sale, with their price and vendor (certification.vendor). */
+  certifications: readonly { code: string; title: string; vendor?: string; amountCents: number; currency: string }[];
   /** Ticked first: one code, or several separated by commas (a cart back from Stripe). */
   defaultCertification?: string;
   className?: string;
 }>) {
   const t = useTranslations("billing");
+  const tVendor = useTranslations("vendors");
   const format = useFormatter();
+  // Several vendors: the certifications under their vendor's name, with a filter (the ticked ones stay ticked).
+  const groups = groupByVendor(certifications.map((c) => ({ ...c, vendor: c.vendor ?? "" })));
+  const [vendorShown, setVendorShown] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>(() => {
     // One code, or a cart back from Stripe ("a,b"): the known ones, in the limit.
     const wanted = (defaultCertification ?? "").split(",").filter((code) => certifications.some((c) => c.code === code));
@@ -84,11 +89,37 @@ export function BuyPass({
       {certifications.length > 1 && (
         <fieldset className="space-y-1 text-left">
           <legend className="text-sm font-medium">{t("certifications")}</legend>
+          {groups.length > 1 && (
+            <div role="group" aria-label={tVendor("filterLabel")} className="flex flex-wrap gap-2 py-1" data-testid="cart-vendors">
+              {[{ key: null, name: tVendor("filterAll") }, ...groups.map((g) => ({ key: g.vendor.key, name: g.vendor.name }))].map((v) => (
+                <button
+                  key={v.key ?? "all"}
+                  type="button"
+                  aria-pressed={vendorShown === v.key}
+                  onClick={() => setVendorShown(v.key)}
+                  className={cn("rounded-full border px-2.5 py-0.5 text-xs", vendorShown === v.key ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted")}
+                >
+                  {v.name}
+                </button>
+              ))}
+            </div>
+          )}
           <ul className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2" data-testid="cart">
-            {certifications.map((c) => {
+            {groups.flatMap((g) => [
+              ...(groups.length > 1 ? [{ heading: g.vendor }] : []),
+              ...g.certifications.map((c) => ({ certification: c, vendor: g.vendor })),
+            ]).map((row) => {
+              if ("heading" in row) {
+                return (
+                  <li key={`vendor-${row.heading.key}`} hidden={vendorShown !== null && vendorShown !== row.heading.key} className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {row.heading.name}
+                  </li>
+                );
+              }
+              const c = row.certification;
               const on = selected.includes(c.code);
               return (
-                <li key={c.code}>
+                <li key={c.code} hidden={vendorShown !== null && vendorShown !== row.vendor.key}>
                   <label className="flex items-start gap-2 text-sm">
                     <input
                       type="checkbox"

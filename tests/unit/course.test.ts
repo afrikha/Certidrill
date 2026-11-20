@@ -135,6 +135,15 @@ describe("course checks — EN/FR links", () => {
       }),
     ).toEqual([]);
   });
+
+  it("treats an AWS guide and its /fr_fr/ version as the same page", async () => {
+    expect(
+      await check(async (dir) => {
+        await edit(dir, "chapters/12-rbac.en.md", link("https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html"));
+        await edit(dir, "chapters/12-rbac.fr.md", link("https://docs.aws.amazon.com/fr_fr/IAM/latest/UserGuide/introduction.html"));
+      }),
+    ).toEqual([]);
+  });
 });
 
 describe("course checks — objectives", () => {
@@ -255,7 +264,21 @@ describe("course checks — Markdown", () => {
 describe("course checks — manifest and references", () => {
   it("keeps references on Microsoft Learn", async () => {
     const problems = await check((dir) => edit(dir, "course.yaml", (t) => t.replace("https://learn.microsoft.com/en-us/entra/identity/users/groups-dynamic-membership", "https://example.com/groups")));
-    expect(problems).toEqual(['course.yaml: chapter "11-entra-users-groups": reference https://example.com/groups is not on https://learn.microsoft.com/']);
+    expect(problems).toEqual(['course.yaml: chapter "11-entra-users-groups": reference https://example.com/groups is not on Microsoft Learn (learn.microsoft.com)']);
+  });
+
+  it("keeps the references of an AWS certification on the AWS documentation", async () => {
+    const aws = (t: string) => t.replace("vendor: Microsoft", "vendor: AWS");
+    const problems = await check(async (dir) => {
+      await writeFile(path.join(dir, "blueprint.yaml"), aws(await readFile(path.join(dir, "blueprint.yaml"), "utf8")));
+      await edit(dir, "course.yaml", (t) =>
+        t
+          .replace(/https:\/\/learn\.microsoft\.com\/[^\s'"]+/g, "https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html")
+          .replace("https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html", "https://aws.amazon.com/s3/faqs/")
+          .replace("https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html", "https://learn.microsoft.com/en-us/azure/"),
+      );
+    });
+    expect(problems).toEqual([expect.stringMatching(/reference https:\/\/learn\.microsoft\.com\/en-us\/azure\/ is not on AWS Documentation \(docs\.aws\.amazon\.com, aws\.amazon\.com, repost\.aws, kiro\.dev, strandsagents\.com\)$/)]);
   });
 
   it("matches the blueprint version", async () => {

@@ -234,7 +234,7 @@ describe("checkout", () => {
       await expect(checkout(user)).rejects.toMatchObject({ code: "unavailable" });
       await db.planPrice.update({ where: { id: own.id }, data: { stripePriceId: "price_pass_90_az104" } });
       expect(await buyableCertifications(db, "pass_90", fakeStripe().api)).toEqual([
-        { code: "az-104", title: expect.any(String), amountCents: 1200, currency: "eur", stripePriceId: "price_pass_90_az104", custom: true },
+        { code: "az-104", title: expect.any(String), vendor: "Microsoft", amountCents: 1200, currency: "eur", stripePriceId: "price_pass_90_az104", custom: true },
       ]);
       const { api, calls } = fakeStripe();
       const payment = await checkout(user, api);

@@ -10,6 +10,9 @@
  *   npm run content:validate -- --cert dp-900 --course --chapters 10-core-data,11-relational
  * Checks: YAML syntax, Zod schema, answer/body consistency, file name = id,
  * known objective in the right domain folder, existing case study / series.
+ * Warnings (not problems): a reference off the documentation of the
+ * certification's vendor, a vendor unknown to lib/vendors.ts, scoring rules
+ * other than those of the vendor's exam.
  * The course of a certification (lib/content/course.ts: files, EN/FR parity,
  * objectives, Markdown, references) is checked with --cert alone, without
  * any argument (every course), or with --course; `--chapters` keeps the
@@ -21,9 +24,13 @@ import path from "node:path";
 import { parse } from "yaml";
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
 import { formatProblem, validateCourse } from "../lib/content/course";
+import { loadVendorGlossary, terminologyWarnings, type GlossaryTerm } from "../lib/content/glossary";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
 import { compareCodeUnits } from "../lib/sort";
 import { certOfFile, parseCertArgs } from "./cert-args";
+import { referenceWarnings, vendorOf, vendorWarnings, type Vendor } from "../lib/vendors";
+import type { ScoringRules } from "../lib/content/schema";
+import { allOrNothing } from "../lib/questions/schema";
 
 async function listYaml(dir: string): Promise<string[]> {
   try {
@@ -40,8 +47,11 @@ function schemaFor(folder: string | undefined) {
   return questionFileSchema;
 }
 
-type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string> };
-type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string };
+type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string>; vendor: Vendor; scoring: ScoringRules; terms: readonly GlossaryTerm[] };
+type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string; stem?: { en: string; fr: string }; references?: { url: string }[] };
+
+/** The note that states per-element scoring, in each language (tools/questions/WRITING_GUIDE.md, rule 7). */
+const PER_ELEMENT_NOTE = [/worth one point/i, /vaut un point/i];
 
 /** Problems of a question that passed its schema: objective, folder, case study, series. */
 function questionProblems(data: FileData, folder: string | undefined, ctx: Context): string[] {
@@ -51,11 +61,29 @@ function questionProblems(data: FileData, folder: string | undefined, ctx: Conte
   else if (folder !== domain) problems.push(`objective ${data.objective} belongs to ${domain}/, file is in ${folder}/`);
   if (data.caseStudy && !ctx.caseIds.has(data.caseStudy)) problems.push(`unknown case study ${data.caseStudy}`);
   if (data.series && !ctx.seriesIds.has(data.series)) problems.push(`unknown series ${data.series}`);
+  // Scored all or nothing (blueprint.scoring): a note promising a point per selection would be false.
+  if (data.type && data.stem && allOrNothing(data.type as Parameters<typeof allOrNothing>[0], ctx.scoring) && PER_ELEMENT_NOTE.some((re) => re.test(data.stem!.en) || re.test(data.stem!.fr)))
+    problems.push(`stem says each selection is worth one point, but blueprint.scoring scores ${data.type} all or nothing`);
   return problems;
 }
 
-/** Every problem of one file, and its question type (questions only). */
-function validateFile(file: string, text: string, ctx: Context): { problems: string[]; type?: string } {
+/** Every French text of a file ({ en, fr } values), for the terminology check. */
+function frenchTexts(node: unknown): string[] {
+  if (Array.isArray(node)) return node.flatMap(frenchTexts);
+  if (!node || typeof node !== "object") return [];
+  return Object.entries(node).flatMap(([k, v]) => (k === "fr" && typeof v === "string" ? [v] : frenchTexts(v)));
+}
+
+/** The terms of a vendor's glossary (lib/vendors.ts), read once per run; none for content/glossary.yaml. */
+const vendorTerms = new Map<string, Promise<readonly GlossaryTerm[]>>();
+function termsOf(vendor: Vendor): Promise<readonly GlossaryTerm[]> {
+  if (!vendor.glossary) return Promise.resolve([]);
+  if (!vendorTerms.has(vendor.glossary)) vendorTerms.set(vendor.glossary, loadVendorGlossary(vendor.glossary).then((g) => g?.terms ?? []));
+  return vendorTerms.get(vendor.glossary)!;
+}
+
+/** Every problem of one file, its warnings, and its question type (questions only). */
+function validateFile(file: string, text: string, ctx: Context): { problems: string[]; warnings?: string[]; type?: string } {
   let raw: unknown;
   try {
     raw = parse(text);
@@ -68,7 +96,8 @@ function validateFile(file: string, text: string, ctx: Context): { problems: str
   const data = r.data as FileData;
   const problems = path.basename(file, ".yaml") === data.id ? [] : [`file name must be ${data.id}.yaml`];
   if (rel[0] !== "questions") return { problems };
-  return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], type: data.type };
+  const warnings = [...referenceWarnings(data.references ?? [], ctx.vendor), ...terminologyWarnings(frenchTexts(raw).join("\n"), ctx.terms)];
+  return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], warnings, type: data.type };
 }
 
 interface Options {
@@ -129,22 +158,39 @@ async function validateQuestions(root: string, opts: Options, wholeBank: boolean
     objectiveDomain,
     caseIds: new Set(caseStudies!.map((f) => path.basename(f, ".yaml"))),
     seriesIds: new Set(series!.map((f) => path.basename(f, ".yaml"))),
+    vendor: vendorOf(content.blueprint.certification.vendor),
+    scoring: content.blueprint.blueprint.scoring,
+    terms: await termsOf(vendorOf(content.blueprint.certification.vendor)),
   };
+  const blueprintWarnings = vendorWarnings(content.blueprint);
+  for (const w of blueprintWarnings) console.log(`⚠ ${path.relative(process.cwd(), path.join(root, "blueprint.yaml"))}: ${w}`);
 
   files.sort(compareCodeUnits);
   // Files are independent: read them all at once, then report in order.
   const texts = await Promise.all(files.map((file) => readFile(file, "utf8")));
   let errors = 0;
+  let warned = blueprintWarnings.length;
   const byType = new Map<string, number>();
   files.forEach((file, n) => {
-    const { problems, type } = validateFile(file, texts[n]!, ctx);
+    const { problems, warnings = [], type } = validateFile(file, texts[n]!, ctx);
     for (const msg of problems) console.log(`✘ ${path.relative(process.cwd(), file)}: ${msg}`);
+    for (const msg of warnings) console.log(`⚠ ${path.relative(process.cwd(), file)}: ${msg}`);
     errors += problems.length;
+    warned += warnings.length;
     if (type) byType.set(type, (byType.get(type) ?? 0) + 1);
   });
   const types = [...byType].map(([k, v]) => k + "=" + v).join(" ");
-  console.log(`${content.blueprint.certification.code}: ${files.length} files, ${errors} problem(s). Types: ${types}`);
+  console.log(`${content.blueprint.certification.code}: ${files.length} files, ${errors} problem(s), ${warned} warning(s). Types: ${types}`);
   return errors;
+}
+
+/** The terminology warnings of the French chapters of a course (course/chapters/*.fr.md); none without vendor glossary terms. */
+async function courseTermWarnings(dir: string, terms: readonly GlossaryTerm[]): Promise<{ file: string; message: string }[]> {
+  if (terms.length === 0) return [];
+  const chapters = path.join(dir, "course", "chapters");
+  const files = (await readdir(chapters).catch(() => [] as string[])).filter((f) => f.endsWith(".fr.md")).sort(compareCodeUnits);
+  const texts = await Promise.all(files.map((f) => readFile(path.join(chapters, f), "utf8")));
+  return files.flatMap((f, i) => terminologyWarnings(texts[i]!, terms).map((message) => ({ file: path.relative(process.cwd(), path.join(chapters, f)), message })));
 }
 
 /** Checks the course of each certification that has one; returns the number of problems. */
@@ -153,15 +199,17 @@ async function validateCourses(dirs: string[], chapters: string[]): Promise<numb
   const reports = await Promise.all(
     dirs.map(async (dir) => {
       const content = await loadCertification(dir);
-      return { code: content.blueprint.certification.code, objectives: Object.values(content.objectives).flat().flatMap((g) => g.objectives).length, report: await validateCourse(content) };
+      const terms = await termsOf(vendorOf(content.blueprint.certification.vendor));
+      return { code: content.blueprint.certification.code, objectives: Object.values(content.objectives).flat().flatMap((g) => g.objectives).length, report: await validateCourse(content), terms: await courseTermWarnings(dir, terms) };
     }),
   );
   const mine = (file: string) => chapters.length === 0 || chapters.some((id) => path.basename(file).startsWith(`${id}.`));
   let problems = 0;
-  for (const { code, objectives, report } of reports) {
+  for (const { code, objectives, report, terms } of reports) {
     if (!report) continue;
     const shown = report.problems.filter((p) => mine(p.file));
     for (const p of shown) console.log(`✘ ${formatProblem(p)}`);
+    for (const w of terms.filter((t) => mine(t.file))) console.log(`⚠ ${w.file}: ${w.message}`);
     problems += shown.length;
     const all = report.course?.chapters ?? [];
     const sections = all.flatMap((c) => c.sections);

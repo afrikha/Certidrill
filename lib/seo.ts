@@ -54,19 +54,25 @@ export function publicPageMetadata({ locale, path, title, description, imageAlt 
 /**
  * When the public pages last changed: their text comes with a new version of
  * the site (CERTIDRILL_BUILT_AT, set by next.config.ts), their prices with a
- * new plan (a price is never edited: a new tariff is a new plan). The latest of
- * the two, or undefined when neither is known. Without the database, the build
+ * new plan (a price is never edited: a new tariff is a new plan), their
+ * catalogue with a new blueprint of an active certification (of any vendor).
+ * The latest, or undefined when none is known. Without the database, the build
  * date alone: the sitemap still answers.
  */
 export async function publicPagesModifiedAt(builtAt = process.env.CERTIDRILL_BUILT_AT): Promise<Date | undefined> {
   const built = builtAt ? new Date(builtAt) : null;
   let newestPlan: Date | null = null;
+  let newestExam: Date | null = null;
   try {
-    newestPlan = (await prisma.plan.aggregate({ _max: { createdAt: true } }))._max.createdAt;
+    // A new plan (prices), or a new exam blueprint of a certification on offer (whatever its vendor: codes, format, documentation named).
+    [newestPlan, newestExam] = await Promise.all([
+      prisma.plan.aggregate({ _max: { createdAt: true } }).then((r) => r._max.createdAt),
+      prisma.blueprint.aggregate({ where: { current: true, certification: { active: true } }, _max: { createdAt: true } }).then((r) => r._max.createdAt),
+    ]);
   } catch (err) {
     logError("seo.sitemap", err);
   }
-  const dates = [built, newestPlan].filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()));
+  const dates = [built, newestPlan, newestExam].filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()));
   return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : undefined;
 }
 

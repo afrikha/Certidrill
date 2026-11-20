@@ -20,7 +20,7 @@ import { logEvent } from "@/lib/log";
 import { assembleExam } from "./assembler";
 import { loadAssemblyBank, loadAssemblyBlueprint, loadHistory } from "./bank-query";
 import { createRng } from "./random";
-import { scoreExam, scoreItem } from "./scoring";
+import { scoreExam, scoreItem, scoringRules } from "./scoring";
 
 /** Writes arriving up to this long after the deadline are still accepted (network latency). */
 export const DEADLINE_GRACE_MS = 5_000;
@@ -240,6 +240,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
     items: [],
   };
   if (status !== "in_progress") return view; // before start: no questions; after: see the results page
+  const rules = scoringRules(attempt.blueprint.scoring);
 
   view.sections = await Promise.all(
     attempt.sections.map(async (s) => ({
@@ -268,7 +269,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
       id: i.id,
       order: i.order,
       sectionId: i.sectionId,
-      question: await presentQuestion(i.question, locale, i.optionOrder as OptionOrder),
+      question: await presentQuestion(i.question, locale, i.optionOrder as OptionOrder, rules),
       response: i.response,
       flagged: i.flagged,
       answered: i.answeredAt !== null,
@@ -405,7 +406,8 @@ export async function submitAttempt(
     // one closer wins (double click, timer and expiry racing).
     if ((await lockAttempt(tx, attemptId, "update")) !== "in_progress") return null;
     const items = await tx.attemptItem.findMany({ where: { attemptId }, include: { question: { select: { type: true, body: true, answer: true } } } });
-    const scores = items.map((i) => ({ id: i.id, ...scoreItem(i.question, i.response) }));
+    const rules = scoringRules(attempt.blueprint.scoring);
+    const scores = items.map((i) => ({ id: i.id, ...scoreItem(i.question, i.response, rules) }));
     const total = scoreExam(scores, attempt.blueprint);
     await tx.attempt.update({ where: { id: attemptId }, data: { status: reason, submittedAt, scaledScore: total.scaledScore, passed: total.passed } });
     for (const s of scores) await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max } }); // NOSONAR: one interactive transaction (single connection)

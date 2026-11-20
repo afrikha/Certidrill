@@ -14,7 +14,7 @@ import { progressionSchema, readinessSchema, type ProgressionConfig, type Readin
 import { logError } from "@/lib/log";
 import { computeReadiness, domainAverages, type ExamSummary, type Readiness } from "@/lib/progress/readiness";
 import { computeProgression, type Badge, type Progression, type XpGain } from "@/lib/progress/progression";
-import { breakdownBy, type Breakdown } from "./scoring";
+import { breakdownBy, scoringRules, type Breakdown } from "./scoring";
 import { getAccess, type AccessLevel } from "@/lib/access";
 import { SessionError, finalizeIfExpired } from "./session";
 
@@ -45,7 +45,8 @@ export interface AttemptResults {
   id: string;
   status: "submitted" | "expired";
   locale: Locale;
-  certification: { code: string; title: string };
+  /** vendor: certification.vendor (the score note and the documentation named, lib/vendors.ts). */
+  certification: { code: string; title: string; vendor: string };
   scaledScore: number;
   passed: boolean;
   passScore: number;
@@ -163,6 +164,7 @@ export async function getAttemptResults(
   const yesNo: [string, string] = locale === "fr" ? ["Oui", "Non"] : ["Yes", "No"];
   const domainTitle = new Map(attempt.blueprint.domains.map((d) => [d.code, pick(d.title as L, locale)]));
   const domainOrder = new Map(attempt.blueprint.domains.map((d) => [d.code, d.order]));
+  const rules = scoringRules(attempt.blueprint.scoring);
 
   // The correction follows the access of today (it goes back to free when a Pass ends).
   const full = (await getAccess(db, userId, attempt.certificationId)).level === "full";
@@ -203,7 +205,7 @@ export async function getAttemptResults(
         flagged: it.flagged,
         earned: it.pointsEarned ?? 0,
         max: it.pointsMax ?? 0,
-        question: await presentQuestion(q, locale, it.optionOrder as OptionOrder),
+        question: await presentQuestion(q, locale, it.optionOrder as OptionOrder, rules),
         seriesStemHtml: section.series ? await renderMarkdown(pick(section.series.stem as L, locale)) : undefined,
         caseStudyTitle: section.caseStudy ? pick(section.caseStudy.title as L, locale) : undefined,
         response: it.response,
@@ -232,7 +234,7 @@ export async function getAttemptResults(
     id: attempt.id,
     status: attempt.status as "submitted" | "expired",
     locale,
-    certification: { code: attempt.certification.code, title: attempt.certification.title },
+    certification: { code: attempt.certification.code, title: attempt.certification.title, vendor: attempt.certification.vendor },
     scaledScore: attempt.scaledScore ?? 0,
     passed: attempt.passed ?? false,
     passScore: attempt.blueprint.passScore,

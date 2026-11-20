@@ -9,6 +9,7 @@ import { visit } from "unist-util-visit";
 import { toString } from "hast-util-to-string";
 import { createHighlighter, type Highlighter } from "shiki";
 import type { Element, Root } from "hast";
+import { localizeDocsUrl } from "@/lib/vendors";
 
 /** Languages used in questions: PowerShell, Azure CLI, ARM JSON, Bicep, KQL. */
 const LANGUAGES = ["powershell", "bash", "shell", "json", "bicep", "kusto", "yaml"] as const;
@@ -80,13 +81,6 @@ export interface CourseRenderOptions {
   labels: { table: string; copy: string };
 }
 
-const LEARN_LOCALE = /^https:\/\/learn\.microsoft\.com\/[a-z]{2}-[a-z]{2}\//i;
-
-/** A Microsoft Learn address in the reader's language (/en-us/ ↔ /fr-fr/); any other address as it is. */
-export function localizeLearnUrl(url: string, locale: "en" | "fr"): string {
-  return url.replace(LEARN_LOCALE, `https://learn.microsoft.com/${locale === "fr" ? "fr-fr" : "en-us"}/`);
-}
-
 const el = (tagName: string, properties: Element["properties"], children: Element["children"]): Element => ({ type: "element", tagName, properties, children });
 
 /** The callout kind of a quotation that starts with a known bold label. */
@@ -100,7 +94,7 @@ function calloutKind(node: Element, callouts: Record<string, string>): string | 
 
 /**
  * Course presentation, after sanitizing (only elements and attributes set
- * here are added): Learn links in the reader's language and opened in a new
+ * here are added): documentation links (Microsoft Learn, AWS) in the reader's language and opened in a new
  * tab without referrer, callouts, tables in a scrolling area, and code blocks
  * that can take the focus, with a copy button shown by a script
  * (components/course/code-copy.tsx); reading needs no script.
@@ -109,7 +103,7 @@ function rehypeCourse(options: CourseRenderOptions) {
   return (tree: Root) => {
     visit(tree, "element", (node: Element, index, parent) => {
       if (node.tagName === "a" && typeof node.properties.href === "string" && node.properties.href.startsWith("https://")) {
-        node.properties = { ...node.properties, href: localizeLearnUrl(node.properties.href, options.locale), target: "_blank", rel: ["noopener", "noreferrer"] };
+        node.properties = { ...node.properties, href: localizeDocsUrl(node.properties.href, options.locale), target: "_blank", rel: ["noopener", "noreferrer"] };
         return;
       }
       if (node.tagName === "blockquote") {

@@ -11,7 +11,7 @@ import fr from "@/messages/fr.json";
 const MESSAGES = { en, fr } as const;
 
 /** The version of the terms shown on /terms, stored with each payment. Change it with the text. */
-export const TERMS_VERSION = "2026-11-19";
+export const TERMS_VERSION = "2026-11-20";
 
 /** The seller, on invoices (as on /legal). */
 export const SELLER = "Square-soft, SARL en cours d'immatriculation, 4 rue Saint-Michel, 78430 Louveciennes, France";
@@ -64,6 +64,8 @@ function strings(value: unknown, path: string): { path: string; text: string }[]
 /**
  * Passages of the terms still to be written: text between square brackets
  * (the consumer mediator until one is chosen). Empty once the terms are final.
+ * Any `[…]` left in `terms` or `billing.waiver` (either language) blocks live
+ * sales (liveSalesBlocked): write square brackets there only for a placeholder.
  */
 export function termsPlaceholders(messages: Record<string, { terms?: unknown; billing?: { waiver?: unknown } }> = MESSAGES): string[] {
   return Object.entries(messages).flatMap(([locale, m]) =>

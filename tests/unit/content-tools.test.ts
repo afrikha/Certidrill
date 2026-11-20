@@ -1,7 +1,8 @@
 /**
  * The multi-certification content tools: the --cert option, the blind
  * export split, the simulation of exams, the shared glossary and the
- * blueprints without case study nor series (fundamentals).
+ * blueprints without case study nor series (fundamentals), and the AWS
+ * glossary with its terminology check.
  */
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -9,7 +10,8 @@ import { certOfFile, parseCertArgs, requireCertDirs } from "../../tools/cert-arg
 import { splitGroups } from "../../tools/questions/export-blind";
 import { simulate } from "../../tools/questions/simulate";
 import { CONTENT_ROOT, loadCertification } from "@/lib/content/loader";
-import { glossaryConflicts, loadGlossaries, sharedGlossarySchema } from "@/lib/content/glossary";
+import { glossaryConflicts, loadGlossaries, loadVendorGlossary, sharedGlossarySchema, terminologyWarnings, vendorGlossaryConflicts } from "@/lib/content/glossary";
+import { VENDORS } from "@/lib/vendors";
 import { structureSchema } from "@/lib/content/schema";
 
 const dir = (code: string) => path.join(CONTENT_ROOT, code);
@@ -115,5 +117,36 @@ describe("seed: unchanged rows", async () => {
     expect(sameRow(stored, { version: 2 })).toBe(false);
     expect(sameRow(stored, { seriesOrder: null })).toBe(true);
     expect(sameRow(stored, { seriesOrder: 3 })).toBe(false);
+  });
+});
+
+describe("AWS glossary", () => {
+  const term = (en: string, fr: string, extra: object = {}) => ({ en, fr, area: "x", confirmed: true, ...extra });
+
+  it("loads content/_shared/glossary-aws.yaml (lib/vendors.ts) without conflict", async () => {
+    expect(VENDORS.aws.glossary).toBe("_shared/glossary-aws.yaml");
+    const g = (await loadVendorGlossary(VENDORS.aws.glossary!))!;
+    const fr = (en: string) => g.terms.find((t) => t.en.toLowerCase() === en)?.fr;
+    expect([fr("bucket"), fr("subnet"), fr("availability zone"), fr("security group")]).toEqual(["compartiment", "sous-réseau", "zone de disponibilité", "groupe de sécurité"]);
+    expect(await loadVendorGlossary("_shared/missing.yaml")).toBeNull();
+  });
+
+  it("finds a term listed twice, kept in English and translated, or both used and to avoid", () => {
+    const g = { keep_in_english: ["Amazon S3"], terms: [term("bucket", "compartiment", { avoid: ["bucket"] })] };
+    expect(vendorGlossaryConflicts(g, "g.yaml")).toEqual([]);
+    expect(
+      vendorGlossaryConflicts({ keep_in_english: ["policy"], terms: [...g.terms, term("Bucket", "seau"), term("policy", "politique", { also_seen: ["stratégie"], avoid: ["Stratégie"] })] }, "g.yaml"),
+    ).toEqual([`"Bucket": listed twice in g.yaml (« compartiment » and « seau »)`, `"policy": « Stratégie » is both used and to avoid (g.yaml)`, `"policy" is both kept in English and translated (g.yaml)`]);
+  });
+
+  it("reports the variants to avoid in French prose, whole words, case-sensitive, outside code", () => {
+    const terms = [term("bucket", "compartiment", { avoid: ["bucket", "buckets"] }), term("IAM policy", "politique IAM", { avoid: ["stratégie IAM"] })];
+    const text = "Créez un bucket. Les buckets et la stratégie IAM.\n\n```json\n{ \"bucket\": 1 }\n```\nLe nom `my-bucket` ; un Bucket ; un sous-bucket ; un compartiment (bucket) ; la stratégie de migration.";
+    expect(terminologyWarnings(text, terms)).toEqual([
+      `French text uses « bucket »: the glossary says « compartiment » for "bucket"`,
+      `French text uses « buckets »: the glossary says « compartiment » for "bucket"`,
+      `French text uses « stratégie IAM »: the glossary says « politique IAM » for "IAM policy"`,
+    ]);
+    expect(terminologyWarnings("Deux bucket, un bucket.", terms)).toEqual([`French text uses « bucket » (2×): the glossary says « compartiment » for "bucket"`]);
   });
 });

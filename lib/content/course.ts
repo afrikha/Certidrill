@@ -22,6 +22,7 @@ import { locales, type Locale, type Localized } from "@/lib/i18n/config";
 import { compareCodeUnits } from "@/lib/sort";
 import { ContentError, parseWith, readYaml, type CertificationContent } from "./loader";
 import { courseFileSchema, type CourseFile } from "./schema";
+import { docsPage, isDocsUrl, vendorOf } from "@/lib/vendors";
 
 /** The module of the chapters that come before the exam domains: no objective. */
 export const INTRO_MODULE = "intro";
@@ -35,9 +36,6 @@ export const CALLOUTS = {
   tip: { en: "Exam tip.", fr: "Conseil d'examen." },
 } as const satisfies Record<string, Localized>;
 export type CalloutKind = keyof typeof CALLOUTS;
-
-/** Microsoft Learn: the only site references may point to. */
-const LEARN = "https://learn.microsoft.com/";
 
 export interface CourseSection {
   id: string;
@@ -106,7 +104,7 @@ interface Fingerprint {
   code: { lang: string | null | undefined; value: string }[];
   tables: string[];
   callouts: string[];
-  /** Link targets, the language of Microsoft Learn URLs left out (/en-us/ and /fr-fr/ are the same page). */
+  /** Link targets, the language of documentation URLs left out (Learn /en-us/ and /fr-fr/, AWS /fr_fr/: the same page). */
   links: string[];
 }
 
@@ -166,7 +164,7 @@ function fingerprintOf(nodes: readonly RootContent[], locale: Locale): Fingerpri
   for (const top of nodes) {
     visit(top, (node: Nodes) => {
       if (node.type === "code") print.code.push({ lang: node.lang, value: node.value });
-      if (node.type === "link" || node.type === "definition") print.links.push(node.url.replace(/^https:\/\/learn\.microsoft\.com\/[a-z]{2}-[a-z]{2}\//i, "https://learn.microsoft.com/"));
+      if (node.type === "link" || node.type === "definition") print.links.push(docsPage(node.url));
       if (node.type === "table") print.tables.push(`${node.children.length}×${Math.max(...node.children.map((r) => r.children.length))}`);
       const callout = calloutOf(node, locale);
       if (callout) print.callouts.push(callout);
@@ -373,8 +371,12 @@ function manifestProblems(file: string, manifest: CourseFile, content: Certifica
   for (const m of manifest.modules.filter((x) => !moduleCodes.has(x.code))) {
     problems.push({ file, message: `module "${m.code}" is neither a domain of blueprint.yaml nor "${INTRO_MODULE}"` });
   }
+  // References on the documentation of the certification's vendor only.
+  const vendor = vendorOf(certification.vendor);
   for (const c of manifest.chapters) {
-    for (const r of c.references.filter((x) => !x.url.startsWith(LEARN))) problems.push({ file, message: `chapter "${c.id}": reference ${r.url} is not on ${LEARN}` });
+    for (const r of c.references.filter((x) => !isDocsUrl(x.url, vendor))) {
+      problems.push({ file, message: `chapter "${c.id}": reference ${r.url} is not on ${vendor.docsName} (${vendor.docsHosts.join(", ")})` });
+    }
   }
   return problems;
 }

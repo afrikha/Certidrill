@@ -119,6 +119,37 @@ const purchase = (p: Partial<Pass>, passes?: Pass[]): Purchase => {
   return { status: pass.status, passes: passes ?? [pass] };
 };
 
+describe("BuyPass by vendor", () => {
+  const MIXED = [
+    { code: "az-104", title: "Microsoft Azure Administrator", vendor: "Microsoft", amountCents: 1900, currency: "eur" },
+    { code: "az-305", title: "Azure Solutions Architect", vendor: "Microsoft", amountCents: 2400, currency: "eur" },
+    { code: "saa-c03", title: "AWS Certified Solutions Architect – Associate", vendor: "AWS", amountCents: 2400, currency: "eur" },
+  ];
+
+  it("lists one vendor's Pass as before: no vendor name, no filter", () => {
+    renderIntl(<BuyPass planCode="pass_90" certifications={MIXED.slice(0, 2)} />);
+    expect(screen.queryByTestId("cart-vendors")).toBeNull();
+    expect(screen.queryByText("Microsoft")).toBeNull();
+  });
+
+  it("groups the Pass under their vendor and filters them, keeping the ticked ones", async () => {
+    renderIntl(<BuyPass planCode="pass_90" certifications={MIXED} />, "fr");
+    const filter = screen.getByRole("group", { name: "Éditeur" });
+    expect(filter).toHaveTextContent("TousMicrosoftAWS");
+    expect(screen.getByText("Microsoft", { selector: "li" })).toBeVisible();
+    expect(screen.getByText("AWS", { selector: "li" })).toBeVisible();
+    await userEvent.click(screen.getByRole("checkbox", { name: /SAA-C03/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Microsoft" }));
+    expect(screen.getByRole("button", { name: "Microsoft" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("checkbox", { name: /SAA-C03/ })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: /AZ-305/ })).toBeVisible();
+    // Hidden by the filter, still in the cart: 19 € + 24 €.
+    expect(screen.getByTestId("pass-price")).toHaveTextContent(/43,00/);
+    await userEvent.click(screen.getByRole("button", { name: "Tous" }));
+    expect(screen.getByRole("checkbox", { name: /SAA-C03/ })).toBeChecked();
+  });
+});
+
 describe("PurchaseStatus", () => {
   it("shows an active Pass, or one that starts after the current one", () => {
     const { unmount } = renderIntl(<PurchaseStatus sessionId="cs_1" initial={purchase({})} />);

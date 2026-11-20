@@ -3,6 +3,7 @@ import { renderInline, renderMarkdown } from "@/lib/markdown";
 import { pick, type Locale } from "@/lib/i18n/config";
 import type { Choice, QuestionBody, QuestionTypeCode, Text } from "./schema";
 import { maxPoints } from "./schema";
+import type { ScoringRules } from "@/lib/content/schema";
 import { applyOrder, type OptionOrder } from "./order";
 import type { DropdownSegment, PublicBody, PublicChoice, PublicQuestion } from "./public";
 
@@ -27,7 +28,7 @@ async function choices(list: Choice[], locale: Locale, order?: string[]): Promis
  * Projects a question for the browser: one locale, sanitized HTML, frozen
  * option order. Never includes the answer or the explanation.
  */
-export async function presentQuestion(q: PresentableQuestion, locale: Locale, order: OptionOrder = {}): Promise<PublicQuestion> {
+export async function presentQuestion(q: PresentableQuestion, locale: Locale, order: OptionOrder = {}, rules?: ScoringRules): Promise<PublicQuestion> {
   const stem = q.stem as { en: string; fr: string };
   const exhibits = (q.exhibits as { id: string; title: Text; body: Text }[]) ?? [];
   return {
@@ -42,7 +43,7 @@ export async function presentQuestion(q: PresentableQuestion, locale: Locale, or
       })),
     ),
     body: await presentBody(q.type, q.body, locale, order),
-    maxPoints: maxPoints(q.type, q.body),
+    maxPoints: maxPoints(q.type, q.body, rules),
   };
 }
 

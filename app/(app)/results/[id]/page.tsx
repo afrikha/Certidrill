@@ -13,6 +13,7 @@ import { ReadinessChange } from "@/components/progress/readiness-change";
 import { XpGainCard } from "@/components/progress/xp-gain";
 import { xpStart } from "@/lib/progress/celebration";
 import { chaptersForDomains } from "@/lib/course/read";
+import { vendorOf } from "@/lib/vendors";
 
 export const metadata = { title: "Results" };
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
   const { readiness: change, progression } = await getAttemptProgress(prisma, { attemptId: r.id, userId: user.id, locale: r.locale });
   const t = await getTranslations("results");
   const tCourse = await getTranslations("course");
+  const tVendor = await getTranslations("vendors");
   // For each domain below the pass mark: the chapters of the course to review.
   const weak = r.domains.filter((d) => d.scaledScore < r.passScore);
   const certification = await prisma.certification.findUniqueOrThrow({ where: { code: r.certification.code }, select: { id: true } });
@@ -129,7 +131,7 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
         </Card>
       )}
 
-      <p className="text-sm text-muted-foreground">{t("approx")}</p>
+      <p className="text-sm text-muted-foreground" data-testid="score-note">{tVendor(`${vendorOf(r.certification.vendor).key}.scoreNote`)}</p>
       <Link href={`/results/${r.id}/review`} className={buttonClasses("primary")}>{t("seeCorrection")} →</Link>
     </div>
   );
