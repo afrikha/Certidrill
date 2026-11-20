@@ -1,0 +1,68 @@
+id: sapc03-5c-config-remediation-bounded
+objective: "5.4.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany deploys an AWS Config rule that detects Amazon S3 buckets without the required default encryption settings to 1,200 accounts through an organization conformance pack. The rule has automatic remediation with a custom Systems Manager Automation runbook. Last month, a bug in a new runbook version made the remediation fail on 9,000 buckets; Config kept retrying for days, and the resulting API calls throttled other automation in the accounts. The company now requires that each resource gets at most 3 failed remediation attempts within 10 minutes before it is flagged with a remediation exception for review, that no more than 5 percent of the rule's noncompliant resources are remediated in parallel, and that remediation stops for the rule when 10 percent of the executions fail. The company wants to keep AWS Config remediation and the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany déploie sur 1 200 comptes, au moyen d'un pack de conformité d'organisation, une règle AWS Config qui détecte les compartiments Amazon S3 dépourvus des paramètres de chiffrement par défaut requis. La règle dispose d'une correction automatique avec un runbook Systems Manager Automation personnalisé. Le mois dernier, un bogue dans une nouvelle version du runbook a fait échouer la correction sur 9 000 compartiments ; Config a continué de réessayer pendant des jours, et les appels d'API qui en ont résulté ont limité d'autres automatisations dans les comptes. L'entreprise exige désormais que chaque ressource subisse au plus 3 tentatives de correction en échec en 10 minutes avant d'être signalée par une exception de correction pour examen, que pas plus de 5 % des ressources non conformes de la règle soient corrigées en parallèle, et que la correction s'arrête pour la règle quand 10 % des exécutions échouent. L'entreprise veut conserver la correction AWS Config et le MOINS de charge opérationnelle.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Replace automatic remediation with an EventBridge rule on Config compliance change events that sends each resource to an Amazon SQS queue, and process the queue with an AWS Lambda function that has a reserved concurrency of 5.
+        fr: |-
+          Remplacer la correction automatique par une règle EventBridge sur les événements de changement de conformité Config qui envoie chaque ressource dans une file d'attente Amazon SQS, et traiter la file avec une fonction AWS Lambda dotée d'une concurrence réservée de 5.
+    - id: b
+      text:
+        en: |-
+          Replace automatic remediation with a Systems Manager State Manager association that runs the runbook on all buckets every 10 minutes with a maximum concurrency of 5 percent and a maximum error rate of 10 percent.
+        fr: |-
+          Remplacer la correction automatique par une association Systems Manager State Manager qui exécute le runbook sur tous les compartiments toutes les 10 minutes avec une concurrence maximale de 5 % et un taux d'erreur maximal de 10 %.
+    - id: c
+      text:
+        en: |-
+          Keep automatic remediation, and add a CloudWatch alarm on the number of failed Automation executions that disables the Config rule when it enters the ALARM state.
+        fr: |-
+          Conserver la correction automatique, et ajouter sur le nombre d'exécutions Automation en échec une alarme CloudWatch qui désactive la règle Config quand elle passe à l'état ALARM.
+    - id: d
+      text:
+        en: |-
+          In the conformance pack template, set MaximumAutomaticAttempts to 3 and RetryAttemptSeconds to 600 in the remediation configuration, and set its SSM controls to a ConcurrentExecutionRatePercentage of 5 and an ErrorPercentage of 10.
+        fr: |-
+          Dans le modèle du pack de conformité, définir MaximumAutomaticAttempts sur 3 et RetryAttemptSeconds sur 600 dans la configuration de correction, et définir ses contrôles SSM avec un ConcurrentExecutionRatePercentage de 5 et un ErrorPercentage de 10.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      When MaximumAutomaticAttempts failed attempts occur within RetryAttemptSeconds, AWS Config adds a remediation exception to the resource, which stops the retry loop and flags it for review. The SSM controls of the remediation configuration cap the percentage of noncompliant resources remediated in parallel and stop the automations when the error percentage is reached, and the conformance pack deploys the change to every account.
+    fr: |-
+      Quand MaximumAutomaticAttempts tentatives en échec se produisent pendant RetryAttemptSeconds, AWS Config ajoute une exception de correction à la ressource, ce qui arrête la boucle de nouvelles tentatives et la signale pour examen. Les contrôles SSM de la configuration de correction plafonnent le pourcentage de ressources non conformes corrigées en parallèle et arrêtent les automatisations quand le pourcentage d'erreurs est atteint, et le pack de conformité déploie la modification dans chaque compte.
+  options:
+    a:
+      en: |-
+        This rebuilds remediation in custom code and removes AWS Config remediation; a concurrency of 5 per account also doesn't express 5 percent, and nothing stops retries per resource or at 10 percent of failures.
+      fr: |-
+        Cela reconstruit la correction en code personnalisé et supprime la correction AWS Config ; une concurrence de 5 par compte n'exprime pas non plus 5 %, et rien n'arrête les tentatives par ressource ni à 10 % d'échecs.
+    b:
+      en: |-
+        An association runs on every bucket on a schedule instead of on noncompliant resources, abandons Config remediation, and doesn't limit attempts per resource or raise remediation exceptions.
+      fr: |-
+        Une association s'exécute sur chaque compartiment selon une planification au lieu des ressources non conformes, abandonne la correction Config, et ne limite pas les tentatives par ressource ni ne crée d'exception de correction.
+    c:
+      en: |-
+        Disabling the whole rule from an alarm stops compliance evaluation too, and it doesn't cap parallel remediations or attempts per resource.
+      fr: |-
+        Désactiver toute la règle depuis une alarme arrête aussi l'évaluation de la conformité, et cela ne plafonne ni les corrections parallèles ni les tentatives par ressource.
+references:
+  - title: "RemediationConfiguration - AWS Config"
+    url: https://docs.aws.amazon.com/config/latest/APIReference/API_RemediationConfiguration.html
+  - title: "SsmControls - AWS Config"
+    url: https://docs.aws.amazon.com/config/latest/APIReference/API_SsmControls.html

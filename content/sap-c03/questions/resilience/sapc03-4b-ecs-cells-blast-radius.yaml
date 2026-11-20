@@ -1,0 +1,42 @@
+id: sapc03-4b-ecs-cells-blast-radius
+objective: "4.2.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A SaaS company hosts 400 tenants in each of two Regions on one large Amazon ECS cluster per Region, with EC2 capacity providers, a single Application Load Balancer and a shared Amazon Aurora cluster. Last quarter, a faulty configuration deployment took down every tenant in a Region for 2 hours. Another time, a capacity problem in the ECS cluster affected all tenants of that Region at once. The CTO now requires that a single deployment or the failure of a single cluster affects at most about 10 percent of the tenants. Tenants must be movable between isolation units, and a deployment that fails its health checks must roll back automatically.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une société SaaS héberge 400 locataires dans chacune de deux Régions sur un grand cluster Amazon ECS par Région, avec des fournisseurs de capacité EC2, un seul Application Load Balancer et un cluster Amazon Aurora partagé. Le trimestre dernier, un déploiement de configuration défectueux a rendu indisponibles tous les locataires d'une Région pendant 2 heures. Une autre fois, un problème de capacité du cluster ECS a affecté en même temps tous les locataires de cette Région. Le directeur technique exige désormais qu'un déploiement unique ou la panne d'un seul cluster affecte au plus 10 % environ des locataires. Les locataires doivent pouvoir être déplacés entre unités d'isolation, et un déploiement qui échoue à ses vérifications de l'état doit revenir en arrière automatiquement.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Split each Region into about 10 cells, each with its own ECS cluster, load balancer and database, map tenants to cells in a routing layer, and deploy cell by cell with circuit breaker rollback.", fr: "Découper chaque Région en une dizaine de cellules, chacune avec son cluster ECS, son équilibreur de charge et sa base de données, associer les locataires aux cellules dans une couche de routage, et déployer cellule par cellule avec retour arrière par disjoncteur." }
+    - id: b
+      text: { en: "Split each Region into an active cluster and a passive cluster of the same size, deploy every release to the passive cluster first, and switch all tenants to it after the deployment passes health checks.", fr: "Découper chaque Région en un cluster actif et un cluster passif de même taille, déployer chaque version d'abord sur le cluster passif, et y basculer tous les locataires une fois les vérifications de l'état réussies." }
+    - id: c
+      text: { en: "Keep one cluster per Region, enable the ECS deployment circuit breaker with rollback on every service, and enable ARC zonal autoshift on the Application Load Balancer.", fr: "Conserver un cluster par Région, activer le disjoncteur de déploiement ECS avec retour arrière sur chaque service, et activer le zonal autoshift d'ARC sur l'Application Load Balancer." }
+    - id: d
+      text: { en: "Run identical clusters active/active in both Regions behind Route 53 latency-based records, and deploy every release to both Regions at the same time to keep them consistent.", fr: "Exécuter des clusters identiques en actif/actif dans les deux Régions derrière des enregistrements Route 53 basés sur la latence, et déployer chaque version dans les deux Régions en même temps pour qu'elles restent cohérentes." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "A cell-based architecture splits the workload into independent, complete copies, so a bad deployment or a cluster failure is contained to the tenants of one cell; with about 10 cells per Region, each holds roughly 10 percent of the tenants, and the routing layer can move tenants between cells. Deploying cell by cell with the ECS deployment circuit breaker, which rolls back to the last COMPLETED deployment when tasks fail to reach a steady state or fail health checks, limits and reverts faulty releases."
+    fr: "Une architecture cellulaire découpe la charge en copies complètes et indépendantes : un mauvais déploiement ou la panne d'un cluster reste limité aux locataires d'une cellule ; avec une dizaine de cellules par Région, chacune héberge environ 10 % des locataires, et la couche de routage peut déplacer des locataires entre cellules. Déployer cellule par cellule avec le disjoncteur de déploiement ECS, qui revient au dernier déploiement COMPLETED quand les tâches n'atteignent pas un état stable ou échouent aux vérifications de l'état, limite et annule les versions défectueuses."
+  options:
+    b:
+      en: "Switching all tenants at once means a release defect that health checks miss still affects every tenant, and the passive cluster doubles capacity without reducing the blast radius below 100 percent."
+      fr: "Basculer tous les locataires d'un coup signifie qu'un défaut non détecté par les vérifications de l'état touche toujours tous les locataires, et le cluster passif double la capacité sans réduire le rayon d'impact sous 100 %."
+    c:
+      en: "The circuit breaker helps with failed rollouts, but one shared cluster, load balancer and database still put every tenant of the Region in the same failure domain."
+      fr: "Le disjoncteur aide pour les déploiements en échec, mais un seul cluster, équilibreur de charge et base de données partagés placent toujours tous les locataires de la Région dans le même domaine de panne."
+    d:
+      en: "Deploying to both Regions at the same time spreads a faulty release to every tenant in both Regions, which increases the blast radius instead of limiting it."
+      fr: "Déployer dans les deux Régions en même temps propage une version défectueuse à tous les locataires des deux Régions, ce qui augmente le rayon d'impact au lieu de le limiter."
+references:
+  - title: How the Amazon ECS deployment circuit breaker detects failures
+    url: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-circuit-breaker.html

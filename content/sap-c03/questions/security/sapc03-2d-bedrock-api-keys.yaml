@@ -1,0 +1,42 @@
+id: sapc03-2d-bedrock-api-keys
+objective: "2.5.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany has 200 AWS accounts in AWS Organizations. An audit found that developers in several accounts generated long-term Amazon Bedrock API keys, which create IAM users with service-specific credentials, and embedded them in scripts. The new security standard forbids long-term Bedrock API keys everywhere in the organization, including accounts created later. Existing long-term keys must stop working at once, even before they are found and deleted. Production applications already authenticate with short-term Bedrock API keys generated from their IAM role sessions, and they must keep working. Account administrators must not be able to override the control.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany possède 200 comptes AWS dans AWS Organizations. Un audit a révélé que des développeurs de plusieurs comptes ont généré des clés d'API Amazon Bedrock de longue durée, qui créent des utilisateurs IAM avec des identifiants propres au service, et les ont intégrées dans des scripts. La nouvelle norme de sécurité interdit les clés d'API Bedrock de longue durée partout dans l'organisation, y compris dans les comptes créés plus tard. Les clés de longue durée existantes doivent cesser de fonctionner immédiatement, avant même d'être trouvées et supprimées. Les applications de production s'authentifient déjà avec des clés d'API Bedrock de courte durée générées à partir des sessions de leurs rôles IAM, et elles doivent continuer à fonctionner. Les administrateurs de compte ne doivent pas pouvoir passer outre le contrôle.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Attach an SCP to the root that denies bedrock:CallWithBearerToken for all principals, and remove the IAM users that hold Bedrock service-specific credentials in each account.", fr: "Attacher à la racine une SCP qui refuse bedrock:CallWithBearerToken à tous les principaux, et supprimer dans chaque compte les utilisateurs IAM qui détiennent des identifiants propres au service Bedrock." }
+    - id: b
+      text: { en: "Attach an SCP to the root that denies iam:CreateServiceSpecificCredential for the Bedrock service name and denies bedrock:CallWithBearerToken when bedrock:bearerTokenType is LONG_TERM.", fr: "Attacher à la racine une SCP qui refuse iam:CreateServiceSpecificCredential pour le nom de service Bedrock et refuse bedrock:CallWithBearerToken lorsque bedrock:bearerTokenType vaut LONG_TERM." }
+    - id: c
+      text: { en: "Create an IAM Access Analyzer unused access analyzer for the organization, and run an AWS Systems Manager Automation runbook that deletes the service-specific credentials it reports.", fr: "Créer un analyseur d'accès inutilisés IAM Access Analyzer pour l'organisation, et exécuter un runbook AWS Systems Manager Automation qui supprime les identifiants propres au service qu'il signale." }
+    - id: d
+      text: { en: "Deploy an organization AWS Config custom rule that flags IAM users with Bedrock service-specific credentials, and invoke an AWS Lambda function that deactivates each flagged credential.", fr: "Déployer une règle personnalisée AWS Config d'organisation qui signale les utilisateurs IAM ayant des identifiants propres au service Bedrock, et appeler une fonction AWS Lambda qui désactive chaque identifiant signalé." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "Long-term keys are created with iam:CreateServiceSpecificCredential, which can be restricted with the iam:ServiceSpecificCredentialServiceName condition key, and every call with a key requires bedrock:CallWithBearerToken, whose bedrock:bearerTokenType condition key distinguishes SHORT_TERM from LONG_TERM. An SCP at the root applies to every current and future member account, cannot be overridden by account administrators and stops existing long-term keys immediately while short-term keys keep working."
+    fr: "Les clés de longue durée se créent avec iam:CreateServiceSpecificCredential, que la clé de condition iam:ServiceSpecificCredentialServiceName permet de restreindre, et chaque appel avec une clé exige bedrock:CallWithBearerToken, dont la clé de condition bedrock:bearerTokenType distingue SHORT_TERM de LONG_TERM. Une SCP à la racine s'applique à tous les comptes membres actuels et futurs, ne peut pas être contournée par les administrateurs de compte et arrête immédiatement les clés de longue durée existantes, tandis que les clés de courte durée continuent de fonctionner."
+  options:
+    a:
+      en: "Denying bedrock:CallWithBearerToken without a condition also blocks the short-term API keys that the production applications use."
+      fr: "Refuser bedrock:CallWithBearerToken sans condition bloque aussi les clés d'API de courte durée utilisées par les applications de production."
+    c:
+      en: "Unused access findings take time to appear and report unused credentials, not the keys that scripts actively use; nothing prevents new keys from being created."
+      fr: "Les résultats d'accès inutilisés mettent du temps à apparaître et signalent les identifiants inutilisés, pas les clés activement utilisées par les scripts ; rien n'empêche la création de nouvelles clés."
+    d:
+      en: "A detect-and-remediate rule acts only after each evaluation, so keys keep working until then, and new keys can still be created; it is not an immediate preventive control."
+      fr: "Une règle de détection et correction n'agit qu'après chaque évaluation : les clés fonctionnent jusque-là, et de nouvelles clés peuvent toujours être créées. Ce n'est pas un contrôle préventif immédiat."
+references:
+  - title: API keys
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html

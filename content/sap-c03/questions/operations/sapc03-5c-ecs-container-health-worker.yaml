@@ -1,0 +1,66 @@
+id: sapc03-5c-ecs-container-health-worker
+objective: "5.4.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A healthcare company runs a claims-processing worker as an Amazon ECS service on AWS Fargate with 12 tasks. Each task has one essential container that polls an Amazon SQS queue, and the service has no load balancer. Occasionally, a worker thread deadlocks: the container keeps running, the task stays in the RUNNING state, and it stops processing messages until an engineer stops the task manually. The worker image already includes a script that exits with a non-zero code when no message has been processed for 2 minutes while messages are waiting. The company wants ECS to replace such tasks automatically with the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de santé exploite un worker de traitement des demandes de remboursement sous forme de service Amazon ECS sur AWS Fargate de 12 tâches. Chaque tâche comporte un conteneur essentiel qui interroge une file d'attente Amazon SQS, et le service n'a pas d'équilibreur de charge. De temps en temps, un thread du worker se bloque : le conteneur continue de s'exécuter, la tâche reste à l'état RUNNING, et elle cesse de traiter les messages jusqu'à ce qu'un ingénieur arrête la tâche manuellement. L'image du worker contient déjà un script qui se termine avec un code non nul quand aucun message n'a été traité depuis 2 minutes alors que des messages sont en attente. L'entreprise veut qu'ECS remplace automatiquement ces tâches avec le MOINS de charge opérationnelle.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Turn on the deployment circuit breaker with rollback for the service so that ECS automatically stops and replaces the tasks that fail.
+        fr: |-
+          Activer le disjoncteur de déploiement avec restauration pour le service afin qu'ECS arrête et remplace automatiquement les tâches en échec.
+    - id: b
+      text:
+        en: |-
+          Add an Application Load Balancer with a target group whose health check calls an HTTP endpoint that the worker exposes for this purpose.
+        fr: |-
+          Ajouter un Application Load Balancer avec un groupe cible dont la vérification de l'état appelle un point de terminaison HTTP que le worker expose à cet effet.
+    - id: c
+      text:
+        en: |-
+          Create an EventBridge rule on ECS task state change events that invokes an AWS Lambda function to stop tasks that have processed no message for 2 minutes.
+        fr: |-
+          Créer une règle EventBridge sur les événements de changement d'état des tâches ECS qui invoque une fonction AWS Lambda chargée d'arrêter les tâches qui n'ont traité aucun message depuis 2 minutes.
+    - id: d
+      text:
+        en: |-
+          Add a container health check that runs the script to the essential container in the task definition, with a start period, and deploy the new revision.
+        fr: |-
+          Ajouter au conteneur essentiel, dans la définition de tâche, une vérification de l'état du conteneur qui exécute le script, avec une période de démarrage, et déployer la nouvelle révision.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      When an essential container with a health check command reports UNHEALTHY, the task is considered unhealthy, and the ECS service scheduler replaces it. The start period gives the container time to bootstrap before failed checks count, and the existing script becomes the health check command with no new infrastructure.
+    fr: |-
+      Quand un conteneur essentiel doté d'une commande de vérification de l'état signale UNHEALTHY, la tâche est considérée comme non saine, et le planificateur de service ECS la remplace. La période de démarrage laisse au conteneur le temps de s'amorcer avant que les échecs comptent, et le script existant devient la commande de vérification de l'état, sans nouvelle infrastructure.
+  options:
+    a:
+      en: |-
+        The deployment circuit breaker evaluates deployments that fail to reach a steady state; it doesn't monitor or replace tasks of a stable service.
+      fr: |-
+        Le disjoncteur de déploiement évalue les déploiements qui n'atteignent pas un état stable ; il ne surveille ni ne remplace les tâches d'un service stable.
+    b:
+      en: |-
+        A load balancer and a new HTTP endpoint add infrastructure and code to a worker that serves no traffic.
+      fr: |-
+        Un équilibreur de charge et un nouveau point de terminaison HTTP ajoutent de l'infrastructure et du code à un worker qui ne sert aucun trafic.
+    c:
+      en: |-
+        A deadlocked task stays RUNNING, so no state change event is emitted, and the function would be custom code to maintain.
+      fr: |-
+        Une tâche bloquée reste RUNNING : aucun événement de changement d'état n'est émis, et la fonction serait du code personnalisé à maintenir.
+references:
+  - title: "Determine Amazon ECS task health using container health checks - Amazon Elastic Container Service"
+    url: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/healthcheck.html

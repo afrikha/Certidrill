@@ -1,0 +1,58 @@
+id: sapc03-1d-ddb-unique-email-consistency
+objective: "1.5.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A gaming company stores player accounts in an Amazon DynamoDB table whose partition key is player_id. Players sign in with their email address. During a launch event, two accounts were created with the same email address, and some players who had just signed up could not sign in for several seconds. The company must guarantee that an email address belongs to at most one account and that a sign-in immediately after sign-up always finds the new account. The solution must keep the single-digit millisecond latency of DynamoDB and must scale with unpredictable traffic.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de jeux vidéo stocke les comptes des joueurs dans une table Amazon DynamoDB dont la clé de partition est player_id. Les joueurs se connectent avec leur adresse e-mail. Pendant un événement de lancement, deux comptes ont été créés avec la même adresse e-mail, et certains joueurs qui venaient de s'inscrire n'ont pas pu se connecter pendant plusieurs secondes. L'entreprise doit garantir qu'une adresse e-mail n'appartient qu'à un seul compte au plus et qu'une connexion juste après l'inscription trouve toujours le nouveau compte. La solution doit conserver la latence de l'ordre de quelques millisecondes de DynamoDB et s'adapter à un trafic imprévisible.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Create a global secondary index with email as its partition key, and look up accounts at sign-in by querying the index with ConsistentRead set to true."
+        fr: "Créer un index secondaire global avec email comme clé de partition, et rechercher les comptes à la connexion en interrogeant l'index avec ConsistentRead défini sur true."
+    - id: b
+      text:
+        en: "Create a local secondary index with email as its sort key, and look up accounts at sign-in by querying the index with strongly consistent reads."
+        fr: "Créer un index secondaire local avec email comme clé de tri, et rechercher les comptes à la connexion en interrogeant l'index avec des lectures fortement cohérentes."
+    - id: c
+      text:
+        en: "Write the account item and an email-keyed item in one TransactWriteItems call with an attribute_not_exists condition, and sign in with a strongly consistent GetItem on the email item."
+        fr: "Écrire l'élément du compte et un élément ayant l'e-mail pour clé dans un seul appel TransactWriteItems avec une condition attribute_not_exists, et se connecter par un GetItem fortement cohérent sur l'élément e-mail."
+    - id: d
+      text:
+        en: "Place a DynamoDB Accelerator (DAX) cluster in front of the table, create a global secondary index on email, and query the index through DAX at sign-in."
+        fr: "Placer un cluster DynamoDB Accelerator (DAX) devant la table, créer un index secondaire global sur email, et interroger l'index via DAX à la connexion."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      Table keys are unique, so an item whose partition key is the email address, written in the same transaction as the account with an attribute_not_exists condition, makes the whole sign-up fail if the email is already taken. Because the email item is in the base table, sign-in can read it with a strongly consistent GetItem and always sees the committed account.
+    fr: |
+      Les clés d'une table sont uniques : un élément dont la clé de partition est l'adresse e-mail, écrit dans la même transaction que le compte avec une condition attribute_not_exists, fait échouer toute l'inscription si l'e-mail est déjà pris. Comme l'élément e-mail se trouve dans la table de base, la connexion peut le lire avec un GetItem fortement cohérent et voit toujours le compte validé.
+  options:
+    a:
+      en: |
+        Global secondary indexes support only eventually consistent reads and do not require their key values to be unique, so duplicates and sign-in delays remain.
+      fr: |
+        Les index secondaires globaux ne prennent en charge que les lectures à cohérence éventuelle et n'exigent pas que leurs valeurs de clé soient uniques : les doublons et les délais de connexion subsistent.
+    b:
+      en: |
+        A local secondary index keeps player_id as its partition key, so the application cannot find an account from the email alone, and the index does not enforce uniqueness.
+      fr: |
+        Un index secondaire local conserve player_id comme clé de partition : l'application ne peut pas trouver un compte à partir de l'e-mail seul, et l'index n'impose pas l'unicité.
+    d:
+      en: |
+        DAX serves cached, eventually consistent results, so it does not make index reads see new accounts sooner, and it does nothing for uniqueness.
+      fr: |
+        DAX sert des résultats en cache à cohérence éventuelle : il ne fait pas voir plus tôt les nouveaux comptes aux lectures d'index, et il n'apporte rien à l'unicité.
+references:
+  - title: Using Global Secondary Indexes in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html

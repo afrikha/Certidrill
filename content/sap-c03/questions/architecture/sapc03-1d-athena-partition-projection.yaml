@@ -1,0 +1,58 @@
+id: sapc03-1d-athena-partition-projection
+objective: "1.5.1"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    A company centralizes application audit logs from 300 AWS accounts in one Amazon S3 bucket, under the prefix layout account_id/region/yyyy/MM/dd/. The table that describes the logs in the AWS Glue Data Catalog now has several million partitions. An AWS Glue crawler that adds the new partitions runs for hours each day, and Amazon Athena queries spend most of their time retrieving partition metadata before they scan any data. The security team queries the logs only with Athena, and every query filters on one account ID, a list of Regions and a date range. The company wants to reduce query time and remove the partition maintenance work.
+
+    Which solution will meet these requirements with the LEAST operational overhead?
+  fr: |
+    Une entreprise centralise les journaux d'audit applicatifs de 300 comptes AWS dans un seul compartiment Amazon S3, selon la structure de préfixes account_id/region/yyyy/MM/dd/. La table qui décrit les journaux dans AWS Glue Data Catalog compte désormais plusieurs millions de partitions. Un robot d'analyse AWS Glue qui ajoute les nouvelles partitions s'exécute pendant des heures chaque jour, et les requêtes Amazon Athena passent l'essentiel de leur temps à récupérer les métadonnées des partitions avant d'analyser la moindre donnée. L'équipe de sécurité n'interroge les journaux qu'avec Athena, et chaque requête filtre sur un ID de compte, une liste de Régions et une plage de dates. L'entreprise veut réduire la durée des requêtes et supprimer le travail de maintenance des partitions.
+
+    Quelle solution répond à ces exigences avec le MOINS de charge opérationnelle ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Replace the crawler with an AWS Lambda function that runs MSCK REPAIR TABLE in Athena every hour to register the new partitions."
+        fr: "Remplacer le robot d'analyse par une fonction AWS Lambda qui exécute MSCK REPAIR TABLE dans Athena toutes les heures pour enregistrer les nouvelles partitions."
+    - id: b
+      text:
+        en: "Configure partition projection with injected, enum and date types for the account ID, Region and day columns, and stop the crawler."
+        fr: "Configurer la projection de partitions avec les types injected, enum et date pour les colonnes ID de compte, Région et jour, puis arrêter le robot d'analyse."
+    - id: c
+      text:
+        en: "Rewrite the logs into one unpartitioned table of compressed Parquet files, and run an AWS Glue job every night to append the new data."
+        fr: "Réécrire les journaux dans une seule table non partitionnée de fichiers Parquet compressés, et exécuter chaque nuit une tâche AWS Glue qui ajoute les nouvelles données."
+    - id: d
+      text:
+        en: "Configure the crawler to crawl new folders only and run it every 15 minutes so that each run adds fewer partitions."
+        fr: "Configurer le robot d'analyse pour qu'il n'analyse que les nouveaux dossiers et l'exécuter toutes les 15 minutes afin que chaque exécution ajoute moins de partitions."
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      With partition projection, Athena calculates partition values and locations from table properties instead of calling GetPartitions on the Data Catalog, which removes the metadata bottleneck on highly partitioned tables. Partitions no longer need to be registered, so the crawler can stop. Projection works only for queries run through Athena, which matches this workload.
+    fr: |
+      Avec la projection de partitions, Athena calcule les valeurs et les emplacements des partitions à partir des propriétés de la table au lieu d'appeler GetPartitions sur Data Catalog, ce qui supprime le goulot d'étranglement des métadonnées sur les tables très partitionnées. Les partitions n'ont plus besoin d'être enregistrées : le robot d'analyse peut être arrêté. La projection ne fonctionne que pour les requêtes exécutées via Athena, ce qui correspond à cette charge de travail.
+  options:
+    a:
+      en: |
+        MSCK REPAIR TABLE still registers millions of partitions, so queries keep retrieving them from the catalog, and the company must now operate a scheduled function.
+      fr: |
+        MSCK REPAIR TABLE enregistre toujours des millions de partitions : les requêtes continuent de les récupérer dans le catalogue, et l'entreprise doit en plus exploiter une fonction planifiée.
+    c:
+      en: |
+        Without partitions, every query scans the whole data set instead of one account and date range, and a nightly job adds work and delays fresh data.
+      fr: |
+        Sans partitions, chaque requête analyse tout le jeu de données au lieu d'un compte et d'une plage de dates, et une tâche nocturne ajoute du travail et retarde les données récentes.
+    d:
+      en: |
+        Incremental crawls shorten crawler runs, but the catalog still holds millions of partitions that Athena must retrieve before each query.
+      fr: |
+        Les analyses incrémentielles raccourcissent les exécutions du robot, mais le catalogue contient toujours des millions de partitions qu'Athena doit récupérer avant chaque requête.
+references:
+  - title: Use partition projection with Amazon Athena
+    url: https://docs.aws.amazon.com/athena/latest/ug/partition-projection.html

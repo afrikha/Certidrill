@@ -1,0 +1,58 @@
+id: sapc03-1c-file-gateway-scheduled-refresh
+objective: "1.3.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany Manufacturing operates 40 plants. Each plant runs an Amazon S3 File Gateway on a local VMware host, and the gateway exposes an SMB file share backed by a plant-specific Amazon S3 bucket in us-east-1. Engineers save CAD files to the share, and a processing pipeline in AWS writes finished drawings directly to the same buckets by using the S3 API. Plant users report that the finished drawings appear in the share only after an administrator manually refreshes the cache. The drawings must become visible in the share within about 1 hour. Plant users must never wait while the gateway refreshes a directory that they open, and the solution must keep working when the pipeline writes thousands of objects in a burst. The operations team wants the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany Manufacturing exploite 40 usines. Chaque usine exécute une Amazon S3 File Gateway sur un hôte VMware local, et la passerelle expose un partage de fichiers SMB adossé à un compartiment Amazon S3 propre à l'usine dans us-east-1. Les ingénieurs enregistrent des fichiers CAO sur le partage, et un pipeline de traitement dans AWS écrit les plans finalisés directement dans les mêmes compartiments à l'aide de l'API S3. Les utilisateurs des usines signalent que les plans finalisés n'apparaissent dans le partage qu'après qu'un administrateur a actualisé manuellement le cache. Les plans doivent être visibles dans le partage en une heure environ. Les utilisateurs ne doivent jamais attendre pendant que la passerelle actualise un répertoire qu'ils ouvrent, et la solution doit continuer à fonctionner lorsque le pipeline écrit des milliers d'objets d'un coup. L'équipe d'exploitation veut le MOINS de charge opérationnelle.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Configure an S3 Event Notification on each bucket that invokes an AWS Lambda function, which calls the RefreshCache API for the plant's file share for every new object."
+        fr: "Configurer sur chaque compartiment une notification d'événement S3 qui appelle une fonction AWS Lambda, laquelle appelle l'API RefreshCache pour le partage de l'usine à chaque nouvel objet."
+    - id: b
+      text:
+        en: "Replace each file share with an AWS DataSync task that copies the finished drawings from the bucket to a plant NAS every hour, and have users open the drawings from the NAS."
+        fr: "Remplacer chaque partage de fichiers par une tâche AWS DataSync qui copie chaque heure les plans finalisés du compartiment vers un NAS de l'usine, et faire ouvrir les plans depuis ce NAS."
+    - id: c
+      text:
+        en: "Create an Amazon EventBridge scheduled rule that invokes an AWS Lambda function every 30 minutes, and have the function call the RefreshCache API for each plant's file share."
+        fr: "Créer une règle planifiée Amazon EventBridge qui appelle une fonction AWS Lambda toutes les 30 minutes, et faire appeler par la fonction l'API RefreshCache pour le partage de chaque usine."
+    - id: d
+      text:
+        en: "Turn on automated cache refresh from S3 with a TTL of 30 minutes on each file share so that the gateway refreshes a directory when it is accessed after the TTL expires."
+        fr: "Activer sur chaque partage l'actualisation automatique du cache depuis S3 avec une durée de vie (TTL) de 30 minutes, pour que la passerelle actualise un répertoire consulté après expiration du TTL."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      RefreshCache updates the gateway's cached inventory with objects that were written to the bucket outside the gateway. For regular refreshes, AWS recommends a scheduled rule that invokes a Lambda function at a fixed rate, typically every 30 minutes. The schedule runs in the background, so users are not blocked, and it does not depend on how many objects the pipeline writes.
+    fr: |-
+      RefreshCache met à jour l'inventaire en cache de la passerelle avec les objets écrits dans le compartiment en dehors de la passerelle. Pour des actualisations régulières, AWS recommande une règle planifiée qui appelle une fonction Lambda à fréquence fixe, généralement toutes les 30 minutes. La planification s'exécute en arrière-plan : les utilisateurs ne sont pas bloqués, et elle ne dépend pas du nombre d'objets écrits par le pipeline.
+  options:
+    a:
+      en: |-
+        AWS recommends against S3 event triggers for RefreshCache: one refresh must complete before another starts, and creating many objects in a burst degrades performance.
+      fr: |-
+        AWS déconseille les déclencheurs d'événements S3 pour RefreshCache : une actualisation doit se terminer avant qu'une autre ne commence, et la création de nombreux objets d'un coup dégrade les performances.
+    b:
+      en: |-
+        A new NAS, agent and task in every plant means 40 more storage systems to operate and changes how users work, which is far more overhead than refreshing the existing gateways.
+      fr: |-
+        Un nouveau NAS, un agent et une tâche dans chaque usine représentent 40 systèmes de stockage de plus à exploiter et changent les habitudes des utilisateurs : c'est bien plus lourd que d'actualiser les passerelles existantes.
+    d:
+      en: |-
+        TTL-based refresh runs when a user opens a directory whose TTL has expired, and SMB operations on that directory are blocked during the refresh, which violates the requirement that users never wait.
+      fr: |-
+        L'actualisation par TTL se déclenche lorsqu'un utilisateur ouvre un répertoire dont le TTL a expiré, et les opérations SMB sur ce répertoire sont bloquées pendant l'actualisation, ce qui viole l'exigence selon laquelle les utilisateurs n'attendent jamais.
+references:
+  - title: Refreshing Amazon S3 bucket object cache - AWS Storage Gateway
+    url: https://docs.aws.amazon.com/filegateway/latest/files3/refresh-cache.html

@@ -1,0 +1,44 @@
+id: sapc03-4b-dr-logical-corruption-global-table
+objective: "4.2.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A payments company runs a multi-Region active/active API in the us-east-1 and eu-west-1 Regions. Account balances are stored in an Amazon DynamoDB global table that uses multi-Region eventual consistency, with a replica in each Region. Amazon Route 53 latency-based records send each client to the nearest Region. The design meets an RTO of 5 minutes and an RPO of a few seconds for a Regional failure. During a risk review, auditors point out that a faulty deployment could write corrupted balance items, and the corruption would replicate to both Regions within seconds. The company now requires the ability to recover the balance data as it was at any second within the last 7 days. The solution must cause the LEAST change to the current architecture.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une société de paiement exécute une API multi-Régions actif/actif dans les Régions us-east-1 et eu-west-1. Les soldes des comptes sont stockés dans une table globale Amazon DynamoDB qui utilise la cohérence éventuelle multi-Régions, avec un réplica dans chaque Région. Des enregistrements Amazon Route 53 basés sur la latence envoient chaque client vers la Région la plus proche. La conception respecte un RTO de 5 minutes et un RPO de quelques secondes pour une panne régionale. Lors d'une revue des risques, les auditeurs signalent qu'un déploiement défectueux pourrait écrire des éléments de solde corrompus, et que la corruption serait répliquée dans les deux Régions en quelques secondes. L'entreprise exige désormais de pouvoir récupérer les données de solde telles qu'elles étaient à n'importe quelle seconde des 7 derniers jours. La solution doit entraîner le MOINS de changements possible dans l'architecture actuelle.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Add a third replica of the global table in us-west-2, keep that Region out of the Route 53 records, and use it as the clean recovery copy when corruption is detected.", fr: "Ajouter un troisième réplica de la table globale dans us-west-2, laisser cette Région hors des enregistrements Route 53, et l'utiliser comme copie de récupération saine en cas de corruption détectée." }
+    - id: b
+      text: { en: "Enable point-in-time recovery on the replicas with a recovery period of at least 7 days, and restore to a new table at the second before the corruption to repair items.", fr: "Activer la récupération à un instant dans le passé (PITR) sur les réplicas avec une période d'au moins 7 jours, et restaurer vers une nouvelle table à la seconde précédant la corruption pour réparer les éléments." }
+    - id: c
+      text: { en: "Recreate the global table in multi-Region strong consistency mode so that every write is confirmed in a second Region before it succeeds, and migrate the data into it.", fr: "Recréer la table globale en mode cohérence forte multi-Régions afin que chaque écriture soit confirmée dans une seconde Région avant de réussir, et y migrer les données." }
+    - id: d
+      text: { en: "Create an AWS Backup plan that backs up the table every hour with 7-day retention, and copy each recovery point to a backup vault in a third Region for isolation.", fr: "Créer un plan AWS Backup qui sauvegarde la table toutes les heures avec une rétention de 7 jours, et copier chaque point de récupération vers un coffre de sauvegarde d'une troisième Région pour l'isoler." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "Replication protects against the loss of a Region, not against bad writes, which replicate like any other write. DynamoDB point-in-time recovery provides per-second recovery points for a configurable period of 1 to 35 days and restores to a new table, from which the corrupted items can be repaired; it is enabled on each replica and changes nothing in the serving path."
+    fr: "La réplication protège contre la perte d'une Région, pas contre les écritures erronées, qui se répliquent comme toutes les autres. La récupération à un instant dans le passé de DynamoDB fournit des points de récupération à la seconde sur une période configurable de 1 à 35 jours et restaure vers une nouvelle table, à partir de laquelle on répare les éléments corrompus ; elle s'active sur chaque réplica et ne change rien au chemin de service."
+  options:
+    a:
+      en: "A third replica receives the corrupted writes within seconds like the others, so it holds no clean copy to recover from."
+      fr: "Un troisième réplica reçoit les écritures corrompues en quelques secondes comme les autres : il ne contient aucune copie saine dont repartir."
+    c:
+      en: "Strong consistency gives a zero RPO for a Regional failure, but corrupted writes are still committed in every Region; it also requires recreating the table, which is a large change."
+      fr: "La cohérence forte donne un RPO nul pour une panne régionale, mais les écritures corrompues restent validées dans toutes les Régions ; elle impose en outre de recréer la table, ce qui est un changement important."
+    d:
+      en: "Hourly backups can only restore the state at the top of each hour, not at any second, so up to an hour of valid changes could be lost."
+      fr: "Des sauvegardes horaires ne restaurent que l'état à chaque heure pile, pas à n'importe quelle seconde : jusqu'à une heure de modifications valides pourrait être perdue."
+references:
+  - title: Point-in-time recovery for DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Point-in-time-recovery.html
+  - title: How DynamoDB global tables work
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/V2globaltables_HowItWorks.html

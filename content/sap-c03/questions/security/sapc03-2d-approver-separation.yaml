@@ -1,0 +1,42 @@
+id: sapc03-2d-approver-separation
+objective: "2.5.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A trading firm lets an AI agent propose limit changes for its trading desks. An AWS Step Functions Standard workflow pauses each proposal on a .waitForTaskToken task and sends an email to the risk team; the email contains approve and reject links that embed the task token and call an Amazon API Gateway endpoint that invokes SendTaskSuccess or SendTaskFailure. An internal audit found that forwarded emails let people outside the risk team approve proposals, and that a trader approved a proposal that the trader had requested. The firm requires that only authenticated members of the risk-approvers group in its Amazon Cognito user pool can decide, that the requester can never approve their own proposal, and that every decision records the approver.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une société de trading laisse un agent IA proposer des modifications de limites pour ses tables de négociation. Un flux de travail AWS Step Functions Standard met chaque proposition en pause sur une tâche .waitForTaskToken et envoie un e-mail à l'équipe des risques ; l'e-mail contient des liens d'approbation et de rejet qui intègrent le jeton de tâche et appellent un point de terminaison Amazon API Gateway qui invoque SendTaskSuccess ou SendTaskFailure. Un audit interne a constaté que des e-mails transférés permettaient à des personnes extérieures à l'équipe des risques d'approuver des propositions, et qu'un trader avait approuvé une proposition qu'il avait lui-même demandée. La société exige que seuls les membres authentifiés du groupe risk-approvers de son groupe d'utilisateurs Amazon Cognito puissent décider, que le demandeur ne puisse jamais approuver sa propre proposition, et que chaque décision enregistre l'approbateur.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Keep the links but make them expire after 24 hours by setting TimeoutSeconds on the task, and enforce HTTPS and throttling on the API Gateway stage that receives the decisions.", fr: "Conserver les liens mais les faire expirer après 24 heures en définissant TimeoutSeconds sur la tâche, et imposer HTTPS et la limitation sur l'étape API Gateway qui reçoit les décisions." }
+    - id: b
+      text: { en: "Send the email through an Amazon SNS topic with a subscription filter policy so that only addresses of the risk-approvers group receive it, and keep the token in the links.", fr: "Envoyer l'e-mail par une rubrique Amazon SNS avec une politique de filtre d'abonnement afin que seules les adresses du groupe risk-approvers le reçoivent, et conserver le jeton dans les liens." }
+    - id: c
+      text: { en: "Add an IAM policy to the risk team's roles that allows states:SendTaskSuccess, and replace the email links with instructions to approve proposals from the Step Functions console.", fr: "Ajouter aux rôles de l'équipe des risques une politique IAM qui autorise states:SendTaskSuccess, et remplacer les liens de l'e-mail par des instructions pour approuver les propositions depuis la console Step Functions." }
+    - id: d
+      text: { en: "Email only a proposal ID, keep the token and requester in Amazon DynamoDB, and put a Cognito authorizer on the decision API, whose Lambda function checks the group and requester and returns the token with the approver.", fr: "N'envoyer par e-mail qu'un ID de proposition, conserver le jeton et le demandeur dans Amazon DynamoDB, et placer un mécanisme d'autorisation Cognito sur l'API de décision, dont la fonction Lambda vérifie le groupe et le demandeur puis renvoie le jeton avec l'approbateur." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Anyone who holds a task token can complete the task, so the token must not travel in email. Keeping it server-side and requiring a Cognito user pool token on the decision API authenticates the approver; the Lambda function then enforces group membership and separation of duties before it calls SendTaskSuccess or SendTaskFailure with the approver's identity in the output."
+    fr: "Quiconque détient un jeton de tâche peut terminer la tâche : le jeton ne doit pas circuler par e-mail. Le conserver côté serveur et exiger un jeton de groupe d'utilisateurs Cognito sur l'API de décision authentifie l'approbateur ; la fonction Lambda impose ensuite l'appartenance au groupe et la séparation des tâches avant d'appeler SendTaskSuccess ou SendTaskFailure avec l'identité de l'approbateur dans la sortie."
+  options:
+    a:
+      en: "A task timeout only limits how long the proposal waits; anyone with a forwarded link can still approve within that time, and nothing checks the approver's identity or the requester."
+      fr: "Un délai de tâche ne limite que la durée d'attente de la proposition ; toute personne disposant d'un lien transféré peut toujours approuver pendant ce temps, et rien ne vérifie l'identité de l'approbateur ni le demandeur."
+    b:
+      en: "Restricting who receives the email does not stop forwarding, and the links still carry a usable token; a trader in the group could also approve their own proposal."
+      fr: "Restreindre les destinataires de l'e-mail n'empêche pas le transfert, et les liens portent toujours un jeton utilisable ; un trader du groupe pourrait aussi approuver sa propre proposition."
+    c:
+      en: "The approvers are Cognito users rather than IAM principals, and an IAM permission on SendTaskSuccess cannot prevent a requester with that permission from approving their own proposal."
+      fr: "Les approbateurs sont des utilisateurs Cognito et non des principaux IAM, et une autorisation IAM sur SendTaskSuccess ne peut pas empêcher un demandeur qui la détient d'approuver sa propre proposition."
+references:
+  - title: Discover service integration patterns in Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html

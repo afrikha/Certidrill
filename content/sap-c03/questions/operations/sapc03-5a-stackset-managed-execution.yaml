@@ -1,0 +1,66 @@
+id: sapc03-5a-stackset-managed-execution
+objective: "5.1.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A platform team runs one service-managed StackSet that deploys IAM roles and AWS Config rules to 300 accounts. Several pipelines call UpdateStackInstances on this StackSet for different OUs and Regions, and automatic deployment adds new accounts every day. The pipelines often fail with OperationInProgressException because the StackSet runs one operation at a time, and engineers rerun them by hand. The team wants operations that don't conflict to run at the same time, and conflicting operations to wait and then run in the order they were requested. The team wants to keep a single StackSet and write no retry logic.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une équipe plateforme exploite un StackSet unique à autorisations gérées par le service qui déploie des rôles IAM et des règles AWS Config dans 300 comptes. Plusieurs pipelines appellent UpdateStackInstances sur ce StackSet pour différentes OU et Régions, et le déploiement automatique ajoute de nouveaux comptes chaque jour. Les pipelines échouent souvent avec OperationInProgressException car le StackSet exécute une seule opération à la fois, et des ingénieurs les relancent à la main. L'équipe veut que les opérations sans conflit s'exécutent en même temps, et que les opérations en conflit attendent puis s'exécutent dans l'ordre de leur demande. L'équipe veut conserver un StackSet unique et n'écrire aucune logique de nouvelle tentative.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Set the concurrency mode of every operation to SOFT_FAILURE_TOLERANCE and raise MaxConcurrentPercentage to 100, so that each operation finishes before the next pipeline calls the StackSet.
+        fr: |-
+          Définir le mode de simultanéité de chaque opération à SOFT_FAILURE_TOLERANCE et porter MaxConcurrentPercentage à 100, pour que chaque opération se termine avant que le pipeline suivant n'appelle le StackSet.
+    - id: b
+      text:
+        en: |-
+          Put an Amazon SQS FIFO queue in front of the StackSet, and have a Lambda function send the pipelines' operations to the StackSet one at a time when the previous one completes.
+        fr: |-
+          Placer une file d'attente Amazon SQS FIFO devant le StackSet, et faire envoyer par une fonction Lambda les opérations des pipelines au StackSet une par une, à la fin de la précédente.
+    - id: c
+      text:
+        en: |-
+          Update the StackSet to turn on managed execution by setting ManagedExecution to Active: true, so that StackSets queues conflicting operations and runs the others concurrently.
+        fr: |-
+          Mettre à jour le StackSet pour activer l'exécution gérée en définissant ManagedExecution à Active: true, afin que StackSets mette en file d'attente les opérations en conflit et exécute les autres simultanément.
+    - id: d
+      text:
+        en: |-
+          Turn off automatic deployment and add new accounts once a week with a scheduled pipeline, so that fewer operations compete with the pipelines for the StackSet.
+        fr: |-
+          Désactiver le déploiement automatique et ajouter les nouveaux comptes une fois par semaine avec un pipeline planifié, pour que moins d'opérations concurrencent les pipelines sur le StackSet.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      With managed execution active, CloudFormation performs non-conflicting StackSet operations concurrently and queues conflicting ones, starting them in request order when the earlier operations finish. Pipelines no longer get OperationInProgressException, and no custom queue or retry code is needed. AWS also recommends managed execution so that automatic deployments can run concurrently.
+    fr: |-
+      Avec l'exécution gérée active, CloudFormation exécute simultanément les opérations de StackSet sans conflit et met en file d'attente celles en conflit, qu'il démarre dans l'ordre des demandes à la fin des opérations précédentes. Les pipelines ne reçoivent plus d'OperationInProgressException, et aucune file d'attente ni code de nouvelle tentative personnalisé n'est nécessaire. AWS recommande aussi l'exécution gérée pour que les déploiements automatiques puissent s'exécuter simultanément.
+  options:
+    a:
+      en: |-
+        These preferences change concurrency across accounts inside one operation; they don't let two operations run on the StackSet at the same time, so the exceptions continue.
+      fr: |-
+        Ces préférences modifient la simultanéité entre comptes au sein d'une opération ; elles ne permettent pas à deux opérations de s'exécuter en même temps sur le StackSet : les exceptions continuent.
+    b:
+      en: |-
+        A custom queue serializes everything, including operations that could run in parallel, and it is the custom logic the team wants to avoid.
+      fr: |-
+        Une file d'attente personnalisée sérialise tout, y compris les opérations qui pourraient s'exécuter en parallèle, et c'est la logique personnalisée que l'équipe veut éviter.
+    d:
+      en: |-
+        Fewer operations reduce collisions but don't remove them, and new accounts would wait up to a week for the baseline.
+      fr: |-
+        Moins d'opérations réduisent les collisions sans les supprimer, et les nouveaux comptes attendraient jusqu'à une semaine la base de référence.
+references:
+  - title: ManagedExecution - AWS CloudFormation
+    url: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_ManagedExecution.html

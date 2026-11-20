@@ -1,0 +1,52 @@
+id: sapc03-2a-role-chaining-cli-refresh
+objective: "2.1.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany runs a nightly reconciliation job as an Amazon ECS task on AWS Fargate in a tools account. When the task starts, a shell script uses the task role to run aws sts assume-role once for a role in a finance account, exports the returned credentials as environment variables, and then runs AWS CLI commands against Amazon Athena, AWS Glue and Amazon S3 in the finance account for up to 4 hours. The job fails after one hour with an expired token error. An engineer raised the maximum session duration of the finance role to 12 hours and added --duration-seconds 14400 to the call, but now the assume-role call itself fails. The company must keep using temporary credentials and wants the smallest change to the job.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany exécute une tâche nocturne de rapprochement sous forme de tâche Amazon ECS sur AWS Fargate dans un compte d'outils. Au démarrage, un script shell utilise le rôle de tâche pour exécuter une seule fois aws sts assume-role sur un rôle d'un compte finance, exporte les informations d'identification obtenues dans des variables d'environnement, puis exécute pendant 4 heures au maximum des commandes AWS CLI sur Amazon Athena, AWS Glue et Amazon S3 dans le compte finance. La tâche échoue au bout d'une heure avec une erreur de jeton expiré. Un ingénieur a porté à 12 heures la durée de session maximale du rôle finance et a ajouté --duration-seconds 14400 à l'appel, mais c'est désormais l'appel assume-role lui-même qui échoue. L'entreprise doit continuer à utiliser des informations d'identification temporaires et veut la plus petite modification possible de la tâche.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Raise the maximum session duration of the ECS task role in the tools account to 12 hours as well, so that both roles in the chain allow a 4-hour session."
+        fr: "Porter aussi à 12 heures la durée de session maximale du rôle de tâche ECS dans le compte d'outils, afin que les deux rôles de la chaîne autorisent une session de 4 heures."
+    - id: b
+      text:
+        en: "Create an IAM user in the finance account, store its access keys in AWS Secrets Manager, and have the script read the keys at startup instead of assuming the role."
+        fr: "Créer un utilisateur IAM dans le compte finance, stocker ses clés d'accès dans AWS Secrets Manager, et faire lire les clés par le script au démarrage au lieu d'endosser le rôle."
+    - id: c
+      text:
+        en: "Remove the role assumption, and add resource-based policies to every Athena, AWS Glue and S3 resource in the finance account that grant access to the ECS task role."
+        fr: "Supprimer l'endossement de rôle, et ajouter à chaque ressource Athena, AWS Glue et S3 du compte finance des politiques basées sur les ressources qui accordent l'accès au rôle de tâche ECS."
+    - id: d
+      text:
+        en: "Define an AWS CLI profile with the finance role ARN and credential_source set to EcsContainer, run the commands with that profile, and keep a 1-hour session so the CLI renews it."
+        fr: "Définir un profil AWS CLI avec l'ARN du rôle finance et credential_source défini sur EcsContainer, exécuter les commandes avec ce profil, et conserver une session d'une heure que l'AWS CLI renouvelle."
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Assuming a role with the credentials of another role is role chaining, which limits the session to one hour regardless of the role's maximum session duration, and a request for more than one hour fails. With a role profile that uses the ECS container credentials as its source, the AWS CLI caches the role credentials and assumes the role again when they expire, so the 4-hour job keeps working."
+    fr: "Endosser un rôle avec les informations d'identification d'un autre rôle constitue un chaînage de rôles, qui limite la session à une heure quelle que soit la durée de session maximale du rôle, et une demande de plus d'une heure échoue. Avec un profil de rôle qui utilise les informations d'identification du conteneur ECS comme source, l'AWS CLI met en cache les informations d'identification du rôle et endosse de nouveau le rôle à leur expiration : la tâche de 4 heures continue de fonctionner."
+  options:
+    a:
+      en: "The one-hour limit of role chaining applies regardless of the maximum session duration configured on either role."
+      fr: "La limite d'une heure du chaînage de rôles s'applique quelle que soit la durée de session maximale configurée sur l'un ou l'autre rôle."
+    b:
+      en: "IAM user access keys are long-term credentials, which the company must not use."
+      fr: "Les clés d'accès d'un utilisateur IAM sont des informations d'identification à long terme, que l'entreprise ne doit pas utiliser."
+    c:
+      en: "Rewriting access as resource-based policies on every resource is a large change, and the company would have to confirm that every service the job uses supports resource-based policies."
+      fr: "Réécrire l'accès sous forme de politiques basées sur les ressources sur chaque ressource est une modification importante, et l'entreprise devrait vérifier que chaque service utilisé par la tâche prend en charge les politiques basées sur les ressources."
+references:
+  - title: IAM roles
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html
+  - title: Using an IAM role in the AWS CLI
+    url: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-role.html

@@ -1,0 +1,42 @@
+id: sapc03-4b-ecr-regional-images
+objective: "4.2.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A company runs a primary Amazon EKS cluster in the eu-central-1 Region and a standby EKS cluster in eu-west-1. Both clusters pull container images from a private Amazon ECR registry in eu-central-1, which holds two years of tagged images. During a DR test that blocked access to eu-central-1, new pods in eu-west-1 failed with image pull errors. The company requires the standby cluster to run any currently deployed release, including images that were pushed months ago, without depending on eu-central-1. The solution must have the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise exécute un cluster Amazon EKS principal dans la Région eu-central-1 et un cluster EKS de secours dans eu-west-1. Les deux clusters extraient les images de conteneurs d'un registre Amazon ECR privé d'eu-central-1, qui contient deux ans d'images balisées. Lors d'un test de reprise qui bloquait l'accès à eu-central-1, les nouveaux pods d'eu-west-1 ont échoué avec des erreurs d'extraction d'image. L'entreprise exige que le cluster de secours puisse exécuter toute version actuellement déployée, y compris des images poussées il y a des mois, sans dépendre d'eu-central-1. La solution doit présenter le MOINS de charge opérationnelle.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Create an ECR pull through cache rule in eu-west-1 whose upstream is the eu-central-1 registry, and point the standby manifests to the cache repository namespace.", fr: "Créer dans eu-west-1 une règle de cache d'extraction (pull through cache) ECR dont l'amont est le registre d'eu-central-1, et faire pointer les manifestes de secours vers l'espace de noms du cache." }
+    - id: b
+      text: { en: "Create interface VPC endpoints for Amazon ECR and a gateway endpoint for Amazon S3 in the eu-west-1 VPC so that the standby nodes reach the registry privately.", fr: "Créer des points de terminaison VPC d'interface pour Amazon ECR et un point de terminaison de passerelle pour Amazon S3 dans le VPC d'eu-west-1 afin que les nœuds de secours atteignent le registre de manière privée." }
+    - id: c
+      text: { en: "Add a registry replication rule from eu-central-1 to eu-west-1, run a replication backfill for the existing images, and point the standby manifests to the eu-west-1 registry.", fr: "Ajouter une règle de réplication de registre d'eu-central-1 vers eu-west-1, lancer un remplissage rétroactif (backfill) de réplication pour les images existantes, et faire pointer les manifestes de secours vers le registre d'eu-west-1." }
+    - id: d
+      text: { en: "Run a DaemonSet on the standby nodes that pre-pulls every image of the current releases, and increase the root volume size of the nodes to keep the images cached.", fr: "Exécuter sur les nœuds de secours un DaemonSet qui pré-extrait toutes les images des versions actuelles, et augmenter la taille du volume racine des nœuds pour garder les images en cache." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "ECR private image replication copies images to another Region under the same repository names, but only content pushed after replication is configured is replicated; replication backfill copies the preexisting images. Pointing the standby manifests to the eu-west-1 registry removes the runtime dependency on eu-central-1."
+    fr: "La réplication d'images privées ECR copie les images vers une autre Région sous les mêmes noms de référentiels, mais seul le contenu poussé après la configuration est répliqué ; le remplissage rétroactif (backfill) copie les images existantes. Faire pointer les manifestes de secours vers le registre d'eu-west-1 supprime la dépendance d'exécution envers eu-central-1."
+  options:
+    a:
+      en: "A pull through cache stores only images that have already been pulled through it; a cache miss still fetches from the upstream registry, which is unreachable when eu-central-1 fails."
+      fr: "Un cache d'extraction ne stocke que les images déjà extraites par son intermédiaire ; un défaut de cache va toujours chercher l'image dans le registre amont, injoignable quand eu-central-1 tombe en panne."
+    b:
+      en: "VPC endpoints give private access to the ECR endpoints of eu-west-1, but the images still exist only in eu-central-1."
+      fr: "Les points de terminaison VPC donnent un accès privé aux points de terminaison ECR d'eu-west-1, mais les images n'existent toujours que dans eu-central-1."
+    d:
+      en: "Images cached on nodes disappear when nodes are replaced or scaled out during a failover, and maintaining the pre-pull list is ongoing work."
+      fr: "Les images en cache sur les nœuds disparaissent quand les nœuds sont remplacés ou ajoutés lors d'un basculement, et maintenir la liste de pré-extraction est un travail permanent."
+references:
+  - title: Private image replication in Amazon ECR
+    url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/replication.html

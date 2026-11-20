@@ -1,0 +1,68 @@
+id: sapc03-1a-idempotency-late-duplicates
+objective: "1.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A retail company has an order service in one AWS account that publishes OrderPlaced events to an Amazon EventBridge custom event bus in a payments account. A rule on the bus invokes an AWS Lambda function that charges the customer's card through a third-party payment API. When the order service times out, it retries the publish call, and the duplicate event sometimes arrives up to 2 hours after the original. The function can also occasionally receive the same event more than once. Finance found several double charges last month. Every event contains a unique orderId that the order service generates. The company must prevent double charges without losing any order and with the LEAST changes to the order service.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de distribution dispose, dans un compte AWS, d'un service de commandes qui publie des événements OrderPlaced sur un bus d'événements personnalisé Amazon EventBridge d'un compte de paiements. Une règle du bus appelle une fonction AWS Lambda qui débite la carte du client au moyen d'une API de paiement tierce. Quand le service de commandes dépasse son délai d'attente, il relance l'appel de publication, et l'événement en double arrive parfois jusqu'à 2 heures après l'original. La fonction peut aussi recevoir occasionnellement le même événement plusieurs fois. Le service financier a constaté plusieurs doubles débits le mois dernier. Chaque événement contient un orderId unique généré par le service de commandes. L'entreprise doit empêcher les doubles débits sans perdre aucune commande et avec le MOINS de modifications possible du service de commandes.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Make the function idempotent on orderId: record each orderId in an Amazon DynamoDB table with a conditional write before the charge, store the result after it, return it for repeats, and expire the records with TTL after 7 days.
+        fr: |-
+          Rendre la fonction idempotente sur l'orderId : enregistrer chaque orderId dans une table Amazon DynamoDB par une écriture conditionnelle avant le débit, stocker le résultat ensuite, le renvoyer pour les répétitions et faire expirer les enregistrements par TTL après 7 jours.
+    - id: b
+      text:
+        en: |-
+          Change the rule target to an Amazon SQS FIFO queue with content-based deduplication enabled and the orderId as the message group ID, and configure the queue as the event source of the function.
+        fr: |-
+          Remplacer la cible de la règle par une file d'attente Amazon SQS FIFO avec la déduplication basée sur le contenu activée et l'orderId comme ID de groupe de messages, et configurer la file d'attente comme source d'événements de la fonction.
+    - id: c
+      text:
+        en: |-
+          Set the retry policy of the rule target to zero retry attempts so that EventBridge never redelivers an event, and configure an Amazon SQS dead-letter queue on the target to keep the failed events.
+        fr: |-
+          Régler la politique de relance de la cible de la règle sur zéro tentative pour qu'EventBridge ne relivre jamais un événement, et configurer une file d'attente de lettres mortes Amazon SQS sur la cible pour conserver les événements en échec.
+    - id: d
+      text:
+        en: |-
+          Replace the Lambda target with an AWS Step Functions Express workflow that is started asynchronously by the rule and that calls the payment API through an HTTPS task with a retry policy.
+        fr: |-
+          Remplacer la cible Lambda par un flux de travail Express AWS Step Functions démarré de manière asynchrone par la règle, qui appelle l'API de paiement au moyen d'une tâche HTTPS avec une politique de relance.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      Only the consumer can recognize a business-level duplicate that arrives hours later, so the function must be idempotent on the orderId. A DynamoDB conditional write succeeds only if no item with that key exists, so a repeated order finds the existing record and returns the stored result instead of charging again, and TTL removes old records without consuming write capacity. The order service does not change, and no order is dropped.
+    fr: |-
+      Seul le consommateur peut reconnaître un doublon métier qui arrive des heures plus tard : la fonction doit donc être idempotente sur l'orderId. Une écriture conditionnelle DynamoDB ne réussit que si aucun élément ne possède cette clé ; une commande répétée trouve donc l'enregistrement existant et renvoie le résultat stocké au lieu de débiter à nouveau, et le TTL supprime les anciens enregistrements sans consommer de capacité d'écriture. Le service de commandes ne change pas, et aucune commande n'est abandonnée.
+  options:
+    b:
+      en: |-
+        SQS FIFO deduplication works only within a 5-minute deduplication interval, so a duplicate that arrives up to 2 hours later is accepted and the card is charged again.
+      fr: |-
+        La déduplication SQS FIFO ne fonctionne que pendant un intervalle de déduplication de 5 minutes : un doublon qui arrive jusqu'à 2 heures plus tard est accepté et la carte est débitée à nouveau.
+    c:
+      en: |-
+        Disabling retries does not stop the duplicates that the order service publishes, and events that fail on a transient error go to the dead-letter queue instead of being processed, so orders can be lost.
+      fr: |-
+        Désactiver les relances n'arrête pas les doublons publiés par le service de commandes, et les événements qui échouent sur une erreur passagère vont dans la file de lettres mortes au lieu d'être traités : des commandes peuvent être perdues.
+    d:
+      en: |-
+        Asynchronous Express workflows use at-least-once execution semantics and have no notion of the business key, so duplicate events still start duplicate charges.
+      fr: |-
+        Les flux de travail Express asynchrones appliquent une sémantique d'exécution au moins une fois et n'ont aucune notion de la clé métier : les événements en double déclenchent toujours des débits en double.
+references:
+  - title: Working with items and attributes in DynamoDB - Amazon DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html
+  - title: Exactly-once processing in Amazon SQS - Amazon Simple Queue Service
+    url: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-exactly-once-processing.html

@@ -1,0 +1,68 @@
+id: sapc03-5c-apigw-usage-plan-partners
+objective: "5.4.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A logistics company exposes a tracking REST API on Amazon API Gateway, backed by AWS Lambda and an Aurora PostgreSQL cluster, to 300 partners. Each partner calls the API with its own API key, and about 200 of the partners connect through the same two integration platforms, which share a small set of egress IP addresses. After a recent outage, the partners' clients retried aggressively and overloaded the database again during recovery. The company wants each partner to be throttled at 50 requests per second with a burst of 100, the whole stage to accept no more than 2,000 requests per second, and throttled clients to receive HTTP 429 responses so that their SDKs back off. The company wants a native solution with the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de logistique expose à 300 partenaires une API REST de suivi sur Amazon API Gateway, adossée à AWS Lambda et à un cluster Aurora PostgreSQL. Chaque partenaire appelle l'API avec sa propre clé d'API, et environ 200 des partenaires se connectent via les deux mêmes plateformes d'intégration, qui partagent un petit ensemble d'adresses IP de sortie. Après une panne récente, les clients des partenaires ont réessayé de façon agressive et ont de nouveau surchargé la base de données pendant la reprise. L'entreprise veut que chaque partenaire soit limité à 50 requêtes par seconde avec une rafale de 100, que l'étape entière n'accepte pas plus de 2 000 requêtes par seconde, et que les clients limités reçoivent des réponses HTTP 429 afin que leurs SDK appliquent un backoff. L'entreprise veut une solution native avec le MOINS de charge opérationnelle.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Associate the partners' API keys with a usage plan that sets a throttle of 50 requests per second with a burst of 100, and set the stage's default throttling to 2,000 requests per second.
+        fr: |-
+          Associer les clés d'API des partenaires à un plan d'utilisation qui définit une limitation de 50 requêtes par seconde avec une rafale de 100, et définir la limitation par défaut de l'étape à 2 000 requêtes par seconde.
+    - id: b
+      text:
+        en: |-
+          Associate an AWS WAF web ACL with the stage that contains a rate-based rule aggregated on the source IP address, with a limit equivalent to 50 requests per second.
+        fr: |-
+          Associer à l'étape une ACL web AWS WAF contenant une règle basée sur le débit agrégée sur l'adresse IP source, avec une limite équivalente à 50 requêtes par seconde.
+    - id: c
+      text:
+        en: |-
+          Set a reserved concurrency on the Lambda function equal to the database's connection capacity, so that excess requests are throttled before they reach Aurora.
+        fr: |-
+          Définir sur la fonction Lambda une concurrence réservée égale à la capacité de connexions de la base de données, afin que les requêtes excédentaires soient limitées avant d'atteindre Aurora.
+    - id: d
+      text:
+        en: |-
+          Change the integration so that API Gateway sends every request to an Amazon SQS queue, and have the Lambda function process the queue at a fixed maximum concurrency.
+        fr: |-
+          Modifier l'intégration pour qu'API Gateway envoie chaque requête dans une file d'attente Amazon SQS, et faire traiter la file par la fonction Lambda avec une concurrence maximale fixe.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      A usage plan sets the request rate at which API Gateway starts throttling for each API key, so every partner gets its own rate and burst limit, and stage-level throttling caps the total. Throttled requests receive 429 Too Many Requests, which AWS SDKs and well-behaved clients treat as a signal to back off.
+    fr: |-
+      Un plan d'utilisation définit le débit de requêtes à partir duquel API Gateway commence à limiter chaque clé d'API : chaque partenaire obtient ses propres limites de débit et de rafale, et la limitation au niveau de l'étape plafonne le total. Les requêtes limitées reçoivent 429 Too Many Requests, que les SDK AWS et les clients bien conçus traitent comme un signal de backoff.
+  options:
+    b:
+      en: |-
+        Two hundred partners share the same egress IP addresses, so an IP-based limit throttles them together instead of each partner separately, and the rule doesn't cap the stage at 2,000 requests per second.
+      fr: |-
+        Deux cents partenaires partagent les mêmes adresses IP de sortie : une limite par IP les limite ensemble au lieu de limiter chaque partenaire séparément, et la règle ne plafonne pas l'étape à 2 000 requêtes par seconde.
+    c:
+      en: |-
+        Reserved concurrency limits the function as a whole, not each partner, and Lambda throttling of a synchronous integration doesn't give the per-partner 429 behavior that was asked for.
+      fr: |-
+        La concurrence réservée limite la fonction dans son ensemble, pas chaque partenaire, et la limitation Lambda d'une intégration synchrone ne fournit pas le comportement 429 par partenaire demandé.
+    d:
+      en: |-
+        Turning a synchronous tracking API into a queue changes the API contract, and it limits total processing, not each partner's request rate.
+      fr: |-
+        Transformer une API de suivi synchrone en file d'attente change le contrat de l'API, et limite le traitement total, pas le débit de requêtes de chaque partenaire.
+references:
+  - title: "Usage plans and API keys for REST APIs in API Gateway - Amazon API Gateway"
+    url: https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-usage-plans.html
+  - title: "Using rate-based rule statements in AWS WAF"
+    url: https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-type-rate-based.html

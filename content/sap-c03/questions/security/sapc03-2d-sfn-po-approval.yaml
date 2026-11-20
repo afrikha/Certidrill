@@ -1,0 +1,44 @@
+id: sapc03-2d-sfn-po-approval
+objective: "2.5.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A manufacturer is adding an AI procurement agent that drafts purchase orders with an Amazon Bedrock model from stock levels and supplier quotes. Purchase orders under 10,000 USD may be sent to the ERP system automatically. Orders of 10,000 USD or more must be approved or rejected by a finance manager in the company's internal approval portal before the ERP call, and managers sometimes take up to 6 business days to decide. The workflow must resume as soon as the manager decides, must not run or pay for compute while it waits, and must record which manager made each decision. Each order must be processed exactly once.
+
+    Which solution will meet these requirements?
+  fr: |
+    Un fabricant ajoute un agent d'achats IA qui rédige des bons de commande avec un modèle Amazon Bedrock à partir des niveaux de stock et des devis fournisseurs. Les bons de commande de moins de 10 000 USD peuvent être envoyés automatiquement au système ERP. Les commandes de 10 000 USD ou plus doivent être approuvées ou rejetées par un responsable financier dans le portail d'approbation interne de l'entreprise avant l'appel à l'ERP, et les responsables mettent parfois jusqu'à 6 jours ouvrés pour décider. Le flux de travail doit reprendre dès que le responsable décide, ne doit ni exécuter ni payer de calcul pendant l'attente, et doit enregistrer quel responsable a pris chaque décision. Chaque commande doit être traitée exactement une fois.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Use an AWS Step Functions Express workflow with a Choice state on the amount, and a Lambda task with .waitForTaskToken that stores the task token in the portal's Amazon DynamoDB table for orders of 10,000 USD or more.", fr: "Utiliser un flux de travail AWS Step Functions Express avec un état Choice sur le montant, et une tâche Lambda .waitForTaskToken qui stocke le jeton de tâche dans la table Amazon DynamoDB du portail pour les commandes de 10 000 USD ou plus." }
+    - id: b
+      text: { en: "Use an AWS Step Functions Standard workflow with a Choice state on the amount, and for large orders a Wait state of 6 days followed by a task that reads the manager's decision from the portal's Amazon DynamoDB table.", fr: "Utiliser un flux de travail AWS Step Functions Standard avec un état Choice sur le montant et, pour les grosses commandes, un état Wait de 6 jours suivi d'une tâche qui lit la décision du responsable dans la table Amazon DynamoDB du portail." }
+    - id: c
+      text: { en: "Use an AWS Step Functions Standard workflow with a Choice state on the amount, and for large orders a Lambda task with .waitForTaskToken whose token the portal returns with SendTaskSuccess or SendTaskFailure and the manager's identity.", fr: "Utiliser un flux de travail AWS Step Functions Standard avec un état Choice sur le montant et, pour les grosses commandes, une tâche Lambda .waitForTaskToken dont le portail renvoie le jeton avec SendTaskSuccess ou SendTaskFailure et l'identité du responsable." }
+    - id: d
+      text: { en: "Use an AWS Step Functions Standard workflow that invokes an AWS Lambda function for large orders, and have the function query the portal's API every 5 minutes until the manager's decision is available.", fr: "Utiliser un flux de travail AWS Step Functions Standard qui appelle une fonction AWS Lambda pour les grosses commandes, et faire interroger l'API du portail par la fonction toutes les 5 minutes jusqu'à ce que la décision du responsable soit disponible." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "In a Standard workflow, a .waitForTaskToken task pauses until an external process returns the task token with SendTaskSuccess or SendTaskFailure, for up to the one-year execution quota and with no compute running. A Choice state sends only large orders to the approval branch, the portal can include the manager's identity in the task output, and Standard workflows have exactly-once execution."
+    fr: "Dans un flux de travail Standard, une tâche .waitForTaskToken se met en pause jusqu'à ce qu'un processus externe renvoie le jeton de tâche avec SendTaskSuccess ou SendTaskFailure, dans la limite du quota d'exécution d'un an et sans calcul en cours. Un état Choice n'envoie que les grosses commandes vers la branche d'approbation, le portail peut inclure l'identité du responsable dans la sortie de la tâche, et les flux de travail Standard ont une exécution exactement une fois."
+  options:
+    a:
+      en: "Express workflows support neither the .waitForTaskToken pattern nor executions longer than 5 minutes, and they have at-least-once or at-most-once semantics."
+      fr: "Les flux de travail Express ne prennent en charge ni le modèle .waitForTaskToken ni des exécutions de plus de 5 minutes, et ont une sémantique au moins une fois ou au plus une fois."
+    b:
+      en: "A fixed 6-day wait delays every approved order even when the manager decides in an hour, and fails orders whose decision comes later; the workflow does not resume when the manager decides."
+      fr: "Une attente fixe de 6 jours retarde chaque commande approuvée même si le responsable décide en une heure, et échoue pour les décisions plus tardives ; le flux ne reprend pas lorsque le responsable décide."
+    d:
+      en: "Polling keeps invoking compute during the whole wait, which the requirement forbids, and adds up to 5 minutes of delay after each decision."
+      fr: "L'interrogation périodique sollicite du calcul pendant toute l'attente, ce que l'exigence interdit, et ajoute jusqu'à 5 minutes de délai après chaque décision."
+references:
+  - title: Discover service integration patterns in Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html
+  - title: Choosing workflow type in Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html

@@ -1,0 +1,58 @@
+id: sapc03-1c-sqs-max-concurrency-legacy
+objective: "1.3.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An e-commerce company is modernizing its order intake. A legacy inventory system in the company's data center accepts at most 20 concurrent requests and expects a fixed-width text payload. During flash sales, the new web frontend submits up to 3,000 orders per second for a few minutes. Every order must eventually reach the inventory system, even during bursts, and the frontend needs only an acknowledgment that the order was accepted. The company wants a serverless design that transforms each order into the fixed-width format.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de commerce électronique modernise sa prise de commandes. Un système d'inventaire hérité, dans le centre de données de l'entreprise, accepte au plus 20 requêtes simultanées et attend une charge utile texte à largeur fixe. Pendant les ventes flash, le nouveau frontend web soumet jusqu'à 3 000 commandes par seconde pendant quelques minutes. Chaque commande doit finir par atteindre le système d'inventaire, même pendant les pics, et le frontend n'a besoin que d'un accusé de réception indiquant que la commande a été acceptée. L'entreprise veut une conception sans serveur qui transforme chaque commande au format à largeur fixe.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Have API Gateway invoke an AWS Lambda function synchronously that transforms each order and calls the inventory system, and set the function's reserved concurrency to 20."
+        fr: "Faire appeler de façon synchrone par API Gateway une fonction AWS Lambda qui transforme chaque commande et appelle le système d'inventaire, et définir la simultanéité réservée de la fonction à 20."
+    - id: b
+      text:
+        en: "Have API Gateway send each order to an Amazon SQS queue with a dead-letter queue, and set the reserved concurrency of the consuming Lambda function to 20."
+        fr: "Faire envoyer chaque commande par API Gateway dans une file d'attente Amazon SQS dotée d'une file de lettres mortes, et définir à 20 la simultanéité réservée de la fonction Lambda consommatrice."
+    - id: c
+      text:
+        en: "Have API Gateway start an AWS Step Functions Express workflow for each order, with a task that transforms the order and calls the inventory system."
+        fr: "Faire démarrer par API Gateway un workflow AWS Step Functions Express pour chaque commande, avec une tâche qui transforme la commande et appelle le système d'inventaire."
+    - id: d
+      text:
+        en: "Have API Gateway send each order to an Amazon SQS queue, and set a maximum concurrency of 20 on the Lambda event source mapping that transforms and forwards orders."
+        fr: "Faire envoyer chaque commande par API Gateway dans une file Amazon SQS, et définir une simultanéité maximale de 20 sur le mappage de source d'événement Lambda qui transforme et transmet les commandes."
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      The SQS queue absorbs the burst and lets the frontend receive an immediate acknowledgment. Maximum concurrency on the SQS event source mapping caps the concurrent invocations that the queue can start, so at most 20 requests reach the inventory system while the remaining messages wait in the queue.
+    fr: |-
+      La file SQS absorbe le pic et permet au frontend de recevoir immédiatement un accusé de réception. La simultanéité maximale du mappage de source d'événement SQS plafonne les appels simultanés que la file peut lancer : au plus 20 requêtes atteignent le système d'inventaire, et les autres messages attendent dans la file.
+  options:
+    a:
+      en: |-
+        A synchronous path throttled at 20 concurrent executions rejects the excess requests with errors instead of buffering them, so orders are lost during bursts.
+      fr: |-
+        Un chemin synchrone limité à 20 exécutions simultanées rejette les requêtes excédentaires avec des erreurs au lieu de les mettre en mémoire tampon : des commandes sont perdues pendant les pics.
+    b:
+      en: |-
+        With reserved concurrency alone, the event source mapping keeps scaling its polling and its invocations are throttled; throttled messages return to the queue and can move to the dead-letter queue after the maximum receives, so some orders never reach the inventory system.
+      fr: |-
+        Avec la seule simultanéité réservée, le mappage de source d'événement continue d'augmenter son interrogation et ses appels sont limités ; les messages limités reviennent dans la file et peuvent passer dans la file de lettres mortes après le nombre maximal de réceptions : certaines commandes n'atteignent jamais le système d'inventaire.
+    c:
+      en: |-
+        Express workflows start for every request without a concurrency limit, so a burst sends thousands of concurrent calls to the inventory system.
+      fr: |-
+        Les workflows Express démarrent pour chaque requête sans limite de simultanéité : un pic envoie des milliers d'appels simultanés au système d'inventaire.
+references:
+  - title: Configuring scaling behavior for SQS event source mappings - AWS Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-scaling.html

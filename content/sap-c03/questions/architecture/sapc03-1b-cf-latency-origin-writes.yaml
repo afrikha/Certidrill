@@ -1,0 +1,52 @@
+id: sapc03-1b-cf-latency-origin-writes
+objective: "1.1.11"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    AnyCompany runs an order API in the us-east-1 and eu-west-1 Regions, backed by an active-active Amazon DynamoDB global table. In each Region, the API is exposed through an Amazon API Gateway Regional custom domain named api-origin.example.com, with the same ACM certificate name. Users worldwide reach the API through one Amazon CloudFront distribution that also serves cached catalog content. Most API calls are POST and PUT requests. Each request must reach the closest healthy Region, and if a Region becomes unhealthy, new requests must go to the other Region within about one minute without any client change.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany exécute une API de commandes dans les Régions us-east-1 et eu-west-1, adossée à une table globale Amazon DynamoDB en mode actif-actif. Dans chaque Région, l'API est exposée via un domaine personnalisé régional Amazon API Gateway nommé api-origin.example.com, avec le même nom de certificat ACM. Les utilisateurs du monde entier atteignent l'API via une seule distribution Amazon CloudFront qui sert aussi du contenu de catalogue mis en cache. La plupart des appels d'API sont des requêtes POST et PUT. Chaque requête doit atteindre la Région saine la plus proche et, si une Région devient non saine, les nouvelles requêtes doivent aller vers l'autre Région en une minute environ, sans aucune modification des clients.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Configure a CloudFront origin group with the us-east-1 API as the primary origin and the eu-west-1 API as the secondary origin, with failover on the 500, 502, 503 and 504 status codes."
+        fr: "Configurer un groupe d'origines CloudFront avec l'API us-east-1 comme origine principale et l'API eu-west-1 comme origine secondaire, avec basculement sur les codes d'état 500, 502, 503 et 504."
+    - id: b
+      text:
+        en: "Create Route 53 failover alias records for api-origin.example.com with us-east-1 as primary and eu-west-1 as secondary, health checks on both, and this name as the CloudFront origin domain."
+        fr: "Créer pour api-origin.example.com des enregistrements d'alias Route 53 de basculement avec us-east-1 comme principal et eu-west-1 comme secondaire, des vérifications de l'état sur les deux, et ce nom comme domaine d'origine CloudFront."
+    - id: c
+      text:
+        en: "Create Route 53 latency alias records for api-origin.example.com that point to each Regional custom domain with health checks, and use this name as the origin domain of the CloudFront distribution."
+        fr: "Créer pour api-origin.example.com des enregistrements d'alias Route 53 de latence qui pointent vers chaque domaine personnalisé régional avec des vérifications de l'état, et utiliser ce nom comme domaine d'origine de la distribution CloudFront."
+    - id: d
+      text:
+        en: "Associate a Lambda@Edge function with the viewer request event that reads the CloudFront-Viewer-Country header and rewrites the request origin to the API in the Region closest to that country."
+        fr: "Associer à l'événement de requête de l'utilisateur une fonction Lambda@Edge qui lit l'en-tête CloudFront-Viewer-Country et réécrit l'origine de la requête vers l'API de la Région la plus proche de ce pays."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "With latency records, Route 53 answers the DNS query from each CloudFront edge with the Region that gives the lowest latency, and health checks remove an unhealthy Region from the answers, so every HTTP method fails over. Using the same custom domain name and certificate in both Regions lets CloudFront connect to either origin."
+    fr: "Avec des enregistrements de latence, Route 53 répond à la requête DNS de chaque emplacement périphérique CloudFront avec la Région offrant la latence la plus faible, et les vérifications de l'état retirent une Région non saine des réponses : toutes les méthodes HTTP basculent. Le même nom de domaine personnalisé et le même certificat dans les deux Régions permettent à CloudFront de se connecter à l'une ou l'autre origine."
+  options:
+    a:
+      en: "CloudFront origin failover works only for GET, HEAD and OPTIONS requests, so POST and PUT requests never fail over, and all traffic goes to us-east-1 first."
+      fr: "Le basculement d'origine CloudFront ne fonctionne que pour les requêtes GET, HEAD et OPTIONS : les requêtes POST et PUT ne basculent jamais, et tout le trafic va d'abord vers us-east-1."
+    b:
+      en: "Failover routing sends all traffic to us-east-1 while it is healthy, so European users do not reach the closest Region."
+      fr: "Le routage de basculement envoie tout le trafic vers us-east-1 tant qu'il est sain : les utilisateurs européens n'atteignent pas la Région la plus proche."
+    d:
+      en: "CloudFront headers are not available to Lambda@Edge viewer request functions, and a static country mapping ignores the health of each Region."
+      fr: "Les en-têtes CloudFront ne sont pas disponibles pour les fonctions Lambda@Edge de requête de l'utilisateur, et une correspondance statique par pays ignore l'état de santé de chaque Région."
+references:
+  - title: Optimize high availability with CloudFront origin failover
+    url: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/high_availability_origin_failover.html
+  - title: Latency-based routing
+    url: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html
