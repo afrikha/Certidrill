@@ -54,13 +54,13 @@ ECS and EKS run containers either on EC2 instances that you manage (full control
 | --- | --- | --- |
 | Unit | A function (your code) | A container (task or pod) |
 | Triggered by | Events: S3 uploads, API Gateway requests, SQS messages, schedules, DynamoDB streams | ECS or EKS, which start and keep tasks running |
-| Duration | Up to 15 minutes per invocation | Long-running services or jobs |
+| Duration | Up to 30 minutes on the current Lambda quotas page (older pages and the FAQ still say 15 minutes; 90 minutes for some Lambda Managed Instances invocations) | Long-running services or jobs |
 | Billing | Per request and per millisecond of duration, by memory allocated | For the vCPU and memory that the tasks request, while they run |
 | Typical use | Resize an image after upload, process a message, back end of an API | Web services and APIs packaged as containers |
 
 Lambda memory ranges from 128 MB to 10,240 MB; CPU is allocated in proportion to memory.
 
-> **Exam trap.** A job that runs for an hour can't be a single Lambda invocation (15-minute limit): choose Fargate, AWS Batch or EC2.
+> **Exam trap.** A job that runs for several hours can't be a single Lambda invocation (the maximum is counted in minutes): choose Fargate, AWS Batch or EC2.
 
 <!-- section: auto-scaling | objectives: 3.3.5 -->
 ## Auto scaling provides elasticity
@@ -108,5 +108,5 @@ Purposes:
 - EC2 for full control, Lightsail for simple fixed-price servers, Elastic Beanstalk to deploy code, Batch for batch jobs.
 - Instance families: general purpose (M, T), compute (C), memory (R, X), storage (I, D), accelerated (P, G, Inf, Trn), HPC.
 - ECS (AWS orchestration), EKS (Kubernetes), ECR (images), Fargate (serverless containers).
-- Lambda: event-driven functions, 15-minute maximum, billed per request and millisecond.
+- Lambda: event-driven functions that run for minutes, not hours, billed per request and millisecond.
 - Auto Scaling groups (minimum, desired, maximum) give elasticity; load balancers spread traffic to healthy targets across AZs.

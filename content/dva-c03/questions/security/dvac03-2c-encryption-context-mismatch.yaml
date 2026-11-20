@@ -1,0 +1,70 @@
+id: dvac03-2c-encryption-context-mismatch
+objective: "2.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A developer stores payment tokens for a multi-tenant application. The application encrypts each token with a symmetric KMS key and decrypts it later in another function:
+
+    ```python
+    kms = boto3.client("kms")
+
+    enc = kms.encrypt(KeyId="alias/orders", Plaintext=token,
+                      EncryptionContext={"tenant": tenant_id, "app": "orders"})
+    blob = enc["CiphertextBlob"]
+
+    # in the reader function
+    dec = kms.decrypt(CiphertextBlob=blob, KeyId="alias/orders")
+    ```
+
+    The decrypt call fails with InvalidCiphertextException. The IAM role of the reader function allows kms:Decrypt on the key.
+
+    Which change will fix the decrypt call?
+  fr: |
+    Un développeur stocke des jetons de paiement pour une application multilocataire. L'application chiffre chaque jeton avec une clé KMS symétrique et le déchiffre plus tard dans une autre fonction :
+
+    ```python
+    kms = boto3.client("kms")
+
+    enc = kms.encrypt(KeyId="alias/orders", Plaintext=token,
+                      EncryptionContext={"tenant": tenant_id, "app": "orders"})
+    blob = enc["CiphertextBlob"]
+
+    # in the reader function
+    dec = kms.decrypt(CiphertextBlob=blob, KeyId="alias/orders")
+    ```
+
+    L'appel de déchiffrement échoue avec InvalidCiphertextException. Le rôle IAM de la fonction de lecture autorise kms:Decrypt sur la clé.
+
+    Quelle modification corrige l'appel de déchiffrement ?
+body:
+  options:
+    - id: a
+      text: { en: "Remove the KeyId parameter from the decrypt call so that AWS KMS reads the key from the ciphertext metadata.", fr: "Retirer le paramètre KeyId de l'appel decrypt afin qu'AWS KMS lise la clé dans les métadonnées du texte chiffré." }
+    - id: b
+      text: { en: "Pass EncryptionAlgorithm=\"RSAES_OAEP_SHA_256\" to the decrypt call so that it uses the same algorithm as the encrypt call.", fr: "Passer EncryptionAlgorithm=\"RSAES_OAEP_SHA_256\" à l'appel decrypt pour qu'il utilise le même algorithme que l'appel encrypt." }
+    - id: c
+      text: { en: "Add kms:GenerateDataKey on the key to the identity-based policy of the IAM role of the reader function.", fr: "Ajouter kms:GenerateDataKey sur la clé à la politique basée sur l'identité du rôle IAM de la fonction de lecture." }
+    - id: d
+      text: { en: "Pass the same EncryptionContext map, with the same tenant and app values, to the decrypt call.", fr: "Passer à l'appel decrypt le même dictionnaire EncryptionContext, avec les mêmes valeurs tenant et app." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "The encryption context is additional authenticated data that is cryptographically bound to the ciphertext. A decrypt request must supply exactly the same context, compared case-sensitively, or AWS KMS rejects it with InvalidCiphertextException. The context is not secret and appears in AWS CloudTrail logs, so tenant identifiers are acceptable but sensitive values are not."
+    fr: "Le contexte de chiffrement est une donnée authentifiée supplémentaire liée cryptographiquement au texte chiffré. Une requête de déchiffrement doit fournir exactement le même contexte, comparé en respectant la casse, sinon AWS KMS la rejette avec InvalidCiphertextException. Le contexte n'est pas secret et apparaît dans les journaux AWS CloudTrail : des identifiants de locataire conviennent, mais pas des valeurs sensibles."
+  options:
+    a:
+      en: "KeyId is optional for symmetric keys, but removing it changes nothing here: the request still lacks the encryption context used at encryption time."
+      fr: "KeyId est facultatif pour les clés symétriques, mais le retirer ne change rien ici : la requête ne contient toujours pas le contexte de chiffrement utilisé lors du chiffrement."
+    b:
+      en: "RSAES_OAEP_SHA_256 applies only to asymmetric KMS keys; the symmetric key uses SYMMETRIC_DEFAULT, which is the default."
+      fr: "RSAES_OAEP_SHA_256 ne s'applique qu'aux clés KMS asymétriques ; la clé symétrique utilise SYMMETRIC_DEFAULT, la valeur par défaut."
+    c:
+      en: "A missing permission would return an access denied error, not InvalidCiphertextException, and decrypting does not require kms:GenerateDataKey."
+      fr: "Une autorisation manquante renverrait une erreur d'accès refusé, pas InvalidCiphertextException, et le déchiffrement n'exige pas kms:GenerateDataKey."
+references:
+  - title: Encryption context
+    url: https://docs.aws.amazon.com/kms/latest/developerguide/encrypt_context.html
+  - title: Decrypt
+    url: https://docs.aws.amazon.com/kms/latest/APIReference/API_Decrypt.html

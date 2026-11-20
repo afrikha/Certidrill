@@ -35,7 +35,7 @@ Choosing a transformation engine:
 | --- | --- |
 | Serverless ETL on S3 data, Spark without clusters | AWS Glue job |
 | Analysts clean data visually, no code | AWS Glue DataBrew |
-| Small per-file transformation when an object arrives | Lambda on an S3 event (maximum 15 minutes per invocation) |
+| Small per-file transformation when an object arrives | Lambda on an S3 event (minutes, not hours, per invocation) |
 | Existing Spark or Hadoop code with specific versions or tuning | Amazon EMR |
 | SQL-only reshaping of tables already in the catalog | Athena `CREATE TABLE AS SELECT` |
 | Continuous transformation of a stream | Glue streaming ETL or Managed Service for Apache Flink |
@@ -94,7 +94,7 @@ SPICE capacity is allocated per Region and shared by the users of the account in
 | AWS Glue | Serverless Spark ETL integrated with the Data Catalog | ETL and catalog-driven pipelines |
 | Athena | Serverless SQL and Spark | SQL-based transformation and analysis |
 | Amazon Redshift | Massively parallel SQL warehouse | Transformations inside the warehouse (ELT) |
-| AWS Lambda | Event-driven functions, up to 15 minutes | Small files, per-event processing |
+| AWS Lambda | Event-driven functions, up to 30 minutes on the current Lambda quotas page (older pages and the FAQ still say 15 minutes; 90 minutes for some Lambda Managed Instances invocations) | Small files, per-event processing |
 | AWS Batch | Managed batch scheduling on EC2 or Fargate, including Spot | Containerized batch jobs that are not Spark |
 
 EMR on EC2 details:

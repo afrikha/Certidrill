@@ -54,13 +54,13 @@ ECS et EKS exécutent les conteneurs soit sur des instances EC2 que vous gérez 
 | --- | --- | --- |
 | Unité | Une fonction (votre code) | Un conteneur (tâche ou pod) |
 | Déclenché par | Des événements : chargements S3, requêtes API Gateway, messages SQS, planifications, flux DynamoDB | ECS ou EKS, qui démarrent les tâches et les maintiennent en fonctionnement |
-| Durée | Jusqu'à 15 minutes par invocation | Services ou tâches de longue durée |
+| Durée | Jusqu'à 30 minutes sur la page actuelle des quotas Lambda (des pages plus anciennes et la FAQ indiquent encore 15 minutes ; 90 minutes pour certains appels de Lambda Managed Instances) | Services ou tâches de longue durée |
 | Facturation | Par requête et par milliseconde de durée, selon la mémoire allouée | Pour les vCPU et la mémoire demandés par les tâches, pendant leur exécution |
 | Usage typique | Redimensionner une image après chargement, traiter un message, back-end d'une API | Services web et API empaquetés en conteneurs |
 
 La mémoire Lambda va de 128 Mo à 10 240 Mo ; le processeur est alloué proportionnellement à la mémoire.
 
-> **Piège d'examen.** Une tâche qui dure une heure ne peut pas être une seule invocation Lambda (limite de 15 minutes) : choisissez Fargate, AWS Batch ou EC2.
+> **Piège d'examen.** Une tâche qui dure plusieurs heures ne peut pas être une seule invocation Lambda (le maximum se compte en minutes) : choisissez Fargate, AWS Batch ou EC2.
 
 <!-- section: auto-scaling | objectives: 3.3.5 -->
 ## La mise à l'échelle automatique apporte l'élasticité
@@ -108,5 +108,5 @@ Objectifs :
 - EC2 pour un contrôle complet, Lightsail pour des serveurs simples à prix fixe, Elastic Beanstalk pour déployer du code, Batch pour les tâches par lots.
 - Familles d'instances : usage général (M, T), calcul (C), mémoire (R, X), stockage (I, D), accéléré (P, G, Inf, Trn), HPC.
 - ECS (orchestration AWS), EKS (Kubernetes), ECR (images), Fargate (conteneurs sans serveur).
-- Lambda : fonctions pilotées par les événements, 15 minutes au maximum, facturées par requête et par milliseconde.
+- Lambda : fonctions pilotées par les événements qui s'exécutent des minutes, pas des heures, facturées par requête et par milliseconde.
 - Les groupes Auto Scaling (minimum, souhaité, maximum) apportent l'élasticité ; les équilibreurs de charge répartissent le trafic vers les cibles saines sur plusieurs AZ.

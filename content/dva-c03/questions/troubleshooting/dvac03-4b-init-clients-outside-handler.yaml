@@ -1,0 +1,60 @@
+id: dvac03-4b-init-clients-outside-handler
+objective: "4.3.1"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    An AnyCompany AWS Lambda function handles a steady stream of requests, so most invocations run in warm execution environments. The average duration is high, and profiling shows that most of the time is spent creating clients. The function code is:
+
+    ```python
+    import boto3
+
+    def handler(event, context):
+        dynamodb = boto3.resource("dynamodb")
+        table = dynamodb.Table("Orders")
+        s3 = boto3.client("s3")
+        obj = s3.get_object(Bucket="anycompany-orders", Key=event["key"])
+        table.put_item(Item={"id": event["key"], "size": obj["ContentLength"]})
+    ```
+
+    Which solution is the MOST cost-effective way to reduce the duration?
+  fr: |
+    Une fonction AWS Lambda d'AnyCompany traite un flux régulier de requêtes : la plupart des appels s'exécutent dans des environnements d'exécution déjà initialisés. La durée moyenne est élevée, et le profilage montre que la majeure partie du temps sert à créer des clients. Le code de la fonction est :
+
+    ```python
+    import boto3
+
+    def handler(event, context):
+        dynamodb = boto3.resource("dynamodb")
+        table = dynamodb.Table("Orders")
+        s3 = boto3.client("s3")
+        obj = s3.get_object(Bucket="anycompany-orders", Key=event["key"])
+        table.put_item(Item={"id": event["key"], "size": obj["ContentLength"]})
+    ```
+
+    Quelle solution est la PLUS rentable pour réduire la durée ?
+body:
+  options:
+    - { id: a, text: { en: "Configure provisioned concurrency on an alias of the function and invoke the alias.", fr: "Configurer une simultanéité provisionnée sur un alias de la fonction et appeler l'alias." } }
+    - { id: b, text: { en: "Double the memory of the function so that it gets more CPU power.", fr: "Doubler la mémoire de la fonction pour qu'elle obtienne plus de puissance de calcul." } }
+    - { id: c, text: { en: "Increase the timeout of the function to its maximum value.", fr: "Augmenter le délai d'expiration de la fonction à sa valeur maximale." } }
+    - { id: d, text: { en: "Create the table resource and the S3 client at module level, outside the handler.", fr: "Créer la ressource de table et le client S3 au niveau du module, hors du gestionnaire." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Code at module level runs once when the execution environment initializes, and warm invocations reuse its objects. Moving the client creation out of the handler removes that work from every warm invocation, which cuts the billed duration at no extra cost."
+    fr: "Le code au niveau du module s'exécute une seule fois à l'initialisation de l'environnement d'exécution, et les appels suivants réutilisent ses objets. Sortir la création des clients du gestionnaire supprime ce travail de chaque appel, ce qui réduit la durée facturée sans coût supplémentaire."
+  options:
+    a:
+      en: "Provisioned concurrency adds cost and pre-runs only the initialization code, while these clients are still created inside the handler on every invocation."
+      fr: "La simultanéité provisionnée ajoute un coût et n'exécute à l'avance que le code d'initialisation, alors que ces clients sont toujours créés dans le gestionnaire à chaque appel."
+    b:
+      en: "More memory also gives more CPU and may shorten the work, but it raises the price per millisecond and keeps the repeated client creation."
+      fr: "Plus de mémoire donne aussi plus de processeur et peut raccourcir le traitement, mais augmente le prix par milliseconde et conserve la création répétée des clients."
+    c:
+      en: "A longer timeout only allows longer invocations; it does not make them faster."
+      fr: "Un délai d'expiration plus long autorise seulement des appels plus longs ; il ne les accélère pas."
+references:
+  - title: Best practices for working with AWS Lambda Event Functions
+    url: https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html

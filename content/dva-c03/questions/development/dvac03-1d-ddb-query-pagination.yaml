@@ -1,0 +1,68 @@
+id: dvac03-1d-ddb-query-pagination
+objective: "1.3.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    AnyCompany's Readings table in Amazon DynamoDB has the partition key DeviceId and the sort key ReadingTime. Some devices have about 5 MB of readings. The following Node.js function must return all the readings of a device, but for these devices it returns only part of them. The response contains a LastEvaluatedKey attribute.
+
+    ```javascript
+    import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+    import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+
+    const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+    export async function getReadings(deviceId) {
+      const out = await doc.send(new QueryCommand({
+        TableName: "Readings",
+        KeyConditionExpression: "DeviceId = :d",
+        ExpressionAttributeValues: { ":d": deviceId },
+      }));
+      return out.Items;
+    }
+    ```
+
+    Which change will make the function return all the readings?
+  fr: |
+    La table Readings d'AnyCompany dans Amazon DynamoDB a la clé de partition DeviceId et la clé de tri ReadingTime. Certains appareils ont environ 5 Mo de relevés. La fonction Node.js suivante doit renvoyer tous les relevés d'un appareil, mais pour ces appareils elle n'en renvoie qu'une partie. La réponse contient un attribut LastEvaluatedKey.
+
+    ```javascript
+    import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+    import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+
+    const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+    export async function getReadings(deviceId) {
+      const out = await doc.send(new QueryCommand({
+        TableName: "Readings",
+        KeyConditionExpression: "DeviceId = :d",
+        ExpressionAttributeValues: { ":d": deviceId },
+      }));
+      return out.Items;
+    }
+    ```
+
+    Quelle modification permettra à la fonction de renvoyer tous les relevés ?
+body:
+  options:
+    - { id: a, text: { en: "Add `Limit: 100000` to the QueryCommand input so that DynamoDB returns more items in one response.", fr: "Ajouter `Limit: 100000` à l'entrée de QueryCommand pour que DynamoDB renvoie plus d'éléments dans une réponse." } }
+    - { id: b, text: { en: "Send the QueryCommand in a loop, passing each LastEvaluatedKey as ExclusiveStartKey, until a response has no LastEvaluatedKey.", fr: "Envoyer QueryCommand dans une boucle, en passant chaque LastEvaluatedKey comme ExclusiveStartKey, jusqu'à ce qu'une réponse ne contienne plus de LastEvaluatedKey." } }
+    - { id: c, text: { en: "Add `ConsistentRead: true` to the QueryCommand input so that the response includes every item written for the device.", fr: "Ajouter `ConsistentRead: true` à l'entrée de QueryCommand pour que la réponse contienne tous les éléments écrits pour l'appareil." } }
+    - { id: d, text: { en: "Replace the QueryCommand with a ScanCommand that filters on DeviceId so that the whole table is read.", fr: "Remplacer QueryCommand par un ScanCommand qui filtre sur DeviceId afin de lire toute la table." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      A single Query call reads at most 1 MB of data. When more data matches, the response includes LastEvaluatedKey, and the next request must pass it as ExclusiveStartKey to continue where the previous page ended. The results are complete when a response no longer contains LastEvaluatedKey.
+    fr: |
+      Un seul appel Query lit au plus 1 Mo de données. Quand davantage de données correspondent, la réponse contient LastEvaluatedKey, et la requête suivante doit le passer comme ExclusiveStartKey pour reprendre là où la page précédente s'est arrêtée. Les résultats sont complets quand une réponse ne contient plus LastEvaluatedKey.
+  options:
+    a: { en: "Limit caps the number of items that are evaluated; it cannot raise the 1 MB maximum of a single Query response.", fr: "Limit plafonne le nombre d'éléments évalués ; il ne peut pas relever le maximum de 1 Mo d'une réponse Query." }
+    c: { en: "A strongly consistent read returns the latest data, but each response is still limited to 1 MB.", fr: "Une lecture fortement cohérente renvoie les données les plus récentes, mais chaque réponse reste limitée à 1 Mo." }
+    d: { en: "A Scan reads the whole table, costs far more, and its pages are also limited to 1 MB, so it would still need pagination.", fr: "Un Scan lit toute la table, coûte beaucoup plus cher, et ses pages sont aussi limitées à 1 Mo : il faudrait toujours paginer." }
+references:
+  - title: Querying tables in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html
+  - title: Constraints in Amazon DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Constraints.html

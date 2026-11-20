@@ -167,7 +167,7 @@ Les limites Lambda qui décident de la réponse :
 
 | Quota | Valeur |
 | --- | --- |
-| Délai d'expiration maximal | 15 minutes |
+| Délai d'expiration maximal | 30 minutes sur la page actuelle des quotas Lambda (des pages plus anciennes et la FAQ indiquent encore 15 minutes ; 90 minutes pour certains appels de Lambda Managed Instances) |
 | Mémoire | De 128 Mo à 10 240 Mo (le CPU augmente avec la mémoire) |
 | Stockage éphémère `/tmp` | De 512 Mo à 10 240 Mo |
 | Charge utile | 6 Mo en requête et réponse synchrones, 1 Mo en asynchrone |
@@ -181,11 +181,11 @@ Modèles sans serveur courants : API Gateway + Lambda + DynamoDB pour une API we
 | Exigence | Choix de calcul |
 | --- | --- |
 | Court, piloté par les événements, imprévisible ou inactif une grande partie du temps | Lambda |
-| Dure plus de 15 minutes, ou nécessite un processus de longue durée, en conteneurs sans gérer d'hôtes | Fargate |
+| Dure plus que le délai d'expiration maximal de Lambda (par exemple plusieurs heures), ou nécessite un processus de longue durée, en conteneurs sans gérer d'hôtes | Fargate |
 | Conteneurs tolérants aux interruptions à moindre coût | Fargate Spot (avertissement d'interruption deux minutes avant) |
 | Nécessite un système d'exploitation précis, des logiciels sous licence sur hôtes dédiés, des GPU ou un contrôle total | Amazon EC2 |
 
-> **Piège d'examen.** Une tâche qui dure 30 minutes ne peut pas s'exécuter en un seul appel Lambda. Découpez-la avec Step Functions, ou exécutez-la sur Fargate ou AWS Batch.
+> **Piège d'examen.** Une tâche qui dure plusieurs heures ne peut pas s'exécuter en un seul appel Lambda. Découpez-la avec Step Functions, ou exécutez-la sur Fargate ou AWS Batch.
 
 <!-- section: purpose-built | objectives: 2.1.22, 2.1.23 -->
 ## Recommander des services sur mesure
@@ -218,4 +218,4 @@ Lisez le qualificatif : « le MOINS de charge opérationnelle » favorise l'opti
 - Les réplicas en lecture mettent à l'échelle les lectures (jusqu'à 15, asynchrones, inter-Régions possibles) ; Multi-AZ sert la disponibilité.
 - Objet (S3), fichier (EFS pour Linux, famille FSx pour Windows, Lustre, ONTAP, OpenZFS), bloc (EBS dans une AZ, stockage d'instance éphémère).
 - ECS pour le moins de charge, EKS pour Kubernetes ; Fargate supprime les hôtes ; ECR stocke les images.
-- Lambda pour du code court piloté par les événements (15 minutes au maximum) ; Fargate pour des conteneurs plus longs ; EC2 pour un contrôle total.
+- Lambda pour du code court piloté par les événements (des minutes, pas des heures) ; Fargate pour des conteneurs plus longs ; EC2 pour un contrôle total.

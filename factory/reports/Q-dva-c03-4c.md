@@ -1,0 +1,14 @@
+# Q-dva-c03-4c — QUESTIONS DVA-C03, troubleshooting 4.3.2–4.3.6 (2026-11-20)
+
+45 questions (`dvac03-4c-*`), 9 per objective; single 37 / multi 8; difficulty 13 easy / 23 medium / 9 hard. Validator: 0 problem(s). Course chapter `43-optimization` did not exist yet, so the facts come only from the AWS pages listed in each question (all fetched).
+
+## Deviations / points to review
+- **Non-docs.aws.amazon.com references**: Kiro's documentation lives on kiro.dev (the AWS page `aws.amazon.com/documentation-overview/kiro/` only summarizes it and links there). `kiro-hook-on-save`, `kiro-steering-conventions` and `kiro-cli-headless` cite kiro.dev pages (`Hooks`, `Steering`, `CLI`) along with the AWS Kiro Documentation page. `kiro-cloudwatch-mcp` cites the AWS What's New post (July 8, 2025) for the CloudWatch MCP server: there is no docs.aws.amazon.com page for it.
+- **Lambda page titles** now say "Lambda Event Function(s)" (for example "Configure Lambda Event Function memory", "Types of metrics for Lambda Event Functions"). I used them exactly as fetched.
+- **Service status used in distractors** (checked on the AWS lifecycle pages): Amazon DevOps Guru stops taking new customers on October 29, 2026 (sunset, end of support September 30, 2027, per its EOS page). Amazon Q Business has been in maintenance since June 30, 2026. CodeGuru Reviewer has been in maintenance since October 7, 2025. Cloud9 has been in maintenance since July 25, 2024. Q Developer sign-ups closed May 15, 2026 (from the profile). CodeGuru Profiler does not appear on the maintenance or sunset lists, but it is not used because it is not in the exam guide's service list.
+- **4.3.6 scope**: the correct answers use Kiro (IDE, hooks, steering, MCP, CLI headless), CloudWatch investigations, Logs Insights natural-language query generation, metric and log anomaly detection, and Bedrock Converse. Compute Optimizer is placed under 4.3.2 because its page does not describe it as AI/ML.
+- **Facts seen during research but not used**: the Lambda quotas page now shows a 1,800 s maximum timeout (900 s in older material). The SQS maximum message size is now 1 MiB, not 256 KiB. Compute Optimizer gives Lambda memory recommendations for x86_64 functions only (this one is used in `lambda-memory-recommendations`).
+- **Inferred, not stated word for word**:
+  - `dax-consistent-read`: that a strongly consistent *Query* through DAX is also passed through (the DAX page states the ConsistentRead rule in general terms).
+  - `sns-sqs-fanout`: that an SNS HTTPS subscriber that is offline for a day loses messages once retries end (general SNS behavior; the delivery-policy page was not fetched).
+  - `sqs-esm-max-concurrency`: the wording about reserved concurrency throttling the messages paraphrases the page's "Lambda might throttle your messages".

@@ -1,0 +1,48 @@
+id: dvac03-2a-imdsv2-token-script
+objective: "2.1.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A shell script on an Amazon EC2 instance reads the temporary credentials of the instance profile role app-role from the instance metadata service. After the instance was configured to require IMDSv2, the following command returns 401 Unauthorized:
+
+    ```bash
+    curl http://169.254.169.254/latest/meta-data/iam/security-credentials/app-role
+    ```
+
+    Which change will make the script work?
+  fr: |
+    Un script shell sur une instance Amazon EC2 lit les informations d'identification temporaires du rôle de profil d'instance app-role depuis le service de métadonnées d'instance. Depuis que l'instance a été configurée pour exiger IMDSv2, la commande suivante renvoie 401 Unauthorized :
+
+    ```bash
+    curl http://169.254.169.254/latest/meta-data/iam/security-credentials/app-role
+    ```
+
+    Quelle modification permet au script de fonctionner ?
+body:
+  options:
+    - { id: a, text: { en: "Send the same GET request with the header `X-aws-ec2-metadata-token-ttl-seconds: 21600`.", fr: "Envoyer la même demande GET avec l'en-tête `X-aws-ec2-metadata-token-ttl-seconds: 21600`." } }
+    - { id: b, text: { en: "Send the GET request to `/latest/api/token/iam/security-credentials/app-role` instead.", fr: "Envoyer plutôt la demande GET vers `/latest/api/token/iam/security-credentials/app-role`." } }
+    - { id: c, text: { en: "Get a token with a PUT request to `/latest/api/token`, then send it in the `X-aws-ec2-metadata-token` header.", fr: "Obtenir un jeton par une demande PUT vers `/latest/api/token`, puis l'envoyer dans l'en-tête `X-aws-ec2-metadata-token`." } }
+    - { id: d, text: { en: "Set the metadata response hop limit of the instance to 2, then repeat the same GET request.", fr: "Définir à 2 la limite de sauts de réponse des métadonnées de l'instance, puis répéter la même demande GET." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "IMDSv2 uses session tokens: the script first sends a PUT to /latest/api/token with the X-aws-ec2-metadata-token-ttl-seconds header (1 second to 6 hours), then passes the returned token in the X-aws-ec2-metadata-token header of each GET. Without a valid token, requests get 401 when IMDSv2 is required. The SDKs and the AWS CLI do this automatically."
+    fr: "IMDSv2 utilise des jetons de session : le script envoie d'abord un PUT vers /latest/api/token avec l'en-tête X-aws-ec2-metadata-token-ttl-seconds (de 1 seconde à 6 heures), puis transmet le jeton renvoyé dans l'en-tête X-aws-ec2-metadata-token de chaque GET. Sans jeton valide, les demandes reçoivent 401 quand IMDSv2 est exigé. Les SDK et l'AWS CLI le font automatiquement."
+  options:
+    a:
+      en: "The TTL header belongs to the PUT request that creates the token; a GET still needs the token itself."
+      fr: "L'en-tête de TTL appartient à la demande PUT qui crée le jeton ; un GET a toujours besoin du jeton lui-même."
+    b:
+      en: "/latest/api/token only issues tokens through PUT; credentials stay under /latest/meta-data/iam/security-credentials/."
+      fr: "/latest/api/token ne fait qu'émettre des jetons par PUT ; les informations d'identification restent sous /latest/meta-data/iam/security-credentials/."
+    d:
+      en: "The hop limit matters for token responses that must cross an extra network hop, such as containers; a request without a token still gets 401."
+      fr: "La limite de sauts concerne les réponses de jeton qui doivent franchir un saut réseau supplémentaire, comme pour des conteneurs ; une demande sans jeton reçoit toujours 401."
+references:
+  - title: Use the Instance Metadata Service to access instance metadata
+    url: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
+  - title: Access instance metadata for an EC2 instance
+    url: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html

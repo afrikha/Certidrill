@@ -1,0 +1,40 @@
+id: dvac03-1d-ddb-conditional-put
+objective: "1.3.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    AnyCompany's sign-up API stores accounts in an Amazon DynamoDB table whose partition key is Username. The API calls PutItem to create each account. When two users choose the same user name at the same moment, the second PutItem silently replaces the first account.
+
+    Each user name must be assigned to only one account, and the second request must fail.
+
+    Which solution will meet these requirements?
+  fr: |
+    L'API d'inscription d'AnyCompany stocke les comptes dans une table Amazon DynamoDB dont la clé de partition est Username. L'API appelle PutItem pour créer chaque compte. Quand deux utilisateurs choisissent le même nom d'utilisateur au même moment, le second PutItem remplace silencieusement le premier compte.
+
+    Chaque nom d'utilisateur ne doit être attribué qu'à un seul compte, et la seconde requête doit échouer.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Call GetItem with ConsistentRead=True before each PutItem, and call PutItem only if no item is returned.", fr: "Appeler GetItem avec ConsistentRead=True avant chaque PutItem, et n'appeler PutItem que si aucun élément n'est renvoyé." } }
+    - { id: b, text: { en: "Set ReturnValues to ALL_OLD on the PutItem call, and delete the new item if an old item is returned.", fr: "Définir ReturnValues sur ALL_OLD dans l'appel PutItem, et supprimer le nouvel élément si un ancien élément est renvoyé." } }
+    - { id: c, text: { en: "Wrap each PutItem in a TransactWriteItems call that contains only that Put action.", fr: "Encapsuler chaque PutItem dans un appel TransactWriteItems qui ne contient que cette action Put." } }
+    - { id: d, text: { en: "Add the condition expression attribute_not_exists(Username) to the PutItem call, and handle ConditionalCheckFailedException.", fr: "Ajouter l'expression de condition attribute_not_exists(Username) à l'appel PutItem, et gérer ConditionalCheckFailedException." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      PutItem overwrites an existing item that has the same primary key. With attribute_not_exists on the key attribute, DynamoDB evaluates the condition against the current item as part of the write, so the put succeeds only if no account with that user name exists. The second request fails with ConditionalCheckFailedException, which the API can return as a "user name taken" error.
+    fr: |
+      PutItem remplace un élément existant qui a la même clé primaire. Avec attribute_not_exists sur l'attribut de clé, DynamoDB évalue la condition sur l'élément actuel au moment de l'écriture : l'écriture ne réussit que si aucun compte ne porte ce nom d'utilisateur. La seconde requête échoue avec ConditionalCheckFailedException, que l'API peut renvoyer comme une erreur « nom d'utilisateur déjà pris ».
+  options:
+    a: { en: "The read and the write are separate requests, so both users can pass the check before either write, and the race remains.", fr: "La lecture et l'écriture sont des requêtes distinctes : les deux utilisateurs peuvent passer la vérification avant l'une ou l'autre écriture, et la concurrence demeure." }
+    b: { en: "ALL_OLD returns the overwritten item only after the first account has already been replaced, so that account is lost.", fr: "ALL_OLD ne renvoie l'élément écrasé qu'une fois le premier compte déjà remplacé : ce compte est perdu." }
+    c: { en: "A transaction without a condition still overwrites the existing item; atomicity does not prevent the overwrite.", fr: "Une transaction sans condition écrase toujours l'élément existant ; l'atomicité n'empêche pas l'écrasement." }
+references:
+  - title: DynamoDB condition expression CLI example
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html
+  - title: Working with items and attributes in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html
