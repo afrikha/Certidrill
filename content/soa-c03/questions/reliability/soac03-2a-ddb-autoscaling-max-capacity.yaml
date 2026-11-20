@@ -1,0 +1,76 @@
+id: soac03-2a-ddb-autoscaling-max-capacity
+objective: "2.1.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An operations engineer configured DynamoDB auto scaling for the write capacity of a provisioned table named Orders with the following commands:
+
+    ```bash
+    aws application-autoscaling register-scalable-target \
+      --service-namespace dynamodb \
+      --resource-id "table/Orders" \
+      --scalable-dimension "dynamodb:table:WriteCapacityUnits" \
+      --min-capacity 5 --max-capacity 100
+
+    aws application-autoscaling put-scaling-policy \
+      --service-namespace dynamodb \
+      --resource-id "table/Orders" \
+      --scalable-dimension "dynamodb:table:WriteCapacityUnits" \
+      --policy-name orders-wcu \
+      --policy-type TargetTrackingScaling \
+      --target-tracking-scaling-policy-configuration \
+      '{"PredefinedMetricSpecification":{"PredefinedMetricType":"DynamoDBWriteCapacityUtilization"},"TargetValue":70.0}'
+    ```
+
+    During an evening peak that lasts 2 hours, the application needs about 250 WCUs. ProvisionedWriteCapacityUnits stays at 100, and writes are throttled. The table has no global secondary indexes.
+
+    Which change will stop the throttling during the peak?
+  fr: |
+    Un ingénieur des opérations a configuré la mise à l'échelle automatique DynamoDB pour la capacité d'écriture d'une table provisionnée nommée Orders avec les commandes suivantes :
+
+    ```bash
+    aws application-autoscaling register-scalable-target \
+      --service-namespace dynamodb \
+      --resource-id "table/Orders" \
+      --scalable-dimension "dynamodb:table:WriteCapacityUnits" \
+      --min-capacity 5 --max-capacity 100
+
+    aws application-autoscaling put-scaling-policy \
+      --service-namespace dynamodb \
+      --resource-id "table/Orders" \
+      --scalable-dimension "dynamodb:table:WriteCapacityUnits" \
+      --policy-name orders-wcu \
+      --policy-type TargetTrackingScaling \
+      --target-tracking-scaling-policy-configuration \
+      '{"PredefinedMetricSpecification":{"PredefinedMetricType":"DynamoDBWriteCapacityUtilization"},"TargetValue":70.0}'
+    ```
+
+    Pendant une pointe en soirée qui dure 2 heures, l'application a besoin d'environ 250 WCU. ProvisionedWriteCapacityUnits reste à 100, et les écritures sont limitées. La table n'a pas d'index secondaire global.
+
+    Quelle modification met fin à la limitation pendant la pointe ?
+body:
+  options:
+    - { id: a, text: { en: "Run put-scaling-policy again with a TargetValue of 90.0.", fr: "Exécuter de nouveau put-scaling-policy avec une TargetValue de 90.0." } }
+    - { id: b, text: { en: "Run register-scalable-target again with a --max-capacity value above 360.", fr: "Exécuter de nouveau register-scalable-target avec une valeur --max-capacity supérieure à 360." } }
+    - { id: c, text: { en: "Add a ScaleOutCooldown of 0 to the scaling policy configuration.", fr: "Ajouter un ScaleOutCooldown de 0 à la configuration de la politique." } }
+    - { id: d, text: { en: "Change the predefined metric type of the policy to DynamoDBReadCapacityUtilization.", fr: "Remplacer le type de métrique prédéfinie de la politique par DynamoDBReadCapacityUtilization." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "Application Auto Scaling never sets the provisioned capacity outside the minimum and maximum of the scalable target, so the table is stuck at 100 WCUs. To keep 250 consumed WCUs at a 70% target, the table needs about 357 WCUs, so the maximum must be raised above that value."
+    fr: "Application Auto Scaling ne fixe jamais la capacité provisionnée en dehors du minimum et du maximum de la cible évolutive : la table est bloquée à 100 WCU. Pour garder 250 WCU consommées à une cible de 70 %, la table a besoin d'environ 357 WCU : le maximum doit donc être relevé au-dessus de cette valeur."
+  options:
+    a:
+      en: "A higher target utilization makes auto scaling provision less capacity for the same traffic, and the maximum of 100 still applies."
+      fr: "Une utilisation cible plus élevée fait provisionner moins de capacité pour le même trafic, et le maximum de 100 s'applique toujours."
+    c:
+      en: "The scale-out cooldown already defaults to 0, and no cooldown can raise the capacity above the registered maximum."
+      fr: "Le temps de stabilisation d'augmentation vaut déjà 0 par défaut, et aucun temps de stabilisation ne peut porter la capacité au-dessus du maximum enregistré."
+    d:
+      en: "The scalable dimension is write capacity, and the throttled requests are writes, so a read metric is the wrong signal."
+      fr: "La dimension évolutive est la capacité d'écriture, et les requêtes limitées sont des écritures : une métrique de lecture n'est pas le bon signal."
+references:
+  - title: Using the AWS CLI to manage DynamoDB auto scaling
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.CLI.html

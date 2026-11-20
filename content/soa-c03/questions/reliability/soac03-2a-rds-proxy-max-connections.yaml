@@ -1,0 +1,38 @@
+id: soac03-2a-rds-proxy-max-connections
+objective: "2.1.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    AWS Lambda functions write orders to an Amazon Aurora PostgreSQL DB cluster through RDS Proxy. During peaks, some requests fail with timeout errors after waiting 120 seconds for a connection, and the DatabaseConnectionsBorrowLatency metric rises. The proxy's DatabaseConnections metric is equal to MaxDatabaseConnectionsAllowed, MaxConnectionsPercent is set to 30, and the CPU and memory utilization of the writer stay below 40%.
+
+    Which change will resolve the timeouts?
+  fr: |
+    Des fonctions AWS Lambda écrivent des commandes dans un cluster de bases de données Amazon Aurora PostgreSQL via RDS Proxy. En période de pointe, certaines requêtes échouent avec des erreurs de délai d'attente après avoir attendu une connexion pendant 120 secondes, et la métrique DatabaseConnectionsBorrowLatency augmente. La métrique DatabaseConnections du proxy est égale à MaxDatabaseConnectionsAllowed, MaxConnectionsPercent est défini sur 30, et l'utilisation du processeur et de la mémoire de l'instance d'écriture reste sous 40 %.
+
+    Quelle modification permet de résoudre les dépassements de délai ?
+body:
+  options:
+    - { id: a, text: { en: "Lower ConnectionBorrowTimeout of the proxy to 30 seconds so that requests wait less.", fr: "Réduire ConnectionBorrowTimeout du proxy à 30 secondes pour que les requêtes attendent moins." } }
+    - { id: b, text: { en: "Lower MaxIdleConnectionsPercent of the proxy to 10 so that fewer idle connections are kept.", fr: "Réduire MaxIdleConnectionsPercent du proxy à 10 pour conserver moins de connexions inactives." } }
+    - { id: c, text: { en: "Add an Aurora Replica, and connect the functions to a read-only endpoint of the proxy.", fr: "Ajouter un réplica Aurora, et connecter les fonctions à un point de terminaison en lecture seule du proxy." } }
+    - { id: d, text: { en: "Raise MaxConnectionsPercent in the target group of the proxy.", fr: "Relever MaxConnectionsPercent dans le groupe cible du proxy." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "MaxConnectionsPercent caps the connections that the proxy opens as a percentage of the database's max_connections. The pool is full, so requests wait up to ConnectionBorrowTimeout (120 seconds by default) and then fail, while the writer has spare capacity. Raising the percentage, with headroom above the observed peak, gives the proxy more connections to lend."
+    fr: "MaxConnectionsPercent plafonne les connexions que le proxy ouvre, en pourcentage du paramètre max_connections de la base de données. Le pool est plein : les requêtes attendent jusqu'à ConnectionBorrowTimeout (120 secondes par défaut), puis échouent, alors que l'instance d'écriture a de la capacité disponible. Relever le pourcentage, avec une marge au-dessus de la pointe observée, donne au proxy davantage de connexions à prêter."
+  options:
+    a:
+      en: "A shorter borrow timeout makes requests fail sooner instead of giving them a connection."
+      fr: "Un délai d'emprunt plus court fait échouer les requêtes plus tôt au lieu de leur fournir une connexion."
+    b:
+      en: "Fewer idle connections make the proxy close pooled connections sooner; the maximum number of connections stays the same."
+      fr: "Moins de connexions inactives font fermer plus tôt les connexions du pool par le proxy ; le nombre maximal de connexions reste le même."
+    c:
+      en: "The functions write orders, and a read-only endpoint sends traffic to readers, which cannot accept writes."
+      fr: "Les fonctions écrivent des commandes, et un point de terminaison en lecture seule envoie le trafic vers des lecteurs, qui n'acceptent pas les écritures."
+references:
+  - title: RDS Proxy connection considerations
+    url: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-connections.html
