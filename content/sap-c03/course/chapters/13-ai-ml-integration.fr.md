@@ -1,4 +1,4 @@
-Le SAP-C03 aborde l'IA générative et le machine learning sous l'angle de l'architecture, pas de la science des données : comment des applications réparties sur de nombreux comptes accèdent aux modèles de fondation sous contrôle central, comment des agents appellent les outils de l'entreprise en toute sécurité, quelle option d'hébergement de l'inférence convient à un profil de trafic, et comment un pipeline de génération augmentée par récupération (RAG) ingère et récupère des documents. L'entraînement et le réglage des modèles sont hors périmètre ; les décisions portent sur l'accès, la capacité, l'isolation, le coût et la résidence des données.
+Le SAP-C03 aborde l'IA générative et le machine learning sous l'angle de l'architecture, pas de la science des données : comment des applications réparties sur de nombreux comptes accèdent aux modèles de fondation sous contrôle central, comment des agents appellent les outils de l'entreprise en toute sécurité, quelle option d'hébergement de l'inférence convient à un profil de trafic, et comment un pipeline de génération à enrichissement contextuel (RAG) ingère et récupère des documents. L'entraînement et le réglage des modèles sont hors périmètre ; les décisions portent sur l'accès, la capacité, l'isolation, le coût et la résidence des données.
 
 <!-- section: genai-integration | objectives: 1.2.1 -->
 ## Intégration de l'IA générative et modèles multicomptes avec Amazon Bedrock
@@ -97,7 +97,7 @@ L'**ingestion** s'exécute sous forme de tâches de synchronisation à partir de
 
 1. **Analyser.** L'analyseur par défaut extrait le texte ; un analyseur à base de modèle de fondation ou Bedrock Data Automation traite les tableaux, les figures et les pages numérisées.
 2. **Découper.** Le découpage par défaut produit des segments d'environ 300 jetons en respectant les phrases ; le découpage de taille fixe définit les jetons par segment et le chevauchement ; le découpage hiérarchique récupère des segments enfants précis et renvoie leurs parents plus larges ; le découpage sémantique coupe selon le sens (coût de modèle supplémentaire) ; l'absence de découpage garde chaque fichier entier ; une fonction Lambda peut appliquer un découpage ou des transformations personnalisés.
-3. **Vectoriser** avec un modèle d'embeddings (Amazon Titan Text Embeddings V2 : 1 024, 512 ou 256 dimensions ; Cohere Embed). La dimension de l'index vectoriel doit correspondre au modèle.
+3. **Vectoriser** avec un modèle de vectorisation (embeddings) : Amazon Titan Text Embeddings V2 (1 024, 512 ou 256 dimensions) ou Cohere Embed. La dimension de l'index vectoriel doit correspondre au modèle.
 4. **Stocker** les vecteurs, les segments de texte et les métadonnées dans le magasin vectoriel.
 
 | Magasin vectoriel | Points distinctifs |

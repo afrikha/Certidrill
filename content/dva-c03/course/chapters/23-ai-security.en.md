@@ -86,7 +86,7 @@ Apply a guardrail in three ways:
 
 **Input tagging** is required for prompt attack detection: wrap user input in `guardContent` (Converse) or `amazon-bedrock-guardrails-guardContent_xyz` tags (InvokeModel) so the developer's system prompt isn't flagged. Without tags, prompt attacks aren't filtered.
 
-```text
+```python
 # Python (boto3): check a tool result before giving it back to the model
 check = runtime.apply_guardrail(
     guardrailIdentifier="gr-support", guardrailVersion="3",

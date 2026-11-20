@@ -111,7 +111,7 @@ aws kms decrypt --ciphertext-blob fileb://token.enc \
   --query Plaintext --output text | base64 --decode
 ```
 
-```text
+```python
 # Python (boto3): envelope encryption
 kms = boto3.client("kms")
 key = kms.generate_data_key(KeyId="alias/app-data", KeySpec="AES_256",

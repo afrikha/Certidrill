@@ -86,7 +86,7 @@ Appliquez un garde-fou de trois façons :
 
 Le **balisage des entrées** est indispensable à la détection des attaques par invite : encadrez l'entrée utilisateur par `guardContent` (Converse) ou par les balises `amazon-bedrock-guardrails-guardContent_xyz` (InvokeModel) pour que l'invite système du développeur ne soit pas signalée. Sans balises, les attaques par invite ne sont pas filtrées.
 
-```text
+```python
 # Python (boto3): check a tool result before giving it back to the model
 check = runtime.apply_guardrail(
     guardrailIdentifier="gr-support", guardrailVersion="3",

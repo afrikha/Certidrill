@@ -34,7 +34,7 @@ sam remote invoke OrdersFunction --stack-name orders-dev --event-file events/ord
 
 **AWS CDK** : le module `assertions` teste le modèle CloudFormation synthétisé à partir d'une pile, avec Jest (TypeScript, JavaScript) ou pytest (Python). Les **assertions détaillées** (fine-grained assertions) vérifient des ressources et des propriétés précises ; les **tests d'instantané** (snapshot tests) comparent le modèle entier à une référence enregistrée et détectent tout changement involontaire, mais peuvent échouer après une mise à niveau du CDK.
 
-```text
+```python
 # Python (pytest) - fine-grained assertions on a CDK stack
 import aws_cdk as cdk
 from aws_cdk.assertions import Template, Match

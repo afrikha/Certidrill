@@ -45,11 +45,13 @@ aws lambda invoke --function-name process-order \
 
 The AWS SDKs retry transient errors (throttling, HTTP 5xx, timeouts, connection resets) automatically. The default **standard** retry mode uses exponential backoff with jitter and `max_attempts` 3 (initial request included); **adaptive** adds client-side rate limiting for a resource that throttles often; **legacy** exists for backward compatibility. Set them with `AWS_RETRY_MODE` and `AWS_MAX_ATTEMPTS` or in code. `AccessDeniedException`, `ValidationException` and `ResourceNotFoundException` are never retried.
 
-```text
+```python
 # Python (boto3)
 from botocore.config import Config
 dynamodb = boto3.client("dynamodb", config=Config(retries={"mode": "standard", "max_attempts": 5}))
+```
 
+```javascript
 // JavaScript (SDK v3)
 const client = new DynamoDBClient({ maxAttempts: 5, retryMode: "adaptive" });
 ```
@@ -131,14 +133,16 @@ Every API call is an HTTPS request signed with Signature Version 4; the SDKs (bo
 | Each invocation recreates clients and connections | Create clients outside the Lambda handler |
 | The call fails with an error code | Catch the service exception and branch on its code (`ConditionalCheckFailedException`, `ThrottlingException`) |
 
-```text
+```python
 # Python (boto3): paginator and waiter
 s3 = boto3.client("s3")
 for page in s3.get_paginator("list_objects_v2").paginate(Bucket="anycompany-invoices", Prefix="2026/"):
     for obj in page.get("Contents", []):
         print(obj["Key"])
 s3.get_waiter("object_exists").wait(Bucket="anycompany-invoices", Key="2026/11/summary.csv")
+```
 
+```javascript
 // JavaScript (SDK v3): one client per service, commands sent with send()
 import { S3Client, paginateListObjectsV2 } from "@aws-sdk/client-s3";
 const s3 = new S3Client({});
@@ -159,7 +163,7 @@ for await (const page of paginateListObjectsV2({ client: s3 }, { Bucket: "anycom
 - The **Kinesis Client Library** keeps one lease per shard in a DynamoDB table and checkpoints progress; more workers than shards add nothing. KCL 1.x reached end of support on January 30, 2026.
 - **Enhanced fan-out** gives each registered consumer its own 2 MB/s per shard.
 
-```text
+```python
 # Python (boto3): resend only the failed records
 response = kinesis.put_records(StreamName="clickstream", Records=records)
 if response["FailedRecordCount"] > 0:
@@ -182,13 +186,15 @@ if response["FailedRecordCount"] > 0:
 | EventBridge event | `detail` is already a JSON object |
 | DynamoDB low-level API | Typed values (`S`, `N`, `B`, `BOOL`, `NULL`, `M`, `L`, `SS`, `NS`, `BS`); numbers travel as strings, up to 38 digits |
 
-```text
+```python
 # Python: DynamoDB Table resource and JSON
 from decimal import Decimal
 table.put_item(Item={"orderId": "o-1001", "total": Decimal("19.99")})   # a float raises TypeError
 item = table.get_item(Key={"orderId": "o-1001"})["Item"]
 json.dumps(item, default=str)                                            # Decimal isn't JSON serializable by default
+```
 
+```javascript
 // JavaScript (SDK v3): document client or marshall/unmarshall
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
@@ -273,7 +279,7 @@ Amazon CodeGuru Reviewer accepts no new repository associations since November 7
 
 **Amazon Bedrock** serves models on the `bedrock-runtime` endpoint. `Converse` and `ConverseStream` use one message format (`messages`, `system`, `inferenceConfig`, `toolConfig`, `guardrailConfig`) for every model that supports messages; `InvokeModel` takes a model-specific body. `Converse` needs `bedrock:InvokeModel`, `ConverseStream` needs `bedrock:InvokeModelWithResponseStream`. Streaming shows the first tokens sooner; send the previous messages with each request to keep a conversation.
 
-```text
+```python
 # Python (boto3)
 brt = boto3.client("bedrock-runtime")
 response = brt.converse(

@@ -7,9 +7,9 @@ Raisonnez par couches, de l'usage le plus prévisible au moins prévisible :
 
 | Couche d'usage | Option d'achat | Pourquoi |
 | --- | --- | --- |
-| Socle qui tourne 24 h/24 pendant au moins un an | Savings Plans ou Reserved Instances | Remise la plus forte pour un engagement horaire fixe |
+| Socle qui tourne 24 h/24 pendant au moins un an | Savings Plans ou instances réservées | Remise la plus forte pour un engagement horaire fixe |
 | Variation quotidienne ou saisonnière au-dessus du socle | On-Demand, avec mise à l'échelle | Aucun engagement perdu quand l'usage baisse |
-| Travail interruptible et relançable | Spot Instances, Fargate Spot | Capacité inutilisée à prix très réduit |
+| Travail interruptible et relançable | Instances Spot, Fargate Spot | Capacité inutilisée à prix très réduit |
 | Capacité qui doit exister à un moment donné | On-Demand Capacity Reservations, RI zonales, Capacity Blocks for ML | Garantit la capacité ; la remise ne vient que d'un engagement distinct |
 | Débit réservé dans un service géré | Capacité provisionnée (DynamoDB en mode provisionné avec capacité réservée, niveau Reserved ou Provisioned Throughput de Bedrock) | Prix unitaire plus bas ou débit garanti pour une demande stable |
 
@@ -24,9 +24,9 @@ Types de Savings Plans et leur portée :
 
 Application et partage des remises :
 
-- Dans une organisation, les remises des Reserved Instances s'appliquent d'abord, puis les EC2 Instance Savings Plans, puis les Compute Savings Plans. L'engagement est un montant en dollars par heure ; l'usage au-delà est facturé On-Demand, et l'engagement inutilisé reste facturé.
+- Dans une organisation, les remises des instances réservées s'appliquent d'abord, puis les EC2 Instance Savings Plans, puis les Compute Savings Plans. L'engagement est un montant en dollars par heure ; l'usage au-delà est facturé On-Demand, et l'engagement inutilisé reste facturé.
 - Avec la facturation consolidée, les RI et Savings Plans d'un compte peuvent profiter aux autres ; le partage peut être désactivé pour un compte (par exemple une unité opérationnelle qui doit garder ses propres remises pour la refacturation).
-- Les conditions d'un Savings Plan ne peuvent pas être modifiées après l'achat. Les RI Standard peuvent être revendues sur le Reserved Instance Marketplace ; les RI Convertible peuvent être échangées mais pas revendues.
+- Les conditions d'un Savings Plan ne peuvent pas être modifiées après l'achat. Les RI Standard peuvent être revendues sur le Marketplace d'instances réservées (Reserved Instance Marketplace) ; les RI Convertible peuvent être échangées mais pas revendues.
 - Les frais des Dedicated Instances (2 USD par heure et par Région) et les frais de cluster Amazon EKS ne sont pas réduits par les Savings Plans ; les nœuds de travail EC2, si.
 
 Modèle professionnel courant : une équipe centrale de gestion financière du cloud achète des Compute Savings Plans dans un compte dédié, au niveau du socle de toute l'organisation indiqué par les recommandations de Cost Explorer, et laisse les équipes utiliser n'importe quelle famille d'instances, Région ou Fargate. Les équipes certaines de rester sur une famille dans une Région ajoutent des EC2 Instance Savings Plans.

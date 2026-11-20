@@ -8,7 +8,7 @@ Chaque magasin a sa façon de ne conserver les données que le temps nécessaire
 | Magasin | Contrôle du cycle de vie | Faits à retenir |
 | --- | --- | --- |
 | Amazon S3 | Règles S3 Lifecycle : transition, expiration, versions non actuelles, chargements partitionnés incomplets | Les objets doivent avoir 30 jours avant de passer en S3 Standard-IA ou S3 One Zone-IA ; dans un compartiment versionné, l'expiration ajoute seulement un marqueur de suppression |
-| Amazon S3 | Rétention S3 Object Lock (mode gouvernance ou conformité), conservations légales (legal holds) | Exige le versionnage ; le mode conformité ne peut être raccourci par personne |
+| Amazon S3 | Rétention S3 Object Lock (mode gouvernance ou conformité), conservations légales (legal holds) | Exige la gestion des versions ; le mode conformité ne peut être raccourci par personne |
 | DynamoDB | Durée de vie (TTL) sur un attribut Number contenant une heure epoch en secondes | Les éléments expirés sont supprimés en général sous quelques jours, sans consommer de capacité d'écriture |
 | CloudWatch Logs | Rétention par groupe de journaux | N'expire jamais par défaut ; les événements expirés sont supprimés sous 72 heures environ |
 | Amazon SQS | Période de conservation des messages | De 1 minute à 14 jours, 4 jours par défaut |
@@ -80,7 +80,7 @@ ElastiCache pour **Valkey ou Redis OSS** offre réplication, basculement Multi-A
 | Écriture simultanée (write-through) | Mettre à jour le cache à chaque écriture en base | Les données ne sont jamais périmées ; chaque écriture coûte plus ; des données jamais lues remplissent le cache |
 | TTL | Faire expirer chaque clé après un délai fixé | Limite la péremption avec le chargement différé et les données inutiles avec l'écriture simultanée |
 
-```text
+```python
 # Python: lazy loading with a TTL in ElastiCache (Valkey or Redis OSS)
 def get_product(product_id):
     key = f"product:{product_id}"
@@ -154,7 +154,7 @@ Les tailles s'arrondissent au supérieur, élément par élément : 80 lectures 
 - **Opérations par lot** : `BatchWriteItem` accepte jusqu'à 25 écritures ou suppressions (16 Mo), ne peut ni mettre à jour ni utiliser de conditions, n'est pas atomique dans son ensemble et renvoie `UnprocessedItems` à retenter avec backoff ; `BatchGetItem` lit jusqu'à 100 éléments.
 - **Transactions** : `TransactWriteItems` regroupe jusqu'à 100 actions (`Put`, `Update`, `Delete`, `ConditionCheck`, 4 Mo au total) sur plusieurs tables, tout ou rien ; deux actions ne peuvent pas viser le même élément ; `ClientRequestToken` rend une nouvelle tentative idempotente pendant 10 minutes.
 
-```text
+```python
 # Python (boto3): optimistic locking
 table.update_item(
     Key={"orderId": "o-1001"},

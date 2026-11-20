@@ -94,7 +94,7 @@ aws configure set default.s3.multipart_chunksize 16MB
 | Exigence | Réponse |
 | --- | --- |
 | Des utilisateurs sur plusieurs continents chargent lentement de gros fichiers dans un compartiment | **S3 Transfer Acceleration** : emplacements périphériques, puis réseau AWS |
-| Migrer ou synchroniser des données NFS, SMB, HDFS ou objet vers S3, EFS ou FSx avec contrôle d'intégrité | Tâche **AWS DataSync** (agent sur site), planifiée, à bande passante limitée, vérifiée |
+| Migrer ou synchroniser des données NFS, SMB, HDFS ou objet vers S3, EFS ou FSx avec vérification de l'intégrité des données | Tâche **AWS DataSync** (agent sur site), planifiée, à bande passante limitée, vérifiée |
 | De nombreux téléchargements répétés dans le monde entier | CloudFront devant le compartiment (Transfer Acceleration ne met rien en cache) |
 | Des objets qui refroidissent après un âge connu | Transitions et expirations **S3 Lifecycle** |
 | Un modèle d'accès inconnu ou changeant | S3 Intelligent-Tiering |

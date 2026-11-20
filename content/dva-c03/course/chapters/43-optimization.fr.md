@@ -59,7 +59,7 @@ aws application-autoscaling put-scaling-policy \
 
 Plus de threads que de connexions dans le pool fait attendre les threads : dimensionnez le pool du SDK selon les threads et réutilisez un seul client par processus.
 
-```text
+```python
 # Python: one client per process, pool sized for 32 worker threads
 from botocore.config import Config
 import boto3

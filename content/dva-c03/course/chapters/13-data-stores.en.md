@@ -80,7 +80,7 @@ ElastiCache for **Valkey or Redis OSS** offers replication, Multi-AZ failover, p
 | Write-through | Update the cache on every database write | Data is never stale; every write costs more; unread data fills the cache |
 | TTL | Expire each key after a set time | Limits staleness for lazy loading and unused data for write-through |
 
-```text
+```python
 # Python: lazy loading with a TTL in ElastiCache (Valkey or Redis OSS)
 def get_product(product_id):
     key = f"product:{product_id}"
@@ -154,7 +154,7 @@ Writes:
 - **Batch operations**: `BatchWriteItem` takes up to 25 puts or deletes (16 MB), can't update or use conditions, isn't atomic as a whole, and returns `UnprocessedItems` to retry with backoff; `BatchGetItem` reads up to 100 items.
 - **Transactions**: `TransactWriteItems` groups up to 100 actions (`Put`, `Update`, `Delete`, `ConditionCheck`, 4 MB in total) across tables, all or nothing; no two actions on the same item; `ClientRequestToken` makes a retry idempotent for 10 minutes.
 
-```text
+```python
 # Python (boto3): optimistic locking
 table.update_item(
     Key={"orderId": "o-1001"},

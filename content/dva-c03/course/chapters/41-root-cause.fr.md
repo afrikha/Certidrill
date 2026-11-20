@@ -37,7 +37,7 @@ sam local invoke OrdersFunction --event events/order.json --debug-port 5858
 
 Les clients des SDK réessaient eux-mêmes après une limitation ou une erreur transitoire. Réglez-les plutôt que d'écrire des boucles :
 
-```text
+```python
 # Python (boto3)
 from botocore.config import Config
 import boto3

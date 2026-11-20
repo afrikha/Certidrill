@@ -45,11 +45,13 @@ aws lambda invoke --function-name process-order \
 
 Les kits SDK AWS retentent automatiquement les erreurs transitoires (limitation, HTTP 5xx, délais d'expiration, connexions réinitialisées). Le mode de nouvelle tentative **standard**, par défaut, utilise un backoff exponentiel avec gigue (jitter) et `max_attempts` à 3 (requête initiale comprise) ; le mode **adaptive** ajoute une limitation de débit côté client pour une ressource souvent limitée ; le mode **legacy** existe pour la compatibilité. Réglez-les avec `AWS_RETRY_MODE` et `AWS_MAX_ATTEMPTS` ou dans le code. `AccessDeniedException`, `ValidationException` et `ResourceNotFoundException` ne sont jamais retentées.
 
-```text
+```python
 # Python (boto3)
 from botocore.config import Config
 dynamodb = boto3.client("dynamodb", config=Config(retries={"mode": "standard", "max_attempts": 5}))
+```
 
+```javascript
 // JavaScript (SDK v3)
 const client = new DynamoDBClient({ maxAttempts: 5, retryMode: "adaptive" });
 ```
@@ -131,14 +133,16 @@ Chaque appel d'API est une requête HTTPS signée avec Signature Version 4 ; les
 | Chaque appel recrée les clients et les connexions | Créer les clients en dehors du gestionnaire (handler) Lambda |
 | L'appel échoue avec un code d'erreur | Intercepter l'exception du service et brancher sur son code (`ConditionalCheckFailedException`, `ThrottlingException`) |
 
-```text
+```python
 # Python (boto3): paginator and waiter
 s3 = boto3.client("s3")
 for page in s3.get_paginator("list_objects_v2").paginate(Bucket="anycompany-invoices", Prefix="2026/"):
     for obj in page.get("Contents", []):
         print(obj["Key"])
 s3.get_waiter("object_exists").wait(Bucket="anycompany-invoices", Key="2026/11/summary.csv")
+```
 
+```javascript
 // JavaScript (SDK v3): one client per service, commands sent with send()
 import { S3Client, paginateListObjectsV2 } from "@aws-sdk/client-s3";
 const s3 = new S3Client({});
@@ -159,7 +163,7 @@ for await (const page of paginateListObjectsV2({ client: s3 }, { Bucket: "anycom
 - La **Kinesis Client Library** garde un bail (lease) par partition dans une table DynamoDB et enregistre la progression (checkpoint) ; plus de workers que de partitions n'apporte rien. La KCL 1.x a atteint sa fin de prise en charge le 30 janvier 2026.
 - La **diffusion améliorée (enhanced fan-out)** donne à chaque consommateur enregistré ses propres 2 Mo/s par partition.
 
-```text
+```python
 # Python (boto3): resend only the failed records
 response = kinesis.put_records(StreamName="clickstream", Records=records)
 if response["FailedRecordCount"] > 0:
@@ -182,13 +186,15 @@ if response["FailedRecordCount"] > 0:
 | Événement EventBridge | `detail` est déjà un objet JSON |
 | API DynamoDB de bas niveau | Valeurs typées (`S`, `N`, `B`, `BOOL`, `NULL`, `M`, `L`, `SS`, `NS`, `BS`) ; les nombres circulent sous forme de chaînes, jusqu'à 38 chiffres |
 
-```text
+```python
 # Python: DynamoDB Table resource and JSON
 from decimal import Decimal
 table.put_item(Item={"orderId": "o-1001", "total": Decimal("19.99")})   # a float raises TypeError
 item = table.get_item(Key={"orderId": "o-1001"})["Item"]
 json.dumps(item, default=str)                                            # Decimal isn't JSON serializable by default
+```
 
+```javascript
 // JavaScript (SDK v3): document client or marshall/unmarshall
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
@@ -273,7 +279,7 @@ Amazon CodeGuru Reviewer n'accepte plus de nouvelle association de référentiel
 
 **Amazon Bedrock** sert les modèles sur le point de terminaison `bedrock-runtime`. `Converse` et `ConverseStream` utilisent un seul format de message (`messages`, `system`, `inferenceConfig`, `toolConfig`, `guardrailConfig`) pour tous les modèles qui prennent en charge les messages ; `InvokeModel` prend un corps propre à chaque modèle. `Converse` exige `bedrock:InvokeModel`, `ConverseStream` exige `bedrock:InvokeModelWithResponseStream`. Le streaming affiche les premiers jetons plus tôt ; renvoyez les messages précédents avec chaque requête pour conserver une conversation.
 
-```text
+```python
 # Python (boto3)
 brt = boto3.client("bedrock-runtime")
 response = brt.converse(

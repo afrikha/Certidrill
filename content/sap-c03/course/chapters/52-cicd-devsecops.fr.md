@@ -138,18 +138,18 @@ Les **actions entre Régions** ajoutent une `region` à l'action et une table `a
 <!-- section: ai-evaluation | objectives: 5.2.4 -->
 ## Évaluer les applications d'IA avant la mise en production
 
-Les prompts, les versions de modèle et les bases de connaissances modifient le comportement autant que le code : ils méritent un contrôle de qualité. **Amazon Bedrock Evaluations** propose :
+Les invites, les versions de modèle et les bases de connaissances modifient le comportement autant que le code : ils méritent un contrôle de qualité. **Amazon Bedrock Evaluations** propose :
 
 | Type de tâche | Mode de notation | À utiliser quand |
 | --- | --- | --- |
-| Automatique (programmatique) | Jeux de données de prompts intégrés ou personnalisés ; types de tâches génération de texte générale, résumé, questions-réponses, classification ; métriques précision (accuracy), robustesse, toxicité | Comparaison rapide et peu coûteuse de modèles sur des tâches standard |
+| Automatique (programmatique) | Jeux de données d'invites intégrés ou personnalisés ; types de tâches génération de texte générale, résumé, questions-réponses, classification ; métriques précision (accuracy), robustesse, toxicité | Comparaison rapide et peu coûteuse de modèles sur des tâches standard |
 | Modèle juge (LLM-as-a-judge) | Un modèle juge note chaque réponse et explique pourquoi : métriques de qualité (`Builtin.Correctness`, `Builtin.Completeness`, `Builtin.Faithfulness`, `Builtin.Helpfulness`, `Builtin.Relevance`...) et d'IA responsable (`Builtin.Harmfulness`, `Builtin.Stereotyping`, `Builtin.Refusal`) ; métriques personnalisées possibles | Jugement de qualité proche de l'humain, à grande échelle |
 | Évaluation RAG | Récupération seule (`Builtin.ContextRelevance`, `Builtin.ContextCoverage`) ou récupération et génération (exactitude, fidélité, précision et couverture des citations...) | Vérifier une base de connaissances Bedrock ou une autre source RAG |
 | Évaluation humaine | Votre propre équipe de travail (jusqu'à 50 évaluateurs par équipe) note les réponses | Critères subjectifs, ton de la marque, domaines d'expertise |
 
 Vous pouvez **apporter vos propres réponses d'inférence** : le jeu de données contient déjà les sorties d'un modèle ou d'un système RAG hébergé hors de Bedrock, et Bedrock se contente de les noter. Les rapports sont écrits dans S3.
 
-Pour les agents, **Amazon Bedrock AgentCore Evaluations** note les traces des agents (OpenTelemetry) avec des évaluateurs intégrés comme `Builtin.Helpfulness` ou personnalisés : **à la demande** (traces choisies, par exemple pendant une génération), **par lots** (de nombreuses sessions, références et tests de non-régression après un changement de prompt ou de modèle) et **en ligne** (un échantillon des sessions réelles, pour surveiller la production).
+Pour les agents, **Amazon Bedrock AgentCore Evaluations** note les traces des agents (OpenTelemetry) avec des évaluateurs intégrés comme `Builtin.Helpfulness` ou personnalisés : **à la demande** (traces choisies, par exemple pendant une génération), **par lots** (de nombreuses sessions, références et tests de non-régression après un changement d'invite ou de modèle) et **en ligne** (un échantillon des sessions réelles, pour surveiller la production).
 
 Un contrôle dans le pipeline : une action CodeBuild ou Lambda lance la tâche d'évaluation sur un jeu de données de référence fixe, attend, lit le rapport et fait échouer l'étape si un score passe sous le seuil convenu avec le métier. Les garde-fous (guardrails) sont un autre contrôle : ils filtrent chaque requête et réponse à l'exécution ; les évaluations mesurent la qualité avant la mise en production.
 

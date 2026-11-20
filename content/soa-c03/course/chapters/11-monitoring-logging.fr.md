@@ -39,7 +39,7 @@ Les journaux de suivi **CloudTrail** livrent les fichiers journaux dans un compa
 
 La **journalisation des invocations de modèles** Bedrock enregistre les requêtes, les réponses et les métadonnées des appels `Converse`, `ConverseStream`, `InvokeModel` et `InvokeModelWithResponseStream`, vers une destination du même compte et de la même Région. La livraison dans CloudWatch Logs utilise un rôle IAM qui fait confiance à `bedrock.amazonaws.com` ; la livraison dans S3 exige une politique de compartiment pour le même principal. Les corps de plus de 100 Ko et les données binaires ne vont que dans S3.
 
-> **Piège d'examen.** « Suivre la consommation de jetons et la limitation d'un modèle Bedrock », ce sont les métriques `AWS/Bedrock`, disponibles immédiatement. « Conserver les prompts et les réponses pour l'audit » exige la journalisation des invocations de modèles, désactivée tant que vous ne la configurez pas. CloudTrail enregistre qui a appelé l'API, pas le contenu du prompt.
+> **Piège d'examen.** « Suivre la consommation de jetons et la limitation d'un modèle Bedrock », ce sont les métriques `AWS/Bedrock`, disponibles immédiatement. « Conserver les invites et les réponses pour l'audit » exige la journalisation des invocations de modèles, désactivée tant que vous ne la configurez pas. CloudTrail enregistre qui a appelé l'API, pas le contenu de l'invite.
 
 <!-- section: cloudwatch-agent | objectives: 1.1.2 -->
 ## L'agent CloudWatch sur EC2, ECS et EKS

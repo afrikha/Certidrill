@@ -117,7 +117,7 @@ An **S3 presigned URL** grants time-limited access to one object for someone wit
 aws s3 presign s3://example-reports/2026/q3.pdf --expires-in 900
 ```
 
-```text
+```python
 # Python (boto3): upload URL for a browser client, valid 10 minutes
 s3 = boto3.client("s3")
 url = s3.generate_presigned_url(

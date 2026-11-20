@@ -37,7 +37,7 @@ sam local invoke OrdersFunction --event events/order.json --debug-port 5858
 
 SDK clients retry throttling and transient errors themselves. Tune them rather than writing loops:
 
-```text
+```python
 # Python (boto3)
 from botocore.config import Config
 import boto3

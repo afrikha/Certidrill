@@ -22,7 +22,7 @@ Une fois attachée à un VPC, la fonction n'atteint que ce que le VPC peut attei
 | Ressources du VPC (RDS, ElastiCache, équilibreurs de charge internes) | Seulement des règles de groupes de sécurité |
 | Internet (une API tierce) | Des sous-réseaux privés avec une route `0.0.0.0/0` vers une passerelle NAT dans un sous-réseau public, dont la table de routage pointe vers une passerelle Internet |
 | Services AWS sans Internet (S3, DynamoDB, Secrets Manager, SQS...) | Des points de terminaison de VPC : de passerelle pour S3 et DynamoDB, d'interface pour les autres |
-| Internet en IPv6 | Des sous-réseaux double pile, l'option « Allow IPv6 traffic for dual-stack subnets », une route `::/0` vers une passerelle Internet de sortie uniquement |
+| Internet en IPv6 | Des sous-réseaux double pile, l'option « Autoriser le trafic IPv6 pour les sous-réseaux double pile » (Allow IPv6 traffic for dual-stack subnets), une route `::/0` vers une passerelle Internet de sortie uniquement |
 
 > **Piège d'examen.** Attacher la fonction à un sous-réseau public ne lui donne pas accès à Internet : ses interfaces réseau ne reçoivent pas d'adresse IP publique. « La fonction expire quand elle appelle une API externe depuis qu'elle a été placée dans le VPC » se corrige avec des sous-réseaux privés routés vers une passerelle NAT, ou avec des points de terminaison de VPC quand la cible est un service AWS.
 
