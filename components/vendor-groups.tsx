@@ -26,7 +26,8 @@ export function VendorGroups({ groups, headingLevel = 3, className }: Readonly<{
   const choices = [{ key: null, name: t("filterAll") }, ...groups.map((g) => ({ key: g.key, name: g.name }))];
   return (
     <div className={cn("space-y-6", className)} data-testid="vendor-groups">
-      <div role="group" aria-label={t("filterLabel")} className="flex flex-wrap justify-center gap-2">
+      <fieldset className="flex flex-wrap justify-center gap-2">
+        <legend className="sr-only">{t("filterLabel")}</legend>
         {choices.map((c) => (
           <button
             key={c.key ?? "all"}
@@ -38,7 +39,7 @@ export function VendorGroups({ groups, headingLevel = 3, className }: Readonly<{
             {c.name}
           </button>
         ))}
-      </div>
+      </fieldset>
       {groups.map((g) => (
         <section key={g.key} hidden={shown !== null && shown !== g.key} data-vendor={g.key} aria-labelledby={`vendor-${g.key}`} className="space-y-3">
           <Heading id={`vendor-${g.key}`} className="text-base font-semibold">{g.name}</Heading>

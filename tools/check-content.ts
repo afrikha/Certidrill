@@ -41,15 +41,13 @@ async function main() {
   const additions = [...glossary.perCertification].map(([c, g]) => c + " +" + g.terms.length).join(", ") || "no certification glossary";
   console.log(`✔ glossary: ${glossary.shared.terms.length} shared terms, ${glossary.shared.undecided.length} undecided; ${additions}`);
   // The glossaries of the other vendors' documentation (lib/vendors.ts).
-  for (const v of Object.values(VENDORS)) {
-    if (!v.glossary) continue;
-    const g = await loadVendorGlossary(v.glossary);
-    if (!g) {
-      console.log(`⚠ glossary ${v.name}: ${v.glossary} missing (lib/vendors.ts)`);
-      continue;
-    }
-    console.log(`✔ glossary ${v.name}: ${g.terms.length} terms, ${g.terms.filter((t) => t.confirmed).length} confirmed`);
-  }
+  const vendors = Object.values(VENDORS).filter((v) => v.glossary);
+  const glossaries = await Promise.all(vendors.map((v) => loadVendorGlossary(v.glossary!)));
+  vendors.forEach((v, i) => {
+    const g = glossaries[i];
+    if (g) console.log(`✔ glossary ${v.name}: ${g.terms.length} terms, ${g.terms.filter((t) => t.confirmed).length} confirmed`);
+    else console.log(`⚠ glossary ${v.name}: ${v.glossary} missing (lib/vendors.ts)`);
+  });
 }
 
 try {

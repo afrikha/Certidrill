@@ -6,10 +6,9 @@
  * the browser before submission) and `response` (what the candidate submits).
  */
 import { z } from "zod";
-import { localizedSchema, type QuestionTypeCode } from "@/lib/content/schema";
+import { DEFAULT_SCORING, localizedSchema, type QuestionTypeCode, type ScoringRules } from "@/lib/content/schema";
 
 export { questionTypes, type QuestionTypeCode } from "@/lib/content/schema";
-import { DEFAULT_SCORING, type ScoringRules } from "@/lib/content/schema";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/, "ids are 1-40 chars of [a-zA-Z0-9_-]");
 

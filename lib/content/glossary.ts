@@ -151,7 +151,10 @@ export function vendorGlossaryConflicts(g: VendorGlossary, file: string): string
   const seen = new Map<string, string>();
   for (const t of g.terms) {
     const before = seen.get(key(t.en));
-    if (before !== undefined) problems.push(`"${t.en}": listed twice in ${file}${sameFr(before, t.fr) ? "" : ` (« ${before} » and « ${t.fr} »)`}`);
+    if (before !== undefined) {
+      const both = sameFr(before, t.fr) ? "" : " (« " + before + " » and « " + t.fr + " »)";
+      problems.push(`"${t.en}": listed twice in ${file}${both}`);
+    }
     seen.set(key(t.en), t.fr);
     for (const a of t.avoid ?? []) if ([t.fr, ...(t.also_seen ?? [])].some((f) => sameFr(f, a))) problems.push(`"${t.en}": « ${a} » is both used and to avoid (${file})`);
   }
@@ -179,7 +182,7 @@ function withoutCode(markdown: string): string {
   return markdown.replaceAll(/```[\s\S]*?```/g, " ").replaceAll(/`[^`\n]*`/g, " ").replaceAll(/<!--[\s\S]*?-->/g, " ");
 }
 
-const escape = (s: string) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escape = (s: string) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 /**
  * The variants to avoid (glossary `avoid`) found in a French text, outside
@@ -193,8 +196,10 @@ export function terminologyWarnings(fr: string, terms: readonly GlossaryTerm[]):
   const warnings: string[] = [];
   for (const t of terms) {
     for (const a of t.avoid ?? []) {
-      const n = prose.match(new RegExp(`(?<![\\p{L}\\p{N}_-])${escape(a)}(?![\\p{L}\\p{N}_-])`, "gu"))?.length ?? 0;
-      if (n > 0) warnings.push(`French text uses « ${a} »${n > 1 ? ` (${n}×)` : ""}: the glossary says « ${t.fr} » for "${t.en}"`);
+      const word = new RegExp(String.raw`(?<![\p{L}\p{N}_-])${escape(a)}(?![\p{L}\p{N}_-])`, "gu");
+      const n = [...prose.matchAll(word)].length;
+      const times = n > 1 ? " (" + n + "×)" : "";
+      if (n > 0) warnings.push(`French text uses « ${a} »${times}: the glossary says « ${t.fr} » for "${t.en}"`);
     }
   }
   return warnings;
