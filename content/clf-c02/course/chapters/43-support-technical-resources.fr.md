@@ -70,7 +70,7 @@ L'**AWS Support Center**, dans la console, est l'endroit où vous ouvrez et suiv
 
 **AWS Trusted Advisor** inspecte votre compte et recommande des améliorations, dans six catégories : **optimisation des coûts (cost optimization), performances, sécurité, tolérance aux pannes (fault tolerance), limites de service (service limits), excellence opérationnelle**.
 
-- Les vérifications d'optimisation des coûts trouvent des économies : équilibreurs de charge inactifs, instances RDS inactives, adresses IP Elastic non associées, volumes EBS surdimensionnés, expiration de baux de Reserved Instances, recommandations d'achat de Savings Plans.
+- Les vérifications d'optimisation des coûts trouvent des économies : équilibreurs de charge inactifs, instances RDS inactives, adresses IP Elastic non associées, volumes EBS surdimensionnés, expiration de baux d'instances réservées, recommandations d'achat de Savings Plans.
 - **Basic Support** : toutes les vérifications des limites de service et une sélection de vérifications de sécurité et de tolérance aux pannes, actualisées manuellement. **Plans payants** : toutes les vérifications, l'API Trusted Advisor et la surveillance par Amazon EventBridge.
 
 **AWS Health** signale les événements qui peuvent affecter vos ressources et vos comptes AWS :

@@ -18,7 +18,7 @@ Choix de routage qui suppriment des frais :
 
 - **Utilisez des adresses IP privées** entre les composants d'un même VPC ou de VPC appairés plutôt que des points de terminaison publics.
 - **Gardez les composants très bavards dans la même zone de disponibilité** quand l'exigence le permet, et évitez d'envoyer le trafic d'une AZ vers la passerelle NAT d'une autre AZ.
-- **Les points de terminaison de passerelle** (gateway endpoints) pour Amazon S3 et DynamoDB n'ont **aucun frais horaire ni frais de traitement des données** : ils suppriment le traitement de la passerelle NAT pour ce trafic.
+- **Les points de terminaison de passerelle** pour Amazon S3 et DynamoDB n'ont **aucun frais horaire ni frais de traitement des données** : ils suppriment le traitement de la passerelle NAT pour ce trafic.
 - **Les points de terminaison d'interface** (AWS PrivateLink) gardent le trafic privé pour les autres services, mais coûtent par point de terminaison, par AZ et par heure (environ 0,01 USD) plus par Go traité (0,01 USD/Go pour le premier Po). Ils ne font économiser que s'ils remplacent un chemin NAT qui transporte assez de données, ou si l'accès privé est de toute façon exigé.
 - **Servez les utilisateurs depuis CloudFront** plutôt que directement depuis EC2 ou S3.
 - **Lisez localement** : un réplica en lecture ou un cache dans la Région consommatrice évite des lectures répétées entre Régions.
@@ -73,7 +73,7 @@ Moyens de réduire la facture NAT :
 1. Faire passer le trafic S3 et DynamoDB par des **points de terminaison de passerelle**.
 2. Utiliser des points de terminaison d'interface pour les autres flux importants vers des services AWS lorsque leur prix horaire et par Go est inférieur au traitement NAT qu'ils suppriment.
 3. Supprimer les passerelles NAT inutilisées (AWS Trusted Advisor signale **Idle NAT gateways** et **Inactive NAT Gateways**).
-4. Pour le trafic IPv6 sortant, utiliser une **passerelle Internet de sortie uniquement** (egress-only internet gateway) au lieu de la NAT.
+4. Pour le trafic IPv6 sortant, utiliser une **passerelle Internet de sortie uniquement** au lieu de la NAT.
 
 > **Piège d'examen.** Une instance NAT peut coûter moins cher pour une petite charge de développement, mais elle échoue à « highly available » et à « LEAST operational overhead ». Dans les énoncés de production, la passerelle NAT est la réponse attendue.
 

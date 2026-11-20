@@ -7,8 +7,8 @@ AWS facture surtout le calcul, le stockage et le transfert de données sortant. 
 | --- | --- | --- |
 | **On-Demand Instances** | À la seconde (ou à l'heure), sans engagement ni paiement initial | Aucune : c'est le prix de référence |
 | **Savings Plans** | Engagement sur un montant d'utilisation en USD par heure, pendant 1 ou 3 ans | Jusqu'à 72 % (EC2 Instance Savings Plans), jusqu'à 66 % (Compute Savings Plans) |
-| **Reserved Instances (RI)** | Engagement sur une configuration d'instance (type, plateforme, location, Région ou zone de disponibilité) pendant 1 ou 3 ans | Jusqu'à 72 % |
-| **Spot Instances** | Capacité EC2 inutilisée au prix Spot courant ; AWS peut interrompre l'instance avec un **préavis de deux minutes** | Jusqu'à 90 % |
+| **Instances réservées (RI)** | Engagement sur une configuration d'instance (type, plateforme, location, Région ou zone de disponibilité) pendant 1 ou 3 ans | Jusqu'à 72 % |
+| **Instances Spot** | Capacité EC2 inutilisée au prix Spot courant ; AWS peut interrompre l'instance avec un **préavis de deux minutes** | Jusqu'à 90 % |
 | **Dedicated Hosts** | Un serveur physique entier réservé pour vous ; On-Demand ou réservé | Pas une remise : une option d'isolation et de licences |
 | **Dedicated Instances** | Instances sur du matériel dédié à votre compte ; vous ne gérez pas l'hôte | Pas une remise : une option d'isolation |
 | **On-Demand Capacity Reservations** | Capacité réservée dans une zone de disponibilité, pour une durée quelconque, facturée au tarif On-Demand qu'elle soit utilisée ou non | Aucune à elle seule ; à combiner avec des Savings Plans ou des RI régionales pour la remise |
@@ -28,7 +28,7 @@ Les Savings Plans et les RI ont les mêmes options de paiement : **All Upfront**
 | Charge courte, imprévisible ou nouvelle ; tests ; ne peut pas être interrompue | On-Demand |
 | Utilisation stable pendant 1 ou 3 ans, avec un possible changement de famille d'instances, de Région ou un passage à Fargate ou Lambda | Compute Savings Plans |
 | Utilisation stable d'une famille d'instances dans une Région, remise maximale | EC2 Instance Savings Plans ou RI Standard |
-| Tâches batch, rendu d'images, builds CI, big data : tolérants aux pannes et souples dans le temps | Spot Instances |
+| Tâches batch, rendu d'images, builds CI, big data : tolérants aux pannes et souples dans le temps | instances Spot |
 | Licences logicielles existantes liées au serveur (par socket, par cœur, par VM), ou conformité exigeant de contrôler le placement des instances sur un serveur physique | Dedicated Hosts |
 | Conformité exigeant du matériel à locataire unique, sans gérer d'hôtes | Dedicated Instances |
 | Capacité garantie dans une zone de disponibilité pour un court événement critique ou pour la reprise après sinistre, sans engagement de 1 ou 3 ans | On-Demand Capacity Reservations |
@@ -36,14 +36,14 @@ Les Savings Plans et les RI ont les mêmes options de paiement : **All Upfront**
 > **Piège d'examen.** Spot n'est la moins chère que si l'énoncé accepte les interruptions. « La tâche ne peut pas être interrompue » exclut Spot ; « licences BYOL par socket » désigne Dedicated Hosts, pas Dedicated Instances.
 
 <!-- section: ri-flexibility | objectives: 4.1.4 -->
-## Flexibilité des Reserved Instances
+## Flexibilité des instances réservées
 
 | Attribut | RI Standard | RI Convertible |
 | --- | --- | --- |
 | Remise | Plus forte | Plus faible |
 | Échange contre une autre famille d'instances, un autre système d'exploitation ou une autre location | Non | Oui, contre une RI Convertible de valeur égale ou supérieure |
 | Modification de la zone de disponibilité, de la portée ou de la taille dans la famille | Oui | Oui |
-| Vente sur le Reserved Instance Marketplace | Oui | Non |
+| Vente sur le Marketplace des instances réservées | Oui | Non |
 
 | Portée | Capacité réservée | La remise s'applique à |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ Les Savings Plans et les RI ont les mêmes options de paiement : **All Upfront**
 La flexibilité de taille utilise un facteur de normalisation : une RI régionale pour une `m5.xlarge` (facteur 8) peut couvrir deux instances `m5.large` (facteur 4 chacune).
 
 <!-- section: ri-organizations | objectives: 4.1.5 -->
-## Les Reserved Instances dans AWS Organizations
+## Les instances réservées dans AWS Organizations
 
 Avec la facturation consolidée, les comptes de l'organisation sont traités comme un seul compte pour les remises :
 

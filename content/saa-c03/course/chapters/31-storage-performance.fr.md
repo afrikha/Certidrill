@@ -79,7 +79,7 @@ Comment obtenir les performances :
 - **Récupérations par plage d'octets (byte-range fetches)** : téléchargez en parallèle des parties d'un gros objet, ou seulement la partie utile.
 - **S3 Transfer Acceleration** : fait passer les chargements et téléchargements par les emplacements périphériques CloudFront puis par le réseau AWS ; pour des clients éloignés de la Région du compartiment.
 - **Amazon CloudFront** ou **ElastiCache** devant S3 : pour de nombreuses lectures répétées, un débit supérieur par connexion ou une latence de quelques millisecondes.
-- **S3 Express One Zone** : compartiments de répertoires (directory buckets) dans **une AZ** que vous choisissez, accès constant en quelques millisecondes, accès aux données jusqu'à 10 fois plus rapide et coûts de requêtes inférieurs de 80 % par rapport à S3 Standard ; placez-le dans l'AZ du calcul EC2, ECS ou EKS. Pas pour des données qui doivent survivre à la perte d'une AZ.
+- **S3 Express One Zone** : compartiments de répertoires dans **une AZ** que vous choisissez, accès constant en quelques millisecondes, accès aux données jusqu'à 10 fois plus rapide et coûts de requêtes inférieurs de 80 % par rapport à S3 Standard ; placez-le dans l'AZ du calcul EC2, ECS ou EKS. Pas pour des données qui doivent survivre à la perte d'une AZ.
 
 > **Piège d'examen.** Transfer Acceleration accélère les transferts longue distance vers un compartiment ; il ne met rien en cache. Des téléchargements répétés par des utilisateurs du monde entier appellent CloudFront.
 

@@ -99,7 +99,7 @@ La capacité SPICE est allouée par Région et partagée par les utilisateurs du
 
 Détails d'EMR on EC2 :
 
-- Les **nœuds principaux (core)** exécutent des tâches et stockent les données HDFS ; les **nœuds de tâches (task)** ne font qu'exécuter, ce sont donc eux qui peuvent utiliser des **Spot Instances** sans risque. EMR garde pour cette raison les maîtres d'application YARN sur les nœuds principaux.
+- Les **nœuds principaux (core)** exécutent des tâches et stockent les données HDFS ; les **nœuds de tâches (task)** ne font qu'exécuter, ce sont donc eux qui peuvent utiliser des **instances Spot** sans risque. EMR garde pour cette raison les maîtres d'application YARN sur les nœuds principaux.
 - **HDFS est éphémère** : il disparaît avec le cluster. Gardez les entrées et sorties dans S3 (EMRFS ou le connecteur S3A) et utilisez HDFS pour les données intermédiaires.
 - Les **clusters transitoires** démarrent, exécutent leurs étapes et s'arrêtent, vous ne payez donc que pendant le traitement ; les clusters de longue durée conviennent à un usage interactif ou continu. La mise à l'échelle gérée d'EMR ajuste le cluster à la charge.
 

@@ -19,7 +19,7 @@ Les coûts réseau sont souvent partagés : une passerelle NAT, une passerelle d
 **Facturation consolidée** (AWS Organizations)
 
 - Une seule facture pour les comptes de l'organisation, avec des données de coût et d'utilisation combinées.
-- **Utilisation combinée** : les paliers de tarification par volume (le transfert de données sortant est par paliers), les remises des Reserved Instances et les Savings Plans sont partagés entre les comptes.
+- **Utilisation combinée** : les paliers de tarification par volume (le transfert de données sortant est par paliers), les remises des instances réservées et les Savings Plans sont partagés entre les comptes.
 - Aucun coût supplémentaire.
 
 Règles de propriété utiles pour la refacturation : le **propriétaire du VPC** paie le montant horaire de son attachement de VPC à la passerelle de transit, et le propriétaire du VPC qui **envoie** le trafic vers la passerelle de transit paie son traitement des données.
@@ -36,7 +36,7 @@ Règles de propriété utiles pour la refacturation : le **propriétaire du VPC*
 | Les données ligne par ligne les plus détaillées, interrogées en SQL | AWS Cost and Usage Report (CUR 2.0) via AWS Data Exports, livré dans Amazon S3 |
 | Détecter des dépenses inhabituelles sans fixer de seuils | AWS Cost Anomaly Detection |
 
-**AWS Budgets** prend en charge les budgets de coût, d'utilisation, et d'utilisation ou de couverture des Reserved Instances et des Savings Plans. Les alertes partent par e-mail ou vers une rubrique Amazon SNS. Les **actions budgétaires** s'exécutent automatiquement ou après approbation : appliquer une politique IAM, appliquer une SCP ou cibler des instances EC2 ou RDS précises. Les données budgétaires sont mises à jour jusqu'à trois fois par jour : ce n'est pas un plafond en temps réel.
+**AWS Budgets** prend en charge les budgets de coût, d'utilisation, et d'utilisation ou de couverture des instances réservées et des Savings Plans. Les alertes partent par e-mail ou vers une rubrique Amazon SNS. Les **actions budgétaires** s'exécutent automatiquement ou après approbation : appliquer une politique IAM, appliquer une SCP ou cibler des instances EC2 ou RDS précises. Les données budgétaires sont mises à jour jusqu'à trois fois par jour : ce n'est pas un plafond en temps réel.
 
 **CUR 2.0** est l'export recommandé d'AWS Data Exports (l'ancien CUR reste disponible comme export hérité). Analysez-le avec Amazon Athena ou un tableau de bord. Le transfert de données apparaît sous des types d'utilisation reconnaissables :
 

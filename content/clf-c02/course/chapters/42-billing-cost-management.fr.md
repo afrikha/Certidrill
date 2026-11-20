@@ -34,7 +34,7 @@ La **facturation consolidée** est une fonctionnalité d'Organizations, sans co�
 | **Une seule facture** | Le compte de gestion reçoit et paie une seule facture pour tous les comptes membres |
 | **Suivi facile** | Les frais restent affichés par compte, ce qui permet de répartir les coûts de chaque compte |
 | **Utilisation combinée** | L'utilisation de tous les comptes est additionnée pour les **paliers de tarification par volume** (par exemple le stockage S3 ou le transfert de données) : l'organisation atteint plus vite les paliers moins chers |
-| **Remises partagées** | Les remises des Reserved Instances et des Savings Plans s'appliquent entre les comptes (chapitre 41) |
+| **Remises partagées** | Les remises des instances réservées et des Savings Plans s'appliquent entre les comptes (chapitre 41) |
 
 > **Piège d'examen.** La facturation consolidée combine la **facturation**, pas les autorisations : les utilisateurs d'un compte membre n'obtiennent pas d'accès aux autres comptes. Contrôler ce que les comptes peuvent faire est le rôle des SCP.
 
@@ -58,8 +58,8 @@ Une **balise** (tag) est une étiquette clé-valeur sur une ressource (par exemp
 
 | Outil | Objectif | Principales fonctions |
 | --- | --- | --- |
-| **AWS Cost Explorer** | **Analyser** les dépenses passées et **prévoir** les dépenses futures | Graphiques et rapports de coûts et d'utilisation par service, compte, Région ou balise ; jusqu'à 13 mois d'historique plus le mois en cours ; prévision sur les 18 prochains mois ; recommandations, rapports d'utilisation et de couverture des Reserved Instances et des Savings Plans ; recommandations de dimensionnement |
-| **AWS Budgets** | **Alerter** quand les dépenses franchissent un seuil que vous fixez | Budgets de coût, d'utilisation, de Reserved Instances et de Savings Plans ; alertes sur les valeurs **réelles ou prévues** par e-mail ou Amazon SNS ; **actions de budget** qui appliquent une politique IAM ou une SCP, ou arrêtent des instances EC2 ou RDS |
+| **AWS Cost Explorer** | **Analyser** les dépenses passées et **prévoir** les dépenses futures | Graphiques et rapports de coûts et d'utilisation par service, compte, Région ou balise ; jusqu'à 13 mois d'historique plus le mois en cours ; prévision sur les 18 prochains mois ; recommandations, rapports d'utilisation et de couverture des instances réservées et des Savings Plans ; recommandations de dimensionnement |
+| **AWS Budgets** | **Alerter** quand les dépenses franchissent un seuil que vous fixez | Budgets de coût, d'utilisation, d'instances réservées et de Savings Plans ; alertes sur les valeurs **réelles ou prévues** par e-mail ou Amazon SNS ; **actions de budget** qui appliquent une politique IAM ou une SCP, ou arrêtent des instances EC2 ou RDS |
 
 > **Piège d'examen.** Cost Explorer affiche et prévoit, mais n'alerte pas. « Prévenir l'équipe financière quand les coûts mensuels prévus dépassent 500 USD » relève d'AWS Budgets.
 

@@ -7,19 +7,19 @@ Une même capacité EC2 peut coûter des montants très différents selon la fa�
 | --- | --- | --- |
 | On-Demand | À la seconde, sans engagement | Charges courtes, imprévisibles ou nouvelles ; la base tant que l'usage n'est pas connu |
 | Savings Plans | Engagement en USD par heure sur 1 ou 3 ans | Usage stable, avec la liberté de changer de famille d'instances, de Région ou de service |
-| Reserved Instances | Engagement sur une configuration d'instance pendant 1 ou 3 ans | Usage stable d'un type d'instance connu ; les RI zonales réservent aussi de la capacité |
-| Spot Instances | Prix Spot courant, jusqu'à 90 % sous On-Demand, interruptibles | Tâches tolérantes aux pannes et flexibles : batch, CI, big data, niveaux web sans état |
+| Instances réservées | Engagement sur une configuration d'instance pendant 1 ou 3 ans | Usage stable d'un type d'instance connu ; les RI zonales réservent aussi de la capacité |
+| Instances Spot | Prix Spot courant, jusqu'à 90 % sous On-Demand, interruptibles | Tâches tolérantes aux pannes et flexibles : batch, CI, big data, niveaux web sans état |
 | Dedicated Hosts | Un serveur physique entier | Licences existantes par socket, par cœur ou par VM ; visibilité au niveau de l'hôte |
 | Dedicated Instances | Instances sur du matériel à locataire unique | Conformité exigeant une isolation matérielle, sans gestion d'hôte |
 | Capacity Reservations | Prix On-Demand pour une capacité réservée dans une zone, utilisée ou non | Capacité garantie pour un événement critique ou une reprise après sinistre, sans durée imposée |
 | Capacity Blocks | Grappe d'instances GPU réservée pour une période future | Courts entraînements de ML qui exigent beaucoup de GPU à la fois |
 
-Les options de paiement des Savings Plans et des Reserved Instances sont All Upfront, Partial Upfront et No Upfront : plus vous payez d'avance et plus la durée est longue, plus la remise est importante.
+Les options de paiement des Savings Plans et des instances réservées sont All Upfront, Partial Upfront et No Upfront : plus vous payez d'avance et plus la durée est longue, plus la remise est importante.
 
-> **Piège d'examen.** Les Savings Plans et les Reserved Instances régionales donnent une remise, pas de la capacité. « Garantir de la capacité dans une zone de disponibilité précise » exige une Reserved Instance zonale ou une On-Demand Capacity Reservation ; une Capacity Reservation peut se combiner avec un Savings Plan pour obtenir les deux.
+> **Piège d'examen.** Les Savings Plans et les instances réservées régionales donnent une remise, pas de la capacité. « Garantir de la capacité dans une zone de disponibilité précise » exige une instance réservée zonale ou une On-Demand Capacity Reservation ; une Capacity Reservation peut se combiner avec un Savings Plan pour obtenir les deux.
 
 <!-- section: savings-plans-reserved | objectives: 4.2.4 -->
-## Savings Plans et Reserved Instances
+## Savings Plans et instances réservées
 
 | Plan | Remise maximale | S'applique à | Flexibilité |
 | --- | --- | --- | --- |
@@ -28,14 +28,14 @@ Les options de paiement des Savings Plans et des Reserved Instances sont All Upf
 | SageMaker AI Savings Plans | Jusqu'à 64 % | SageMaker AI | Toute famille, taille, Région, composant |
 | Database Savings Plans | Jusqu'à 35 % | Aurora, RDS, DynamoDB, ElastiCache, DocumentDB, Neptune, Keyspaces, Timestream, DMS, OpenSearch Service | Tout moteur, famille, taille, zone, Région, usage sans serveur ; 1 an, No Upfront |
 
-Reserved Instances :
+Instances réservées :
 
 | Attribut | RI Standard | RI Convertible |
 | --- | --- | --- |
 | Remise | Plus forte | Plus faible |
 | Échange contre une autre famille, un autre OS ou une autre location | Non | Oui |
 | Modification (zone, portée, taille dans la famille) | Oui | Oui |
-| Revente sur le Reserved Instance Marketplace | Oui | Non |
+| Revente sur le Marketplace des instances réservées | Oui | Non |
 
 | Portée | Capacité réservée | Flexibilité de zone | Flexibilité de taille |
 | --- | --- | --- | --- |
@@ -53,7 +53,7 @@ Règles de décision :
 > **Conseil d'examen.** Engagez-vous seulement sur la base stable (l'usage minimal observé dans Cost Explorer) et couvrez les pics avec On-Demand ou Spot. Un engagement excessif fait perdre de l'argent, car l'engagement non utilisé est quand même facturé.
 
 <!-- section: spot-strategies | objectives: 4.2.4 -->
-## Utiliser les Spot Instances en toute sécurité
+## Utiliser les instances Spot en toute sécurité
 
 - EC2 envoie un **avis d'interruption deux minutes avant**, et plus tôt une **recommandation de rééquilibrage d'instance EC2** quand le risque augmente. Le comportement d'interruption peut être résilier, arrêter ou mettre en veille prolongée.
 - Pas d'enchères : vous payez le prix Spot courant, qui évolue progressivement avec l'offre et la demande.
@@ -68,7 +68,7 @@ Règles de décision :
 | Base de données principale unique, longue transaction sans point de reprise | Non |
 | Tâche qui doit finir à une échéance fixe sans marge pour réessayer | Non |
 
-> **Piège d'examen.** Spot n'est la réponse la moins chère que si l'énoncé accepte les interruptions (« peut être relancée », « sans état », « calendrier flexible »). S'il dit « ne peut pas être interrompue », choisissez On-Demand avec des Savings Plans ou des Reserved Instances.
+> **Piège d'examen.** Spot n'est la réponse la moins chère que si l'énoncé accepte les interruptions (« peut être relancée », « sans état », « calendrier flexible »). S'il dit « ne peut pas être interrompue », choisissez On-Demand avec des Savings Plans ou des instances réservées.
 
 <!-- section: compute-services | objectives: 4.2.12 -->
 ## Choisir un service de calcul rentable
@@ -157,7 +157,7 @@ aws ce get-cost-and-usage --time-period Start=2026-10-01,End=2026-11-01 \
 <!-- section: key-points -->
 ## Points clés
 
-- Base stable : Savings Plans (Compute pour la flexibilité, EC2 Instance pour la remise la plus forte) ou Reserved Instances ; pics : On-Demand ou Spot.
+- Base stable : Savings Plans (Compute pour la flexibilité, EC2 Instance pour la remise la plus forte) ou instances réservées ; pics : On-Demand ou Spot.
 - Remise n'est pas capacité : les RI zonales et les Capacity Reservations réservent de la capacité ; les Savings Plans et les RI régionales non.
 - Spot : jusqu'à 90 % de remise, avis de deux minutes, diversification, `price-capacity-optimized`, uniquement pour des tâches tolérantes aux interruptions.
 - Lambda pour un travail inactif ou en pics de moins de 15 minutes, Fargate pour des conteneurs sans hôtes, EC2 avec engagement pour un usage stable et élevé.

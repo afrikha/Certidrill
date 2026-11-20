@@ -50,7 +50,7 @@ Un énoncé compte une à trois phrases : une entreprise (« A retail company »
 | « move without changes », « lift and shift » (déplacer sans modification) | La stratégie de migration rehost (réhébergement) |
 | « pay only for what you use », « no upfront investment » (payer seulement ce qu'on utilise, sans investissement initial) | Remplacer les dépenses fixes par des dépenses variables |
 
-> **Piège d'examen.** « MOST cost-effective » ne l'emporte jamais sur une exigence énoncée. Si la charge de travail ne peut pas être interrompue, les Spot Instances sont fausses, aussi bon marché soient-elles.
+> **Piège d'examen.** « MOST cost-effective » ne l'emporte jamais sur une exigence énoncée. Si la charge de travail ne peut pas être interrompue, les instances Spot sont fausses, aussi bon marché soient-elles.
 
 <!-- section: confusing-pairs -->
 ## Les services faciles à confondre
@@ -67,7 +67,7 @@ Retenez la différence en une ligne entre les membres de chaque famille :
 | Services de sécurité | Shield, WAF, GuardDuty, Inspector, Macie | Protection DDoS ; filtrage des requêtes web ; détection des menaces à partir des journaux ; analyse des vulnérabilités ; découverte des données sensibles dans Amazon S3 |
 | Filtrage réseau | Groupes de sécurité, listes ACL réseau | Avec état, règles d'autorisation, sur l'interface réseau d'une instance ; sans état, règles d'autorisation et de refus, sur un sous-réseau |
 | Stockage | Amazon EBS, stockage d'instance, Amazon EFS | Volume en mode bloc persistant pour une instance ; stockage en mode bloc temporaire perdu à l'arrêt de l'instance ; système de fichiers partagé par de nombreuses instances |
-| Options d'achat | On-Demand, Savings Plans, Reserved Instances, Spot Instances, Dedicated Hosts | Aucun engagement ; un engagement de dépense sur un ou trois ans ; un engagement sur une configuration d'instance ; de la capacité inutilisée qui peut être interrompue ; un serveur physique pour vos propres licences par socket ou par cœur |
+| Options d'achat | On-Demand, Savings Plans, instances réservées, instances Spot, Dedicated Hosts | Aucun engagement ; un engagement de dépense sur un ou trois ans ; un engagement sur une configuration d'instance ; de la capacité inutilisée qui peut être interrompue ; un serveur physique pour vos propres licences par socket ou par cœur |
 | Informations d'identification | AWS Secrets Manager, Systems Manager Parameter Store | Secrets avec rotation automatique ; valeurs de configuration et paramètres SecureString sans rotation |
 
 AWS renomme et ferme des services. En novembre 2026 : AWS Migration Hub et AWS Application Discovery Service sont fermés aux nouveaux clients (AWS Transform offre des fonctionnalités similaires) ; AWS Snowball Edge n'est plus proposé aux nouveaux clients (AWS DataSync pour les transferts en ligne) ; les coffres Amazon Glacier sont fermés aux nouveaux clients, mais les classes de stockage S3 Glacier d'Amazon S3 ne sont pas concernées ; AWS Application Migration Service s'appelle désormais AWS Transform MGN ; Amazon AppStream 2.0 est désormais documenté sous le nom Amazon WorkSpaces Applications ; les plans AWS Support sont Basic, Business Support+, Enterprise Support et Unified Operations. Certidrill ne fait jamais d'un service fermé ou d'un plan retiré une bonne réponse.

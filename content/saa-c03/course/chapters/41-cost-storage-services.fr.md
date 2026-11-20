@@ -127,14 +127,14 @@ Méthode de transfert la moins coûteuse :
 Fonctionnalités :
 
 - **Balises de répartition des coûts** (cost allocation tags) : les balises générées par AWS (préfixe `aws:`, comme `aws:createdBy`) et celles définies par l'utilisateur doivent être **activées** dans la console Billing and Cost Management avant d'apparaître dans Cost Explorer et les rapports de coûts. Dans une organisation, seul le compte de gestion les active ; elles peuvent mettre jusqu'à 24 heures à apparaître. Normalisez les clés et valeurs de balises avec les politiques de balises d'AWS Organizations.
-- **Facturation consolidée** (AWS Organizations) : une seule facture pour tous les comptes membres, payée par le compte de gestion ; l'utilisation est cumulée pour les paliers de tarification par volume ; les remises des Reserved Instances et des Savings Plans sont partagées entre comptes.
+- **Facturation consolidée** (AWS Organizations) : une seule facture pour tous les comptes membres, payée par le compte de gestion ; l'utilisation est cumulée pour les paliers de tarification par volume ; les remises des instances réservées et des Savings Plans sont partagées entre comptes.
 - **Cost Categories** : règles qui regroupent les coûts (par compte, balise, service) en unités métier.
 
 Outils :
 
 | Outil | La question à laquelle il répond | Faits clés |
 | --- | --- | --- |
-| AWS Cost Explorer | « Où est passé l'argent, et quelle est la tendance ? » | Graphiques et filtres interactifs (service, compte, balise) ; jusqu'à 13 mois d'historique ; prévisions jusqu'à 18 mois ; rapports et recommandations de Reserved Instances ; actualisé au moins toutes les 24 heures |
+| AWS Cost Explorer | « Où est passé l'argent, et quelle est la tendance ? » | Graphiques et filtres interactifs (service, compte, balise) ; jusqu'à 13 mois d'historique ; prévisions jusqu'à 18 mois ; rapports et recommandations d'instances réservées ; actualisé au moins toutes les 24 heures |
 | AWS Budgets | « Avertir ou agir avant de dépasser X » | Budgets de coût, d'utilisation, d'utilisation ou de couverture des RI et des Savings Plans ; alertes sur les valeurs réelles ou prévues par e-mail ou SNS ; les actions budgétaires appliquent une politique IAM ou une SCP ou ciblent des instances EC2 et RDS, automatiquement ou après approbation ; données mises à jour jusqu'à trois fois par jour |
 | AWS Cost and Usage Report (CUR 2.0 via AWS Data Exports) | « Chaque poste de facturation, pour notre propre analyse » | Données les plus détaillées, par heure, jour ou mois, livrées dans S3 ; à interroger avec Athena, charger dans Redshift ou visualiser dans Quick |
 | AWS Cost Anomaly Detection | « Signalez-nous les dépenses inhabituelles » | Moniteurs par apprentissage automatique par service, compte lié, balise de répartition des coûts ou catégorie de coûts ; alertes individuelles par SNS ou résumés quotidiens et hebdomadaires par e-mail ; analyse des causes premières |

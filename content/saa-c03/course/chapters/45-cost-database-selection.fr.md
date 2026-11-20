@@ -51,7 +51,7 @@ Autres leviers de coût :
 - **Aurora** ne facture que l'espace de stockage utilisé (le volume du cluster grandit automatiquement, jusqu'à 256 Tio selon la version) et réplique six copies sur trois zones de disponibilité sans frais supplémentaires pour cette réplication.
 - Vous pouvez passer d'Aurora Standard à I/O-Optimized une fois tous les 30 jours, et revenir à tout moment.
 
-> **Piège d'examen.** Aurora Serverless v2 n'est pas moins cher pour une base occupée 24 h/24 : une charge stable coûte moins cher sur des instances provisionnées avec des Reserved Instances ou des Database Savings Plans. Le sans serveur l'emporte quand la charge varie ou que la base est souvent inactive.
+> **Piège d'examen.** Aurora Serverless v2 n'est pas moins cher pour une base occupée 24 h/24 : une charge stable coûte moins cher sur des instances provisionnées avec des instances réservées ou des Database Savings Plans. Le sans serveur l'emporte quand la charge varie ou que la base est souvent inactive.
 
 <!-- section: capacity-planning | objectives: 4.3.5 -->
 ## Planification de la capacité des bases de données
@@ -131,7 +131,7 @@ DMS Schema Conversion convertit uniquement les schémas, vues, procédures et fo
 | Instances de base de données réservées RDS et Aurora | Une classe d'instance dans une Région et un moteur | 1 ou 3 ans ; No Upfront (1 an uniquement), Partial Upfront ou All Upfront ; flexibilité de taille pour MySQL, MariaDB, PostgreSQL, Db2 et Oracle BYOL, pas pour SQL Server ni Oracle License Included ; s'applique en Single-AZ et en Multi-AZ |
 | Database Savings Plans | Aurora, RDS, DynamoDB, ElastiCache, DocumentDB, Neptune, Keyspaces, Timestream, DMS, OpenSearch Service | Jusqu'à 35 % ; 1 an, No Upfront ; tout moteur, famille, taille, zone, Région, usage sans serveur compris ; non cumulables avec des RI ou la capacité réservée DynamoDB sur le même usage |
 | Capacité réservée DynamoDB | RCU et WCU provisionnées, classe de table Standard | 1 an (3 ans dans certaines Régions), ni annulable ni transférable |
-| Nœuds réservés ElastiCache et Redshift, Reserved Instances OpenSearch Service | Nœuds ou instances d'un type | 1 ou 3 ans |
+| Nœuds réservés ElastiCache et Redshift, instances réservées OpenSearch Service | Nœuds ou instances d'un type | 1 ou 3 ans |
 
 Choisissez les Database Savings Plans quand les moteurs, tailles ou Régions vont changer ou que l'usage sans serveur doit être couvert ; choisissez des instances de base de données réservées pour une classe d'instance stable, où une durée de 3 ans donne une remise plus forte.
 

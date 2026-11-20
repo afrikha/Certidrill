@@ -76,7 +76,7 @@ Le basculement déplace le trafic (et le rôle d'écriture des données) vers le
 | AWS Global Accelerator | Les IP anycast statiques ne changent pas ; les nouvelles connexions vont vers des points de terminaison sains d'une autre Région, sans problème de cache DNS ; les cadrans de trafic (traffic dials) déplacent un pourcentage par Région |
 | Amazon Application Recovery Controller (ARC) | Les contrôles de routage basculent le DNS entre Régions sous votre contrôle ; le déplacement zonal (zonal shift) et le déplacement zonal automatique (zonal autoshift) éloignent le trafic d'une AZ dégradée ; Region switch orchestre des plans de reprise multi-Régions |
 | Groupes d'origines CloudFront | Une requête qui échoue sur l'origine principale (codes d'état choisis, délai dépassé) est renvoyée vers la secondaire ; GET, HEAD et OPTIONS uniquement |
-| Aurora Global Database | La **permutation** (switchover, planifiée, sans perte de données) ou le **basculement** (failover, panne imprévue) promeut un cluster d'une Région secondaire en principal |
+| Aurora Global Database | La **permutation** (switchover, planifiée, sans perte de données) ou le **basculement** (failover), en cas de panne imprévue, promeut un cluster d'une Région secondaire en principal |
 | Réplica en lecture RDS inter-Régions | Promouvoir le réplica en instance autonome accessible en écriture (manuel), puis rediriger l'application |
 | Tables globales DynamoDB | Rien à promouvoir : chaque réplica accepte les écritures ; rediriger le trafic vers une autre Région |
 
@@ -168,7 +168,7 @@ Les quotas sont définis **par compte et par Région** : la Région de reprise d
 - Augmentez les quotas dans la Région de reprise **avant** le sinistre, au niveau dont la production a besoin, en gardant une marge pour le basculement.
 - Utilisez **Service Quotas** pour consulter les quotas et demander des augmentations ; des alarmes CloudWatch sur l'utilisation préviennent avant qu'un quota soit atteint ; Trusted Advisor vérifie les quotas.
 - Les **modèles de demande de quota** appliquent automatiquement jusqu'à 10 augmentations de quota à chaque nouveau compte créé dans l'organisation (toutes les fonctionnalités activées).
-- Les **réservations de capacité à la demande** (On-Demand Capacity Reservations) réservent de la capacité d'instance dans une AZ précise aussi longtemps que nécessaire, facturées au tarif à la demande qu'elle soit utilisée ou non ; combinez-les avec des Savings Plans ou des Reserved Instances régionales pour obtenir une remise. Utilisez-les quand le RTO ne tolère pas une erreur de capacité insuffisante.
+- Les **réservations de capacité à la demande** (On-Demand Capacity Reservations) réservent de la capacité d'instance dans une AZ précise aussi longtemps que nécessaire, facturées au tarif à la demande qu'elle soit utilisée ou non ; combinez-les avec des Savings Plans ou des instances réservées régionales pour obtenir une remise. Utilisez-les quand le RTO ne tolère pas une erreur de capacité insuffisante.
 - La limitation (HTTP 429, `ThrottlingException`) est un quota sur les débits de requêtes : réessayez avec backoff exponentiel et jitter, mettez en tampon avec SQS, mettez en cache, ou demandez un débit plus élevé.
 
 ```bash

@@ -10,7 +10,7 @@ L'accès à Amazon S3 est décidé par plusieurs couches ; toutes doivent autori
 | Politiques IAM | Ce qu'un utilisateur ou un rôle de votre compte peut faire |
 | Politique de compartiment | Qui peut accéder au compartiment, depuis d'autres comptes, par quel point de terminaison ou depuis quelle organisation |
 | S3 Block Public Access | L'emporte sur toute ACL ou politique publique ; se règle au niveau de l'organisation, du compte, du compartiment ou du point d'accès, le plus restrictif l'emporte |
-| Object Ownership : propriétaire du compartiment appliqué (bucket owner enforced) | Valeur par défaut des nouveaux compartiments : ACL désactivées, le propriétaire du compartiment possède chaque objet, l'accès est régi par les seules politiques |
+| Object Ownership : propriétaire du compartiment appliqué (`BucketOwnerEnforced`) | Valeur par défaut des nouveaux compartiments : ACL désactivées, le propriétaire du compartiment possède chaque objet, l'accès est régi par les seules politiques |
 | Points d'accès S3 | Un point d'entrée nommé par application ou par équipe, chacun avec sa politique, éventuellement limité à un VPC |
 | URL présignée | Accès temporaire à un objet pour quelqu'un qui n'a pas d'informations d'identification AWS |
 

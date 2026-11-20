@@ -58,7 +58,7 @@ Parmi les tâches que **seul l'utilisateur racine** peut effectuer :
 - modifier l'adresse e-mail ou le mot de passe racine d'un compte autonome, ou le fermer ;
 - rétablir les autorisations IAM quand le seul administrateur IAM a révoqué les siennes ;
 - activer l'accès IAM à la console Billing and Cost Management ;
-- s'inscrire comme vendeur sur le Reserved Instance Marketplace ;
+- s'inscrire comme vendeur sur le Marketplace des instances réservées ;
 - activer MFA Delete sur un compartiment S3 ;
 - modifier ou supprimer une politique de compartiment S3 ou de file d'attente SQS qui refuse tous les principaux ;
 - s'inscrire à AWS GovCloud (US).

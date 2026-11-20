@@ -57,7 +57,7 @@ VPC 10.20.0.0/16 (3 AZs)
   data-a   10.20.64.0/24   data-b   10.20.65.0/24   data-c   10.20.66.0/24
 ```
 
-Règles de routage : chaque table de routage a une route `local` pour le CIDR du VPC, et le préfixe le plus spécifique l'emporte. Un sous-réseau sans association explicite utilise la table de routage principale. Pour un accès internet IPv6 sortant uniquement, utilisez une **passerelle Internet de sortie uniquement** (egress-only internet gateway) ; les passerelles NAT servent à l'IPv4. Dimensionnez largement les sous-réseaux d'application : conteneurs (réseau awsvpc), fonctions Lambda dans un VPC et nœuds d'équilibreur de charge consomment tous des adresses IP.
+Règles de routage : chaque table de routage a une route `local` pour le CIDR du VPC, et le préfixe le plus spécifique l'emporte. Un sous-réseau sans association explicite utilise la table de routage principale. Pour un accès internet IPv6 sortant uniquement, utilisez une **passerelle Internet de sortie uniquement** ; les passerelles NAT servent à l'IPv4. Dimensionnez largement les sous-réseaux d'application : conteneurs (réseau awsvpc), fonctions Lambda dans un VPC et nœuds d'équilibreur de charge consomment tous des adresses IP.
 
 > **Conseil d'examen.** Une passerelle NAT par zone de disponibilité, chaque sous-réseau privé routant vers la passerelle NAT de sa propre zone, est la conception hautement disponible. Une passerelle NAT unique coûte moins cher mais crée une dépendance à une seule zone et ajoute du transfert de données entre zones.
 

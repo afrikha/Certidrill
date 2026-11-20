@@ -43,7 +43,7 @@ Les entreprises rejoignent l'APN pour développer leur activité AWS. Les avanta
 | **Gestion des droits et des licences** | **AWS License Manager** gouverne les licences achetées dans Marketplace et distribue leurs droits d'utilisation (entitlements) aux comptes choisis de l'organisation |
 | **Déploiement rapide** | Les produits s'exécutent dans votre propre compte et votre VPC, sur des instances On-Demand, Reserved ou Spot |
 
-> **Piège d'examen.** AWS Marketplace vend des produits **tiers** facturés par AWS. Ce n'est pas le **Reserved Instance Marketplace**, où les clients revendent des Reserved Instances Standard inutilisées.
+> **Piège d'examen.** AWS Marketplace vend des produits **tiers** facturés par AWS. Ce n'est pas le **Marketplace des instances réservées**, où les clients revendent des instances réservées standard inutilisées.
 
 <!-- section: technical-assistance | objectives: 4.3.13 -->
 ## Options d'assistance technique chez AWS

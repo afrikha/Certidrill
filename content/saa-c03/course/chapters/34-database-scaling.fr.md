@@ -51,8 +51,8 @@ Conséquences de la réplication asynchrone : un réplica peut renvoyer des donn
 
 | Fonctionnalité | Usage |
 | --- | --- |
-| Point de terminaison du lecteur (reader endpoint) | Un seul nom DNS qui équilibre les connexions entre tous les réplicas Aurora |
-| Point de terminaison personnalisé (custom endpoint) | Un sous-ensemble d'instances, par exemple des réplicas plus grands réservés aux rapports |
+| Point de terminaison du lecteur | Un seul nom DNS qui équilibre les connexions entre tous les réplicas Aurora |
+| Point de terminaison personnalisé | Un sous-ensemble d'instances, par exemple des réplicas plus grands réservés aux rapports |
 | Point de terminaison d'instance | Une instance précise, pour le diagnostic ou l'optimisation |
 | Aurora Auto Scaling | Le suivi de cible sur l'utilisation moyenne du CPU (ou une autre métrique) ajoute et retire des réplicas, entre 0 et 15 au maximum ; exige au moins un lecteur |
 | Priorité de basculement | Niveaux de 0 (la plus haute) à 15 ; à priorité égale, le réplica le plus grand est promu |

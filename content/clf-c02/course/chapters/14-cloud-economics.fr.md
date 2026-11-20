@@ -7,7 +7,7 @@ L'économie du cloud explique pourquoi la même charge de travail coûte en gén
 | --- | --- | --- |
 | Type de dépense | **Dépenses d'investissement (CapEx)** : acheter à l'avance serveurs, stockage et bâtiments, puis les amortir sur plusieurs années | **Dépenses d'exploitation (OpEx)** : payer chaque mois une facture pour ce qui a été utilisé |
 | Capacité | Dimensionnée pour le pic attendu, des années à l'avance | Ajustée à la demande réelle, en quelques minutes |
-| Tarification | Fixe quelle que soit l'utilisation | Paiement à l'utilisation, avec des remises en échange d'un engagement (Savings Plans, Reserved Instances) ou pour de la capacité interruptible (Spot Instances) |
+| Tarification | Fixe quelle que soit l'utilisation | Paiement à l'utilisation, avec des remises en échange d'un engagement (Savings Plans, instances réservées) ou pour de la capacité interruptible (instances Spot) |
 | Travail indifférencié | Installer, câbler, alimenter le matériel et appliquer ses correctifs | Fait par AWS ; les services gérés suppriment aussi l'administration des bases de données et des systèmes d'exploitation |
 
 Le **coût total de possession (TCO)** compare tout ce que coûte une charge de travail sur sa durée de vie : pas seulement les serveurs, mais aussi les locaux, l'électricité, le personnel, les licences et le coût de la capacité inutilisée. Les économies liées au passage au cloud viennent de :
@@ -68,7 +68,7 @@ Le **dimensionnement approprié** (rightsizing) consiste à faire correspondre l
 | Mesurer dans le temps l'utilisation du processeur, de la mémoire, du réseau et du stockage | Métriques Amazon CloudWatch |
 | Obtenir des recommandations fondées sur cette utilisation | **AWS Compute Optimizer** (instances EC2, groupes Auto Scaling, volumes EBS, fonctions Lambda, etc.) ; vérifications de coûts d'**AWS Trusted Advisor** (par exemple, instances EC2 peu utilisées) |
 | Agir | Passer à une taille plus petite ou à une famille d'instances mieux adaptée ; arrêter ou supprimer les ressources inactives ; éteindre les environnements de développement en dehors des heures de travail |
-| Puis s'engager | Acheter des Savings Plans ou des Reserved Instances seulement pour la base correctement dimensionnée |
+| Puis s'engager | Acheter des Savings Plans ou des instances réservées seulement pour la base correctement dimensionnée |
 
 > **Conseil d'examen.** Dimensionnez correctement **avant** d'acheter un engagement : un Savings Plan acheté pour des instances surdimensionnées fige le gaspillage pour un ou trois ans.
 
@@ -89,7 +89,7 @@ L'automatisation réduit le coût de main-d'œuvre et les erreurs humaines, acc�
 
 AWS achète du matériel, de l'électricité et de la capacité réseau pour des centaines de milliers de clients et exploite des centres de données à une échelle qu'aucune entreprise seule n'atteint. Son coût unitaire est plus bas, et AWS en reverse une partie aux clients sous forme de **prix à l'utilisation plus bas** ; AWS a baissé ses prix de nombreuses fois depuis son lancement. Une entreprise qui exploite son propre centre de données paie le coût complet de chaque serveur, de chaque kilowatt et de chaque administrateur.
 
-> **Piège d'examen.** Les économies d'échelle expliquent **pourquoi les prix d'AWS sont bas**. Elles ne décrivent ni une remise que vous négociez ni un engagement que vous achetez : Savings Plans, Reserved Instances et paliers de volume sont des options de tarification (chapitre 41).
+> **Piège d'examen.** Les économies d'échelle expliquent **pourquoi les prix d'AWS sont bas**. Elles ne décrivent ni une remise que vous négociez ni un engagement que vous achetez : Savings Plans, instances réservées et paliers de volume sont des options de tarification (chapitre 41).
 
 <!-- section: key-points -->
 ## Points clés
