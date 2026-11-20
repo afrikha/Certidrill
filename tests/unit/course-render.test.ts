@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderCourseMarkdown } from "@/lib/markdown";
-import { localizeDocsUrl } from "@/lib/vendors";
+import { isDocsUrl, localizeDocsUrl, VENDORS } from "@/lib/vendors";
 import { courseHtml } from "@/lib/course/render";
 
 const options = { locale: "fr" as const, callouts: { "Piège d'examen.": "trap", "Conseil d'examen.": "tip" }, labels: { table: "Tableau", copy: "Copier" } };
@@ -47,6 +47,12 @@ describe("localizeDocsUrl", () => {
     expect(localizeDocsUrl("https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/Welcome.html", "fr")).toBe("https://docs.aws.amazon.com/fr_fr/AmazonS3/latest/userguide/Welcome.html");
     expect(localizeDocsUrl("https://docs.aws.amazon.com/ja_jp/vpc/latest/userguide/", "fr")).toBe("https://docs.aws.amazon.com/fr_fr/vpc/latest/userguide/");
     expect(localizeDocsUrl("https://aws.amazon.com/s3/faqs/", "fr")).toBe("https://aws.amazon.com/s3/faqs/");
+    // re:Post and the sites of Kiro and Strands Agents: AWS sources, without a French address to aim at.
+    for (const url of ["https://repost.aws/knowledge-center/report-aws-abuse", "https://kiro.dev/docs/", "https://strandsagents.com/latest/"]) {
+      expect(isDocsUrl(url, VENDORS.aws)).toBe(true);
+      expect(localizeDocsUrl(url, "fr")).toBe(url);
+    }
+    expect(isDocsUrl("https://repost.aws.example.com/x", VENDORS.aws)).toBe(false);
     // Not the documentation: a look-alike host is left alone.
     expect(localizeDocsUrl("https://docs.aws.amazon.com.example.com/x", "fr")).toBe("https://docs.aws.amazon.com.example.com/x");
   });

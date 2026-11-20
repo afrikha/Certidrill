@@ -278,7 +278,7 @@ describe("course checks — manifest and references", () => {
           .replace("https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html", "https://learn.microsoft.com/en-us/azure/"),
       );
     });
-    expect(problems).toEqual([expect.stringMatching(/reference https:\/\/learn\.microsoft\.com\/en-us\/azure\/ is not on AWS Documentation \(docs\.aws\.amazon\.com, aws\.amazon\.com\)$/)]);
+    expect(problems).toEqual([expect.stringMatching(/reference https:\/\/learn\.microsoft\.com\/en-us\/azure\/ is not on AWS Documentation \(docs\.aws\.amazon\.com, aws\.amazon\.com, repost\.aws, kiro\.dev, strandsagents\.com\)$/)]);
   });
 
   it("matches the blueprint version", async () => {

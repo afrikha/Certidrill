@@ -51,7 +51,8 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     key: "aws",
     name: "AWS",
     docsName: "AWS Documentation",
-    docsHosts: ["docs.aws.amazon.com", "aws.amazon.com"],
+    // AWS re:Post (Knowledge Center), and the official documentation of AWS products that have their own site (Kiro, Strands Agents).
+    docsHosts: ["docs.aws.amazon.com", "aws.amazon.com", "repost.aws", "kiro.dev", "strandsagents.com"],
     // The guides have a French version under /fr_fr/; aws.amazon.com (FAQ) stays as it is.
     localizeDocsUrl: (url, locale) => url.replace(AWS_DOCS, `https://docs.aws.amazon.com/${locale === "fr" ? "fr_fr/" : ""}`),
     docsPage: (url) => url.replace(AWS_DOCS, "https://docs.aws.amazon.com/"),
