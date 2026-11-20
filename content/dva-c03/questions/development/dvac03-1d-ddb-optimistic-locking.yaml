@@ -1,0 +1,38 @@
+id: dvac03-1d-ddb-optimistic-locking
+objective: "1.3.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany stores event seating plans in an Amazon DynamoDB table. Each item contains a map of reserved seats and a numeric Version attribute. Several workers reserve seats concurrently: each worker reads the item, computes the new seat map in code, and writes the whole map back with UpdateItem. Some reservations are lost because one worker overwrites the changes of another.
+
+    The solution must prevent lost updates without blocking other items and with the LEAST impact on throughput.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany stocke les plans de salle de ses événements dans une table Amazon DynamoDB. Chaque élément contient une carte (map) des sièges réservés et un attribut numérique Version. Plusieurs processus de travail (workers) réservent des sièges en parallèle : chaque processus lit l'élément, calcule la nouvelle carte des sièges dans le code et réécrit toute la carte avec UpdateItem. Certaines réservations sont perdues parce qu'un processus écrase les modifications d'un autre.
+
+    La solution doit empêcher les mises à jour perdues sans bloquer les autres éléments et avec le MOINS d'impact possible sur le débit.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Add the condition Version = :read_version and SET Version = Version + :one to each UpdateItem, and re-read and retry on ConditionalCheckFailedException.", fr: "Ajouter la condition Version = :read_version et SET Version = Version + :one à chaque UpdateItem, et relire puis réessayer en cas de ConditionalCheckFailedException." } }
+    - { id: b, text: { en: "Read the item with ConsistentRead=True before computing the new seat map, and keep the unconditional UpdateItem.", fr: "Lire l'élément avec ConsistentRead=True avant de calculer la nouvelle carte des sièges, et garder l'UpdateItem sans condition." } }
+    - { id: c, text: { en: "Increment the Version attribute with SET Version = Version + :one in each UpdateItem, and keep writing the whole seat map.", fr: "Incrémenter l'attribut Version avec SET Version = Version + :one dans chaque UpdateItem, et continuer à réécrire toute la carte des sièges." } }
+    - { id: d, text: { en: "Have each worker write a lock item for the whole table before every update and delete it afterward.", fr: "Faire écrire par chaque processus un élément de verrou pour toute la table avant chaque mise à jour, puis le supprimer ensuite." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      This is optimistic locking with a conditional write: the update succeeds only if the Version attribute still has the value the worker read, and the same request increments it. A worker whose copy is out of date receives ConditionalCheckFailedException instead of overwriting another worker's reservation, and it re-reads the item and retries. No item other than the one being updated is affected.
+    fr: |
+      Il s'agit d'un verrouillage optimiste par écriture conditionnelle : la mise à jour ne réussit que si l'attribut Version a toujours la valeur lue par le processus, et la même requête l'incrémente. Un processus dont la copie est périmée reçoit ConditionalCheckFailedException au lieu d'écraser la réservation d'un autre processus, puis il relit l'élément et réessaie. Aucun autre élément que celui mis à jour n'est concerné.
+  options:
+    b: { en: "A strongly consistent read returns the latest item, but another worker can still write between the read and the unconditional update.", fr: "Une lecture fortement cohérente renvoie l'élément le plus récent, mais un autre processus peut toujours écrire entre la lecture et la mise à jour sans condition." }
+    c: { en: "An increment without a condition is applied whatever the current version, so the last writer still overwrites the others' seat maps.", fr: "Une incrémentation sans condition s'applique quelle que soit la version actuelle : le dernier écrivain écrase toujours les cartes des autres." }
+    d: { en: "A table-wide lock serializes every update, which blocks the other items and greatly reduces throughput.", fr: "Un verrou sur toute la table sérialise chaque mise à jour, ce qui bloque les autres éléments et réduit fortement le débit." }
+references:
+  - title: Working with items and attributes in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html

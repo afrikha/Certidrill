@@ -1,0 +1,48 @@
+id: dvac03-3b-tevt-s3-encoded-key
+objective: "3.2.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS Lambda function at AnyCompany is invoked by Amazon S3 event notifications and reads each new object with get_object. The unit tests use a hand-written event in which the object key is reports/q1 summary.csv, and they pass. In production, objects whose names contain spaces fail with a NoSuchKey error, while other objects succeed.
+
+    ```python
+    key = event["Records"][0]["s3"]["object"]["key"]
+    obj = s3.get_object(Bucket=bucket, Key=key)
+    ```
+
+    Which solution will fix the function and make the tests catch this issue?
+  fr: |
+    Une fonction AWS Lambda d'AnyCompany est invoquée par des notifications d'événement Amazon S3 et lit chaque nouvel objet avec get_object. Les tests unitaires utilisent un événement écrit à la main dans lequel la clé d'objet est reports/q1 summary.csv, et ils réussissent. En production, les objets dont le nom contient des espaces échouent avec une erreur NoSuchKey, alors que les autres objets réussissent.
+
+    ```python
+    key = event["Records"][0]["s3"]["object"]["key"]
+    obj = s3.get_object(Bucket=bucket, Key=key)
+    ```
+
+    Quelle solution corrige la fonction et permet aux tests de détecter ce problème ?
+body:
+  options:
+    - { id: a, text: { en: "Decode the key with urllib.parse.unquote_plus, and use the encoded key reports/q1+summary.csv in the test event.", fr: "Décoder la clé avec urllib.parse.unquote_plus, et utiliser la clé encodée reports/q1+summary.csv dans l'événement de test." } }
+    - { id: b, text: { en: "Encode the key with urllib.parse.quote_plus before calling get_object, and keep the current hand-written test event.", fr: "Encoder la clé avec urllib.parse.quote_plus avant d'appeler get_object, et conserver l'événement de test écrit à la main." } }
+    - { id: c, text: { en: "Read the key from the eTag field of the event instead, and add an eTag value to the test event.", fr: "Lire la clé dans le champ eTag de l'événement à la place, et ajouter une valeur eTag à l'événement de test." } }
+    - { id: d, text: { en: "Add a prefix filter to the event notification so that S3 stops sending events for keys that contain spaces.", fr: "Ajouter un filtre de préfixe à la notification d'événement afin que S3 n'envoie plus d'événements pour les clés qui contiennent des espaces." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "In S3 event messages, the object key is URL encoded, so a space arrives as a plus sign (red flower.jpg becomes red+flower.jpg). The function must decode the key before using it, and the test event must contain the encoded form that S3 really sends, or the tests keep hiding the bug."
+    fr: "Dans les messages d'événement S3, la clé d'objet est encodée en URL : un espace arrive sous forme de signe plus (red flower.jpg devient red+flower.jpg). La fonction doit décoder la clé avant de l'utiliser, et l'événement de test doit contenir la forme encodée que S3 envoie réellement, sinon les tests continuent à masquer le bogue."
+  options:
+    b:
+      en: "The key from S3 is already encoded; encoding it again produces a name that does not exist, and the hand-written test event still does not match production."
+      fr: "La clé reçue de S3 est déjà encodée ; l'encoder de nouveau produit un nom qui n'existe pas, et l'événement de test écrit à la main ne correspond toujours pas à la production."
+    c:
+      en: "The eTag identifies the object's content version, not its name, so it cannot be used as the key."
+      fr: "L'eTag identifie la version du contenu de l'objet, pas son nom : il ne peut pas servir de clé."
+    d:
+      en: "Filtering out these events would leave the objects unprocessed instead of fixing the function, and prefix filters match the start of the key, not spaces."
+      fr: "Filtrer ces événements laisserait les objets non traités au lieu de corriger la fonction, et les filtres de préfixe portent sur le début de la clé, pas sur les espaces."
+references:
+  - title: Event message structure
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-content-structure.html

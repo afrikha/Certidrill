@@ -6,7 +6,7 @@ Les questions de calcul décrivent une charge de travail (un niveau web avec des
 | Exigence | Service |
 | --- | --- |
 | Contrôle total du système d'exploitation, des licences, des GPU, serveurs de longue durée | Amazon EC2 (avec EC2 Auto Scaling) |
-| Code court piloté par les événements, sans serveur, mise à l'échelle jusqu'à zéro, 15 minutes au plus par invocation | AWS Lambda |
+| Code court piloté par les événements, sans serveur, mise à l'échelle jusqu'à zéro, des minutes (pas des heures) par invocation | AWS Lambda |
 | Conteneurs sans gérer de serveurs ni de clusters d'instances | AWS Fargate (avec Amazon ECS ou Amazon EKS) |
 | Conteneurs avec une orchestration native AWS | Amazon ECS |
 | Kubernetes, portabilité, outillage Kubernetes | Amazon EKS |
@@ -19,7 +19,7 @@ Les questions de calcul décrivent une charge de travail (un niveau web avec des
 - **Amazon EMR** est la réponse quand l'énoncé nomme un framework big data ; AWS Glue est la réponse ETL sans serveur, traitée ailleurs.
 - **Fargate** supprime la gestion des instances : vous choisissez le processeur et la mémoire de la tâche (de 0,25 vCPU / 512 Mio à 32 vCPU / 244 Go pour Linux) et payez ce que les tâches demandent.
 
-> **Piège d'examen.** Une tâche qui dure 40 minutes ne peut pas être une seule invocation Lambda (limite de 900 secondes). Choisissez Fargate, AWS Batch ou EC2, ou découpez le travail avec AWS Step Functions.
+> **Piège d'examen.** Une tâche qui dure plusieurs heures ne peut pas être une seule invocation Lambda (le délai d'expiration maximal se compte en minutes). Choisissez Fargate, AWS Batch ou EC2, ou découpez le travail avec AWS Step Functions.
 
 <!-- section: distributed-computing | objectives: 3.2.2 -->
 ## Informatique distribuée avec l'infrastructure mondiale et les services périphériques
@@ -48,7 +48,7 @@ Pour le HPC fortement couplé, combinez un groupe de placement cluster avec des 
 <!-- section: serverless | objectives: 3.2.5 -->
 ## Technologies et modèles sans serveur
 
-Chiffres clés d'**AWS Lambda** : mémoire de 128 Mo à 10 240 Mo par pas de 1 Mo, processeur alloué proportionnellement à la mémoire (l'équivalent d'un vCPU à 1 769 Mo), délai d'expiration jusqu'à 900 secondes, stockage `/tmp` de 512 Mo à 10 240 Mo, 1 000 exécutions simultanées par Région par défaut (augmentable), et chaque fonction peut monter de 1 000 environnements d'exécution toutes les 10 secondes.
+Chiffres clés d'**AWS Lambda** : mémoire de 128 Mo à 10 240 Mo par pas de 1 Mo, processeur alloué proportionnellement à la mémoire (l'équivalent d'un vCPU à 1 769 Mo), délai d'expiration jusqu'à 30 minutes sur la page actuelle des quotas Lambda (des pages plus anciennes et la FAQ indiquent encore 15 minutes ; 90 minutes pour certains appels de Lambda Managed Instances), stockage `/tmp` de 512 Mo à 10 240 Mo, 1 000 exécutions simultanées par Région par défaut (augmentable), et chaque fonction peut monter de 1 000 environnements d'exécution toutes les 10 secondes.
 
 | Besoin | Fonctionnalité Lambda |
 | --- | --- |
@@ -172,7 +172,7 @@ aws lambda update-function-configuration \
 <!-- section: key-points -->
 ## Points clés
 
-- Lambda pour des événements courts (limite de 15 minutes), Fargate pour des conteneurs sans serveur, ECS ou EKS pour l'orchestration, Batch pour des tâches en file, EMR pour Spark et Hadoop.
+- Lambda pour des événements courts (des minutes, pas des heures), Fargate pour des conteneurs sans serveur, ECS ou EKS pour l'orchestration, Batch pour des tâches en file, EMR pour Spark et Hadoop.
 - Local Zones et Wavelength rapprochent le calcul des utilisateurs ; groupes de placement : cluster pour la latence, partition pour les racks, spread pour quelques instances critiques.
 - Découplez avec SQS (tampon), SNS (fan-out), EventBridge (routage), Kinesis (flux) pour que chaque niveau évolue seul.
 - Suivi de cible par défaut ; prédictive ou planifiée pour les cycles connus ; warm pools pour les démarrages lents ; Application Auto Scaling pour les ressources hors EC2.

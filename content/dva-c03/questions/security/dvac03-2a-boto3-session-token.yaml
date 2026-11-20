@@ -1,0 +1,72 @@
+id: dvac03-2a-boto3-session-token
+objective: "2.1.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A Python script assumes a role in another account and creates an Amazon S3 client with the returned credentials:
+
+    ```python
+    sts = boto3.client("sts")
+    creds = sts.assume_role(
+        RoleArn="arn:aws:iam::444455556666:role/ReportReader",
+        RoleSessionName="report-job",
+    )["Credentials"]
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=creds["AccessKeyId"],
+        aws_secret_access_key=creds["SecretAccessKey"],
+    )
+    s3.list_objects_v2(Bucket="anycompany-reports")
+    ```
+
+    The ListObjectsV2 call fails with an authentication error, although the permissions policy of ReportReader allows s3:ListBucket on the bucket.
+
+    Which change will fix the script?
+  fr: |
+    Un script Python assume un rôle dans un autre compte et crée un client Amazon S3 avec les informations d'identification renvoyées :
+
+    ```python
+    sts = boto3.client("sts")
+    creds = sts.assume_role(
+        RoleArn="arn:aws:iam::444455556666:role/ReportReader",
+        RoleSessionName="report-job",
+    )["Credentials"]
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=creds["AccessKeyId"],
+        aws_secret_access_key=creds["SecretAccessKey"],
+    )
+    s3.list_objects_v2(Bucket="anycompany-reports")
+    ```
+
+    L'appel ListObjectsV2 échoue avec une erreur d'authentification, alors que la politique d'autorisations de ReportReader autorise s3:ListBucket sur le compartiment.
+
+    Quelle modification corrige le script ?
+body:
+  options:
+    - { id: a, text: { en: "Add `DurationSeconds=43200` to the assume_role call so that the credentials stay valid longer.", fr: "Ajouter `DurationSeconds=43200` à l'appel assume_role pour que les informations d'identification restent valides plus longtemps." } }
+    - { id: b, text: { en: "Add `region_name=\"us-east-1\"` to the STS client so that it calls a Regional STS endpoint.", fr: "Ajouter `region_name=\"us-east-1\"` au client STS pour qu'il appelle un point de terminaison STS régional." } }
+    - { id: c, text: { en: "Set `signature_version=\"s3\"` in the client configuration so that the request uses Signature Version 2.", fr: "Définir `signature_version=\"s3\"` dans la configuration du client pour que la demande utilise Signature Version 2." } }
+    - { id: d, text: { en: "Pass `aws_session_token=creds[\"SessionToken\"]` when the S3 client is created.", fr: "Passer `aws_session_token=creds[\"SessionToken\"]` lors de la création du client S3." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Temporary credentials from AWS STS have three parts: an access key ID, a secret access key, and a session token. The signature calculation requires the session token, and the SDK sends it with each request only when the client receives it, so the script must pass SessionToken."
+    fr: "Les informations d'identification temporaires d'AWS STS comportent trois parties : un ID de clé d'accès, une clé d'accès secrète et un jeton de session. Le calcul de la signature exige le jeton de session, et le SDK ne l'envoie avec chaque demande que si le client le reçoit : le script doit transmettre SessionToken."
+  options:
+    a:
+      en: "The credentials fail immediately, so their lifetime is not the cause, and 43200 seconds also fails if the role's maximum session duration is shorter."
+      fr: "Les informations d'identification échouent immédiatement, leur durée n'est donc pas en cause, et 43200 secondes échoue aussi si la durée de session maximale du rôle est plus courte."
+    b:
+      en: "A Regional STS endpoint can reduce latency, but the S3 request is still signed without the session token."
+      fr: "Un point de terminaison STS régional peut réduire la latence, mais la demande S3 est toujours signée sans le jeton de session."
+    c:
+      en: "Changing the signature version does not supply the missing session token, and Signature Version 2 is legacy."
+      fr: "Changer de version de signature ne fournit pas le jeton de session manquant, et Signature Version 2 est une version héritée."
+references:
+  - title: AWS Signature Version 4 for API requests
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html
+  - title: Request temporary security credentials
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_request.html

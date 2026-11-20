@@ -1,0 +1,80 @@
+id: dvac03-2b-assume-role-session-token
+objective: "2.1.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A developer writes the following Python code to read an Amazon DynamoDB table in another AWS account:
+
+    ```python
+    import boto3
+
+    sts = boto3.client("sts")
+    resp = sts.assume_role(
+        RoleArn="arn:aws:iam::222222222222:role/InventoryReader",
+        RoleSessionName="inventory-sync",
+    )
+    creds = resp["Credentials"]
+    dynamodb = boto3.client(
+        "dynamodb",
+        aws_access_key_id=creds["AccessKeyId"],
+        aws_secret_access_key=creds["SecretAccessKey"],
+    )
+    dynamodb.scan(TableName="Inventory")
+    ```
+
+    The assume_role call succeeds, but the scan call returns an error stating that the security token included in the request is invalid. The InventoryReader role allows dynamodb:Scan on the table.
+
+    Which change will fix the code?
+  fr: |
+    Un développeur écrit le code Python suivant pour lire une table Amazon DynamoDB d'un autre compte AWS :
+
+    ```python
+    import boto3
+
+    sts = boto3.client("sts")
+    resp = sts.assume_role(
+        RoleArn="arn:aws:iam::222222222222:role/InventoryReader",
+        RoleSessionName="inventory-sync",
+    )
+    creds = resp["Credentials"]
+    dynamodb = boto3.client(
+        "dynamodb",
+        aws_access_key_id=creds["AccessKeyId"],
+        aws_secret_access_key=creds["SecretAccessKey"],
+    )
+    dynamodb.scan(TableName="Inventory")
+    ```
+
+    L'appel assume_role réussit, mais l'appel scan renvoie une erreur indiquant que le jeton de sécurité inclus dans la requête n'est pas valide. Le rôle InventoryReader autorise dynamodb:Scan sur la table.
+
+    Quelle modification corrige le code ?
+body:
+  options:
+    - id: a
+      text: { en: "Add DurationSeconds=43200 to the assume_role call so that the credentials stay valid longer.", fr: "Ajouter DurationSeconds=43200 à l'appel assume_role pour que les informations d'identification restent valides plus longtemps." }
+    - id: b
+      text: { en: "Add an ExternalId parameter to the assume_role call so that the role trusts the request.", fr: "Ajouter un paramètre ExternalId à l'appel assume_role pour que le rôle approuve la requête." }
+    - id: c
+      text: { en: "Pass aws_session_token=creds[\"SessionToken\"] when the code creates the DynamoDB client.", fr: "Passer aws_session_token=creds[\"SessionToken\"] lorsque le code crée le client DynamoDB." }
+    - id: d
+      text: { en: "Set RoleSessionName to the ARN of the caller so that DynamoDB can identify the session.", fr: "Définir RoleSessionName sur l'ARN de l'appelant pour que DynamoDB puisse identifier la session." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "AssumeRole returns temporary credentials made of an access key ID, a secret access key, and a session token. A request signed with a temporary access key must also include the session token, so the client must receive aws_session_token; otherwise AWS rejects the request as having an invalid security token."
+    fr: "AssumeRole renvoie des informations d'identification temporaires composées d'un ID de clé d'accès, d'une clé d'accès secrète et d'un jeton de session. Une requête signée avec une clé d'accès temporaire doit aussi inclure le jeton de session ; le client doit donc recevoir aws_session_token, sinon AWS rejette la requête pour jeton de sécurité non valide."
+  options:
+    a:
+      en: "The credentials are rejected immediately because the token is missing, not because they expire; a longer duration also fails if it exceeds the role's maximum session duration."
+      fr: "Les informations d'identification sont rejetées immédiatement parce que le jeton manque, et non parce qu'elles expirent ; une durée plus longue échoue d'ailleurs si elle dépasse la durée de session maximale du rôle."
+    b:
+      en: "The assume_role call already succeeds, so the trust policy accepts the request; the error comes from the DynamoDB call."
+      fr: "L'appel assume_role réussit déjà, la politique d'approbation accepte donc la requête ; l'erreur vient de l'appel DynamoDB."
+    d:
+      en: "The session name only labels the session in the assumed-role ARN and CloudTrail logs, and an ARN contains characters that RoleSessionName does not accept."
+      fr: "Le nom de session ne fait qu'étiqueter la session dans l'ARN du rôle assumé et les journaux CloudTrail, et un ARN contient des caractères que RoleSessionName n'accepte pas."
+references:
+  - title: AssumeRole
+    url: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html

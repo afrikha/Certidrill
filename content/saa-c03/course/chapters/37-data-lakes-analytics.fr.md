@@ -35,7 +35,7 @@ Choisir un moteur de transformation :
 | --- | --- |
 | ETL sans serveur sur des données S3, Spark sans clusters | Tâche AWS Glue |
 | Les analystes nettoient les données visuellement, sans code | AWS Glue DataBrew |
-| Petite transformation par fichier à l'arrivée d'un objet | Lambda sur un événement S3 (15 minutes au maximum par appel) |
+| Petite transformation par fichier à l'arrivée d'un objet | Lambda sur un événement S3 (des minutes, pas des heures, par appel) |
 | Code Spark ou Hadoop existant avec des versions ou des réglages précis | Amazon EMR |
 | Remodelage en SQL seulement de tables déjà cataloguées | `CREATE TABLE AS SELECT` dans Athena |
 | Transformation continue d'un flux | ETL en streaming de Glue ou Managed Service for Apache Flink |
@@ -94,7 +94,7 @@ La capacité SPICE est allouée par Région et partagée par les utilisateurs du
 | AWS Glue | ETL Spark sans serveur intégré au catalogue de données | Pipelines ETL pilotés par le catalogue |
 | Athena | SQL et Spark sans serveur | Transformation et analyse en SQL |
 | Amazon Redshift | Entrepôt SQL massivement parallèle | Transformations dans l'entrepôt (ELT) |
-| AWS Lambda | Fonctions pilotées par les événements, jusqu'à 15 minutes | Petits fichiers, traitement par événement |
+| AWS Lambda | Fonctions pilotées par les événements, jusqu'à 30 minutes sur la page actuelle des quotas Lambda (des pages plus anciennes et la FAQ indiquent encore 15 minutes ; 90 minutes pour certains appels de Lambda Managed Instances) | Petits fichiers, traitement par événement |
 | AWS Batch | Planification de lots gérée sur EC2 ou Fargate, y compris Spot | Tâches par lots conteneurisées qui ne sont pas du Spark |
 
 Détails d'EMR on EC2 :

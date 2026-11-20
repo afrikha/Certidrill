@@ -6,7 +6,7 @@ Compute questions describe a workload (a web tier with daily peaks, a nightly ba
 | Requirement | Service |
 | --- | --- |
 | Full control of OS, licensing, GPUs, long-running servers | Amazon EC2 (with EC2 Auto Scaling) |
-| Short event-driven code, no servers, scale to zero, at most 15 minutes per invocation | AWS Lambda |
+| Short event-driven code, no servers, scale to zero, minutes (not hours) per invocation | AWS Lambda |
 | Containers without managing servers or clusters of instances | AWS Fargate (with Amazon ECS or Amazon EKS) |
 | Containers with AWS-native orchestration | Amazon ECS |
 | Kubernetes, portability, Kubernetes tooling | Amazon EKS |
@@ -19,7 +19,7 @@ Compute questions describe a workload (a web tier with daily peaks, a nightly ba
 - **Amazon EMR** is the answer when the stem names a big data framework; AWS Glue is the serverless ETL answer covered elsewhere.
 - **Fargate** removes instance management: you choose task CPU and memory (from 0.25 vCPU / 512 MiB to 32 vCPU / 244 GB for Linux), and pay for what tasks request.
 
-> **Exam trap.** A job that runs for 40 minutes can't be a single Lambda invocation (900-second limit). Pick Fargate, AWS Batch or EC2, or split the work with AWS Step Functions.
+> **Exam trap.** A job that runs for several hours can't be a single Lambda invocation (the maximum timeout is counted in minutes). Pick Fargate, AWS Batch or EC2, or split the work with AWS Step Functions.
 
 <!-- section: distributed-computing | objectives: 3.2.2 -->
 ## Distributed computing with global infrastructure and edge services
@@ -48,7 +48,7 @@ For tightly coupled HPC, combine a cluster placement group with instances that s
 <!-- section: serverless | objectives: 3.2.5 -->
 ## Serverless technologies and patterns
 
-**AWS Lambda** key figures: memory 128 MB to 10,240 MB in 1 MB steps, CPU allocated in proportion to memory (one vCPU equivalent at 1,769 MB), timeout up to 900 seconds, `/tmp` storage 512 MB to 10,240 MB, 1,000 concurrent executions per Region by default (can be raised), and each function can scale by 1,000 execution environments every 10 seconds.
+**AWS Lambda** key figures: memory 128 MB to 10,240 MB in 1 MB steps, CPU allocated in proportion to memory (one vCPU equivalent at 1,769 MB), timeout up to 30 minutes on the current Lambda quotas page (older pages and the FAQ still say 15 minutes; 90 minutes for some Lambda Managed Instances invocations), `/tmp` storage 512 MB to 10,240 MB, 1,000 concurrent executions per Region by default (can be raised), and each function can scale by 1,000 execution environments every 10 seconds.
 
 | Need | Lambda feature |
 | --- | --- |
@@ -172,7 +172,7 @@ aws lambda update-function-configuration \
 <!-- section: key-points -->
 ## Key points
 
-- Lambda for short events (15-minute limit), Fargate for serverless containers, ECS or EKS for orchestration, Batch for queued jobs, EMR for Spark and Hadoop.
+- Lambda for short events (minutes, not hours), Fargate for serverless containers, ECS or EKS for orchestration, Batch for queued jobs, EMR for Spark and Hadoop.
 - Local Zones and Wavelength bring compute closer to users; placement groups: cluster for latency, partition for racks, spread for a few critical instances.
 - Decouple with SQS (buffer), SNS (fan-out), EventBridge (routing), Kinesis (streams) so each tier scales on its own.
 - Target tracking by default; predictive or scheduled for known patterns; warm pools for slow boots; Application Auto Scaling for non-EC2 resources.

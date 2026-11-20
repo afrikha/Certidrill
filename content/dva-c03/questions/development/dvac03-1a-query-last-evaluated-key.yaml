@@ -1,0 +1,78 @@
+id: dvac03-1a-query-last-evaluated-key
+objective: "1.1.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A Node.js function reads the orders of a customer from an Amazon DynamoDB table whose partition key is customerId:
+
+    ```javascript
+    import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+    import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+
+    const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+    export async function getOrders(customerId) {
+      const out = await ddb.send(new QueryCommand({
+        TableName: "Orders",
+        KeyConditionExpression: "customerId = :c",
+        ExpressionAttributeValues: { ":c": customerId },
+      }));
+      return out.Items;
+    }
+    ```
+
+    Customers with many orders see only part of their orders.
+
+    Which change will return all the orders of a customer?
+  fr: |
+    Une fonction Node.js lit les commandes d'un client dans une table Amazon DynamoDB dont la clé de partition est customerId :
+
+    ```javascript
+    import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+    import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+
+    const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+    export async function getOrders(customerId) {
+      const out = await ddb.send(new QueryCommand({
+        TableName: "Orders",
+        KeyConditionExpression: "customerId = :c",
+        ExpressionAttributeValues: { ":c": customerId },
+      }));
+      return out.Items;
+    }
+    ```
+
+    Les clients qui ont beaucoup de commandes n'en voient qu'une partie.
+
+    Quelle modification renverra toutes les commandes d'un client ?
+body:
+  options:
+    - id: a
+      text: { en: "Add `Limit: 10000` to the parameters of the QueryCommand to raise the page size.", fr: "Ajouter `Limit: 10000` aux paramètres de QueryCommand pour augmenter la taille de page." }
+    - id: b
+      text: { en: "Repeat the query with `ExclusiveStartKey` set to each `LastEvaluatedKey` until none is returned.", fr: "Répéter la requête avec `ExclusiveStartKey` défini sur chaque `LastEvaluatedKey` jusqu'à ce qu'aucun ne soit renvoyé." }
+    - id: c
+      text: { en: "Replace the QueryCommand with a ScanCommand that filters on customerId.", fr: "Remplacer QueryCommand par une ScanCommand qui filtre sur customerId." }
+    - id: d
+      text: { en: "Add `ConsistentRead: true` to the parameters of the QueryCommand to read every item.", fr: "Ajouter `ConsistentRead: true` aux paramètres de QueryCommand pour lire chaque élément." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "DynamoDB returns Query results in pages of up to 1 MB. When a response contains LastEvaluatedKey, the next request must pass it as ExclusiveStartKey; the absence of LastEvaluatedKey is the only reliable sign that the last page was read."
+    fr: "DynamoDB renvoie les résultats de Query par pages de 1 Mo au plus. Quand une réponse contient LastEvaluatedKey, la requête suivante doit le passer comme ExclusiveStartKey ; l'absence de LastEvaluatedKey est le seul signe fiable que la dernière page a été lue."
+  options:
+    a:
+      en: "Limit only caps the number of items evaluated per request; it can't raise the 1 MB page size."
+      fr: "Limit ne fait que plafonner le nombre d'éléments évalués par requête ; il ne peut pas dépasser la taille de page de 1 Mo."
+    c:
+      en: "A Scan reads the whole table, costs far more, and is paginated in the same way."
+      fr: "Un Scan lit toute la table, coûte bien plus cher et est paginé de la même façon."
+    d:
+      en: "Strongly consistent reads return the latest data but still stop at the same page boundary."
+      fr: "Les lectures fortement cohérentes renvoient les données les plus récentes mais s'arrêtent toujours à la même limite de page."
+references:
+  - title: Paginating table query results in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.Pagination.html

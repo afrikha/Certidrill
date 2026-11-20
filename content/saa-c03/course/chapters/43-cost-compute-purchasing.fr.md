@@ -75,14 +75,14 @@ Règles de décision :
 
 | Service | Facturation | Usage idéal | Limites à retenir |
 | --- | --- | --- | --- |
-| AWS Lambda | Requêtes plus GB-secondes de durée ; rien au repos | Traitement événementiel, en pics ou à faible volume ; code d'intégration | 15 minutes maximum par appel, mémoire de 128 Mo à 10 240 Mo |
+| AWS Lambda | Requêtes plus GB-secondes de durée ; rien au repos | Traitement événementiel, en pics ou à faible volume ; code d'intégration | Délai d'expiration maximal de 30 minutes sur la page actuelle des quotas Lambda (des pages plus anciennes et la FAQ indiquent encore 15 minutes ; 90 minutes pour certains appels de Lambda Managed Instances), mémoire de 128 Mo à 10 240 Mo |
 | AWS Fargate (ECS, EKS) | vCPU et mémoire à la seconde (1 minute minimum) | Conteneurs sans gestion de serveurs, charge variable | Vous payez la taille de la tâche même sous-utilisée ; Fargate Spot pour les tâches interruptibles |
 | Amazon EC2 | À la seconde d'instance, avec toutes les options d'achat | Usage stable et élevé ; matériel particulier (GPU, NVMe local) ; contrôle de l'OS ; licences | Vous gérez les correctifs et la capacité |
 | ECS ou EKS sur EC2 | Instances EC2 qui hébergent les conteneurs | Grandes flottes de conteneurs stables et densément regroupées | Vous payez la capacité inutilisée du cluster |
 
 Règles pratiques :
 
-- Inactif la plupart du temps ou appelé quelques fois par heure : **Lambda** (aucun coût au repos). Une tâche de plus de 15 minutes ne peut pas être une fonction Lambda : utilisez Fargate, AWS Batch ou EC2.
+- Inactif la plupart du temps ou appelé quelques fois par heure : **Lambda** (aucun coût au repos). Une tâche qui dure des heures ne peut pas être une fonction Lambda : utilisez Fargate, AWS Batch ou EC2.
 - Conteneurs à charge imprévisible, sans envie de gérer des hôtes : **Fargate**. Une flotte stable et très utilisée coûte moins cher sur EC2 avec des Savings Plans ou du Spot.
 - Les instances **Graviton** (Arm), ainsi que Fargate et Lambda sur Arm, offrent en général un meilleur rapport prix/performances pour du code qui s'exécute sur Arm.
 - **AWS Batch** planifie des tâches batch sur EC2 (Spot compris) ou Fargate, sans frais supplémentaires pour Batch lui-même.
@@ -160,7 +160,7 @@ aws ce get-cost-and-usage --time-period Start=2026-10-01,End=2026-11-01 \
 - Base stable : Savings Plans (Compute pour la flexibilité, EC2 Instance pour la remise la plus forte) ou Reserved Instances ; pics : On-Demand ou Spot.
 - Remise n'est pas capacité : les RI zonales et les Capacity Reservations réservent de la capacité ; les Savings Plans et les RI régionales non.
 - Spot : jusqu'à 90 % de remise, avis de deux minutes, diversification, `price-capacity-optimized`, uniquement pour des tâches tolérantes aux interruptions.
-- Lambda pour un travail inactif ou en pics de moins de 15 minutes, Fargate pour des conteneurs sans hôtes, EC2 avec engagement pour un usage stable et élevé.
+- Lambda pour un travail inactif ou en pics qui dure des minutes, pas des heures, Fargate pour des conteneurs sans hôtes, EC2 avec engagement pour un usage stable et élevé.
 - Hors production : une zone, calendriers, Spot, petites tailles. Les prix varient selon les Régions ; le transfert entre zones et entre Régions est facturé.
 - Périphérie : CloudFront Functions pour une logique légère, Lambda@Edge pour l'accès réseau ou au corps de requête ; Local Zones, Wavelength et Outposts pour la latence et les besoins sur site.
 - Activez les balises de répartition des coûts ; Cost Explorer pour analyser, Budgets pour alerter, le Cost and Usage Report pour le détail, Cost Anomaly Detection pour les surprises.
