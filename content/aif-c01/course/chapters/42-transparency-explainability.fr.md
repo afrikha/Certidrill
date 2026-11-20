@@ -53,7 +53,7 @@ La conception centrée sur l'humain construit le système d'IA autour des person
 | Principe | Pratique |
 | --- | --- |
 | **Transparence des décisions de l'IA** | Indiquez aux utilisateurs qu'ils interagissent avec une IA ; montrez les sources ou les citations d'une réponse, les principaux facteurs d'une décision et son niveau de confiance |
-| **Mécanismes de commentaires des utilisateurs** | Pouce levé ou baissé, notes, corrections et signalements de problèmes, qui alimentent l'évaluation, l'amélioration des invites et le peaufinage (RLHF) |
+| **Mécanismes de commentaires des utilisateurs** | Pouce levé ou baissé, notes, corrections et signalements de problèmes, qui alimentent l'évaluation, l'amélioration des invites et le réglage précis (RLHF) |
 | **Prise de décision amplifiée** | L'IA assiste des personnes, qui gardent la décision finale pour les cas à fort enjeu ; des explications claires et exploitables les y aident |
 | **Prise de décision sans biais** | Vérifiez les décisions pour détecter les biais entre groupes d'utilisateurs et permettez de contester une décision |
 | **Supervision humaine** | Transfert à une personne, revue des sorties à faible confiance, possibilité de passer outre l'IA |

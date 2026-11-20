@@ -5,9 +5,9 @@ AWS propose l'IA générative à plusieurs niveaux : des modèles de fondation p
 
 | Service | Ce que c'est |
 | --- | --- |
-| **Amazon Bedrock** | Un accès entièrement géré et sans serveur à des modèles de fondation d'Amazon (Amazon Nova) et de grandes entreprises d'IA par une seule API. Fonctionnalités : Knowledge Bases (RAG géré), Guardrails (protections), Prompt Management, Model Evaluation, personnalisation des modèles (peaufinage, préentraînement continu, distillation), inférence par lots, Bedrock Marketplace pour des modèles plus spécialisés |
-| **Amazon SageMaker AI** | Construire, entraîner, peaufiner et déployer tout modèle de ML, y compris des modèles de fondation, avec le contrôle des instances, du code et des points de terminaison ; SageMaker HyperPod pour l'entraînement à grande échelle |
-| **SageMaker JumpStart** | Un hub dans SageMaker AI de modèles préentraînés propriétaires et open source, avec des modèles de solutions, que vous déployez sur des points de terminaison SageMaker AI, peaufinez et évaluez |
+| **Amazon Bedrock** | Un accès entièrement géré et sans serveur à des modèles de fondation d'Amazon (Amazon Nova) et de grandes entreprises d'IA par une seule API. Fonctionnalités : Knowledge Bases (RAG géré), Guardrails (protections), Prompt Management, Model Evaluation, personnalisation des modèles (réglage précis, préentraînement continu, distillation), inférence par lots, Bedrock Marketplace pour des modèles plus spécialisés |
+| **Amazon SageMaker AI** | Construire, entraîner, personnaliser par réglage précis et déployer tout modèle de ML, y compris des modèles de fondation, avec le contrôle des instances, du code et des points de terminaison ; SageMaker HyperPod pour l'entraînement à grande échelle |
+| **SageMaker JumpStart** | Un hub dans SageMaker AI de modèles préentraînés propriétaires et open source, avec des modèles de solutions, que vous déployez sur des points de terminaison SageMaker AI, personnalisez par réglage précis et évaluez |
 | **Amazon Quick** | Un service fondé sur l'IA pour les utilisateurs métier (la documentation AWS l'appelle désormais AWS Quick, issu d'Amazon QuickSight) : conversation avec des agents d'IA sur les données de l'entreprise, tableaux de bord (Quick Sight), ancrage dans les documents (Quick Index), rapports de recherche avec citations (Quick Research), automatisation des flux de travail et des processus (Quick Flows, Quick Automate) |
 | **Kiro** | Un environnement de développement agentique (IDE et CLI) qui transforme une invite en exigences, en conception et en tâches (développement piloté par les spécifications), puis écrit, teste et documente le code ; prend en charge MCP |
 | **Strands Agents** | Un SDK open source (Python et TypeScript) pour construire des agents d'IA en quelques lignes de code : le modèle planifie et appelle les outils ; fonctionne avec Amazon Bedrock et d'autres fournisseurs de modèles, des outils MCP et des modèles multi-agents |
@@ -48,7 +48,7 @@ Situation en novembre 2026 : Amazon Bedrock Agents s'appelle désormais Amazon B
 - **Sûreté.** Amazon Bedrock Guardrails filtre le contenu nuisible, bloque les sujets interdits, masque les données personnelles et vérifie que les réponses sont ancrées dans la source.
 - **Performances et échelle.** Des puces conçues pour l'IA (AWS Trainium pour l'entraînement et l'inférence, AWS Inferentia pour l'inférence) et des instances GPU dans Amazon EC2, déployées dans les Régions AWS du monde entier.
 
-> **Piège d'examen.** « Nos invites serviront-elles à entraîner le modèle du fournisseur ? » Non : Amazon Bedrock n'utilise pas le contenu client pour améliorer les modèles de base et ne le partage pas avec les fournisseurs de modèles. Un modèle peaufiné est privé pour le compte qui l'a créé.
+> **Piège d'examen.** « Nos invites serviront-elles à entraîner le modèle du fournisseur ? » Non : Amazon Bedrock n'utilise pas le contenu client pour améliorer les modèles de base et ne le partage pas avec les fournisseurs de modèles. Un modèle personnalisé par réglage précis est privé pour le compte qui l'a créé.
 
 <!-- section: cost-tradeoffs | objectives: 2.3.4 -->
 ## Les compromis de coûts des services AWS d'IA générative
@@ -70,7 +70,7 @@ Autres facteurs : la **couverture régionale** (tous les modèles ne sont pas pr
 ## Points clés
 
 - Bedrock : des FM par API, sans serveur, avec Knowledge Bases, Guardrails, Prompt Management, Model Evaluation et la personnalisation.
-- SageMaker AI construit et héberge vos propres modèles ; JumpStart fournit des modèles préentraînés à déployer et à peaufiner.
+- SageMaker AI construit et héberge vos propres modèles ; JumpStart fournit des modèles préentraînés à déployer et à personnaliser par réglage précis.
 - Quick sert les utilisateurs métier, Kiro les développeurs, Strands Agents construit des agents, AgentCore les exécute en production.
 - Bedrock n'utilise pas votre contenu pour améliorer les modèles de base ; le chiffrement, IAM, PrivateLink et les programmes de conformité sécurisent les charges d'IA générative.
 - À la demande pour un trafic variable, par lots pour les volumes hors ligne, Provisioned Throughput pour un débit régulier garanti ; les modèles personnalisés ajoutent des coûts d'entraînement, de stockage et d'hébergement.

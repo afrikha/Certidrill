@@ -28,7 +28,7 @@ Vous pouvez aussi évaluer des réponses produites en dehors d'Amazon Bedrock en
 | --- | --- | --- |
 | **ROUGE** (Recall-Oriented Understudy for Gisting Evaluation) | Recouvrement de mots et de n-grammes entre le texte généré et une référence, orienté rappel (quelle part de la référence est couverte) ; ROUGE-N pour les n-grammes, ROUGE-L pour la plus longue sous-séquence commune | **Synthèse** |
 | **BLEU** (Bilingual Evaluation Understudy) | Précision des n-grammes de la sortie par rapport à un ou plusieurs textes de référence, avec une pénalité pour les sorties trop courtes | **Traduction automatique** |
-| **BERTScore** | Similarité de sens, calculée en comparant les embeddings contextuels de la sortie et de la référence ; valorise les paraphrases qui emploient d'autres mots | **Similarité sémantique**, synthèses et réponses formulées autrement que la référence |
+| **BERTScore** | Similarité de sens, calculée en comparant les vectorisations contextuelles de la sortie et de la référence ; valorise les paraphrases qui emploient d'autres mots | **Similarité sémantique**, synthèses et réponses formulées autrement que la référence |
 | **F1, correspondance exacte** | Recouvrement de mots entre la réponse et la réponse attendue | Questions-réponses |
 | **Exactitude (accuracy)** | Part de prédictions correctes | Classification |
 | **LLM-as-a-judge** | Un modèle applique une grille pour noter des qualités que les métriques de n-grammes ne voient pas | Réponses ouvertes : utilité, fidélité, nocivité |
@@ -57,7 +57,7 @@ Une application ajoute des composants autour du modèle (récupération, outils,
 | **Agents** | L'agent a-t-il atteint l'objectif de l'utilisateur ? A-t-il choisi le bon outil avec les bons paramètres à chaque étape ? | **Amazon Bedrock AgentCore Evaluations** : évaluateurs par session (goal success rate, taux de réussite de l'objectif), par trace (exactitude, utilité, fidélité) et par appel d'outil (tool selection accuracy, tool parameter accuracy) |
 | **Flux de travail** | Résultat de bout en bout et chaque étape : erreurs, latence et coût par étape | Évaluez chaque étape d'invite ou de modèle, puis le flux complet sur des cas de test |
 
-> **Piège d'examen.** Une mauvaise réponse RAG a deux causes possibles. Une pertinence ou une couverture du contexte faible signifie que la **récupération** est en cause (découpage, embeddings, source de données) ; un bon contexte avec une fidélité faible signifie que la **génération** est en cause (modèle ou invite).
+> **Piège d'examen.** Une mauvaise réponse RAG a deux causes possibles. Une pertinence ou une couverture du contexte faible signifie que la **récupération** est en cause (découpage, vectorisations, source de données) ; un bon contexte avec une fidélité faible signifie que la **génération** est en cause (modèle ou invite).
 
 <!-- section: alignment-metrics | objectives: 3.4.5 -->
 ## Métriques d'alignement sur les objectifs métier

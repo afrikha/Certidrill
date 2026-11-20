@@ -60,7 +60,7 @@ Un énoncé compte une à quatre phrases : une entreprise (« A retail company �
 | « document the intended use and risks of a model » (documenter l'usage prévu et les risques d'un modèle) | Amazon SageMaker Model Cards |
 | « who invoked the model », « audit API calls » (qui a appelé le modèle, auditer les appels d'API) | AWS CloudTrail |
 
-> **Piège d'examen.** « LEAST operational overhead » désigne l'option gérée : un service d'IA prêt à l'emploi ou Amazon Bedrock plutôt qu'un modèle que vous entraînez et hébergez dans SageMaker AI, l'ingénierie de requête ou le RAG plutôt que le peaufinage (fine-tuning).
+> **Piège d'examen.** « LEAST operational overhead » désigne l'option gérée : un service d'IA prêt à l'emploi ou Amazon Bedrock plutôt qu'un modèle que vous entraînez et hébergez dans SageMaker AI, l'ingénierie de requête ou le RAG plutôt que le réglage précis (fine-tuning).
 
 <!-- section: confusing-pairs -->
 ## Les concepts et services faciles à confondre
@@ -73,10 +73,10 @@ Retenez la différence en une ligne entre les membres de chaque famille :
 | Techniques de ML | Classification, régression, clustering | Une catégorie ; un nombre ; des groupes trouvés sans étiquettes |
 | Métriques de ML | Exactitude (accuracy), précision, rappel, score F1, AUC | Part des prédictions correctes ; combien de positifs signalés sont réels ; combien de positifs réels sont trouvés ; équilibre entre précision et rappel ; qualité du classement sur tous les seuils |
 | Métriques d'IA générative | ROUGE, BLEU, BERTScore, LLM-as-a-judge | Synthèses ; traductions ; similarité sémantique avec une référence ; un modèle note les réponses d'un autre modèle |
-| Personnalisation | Ingénierie de requête, RAG, peaufinage, préentraînement continu, distillation | De meilleures instructions ; des documents récupérés dans l'invite ; des exemples étiquetés modifient les poids ; des données de domaine non étiquetées ; un petit modèle élève apprend d'un grand modèle enseignant |
+| Personnalisation | Ingénierie de requête, RAG, réglage précis, préentraînement continu, distillation | De meilleures instructions ; des documents récupérés dans l'invite ; des exemples étiquetés modifient les poids ; des données de domaine non étiquetées ; un petit modèle élève apprend d'un grand modèle enseignant |
 | Paramètres d'inférence | Température, top-p, top-k, longueur maximale | Caractère aléatoire ; part de la masse de probabilité prise en compte ; nombre de jetons candidats pris en compte ; longueur de la réponse |
 | Tarification de Bedrock | À la demande, par lots, Provisioned Throughput | Paiement par jeton ; tâches asynchrones à prix réduit pour certains modèles ; unités de modèle réservées à l'heure |
-| Construire avec l'IA | Amazon Bedrock, Amazon SageMaker AI, SageMaker JumpStart | Des modèles de fondation par une API ; construire, entraîner et héberger vos propres modèles ; un hub de modèles préentraînés à déployer et à peaufiner |
+| Construire avec l'IA | Amazon Bedrock, Amazon SageMaker AI, SageMaker JumpStart | Des modèles de fondation par une API ; construire, entraîner et héberger vos propres modèles ; un hub de modèles préentraînés à déployer et à personnaliser par réglage précis |
 | Assistants et outils d'IA | Amazon Quick, Kiro, Strands Agents, Amazon Bedrock AgentCore | Informatique décisionnelle, recherche et automatisation fondées sur l'IA pour les utilisateurs métier ; environnement de développement agentique ; SDK open source pour coder des agents ; services pour déployer et exploiter des agents à grande échelle |
 | Fonctionnalités de Bedrock | Guardrails, Knowledge Bases, Prompt Management, Model Evaluation | Protections sur les entrées et les sorties ; RAG géré ; invites versionnées ; comparer des modèles par des métriques ou des évaluateurs humains |
 | Risques de l'IA générative | Hallucination, injection d'invite, débridage (jailbreaking), empoisonnement | Une sortie fluide mais fausse ; des instructions cachées dans l'entrée détournent le modèle ; des invites qui contournent les règles de sûreté ; des données d'entraînement corrompues |

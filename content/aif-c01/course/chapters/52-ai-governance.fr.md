@@ -49,12 +49,12 @@ La gouvernance garantit que les systèmes d'IA continuent de respecter les polit
 | **1. Consumer app (application grand public)** | Un service public d'IA générative tiers, aux conditions du fournisseur | Des employés utilisent un chatbot public |
 | **2. Enterprise app (application d'entreprise)** | Une application d'entreprise tierce dotée de fonctionnalités d'IA générative, sous un contrat d'entreprise | Un outil SaaS avec un assistant d'IA intégré |
 | **3. Pre-trained models (modèles préentraînés)** | Votre application construite sur un FM existant via une API, sans modifier le modèle | Une application qui appelle un modèle sur Amazon Bedrock |
-| **4. Fine-tuned models (modèles peaufinés)** | Un FM existant adapté avec vos données métier | Un modèle peaufiné dans Amazon Bedrock avec des données de l'entreprise |
+| **4. Fine-tuned models (modèles personnalisés par réglage précis)** | Un FM existant adapté avec vos données métier | Un modèle personnalisé par réglage précis dans Amazon Bedrock avec des données de l'entreprise |
 | **5. Self-trained models (modèles autoentraînés)** | Un modèle entraîné à partir de zéro sur des données que vous possédez ou acquérez | Un modèle préentraîné sur SageMaker AI |
 
 La matrice applique cinq disciplines de sécurité à chaque périmètre : gouvernance et conformité, juridique et confidentialité, gestion des risques, contrôles, et résilience. Les périmètres 1 et 2 consomment un service tiers ; les périmètres 3 à 5 s'appuient sur un modèle ou en créent un, et les responsabilités de l'organisation augmentent avec le périmètre.
 
-> **Piège d'examen.** Appeler un modèle de fondation par l'API d'Amazon Bedrock sans le personnaliser relève du périmètre 3 (modèles préentraînés), pas du périmètre 2 : le périmètre 2 est une application tierce finie. Le peaufinage fait passer la charge de travail au périmètre 4.
+> **Piège d'examen.** Appeler un modèle de fondation par l'API d'Amazon Bedrock sans le personnaliser relève du périmètre 3 (modèles préentraînés), pas du périmètre 2 : le périmètre 2 est une application tierce finie. Le réglage précis fait passer la charge de travail au périmètre 4.
 
 <!-- section: key-points -->
 ## Points clés

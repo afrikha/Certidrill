@@ -25,17 +25,17 @@ L'IA générative est flexible et rapide à adopter, mais elle peut se tromper a
 | **Coût et latence** | Les grands modèles sont plus lents et plus chers par requête | Modèles plus petits, invites plus courtes, mise en cache, inférence par lots |
 | **Sécurité des données et propriété intellectuelle** | Risque d'exposer des données sensibles ou de générer un contenu trop proche d'œuvres protégées | Contrôles d'accès, protection des données, filtres d'informations sensibles, revue juridique |
 
-> **Piège d'examen.** Un modèle qui invente une source ou un fait hallucine ; la principale solution est l'ancrage par le RAG, pas une température plus élevée ni une fenêtre de contexte plus grande. Baisser la température rend les réponses plus constantes, pas forcément plus vraies.
+> **Piège d'examen.** Un modèle qui invente une source ou un fait hallucine ; la principale solution est l'ancrage par le RAG, pas une température plus élevée ni une fenêtre contextuelle plus grande. Baisser la température rend les réponses plus constantes, pas forcément plus vraies.
 
 <!-- section: model-selection-factors | objectives: 2.2.3 -->
 ## Les facteurs de sélection d'un modèle d'IA générative
 
 | Facteur | Questions à se poser |
 | --- | --- |
-| **Type de modèle** | Génération de texte, conversation, génération d'images, intégrations, multimodal ? |
+| **Type de modèle** | Génération de texte, conversation, génération d'images, vectorisations, multimodal ? |
 | **Exigences de performance** | Quelle qualité faut-il atteindre sur les invites de test et les jeux de référence de l'entreprise ? |
-| **Capacités** | Langues, raisonnement, utilisation d'outils, taille de la fenêtre de contexte, modalités d'entrée et de sortie |
-| **Contraintes** | Fenêtre de contexte, longueur maximale de sortie, disponibilité dans la Région, options de personnalisation |
+| **Capacités** | Langues, raisonnement, utilisation d'outils, taille de la fenêtre contextuelle, modalités d'entrée et de sortie |
+| **Contraintes** | Fenêtre contextuelle, longueur maximale de sortie, disponibilité dans la Région, options de personnalisation |
 | **Conformité** | Résidence des données, exigences réglementaires, conditions de licence, documentation d'IA responsable du fournisseur |
 | **Coût** | Prix par jeton d'entrée et de sortie, Provisioned Throughput, coût de la personnalisation |
 | **Latence** | Délai avant le premier jeton et temps de réponse total acceptables pour l'expérience utilisateur |

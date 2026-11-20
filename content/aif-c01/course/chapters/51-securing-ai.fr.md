@@ -49,7 +49,7 @@ Un système d'IA présente la surface d'attaque habituelle du cloud (identités,
 | **Détection des menaces** | Surveillez l'activité des API dans AWS CloudTrail et l'utilisation dans Amazon CloudWatch ; alarmes sur un volume d'invocations inhabituel ; détection des attaques d'invite par Guardrails |
 | **Gestion des vulnérabilités** | **Amazon Inspector** analyse les instances Amazon EC2, les images de conteneur d'Amazon ECR et les fonctions AWS Lambda pour détecter les vulnérabilités logicielles et l'exposition réseau |
 | **Protection de l'infrastructure** | VPC, sous-réseaux privés, groupes de sécurité, points de terminaison AWS PrivateLink |
-| **Injection d'invite** | Filtre prompt attack de Guardrails, séparation des instructions et des entrées utilisateur, moindre privilège pour les outils qu'un agent peut utiliser |
+| **Injection d'invite** | Filtre Prompt Attack de Guardrails, séparation des instructions et des entrées utilisateur, moindre privilège pour les outils qu'un agent peut utiliser |
 | **Chiffrement au repos et en transit** | Clés AWS KMS ; TLS (Amazon Bedrock exige TLS 1.2 et recommande TLS 1.3) |
 | **Prévention de la fuite de données** | Filtres d'informations sensibles de Guardrails (bloquer ou masquer les PII), aucun secret ni donnée personnelle dans les invites et les données d'entraînement, IAM limité à chaque base de connaissances |
 | **Filtrage et validation des résultats** | Filtres de contenu, sujets refusés et vérifications d'ancrage de Guardrails ; validation du format et des valeurs avant qu'un autre système n'utilise la sortie |
