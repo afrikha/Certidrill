@@ -149,4 +149,10 @@ describe("AWS glossary", () => {
     ]);
     expect(terminologyWarnings("Deux bucket, un bucket.", terms)).toEqual([`French text uses « bucket » (2×): the glossary says « compartiment » for "bucket"`]);
   });
+
+  it("leaves out section markers and the exam's English words quoted in guillemets", () => {
+    const terms = [term("bucket", "compartiment", { avoid: ["bucket", "buckets"] })];
+    expect(terminologyWarnings("<!-- section: bucket | objectives: 1.1 -->\nL'énoncé dit « find PII in S3 buckets ».", terms)).toEqual([]);
+    expect(terminologyWarnings("« find PII » dans un bucket.", terms)).toEqual([`French text uses « bucket »: the glossary says « compartiment » for "bucket"`]);
+  });
 });

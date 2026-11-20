@@ -1,0 +1,40 @@
+id: soac03-1c-rds-proxy-pinning-init-query
+objective: "1.3.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Microservices connect to an Amazon RDS for MySQL DB instance through RDS Proxy. Right after it opens a connection, each service runs `SET time_zone = '+00:00'` and `SET NAMES utf8mb4`, and every service uses the same values. During peaks, DatabaseConnectionsCurrentlySessionPinned is almost equal to DatabaseConnections, DatabaseConnections reaches MaxDatabaseConnectionsAllowed, and clients wait for connections. MaxConnectionsPercent is already set to 100.
+
+    Which solution will improve connection reuse?
+  fr: |
+    Des microservices se connectent à une instance de base de données Amazon RDS for MySQL par RDS Proxy. Juste après l'ouverture d'une connexion, chaque service exécute `SET time_zone = '+00:00'` et `SET NAMES utf8mb4`, et tous les services utilisent les mêmes valeurs. Pendant les pics, DatabaseConnectionsCurrentlySessionPinned est presque égale à DatabaseConnections, DatabaseConnections atteint MaxDatabaseConnectionsAllowed et les clients attendent des connexions. MaxConnectionsPercent est déjà défini à 100.
+
+    Quelle solution améliorera la réutilisation des connexions ?
+body:
+  options:
+    - { id: a, text: { en: "Increase the IdleClientTimeout of the proxy so that client connections stay open longer.", fr: "Augmenter l'IdleClientTimeout du proxy pour que les connexions clientes restent ouvertes plus longtemps." } }
+    - { id: b, text: { en: "Increase the ConnectionBorrowTimeout of the target group so that clients wait longer for a connection.", fr: "Augmenter le ConnectionBorrowTimeout du groupe cible pour que les clients attendent plus longtemps une connexion." } }
+    - { id: c, text: { en: "Lower MaxIdleConnectionsPercent so that the proxy closes idle database connections sooner.", fr: "Diminuer MaxIdleConnectionsPercent pour que le proxy ferme plus tôt les connexions de base de données inactives." } }
+    - { id: d, text: { en: "Move the two SET statements into the initialization query of the target group and remove them from the services.", fr: "Déplacer les deux instructions SET dans la requête d'initialisation du groupe cible et les retirer des services." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Setting a session variable is a session state change, so RDS Proxy pins the client to its database connection, and pinned connections cannot be shared. Because the values are identical for every service, the SET statements can move to the proxy's initialization query, which runs whenever the proxy opens a database connection. The services then stop changing session state, and the proxy can multiplex the connections again."
+    fr: "Définir une variable de session est un changement d'état de session : RDS Proxy épingle alors le client à sa connexion de base de données, et les connexions épinglées ne peuvent pas être partagées. Comme les valeurs sont identiques pour tous les services, les instructions SET peuvent être déplacées dans la requête d'initialisation du proxy, exécutée chaque fois que le proxy ouvre une connexion de base de données. Les services ne modifient plus l'état de session, et le proxy peut de nouveau multiplexer les connexions."
+  options:
+    a:
+      en: "Keeping idle client connections open longer does not stop the SET statements from pinning sessions, and pinned sessions keep their database connections."
+      fr: "Garder plus longtemps les connexions clientes inactives n'empêche pas les instructions SET d'épingler les sessions, et les sessions épinglées gardent leurs connexions de base de données."
+    b:
+      en: "A longer borrow timeout only makes clients wait longer before an error; it does not free pinned connections."
+      fr: "Un délai d'emprunt plus long ne fait qu'allonger l'attente des clients avant une erreur ; il ne libère pas les connexions épinglées."
+    c:
+      en: "The pool is exhausted by pinned connections that are in use, not by idle ones, so closing idle connections sooner does not help."
+      fr: "Le pool est épuisé par des connexions épinglées en cours d'utilisation, pas par des connexions inactives : les fermer plus tôt n'aide pas."
+references:
+  - title: Avoiding pinning an RDS Proxy
+    url: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-pinning.html
+  - title: Monitoring RDS Proxy metrics with Amazon CloudWatch
+    url: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.monitoring.html

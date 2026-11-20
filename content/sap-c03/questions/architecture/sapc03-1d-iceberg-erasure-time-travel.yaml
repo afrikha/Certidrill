@@ -1,0 +1,60 @@
+id: sapc03-1d-iceberg-erasure-time-travel
+objective: "1.5.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A retail company runs a data lake in Amazon S3. Sales tables are stored as Apache Parquet files in Hive-style date partitions and are registered in the AWS Glue Data Catalog. Analysts query the tables with Amazon Athena, and data engineers run Apache Spark jobs on Amazon EMR against the same tables. A new privacy regulation requires the company to delete all records of a customer within 30 days of a request. Today, a nightly AWS Glue job rewrites every affected partition, which takes hours, and queries that run during the rewrite sometimes return partial results. Auditors also need to rerun any report exactly as it would have run at any point during the previous 7 days. Both engines must keep reading the same tables in S3 in an open table format. The company wants the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de distribution exploite un lac de données dans Amazon S3. Les tables de ventes sont stockées sous forme de fichiers Apache Parquet dans des partitions par date de style Hive et sont enregistrées dans AWS Glue Data Catalog. Les analystes interrogent les tables avec Amazon Athena, et les ingénieurs de données exécutent des tâches Apache Spark sur Amazon EMR sur les mêmes tables. Une nouvelle réglementation sur la vie privée impose de supprimer tous les enregistrements d'un client dans les 30 jours qui suivent sa demande. Aujourd'hui, une tâche AWS Glue nocturne réécrit chaque partition concernée, ce qui prend des heures, et les requêtes exécutées pendant la réécriture renvoient parfois des résultats partiels. Les auditeurs doivent aussi pouvoir réexécuter n'importe quel rapport exactement comme il se serait exécuté à tout moment des 7 derniers jours. Les deux moteurs doivent continuer à lire les mêmes tables dans S3 dans un format de table ouvert. L'entreprise veut le MOINS de charge opérationnelle.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Keep the Hive-style Parquet tables, turn on S3 Versioning for the bucket, and keep the nightly Glue rewrite job. Give the auditors access to noncurrent object versions to rebuild past reports."
+        fr: "Conserver les tables Parquet de style Hive, activer la gestion des versions S3 sur le compartiment et garder la tâche Glue de réécriture nocturne. Donner aux auditeurs l'accès aux versions non actuelles des objets pour reconstruire les rapports passés."
+    - id: b
+      text:
+        en: "Load the sales tables into an Amazon Redshift provisioned cluster and run DELETE statements there for each request. Restore a cluster snapshot into a new cluster when auditors need to rerun a past report."
+        fr: "Charger les tables de ventes dans un cluster provisionné Amazon Redshift et y exécuter des instructions DELETE pour chaque demande. Restaurer un instantané du cluster dans un nouveau cluster quand les auditeurs doivent réexécuter un rapport passé."
+    - id: c
+      text:
+        en: "Convert the tables to Apache Iceberg tables in the Glue Data Catalog and run Athena DELETE statements for each request. Use time travel queries for audits and run VACUUM with a 7-day maximum snapshot age."
+        fr: "Convertir les tables en tables Apache Iceberg dans Glue Data Catalog et exécuter des instructions DELETE dans Athena pour chaque demande. Utiliser des requêtes de voyage dans le temps (time travel) pour les audits et exécuter VACUUM avec un âge maximal des instantanés de 7 jours."
+    - id: d
+      text:
+        en: "Register the tables with AWS Lake Formation and create a data filter whose row expression excludes the customers who asked for erasure. Grant SELECT through the filter to the analysts and data engineers."
+        fr: "Enregistrer les tables auprès d'AWS Lake Formation et créer un filtre de données dont l'expression de ligne exclut les clients qui ont demandé l'effacement. Accorder SELECT via le filtre aux analystes et aux ingénieurs de données."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      Iceberg tables in the Glue Data Catalog support row-level DELETE with ACID transactions, so readers never see a half-rewritten table, and both Athena and Spark on EMR read the same open-format tables. Time travel queries a table as of an earlier snapshot. VACUUM expires snapshots older than vacuum_max_snapshot_age_seconds and removes orphan files, so deleted rows physically disappear after 7 days, well inside the 30-day limit.
+    fr: |
+      Les tables Iceberg de Glue Data Catalog prennent en charge DELETE au niveau des lignes avec des transactions ACID, de sorte que les lecteurs ne voient jamais une table à moitié réécrite, et Athena comme Spark sur EMR lisent les mêmes tables au format ouvert. Le voyage dans le temps interroge une table telle qu'elle était dans un instantané antérieur. VACUUM fait expirer les instantanés plus anciens que vacuum_max_snapshot_age_seconds et supprime les fichiers orphelins : les lignes supprimées disparaissent physiquement après 7 jours, bien avant la limite de 30 jours.
+  options:
+    a:
+      en: |
+        Versioning keeps every deleted record in noncurrent object versions, which defeats the erasure requirement, and the partition rewrite still has no transactional isolation. Rebuilding reports from object versions is manual work, not table time travel.
+      fr: |
+        La gestion des versions conserve chaque enregistrement supprimé dans des versions non actuelles, ce qui va à l'encontre de l'exigence d'effacement, et la réécriture des partitions n'a toujours pas d'isolation transactionnelle. Reconstruire des rapports à partir des versions d'objets est un travail manuel, pas un voyage dans le temps sur la table.
+    b:
+      en: |
+        Athena and the EMR Spark jobs would no longer read the same open-format tables in S3, and restoring a snapshot into a new cluster for each audit adds heavy operational work.
+      fr: |
+        Athena et les tâches Spark sur EMR ne liraient plus les mêmes tables au format ouvert dans S3, et restaurer un instantané dans un nouveau cluster pour chaque audit ajoute une lourde charge opérationnelle.
+    d:
+      en: |
+        A row filter only hides the records; the personal data stays in the files, so the deletion requirement is not met, and nothing lets auditors query the tables as of a past date.
+      fr: |
+        Un filtre de lignes ne fait que masquer les enregistrements ; les données personnelles restent dans les fichiers, donc l'exigence de suppression n'est pas respectée, et rien ne permet aux auditeurs d'interroger les tables telles qu'elles étaient à une date passée.
+references:
+  - title: Query Apache Iceberg tables
+    url: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
+  - title: Optimize Iceberg tables
+    url: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-data-optimization.html

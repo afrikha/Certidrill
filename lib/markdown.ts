@@ -11,9 +11,22 @@ import { createHighlighter, type Highlighter } from "shiki";
 import type { Element, Root } from "hast";
 import { localizeDocsUrl } from "@/lib/vendors";
 
-/** Languages used in questions: PowerShell, Azure CLI, ARM JSON, Bicep, KQL. */
-const LANGUAGES = ["powershell", "bash", "shell", "json", "bicep", "kusto", "yaml"] as const;
-const ALIASES: Record<string, string> = { azcli: "bash", sh: "bash", ps: "powershell", ps1: "powershell", kql: "kusto", arm: "json" };
+/**
+ * Highlighted languages: PowerShell, Azure CLI, ARM JSON, Bicep, KQL for Azure, and
+ * application code (Python, JavaScript, TypeScript, Java) for AWS developer exams.
+ */
+const LANGUAGES = ["powershell", "bash", "shell", "json", "bicep", "kusto", "yaml", "python", "javascript", "typescript", "java"] as const;
+const ALIASES: Record<string, string> = {
+  azcli: "bash",
+  sh: "bash",
+  ps: "powershell",
+  ps1: "powershell",
+  kql: "kusto",
+  arm: "json",
+  py: "python",
+  js: "javascript",
+  ts: "typescript",
+};
 
 let highlighter: Promise<Highlighter> | undefined;
 function getHighlighter() {

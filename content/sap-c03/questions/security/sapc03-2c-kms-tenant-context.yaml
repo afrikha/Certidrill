@@ -1,0 +1,50 @@
+id: sapc03-2c-kms-tenant-context
+objective: "2.4.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A SaaS company runs a pooled multi-tenant document platform in one AWS account. Tenant documents are encrypted client-side with the AWS Encryption SDK under a single AWS KMS customer managed key and stored in a shared Amazon S3 bucket. Each request is processed by an AWS Lambda function that assumes an IAM role with a tenant-id session tag that identifies the tenant. A security review requires that a session for one tenant must not be able to decrypt another tenant's documents, even if a bug gives it the ciphertext of those documents. The company does not want one KMS key per tenant because of the number of tenants.
+
+    Which solution will meet these requirements?
+  fr: |
+    Un éditeur SaaS exploite une plateforme documentaire multi-locataire mutualisée dans un seul compte AWS. Les documents des locataires sont chiffrés côté client avec l'AWS Encryption SDK sous une seule clé gérée par le client AWS KMS et stockés dans un compartiment Amazon S3 partagé. Chaque requête est traitée par une fonction AWS Lambda qui assume un rôle IAM avec une balise de session tenant-id identifiant le locataire. Une revue de sécurité exige qu'une session d'un locataire ne puisse pas déchiffrer les documents d'un autre locataire, même si un bogue lui en fournit le texte chiffré. L'entreprise ne veut pas d'une clé KMS par locataire en raison du nombre de locataires.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Encrypt with a tenant-id encryption context, and allow kms:Decrypt in the key policy only when kms:EncryptionContext:tenant-id matches aws:PrincipalTag/tenant-id."
+        fr: "Chiffrer avec un contexte de chiffrement tenant-id, et n'autoriser kms:Decrypt dans la politique de clé que lorsque kms:EncryptionContext:tenant-id correspond à aws:PrincipalTag/tenant-id."
+    - id: b
+      text:
+        en: "Store each tenant's documents under a prefix named after the tenant, and add a bucket policy that allows s3:GetObject only when the prefix matches the aws:PrincipalTag/tenant-id value."
+        fr: "Stocker les documents de chaque locataire sous un préfixe portant son nom, et ajouter une politique de compartiment qui autorise s3:GetObject uniquement lorsque le préfixe correspond à la valeur aws:PrincipalTag/tenant-id."
+    - id: c
+      text:
+        en: "Add a kms:ViaService condition to the key policy so that kms:Decrypt is allowed only for requests that come through Amazon S3 in the Region of the shared bucket."
+        fr: "Ajouter une condition kms:ViaService à la politique de clé afin que kms:Decrypt ne soit autorisé que pour les requêtes qui passent par Amazon S3 dans la Région du compartiment partagé."
+    - id: d
+      text:
+        en: "Enable automatic rotation of the customer managed key with a short rotation period, and give each tenant's role a KMS grant that is retired after each request."
+        fr: "Activer la rotation automatique de la clé gérée par le client avec une période de rotation courte, et donner au rôle de chaque locataire un octroi KMS retiré après chaque requête."
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "The encryption context is bound to the ciphertext, and the same context must be supplied to decrypt it. A key policy condition that compares kms:EncryptionContext:tenant-id with the caller's session tag lets a session decrypt only data encrypted for its own tenant, even when it holds another tenant's ciphertext, while keeping one key for all tenants."
+    fr: "Le contexte de chiffrement est lié au texte chiffré, et le même contexte doit être fourni pour le déchiffrer. Une condition de politique de clé qui compare kms:EncryptionContext:tenant-id à la balise de session de l'appelant permet à une session de ne déchiffrer que les données chiffrées pour son propre locataire, même si elle détient le texte chiffré d'un autre locataire, tout en conservant une seule clé pour tous les locataires."
+  options:
+    b:
+      en: "A bucket policy controls access to objects in S3 only; a session that obtains another tenant's ciphertext by another path can still decrypt it with the shared key."
+      fr: "Une politique de compartiment ne contrôle que l'accès aux objets dans S3 ; une session qui obtient par un autre chemin le texte chiffré d'un autre locataire peut toujours le déchiffrer avec la clé partagée."
+    c:
+      en: "The documents are encrypted client-side, so decryption requests come from the Lambda function and not through S3; kms:ViaService also does not distinguish tenants."
+      fr: "Les documents sont chiffrés côté client : les requêtes de déchiffrement viennent de la fonction Lambda et ne passent pas par S3 ; de plus, kms:ViaService ne distingue pas les locataires."
+    d:
+      en: "Rotation does not limit who can decrypt existing ciphertext, and a grant on the shared key still allows decryption of every tenant's data."
+      fr: "La rotation ne limite pas qui peut déchiffrer un texte chiffré existant, et un octroi sur la clé partagée permet toujours de déchiffrer les données de tous les locataires."
+references:
+  - title: AWS KMS condition keys
+    url: https://docs.aws.amazon.com/kms/latest/developerguide/conditions-kms.html

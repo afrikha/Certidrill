@@ -1,0 +1,50 @@
+id: sapc03-1b-sns-fifo-ordered-fanout
+objective: "1.1.12"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A trading platform publishes account events, such as order placed, order filled and order cancelled, as they happen. Three consumers must each receive every event: a ledger service on Amazon ECS, a risk service on AWS Lambda and a customer notification service on AWS Lambda. The ledger and risk services must process the events of each account in the order in which they were published and must not process duplicates. Events of different accounts can be processed in parallel. The notification service tolerates out-of-order and duplicate events, and the company wants to keep its messaging cost low.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une plateforme de négociation publie des événements de compte, comme ordre passé, ordre exécuté et ordre annulé, au fil de l'eau. Trois consommateurs doivent chacun recevoir chaque événement : un service de grand livre sur Amazon ECS, un service de risque sur AWS Lambda et un service de notification des clients sur AWS Lambda. Les services de grand livre et de risque doivent traiter les événements de chaque compte dans l'ordre de leur publication et ne doivent pas traiter de doublons. Les événements de comptes différents peuvent être traités en parallèle. Le service de notification tolère les événements désordonnés et en double, et l'entreprise veut limiter le coût de sa messagerie.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Publish to an Amazon SNS FIFO topic with the account ID as message group ID. Subscribe an SQS FIFO queue for the ledger service, an SQS FIFO queue that triggers the risk function, and an SQS standard queue that triggers the notification function."
+        fr: "Publier dans une rubrique Amazon SNS FIFO avec l'ID de compte comme ID de groupe de messages. Abonner une file d'attente SQS FIFO pour le service de grand livre, une file SQS FIFO qui déclenche la fonction de risque et une file SQS standard qui déclenche la fonction de notification."
+    - id: b
+      text:
+        en: "Publish to an Amazon SNS FIFO topic with the account ID as message group ID. Subscribe an SQS FIFO queue for the ledger service, and subscribe the risk and notification Lambda functions directly to the topic with on-failure destinations."
+        fr: "Publier dans une rubrique Amazon SNS FIFO avec l'ID de compte comme ID de groupe de messages. Abonner une file d'attente SQS FIFO pour le service de grand livre, et abonner directement à la rubrique les fonctions Lambda de risque et de notification avec des destinations en cas d'échec."
+    - id: c
+      text:
+        en: "Publish to an Amazon EventBridge custom event bus with one rule per consumer, targeting an SQS FIFO queue for the ledger service and invoking the risk and notification Lambda functions directly, with a dead-letter queue on each target."
+        fr: "Publier sur un bus d'événements personnalisé Amazon EventBridge avec une règle par consommateur, ciblant une file d'attente SQS FIFO pour le service de grand livre et invoquant directement les fonctions Lambda de risque et de notification, avec une file de lettres mortes sur chaque cible."
+    - id: d
+      text:
+        en: "Publish to an Amazon Kinesis data stream with the account ID as partition key, and have the three services read the stream as enhanced fan-out consumers, each with dedicated throughput per shard and its own checkpoints."
+        fr: "Publier dans un flux de données Amazon Kinesis avec l'ID de compte comme clé de partition, et faire lire le flux par les trois services comme consommateurs à diffusion améliorée (enhanced fan-out), chacun avec un débit dédié par partition et ses propres points de contrôle."
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "An SNS FIFO topic with SQS FIFO subscriptions gives each subscriber strict ordering within a message group and deduplication, and the account ID as group ID keeps different accounts parallel. Lambda functions receive FIFO topic messages through a subscribed queue. An SQS standard queue subscribed to the FIFO topic gives best-effort ordering and at-least-once delivery at a lower cost, which the notification service accepts."
+    fr: "Une rubrique SNS FIFO avec des abonnements SQS FIFO offre à chaque abonné un ordre strict au sein d'un groupe de messages et la déduplication, et l'ID de compte comme ID de groupe laisse les comptes différents en parallèle. Les fonctions Lambda reçoivent les messages d'une rubrique FIFO via une file abonnée. Une file SQS standard abonnée à la rubrique FIFO offre un ordre au mieux et une livraison au moins une fois pour un coût inférieur, ce que le service de notification accepte."
+  options:
+    b:
+      en: "Lambda functions cannot subscribe directly to an SNS FIFO topic; a FIFO or standard SQS queue must be subscribed and trigger the function."
+      fr: "Les fonctions Lambda ne peuvent pas s'abonner directement à une rubrique SNS FIFO : une file SQS FIFO ou standard doit être abonnée et déclencher la fonction."
+    c:
+      en: "EventBridge does not guarantee event ordering, so the risk function invoked directly could process an account's events out of order or more than once."
+      fr: "EventBridge ne garantit pas l'ordre des événements : la fonction de risque invoquée directement pourrait traiter les événements d'un compte dans le désordre ou plus d'une fois."
+    d:
+      en: "Kinesis keeps order per partition key, but records can be delivered more than once, so the ledger and risk services would have to remove duplicates themselves."
+      fr: "Kinesis conserve l'ordre par clé de partition, mais des enregistrements peuvent être livrés plus d'une fois : les services de grand livre et de risque devraient supprimer eux-mêmes les doublons."
+references:
+  - title: Amazon SNS message delivery for FIFO topics
+    url: https://docs.aws.amazon.com/sns/latest/dg/fifo-message-delivery.html

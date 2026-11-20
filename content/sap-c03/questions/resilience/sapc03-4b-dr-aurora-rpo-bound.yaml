@@ -1,0 +1,42 @@
+id: sapc03-4b-dr-aurora-rpo-bound
+objective: "4.2.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A brokerage runs its order-management database on an Amazon Aurora PostgreSQL global database. The primary cluster is in the us-east-1 Region, and secondary clusters are in us-east-2 and us-west-2. Regulators allow at most 60 seconds of committed transactions to be lost if the primary Region fails. During a recent network event, the AuroraGlobalDBRPOLag metric of both secondary clusters reached several minutes. The risk team concluded that a failover at that moment would have lost more data than permitted. The business prefers that commits on the primary pause rather than exceed the allowed data loss. The solution must not require application code changes.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une société de courtage exécute sa base de données de gestion des ordres sur une base de données globale Amazon Aurora PostgreSQL. Le cluster principal se trouve dans la Région us-east-1, et des clusters secondaires dans us-east-2 et us-west-2. Les régulateurs autorisent la perte d'au plus 60 secondes de transactions validées si la Région principale tombe en panne. Lors d'un récent incident réseau, la métrique AuroraGlobalDBRPOLag des deux clusters secondaires a atteint plusieurs minutes. L'équipe des risques a conclu qu'un basculement à ce moment aurait perdu plus de données qu'autorisé. Le métier préfère que les validations sur le cluster principal se mettent en pause plutôt que de dépasser la perte de données autorisée. La solution ne doit pas nécessiter de modification du code de l'application.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Create a CloudWatch alarm on AuroraGlobalDBRPOLag that invokes a Lambda function to run a global database failover to the secondary cluster with the lowest lag whenever the lag exceeds 60 seconds.", fr: "Créer une alarme CloudWatch sur AuroraGlobalDBRPOLag qui invoque une fonction Lambda pour lancer un basculement de la base globale vers le cluster secondaire le moins en retard dès que le décalage dépasse 60 secondes." }
+    - id: b
+      text: { en: "Set rds.global_db_rpo to 60 in the DB cluster parameter group of the primary cluster so that Aurora blocks commits when every secondary lags by more than 60 seconds.", fr: "Définir rds.global_db_rpo à 60 dans le groupe de paramètres de cluster de base de données du cluster principal afin qu'Aurora bloque les validations quand tous les secondaires ont plus de 60 secondes de retard." }
+    - id: c
+      text: { en: "Use the switchover operation instead of failover for unplanned Regional outages, because switchover waits for the secondary clusters to synchronize and has an RPO of zero.", fr: "Utiliser l'opération de permutation (switchover) au lieu du basculement pour les pannes régionales imprévues, car la permutation attend la synchronisation des clusters secondaires et a un RPO nul." }
+    - id: d
+      text: { en: "Enable write forwarding on both secondary clusters so that every write is acknowledged in all three Regions before the transaction commits on the primary.", fr: "Activer le transfert d'écriture sur les deux clusters secondaires afin que chaque écriture soit confirmée dans les trois Régions avant la validation de la transaction sur le cluster principal." }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "For Aurora PostgreSQL global databases, the rds.global_db_rpo parameter (20 seconds minimum) sets a recovery point objective that Aurora enforces. Aurora commits a transaction only if at least one secondary cluster has an RPO lag below the value; otherwise it blocks commits until a secondary catches up, which bounds the data loss of a failover without code changes."
+    fr: "Pour les bases de données globales Aurora PostgreSQL, le paramètre rds.global_db_rpo (20 secondes au minimum) définit un objectif de point de récupération qu'Aurora fait respecter. Aurora ne valide une transaction que si au moins un cluster secondaire a un décalage RPO inférieur à la valeur ; sinon il bloque les validations jusqu'à ce qu'un secondaire rattrape son retard, ce qui borne la perte de données d'un basculement sans modification du code."
+  options:
+    a:
+      en: "Failing over while the lag is high loses exactly the transactions that have not replicated yet; the alarm makes the data loss happen instead of preventing it."
+      fr: "Basculer pendant que le décalage est élevé perd précisément les transactions non encore répliquées ; l'alarme provoque la perte de données au lieu de l'empêcher."
+    c:
+      en: "Switchover requires all clusters to be healthy, so it cannot be used when the primary Region has failed; unplanned outages need a failover, whose RPO depends on the replication lag."
+      fr: "La permutation exige que tous les clusters soient sains : elle n'est pas utilisable quand la Région principale est en panne ; une panne imprévue nécessite un basculement, dont le RPO dépend du décalage de réplication."
+    d:
+      en: "Write forwarding sends writes issued in a secondary Region to the primary; it does not make replication synchronous and does not bound the replication lag."
+      fr: "Le transfert d'écriture envoie au cluster principal les écritures émises dans une Région secondaire ; il ne rend pas la réplication synchrone et ne borne pas le décalage de réplication."
+references:
+  - title: Using switchover or failover in an Amazon Aurora global database
+    url: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database-disaster-recovery.html

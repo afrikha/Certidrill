@@ -90,7 +90,8 @@ export function BuyPass({
         <fieldset className="space-y-1 text-left">
           <legend className="text-sm font-medium">{t("certifications")}</legend>
           {groups.length > 1 && (
-            <div role="group" aria-label={tVendor("filterLabel")} className="flex flex-wrap gap-2 py-1" data-testid="cart-vendors">
+            <fieldset className="flex flex-wrap gap-2 py-1" data-testid="cart-vendors">
+              <legend className="sr-only">{tVendor("filterLabel")}</legend>
               {[{ key: null, name: tVendor("filterAll") }, ...groups.map((g) => ({ key: g.vendor.key, name: g.vendor.name }))].map((v) => (
                 <button
                   key={v.key ?? "all"}
@@ -102,7 +103,7 @@ export function BuyPass({
                   {v.name}
                 </button>
               ))}
-            </div>
+            </fieldset>
           )}
           <ul className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2" data-testid="cart">
             {groups.flatMap((g) => [

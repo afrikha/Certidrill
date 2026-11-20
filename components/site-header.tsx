@@ -53,7 +53,7 @@ export async function SiteFooter() {
   const t = await getTranslations("common");
   const [tp, tl, tt, tv, locale, { vendors }] = await Promise.all([getTranslations("privacy"), getTranslations("legal"), getTranslations("terms"), getTranslations("vendors"), getLocale(), activeCatalog()]);
   // The vendors of the active certifications, and their trademark notices.
-  const trademarks = vendors.map((v) => `${tv(`${v.key}.trademark`)} `).join("");
+  const trademarks = vendors.map((v) => tv(v.key + ".trademark") + " ").join("");
   const disclaimer = t("disclaimer", { vendors: joinNames(locale, vendors.map((v) => v.name), "disjunction"), trademarks });
   return (
     <footer className="mt-16 border-t border-border">

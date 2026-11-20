@@ -1,0 +1,68 @@
+id: sapc03-5c-circuit-breaker-shared-state
+objective: "5.4.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A bank's card-onboarding API runs on Amazon API Gateway and AWS Lambda, and each invocation calls a third-party identity verification service with a 10-second timeout. When that service degrades, every invocation waits for the full timeout, Lambda concurrency climbs to the account limit, and unrelated APIs in the account are throttled. The bank wants the functions to stop calling the provider for 60 seconds after 5 consecutive failures across all concurrent invocations, to place those applications in a review queue instead, and then to let a single trial request through before resuming normal calls. The bank wants a design that applies the same decision to every invocation.
+
+    Which solution will meet these requirements?
+  fr: |
+    L'API d'enrôlement de cartes d'une banque s'exécute sur Amazon API Gateway et AWS Lambda, et chaque invocation appelle un service tiers de vérification d'identité avec un délai d'expiration de 10 secondes. Quand ce service se dégrade, chaque invocation attend tout le délai, la concurrence Lambda monte jusqu'à la limite du compte, et des API sans rapport du compte sont limitées. La banque veut que les fonctions cessent d'appeler le fournisseur pendant 60 secondes après 5 échecs consécutifs sur l'ensemble des invocations simultanées, placent alors les demandes dans une file d'examen, puis laissent passer une seule requête d'essai avant de reprendre les appels normaux. La banque veut une conception qui applique la même décision à chaque invocation.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Raise the provider timeout to 30 seconds, and retry each failed call 3 times inside the function with exponential backoff and jitter to ride out the degradation.
+        fr: |-
+          Porter le délai d'expiration du fournisseur à 30 secondes, et réessayer chaque appel en échec 3 fois dans la fonction avec un backoff exponentiel et une gigue pour passer la dégradation.
+    - id: b
+      text:
+        en: |-
+          Configure the AWS SDK in the function with the adaptive retry mode so that the client rate limiter slows calls to the provider when they fail.
+        fr: |-
+          Configurer le SDK AWS de la fonction avec le mode de nouvelle tentative adaptatif, pour que le limiteur de débit du client ralentisse les appels au fournisseur quand ils échouent.
+    - id: c
+      text:
+        en: |-
+          Implement a circuit breaker whose state, failure count, and open time are stored in an Amazon DynamoDB table that every invocation checks before calling the provider.
+        fr: |-
+          Mettre en œuvre un disjoncteur (circuit breaker) dont l'état, le nombre d'échecs et l'heure d'ouverture sont stockés dans une table Amazon DynamoDB que chaque invocation consulte avant d'appeler le fournisseur.
+    - id: d
+      text:
+        en: |-
+          Implement a circuit breaker whose state and failure count are kept in a variable outside the function handler, so that they persist between invocations in the same execution environment.
+        fr: |-
+          Mettre en œuvre un disjoncteur dont l'état et le nombre d'échecs sont conservés dans une variable hors du gestionnaire de la fonction, afin qu'ils persistent entre les invocations d'un même environnement d'exécution.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      A circuit breaker opens after a failure threshold, fails fast with a fallback while open, and moves to half-open after a cool-down to let a trial request through. Lambda execution environments don't share memory, so the state must live in a shared store such as DynamoDB (or ElastiCache) for every concurrent invocation to see the same open or closed decision.
+    fr: |-
+      Un disjoncteur s'ouvre après un seuil d'échecs, échoue rapidement avec une solution de repli tant qu'il est ouvert, puis passe à l'état semi-ouvert après un délai pour laisser passer une requête d'essai. Les environnements d'exécution Lambda ne partagent pas leur mémoire : l'état doit résider dans un magasin partagé comme DynamoDB (ou ElastiCache) pour que toutes les invocations simultanées voient la même décision ouvert ou fermé.
+  options:
+    a:
+      en: |-
+        Longer timeouts and more retries keep invocations waiting even longer and multiply the calls to a degraded provider, which worsens the concurrency problem.
+      fr: |-
+        Des délais plus longs et davantage de tentatives font attendre les invocations encore plus longtemps et multiplient les appels vers un fournisseur dégradé, ce qui aggrave le problème de concurrence.
+    b:
+      en: |-
+        The AWS SDK retry modes apply to calls to AWS services, not to a third-party HTTP API, and a rate limiter doesn't stop calls and probe as a circuit breaker does.
+      fr: |-
+        Les modes de nouvelle tentative du SDK AWS s'appliquent aux appels vers les services AWS, pas à une API HTTP tierce, et un limiteur de débit n'arrête pas les appels ni ne sonde comme un disjoncteur.
+    d:
+      en: |-
+        Each execution environment would keep its own counter and state, so concurrent invocations would decide independently instead of applying the same decision.
+      fr: |-
+        Chaque environnement d'exécution garderait son propre compteur et son propre état : les invocations simultanées décideraient indépendamment au lieu d'appliquer la même décision.
+references:
+  - title: "Circuit breaker pattern - AWS Prescriptive Guidance"
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/circuit-breaker.html
+  - title: "Retry behavior - AWS SDKs and Tools"
+    url: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html

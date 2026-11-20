@@ -1,0 +1,60 @@
+id: dvac03-1b-lambda-kinesis-partial-batch
+objective: "1.1.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A developer writes an AWS Lambda function in Python that processes batches from an Amazon Kinesis data stream. The event source mapping has `ReportBatchItemFailures` in its `FunctionResponseTypes`. When one record fails, the function must make Lambda resume from that record instead of retrying the whole batch.
+
+    ```python
+    def handler(event, context):
+        for record in event["Records"]:
+            try:
+                process(record)
+            except Exception:
+                return {"batchItemFailures": [{"itemIdentifier": ITEM_ID}]}
+        return {"batchItemFailures": []}
+    ```
+
+    Which value should the developer use in place of `ITEM_ID`?
+  fr: |
+    Un développeur écrit une fonction AWS Lambda en Python qui traite des lots provenant d'un flux de données Amazon Kinesis. Le mappage de source d'événements contient `ReportBatchItemFailures` dans ses `FunctionResponseTypes`. Quand un enregistrement échoue, la fonction doit faire reprendre Lambda à partir de cet enregistrement au lieu de retenter tout le lot.
+
+    ```python
+    def handler(event, context):
+        for record in event["Records"]:
+            try:
+                process(record)
+            except Exception:
+                return {"batchItemFailures": [{"itemIdentifier": ITEM_ID}]}
+        return {"batchItemFailures": []}
+    ```
+
+    Quelle valeur le développeur doit-il utiliser à la place de `ITEM_ID` ?
+body:
+  options:
+    - { id: a, text: "`record[\"kinesis\"][\"partitionKey\"]`" }
+    - { id: b, text: "`record[\"eventID\"]`" }
+    - { id: c, text: "`record[\"kinesis\"][\"approximateArrivalTimestamp\"]`" }
+    - { id: d, text: "`record[\"kinesis\"][\"sequenceNumber\"]`" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      For Kinesis event sources, the itemIdentifier of a batch item failure is the sequence number of the failed record. Lambda checkpoints at the lowest reported sequence number and retries the batch from that record onward. An identifier that is empty, null or not from the batch makes Lambda treat the whole batch as failed.
+    fr: |
+      Pour les sources d'événements Kinesis, l'itemIdentifier d'un échec d'élément de lot est le numéro de séquence de l'enregistrement en échec. Lambda crée un point de contrôle au plus petit numéro de séquence signalé et retente le lot à partir de cet enregistrement. Un identifiant vide, nul ou qui ne provient pas du lot fait considérer tout le lot comme en échec.
+  options:
+    a:
+      en: "Many records share the same partition key, so it does not identify a position in the shard."
+      fr: "De nombreux enregistrements partagent la même clé de partition : elle n'identifie pas une position dans la partition (shard)."
+    b:
+      en: "The eventID combines the shard ID and the sequence number; Lambda expects the sequence number alone as the item identifier."
+      fr: "L'eventID combine l'ID de partition et le numéro de séquence ; Lambda attend le numéro de séquence seul comme identifiant d'élément."
+    c:
+      en: "The arrival timestamp is not unique and is not a checkpoint position, so Lambda cannot resume from it."
+      fr: "L'horodatage d'arrivée n'est pas unique et n'est pas une position de point de contrôle : Lambda ne peut pas reprendre à partir de celui-ci."
+references:
+  - title: Configuring partial batch response with Kinesis Data Streams and Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/services-kinesis-batchfailurereporting.html

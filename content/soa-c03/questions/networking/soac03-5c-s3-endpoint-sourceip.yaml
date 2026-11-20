@@ -1,0 +1,80 @@
+id: soac03-5c-s3-endpoint-sourceip
+objective: "5.3.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An application on Amazon EC2 instances in the private subnets of a VPC writes to the Amazon S3 bucket `example-ledger-data`. Only this application uses the bucket. Until now, the traffic used a NAT gateway with the Elastic IP address 203.0.113.25, and the bucket has the following policy:
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "DenyOutsideCompanyEgress",
+          "Effect": "Deny",
+          "Principal": "*",
+          "Action": "s3:*",
+          "Resource": [
+            "arn:aws:s3:::example-ledger-data",
+            "arn:aws:s3:::example-ledger-data/*"
+          ],
+          "Condition": { "NotIpAddress": { "aws:SourceIp": "203.0.113.25/32" } }
+        }
+      ]
+    }
+    ```
+
+    A CloudOps engineer creates the gateway VPC endpoint `vpce-0abc1234def567890` for Amazon S3 and associates it with the route tables of the private subnets. The application now receives Access Denied errors. The traffic must keep using the endpoint.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une application exécutée sur des instances Amazon EC2 dans les sous-réseaux privés d'un VPC écrit dans le compartiment Amazon S3 `example-ledger-data`. Seule cette application utilise le compartiment. Jusqu'à présent, le trafic passait par une passerelle NAT dotée de l'adresse IP Elastic 203.0.113.25, et le compartiment possède la politique suivante :
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "DenyOutsideCompanyEgress",
+          "Effect": "Deny",
+          "Principal": "*",
+          "Action": "s3:*",
+          "Resource": [
+            "arn:aws:s3:::example-ledger-data",
+            "arn:aws:s3:::example-ledger-data/*"
+          ],
+          "Condition": { "NotIpAddress": { "aws:SourceIp": "203.0.113.25/32" } }
+        }
+      ]
+    }
+    ```
+
+    Un ingénieur CloudOps crée le point de terminaison de VPC de type passerelle `vpce-0abc1234def567890` pour Amazon S3 et l'associe aux tables de routage des sous-réseaux privés. L'application reçoit désormais des erreurs Access Denied. Le trafic doit continuer à utiliser le point de terminaison.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Replace 203.0.113.25/32 in the aws:SourceIp condition with the CIDR block of the private subnets.", fr: "Remplacer 203.0.113.25/32 dans la condition aws:SourceIp par le bloc d'adresses CIDR des sous-réseaux privés." } }
+    - { id: b, text: { en: "Attach an endpoint policy to the gateway endpoint that allows s3:* on the example-ledger-data bucket.", fr: "Associer au point de terminaison de passerelle une politique de point de terminaison qui autorise s3:* sur le compartiment example-ledger-data." } }
+    - { id: c, text: { en: "Replace the condition with a StringNotEquals condition on aws:SourceVpce for vpce-0abc1234def567890.", fr: "Remplacer la condition par une condition StringNotEquals sur aws:SourceVpce pour vpce-0abc1234def567890." } }
+    - { id: d, text: { en: "Add a route for the S3 prefix list that targets the NAT gateway in the route tables of the private subnets.", fr: "Ajouter dans les tables de routage des sous-réseaux privés une route pour la liste de préfixes S3 ciblant la passerelle NAT." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "Requests that reach S3 through a VPC endpoint no longer come from the NAT gateway's public IP address, so the aws:SourceIp condition now denies them. A condition on aws:SourceVpce allows only requests that arrive through the specified endpoint, which keeps the bucket restricted to the application's path."
+    fr: "Les demandes qui atteignent S3 par un point de terminaison de VPC ne proviennent plus de l'adresse IP publique de la passerelle NAT : la condition aws:SourceIp les refuse donc désormais. Une condition sur aws:SourceVpce n'autorise que les demandes qui arrivent par le point de terminaison indiqué, ce qui limite toujours le compartiment au chemin de l'application."
+  options:
+    a:
+      en: "The aws:SourceIp condition cannot be used for requests that traverse a VPC endpoint; private addresses are matched with aws:VpcSourceIp instead."
+      fr: "La condition aws:SourceIp ne peut pas être utilisée pour les demandes qui traversent un point de terminaison de VPC ; les adresses privées se comparent plutôt avec aws:VpcSourceIp."
+    b:
+      en: "The endpoint policy does not override the explicit Deny in the bucket policy, so requests are still denied."
+      fr: "La politique de point de terminaison ne remplace pas le refus explicite (Deny) de la politique de compartiment : les demandes sont toujours refusées."
+    d:
+      en: "Sending S3 traffic back through the NAT gateway would avoid the endpoint, which the requirements do not allow."
+      fr: "Renvoyer le trafic S3 par la passerelle NAT éviterait le point de terminaison, ce que les exigences n'autorisent pas."
+references:
+  - title: Gateway endpoints for Amazon S3
+    url: https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-s3.html

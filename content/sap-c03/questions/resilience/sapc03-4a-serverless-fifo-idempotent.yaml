@@ -1,0 +1,51 @@
+id: sapc03-4a-serverless-fifo-idempotent
+objective: "4.1.5"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A wholesale company is refactoring the order intake component of its monolith into a serverless service. Partners send order messages through an API, and each message carries a unique partner message ID and an account ID. Messages for the same account must be processed in the order in which they were accepted, while different accounts must be processed in parallel. Partners resend messages after timeouts, sometimes within seconds and sometimes several hours later, and a resent message must never create a second order. The company wants to use managed services and AWS Lambda consumers.
+
+    Which combination of steps will meet these requirements? (Choose two.)
+  fr: |
+    Une entreprise de vente en gros refactorise le composant de réception des commandes de son monolithe en un service sans serveur (serverless). Les partenaires envoient des messages de commande par une API, et chaque message porte un identifiant de message partenaire unique et un identifiant de compte. Les messages d'un même compte doivent être traités dans l'ordre où ils ont été acceptés, tandis que des comptes différents doivent être traités en parallèle. Les partenaires renvoient des messages après des délais d'expiration, parfois en quelques secondes et parfois plusieurs heures plus tard, et un message renvoyé ne doit jamais créer une seconde commande. L'entreprise veut utiliser des services gérés et des consommateurs AWS Lambda.
+
+    Quelle combinaison d'étapes répond à ces exigences ? (Choisissez deux réponses.)
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: "Send the messages to an Amazon SQS FIFO queue with the account ID as the message group ID and the partner message ID as the deduplication ID."
+        fr: "Envoyer les messages vers une file d'attente Amazon SQS FIFO avec l'identifiant de compte comme ID de groupe de messages et l'identifiant de message partenaire comme ID de déduplication."
+    - id: b
+      text:
+        en: "Send the messages to an Amazon SQS standard queue, and set the Lambda batch size to 1 so that the messages are processed in order."
+        fr: "Envoyer les messages vers une file d'attente Amazon SQS standard et définir la taille de lot Lambda sur 1 pour que les messages soient traités dans l'ordre."
+    - id: c
+      text:
+        en: "Make the Lambda consumer idempotent by recording each processed partner message ID in DynamoDB with a conditional write and skipping IDs that already exist."
+        fr: "Rendre le consommateur Lambda idempotent en enregistrant chaque identifiant de message partenaire traité dans DynamoDB par une écriture conditionnelle et en ignorant les identifiants déjà présents."
+    - id: d
+      text:
+        en: "Send the messages to an Amazon Kinesis data stream with a random partition key so that the load spreads evenly across shards."
+        fr: "Envoyer les messages vers un flux de données Amazon Kinesis avec une clé de partition aléatoire pour répartir la charge uniformément entre les partitions."
+    - id: e
+      text:
+        en: "Publish the messages to an Amazon SNS standard topic with a Lambda subscription for each account."
+        fr: "Publier les messages sur une rubrique Amazon SNS standard avec un abonnement Lambda pour chaque compte."
+answer: { optionIds: [ a, c ] }
+explanation:
+  correct:
+    en: "An SQS FIFO queue keeps messages with the same message group ID in order while different groups are processed in parallel, and the deduplication ID drops resends within the 5-minute deduplication interval. Resends that arrive hours later fall outside that interval, so the consumer must also be idempotent; a conditional write on the partner message ID rejects duplicates."
+    fr: "Une file SQS FIFO conserve l'ordre des messages qui partagent un ID de groupe tandis que les différents groupes sont traités en parallèle, et l'ID de déduplication élimine les renvois dans l'intervalle de déduplication de 5 minutes. Les renvois qui arrivent des heures plus tard sortent de cet intervalle : le consommateur doit donc aussi être idempotent ; une écriture conditionnelle sur l'identifiant de message partenaire rejette les doublons."
+  options:
+    b: { en: "A standard queue offers best-effort ordering and at-least-once delivery; a batch size of 1 does not guarantee the order.", fr: "Une file standard offre un ordre au mieux et une livraison au moins une fois ; une taille de lot de 1 ne garantit pas l'ordre." }
+    d: { en: "A random partition key spreads the messages of one account across shards, so their order is not preserved.", fr: "Une clé de partition aléatoire répartit les messages d'un même compte entre partitions : leur ordre n'est pas préservé." }
+    e: { en: "A standard SNS topic does not guarantee ordering or deduplication, and one subscription per account does not scale.", fr: "Une rubrique SNS standard ne garantit ni l'ordre ni la déduplication, et un abonnement par compte ne passe pas à l'échelle." }
+references:
+  - title: Exactly-once processing in Amazon SQS
+    url: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-exactly-once-processing.html
+  - title: Transactional outbox pattern
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html

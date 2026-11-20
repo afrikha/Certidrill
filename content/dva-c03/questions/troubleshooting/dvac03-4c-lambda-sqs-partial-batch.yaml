@@ -1,0 +1,58 @@
+id: dvac03-4c-lambda-sqs-partial-batch
+objective: "4.3.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS Lambda function processes batches of 10 messages from an Amazon SQS queue with the following handler:
+
+    ```python
+    def handler(event, context):
+        for record in event["Records"]:
+            process(record["body"])  # raises ValueError for an invalid message
+    ```
+
+    When one message in a batch is invalid, all 10 messages return to the queue and are processed again, which duplicates work. The developer needs only the failed messages to be retried, while keeping the batch size of 10.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une fonction AWS Lambda traite des lots de 10 messages d'une file d'attente Amazon SQS avec le gestionnaire suivant :
+
+    ```python
+    def handler(event, context):
+        for record in event["Records"]:
+            process(record["body"])  # raises ValueError for an invalid message
+    ```
+
+    Quand un message d'un lot est invalide, les 10 messages retournent dans la file d'attente et sont traités à nouveau, ce qui duplique le travail. Le développeur doit faire en sorte que seuls les messages en échec soient retentés, tout en conservant une taille de lot de 10.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Set the maxReceiveCount of the queue's redrive policy to 1.", fr: "Définir le maxReceiveCount de la politique de redirection de la file d'attente à 1." }
+    - id: b
+      text: { en: "Reduce the batch size of the event source mapping to 1.", fr: "Réduire la taille de lot du mappage de source d'événement à 1." }
+    - id: c
+      text: { en: "Turn on ReportBatchItemFailures for the event source mapping, catch errors per record, and return the failed message IDs in batchItemFailures.", fr: "Activer ReportBatchItemFailures pour le mappage de source d'événement, intercepter les erreurs par enregistrement et renvoyer les ID des messages en échec dans batchItemFailures." }
+    - id: d
+      text: { en: "Increase the visibility timeout of the queue to six times the function timeout.", fr: "Porter le délai de visibilité de la file d'attente à six fois le délai d'expiration de la fonction." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "If the function throws an exception, Lambda considers the whole batch failed and all its messages become visible again. With ReportBatchItemFailures in FunctionResponseTypes, the function catches errors for each record and returns the messageId of each failed message as an itemIdentifier in batchItemFailures, so only those messages return to the queue."
+    fr: "Si la fonction lève une exception, Lambda considère tout le lot comme en échec et tous ses messages redeviennent visibles. Avec ReportBatchItemFailures dans FunctionResponseTypes, la fonction intercepte les erreurs de chaque enregistrement et renvoie le messageId de chaque message en échec comme itemIdentifier dans batchItemFailures : seuls ces messages retournent dans la file d'attente."
+  options:
+    a:
+      en: "A maxReceiveCount of 1 sends the whole failed batch, including the valid messages, to the dead-letter queue after a single failure instead of retrying only the failed message."
+      fr: "Un maxReceiveCount de 1 envoie tout le lot en échec, messages valides compris, vers la file d'attente de lettres mortes après un seul échec au lieu de retenter uniquement le message en échec."
+    b:
+      en: "A batch size of 1 isolates failures but does not keep the required batch size of 10 and multiplies the number of invocations."
+      fr: "Une taille de lot de 1 isole les échecs, mais ne conserve pas la taille de lot exigée de 10 et multiplie le nombre d'invocations."
+    d:
+      en: "This recommendation avoids duplicates caused by throttling; an exception still makes the whole batch visible again."
+      fr: "Cette recommandation évite les doublons dus à la limitation ; une exception rend toujours tout le lot de nouveau visible."
+references:
+  - title: Handling errors for an SQS event source in Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html

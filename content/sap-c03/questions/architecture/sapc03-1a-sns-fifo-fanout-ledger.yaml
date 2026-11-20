@@ -1,0 +1,68 @@
+id: sapc03-1a-sns-fifo-fanout-ledger
+objective: "1.1.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A financial services company runs its core banking platform in a shared services account in AWS Organizations. A ledger service publishes an event for every balance change on a customer account. Three teams in separate member accounts (fraud detection, statements, and notifications) must each receive every event. The fraud detection and statements services must apply the events for the same customer account in the exact order in which they were published, but events for different customer accounts can be processed in parallel. The ledger service sometimes retries a publish call after a timeout, and these retries must not create duplicate events for the consumers. Each team wants to scale its own consumers and to buffer events while its service is in a maintenance window.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une société de services financiers exécute sa plateforme bancaire centrale dans un compte de services partagés d'AWS Organizations. Un service de grand livre publie un événement pour chaque modification du solde d'un compte client. Trois équipes situées dans des comptes membres distincts (détection de fraude, relevés et notifications) doivent chacune recevoir tous les événements. Les services de détection de fraude et de relevés doivent appliquer les événements d'un même compte client exactement dans l'ordre de leur publication, mais les événements de comptes clients différents peuvent être traités en parallèle. Le service de grand livre relance parfois un appel de publication après un délai d'attente dépassé, et ces relances ne doivent pas créer d'événements en double pour les consommateurs. Chaque équipe veut mettre à l'échelle ses propres consommateurs et mettre les événements en mémoire tampon pendant les fenêtres de maintenance de son service.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Publish the events to an Amazon EventBridge custom event bus in the shared services account. Create one rule per team that targets an Amazon SQS standard queue in the team's account, and have each consumer discard duplicates by recording event IDs in an Amazon DynamoDB table.
+        fr: |-
+          Publier les événements sur un bus d'événements personnalisé Amazon EventBridge dans le compte de services partagés. Créer une règle par équipe qui cible une file d'attente Amazon SQS standard dans le compte de l'équipe, et faire en sorte que chaque consommateur écarte les doublons en enregistrant les ID d'événement dans une table Amazon DynamoDB.
+    - id: b
+      text:
+        en: |-
+          Publish the events to a single Amazon SQS FIFO queue in the shared services account with the customer account ID as the message group ID. Grant the three team accounts access to the queue so that their consumers poll it directly.
+        fr: |-
+          Publier les événements dans une seule file d'attente Amazon SQS FIFO du compte de services partagés, avec l'ID du compte client comme ID de groupe de messages. Accorder aux trois comptes d'équipe l'accès à la file d'attente pour que leurs consommateurs l'interrogent directement.
+    - id: c
+      text:
+        en: |-
+          Publish the events to an Amazon SNS FIFO topic with the customer account ID as the message group ID and the ledger transaction ID as the deduplication ID. Subscribe an Amazon SQS FIFO queue in each team account to the topic, with a queue policy that allows the topic to send messages.
+        fr: |-
+          Publier les événements dans une rubrique Amazon SNS FIFO avec l'ID du compte client comme ID de groupe de messages et l'ID de transaction du grand livre comme ID de déduplication. Abonner à la rubrique une file d'attente Amazon SQS FIFO dans chaque compte d'équipe, avec une politique de file d'attente qui autorise la rubrique à envoyer des messages.
+    - id: d
+      text:
+        en: |-
+          Write the events to an Amazon Kinesis Data Streams stream with the customer account ID as the partition key. Have each team consume the stream from its own account through an AWS Lambda event source mapping that uses an enhanced fan-out consumer.
+        fr: |-
+          Écrire les événements dans un flux Amazon Kinesis Data Streams avec l'ID du compte client comme clé de partition. Faire consommer le flux par chaque équipe depuis son propre compte au moyen d'un mappage des sources d'événements AWS Lambda qui utilise un consommateur à diffusion améliorée (enhanced fan-out).
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      An SNS FIFO topic fans out every message to each subscribed SQS FIFO queue, keeps the order of messages that share a message group ID, and drops messages that reuse a deduplication ID within the 5-minute deduplication interval, which absorbs the publisher's retries. Each team's FIFO queue buffers its own copy of the events during maintenance and lets the team scale its consumers independently, while different customer accounts (message groups) are processed in parallel.
+    fr: |-
+      Une rubrique SNS FIFO diffuse chaque message vers chaque file d'attente SQS FIFO abonnée, conserve l'ordre des messages qui partagent un ID de groupe de messages et supprime les messages qui réutilisent un ID de déduplication pendant l'intervalle de déduplication de 5 minutes, ce qui absorbe les relances de l'éditeur. La file FIFO de chaque équipe met en mémoire tampon sa propre copie des événements pendant la maintenance et permet à l'équipe de mettre ses consommateurs à l'échelle indépendamment, tandis que les comptes clients différents (groupes de messages) sont traités en parallèle.
+  options:
+    a:
+      en: |-
+        EventBridge rules and SQS standard queues do not guarantee ordering, so the fraud detection and statements services could apply balance changes out of order.
+      fr: |-
+        Les règles EventBridge et les files d'attente SQS standard ne garantissent pas l'ordre : les services de détection de fraude et de relevés pourraient appliquer les modifications de solde dans le désordre.
+    b:
+      en: |-
+        A message in a queue is consumed by only one consumer, so the three teams would compete for the same messages instead of each receiving every event, and no team could buffer its own copy.
+      fr: |-
+        Un message d'une file d'attente n'est consommé que par un seul consommateur : les trois équipes se disputeraient les mêmes messages au lieu de recevoir chacune tous les événements, et aucune équipe ne disposerait de sa propre copie en mémoire tampon.
+    d:
+      en: |-
+        Kinesis Data Streams keeps per-key order, but it does not deduplicate records that a producer writes twice after a retry, and Lambda processes stream records at least once, so consumers would see duplicate events.
+      fr: |-
+        Kinesis Data Streams conserve l'ordre par clé, mais ne déduplique pas les enregistrements qu'un producteur écrit deux fois après une relance, et Lambda traite les enregistrements du flux au moins une fois : les consommateurs verraient des événements en double.
+references:
+  - title: Message ordering and deduplication strategies using Amazon SNS FIFO topics - Amazon Simple Notification Service
+    url: https://docs.aws.amazon.com/sns/latest/dg/sns-fifo-topics.html
+  - title: Exactly-once processing in Amazon SQS - Amazon Simple Queue Service
+    url: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-exactly-once-processing.html

@@ -147,7 +147,7 @@ Une analyse des coûts réseau va de la facture aux flux, puis à la correction 
 
 1. **Trouver la catégorie de coût** dans Cost Explorer ou CUR 2.0 : heures et octets des passerelles NAT, `DataTransfer-Regional-Bytes`, transfert entre Régions, traitement de la passerelle de transit, adresses IPv4 publiques.
 2. **Trouver les flux** avec les **VPC Flow Logs** (VPC, sous-réseau ou interface réseau ; publiés dans CloudWatch Logs, S3 ou Data Firehose ; collectés hors du chemin du trafic, donc sans impact sur le débit ni la latence, mais l'ingestion et le stockage des journaux sont facturés). Les champs personnalisés comme `az-id`, `flow-direction`, `traffic-path` (passerelle Internet, point de terminaison de passerelle, appairage, passerelle réseau privée virtuelle) et `pkt-dst-aws-service` (par exemple `S3`, `DYNAMODB`) montrent quelle AZ envoie du trafic vers où.
-3. **Trouver les ressources inutilisées** avec les vérifications de coût d'AWS Trusted Advisor : Idle NAT gateways, Inactive NAT Gateways, Inactive VPC interface endpoints, Inactive Gateway Load Balancer endpoints, Unassociated Elastic IP Addresses, Idle Load Balancers (Classic Load Balancers uniquement).
+3. **Trouver les ressources inutilisées** avec les vérifications de coût d'AWS Trusted Advisor sur les passerelles NAT inutilisées ou inactives, les points de terminaison d'interface VPC et de Gateway Load Balancer inactifs, les adresses IP Elastic non associées et les Classic Load Balancers inutilisés (Idle NAT gateways, Inactive NAT Gateways, Inactive VPC interface endpoints, Inactive Gateway Load Balancer endpoints, Unassociated Elastic IP Addresses, Idle Load Balancers).
 4. **Appliquer la correction** et vérifier la baisse sur la facture suivante.
 
 | Constat | Optimisation |

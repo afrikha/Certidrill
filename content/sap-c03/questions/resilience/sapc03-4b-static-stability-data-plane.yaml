@@ -1,0 +1,44 @@
+id: sapc03-4b-static-stability-data-plane
+objective: "4.2.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A payments API runs in the us-east-1 Region with a warm standby in us-west-2, and its data is stored in an Amazon DynamoDB global table with replicas in both Regions. The current failover procedure has two steps. First, a Lambda function in us-east-1 changes Amazon Route 53 weighted records to send all traffic to us-west-2. Second, the Auto Scaling group in us-west-2 scales from 2 to 40 instances. During a recent Regional event, the first step failed and the second step took 25 minutes. The new requirements are an RTO of 5 minutes, a recovery Region that handles the full production load as soon as traffic arrives, and a failover that relies only on data plane operations.
+
+    Which redesign will meet these requirements?
+  fr: |
+    Une API de paiement s'exécute dans la Région us-east-1 avec une veille active dans us-west-2, et ses données sont stockées dans une table globale Amazon DynamoDB avec des réplicas dans les deux Régions. La procédure de basculement actuelle comporte deux étapes. D'abord, une fonction Lambda d'us-east-1 modifie des enregistrements pondérés Amazon Route 53 pour envoyer tout le trafic vers us-west-2. Ensuite, l'Auto Scaling group d'us-west-2 passe de 2 à 40 instances. Lors d'un récent incident régional, la première étape a échoué et la seconde a pris 25 minutes. Les nouvelles exigences sont un RTO de 5 minutes, une Région de reprise qui absorbe la charge de production complète dès l'arrivée du trafic, et un basculement qui ne repose que sur des opérations du plan de données.
+
+    Quelle refonte répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Move the Lambda function to us-west-2 so that it can still change the weighted records during an event, and enable predictive scaling on the us-west-2 Auto Scaling group.", fr: "Déplacer la fonction Lambda dans us-west-2 pour qu'elle puisse encore modifier les enregistrements pondérés pendant un incident, et activer la mise à l'échelle prédictive sur l'Auto Scaling group d'us-west-2." }
+    - id: b
+      text: { en: "Put AWS Global Accelerator in front of both Regions, set the traffic dial of the us-east-1 endpoint group to 0 percent during a failover, and scale out the Auto Scaling group with a scheduled action.", fr: "Placer AWS Global Accelerator devant les deux Régions, régler le traffic dial du groupe de points de terminaison d'us-east-1 à 0 % lors d'un basculement, et étendre l'Auto Scaling group avec une action planifiée." }
+    - id: c
+      text: { en: "Keep us-west-2 provisioned for full production capacity at all times, and shift traffic with Route 53 failover records driven by health checks or by ARC routing control state changes.", fr: "Maintenir en permanence us-west-2 provisionné pour la pleine capacité de production, et déplacer le trafic avec des enregistrements de basculement Route 53 pilotés par des vérifications de l'état ou par des changements d'état de contrôles de routage ARC." }
+    - id: d
+      text: { en: "Keep the weighted records, but deploy them with AWS CloudFormation StackSets from us-west-2 during a failover, and raise the minimum capacity of the Auto Scaling group to 10 instances.", fr: "Conserver les enregistrements pondérés, mais les déployer avec AWS CloudFormation StackSets depuis us-west-2 lors d'un basculement, et porter la capacité minimale de l'Auto Scaling group à 10 instances." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "Changing record weights and scaling with Auto Scaling are control plane operations, which have lower availability goals than data planes. A statically stable recovery Region (hot standby) already runs full capacity, so nothing has to be launched; Route 53 health-check failover and ARC routing control state changes are data plane operations, so traffic moves reliably within the 5-minute RTO."
+    fr: "Modifier des poids d'enregistrements et mettre à l'échelle avec Auto Scaling sont des opérations du plan de contrôle, dont les objectifs de disponibilité sont inférieurs à ceux des plans de données. Une Région de reprise statiquement stable (hot standby) exécute déjà la pleine capacité : rien n'est à lancer ; le basculement Route 53 par vérification de l'état et les changements d'état des contrôles de routage ARC sont des opérations du plan de données : le trafic bascule de manière fiable dans le RTO de 5 minutes."
+  options:
+    a:
+      en: "Record changes and Auto Scaling activity remain control plane operations, and predictive scaling forecasts regular load patterns; it does not provide full capacity at the moment of an unplanned failover."
+      fr: "Les modifications d'enregistrements et l'activité Auto Scaling restent des opérations du plan de contrôle, et la mise à l'échelle prédictive anticipe des schémas de charge réguliers ; elle ne fournit pas la pleine capacité au moment d'un basculement imprévu."
+    b:
+      en: "Changing a traffic dial and running a scheduled scaling action are configuration and control plane changes, and the recovery Region still starts below full capacity."
+      fr: "Modifier un traffic dial et exécuter une action de mise à l'échelle planifiée sont des changements de configuration et du plan de contrôle, et la Région de reprise démarre toujours sous la pleine capacité."
+    d:
+      en: "Deploying records through StackSets is still a control plane change, and 10 instances out of 40 cannot handle the full production load immediately."
+      fr: "Déployer des enregistrements via StackSets reste un changement du plan de contrôle, et 10 instances sur 40 ne peuvent pas absorber immédiatement la charge de production complète."
+references:
+  - title: Disaster recovery options in the cloud
+    url: https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html
+  - title: Best practices for routing control in ARC
+    url: https://docs.aws.amazon.com/r53recovery/latest/dg/route53-arc-best-practices.regional.html

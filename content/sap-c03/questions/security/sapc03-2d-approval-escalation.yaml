@@ -1,0 +1,42 @@
+id: sapc03-2d-approval-escalation
+objective: "2.5.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An insurer uses an AWS Step Functions Standard workflow to review claim settlements that an Amazon Bedrock model proposes. A task with the .waitForTaskToken pattern sends each proposal to an adjuster and waits for the adjuster's decision, which the review application returns with SendTaskSuccess or SendTaskFailure. Some executions have been waiting for months because adjusters ignored the request. The new oversight policy states that if the adjuster has not decided within 48 hours, the proposal must be escalated once to a senior adjuster with a new request. If the senior adjuster has not decided within a further 24 hours, the proposal must be rejected automatically and the claimant notified. The design must use Step Functions features only and no scheduled jobs.
+
+    Which solution will meet these requirements?
+  fr: |
+    Un assureur utilise un flux de travail AWS Step Functions Standard pour examiner les règlements de sinistres proposés par un modèle Amazon Bedrock. Une tâche avec le modèle .waitForTaskToken envoie chaque proposition à un gestionnaire et attend sa décision, que l'application de revue renvoie avec SendTaskSuccess ou SendTaskFailure. Certaines exécutions attendent depuis des mois parce que des gestionnaires ont ignoré la demande. La nouvelle politique de supervision prévoit que si le gestionnaire n'a pas décidé sous 48 heures, la proposition doit être escaladée une fois vers un gestionnaire principal avec une nouvelle demande. Si le gestionnaire principal n'a pas décidé dans les 24 heures suivantes, la proposition doit être rejetée automatiquement et le demandeur prévenu. La conception doit utiliser uniquement des fonctions de Step Functions, sans tâche planifiée.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Set TimeoutSeconds to 172800 on the adjuster task with a Catch for States.Timeout that goes to a senior adjuster callback task with TimeoutSeconds 86400, whose own Catch for States.Timeout goes to the rejection and notification states.", fr: "Définir TimeoutSeconds à 172800 sur la tâche du gestionnaire avec un Catch pour States.Timeout qui mène à une tâche de rappel du gestionnaire principal avec TimeoutSeconds 86400, dont le propre Catch pour States.Timeout mène aux états de rejet et de notification." }
+    - id: b
+      text: { en: "Set the top-level TimeoutSeconds of the state machine to 259200 so that no execution waits more than 72 hours, and have the senior adjusters review the timed-out executions from the Step Functions console.", fr: "Définir le TimeoutSeconds de niveau supérieur de la machine à états à 259200 pour qu'aucune exécution n'attende plus de 72 heures, et faire examiner les exécutions expirées par les gestionnaires principaux depuis la console Step Functions." }
+    - id: c
+      text: { en: "Set TimeoutSeconds to 172800 on the adjuster task with a Retry for States.Timeout and MaxAttempts 1, and add a Catch for States.Timeout that goes to the rejection and notification states.", fr: "Définir TimeoutSeconds à 172800 sur la tâche du gestionnaire avec un Retry pour States.Timeout et MaxAttempts 1, et ajouter un Catch pour States.Timeout qui mène aux états de rejet et de notification." }
+    - id: d
+      text: { en: "Set HeartbeatSeconds to 3600 on the adjuster task, and have the review application call SendTaskHeartbeat every hour until 48 hours have passed, then reassign the request to a senior adjuster in the application.", fr: "Définir HeartbeatSeconds à 3600 sur la tâche du gestionnaire, et faire appeler SendTaskHeartbeat par l'application de revue toutes les heures jusqu'à 48 heures, puis réaffecter la demande à un gestionnaire principal dans l'application." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "TimeoutSeconds on a Task state makes the task fail with States.Timeout when no token is returned in time, and a Catch on that error routes the execution to the next state. Chaining a second callback task for the senior adjuster, with its own 24-hour timeout and Catch, implements the escalation and the automatic rejection inside the workflow."
+    fr: "TimeoutSeconds sur un état Task fait échouer la tâche avec States.Timeout lorsqu'aucun jeton n'est renvoyé à temps, et un Catch sur cette erreur oriente l'exécution vers l'état suivant. Enchaîner une seconde tâche de rappel pour le gestionnaire principal, avec son propre délai de 24 heures et son Catch, met en œuvre l'escalade et le rejet automatique dans le flux de travail."
+  options:
+    b:
+      en: "When the execution itself times out, the whole execution fails; no state runs afterwards, so there is no escalation at 48 hours, no new request and no automatic rejection or notification."
+      fr: "Lorsque l'exécution elle-même dépasse son délai, toute l'exécution échoue ; aucun état ne s'exécute ensuite : il n'y a ni escalade à 48 heures, ni nouvelle demande, ni rejet ou notification automatique."
+    c:
+      en: "A retry runs the same task again with a new token, so the request goes back to the same adjuster instead of being escalated to a senior adjuster."
+      fr: "Une nouvelle tentative réexécute la même tâche avec un nouveau jeton : la demande revient au même gestionnaire au lieu d'être escaladée vers un gestionnaire principal."
+    d:
+      en: "Heartbeats keep the task waiting rather than ending it, and the escalation would be logic in the application instead of in the workflow, with no automatic rejection after 24 more hours."
+      fr: "Les pulsations maintiennent la tâche en attente au lieu d'y mettre fin, et l'escalade serait une logique de l'application et non du flux de travail, sans rejet automatique après 24 heures supplémentaires."
+references:
+  - title: Discover service integration patterns in Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html

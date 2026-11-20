@@ -1,0 +1,66 @@
+id: soac03-5b-alb-log-504-idle
+objective: "5.3.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Users report errors when they generate reports in a web application behind an Application Load Balancer (ALB). The ALB uses the default idle timeout. A CloudOps engineer finds the following access log entry (shown on several lines here; it is one line in the log file):
+
+    ```text
+    https 2026-11-12T09:15:42.731522Z app/web-alb/50dc6c495c0c9188 198.51.100.24:51522 10.0.2.17:8443
+    0.001 -1 -1 504 - 512 202 "POST https://shop.example.com:443/api/reports HTTP/1.1" "Mozilla/5.0"
+    ECDHE-RSA-AES128-GCM-SHA256 TLSv1.2 arn:aws:elasticloadbalancing:us-east-1:111122223333:targetgroup/web-tg/73e2d6bc24d8a067
+    "Root=1-6733e5a2-1b2c3d4e5f6a7b8c9d0e1f2a" "shop.example.com" "arn:aws:acm:us-east-1:111122223333:certificate/1a2b3c4d" 0 2026-11-12T09:14:42.730000Z "forward" "-" "-" "10.0.2.17:8443" "-" "-" "-"
+    ```
+
+    Which conclusion is supported by this entry?
+  fr: |
+    Des utilisateurs signalent des erreurs lorsqu'ils génèrent des rapports dans une application web placée derrière un Application Load Balancer (ALB). L'ALB utilise le délai d'inactivité par défaut. Un ingénieur CloudOps trouve l'entrée de journal d'accès suivante (affichée ici sur plusieurs lignes ; elle tient sur une seule ligne dans le fichier journal) :
+
+    ```text
+    https 2026-11-12T09:15:42.731522Z app/web-alb/50dc6c495c0c9188 198.51.100.24:51522 10.0.2.17:8443
+    0.001 -1 -1 504 - 512 202 "POST https://shop.example.com:443/api/reports HTTP/1.1" "Mozilla/5.0"
+    ECDHE-RSA-AES128-GCM-SHA256 TLSv1.2 arn:aws:elasticloadbalancing:us-east-1:111122223333:targetgroup/web-tg/73e2d6bc24d8a067
+    "Root=1-6733e5a2-1b2c3d4e5f6a7b8c9d0e1f2a" "shop.example.com" "arn:aws:acm:us-east-1:111122223333:certificate/1a2b3c4d" 0 2026-11-12T09:14:42.730000Z "forward" "-" "-" "10.0.2.17:8443" "-" "-" "-"
+    ```
+
+    Quelle conclusion cette entrée permet-elle de tirer ?
+body:
+  options:
+    - id: a
+      text: { en: "The ALB could not establish a TCP connection with the target before the 10-second connection timeout.", fr: "L'ALB n'a pas pu établir de connexion TCP avec la cible avant le délai de connexion de 10 secondes." }
+    - id: b
+      text: { en: "The client closed its connection to the ALB before the target sent a response.", fr: "Le client a fermé sa connexion avec l'ALB avant que la cible n'envoie de réponse." }
+    - id: c
+      text: { en: "The target group had no registered targets, so the ALB could not forward the request.", fr: "Le groupe cible n'avait aucune cible enregistrée : l'ALB n'a donc pas pu transférer la requête." }
+    - id: d
+      text: { en: "The request reached the target, but the target did not respond before the 60-second idle timeout of the ALB.", fr: "La requête a atteint la cible, mais celle-ci n'a pas répondu avant le délai d'inactivité de 60 secondes de l'ALB." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      The ALB returned 504 with no target status code, and target_processing_time and response_processing_time are -1, which means that the target did not respond before the idle timeout. The request was received at 09:14:42.730 and the ALB responded at 09:15:42.731, exactly 60 seconds later, the default idle timeout. The fix is to speed up the report generation or to raise the idle timeout.
+    fr: |
+      L'ALB a renvoyé 504 sans code d'état de la cible, et target_processing_time et response_processing_time valent -1, ce qui signifie que la cible n'a pas répondu avant le délai d'inactivité. La requête a été reçue à 09:14:42.730 et l'ALB a répondu à 09:15:42.731, exactement 60 secondes plus tard, soit le délai d'inactivité par défaut. La correction consiste à accélérer la génération des rapports ou à augmenter le délai d'inactivité.
+  options:
+    a:
+      en: |
+        A connection timeout would end about 10 seconds after the request, not 60 seconds later as the two timestamps show.
+      fr: |
+        Un délai de connexion dépassé surviendrait environ 10 secondes après la requête, et non 60 secondes plus tard comme le montrent les deux horodatages.
+    b:
+      en: |
+        When the client closes the connection first, the ALB records HTTP 460, not 504.
+      fr: |
+        Lorsque le client ferme la connexion en premier, l'ALB enregistre HTTP 460, et non 504.
+    c:
+      en: |
+        Without registered targets the ALB returns 503 and records no target address, whereas this entry shows the target 10.0.2.17:8443.
+      fr: |
+        Sans cible enregistrée, l'ALB renvoie 503 et n'enregistre aucune adresse de cible, alors que cette entrée indique la cible 10.0.2.17:8443.
+references:
+  - title: Access logs for your Application Load Balancer
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html
+  - title: Troubleshoot your Application Load Balancers
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-troubleshooting.html

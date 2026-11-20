@@ -1,0 +1,44 @@
+id: sapc03-4c-retry-single-layer
+objective: "4.3.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A retail company exposes an order API to its mobile app. The app's HTTP client retries each failed call 3 times. Amazon API Gateway invokes a Lambda function that calls an inventory microservice on Amazon ECS and retries that call 3 times. The inventory microservice reads from an Aurora cluster, and its database client also retries each failed query 3 times. During a brief Aurora failover last week, the inventory microservice received about 27 times its normal request rate, and the cluster stayed overloaded for 15 minutes after the failover had completed. The company wants the API to recover quickly from transient failures without amplifying the load on recovering components.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de distribution expose une API de commandes à son application mobile. Le client HTTP de l'application relance 3 fois chaque appel en échec. Amazon API Gateway appelle une fonction Lambda qui appelle un microservice d'inventaire sur Amazon ECS et relance cet appel 3 fois. Le microservice d'inventaire lit un cluster Aurora, et son client de base de données relance lui aussi 3 fois chaque requête en échec. Lors d'un bref basculement Aurora la semaine dernière, le microservice d'inventaire a reçu environ 27 fois son débit de requêtes habituel, et le cluster est resté surchargé pendant 15 minutes après la fin du basculement. L'entreprise veut que l'API se rétablisse vite des pannes passagères sans amplifier la charge sur les composants en cours de rétablissement.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Raise the timeout at every layer to 30 seconds, so that fewer calls fail during a failover and fewer retries are sent to the inventory microservice and to Aurora."
+        fr: "Porter le délai d'expiration de chaque couche à 30 secondes, pour que moins d'appels échouent pendant un basculement et que moins de nouvelles tentatives soient envoyées au microservice et à Aurora."
+    - id: b
+      text:
+        en: "Add exponential backoff to the retries at every layer while keeping 3 retries per layer, so that each layer waits longer between its attempts."
+        fr: "Ajouter un backoff exponentiel aux nouvelles tentatives de chaque couche en gardant 3 tentatives par couche, pour que chaque couche attende plus longtemps entre ses essais."
+    - id: c
+      text:
+        en: "Scale the inventory ECS service and the Aurora cluster to 30 times their normal capacity, so that they can absorb the peak of retries during a failover."
+        fr: "Dimensionner le service ECS d'inventaire et le cluster Aurora à 30 fois leur capacité habituelle, pour qu'ils absorbent le pic de nouvelles tentatives pendant un basculement."
+    - id: d
+      text:
+        en: "Retry at only one layer of the stack, with exponential backoff, jitter, and a maximum number of attempts, and make the other layers fail fast and return the error."
+        fr: "Ne relancer qu'à une seule couche de la pile, avec backoff exponentiel, gigue (jitter) et un nombre maximal de tentatives, et faire échouer rapidement les autres couches en renvoyant l'erreur."
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Retries at several layers multiply: 3 attempts at each of three layers produce up to 27 calls for one request, a retry storm that keeps a recovering database overloaded. AWS guidance is to retry at a single layer, with exponential backoff, jitter to spread the attempts, and a cap on the number of retries."
+    fr: "Les nouvelles tentatives à plusieurs couches se multiplient : 3 essais à chacune des trois couches produisent jusqu'à 27 appels pour une requête, une tempête de nouvelles tentatives qui maintient une base en rétablissement surchargée. Les recommandations AWS sont de ne relancer qu'à une seule couche, avec un backoff exponentiel, une gigue pour étaler les essais et un plafond sur le nombre de tentatives."
+  options:
+    a: { en: "Longer timeouts hold connections and threads during the failover, and every layer still retries, so the amplification remains.", fr: "Des délais plus longs immobilisent connexions et threads pendant le basculement, et chaque couche relance toujours : l'amplification demeure." }
+    b: { en: "Backoff without jitter keeps clients synchronized, and three retrying layers still multiply the number of calls.", fr: "Un backoff sans gigue garde les clients synchronisés, et trois couches qui relancent multiplient toujours le nombre d'appels." }
+    c: { en: "Overprovisioning by 30 times is very costly and treats the symptom; the retry multiplication still creates load spikes.", fr: "Surprovisionner 30 fois coûte très cher et traite le symptôme ; la multiplication des tentatives crée toujours des pics de charge." }
+references:
+  - title: REL05-BP03 Control and limit retry calls
+    url: https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html

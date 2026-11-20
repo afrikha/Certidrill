@@ -1,0 +1,40 @@
+id: dvac03-1d-ddb-write-sharding-votes
+objective: "1.3.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany's live TV voting application writes one item per vote to an Amazon DynamoDB table in on-demand capacity mode. The partition key is CandidateId and the sort key is VoteId. There are five candidates, and during the show the table receives tens of thousands of votes each second. The table reports throttled writes even though its total traffic is below the table's throughput quotas.
+
+    The writes must be spread evenly, and the application must still compute the total number of votes for each candidate.
+
+    Which solution will meet these requirements?
+  fr: |
+    L'application de vote télévisé en direct d'AnyCompany écrit un élément par vote dans une table Amazon DynamoDB en mode de capacité à la demande. La clé de partition est CandidateId et la clé de tri VoteId. Il y a cinq candidats, et pendant l'émission la table reçoit des dizaines de milliers de votes par seconde. La table signale des écritures limitées alors que son trafic total est inférieur à ses quotas de débit.
+
+    Les écritures doivent être réparties uniformément, et l'application doit toujours calculer le nombre total de votes de chaque candidat.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Switch the table to provisioned capacity mode and set the write capacity units well above the peak vote rate.", fr: "Passer la table en mode de capacité provisionnée et régler les unités de capacité d'écriture bien au-dessus du pic de votes." } }
+    - { id: b, text: { en: "Create a global secondary index with CandidateId as the partition key and write the votes to the index.", fr: "Créer un index secondaire global avec CandidateId comme clé de partition et écrire les votes dans l'index." } }
+    - { id: c, text: { en: "Group the votes into BatchWriteItem calls of 25 items so that fewer requests reach the table.", fr: "Regrouper les votes en appels BatchWriteItem de 25 éléments pour que moins de requêtes atteignent la table." } }
+    - { id: d, text: { en: "Append a suffix from 1 to N to the partition key (for example, CAND3#17), and sum the results of a Query on each suffix.", fr: "Ajouter à la clé de partition un suffixe de 1 à N (par exemple CAND3#17), et additionner les résultats d'une Query sur chaque suffixe." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      Five partition key values receive all the writes, so each value is a hot key whatever the table's capacity. Write sharding appends a suffix to the partition key, which spreads one candidate's votes across N key values and partitions. Because the suffixes are known, the application queries each of the N keys of a candidate and adds the results.
+    fr: |
+      Cinq valeurs de clé de partition reçoivent toutes les écritures : chacune est une clé très sollicitée, quelle que soit la capacité de la table. Le partitionnement des écritures (write sharding) ajoute un suffixe à la clé de partition, ce qui répartit les votes d'un candidat sur N valeurs de clé et partitions. Les suffixes étant connus, l'application interroge chacune des N clés d'un candidat et additionne les résultats.
+  options:
+    a: { en: "More table capacity does not raise the throughput available to a single partition key value, so the five hot keys stay throttled.", fr: "Plus de capacité de table n'augmente pas le débit disponible pour une seule valeur de clé de partition : les cinq clés sollicitées restent limitées." }
+    b: { en: "Applications cannot write to a GSI directly, and an index keyed on CandidateId would have the same five hot values and throttle the base table writes.", fr: "Les applications ne peuvent pas écrire directement dans un GSI, et un index sur CandidateId aurait les cinq mêmes valeurs sollicitées et limiterait les écritures de la table de base." }
+    c: { en: "A batch still writes each item to its own partition key value, so the same five keys receive the same write volume.", fr: "Un lot écrit toujours chaque élément sur sa propre valeur de clé de partition : les cinq mêmes clés reçoivent le même volume d'écritures." }
+references:
+  - title: Using write sharding to distribute workloads evenly in your DynamoDB table
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-sharding.html
+  - title: Designing partition keys to distribute your workload in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-uniform-load.html

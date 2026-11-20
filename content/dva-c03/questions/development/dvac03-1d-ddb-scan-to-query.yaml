@@ -1,0 +1,62 @@
+id: dvac03-1d-ddb-scan-to-query
+objective: "1.3.4"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    AnyCompany's Orders table in Amazon DynamoDB has the partition key CustomerId and the sort key OrderDate. It contains 50 million items, and each customer has fewer than 50 orders. The following function is slow and consumes a large amount of read capacity.
+
+    ```python
+    import boto3
+    from boto3.dynamodb.conditions import Attr
+
+    table = boto3.resource("dynamodb").Table("Orders")
+
+    def get_orders(customer_id):
+        response = table.scan(
+            FilterExpression=Attr("CustomerId").eq(customer_id)
+        )
+        return response["Items"]
+    ```
+
+    Which change will reduce the latency and the consumed read capacity the MOST?
+  fr: |
+    La table Orders d'AnyCompany dans Amazon DynamoDB a la clé de partition CustomerId et la clé de tri OrderDate. Elle contient 50 millions d'éléments, et chaque client a moins de 50 commandes. La fonction suivante est lente et consomme beaucoup de capacité de lecture.
+
+    ```python
+    import boto3
+    from boto3.dynamodb.conditions import Attr
+
+    table = boto3.resource("dynamodb").Table("Orders")
+
+    def get_orders(customer_id):
+        response = table.scan(
+            FilterExpression=Attr("CustomerId").eq(customer_id)
+        )
+        return response["Items"]
+    ```
+
+    Quelle modification réduira le PLUS la latence et la capacité de lecture consommée ?
+body:
+  options:
+    - { id: a, text: { en: "Replace the scan with `table.query(KeyConditionExpression=Key(\"CustomerId\").eq(customer_id))`.", fr: "Remplacer le scan par `table.query(KeyConditionExpression=Key(\"CustomerId\").eq(customer_id))`." } }
+    - { id: b, text: { en: "Add `ProjectionExpression=\"OrderDate, Total\"` to the scan so that fewer attributes are read.", fr: "Ajouter `ProjectionExpression=\"OrderDate, Total\"` au scan pour lire moins d'attributs." } }
+    - { id: c, text: { en: "Split the scan into a parallel scan with `TotalSegments=8` and one thread per segment.", fr: "Diviser le scan en scan parallèle avec `TotalSegments=8` et un thread par segment." } }
+    - { id: d, text: { en: "Add `ConsistentRead=False` to the scan so that it uses eventually consistent reads.", fr: "Ajouter `ConsistentRead=False` au scan pour qu'il utilise des lectures à cohérence éventuelle." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A Query with an equality condition on the partition key reads only the items of that customer, so it consumes capacity for fewer than 50 items. A Scan reads every item of the table, and its filter expression is applied after the read, so the filter does not reduce the consumed capacity.
+    fr: |
+      Une Query avec une condition d'égalité sur la clé de partition ne lit que les éléments de ce client : elle consomme la capacité de moins de 50 éléments. Un Scan lit tous les éléments de la table, et son expression de filtre s'applique après la lecture : le filtre ne réduit pas la capacité consommée.
+  options:
+    b: { en: "Scan capacity depends on the number and size of the items read, not on the attributes returned, so a projection does not reduce it.", fr: "La capacité d'un Scan dépend du nombre et de la taille des éléments lus, pas des attributs renvoyés : une projection ne la réduit pas." }
+    c: { en: "A parallel scan can finish sooner but still reads the whole table, so it consumes as much capacity, in a shorter time.", fr: "Un scan parallèle peut se terminer plus tôt mais lit toujours toute la table : il consomme autant de capacité, en moins de temps." }
+    d: { en: "Scans are already eventually consistent by default, so this parameter changes nothing.", fr: "Les scans sont déjà à cohérence éventuelle par défaut : ce paramètre ne change rien." }
+references:
+  - title: Scanning tables in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Scan.html
+  - title: Filter expressions for the Query operation in DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.FilterExpression.html

@@ -1,0 +1,38 @@
+id: soac03-1b-eb-infinite-loop
+objective: "1.2.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An administrator creates an Amazon EventBridge rule that matches every AWS API Call via CloudTrail event for the PutBucketAcl operation. The target is an AWS Lambda function that calls PutBucketAcl to reset the bucket ACL to private.
+
+    After one ACL change, the function's Invocations metric rises continuously and the Lambda charges increase, although no user changes ACLs anymore.
+
+    What should the administrator do to fix the issue while keeping the remediation?
+  fr: |
+    Un administrateur crée une règle Amazon EventBridge qui correspond à chaque événement AWS API Call via CloudTrail de l'opération PutBucketAcl. La cible est une fonction AWS Lambda qui appelle PutBucketAcl pour remettre l'ACL du compartiment en privé.
+
+    Après une modification d'ACL, la métrique Invocations de la fonction augmente sans cesse et les frais Lambda progressent, alors qu'aucun utilisateur ne modifie plus d'ACL.
+
+    Que doit faire l'administrateur pour résoudre le problème tout en conservant la correction ?
+body:
+  options:
+    - { id: a, text: { en: "Set the reserved concurrency of the function to 1 so that only one remediation runs at a time.", fr: "Définir la simultanéité réservée de la fonction à 1 pour qu'une seule correction s'exécute à la fois." } }
+    - { id: b, text: { en: "Set the maximum retry attempts of the rule target to 0 so that EventBridge does not resend events.", fr: "Définir à 0 le nombre maximal de nouvelles tentatives de la cible pour qu'EventBridge ne renvoie pas les événements." } }
+    - { id: c, text: { en: "Add a dead-letter queue to the rule target so that repeated events are moved out of the rule.", fr: "Ajouter une file d'attente de lettres mortes à la cible pour que les événements répétés sortent de la règle." } }
+    - { id: d, text: { en: "Change the event pattern to match only PutBucketAcl calls that grant access, not calls that set the ACL to private.", fr: "Modifier le modèle d'événement pour ne prendre en compte que les appels PutBucketAcl qui accordent un accès, pas ceux qui remettent l'ACL en privé." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      The remediation itself calls PutBucketAcl, which creates a new event that matches the same rule, so the rule runs again and again. EventBridge recommends writing the rule so that the target's actions do not match it, for example by matching only ACLs in a bad state. The remediation still runs when a user grants access.
+    fr: |
+      La correction appelle elle-même PutBucketAcl, ce qui crée un nouvel événement qui correspond à la même règle : la règle s'exécute encore et encore. EventBridge recommande d'écrire la règle de façon que les actions de la cible ne lui correspondent pas, par exemple en ne prenant en compte que les ACL dans un mauvais état. La correction s'exécute toujours lorsqu'un utilisateur accorde un accès.
+  options:
+    a: { en: "Limiting concurrency slows the loop but does not stop it, and it can throttle real remediations.", fr: "Limiter la simultanéité ralentit la boucle sans l'arrêter, et peut limiter de vraies corrections." }
+    b: { en: "Retries apply only to failed deliveries; the loop comes from new matching events, not from retries.", fr: "Les nouvelles tentatives ne concernent que les livraisons en échec ; la boucle vient de nouveaux événements correspondants, pas de nouvelles tentatives." }
+    c: { en: "A dead-letter queue receives events that could not be delivered; these events are delivered successfully.", fr: "Une file d'attente de lettres mortes reçoit les événements non livrés ; ces événements sont livrés avec succès." }
+references:
+  - title: Troubleshooting Amazon EventBridge
+    url: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-troubleshooting.html

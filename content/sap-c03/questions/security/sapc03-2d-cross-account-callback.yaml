@@ -1,0 +1,42 @@
+id: sapc03-2d-cross-account-callback
+objective: "2.5.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany runs AI-assisted change workflows in 12 workload accounts of its organization in AWS Organizations. In each account, an AWS Step Functions Standard workflow pauses on a .waitForTaskToken task before an AI agent applies a change to production, and publishes the task token and change details to a central approval portal. The portal runs on AWS Lambda in a shared services account and records each approver's decision. The security team does not allow the portal's functions to assume IAM roles in the workload accounts, and each workload account must decide which external events it accepts. Approved changes must resume within seconds of the decision.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany exécute des flux de modification assistés par IA dans 12 comptes de charge de travail de son organisation AWS Organizations. Dans chaque compte, un flux de travail AWS Step Functions Standard se met en pause sur une tâche .waitForTaskToken avant qu'un agent IA n'applique une modification en production, et publie le jeton de tâche et les détails de la modification vers un portail d'approbation central. Le portail s'exécute sur AWS Lambda dans un compte de services partagés et enregistre la décision de chaque approbateur. L'équipe de sécurité n'autorise pas les fonctions du portail à assumer des rôles IAM dans les comptes de charge de travail, et chaque compte de charge de travail doit décider des événements externes qu'il accepte. Les modifications approuvées doivent reprendre dans les secondes qui suivent la décision.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Have a portal EventBridge rule send each decision and token to the workload account's event bus, allowed by its resource policy, where a rule invokes a local Lambda function that returns the token.", fr: "Faire envoyer par une règle EventBridge du portail chaque décision et son jeton vers le bus d'événements du compte de charge de travail, autorisé par sa politique de ressource, où une règle appelle une fonction Lambda locale qui renvoie le jeton." }
+    - id: b
+      text: { en: "Grant the portal's Lambda execution role states:SendTaskSuccess and states:SendTaskFailure on the state machine ARNs of the workload accounts, and have the portal call these APIs directly with the task token.", fr: "Accorder au rôle d'exécution Lambda du portail states:SendTaskSuccess et states:SendTaskFailure sur les ARN des machines à états des comptes de charge de travail, et faire appeler ces API directement par le portail avec le jeton de tâche." }
+    - id: c
+      text: { en: "Have the portal assume a role in each workload account that allows only states:SendTaskSuccess and states:SendTaskFailure, and call these APIs with the task token after each decision.", fr: "Faire assumer par le portail, dans chaque compte de charge de travail, un rôle qui n'autorise que states:SendTaskSuccess et states:SendTaskFailure, et appeler ces API avec le jeton de tâche après chaque décision." }
+    - id: d
+      text: { en: "Have the portal write each decision to an Amazon S3 bucket in the shared services account, and replace the callback task with a Wait state that checks the bucket every hour from the workload account.", fr: "Faire écrire par le portail chaque décision dans un compartiment Amazon S3 du compte de services partagés, et remplacer la tâche de rappel par un état Wait qui vérifie le compartiment toutes les heures depuis le compte de charge de travail." }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "Task tokens must be returned by principals in the same AWS account as the workflow; tokens sent from principals in another account do not work. An EventBridge cross-account event, accepted by the target bus resource policy that each workload account controls, invokes a Lambda function in the workload account that returns the token within seconds, with no cross-account role assumption."
+    fr: "Les jetons de tâche doivent être renvoyés par des principaux du même compte AWS que le flux de travail ; des jetons envoyés depuis des principaux d'un autre compte ne fonctionnent pas. Un événement EventBridge intercomptes, accepté par la politique de ressource du bus cible que contrôle chaque compte de charge de travail, appelle dans ce compte une fonction Lambda qui renvoie le jeton en quelques secondes, sans assumer de rôle intercomptes."
+  options:
+    b:
+      en: "The portal's role belongs to the shared services account, and Step Functions does not accept task tokens sent by principals from a different account, whatever their IAM permissions."
+      fr: "Le rôle du portail appartient au compte de services partagés, et Step Functions n'accepte pas les jetons de tâche envoyés par des principaux d'un autre compte, quelles que soient leurs autorisations IAM."
+    c:
+      en: "Returning the token through an assumed role in the workload account would work technically, but the security team forbids the portal from assuming roles in the workload accounts."
+      fr: "Renvoyer le jeton par un rôle assumé dans le compte de charge de travail fonctionnerait techniquement, mais l'équipe de sécurité interdit au portail d'assumer des rôles dans les comptes de charge de travail."
+    d:
+      en: "An hourly check delays approved changes by up to an hour instead of seconds, and the workflow no longer pauses on a callback until the decision arrives."
+      fr: "Une vérification horaire retarde les modifications approuvées jusqu'à une heure au lieu de quelques secondes, et le flux ne se met plus en pause sur un rappel jusqu'à l'arrivée de la décision."
+references:
+  - title: Discover service integration patterns in Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html

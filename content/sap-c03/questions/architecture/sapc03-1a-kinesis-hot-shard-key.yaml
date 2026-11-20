@@ -1,0 +1,68 @@
+id: sapc03-1a-kinesis-hot-shard-key
+objective: "1.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A logistics company ingests telemetry from 40,000 delivery vehicles into an Amazon Kinesis Data Streams stream that uses provisioned capacity mode with 20 shards. The producers use the vehicle model as the partition key, and the fleet contains six vehicle models. Amazon CloudWatch shows write throttling on two shards while most other shards are almost idle, and adding shards last month did not reduce the throttling. An AWS Lambda function consumes the stream through an event source mapping and must process the records of each vehicle in the order in which the vehicle produced them. The fleet will triple in size next year. The company wants to minimize ongoing capacity management for the stream.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de logistique ingère la télémétrie de 40 000 véhicules de livraison dans un flux Amazon Kinesis Data Streams en mode de capacité provisionnée avec 20 partitions (shards). Les producteurs utilisent le modèle de véhicule comme clé de partition, et la flotte compte six modèles. Amazon CloudWatch montre une limitation des écritures sur deux partitions alors que la plupart des autres sont presque inactives, et l'ajout de partitions le mois dernier n'a pas réduit cette limitation. Une fonction AWS Lambda consomme le flux au moyen d'un mappage des sources d'événements et doit traiter les enregistrements de chaque véhicule dans l'ordre où le véhicule les a produits. La flotte triplera l'an prochain. L'entreprise veut réduire au minimum la gestion continue de la capacité du flux.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Keep the vehicle model as the partition key and switch the stream to on-demand capacity mode so that Kinesis Data Streams adds shards automatically as the write throughput grows.
+        fr: |-
+          Conserver le modèle de véhicule comme clé de partition et passer le flux en mode de capacité à la demande pour que Kinesis Data Streams ajoute automatiquement des partitions à mesure que le débit d'écriture augmente.
+    - id: b
+      text:
+        en: |-
+          Change the partition key to the vehicle ID, switch the stream to on-demand capacity mode, and raise the parallelization factor of the event source mapping if the consumer falls behind.
+        fr: |-
+          Remplacer la clé de partition par l'ID du véhicule, passer le flux en mode de capacité à la demande et augmenter le facteur de parallélisation du mappage des sources d'événements si le consommateur prend du retard.
+    - id: c
+      text:
+        en: |-
+          Change the partition key to a random UUID generated for each record, switch the stream to on-demand capacity mode, and set the parallelization factor of the event source mapping to 10.
+        fr: |-
+          Remplacer la clé de partition par un UUID aléatoire généré pour chaque enregistrement, passer le flux en mode de capacité à la demande et régler le facteur de parallélisation du mappage des sources d'événements sur 10.
+    - id: d
+      text:
+        en: |-
+          Keep the vehicle model as the partition key, register an enhanced fan-out consumer for the function, and set the parallelization factor of the event source mapping to 10.
+        fr: |-
+          Conserver le modèle de véhicule comme clé de partition, enregistrer un consommateur à diffusion améliorée (enhanced fan-out) pour la fonction et régler le facteur de parallélisation du mappage des sources d'événements sur 10.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Kinesis Data Streams hashes the partition key to choose a shard, and each shard accepts at most 1 MB or 1,000 records per second of writes, so six keys can never use more than six shards. A high-cardinality key such as the vehicle ID spreads writes across all shards while records of the same vehicle still land on the same shard in order. On-demand mode removes shard management as the fleet grows, and Lambda keeps in-order processing per partition key even with a parallelization factor above 1.
+    fr: |-
+      Kinesis Data Streams hache la clé de partition pour choisir une partition, et chaque partition accepte au plus 1 Mo ou 1 000 enregistrements par seconde en écriture : six clés ne peuvent jamais utiliser plus de six partitions. Une clé à forte cardinalité comme l'ID du véhicule répartit les écritures sur toutes les partitions, tandis que les enregistrements d'un même véhicule arrivent toujours dans la même partition, dans l'ordre. Le mode à la demande supprime la gestion des partitions à mesure que la flotte grandit, et Lambda conserve le traitement dans l'ordre par clé de partition même avec un facteur de parallélisation supérieur à 1.
+  options:
+    a:
+      en: |-
+        On-demand mode adds shards, but all records with the same model still hash to the same shard, so the hot shards stay throttled at the per-shard write limit.
+      fr: |-
+        Le mode à la demande ajoute des partitions, mais tous les enregistrements d'un même modèle sont toujours hachés vers la même partition : les partitions surchargées restent limitées par la limite d'écriture par partition.
+    c:
+      en: |-
+        A random key spreads the load, but records of one vehicle land on different shards, so the consumer can no longer process each vehicle's records in order.
+      fr: |-
+        Une clé aléatoire répartit la charge, mais les enregistrements d'un même véhicule arrivent dans des partitions différentes : le consommateur ne peut plus traiter les enregistrements de chaque véhicule dans l'ordre.
+    d:
+      en: |-
+        Enhanced fan-out and the parallelization factor only increase read and processing throughput; the producers are throttled on write, which these settings do not change.
+      fr: |-
+        La diffusion améliorée et le facteur de parallélisation n'augmentent que le débit de lecture et de traitement ; les producteurs sont limités en écriture, ce que ces paramètres ne changent pas.
+references:
+  - title: Amazon Kinesis Data Streams terminology and concepts - Amazon Kinesis Data Streams
+    url: https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html
+  - title: Using Lambda to process records from Amazon Kinesis Data Streams - AWS Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/with-kinesis.html

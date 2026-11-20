@@ -1,0 +1,42 @@
+id: dvac03-4b-boto3-thread-pool-client
+objective: "4.3.1"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AnyCompany Python worker on Amazon EC2 uploads files to Amazon S3 with `concurrent.futures.ThreadPoolExecutor(max_workers=50)`. Each task calls `boto3.client("s3")` before it uploads its file. Under load, the worker reports occasional SSL errors and opens far more HTTPS connections than expected. The team must keep 50 worker threads and reuse connections efficiently.
+
+    Which combination of changes will meet these requirements? (Choose two.) Each correct answer presents part of the solution.
+  fr: |
+    Un processus Python d'AnyCompany sur Amazon EC2 charge des fichiers dans Amazon S3 avec `concurrent.futures.ThreadPoolExecutor(max_workers=50)`. Chaque tâche appelle `boto3.client("s3")` avant de charger son fichier. Sous charge, le processus signale des erreurs SSL occasionnelles et ouvre beaucoup plus de connexions HTTPS que prévu. L'équipe doit conserver 50 threads de travail et réutiliser efficacement les connexions.
+
+    Quelle combinaison de modifications répond à ces exigences ? (Choisissez deux réponses.) Chaque bonne réponse présente une partie de la solution.
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "Create one S3 client from a dedicated `boto3.session.Session()` before starting the threads, and pass it to every task.", fr: "Créer un seul client S3 à partir d'une `boto3.session.Session()` dédiée avant de démarrer les threads, et le transmettre à chaque tâche." } }
+    - { id: b, text: { en: "Create a new `boto3.resource(\"s3\")` from the default session in each task instead of a client.", fr: "Créer une nouvelle `boto3.resource(\"s3\")` à partir de la session par défaut dans chaque tâche au lieu d'un client." } }
+    - { id: c, text: { en: "Create the client with `Config(max_pool_connections=50)` so that its connection pool matches the number of threads.", fr: "Créer le client avec `Config(max_pool_connections=50)` pour que son groupe de connexions corresponde au nombre de threads." } }
+    - { id: d, text: { en: "Set the retry mode of the client to `adaptive`.", fr: "Définir le mode de nouvelle tentative du client sur `adaptive`." } }
+    - { id: e, text: { en: "Run one Python process for each file instead of using threads.", fr: "Exécuter un processus Python par fichier au lieu d'utiliser des threads." } }
+answer: { optionIds: [ a, c ] }
+explanation:
+  correct:
+    en: "Low-level boto3 clients are generally thread-safe and can be shared by threads in one process, but calling `boto3.client()` in concurrent code uses the shared default session and can cause SSL failures, so the client is created once from its own session before the threads start. The default pool keeps 10 connections, so `max_pool_connections=50` lets the 50 threads reuse pooled connections."
+    fr: "Les clients boto3 de bas niveau sont en général thread-safe et peuvent être partagés par les threads d'un même processus, mais appeler `boto3.client()` dans du code concurrent utilise la session par défaut partagée et peut provoquer des échecs SSL : le client est donc créé une seule fois à partir de sa propre session avant le démarrage des threads. Le groupe par défaut conserve 10 connexions : `max_pool_connections=50` permet aux 50 threads de réutiliser les connexions du groupe."
+  options:
+    b:
+      en: "Resources are not thread-safe like clients, and creating one per task from the default session keeps both the session problem and the extra connections."
+      fr: "Les ressources ne sont pas thread-safe comme les clients, et en créer une par tâche depuis la session par défaut conserve le problème de session et les connexions supplémentaires."
+    d:
+      en: "Adaptive retries add client-side rate limiting for throttling errors; they do not fix connection reuse or the shared session."
+      fr: "Les nouvelles tentatives adaptatives ajoutent une limitation de débit côté client pour les erreurs de limitation ; elles ne corrigent ni la réutilisation des connexions ni la session partagée."
+    e:
+      en: "Separate processes cannot share a client or its connection pool, so every process opens its own connections."
+      fr: "Des processus distincts ne peuvent pas partager un client ni son groupe de connexions : chaque processus ouvre ses propres connexions."
+references:
+  - title: Low-level clients
+    url: https://docs.aws.amazon.com/boto3/latest/guide/clients.html
+  - title: Config Reference
+    url: https://docs.aws.amazon.com/botocore/latest/reference/config.html

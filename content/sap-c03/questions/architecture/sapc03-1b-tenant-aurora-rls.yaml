@@ -1,0 +1,50 @@
+id: sapc03-1b-tenant-aurora-rls
+objective: "1.1.13"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A SaaS company runs a pooled Amazon Aurora PostgreSQL-Compatible Edition database that stores the data of 6,000 tenants in shared tables with a tenant_id column, and about 100 new tenants join every week. An audit found that tenant isolation relies only on WHERE clauses that developers write in every query. The company needs the database itself to restrict each query to the rows of the current tenant. It does not want to create or maintain database objects for each tenant. The application already knows the tenant of each request.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise SaaS exécute une base de données mutualisée Amazon Aurora édition compatible avec PostgreSQL qui stocke les données de 6 000 locataires dans des tables partagées avec une colonne tenant_id, et environ 100 nouveaux locataires arrivent chaque semaine. Un audit a révélé que l'isolation des locataires ne repose que sur les clauses WHERE que les développeurs écrivent dans chaque requête. L'entreprise a besoin que la base de données elle-même limite chaque requête aux lignes du locataire courant. Elle ne veut ni créer ni maintenir d'objets de base de données par locataire. L'application connaît déjà le locataire de chaque requête.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Create one PostgreSQL schema per tenant with its own copies of the tables, and set the search_path of each session to the schema of the tenant of the request."
+        fr: "Créer un schéma PostgreSQL par locataire avec ses propres copies des tables, et définir le search_path de chaque session sur le schéma du locataire de la requête."
+    - id: b
+      text:
+        en: "Create one database user per tenant, grant each user SELECT on a view filtered on its tenant_id value, and have the application connect as the user of the tenant of each request."
+        fr: "Créer un utilisateur de base de données par locataire, accorder à chaque utilisateur SELECT sur une vue filtrée sur sa valeur tenant_id, et faire se connecter l'application avec l'utilisateur du locataire de chaque requête."
+    - id: c
+      text:
+        en: "Restore a separate Aurora cluster for each tenant from a shared snapshot, and route each request to the cluster of its tenant through a connection string stored in AWS Secrets Manager."
+        fr: "Restaurer un cluster Aurora distinct pour chaque locataire à partir d'un instantané partagé, et acheminer chaque requête vers le cluster de son locataire via une chaîne de connexion stockée dans AWS Secrets Manager."
+    - id: d
+      text:
+        en: "Enable row-level security on every table that holds tenant data with a policy that compares tenant_id with current_setting('app.current_tenant'), and have the application set app.current_tenant for each session."
+        fr: "Activer la sécurité au niveau des lignes sur chaque table qui contient des données de locataires avec une politique qui compare tenant_id à current_setting('app.current_tenant'), et faire définir app.current_tenant par l'application pour chaque session."
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Row-level security moves isolation enforcement into PostgreSQL: each policy filters rows against a tenant context that the application sets at runtime, so a query without a WHERE clause still sees only one tenant. AWS guidance prefers this runtime variable approach because comparing with the current database user requires one user per tenant, and recommends RLS on every table with tenant data."
+    fr: "La sécurité au niveau des lignes déplace l'application de l'isolation dans PostgreSQL : chaque politique filtre les lignes selon un contexte de locataire que l'application définit à l'exécution, si bien qu'une requête sans clause WHERE ne voit toujours qu'un locataire. Les recommandations AWS préfèrent cette variable d'exécution, car la comparaison avec l'utilisateur courant exige un utilisateur par locataire, et conseillent la RLS sur chaque table contenant des données de locataires."
+  options:
+    a:
+      en: "A schema per tenant means thousands of schemas and table copies to create and migrate, which the company does not want to maintain."
+      fr: "Un schéma par locataire signifie des milliers de schémas et de copies de tables à créer et à migrer, que l'entreprise ne veut pas maintenir."
+    b:
+      en: "One user and one view per tenant are per-tenant database objects that grow with every onboarding, which the requirement excludes."
+      fr: "Un utilisateur et une vue par locataire sont des objets de base de données par locataire qui augmentent à chaque intégration, ce que l'exigence exclut."
+    c:
+      en: "A cluster per tenant abandons the pooled model, multiplies cost, and adds a cluster to manage for every new tenant."
+      fr: "Un cluster par locataire abandonne le modèle mutualisé, multiplie les coûts et ajoute un cluster à gérer pour chaque nouveau locataire."
+references:
+  - title: Row-level security recommendations
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-managed-postgresql/rls.html

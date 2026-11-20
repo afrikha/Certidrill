@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { breakdownBy, scaledScore, scoreExam, scoreItem, scoringRules } from "@/lib/exam/scoring";
 import { DEFAULT_SCORING, blueprintFileSchema, scoringRulesSchema } from "@/lib/content/schema";
 import { maxPoints } from "@/lib/questions/schema";
@@ -68,10 +68,18 @@ describe("scoring rules (blueprint.scoring)", () => {
 
   it("defaults to the Microsoft rule: per option, per element", () => {
     expect(DEFAULT_SCORING).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect(scoringRules(undefined)).toEqual(DEFAULT_SCORING);
+    expect(scoringRules(null)).toEqual(DEFAULT_SCORING);
     expect(scoringRules({})).toEqual(DEFAULT_SCORING);
-    expect(scoringRules({ multi: "bogus" })).toEqual(DEFAULT_SCORING);
     expect(scoringRules({ dragdrop: "all_or_nothing" })).toEqual({ multi: "per_option", dragdrop: "all_or_nothing" });
+    // Absent is silent; unreadable falls back too, but is logged.
+    expect(errors).not.toHaveBeenCalled();
+    expect(scoringRules({ multi: "bogus" })).toEqual(DEFAULT_SCORING);
+    expect(errors).toHaveBeenCalledOnce();
+    const logged = JSON.parse(errors.mock.calls[0]![0] as string);
+    expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: { multi: "bogus" } });
+    errors.mockRestore();
   });
 
   it("multi: the same answers scored per option and all or nothing", () => {

@@ -1,0 +1,45 @@
+id: sapc03-4b-dynamodb-mrsc-ledger
+objective: "4.2.4"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A digital bank is redesigning its ledger service, which runs active/active on AWS Lambda in the us-east-1 and us-east-2 Regions. Today, balances are stored in an Amazon DynamoDB global table that uses multi-Region eventual consistency. The bank now requires zero data loss if either Region fails, and every read must return the latest committed balance whichever Region serves it. The budget allows only two full replicas of the data. The service does not use TTL, transactions or local secondary indexes. The bank does not plan to add other Regions for this service.
+
+    Which combination of actions will meet these requirements? (Choose two.)
+  fr: |
+    Une banque numérique refond son service de grand livre, qui s'exécute en actif/actif sur AWS Lambda dans les Régions us-east-1 et us-east-2. Aujourd'hui, les soldes sont stockés dans une table globale Amazon DynamoDB qui utilise la cohérence éventuelle multi-Régions. La banque exige désormais une perte de données nulle si l'une des Régions tombe en panne, et chaque lecture doit renvoyer le dernier solde validé quelle que soit la Région qui la sert. Le budget n'autorise que deux réplicas complets des données. Le service n'utilise ni TTL, ni transactions, ni index secondaires locaux. La banque ne prévoit pas d'ajouter d'autres Régions pour ce service.
+
+    Quelle combinaison d'actions répond à ces exigences ? (Choisissez deux réponses.)
+body:
+  choose: 2
+  options:
+    - id: a
+      text: { en: "Create a new global table that uses multi-Region strong consistency with replicas in us-east-1 and us-east-2 and a witness in us-west-2, and migrate the ledger data into it.", fr: "Créer une nouvelle table globale qui utilise la cohérence forte multi-Régions avec des réplicas dans us-east-1 et us-east-2 et un témoin (witness) dans us-west-2, et y migrer les données du grand livre." }
+    - id: b
+      text: { en: "Switch the existing global table from multi-Region eventual consistency to multi-Region strong consistency in place, keeping its two replicas and its data.", fr: "Faire passer sur place la table globale existante de la cohérence éventuelle multi-Régions à la cohérence forte multi-Régions, en conservant ses deux réplicas et ses données." }
+    - id: c
+      text: { en: "Keep the current global table, and use strongly consistent reads in each Region so that every read returns the latest balance written in either Region.", fr: "Conserver la table globale actuelle, et utiliser des lectures fortement cohérentes dans chaque Région afin que chaque lecture renvoie le dernier solde écrit dans l'une ou l'autre Région." }
+    - id: d
+      text: { en: "Update the Lambda functions to retry writes with backoff when DynamoDB returns a ReplicatedWriteConflictException for an item that is being modified in the other Region.", fr: "Modifier les fonctions Lambda pour réessayer les écritures avec temporisation quand DynamoDB renvoie une ReplicatedWriteConflictException pour un élément en cours de modification dans l'autre Région." }
+    - id: e
+      text: { en: "Keep the current global table, and resolve conflicting writes with the last writer wins rule so that both Regions converge to the same balance.", fr: "Conserver la table globale actuelle, et résoudre les écritures concurrentes avec la règle du dernier écrivain gagnant (last writer wins) afin que les deux Régions convergent vers le même solde." }
+answer: { optionIds: [ a, d ] }
+explanation:
+  correct:
+    en: "Multi-Region strong consistency (MRSC) replicates every write synchronously to another Region before it succeeds, giving an RPO of zero, and strongly consistent reads return the latest version from any replica. It uses exactly three Regions, either three replicas or two replicas plus a witness, and US East (N. Virginia), US East (Ohio) and US West (Oregon) form a supported set; the mode is chosen when the replicas are added to a table that contains no data. A write to an item that is being modified in another Region fails with ReplicatedWriteConflictException and succeeds when retried."
+    fr: "La cohérence forte multi-Régions (MRSC) réplique chaque écriture de manière synchrone vers une autre Région avant de la confirmer, ce qui donne un RPO nul, et les lectures fortement cohérentes renvoient la dernière version depuis n'importe quel réplica. Elle utilise exactement trois Régions, soit trois réplicas, soit deux réplicas et un témoin, et US East (N. Virginia), US East (Ohio) et US West (Oregon) forment un ensemble pris en charge ; le mode se choisit quand les réplicas sont ajoutés à une table qui ne contient aucune donnée. Une écriture sur un élément en cours de modification dans une autre Région échoue avec ReplicatedWriteConflictException et réussit lorsqu'elle est réessayée."
+  options:
+    b:
+      en: "The consistency mode is set when the global table is created from a table that contains no data; an existing table that holds data cannot be switched in place."
+      fr: "Le mode de cohérence est fixé à la création de la table globale à partir d'une table vide ; une table existante contenant des données ne peut pas être convertie sur place."
+    c:
+      en: "With eventual consistency, a strongly consistent read returns the latest item only if it was last updated in the Region where the read occurs, and the RPO for a Regional failure is not zero."
+      fr: "En cohérence éventuelle, une lecture fortement cohérente ne renvoie le dernier élément que s'il a été mis à jour en dernier dans la Région de la lecture, et le RPO d'une panne régionale n'est pas nul."
+    e:
+      en: "Last writer wins discards one of two concurrent writes and replication stays asynchronous, so writes acknowledged just before a Regional failure can still be lost."
+      fr: "Le dernier écrivain gagnant écarte l'une de deux écritures concurrentes et la réplication reste asynchrone : des écritures confirmées juste avant une panne régionale peuvent encore être perdues."
+references:
+  - title: How DynamoDB global tables work
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/V2globaltables_HowItWorks.html

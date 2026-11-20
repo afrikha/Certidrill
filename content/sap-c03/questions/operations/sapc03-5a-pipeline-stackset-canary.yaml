@@ -1,0 +1,66 @@
+id: sapc03-5a-pipeline-stackset-canary
+objective: "5.2.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A platform team maintains one AWS CloudFormation StackSet that configures AWS Config rules and IAM roles in 120 accounts in two Regions. Today, an engineer runs the StackSet updates from a laptop. The team wants every merged change to go through an AWS CodePipeline pipeline that first updates one canary account in one Region and then runs automated validation tests. Only if the tests pass may the pipeline update the remaining accounts and Regions, with a failure tolerance of at most 10 %. The team wants native pipeline actions and to keep the single StackSet.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une équipe plateforme maintient un StackSet AWS CloudFormation unique qui configure des règles AWS Config et des rôles IAM dans 120 comptes, dans deux Régions. Aujourd'hui, un ingénieur lance les mises à jour du StackSet depuis un ordinateur portable. L'équipe veut que chaque modification fusionnée passe par un pipeline AWS CodePipeline qui met d'abord à jour un compte canary dans une Région, puis exécute des tests de validation automatisés. Ce n'est que si les tests réussissent que le pipeline peut mettre à jour les autres comptes et Régions, avec une tolérance aux échecs d'au plus 10 %. L'équipe veut des actions de pipeline natives et conserver le StackSet unique.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Build a pipeline with one CloudFormation action in CREATE_UPDATE mode for each account and Region, grouped in a canary stage and a stage for all other accounts, with a test action between them.
+        fr: |-
+          Créer un pipeline avec une action CloudFormation en mode CREATE_UPDATE par compte et par Région, regroupées dans une étape canary et une étape pour tous les autres comptes, avec une action de test entre les deux.
+    - id: b
+      text:
+        en: |-
+          Build a pipeline with a CloudFormationStackSet action that updates all accounts and Regions, followed by a test action that redeploys the previous template to the StackSet if the tests fail, with FailureTolerancePercentage set to 10.
+        fr: |-
+          Créer un pipeline avec une action CloudFormationStackSet qui met à jour tous les comptes et toutes les Régions, suivie d'une action de test qui redéploie le modèle précédent dans le StackSet si les tests échouent, avec FailureTolerancePercentage défini à 10.
+    - id: c
+      text:
+        en: |-
+          Build a pipeline with a CloudFormationStackSet action that targets the canary account and Region, a test action, and a CloudFormationStackInstances action for the other targets with FailureTolerancePercentage set to 10.
+        fr: |-
+          Créer un pipeline avec une action CloudFormationStackSet qui cible le compte et la Région canary, une action de test, puis une action CloudFormationStackInstances pour les autres cibles avec FailureTolerancePercentage défini à 10.
+    - id: d
+      text:
+        en: |-
+          Create a second StackSet for the canary account, and have two pipelines triggered by the same commit update the canary StackSet and the main StackSet at the same time.
+        fr: |-
+          Créer un second StackSet pour le compte canary, et faire mettre à jour simultanément le StackSet canary et le StackSet principal par deux pipelines déclenchés par le même commit.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      The CloudFormationStackSet action updates the StackSet from the template and deploys only to the targets it lists; the remaining instances become OUTDATED. After the test action, the CloudFormationStackInstances action brings the other accounts and Regions up to date with its own operation preferences, such as FailureTolerancePercentage. This canary-then-rest pattern is the one documented for these actions, and it keeps one StackSet.
+    fr: |-
+      L'action CloudFormationStackSet met à jour le StackSet à partir du modèle et ne déploie que vers les cibles qu'elle liste ; les autres instances passent à l'état OUTDATED. Après l'action de test, l'action CloudFormationStackInstances met à jour les autres comptes et Régions avec ses propres préférences d'opération, comme FailureTolerancePercentage. Ce modèle canary puis le reste est celui documenté pour ces actions, et il conserve un StackSet unique.
+  options:
+    a:
+      en: |-
+        This abandons the StackSet and needs 240 actions to maintain, each with its own cross-account roles, instead of one StackSet operation with a failure tolerance.
+      fr: |-
+        Cette solution abandonne le StackSet et exige 240 actions à maintenir, chacune avec ses propres rôles entre comptes, au lieu d'une seule opération de StackSet avec tolérance aux échecs.
+    b:
+      en: |-
+        The change reaches every account before validation, so a faulty change isn't contained to the canary account.
+      fr: |-
+        La modification atteint tous les comptes avant la validation : une modification défectueuse n'est pas cantonnée au compte canary.
+    d:
+      en: |-
+        Two StackSets break the single-StackSet requirement, and updating both at the same time doesn't gate the main rollout on the canary tests.
+      fr: |-
+        Deux StackSets ne respectent pas l'exigence de StackSet unique, et les mettre à jour en même temps ne conditionne pas le déploiement principal aux tests canary.
+references:
+  - title: CloudFormation StackSets deploy action reference - AWS CodePipeline
+    url: https://docs.aws.amazon.com/codepipeline/latest/userguide/action-reference-StackSets.html

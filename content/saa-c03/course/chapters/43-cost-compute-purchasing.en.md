@@ -75,14 +75,14 @@ Decision rules:
 
 | Service | Billing | Best fit | Limits to remember |
 | --- | --- | --- | --- |
-| AWS Lambda | Requests plus GB-seconds of duration; nothing when idle | Event-driven, spiky or low-volume work; glue code | 15-minute maximum per invocation, 128 MB–10,240 MB memory |
+| AWS Lambda | Requests plus GB-seconds of duration; nothing when idle | Event-driven, spiky or low-volume work; glue code | Maximum timeout of 30 minutes on the current Lambda quotas page (older pages and the FAQ still say 15 minutes; 90 minutes for some Lambda Managed Instances invocations), 128 MB–10,240 MB memory |
 | AWS Fargate (ECS, EKS) | vCPU and memory per second (1-minute minimum) | Containers without managing servers, variable load | You pay for task size even if underused; Fargate Spot for interruptible tasks |
 | Amazon EC2 | Per instance-second, with all purchasing options | Steady, high utilization; special hardware (GPU, local NVMe); OS control; licensing | You manage patching and capacity |
 | ECS or EKS on EC2 | EC2 instances that host the containers | Large, steady container fleets packed densely | Pay for idle capacity in the cluster |
 
 Rules of thumb:
 
-- Idle most of the time or invoked a few times per hour: **Lambda** (no cost when idle). A job running longer than 15 minutes cannot be Lambda: use Fargate, AWS Batch or EC2.
+- Idle most of the time or invoked a few times per hour: **Lambda** (no cost when idle). A job running for hours cannot be Lambda: use Fargate, AWS Batch or EC2.
 - Containers with unpredictable load and no wish to manage hosts: **Fargate**. A steady fleet at high utilization costs less on EC2 with Savings Plans or Spot.
 - Arm-based **Graviton** instances, Fargate and Lambda on Arm usually offer better price performance for code that runs on Arm.
 - **AWS Batch** schedules batch jobs on EC2 (including Spot) or Fargate with no extra charge for Batch itself.
@@ -160,7 +160,7 @@ aws ce get-cost-and-usage --time-period Start=2026-10-01,End=2026-11-01 \
 - Steady baseline: Savings Plans (Compute for flexibility, EC2 Instance for the highest discount) or Reserved Instances; peaks: On-Demand or Spot.
 - Discount is not capacity: zonal RIs and Capacity Reservations reserve capacity; Savings Plans and regional RIs do not.
 - Spot: up to 90 % off, two-minute notice, diversify, `price-capacity-optimized`, only for interruption-tolerant work.
-- Lambda for idle or spiky work under 15 minutes, Fargate for containers without hosts, EC2 with commitments for steady high utilization.
+- Lambda for idle or spiky work that lasts minutes, not hours, Fargate for containers without hosts, EC2 with commitments for steady high utilization.
 - Non-production: one AZ, schedules, Spot, small sizes. Regions differ in price; cross-AZ and cross-Region transfer is billed.
 - Edge: CloudFront Functions for light logic, Lambda@Edge for network or body access; Local Zones, Wavelength and Outposts for latency and on-premises needs.
 - Activate cost allocation tags; use Cost Explorer to analyze, Budgets to alert, the Cost and Usage Report for detail, Cost Anomaly Detection for surprises.

@@ -1,0 +1,68 @@
+id: sapc03-1a-session-active-active
+objective: "1.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A travel company runs a web application in the us-east-1 and eu-west-1 Regions. Amazon Route 53 latency-based routing sends each user to the closer Region, and both Regions serve traffic at the same time. The application runs as stateless containers on Amazon ECS with AWS Fargate. Each Region currently stores user sessions in its own Amazon ElastiCache cluster, so users lose their session when Route 53 sends them to the other Region or when one Region fails. The sessions must remain available in both Regions, the containers in both Regions must be able to create and update sessions, and a session must expire 2 hours after the user's last request. The company wants the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de voyages exécute une application web dans les Régions us-east-1 et eu-west-1. Le routage basé sur la latence d'Amazon Route 53 envoie chaque utilisateur vers la Région la plus proche, et les deux Régions servent le trafic en même temps. L'application s'exécute sous forme de conteneurs sans état sur Amazon ECS avec AWS Fargate. Chaque Région stocke actuellement les sessions utilisateur dans son propre cluster Amazon ElastiCache : les utilisateurs perdent leur session quand Route 53 les envoie vers l'autre Région ou quand une Région tombe en panne. Les sessions doivent rester disponibles dans les deux Régions, les conteneurs des deux Régions doivent pouvoir créer et mettre à jour des sessions, et une session doit expirer 2 heures après la dernière requête de l'utilisateur. L'entreprise veut le MOINS de charge opérationnelle.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Create an ElastiCache (Valkey) global datastore with the primary cluster in us-east-1 and a secondary cluster in eu-west-1, and configure the containers in each Region to read and write sessions in the local cluster with a 2-hour key expiration.
+        fr: |-
+          Créer un entrepôt de données global (global datastore) ElastiCache (Valkey) avec le cluster principal dans us-east-1 et un cluster secondaire dans eu-west-1, et configurer les conteneurs de chaque Région pour lire et écrire les sessions dans le cluster local avec une expiration des clés de 2 heures.
+    - id: b
+      text:
+        en: |-
+          Enable duration-based stickiness on the Application Load Balancer target groups in both Regions, and configure the Route 53 records with a long TTL so that each user keeps reaching the same Region and the same task.
+        fr: |-
+          Activer la persistance basée sur la durée sur les groupes cibles des Application Load Balancer des deux Régions, et configurer les enregistrements Route 53 avec une longue durée de vie (TTL) pour que chaque utilisateur continue d'atteindre la même Région et la même tâche.
+    - id: c
+      text:
+        en: |-
+          Store each session as an object in an Amazon S3 bucket in each Region, configure two-way replication between the buckets, and add an S3 Lifecycle rule that expires session objects after 1 day.
+        fr: |-
+          Stocker chaque session sous forme d'objet dans un compartiment Amazon S3 de chaque Région, configurer une réplication bidirectionnelle entre les compartiments et ajouter une règle S3 Lifecycle qui fait expirer les objets de session après 1 jour.
+    - id: d
+      text:
+        en: |-
+          Store the sessions in an Amazon DynamoDB global table with replicas in both Regions, have the containers read and write the local replica, update an expiry timestamp on each request, and enable TTL on that attribute.
+        fr: |-
+          Stocker les sessions dans une table globale Amazon DynamoDB avec des réplicas dans les deux Régions, faire lire et écrire le réplica local par les conteneurs, mettre à jour un horodatage d'expiration à chaque requête et activer le TTL sur cet attribut.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      A DynamoDB global table accepts writes in every replica Region and replicates them to the other replicas, so containers in both Regions can create and update sessions that are then readable everywhere. Refreshing a Number epoch timestamp on each request and enabling TTL implements the inactivity expiry, and TTL deletes replicate to all replicas; the application should also ignore items whose expiry has passed because TTL deletion is not immediate.
+    fr: |-
+      Une table globale DynamoDB accepte les écritures dans chaque Région de réplica et les réplique vers les autres réplicas : les conteneurs des deux Régions peuvent créer et mettre à jour des sessions ensuite lisibles partout. Actualiser à chaque requête un horodatage epoch de type Number et activer le TTL met en œuvre l'expiration après inactivité, et les suppressions TTL sont répliquées vers tous les réplicas ; l'application doit aussi ignorer les éléments dont l'expiration est passée, car la suppression TTL n'est pas immédiate.
+  options:
+    a:
+      en: |-
+        In a global datastore only the primary cluster accepts writes; the secondary cluster is read-only, so the containers in eu-west-1 could not create or update sessions.
+      fr: |-
+        Dans un entrepôt de données global, seul le cluster principal accepte les écritures ; le cluster secondaire est en lecture seule : les conteneurs d'eu-west-1 ne pourraient pas créer ni mettre à jour de sessions.
+    b:
+      en: |-
+        Stickiness keeps the state inside individual tasks and Regions, so users still lose their session when a task stops, when the Region fails, or when latency routing changes their Region.
+      fr: |-
+        La persistance garde l'état dans des tâches et des Régions particulières : les utilisateurs perdent toujours leur session quand une tâche s'arrête, quand la Région tombe en panne ou quand le routage par latence change leur Région.
+    c:
+      en: |-
+        Replication between buckets is asynchronous, so a session written just before a Region change may not exist yet in the other Region, and Lifecycle rules work in days and cannot expire a session 2 hours after the last request.
+      fr: |-
+        La réplication entre compartiments est asynchrone : une session écrite juste avant un changement de Région peut ne pas encore exister dans l'autre Région, et les règles Lifecycle fonctionnent en jours et ne peuvent pas faire expirer une session 2 heures après la dernière requête.
+references:
+  - title: Using time to live (TTL) in DynamoDB - Amazon DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html
+  - title: Replication across AWS Regions using global datastores - Amazon ElastiCache
+    url: https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Redis-Global-Datastore.html

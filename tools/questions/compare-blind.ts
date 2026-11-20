@@ -5,7 +5,8 @@
  * Question ids are looked up in the certifications given by --cert (every
  * certification without it: ids are unique across content/).
  * Prints mismatches; --out also writes them as JSON (id, file, earned, max,
- * ambiguous, given, expected) for the classification of the gaps.
+ * ambiguous, given, expected) for the classification of the gaps. Points are
+ * on the exam's scale: the certification's blueprint.scoring applies.
  * With --apply: questions answered correctly and not flagged ambiguous go
  * from draft to reviewed; the others go to needs_review.
  */
@@ -13,6 +14,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { scoreItem } from "../../lib/exam/scoring";
+import { DEFAULT_SCORING, scoringRulesSchema, type ScoringRules } from "../../lib/content/schema";
 import { listCertificationDirs } from "../../lib/content/loader";
 import { parseCertArgs } from "../cert-args";
 
@@ -30,13 +32,28 @@ function mapLetters(answer: unknown, letters: Record<string, string> | undefined
   };
 }
 
+/** blueprint.scoring of the certification a question file belongs to (content/<code>/questions/<domain>/<id>.yaml). */
+const rulesByCert = new Map<string, Promise<ScoringRules>>();
+function rulesOf(file: string): Promise<ScoringRules> {
+  const certDir = path.resolve(file, "../../..");
+  let rules = rulesByCert.get(certDir);
+  if (!rules) {
+    rules = readFile(path.join(certDir, "blueprint.yaml"), "utf8").then(
+      (text) => scoringRulesSchema.parse((parse(text) as { blueprint?: { scoring?: unknown } }).blueprint?.scoring),
+      () => DEFAULT_SCORING,
+    );
+    rulesByCert.set(certDir, rules);
+  }
+  return rules;
+}
+
 /** Checks one answer; with `apply`, moves a draft question to reviewed or needs_review. */
 async function check(id: string, a: BlindAnswer, file: string | undefined, letters: Record<string, string> | undefined, apply: boolean) {
   if (!file) return { pass: false, line: id + ": unknown question", gap: { id, unknown: true } };
   const text = await readFile(file, "utf8");
   const q = parse(text);
   const answer = mapLetters(a.answer, letters);
-  const s = scoreItem(q, answer);
+  const s = scoreItem(q, answer, await rulesOf(file));
   const pass = s.earned === s.max && !a.ambiguous;
   const ambiguous = a.ambiguous ? " — ambiguous: " + a.ambiguous : "";
   if (apply && /^status: draft$/m.test(text)) {

@@ -1,0 +1,66 @@
+id: sapc03-1a-optimistic-locking-cart
+objective: "1.1.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An e-commerce company runs its cart service as stateless containers behind an Application Load Balancer. Each cart is stored as one item in an Amazon DynamoDB table, with the line items in a list attribute. To add a product, a container reads the item, changes the list in memory, and writes the whole item back with PutItem. During promotions, the web and mobile clients of the same customer update the same cart at the same time through different containers, and products that one client added sometimes disappear. The company must prevent these lost updates without routing all the updates for a cart through a single writer. The API must still return the updated cart synchronously with the lowest possible added latency.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de commerce électronique exécute son service de panier sous forme de conteneurs sans état derrière un Application Load Balancer. Chaque panier est stocké sous forme d'un élément d'une table Amazon DynamoDB, avec les articles dans un attribut de type liste. Pour ajouter un produit, un conteneur lit l'élément, modifie la liste en mémoire et réécrit l'élément complet avec PutItem. Pendant les promotions, les clients web et mobile d'un même client mettent à jour le même panier en même temps au moyen de conteneurs différents, et des produits ajoutés par l'un des clients disparaissent parfois. L'entreprise doit empêcher ces mises à jour perdues sans faire passer toutes les mises à jour d'un panier par un rédacteur unique. L'API doit toujours renvoyer le panier mis à jour de manière synchrone, avec le moins de latence supplémentaire possible.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Use strongly consistent reads when the containers read the cart, so that each container always starts from the latest version of the item before it writes the item back.
+        fr: |-
+          Utiliser des lectures à cohérence forte quand les conteneurs lisent le panier, pour que chaque conteneur parte toujours de la dernière version de l'élément avant de le réécrire.
+    - id: b
+      text:
+        en: |-
+          Add a DynamoDB Accelerator (DAX) cluster in front of the table, and send the reads and the write-through updates of the containers to the DAX cluster endpoint.
+        fr: |-
+          Ajouter un cluster DynamoDB Accelerator (DAX) devant la table, et envoyer les lectures et les mises à jour en écriture directe (write-through) des conteneurs au point de terminaison du cluster DAX.
+    - id: c
+      text:
+        en: |-
+          Add a version number attribute to each cart, write with a condition expression that requires the version that was read and increments it, and reread and retry when the conditional check fails.
+        fr: |-
+          Ajouter un attribut de numéro de version à chaque panier, écrire avec une expression de condition qui exige la version lue et l'incrémente, puis relire et réessayer en cas d'échec de la vérification conditionnelle.
+    - id: d
+      text:
+        en: |-
+          Send every cart update to an Amazon SQS FIFO queue with the cart ID as the message group ID, and have a worker apply the updates to the table one at a time for each cart.
+        fr: |-
+          Envoyer chaque mise à jour de panier dans une file d'attente Amazon SQS FIFO avec l'ID du panier comme ID de groupe de messages, et faire appliquer les mises à jour à la table par un processus de travail, une à la fois pour chaque panier.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      Unconditional PutItem calls overwrite each other, so the last writer wins and the other client's change is lost. A conditional write succeeds only if the item still has the version that the container read; a concurrent writer gets a conditional check failure, rereads the cart, and reapplies its change. This optimistic approach adds latency only when a conflict occurs and does not serialize the writers.
+    fr: |-
+      Des appels PutItem inconditionnels s'écrasent mutuellement : le dernier rédacteur l'emporte et la modification de l'autre client est perdue. Une écriture conditionnelle ne réussit que si l'élément a toujours la version lue par le conteneur ; un rédacteur concurrent reçoit un échec de vérification conditionnelle, relit le panier et réapplique sa modification. Cette approche optimiste n'ajoute de latence qu'en cas de conflit et ne sérialise pas les rédacteurs.
+  options:
+    a:
+      en: |-
+        Strongly consistent reads return the latest item, but another container can still write between the read and the write, so the last PutItem still overwrites the other change.
+      fr: |-
+        Les lectures à cohérence forte renvoient le dernier élément, mais un autre conteneur peut toujours écrire entre la lecture et l'écriture : le dernier PutItem écrase toujours l'autre modification.
+    b:
+      en: |-
+        DAX caches reads and passes writes through to the table, but it does not change the read-modify-write race, so updates are still lost.
+      fr: |-
+        DAX met les lectures en cache et transmet les écritures à la table, mais ne change rien à la concurrence lecture-modification-écriture : des mises à jour sont toujours perdues.
+    d:
+      en: |-
+        A FIFO queue serializes the updates of each cart through a worker, which the requirements exclude, and the asynchronous processing prevents the API from returning the updated cart synchronously.
+      fr: |-
+        Une file FIFO sérialise les mises à jour de chaque panier par un processus de travail, ce que les exigences excluent, et le traitement asynchrone empêche l'API de renvoyer le panier mis à jour de manière synchrone.
+references:
+  - title: Working with items and attributes in DynamoDB - Amazon DynamoDB
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html

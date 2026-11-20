@@ -1,0 +1,60 @@
+id: dvac03-2c-ssm-path-decryption
+objective: "2.2.7"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    An application loads its configuration from AWS Systems Manager Parameter Store at startup. The hierarchy /orders/prod/ contains three String parameters and one SecureString parameter that holds an API token. The application uses the following code:
+
+    ```python
+    ssm = boto3.client("ssm")
+    resp = ssm.get_parameters_by_path(Path="/orders/prod/", Recursive=True)
+    config = {p["Name"]: p["Value"] for p in resp["Parameters"]}
+    ```
+
+    The String values are correct, but the API token value is an unreadable encrypted string. The application role is allowed to use the KMS key of the parameter.
+
+    Which change will fix the issue?
+  fr: |
+    Une application charge sa configuration depuis AWS Systems Manager Parameter Store au démarrage. La hiérarchie /orders/prod/ contient trois paramètres String et un paramètre SecureString qui contient un jeton d'API. L'application utilise le code suivant :
+
+    ```python
+    ssm = boto3.client("ssm")
+    resp = ssm.get_parameters_by_path(Path="/orders/prod/", Recursive=True)
+    config = {p["Name"]: p["Value"] for p in resp["Parameters"]}
+    ```
+
+    Les valeurs String sont correctes, mais la valeur du jeton d'API est une chaîne chiffrée illisible. Le rôle de l'application est autorisé à utiliser la clé KMS du paramètre.
+
+    Quelle modification corrige le problème ?
+body:
+  options:
+    - id: a
+      text: { en: "Set Recursive=False so that only the parameters directly under the path are returned.", fr: "Définir Recursive=False pour que seuls les paramètres situés directement sous le chemin soient renvoyés." }
+    - id: b
+      text: { en: "Change the API token parameter from the standard tier to the advanced tier.", fr: "Faire passer le paramètre du jeton d'API du niveau standard au niveau avancé." }
+    - id: c
+      text: { en: "Add a ParameterFilters argument that selects parameters whose Type is SecureString.", fr: "Ajouter un argument ParameterFilters qui sélectionne les paramètres dont le Type est SecureString." }
+    - id: d
+      text: { en: "Add WithDecryption=True to the get_parameters_by_path call.", fr: "Ajouter WithDecryption=True à l'appel get_parameters_by_path." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "Without decryption, Parameter Store returns the ciphertext of SecureString parameters and does not call AWS KMS. With WithDecryption=True, Parameter Store calls KMS Decrypt on the caller's behalf, which requires kms:Decrypt on the key, and returns the plaintext value."
+    fr: "Sans déchiffrement, Parameter Store renvoie le texte chiffré des paramètres SecureString et n'appelle pas AWS KMS. Avec WithDecryption=True, Parameter Store appelle KMS Decrypt pour le compte de l'appelant, ce qui exige kms:Decrypt sur la clé, et renvoie la valeur en clair."
+  options:
+    a:
+      en: "Recursive controls which levels of the hierarchy are returned; it does not decrypt SecureString values."
+      fr: "Recursive contrôle les niveaux de la hiérarchie renvoyés ; il ne déchiffre pas les valeurs SecureString."
+    b:
+      en: "The tier changes the size limit, policies, and encryption method, but values are still returned encrypted unless decryption is requested."
+      fr: "Le niveau change la limite de taille, les politiques et la méthode de chiffrement, mais les valeurs restent renvoyées chiffrées tant que le déchiffrement n'est pas demandé."
+    c:
+      en: "A filter only selects which parameters are returned; the SecureString value would still be encrypted."
+      fr: "Un filtre ne fait que sélectionner les paramètres renvoyés ; la valeur SecureString serait toujours chiffrée."
+references:
+  - title: AWS KMS encryption for AWS Systems Manager Parameter Store SecureString parameters
+    url: https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html
+  - title: GetParametersByPath
+    url: https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_GetParametersByPath.html

@@ -1,0 +1,44 @@
+id: sapc03-4a-transactional-outbox
+objective: "4.1.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A food delivery company has extracted order placement from its monolith into a new microservice that stores orders in an Amazon DynamoDB table. After each order is saved, the service must publish an OrderPlaced event that the kitchen and courier services consume from an Amazon SQS queue. In the first weeks, the service wrote the item and then sent the message in the same AWS Lambda function. Some orders were saved without an event when the function timed out after the write, and some events were sent for orders whose write failed. The company wants an event for every committed order and no event for orders that were not saved.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de livraison de repas a extrait la prise de commande de son monolithe vers un nouveau microservice qui stocke les commandes dans une table Amazon DynamoDB. Après l'enregistrement de chaque commande, le service doit publier un événement OrderPlaced que les services de cuisine et de livreurs consomment depuis une file d'attente Amazon SQS. Les premières semaines, le service écrivait l'élément puis envoyait le message dans la même fonction AWS Lambda. Certaines commandes ont été enregistrées sans événement quand la fonction a expiré après l'écriture, et certains événements ont été envoyés pour des commandes dont l'écriture avait échoué. L'entreprise veut un événement pour chaque commande validée et aucun événement pour les commandes non enregistrées.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Keep both calls in the Lambda function, wrap the SQS SendMessage call in retries with exponential backoff and jitter, and increase the function timeout and memory so that the send always completes after the DynamoDB write."
+        fr: "Conserver les deux appels dans la fonction Lambda, entourer l'appel SQS SendMessage de nouvelles tentatives avec backoff exponentiel et gigue, et augmenter le délai d'expiration et la mémoire de la fonction pour que l'envoi se termine toujours après l'écriture DynamoDB."
+    - id: b
+      text:
+        en: "Send the message to an SQS FIFO queue with content-based deduplication first, and write the order to DynamoDB only after SQS has confirmed that the message was accepted."
+        fr: "Envoyer d'abord le message vers une file d'attente SQS FIFO avec déduplication basée sur le contenu, puis n'écrire la commande dans DynamoDB qu'après la confirmation par SQS que le message a été accepté."
+    - id: c
+      text:
+        en: "Write only the order item, with the event payload as an attribute, enable DynamoDB Streams on the table, and have a Lambda function read the stream and send each new order event to SQS for idempotent consumers."
+        fr: "N'écrire que l'élément de commande, avec la charge utile de l'événement en attribut, activer DynamoDB Streams sur la table, puis faire lire le flux par une fonction Lambda qui envoie chaque nouvel événement de commande vers SQS pour des consommateurs idempotents."
+    - id: d
+      text:
+        en: "Have the kitchen and courier services scan the DynamoDB orders table every minute for new items, and remove the SQS queue and the event publishing from the order service."
+        fr: "Faire analyser (scan) la table des commandes DynamoDB chaque minute par les services de cuisine et de livreurs pour trouver les nouveaux éléments, puis supprimer la file SQS et la publication d'événements du service de commandes."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "This applies the transactional outbox pattern with change data capture: the event is stored on the same item in the same write, and DynamoDB Streams publishes item-level changes only after the write commits. A separate reader forwards the events to SQS; because delivery is at least once, the consumers are made idempotent."
+    fr: "Cette solution applique le modèle transactional outbox avec la capture des données modifiées : l'événement est stocké sur le même élément lors de la même écriture, et DynamoDB Streams ne publie les modifications d'éléments qu'une fois l'écriture validée. Un lecteur distinct transmet les événements à SQS ; comme la livraison se fait au moins une fois, les consommateurs sont rendus idempotents."
+  options:
+    a: { en: "Two separate writes still cannot be committed atomically; a crash between them still loses or orphans events.", fr: "Deux écritures distinctes ne peuvent toujours pas être validées de façon atomique ; un plantage entre les deux perd ou isole toujours des événements." }
+    b: { en: "Sending first publishes events for orders whose DynamoDB write later fails, which is one of the problems to remove.", fr: "Envoyer d'abord publie des événements pour des commandes dont l'écriture DynamoDB échoue ensuite, ce qui est l'un des problèmes à supprimer." }
+    d: { en: "Repeated scans are inefficient and couple the consumers to the order service's table, which breaks service ownership of data.", fr: "Des analyses répétées sont inefficaces et couplent les consommateurs à la table du service de commandes, ce qui rompt la propriété des données par service." }
+references:
+  - title: Transactional outbox pattern
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html

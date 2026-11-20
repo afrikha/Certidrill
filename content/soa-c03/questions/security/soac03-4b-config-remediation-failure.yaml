@@ -1,0 +1,92 @@
+id: soac03-4b-config-remediation-failure
+objective: "4.2.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A company uses the AWS Config managed rule restricted-ssh with automatic remediation. The remediation runs the AWS-DisablePublicAccessForSecurityGroup runbook with an AutomationAssumeRole named ConfigRemediationRole, which trusts ssm.amazonaws.com. Noncompliant security groups are never fixed. An engineer runs aws configservice describe-remediation-execution-status for one of them and gets the following excerpt:
+
+    ```json
+    {
+      "RemediationExecutionStatuses": [
+        {
+          "ResourceKey": {
+            "resourceType": "AWS::EC2::SecurityGroup",
+            "resourceId": "sg-0a1b2c3d4e5f60789"
+          },
+          "State": "FAILED",
+          "StepDetails": [
+            {
+              "State": "FAILED",
+              "ErrorMessage": "User: arn:aws:sts::111122223333:assumed-role/ConfigRemediationRole/... is not authorized to perform: ec2:RevokeSecurityGroupIngress"
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+    Which solution will resolve the issue?
+  fr: |
+    Une entreprise utilise la règle gérée AWS Config restricted-ssh avec une correction automatique. La correction exécute le runbook AWS-DisablePublicAccessForSecurityGroup avec un AutomationAssumeRole nommé ConfigRemediationRole, qui approuve ssm.amazonaws.com. Les groupes de sécurité non conformes ne sont jamais corrigés. Un ingénieur exécute aws configservice describe-remediation-execution-status pour l'un d'eux et obtient l'extrait suivant :
+
+    ```json
+    {
+      "RemediationExecutionStatuses": [
+        {
+          "ResourceKey": {
+            "resourceType": "AWS::EC2::SecurityGroup",
+            "resourceId": "sg-0a1b2c3d4e5f60789"
+          },
+          "State": "FAILED",
+          "StepDetails": [
+            {
+              "State": "FAILED",
+              "ErrorMessage": "User: arn:aws:sts::111122223333:assumed-role/ConfigRemediationRole/... is not authorized to perform: ec2:RevokeSecurityGroupIngress"
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+    Quelle solution résout le problème ?
+body:
+  options:
+    - id: a
+      text: { en: "Increase the maximum number of automatic remediation attempts and the retry interval.", fr: "Augmenter le nombre maximal de tentatives de correction automatique et l'intervalle entre les tentatives." }
+    - id: b
+      text: { en: "Change the trust policy of ConfigRemediationRole so that it trusts config.amazonaws.com instead of ssm.amazonaws.com.", fr: "Modifier la politique d'approbation de ConfigRemediationRole pour qu'elle approuve config.amazonaws.com au lieu de ssm.amazonaws.com." }
+    - id: c
+      text: { en: "Add the EC2 permissions that the runbook needs, such as ec2:RevokeSecurityGroupIngress, to ConfigRemediationRole.", fr: "Ajouter à ConfigRemediationRole les autorisations EC2 dont le runbook a besoin, comme ec2:RevokeSecurityGroupIngress." }
+    - id: d
+      text: { en: "Change the remediation to manual, and run it from the AWS Config console for each security group.", fr: "Passer la correction en mode manuel, et l'exécuter depuis la console AWS Config pour chaque groupe de sécurité." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      AWS Config remediation runs a Systems Manager Automation runbook, and describe-remediation-execution-status shows the state of each step with its error messages. Here the role was assumed successfully, but it lacks the EC2 permission that the runbook needs to remove the public SSH rule, so the permissions policy of the assume role must grant it.
+    fr: |
+      La correction AWS Config exécute un runbook Systems Manager Automation, et describe-remediation-execution-status affiche l'état de chaque étape avec ses messages d'erreur. Ici, le rôle a bien été assumé, mais il lui manque l'autorisation EC2 dont le runbook a besoin pour retirer la règle SSH publique : la politique d'autorisations du rôle doit l'accorder.
+  options:
+    a:
+      en: |
+        Each retry fails with the same authorization error, and retries add cost.
+      fr: |
+        Chaque nouvelle tentative échoue avec la même erreur d'autorisation, et les tentatives ajoutent des coûts.
+    b:
+      en: |
+        Automation assumes the role, so it must trust ssm.amazonaws.com; the error shows that the role was assumed and that a permission is missing.
+      fr: |
+        C'est Automation qui assume le rôle, qui doit donc approuver ssm.amazonaws.com ; l'erreur montre que le rôle a été assumé et qu'une autorisation manque.
+    d:
+      en: |
+        A manual run uses the same runbook and role, so it fails with the same error and adds manual work.
+      fr: |
+        Une exécution manuelle utilise le même runbook et le même rôle : elle échoue avec la même erreur et ajoute du travail manuel.
+references:
+  - title: Setting Up Auto Remediation for AWS Config
+    url: https://docs.aws.amazon.com/config/latest/developerguide/setup-autoremediation.html
+  - title: AWS-DisablePublicAccessForSecurityGroup
+    url: https://docs.aws.amazon.com/systems-manager-automation-runbooks/latest/userguide/automation-aws-disablepublicaccessforsecuritygroup.html

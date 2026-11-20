@@ -167,7 +167,7 @@ Lambda limits that decide the answer:
 
 | Quota | Value |
 | --- | --- |
-| Maximum timeout | 15 minutes |
+| Maximum timeout | 30 minutes on the current Lambda quotas page (older pages and the FAQ still say 15 minutes; 90 minutes for some Lambda Managed Instances invocations) |
 | Memory | 128 MB to 10,240 MB (CPU scales with memory) |
 | Ephemeral `/tmp` storage | 512 MB to 10,240 MB |
 | Payload | 6 MB synchronous request and response, 1 MB asynchronous |
@@ -181,11 +181,11 @@ Common serverless patterns: API Gateway + Lambda + DynamoDB for a web API; S3 ev
 | Requirement | Compute choice |
 | --- | --- |
 | Short, event-driven, unpredictable or idle much of the time | Lambda |
-| Runs longer than 15 minutes, or needs a long-lived process, as containers without managing hosts | Fargate |
+| Runs longer than the Lambda maximum timeout (for example several hours), or needs a long-lived process, as containers without managing hosts | Fargate |
 | Interruption-tolerant containers at lower cost | Fargate Spot (two-minute interruption warning) |
 | Needs a specific OS, licensed software on dedicated hosts, GPUs or full control | Amazon EC2 |
 
-> **Exam trap.** A job that runs for 30 minutes can't run in a single Lambda invocation. Split it with Step Functions, or run it on Fargate or AWS Batch.
+> **Exam trap.** A job that runs for several hours can't run in a single Lambda invocation. Split it with Step Functions, or run it on Fargate or AWS Batch.
 
 <!-- section: purpose-built | objectives: 2.1.22, 2.1.23 -->
 ## Recommending purpose-built services
@@ -218,4 +218,4 @@ Read the qualifier: "LEAST operational overhead" favors the managed or serverles
 - Read replicas scale reads (up to 15, asynchronous, cross-Region possible); Multi-AZ is for availability.
 - Object (S3), file (EFS for Linux, FSx family for Windows, Lustre, ONTAP, OpenZFS), block (EBS in one AZ, instance store ephemeral).
 - ECS for least overhead, EKS for Kubernetes; Fargate removes hosts; ECR stores images.
-- Lambda for short event-driven code (15 minutes maximum); Fargate for longer containers; EC2 for full control.
+- Lambda for short event-driven code (minutes, not hours); Fargate for longer containers; EC2 for full control.

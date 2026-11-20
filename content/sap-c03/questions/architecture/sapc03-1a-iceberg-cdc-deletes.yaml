@@ -1,0 +1,66 @@
+id: sapc03-1a-iceberg-cdc-deletes
+objective: "1.1.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A healthcare analytics company uses AWS Database Migration Service (AWS DMS) to land change data capture (CDC) files with inserts, updates, and deletes from an operational database in Amazon S3. Analysts query the data lake with Amazon Athena. Today, an AWS Glue job rewrites whole Parquet partitions every night to apply the changes, which takes several hours. A new regulation requires the company to delete all the records of a patient within 24 hours of a request. The company wants record-level updates and deletes with ACID transactions while analysts are querying, and the auditors want to query the table as it was at a past point in time. The solution must remain serverless.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise d'analytique de santé utilise AWS Database Migration Service (AWS DMS) pour déposer dans Amazon S3 des fichiers de capture des données modifiées (CDC) contenant les insertions, mises à jour et suppressions d'une base de données opérationnelle. Les analystes interrogent le lac de données avec Amazon Athena. Aujourd'hui, une tâche AWS Glue réécrit chaque nuit des partitions Parquet complètes pour appliquer les modifications, ce qui prend plusieurs heures. Une nouvelle réglementation impose de supprimer tous les enregistrements d'un patient dans les 24 heures suivant une demande. L'entreprise veut des mises à jour et des suppressions au niveau de l'enregistrement avec des transactions ACID pendant que les analystes interrogent les données, et les auditeurs veulent interroger la table telle qu'elle était à un moment passé. La solution doit rester sans serveur.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Keep the Hive-style Parquet tables, and have analysts run Athena DELETE and UPDATE statements on them, with S3 Versioning enabled on the bucket so that the auditors can read earlier object versions.
+        fr: |-
+          Conserver les tables Parquet de style Hive, faire exécuter aux analystes des instructions Athena DELETE et UPDATE sur ces tables, et activer la gestion des versions S3 sur le compartiment pour que les auditeurs lisent les versions antérieures des objets.
+    - id: b
+      text:
+        en: |-
+          Send the CDC records through an Amazon Data Firehose stream that converts them to Parquet with record format conversion, and partition the output by patient ID with dynamic partitioning.
+        fr: |-
+          Faire passer les enregistrements CDC par un flux Amazon Data Firehose qui les convertit en Parquet avec la conversion du format des enregistrements, et partitionner la sortie par ID de patient avec le partitionnement dynamique.
+    - id: c
+      text:
+        en: |-
+          Store the data in Apache Iceberg tables registered in the AWS Glue Data Catalog, apply the CDC files with a MERGE INTO statement in a Glue job, and use Athena time travel queries for the audits.
+        fr: |-
+          Stocker les données dans des tables Apache Iceberg enregistrées dans l'AWS Glue Data Catalog, appliquer les fichiers CDC avec une instruction MERGE INTO dans une tâche Glue, et utiliser les requêtes de voyage dans le temps (time travel) d'Athena pour les audits.
+    - id: d
+      text:
+        en: |-
+          Load the CDC files into a provisioned Amazon Redshift cluster with a nightly COPY and MERGE, and create a manual cluster snapshot every day for the point-in-time audits.
+        fr: |-
+          Charger les fichiers CDC dans un cluster Amazon Redshift provisionné avec des commandes COPY et MERGE nocturnes, et créer chaque jour un instantané manuel du cluster pour les audits à un moment donné.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      Iceberg tables support record-level inserts, updates, and deletes with correctness under concurrent writes, so a MERGE applies the CDC changes and a patient's records can be deleted without rewriting whole partitions. Athena reads and writes Iceberg tables in the Glue Data Catalog and supports time travel queries for the auditors, and both Glue and Athena are serverless.
+    fr: |-
+      Les tables Iceberg prennent en charge les insertions, mises à jour et suppressions au niveau de l'enregistrement, avec une exactitude garantie en cas d'écritures concurrentes : un MERGE applique les modifications CDC et les enregistrements d'un patient peuvent être supprimés sans réécrire des partitions complètes. Athena lit et écrit les tables Iceberg du Glue Data Catalog et prend en charge les requêtes de voyage dans le temps pour les auditeurs, et Glue comme Athena sont sans serveur.
+  options:
+    a:
+      en: |-
+        Hive-style tables do not support record-level UPDATE and DELETE statements in Athena, and object versions do not give a transactional view of the table at a point in time.
+      fr: |-
+        Les tables de style Hive ne prennent pas en charge les instructions UPDATE et DELETE au niveau de l'enregistrement dans Athena, et les versions d'objets ne donnent pas une vue transactionnelle de la table à un moment donné.
+    b:
+      en: |-
+        Firehose with record format conversion only appends new Parquet files, so updates and deletes from the CDC stream would not be applied to existing records.
+      fr: |-
+        Firehose avec la conversion du format des enregistrements ne fait qu'ajouter de nouveaux fichiers Parquet : les mises à jour et suppressions du flux CDC ne seraient pas appliquées aux enregistrements existants.
+    d:
+      en: |-
+        A provisioned Redshift cluster is not serverless, and daily snapshots add cluster restores to operate for every audit query.
+      fr: |-
+        Un cluster Redshift provisionné n'est pas sans serveur, et les instantanés quotidiens obligent à restaurer un cluster pour chaque requête d'audit.
+references:
+  - title: Query Apache Iceberg tables - Amazon Athena
+    url: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html

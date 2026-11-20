@@ -13,6 +13,7 @@
  */
 import { DEFAULT_SCORING, scoringRulesSchema, type ScoringRules } from "@/lib/content/schema";
 import { allOrNothing, maxPoints, parseResponse, type QuestionAnswer, type QuestionBody, type QuestionTypeCode } from "@/lib/questions/schema";
+import { logError } from "@/lib/log";
 
 export interface ItemScore {
   earned: number;
@@ -25,10 +26,16 @@ export interface ScorableQuestion {
   answer: unknown;
 }
 
-/** The scoring rules stored with a blueprint (blueprint.scoring); the Microsoft rule when absent or unreadable. */
+/**
+ * The scoring rules stored with a blueprint (blueprint.scoring); the Microsoft
+ * rule when absent (`{}` or null). An unreadable value also falls back to it,
+ * but is logged: it would change the scores of an all-or-nothing exam.
+ */
 export function scoringRules(stored: unknown): ScoringRules {
   const parsed = scoringRulesSchema.safeParse(stored ?? undefined);
-  return parsed.success ? parsed.data : DEFAULT_SCORING;
+  if (parsed.success) return parsed.data;
+  logError("exam.scoring_rules", parsed.error, { stored });
+  return DEFAULT_SCORING;
 }
 
 export function scoreItem(question: ScorableQuestion, response: unknown, rules: ScoringRules = DEFAULT_SCORING): ItemScore {

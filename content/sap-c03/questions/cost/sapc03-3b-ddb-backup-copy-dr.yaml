@@ -1,0 +1,40 @@
+id: sapc03-3b-ddb-backup-copy-dr
+objective: "3.2.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    AnyCompany operates a telemetry service in eu-west-1 that stores the latest state of 40 million connected meters in an Amazon DynamoDB table in on-demand capacity mode. The table is about 200 GB, but it receives a sustained 20,000 writes per second because every meter reports every few minutes.
+
+    The disaster recovery policy for this service sets an RPO of 24 hours and an RTO of 12 hours, with recovery in eu-north-1. The application never reads or writes the data in eu-north-1 unless a disaster is declared. An engineer proposes converting the table to a global table with a replica in eu-north-1. The finance team asks for the lowest-cost design that meets the policy.
+
+    Which solution will meet these requirements MOST cost-effectively?
+  fr: |
+    AnyCompany exploite dans eu-west-1 un service de télémétrie qui stocke le dernier état de 40 millions de compteurs connectés dans une table Amazon DynamoDB en mode de capacité à la demande. La table fait environ 200 Go, mais elle reçoit en continu 20 000 écritures par seconde, car chaque compteur envoie un relevé toutes les quelques minutes.
+
+    La politique de reprise après sinistre de ce service fixe un RPO de 24 heures et un RTO de 12 heures, avec une reprise dans eu-north-1. L'application ne lit ni n'écrit jamais les données dans eu-north-1 tant qu'aucun sinistre n'est déclaré. Un ingénieur propose de convertir la table en table globale avec un réplica dans eu-north-1. L'équipe financière demande la conception la moins coûteuse qui respecte la politique.
+
+    Quelle solution répond à ces exigences de la manière la PLUS rentable ?
+body:
+  options:
+    - { id: a, text: { en: "Convert the table to a global table with a replica in eu-north-1, and configure the replica in provisioned capacity mode with the lowest read capacity that the application allows.", fr: "Convertir la table en table globale avec un réplica dans eu-north-1, et configurer le réplica en mode de capacité provisionnée avec la capacité de lecture la plus basse que l'application permet." } }
+    - { id: b, text: { en: "Enable DynamoDB Streams on the table, and use an AWS Lambda function to write every change to a table in eu-north-1.", fr: "Activer DynamoDB Streams sur la table, et utiliser une fonction AWS Lambda pour écrire chaque modification dans une table de eu-north-1." } }
+    - { id: c, text: { en: "Create an empty table in eu-north-1, and run an hourly AWS Glue job that scans the source table and writes all items to the eu-north-1 table.", fr: "Créer une table vide dans eu-north-1, et exécuter toutes les heures une tâche AWS Glue qui analyse (scan) la table source et écrit tous les éléments dans la table de eu-north-1." } }
+    - { id: d, text: { en: "Enable AWS Backup advanced features for DynamoDB, and create a backup plan with a daily backup in eu-west-1 and a copy rule to a backup vault in eu-north-1 with a short retention period.", fr: "Activer les fonctionnalités avancées d'AWS Backup pour DynamoDB, et créer un plan de sauvegarde avec une sauvegarde quotidienne dans eu-west-1 et une règle de copie vers un coffre de sauvegarde de eu-north-1 avec une courte durée de conservation." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      With AWS Backup advanced features for DynamoDB, a backup plan can copy each daily backup to a vault in another Region, which meets a 24-hour RPO; restoring a 200 GB table fits a 12-hour RTO. The cost follows the table size (about 200 GB of backup storage and cross-Region copy transfer per day), not the write rate. A global table bills a replicated write unit in every replica Region for each of the 20,000 writes per second, which is far more expensive for a write-heavy, small table.
+    fr: |
+      Avec les fonctionnalités avancées d'AWS Backup pour DynamoDB, un plan de sauvegarde peut copier chaque sauvegarde quotidienne vers un coffre d'une autre Région, ce qui respecte un RPO de 24 heures ; restaurer une table de 200 Go tient dans un RTO de 12 heures. Le coût suit la taille de la table (environ 200 Go de stockage de sauvegarde et de transfert de copie entre Régions par jour), pas le débit d'écriture. Une table globale facture une unité d'écriture répliquée dans chaque Région de réplica pour chacune des 20 000 écritures par seconde, ce qui coûte bien plus cher pour une petite table très sollicitée en écriture.
+  options:
+    a: { en: "Read capacity is not the cost driver: every write is still billed as a replicated write unit in eu-north-1, and the replica must absorb all 20,000 writes per second.", fr: "La capacité de lecture n'est pas le facteur de coût : chaque écriture reste facturée comme unité d'écriture répliquée dans eu-north-1, et le réplica doit absorber les 20 000 écritures par seconde." }
+    b: { en: "The destination table pays a write unit for every change, plus Lambda invocations and cross-Region data transfer, so this costs at least as much as a global table and adds code to maintain.", fr: "La table de destination paie une unité d'écriture pour chaque modification, plus les appels Lambda et le transfert de données entre Régions : cela coûte au moins autant qu'une table globale et ajoute du code à maintenir." }
+    c: { en: "Scanning the whole table and rewriting every item each hour consumes read and write capacity for all items 24 times a day, far beyond the cost of one daily backup copy.", fr: "Analyser toute la table et réécrire chaque élément toutes les heures consomme de la capacité de lecture et d'écriture pour tous les éléments 24 fois par jour, bien au-delà du coût d'une copie de sauvegarde quotidienne." }
+references:
+  - title: Advanced DynamoDB backup
+    url: https://docs.aws.amazon.com/aws-backup/latest/devguide/advanced-ddb-backup.html
+  - title: Understanding Amazon DynamoDB billing for global tables
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/global-tables-billing.html

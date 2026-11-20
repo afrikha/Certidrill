@@ -1,0 +1,44 @@
+id: sapc03-4c-kms-key-deletion-scp
+objective: "4.3.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A bank stores trade records in an Amazon S3 bucket in a production member account of its organization in AWS Organizations. The bucket uses S3 Object Lock in compliance mode with a 10-year retention, and every object is encrypted with SSE-KMS under a customer managed key in the same account. Regulations require customer managed KMS keys for this data. A red-team exercise showed that an attacker with administrator access to the account could make the records permanently unreadable without deleting a single object. The security team must remove this path while keeping the existing bucket and key. Only a break-glass role in the security account may perform key administration on this key, and the security team must be alerted on any attempt.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une banque stocke des enregistrements de transactions dans un compartiment Amazon S3 d'un compte membre de production de son organisation AWS Organizations. Le compartiment utilise S3 Object Lock en mode conformité avec une rétention de 10 ans, et chaque objet est chiffré par SSE-KMS sous une clé gérée par le client du même compte. La réglementation impose des clés KMS gérées par le client pour ces données. Un exercice red team a montré qu'un attaquant disposant d'un accès administrateur au compte pouvait rendre les enregistrements définitivement illisibles sans supprimer un seul objet. L'équipe sécurité doit supprimer ce chemin d'attaque tout en conservant le compartiment et la clé existants. Seul un rôle de secours (break-glass) du compte sécurité peut administrer cette clé, et l'équipe sécurité doit être alertée de toute tentative.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Change the bucket's default encryption to SSE-S3 for new objects, and keep the existing objects under the customer managed key with automatic key rotation turned on."
+        fr: "Passer le chiffrement par défaut du compartiment à SSE-S3 pour les nouveaux objets, et conserver les objets existants sous la clé gérée par le client avec la rotation automatique activée."
+    - id: b
+      text:
+        en: "Attach an SCP that denies kms:ScheduleKeyDeletion, kms:DisableKey, and kms:PutKeyPolicy on the key to every principal except the break-glass role, and alert on those API calls with EventBridge."
+        fr: "Attacher une SCP qui refuse kms:ScheduleKeyDeletion, kms:DisableKey et kms:PutKeyPolicy sur la clé à tous les principaux sauf le rôle de secours, et alerter sur ces appels d'API avec EventBridge."
+    - id: c
+      text:
+        en: "Turn on automatic rotation for the customer managed key, so that the key material that encrypts the records changes every year and can't be targeted by an attacker in the account."
+        fr: "Activer la rotation automatique de la clé gérée par le client, pour que le matériel de clé qui chiffre les enregistrements change chaque année et ne puisse pas être ciblé par un attaquant du compte."
+    - id: d
+      text:
+        en: "Place an S3 Object Lock legal hold on every object in the bucket, and alert the security team with an EventBridge rule when anyone calls PutObjectLegalHold on the bucket."
+        fr: "Placer une conservation légale (legal hold) S3 Object Lock sur chaque objet du compartiment, et alerter l'équipe sécurité par une règle EventBridge quand quelqu'un appelle PutObjectLegalHold sur le compartiment."
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "Object Lock stops deletion, but data encrypted under a deleted KMS key can never be decrypted; an administrator can schedule deletion with a 7-day waiting period, disable the key, or rewrite its key policy. An SCP applies to every principal of the member account, including its administrators and root user, so denying those key administration actions to everyone except the break-glass role closes the path, and EventBridge alerts on any attempt."
+    fr: "Object Lock empêche la suppression, mais des données chiffrées sous une clé KMS supprimée ne peuvent plus jamais être déchiffrées ; un administrateur peut programmer la suppression avec un délai d'attente de 7 jours, désactiver la clé ou réécrire sa politique de clé. Une SCP s'applique à tous les principaux du compte membre, y compris ses administrateurs et son utilisateur racine : refuser ces actions d'administration de la clé à tous sauf au rôle de secours ferme ce chemin, et EventBridge alerte sur toute tentative."
+  options:
+    a: { en: "The existing records stay under a key that an administrator can still delete or disable, and SSE-S3 doesn't meet the customer managed key requirement for new records.", fr: "Les enregistrements existants restent sous une clé qu'un administrateur peut toujours supprimer ou désactiver, et SSE-S3 ne respecte pas l'exigence de clé gérée par le client pour les nouveaux enregistrements." }
+    c: { en: "Rotation keeps the same key, so scheduling its deletion still makes every version of the key material unusable.", fr: "La rotation conserve la même clé : programmer sa suppression rend toujours inutilisables toutes les versions du matériel de clé." }
+    d: { en: "The objects are already protected from deletion; a legal hold doesn't protect the KMS key that is needed to decrypt them.", fr: "Les objets sont déjà protégés contre la suppression ; une conservation légale ne protège pas la clé KMS nécessaire pour les déchiffrer." }
+references:
+  - title: Delete an AWS KMS key
+    url: https://docs.aws.amazon.com/kms/latest/developerguide/deleting-keys.html

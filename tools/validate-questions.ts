@@ -25,12 +25,11 @@ import { parse } from "yaml";
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
 import { formatProblem, validateCourse } from "../lib/content/course";
 import { loadVendorGlossary, terminologyWarnings, type GlossaryTerm } from "../lib/content/glossary";
-import { caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
+import { allOrNothing, caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
 import { compareCodeUnits } from "../lib/sort";
 import { certOfFile, parseCertArgs } from "./cert-args";
 import { referenceWarnings, vendorOf, vendorWarnings, type Vendor } from "../lib/vendors";
 import type { ScoringRules } from "../lib/content/schema";
-import { allOrNothing } from "../lib/questions/schema";
 
 async function listYaml(dir: string): Promise<string[]> {
   try {

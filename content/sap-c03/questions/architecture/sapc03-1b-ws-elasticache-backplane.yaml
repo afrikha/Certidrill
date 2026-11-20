@@ -1,0 +1,52 @@
+id: sapc03-1b-ws-elasticache-backplane
+objective: "1.1.12"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A collaboration software company runs a chat service in containers on Amazon ECS with AWS Fargate. Clients keep WebSocket connections to the tasks through an Application Load Balancer, and the service scales between 10 and 80 tasks. The members of a chat room are usually connected to different tasks. When a member posts a message, the task that receives it must deliver it within 100 milliseconds to every member of the room, whichever task holds their connection. Users create and delete rooms all the time. The company wants to keep its containers, its ALB and its WebSocket protocol.
+
+    Which solution will meet these requirements?
+  fr: |
+    Un éditeur de logiciels collaboratifs exécute un service de discussion dans des conteneurs sur Amazon ECS avec AWS Fargate. Les clients maintiennent des connexions WebSocket vers les tâches via un Application Load Balancer, et le service évolue entre 10 et 80 tâches. Les membres d'un salon sont généralement connectés à des tâches différentes. Quand un membre publie un message, la tâche qui le reçoit doit le livrer en moins de 100 millisecondes à chaque membre du salon, quelle que soit la tâche qui détient sa connexion. Les utilisateurs créent et suppriment des salons en permanence. L'entreprise veut conserver ses conteneurs, son ALB et son protocole WebSocket.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Create one target group per chat room and ALB listener rules that route each connection to the target group of its room, based on a room query string parameter, so that all members of a room share a task."
+        fr: "Créer un groupe cible par salon et des règles d'écouteur ALB qui acheminent chaque connexion vers le groupe cible de son salon selon un paramètre de chaîne de requête room, afin que tous les membres d'un salon partagent une tâche."
+    - id: b
+      text:
+        en: "Have each task send the posted messages to one shared Amazon SQS standard queue, and have every task poll the queue and deliver the messages it receives to its local connections."
+        fr: "Faire envoyer par chaque tâche les messages publiés vers une file d'attente Amazon SQS standard partagée, et faire interroger la file par chaque tâche, qui livre les messages reçus à ses connexions locales."
+    - id: c
+      text:
+        en: "Deploy an Amazon ElastiCache for Valkey cluster, have each task subscribe to the pub/sub channels of the rooms of its connected members, and have the receiving task publish each message to the room's channel."
+        fr: "Déployer un cluster Amazon ElastiCache pour Valkey, faire s'abonner chaque tâche aux canaux pub/sub des salons de ses membres connectés, et faire publier chaque message par la tâche réceptrice sur le canal du salon."
+    - id: d
+      text:
+        en: "Write each posted message to an Amazon DynamoDB table, and have every task scan the table once per second for new messages that belong to the rooms of its connected members."
+        fr: "Écrire chaque message publié dans une table Amazon DynamoDB, et faire analyser (scan) la table une fois par seconde par chaque tâche pour trouver les nouveaux messages des salons de ses membres connectés."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "In Valkey pub/sub, a message published to a channel reaches every client subscribed to that channel, so each task receives the messages of the rooms it serves, whatever task published them. Channels need no provisioning, which fits rooms that appear and disappear, and in-memory delivery keeps latency within the target. The ALB keeps carrying the WebSocket connections natively."
+    fr: "Avec le pub/sub de Valkey, un message publié sur un canal atteint chaque client abonné à ce canal : chaque tâche reçoit les messages des salons qu'elle sert, quelle que soit la tâche qui les a publiés. Les canaux ne demandent aucun provisionnement, ce qui convient à des salons qui apparaissent et disparaissent, et la livraison en mémoire tient la latence cible. L'ALB continue de transporter nativement les connexions WebSocket."
+  options:
+    a:
+      en: "Listener rules and target groups are static resources with quotas, so they cannot follow thousands of rooms created and deleted all the time, and a target group does not pin a room to one task."
+      fr: "Les règles d'écouteur et les groupes cibles sont des ressources statiques soumises à des quotas : ils ne peuvent pas suivre des milliers de salons créés et supprimés en permanence, et un groupe cible n'attache pas un salon à une seule tâche."
+    b:
+      en: "Each SQS message is received and deleted by one consumer, so only one task would get each message instead of every task with members in the room."
+      fr: "Chaque message SQS est reçu et supprimé par un seul consommateur : une seule tâche recevrait chaque message, au lieu de chaque tâche ayant des membres dans le salon."
+    d:
+      en: "Scanning once per second cannot meet 100 milliseconds, and repeated scans by up to 80 tasks consume read capacity at high cost."
+      fr: "Une analyse par seconde ne peut pas tenir 100 millisecondes, et des analyses répétées par jusqu'à 80 tâches consomment de la capacité de lecture à un coût élevé."
+references:
+  - title: Common ElastiCache Use Cases and How ElastiCache Can Help
+    url: https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/elasticache-use-cases.html
+  - title: Listeners for your Application Load Balancers
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-listeners.html

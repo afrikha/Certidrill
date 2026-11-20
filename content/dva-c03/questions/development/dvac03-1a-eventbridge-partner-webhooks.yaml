@@ -1,0 +1,44 @@
+id: dvac03-1a-eventbridge-partner-webhooks
+objective: "1.1.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    After each order, a company's order service calls the webhooks of 20 partners synchronously, which adds several seconds of latency to each order. Partner endpoints are sometimes unavailable for several hours. The company wants the order service to return as soon as the order is saved, and wants each failed delivery to be retried for up to 24 hours without writing retry code.
+
+    Which solution will meet these requirements?
+  fr: |
+    Après chaque commande, le service de commande d'une entreprise appelle de manière synchrone les webhooks de 20 partenaires, ce qui ajoute plusieurs secondes de latence à chaque commande. Les points de terminaison des partenaires sont parfois indisponibles pendant plusieurs heures. L'entreprise veut que le service de commande réponde dès que la commande est enregistrée, et que chaque remise en échec soit relancée pendant 24 heures au plus sans écrire de code de nouvelle tentative.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Keep the synchronous calls and add exponential backoff with a high maximum number of attempts to the HTTP client.", fr: "Conserver les appels synchrones et ajouter au client HTTP un backoff exponentiel avec un nombre maximal de tentatives élevé." }
+    - id: b
+      text: { en: "Have the order service invoke a Lambda function synchronously that calls each partner webhook with retries.", fr: "Faire invoquer de manière synchrone par le service de commande une fonction Lambda qui appelle chaque webhook partenaire avec des nouvelles tentatives." }
+    - id: c
+      text: { en: "Have the order service start a synchronous AWS Step Functions Express workflow that calls each webhook.", fr: "Faire démarrer par le service de commande un flux de travail Express synchrone AWS Step Functions qui appelle chaque webhook." }
+    - id: d
+      text: { en: "Send an event to the default EventBridge event bus, with one rule per partner that targets the partner's API destination.", fr: "Envoyer un événement sur le bus d'événements EventBridge par défaut, avec une règle par partenaire qui cible la destination d'API du partenaire." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "PutEvents returns as soon as EventBridge accepts the event, and EventBridge delivers it to each API destination asynchronously. When a delivery fails with a retriable error, EventBridge retries with exponential backoff and jitter for up to 24 hours and 185 attempts by default, and a dead-letter queue can keep the events that still fail."
+    fr: "PutEvents répond dès qu'EventBridge accepte l'événement, et EventBridge le remet à chaque destination d'API de manière asynchrone. Quand une remise échoue avec une erreur pouvant être relancée, EventBridge réessaie avec un backoff exponentiel et une gigue (jitter) pendant 24 heures et 185 tentatives au plus par défaut, et une file d'attente de lettres mortes peut conserver les événements toujours en échec."
+  options:
+    a:
+      en: "The calls stay synchronous, so the order service still waits for the partners, and retries during an outage of several hours would block it even longer."
+      fr: "Les appels restent synchrones : le service de commande attend toujours les partenaires, et des nouvelles tentatives pendant une panne de plusieurs heures le bloqueraient encore plus longtemps."
+    b:
+      en: "A synchronous invocation makes the order service wait for all the webhook calls, and the retries are custom code."
+      fr: "Une invocation synchrone fait attendre au service de commande tous les appels de webhooks, et les nouvelles tentatives sont du code spécifique."
+    c:
+      en: "A synchronous Express workflow makes the caller wait for the result and runs for at most five minutes, far less than 24 hours of retries."
+      fr: "Un flux Express synchrone fait attendre le résultat à l'appelant et s'exécute au plus cinq minutes, bien moins que 24 heures de nouvelles tentatives."
+references:
+  - title: API destinations as targets in Amazon EventBridge
+    url: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html
+  - title: How EventBridge retries delivering events
+    url: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rule-retry-policy.html
