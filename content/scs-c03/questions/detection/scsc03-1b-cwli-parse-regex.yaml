@@ -1,0 +1,62 @@
+id: scsc03-1b-cwli-parse-regex
+objective: "1.2.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An application writes plain-text authentication logs to an Amazon CloudWatch Logs log group. Successful and failed sign-ins are both logged. A failed sign-in looks like this:
+
+    ```text
+    2026-11-02T10:15:00Z WARN auth login failed user=jdoe src=198.51.100.7
+    ```
+
+    A security engineer must use CloudWatch Logs Insights to list the source IP addresses with the most failed sign-ins. Which query should the engineer run?
+  fr: |
+    Une application écrit des journaux d'authentification en texte brut dans un groupe de journaux Amazon CloudWatch Logs. Les connexions réussies et les connexions en échec sont toutes deux journalisées. Une connexion en échec se présente ainsi :
+
+    ```text
+    2026-11-02T10:15:00Z WARN auth login failed user=jdoe src=198.51.100.7
+    ```
+
+    Un ingénieur sécurité doit utiliser CloudWatch Logs Insights pour lister les adresses IP source qui ont le plus de connexions en échec. Quelle requête l'ingénieur doit-il exécuter ?
+body:
+  options:
+    - id: a
+      text: |-
+        parse @message "src=*" as srcIp | stats count(*) as failures by srcIp | sort failures desc | limit 20
+    - id: b
+      text: |-
+        filter @message like /login failed/ | stats count(*) as failures by src | sort failures desc | limit 20
+    - id: c
+      text: |-
+        filter @message like /login failed/ | parse @message /src=(?<srcIp>\S+)/ | stats count(*) as failures by srcIp | sort failures desc | limit 20
+    - id: d
+      text: |-
+        filter @message like /login failed/ | parse @message "src=*" | stats count(*) as failures by srcIp | sort failures desc | limit 20
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      Plain-text logs have no discovered field for the source IP, so the query must extract it. The filter keeps only failed sign-ins, the regular expression with a named capture group creates the srcIp field, and later commands such as stats and sort can use that field.
+    fr: |-
+      Les journaux en texte brut n'ont pas de champ découvert pour l'IP source : la requête doit l'extraire. Le filtre ne garde que les connexions en échec, l'expression régulière avec un groupe de capture nommé crée le champ srcIp, et les commandes suivantes comme stats et sort peuvent utiliser ce champ.
+  options:
+    a:
+      en: |-
+        The extraction is correct, but without the filter the query also counts successful sign-ins.
+      fr: |-
+        L'extraction est correcte, mais sans le filtre la requête compte aussi les connexions réussies.
+    b:
+      en: |-
+        Logs Insights does not discover a src field in plain-text messages, so the grouping field has no value.
+      fr: |-
+        Logs Insights ne découvre pas de champ src dans des messages en texte brut : le champ de regroupement n'a pas de valeur.
+    d:
+      en: |-
+        In glob mode, each * needs an alias in an as clause; without it, no srcIp field is created for stats.
+      fr: |-
+        En mode glob, chaque * exige un alias dans une clause as ; sans elle, aucun champ srcIp n'est créé pour stats.
+references:
+  - title: parse - Amazon CloudWatch Logs
+    url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Parse.html

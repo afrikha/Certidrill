@@ -1,0 +1,92 @@
+id: scsc03-4b-sourceip-viaawsservice
+objective: "4.2.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The role Operators has the following statement in its identity-based policy so that it can be used only from the corporate network:
+
+    ```json
+    {
+      "Effect": "Deny",
+      "Action": "*",
+      "Resource": "*",
+      "Condition": {
+        "NotIpAddress": { "aws:SourceIp": "203.0.113.0/24" }
+      }
+    }
+    ```
+
+    Operators deploy AWS CloudFormation stacks from the corporate network without a service role. The stacks fail when CloudFormation creates resources such as Amazon S3 buckets and IAM roles on their behalf. The IP restriction must still apply to every direct call from the operators.
+
+    Which change will meet these requirements?
+  fr: |
+    Le rôle Operators contient l'instruction suivante dans sa politique basée sur l'identité, afin de n'être utilisable que depuis le réseau de l'entreprise :
+
+    ```json
+    {
+      "Effect": "Deny",
+      "Action": "*",
+      "Resource": "*",
+      "Condition": {
+        "NotIpAddress": { "aws:SourceIp": "203.0.113.0/24" }
+      }
+    }
+    ```
+
+    Les opérateurs déploient des piles AWS CloudFormation depuis le réseau de l'entreprise, sans rôle de service. Les piles échouent lorsque CloudFormation crée pour leur compte des ressources comme des compartiments Amazon S3 et des rôles IAM. La restriction IP doit continuer de s'appliquer à chaque appel direct des opérateurs.
+
+    Quelle modification permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add a Bool condition on aws:PrincipalIsAWSService with the value false to the Deny statement.
+        fr: |-
+          Ajouter à l'instruction Deny une condition Bool sur aws:PrincipalIsAWSService avec la valeur false.
+    - id: b
+      text:
+        en: |-
+          Add a Bool condition on aws:ViaAWSService with the value false to the Deny statement.
+        fr: |-
+          Ajouter à l'instruction Deny une condition Bool sur aws:ViaAWSService avec la valeur false.
+    - id: c
+      text:
+        en: |-
+          Replace aws:SourceIp with aws:VpcSourceIp in the Deny statement, keeping the same CIDR range.
+        fr: |-
+          Remplacer aws:SourceIp par aws:VpcSourceIp dans l'instruction Deny, en conservant la même plage CIDR.
+    - id: d
+      text:
+        en: |-
+          Add the published IP address ranges of AWS CloudFormation in the Region to the NotIpAddress condition.
+        fr: |-
+          Ajouter à la condition NotIpAddress les plages d'adresses IP publiées d'AWS CloudFormation dans la Région.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      When CloudFormation calls other services with the operators' credentials, it uses forward access sessions: aws:ViaAWSService is true and the network context of the original caller is not passed, so the Deny matches. Adding aws:ViaAWSService false limits the Deny to requests that the operators make directly, which still must come from the corporate range.
+    fr: |-
+      Lorsque CloudFormation appelle d'autres services avec les informations d'identification des opérateurs, il utilise des sessions d'accès transférées (FAS) : aws:ViaAWSService vaut true et le contexte réseau de l'appelant d'origine n'est pas transmis, donc le Deny s'applique. Ajouter aws:ViaAWSService false limite le Deny aux demandes faites directement par les opérateurs, qui doivent toujours provenir de la plage de l'entreprise.
+  options:
+    a:
+      en: |-
+        aws:PrincipalIsAWSService is true only when a service principal acts directly; with forward access sessions the principal is still the Operators role, so the key is false and the Deny still matches.
+      fr: |-
+        aws:PrincipalIsAWSService ne vaut true que lorsqu'un principal de service agit directement ; avec les sessions d'accès transférées, le principal reste le rôle Operators : la clé vaut false et le Deny s'applique toujours.
+    c:
+      en: |-
+        aws:VpcSourceIp is present only for requests made through a VPC endpoint, so it does not test the public source address of the operators' calls, and it does not distinguish the calls that CloudFormation makes on their behalf.
+      fr: |-
+        aws:VpcSourceIp n'est présent que pour les demandes faites par un point de terminaison de VPC : il ne teste pas l'adresse source publique des appels des opérateurs et ne distingue pas les appels que CloudFormation fait pour leur compte.
+    d:
+      en: |-
+        Calls that services make on behalf of a principal do not carry a usable source IP, and allowing AWS address ranges would also admit direct calls from any AWS-hosted host.
+      fr: |-
+        Les appels que les services font pour le compte d'un principal ne portent pas d'IP source exploitable, et autoriser des plages d'adresses AWS admettrait aussi des appels directs depuis n'importe quel hôte hébergé sur AWS.
+references:
+  - title: AWS global condition context keys - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html

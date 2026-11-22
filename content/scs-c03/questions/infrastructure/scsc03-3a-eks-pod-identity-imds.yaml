@@ -1,0 +1,66 @@
+id: scsc03-3a-eks-pod-identity-imds
+objective: "3.2.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany runs several applications on an Amazon EKS cluster with managed node groups on Amazon EC2 Linux instances. Today, every pod uses the node IAM role, which holds the Amazon S3 and Amazon DynamoDB permissions of all the applications. The security team requires that each application's pods receive only that application's permissions and that pods that do not use host networking be unable to obtain the node role's credentials. The applications use a current AWS SDK and must not change code, and the platform team does not want to manage an IAM OIDC identity provider for the cluster.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany exécute plusieurs applications sur un cluster Amazon EKS avec des groupes de nœuds gérés sur des instances Amazon EC2 Linux. Aujourd'hui, chaque pod utilise le rôle IAM des nœuds, qui contient les autorisations Amazon S3 et Amazon DynamoDB de toutes les applications. L'équipe de sécurité exige que les pods de chaque application ne reçoivent que les autorisations de cette application et que les pods qui n'utilisent pas le réseau de l'hôte ne puissent pas obtenir les informations d'identification du rôle des nœuds. Les applications utilisent un kit SDK AWS récent et ne doivent pas changer de code, et l'équipe plateforme ne veut pas gérer de fournisseur d'identité IAM OIDC pour le cluster.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Install the EKS Pod Identity Agent, create a role per application that trusts pods.eks.amazonaws.com, create a pod identity association per service account, remove the application permissions from the node role, and require IMDSv2 with a hop limit of 1 on the nodes.
+        fr: |-
+          Installer l'agent EKS Pod Identity, créer un rôle par application qui approuve pods.eks.amazonaws.com, créer une association d'identité de pod par compte de service, retirer les autorisations des applications du rôle des nœuds, et exiger IMDSv2 avec une limite de sauts de 1 sur les nœuds.
+    - id: b
+      text:
+        en: |-
+          Create an IAM OIDC identity provider for the cluster, create a role per application that trusts the provider, annotate each service account with its role, and require IMDSv2 on the nodes.
+        fr: |-
+          Créer un fournisseur d'identité IAM OIDC pour le cluster, créer un rôle par application qui approuve ce fournisseur, annoter chaque compte de service avec son rôle, et exiger IMDSv2 sur les nœuds.
+    - id: c
+      text:
+        en: |-
+          Install the EKS Pod Identity Agent, create a role per application that trusts pods.eks.amazonaws.com, create a pod identity association per service account, and keep the application permissions in the node role as a fallback for pods without an association.
+        fr: |-
+          Installer l'agent EKS Pod Identity, créer un rôle par application qui approuve pods.eks.amazonaws.com, créer une association d'identité de pod par compte de service, et conserver les autorisations des applications dans le rôle des nœuds comme solution de repli pour les pods sans association.
+    - id: d
+      text:
+        en: |-
+          Create a Kubernetes Role and RoleBinding in each application's namespace that grant access only to that application's resources, and remove the application permissions from the node role.
+        fr: |-
+          Créer un Role et un RoleBinding Kubernetes dans l'espace de noms de chaque application qui n'accordent l'accès qu'aux ressources de cette application, et retirer les autorisations des applications du rôle des nœuds.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      EKS Pod Identity maps an IAM role to a Kubernetes service account through an association, and the agent on each node gives the SDKs credentials for that role only, with no OIDC provider to manage. Restricting access to the instance metadata service, by requiring IMDSv2 with a hop limit of 1, stops containers that are not on the host network from reaching the node role, and removing the application permissions from that role leaves nothing to fall back on.
+    fr: |-
+      EKS Pod Identity associe un rôle IAM à un compte de service Kubernetes par une association, et l'agent de chaque nœud ne fournit aux kits SDK que les informations d'identification de ce rôle, sans fournisseur OIDC à gérer. Restreindre l'accès au service de métadonnées d'instance, en exigeant IMDSv2 avec une limite de sauts de 1, empêche les conteneurs qui ne sont pas sur le réseau de l'hôte d'atteindre le rôle des nœuds, et retirer les autorisations des applications de ce rôle ne laisse rien sur quoi se replier.
+  options:
+    b:
+      en: |-
+        IAM roles for service accounts requires the OIDC provider that the team does not want to manage, and IMDSv2 alone, with the default hop limit, does not stop pods from reaching the node role.
+      fr: |-
+        Les rôles IAM pour comptes de service exigent le fournisseur OIDC que l'équipe ne veut pas gérer, et IMDSv2 seul, avec la limite de sauts par défaut, n'empêche pas les pods d'atteindre le rôle des nœuds.
+    c:
+      en: |-
+        Pods can still reach the instance metadata service and obtain the node role, which keeps every application's permissions.
+      fr: |-
+        Les pods peuvent toujours atteindre le service de métadonnées d'instance et obtenir le rôle des nœuds, qui conserve les autorisations de toutes les applications.
+    d:
+      en: |-
+        Kubernetes RBAC controls access to the Kubernetes API, not to AWS services, so the pods would have no AWS credentials for their resources.
+      fr: |-
+        Le RBAC Kubernetes contrôle l'accès à l'API Kubernetes, pas aux services AWS ; les pods n'auraient donc aucune information d'identification AWS pour leurs ressources.
+references:
+  - title: Learn how EKS Pod Identity grants pods access to AWS services - Amazon EKS
+    url: https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html
