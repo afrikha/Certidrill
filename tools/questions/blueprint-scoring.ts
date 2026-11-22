@@ -13,8 +13,9 @@ export async function blueprintScoring(certDir: string): Promise<ScoringRules> {
   let text: string;
   try {
     text = await readFile(file, "utf8");
-  } catch {
-    throw new Error(`${file}: blueprint not found, the scoring rules are unknown`);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`${file}: blueprint not found, the scoring rules are unknown`);
+    throw new Error(`${file}: ${e instanceof Error ? e.message : String(e)}`);
   }
   let doc: { blueprint?: { scoring?: unknown } } | null;
   try {

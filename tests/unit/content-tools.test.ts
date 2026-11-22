@@ -4,7 +4,7 @@
  * blueprints without case study nor series (fundamentals), and the AWS
  * glossary with its terminology check.
  */
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -171,6 +171,10 @@ describe("compare-blind: blueprint.scoring", () => {
     try {
       const file = path.join(tmp, "blueprint.yaml");
       await expect(blueprintScoring(tmp)).rejects.toThrow(`${file}: blueprint not found`);
+      // Another read error keeps its own message.
+      await mkdir(file);
+      await expect(blueprintScoring(tmp)).rejects.toThrow(/EISDIR/);
+      await rm(file, { recursive: true });
       await writeFile(file, "blueprint: [unclosed\n");
       await expect(blueprintScoring(tmp)).rejects.toThrow(`${file}: invalid YAML`);
       await writeFile(file, "blueprint:\n  scoring:\n    multi: bogus\n");

@@ -169,54 +169,56 @@ describe.each([
     await db.certification.update({ where: { id: cert.id }, data: { active: true } });
     await db.question.updateMany({ where: { certificationId: cert.id }, data: { status: "published" } });
     await grantFullAccess(db, userId, code);
+    // Put back as seeded even when an assertion fails: the next tests start from inactive drafts.
+    try {
+      const { attemptId, shortfall } = await createAttempt(db, { userId, certificationCode: code, locale: "fr", now: T0 });
+      expect(shortfall).toBe(0);
+      const started = await startAttempt(db, { attemptId, userId, now: T0 });
+      expect(started.deadlineAt!.getTime() - T0.getTime()).toBe(durationMin * 60_000);
+      const view = await getAttemptView(db, { attemptId, userId, now: T0 });
+      expect([view.durationMin, view.totalQuestions]).toEqual([durationMin, 65]);
+      // The blueprint's typeMix asks for a few of each.
+      const dragdrop = view.items.filter((i) => i.question.type === "dragdrop");
+      const ordering = view.items.filter((i) => i.question.type === "ordering");
+      expect(dragdrop.length).toBeGreaterThan(0);
+      expect(ordering.length).toBeGreaterThan(0);
+      for (const i of view.items) expect(i.question.maxPoints).toBe(1);
+      // The view carries what the player needs to render them (items to place and targets; actions to pick and order).
+      for (const i of dragdrop) expect(i.question.body).toMatchObject({ items: expect.any(Array), targets: expect.any(Array) });
+      for (const i of ordering) expect(i.question.body).toMatchObject({ actions: expect.any(Array), count: expect.any(Number) });
 
-    const { attemptId, shortfall } = await createAttempt(db, { userId, certificationCode: code, locale: "fr", now: T0 });
-    expect(shortfall).toBe(0);
-    const started = await startAttempt(db, { attemptId, userId, now: T0 });
-    expect(started.deadlineAt!.getTime() - T0.getTime()).toBe(durationMin * 60_000);
-    const view = await getAttemptView(db, { attemptId, userId, now: T0 });
-    expect([view.durationMin, view.totalQuestions]).toEqual([durationMin, 65]);
-    // The blueprint's typeMix asks for a few of each.
-    const dragdrop = view.items.filter((i) => i.question.type === "dragdrop");
-    const ordering = view.items.filter((i) => i.question.type === "ordering");
-    expect(dragdrop.length).toBeGreaterThan(0);
-    expect(ordering.length).toBeGreaterThan(0);
-    for (const i of view.items) expect(i.question.maxPoints).toBe(1);
-    // The view carries what the player needs to render them (items to place and targets; actions to pick and order).
-    for (const i of dragdrop) expect(i.question.body).toMatchObject({ items: expect.any(Array), targets: expect.any(Array) });
-    for (const i of ordering) expect(i.question.body).toMatchObject({ actions: expect.any(Array), count: expect.any(Number) });
-
-    type Key = { optionId?: string; optionIds?: string[]; mapping?: Record<string, string>; sequence?: string[] };
-    const keys = new Map((await db.question.findMany({ where: { certificationId: cert.id } })).map((q) => [q.id, q.answer as Key]));
-    // One matching question with all but its last target right, one ordering question with its first two steps swapped.
-    const partial = dragdrop[0]!;
-    const swapped = ordering[0]!;
-    for (const item of view.items) {
-      const key = keys.get(item.question.id)!;
-      let response: Key = key;
-      if (item === partial) {
-        const entries = Object.entries(key.mapping!);
-        expect(entries.length).toBeGreaterThan(1);
-        response = { mapping: Object.fromEntries(entries.slice(0, -1)) };
-      } else if (item === swapped) {
-        const [a, b, ...rest] = key.sequence!;
-        response = { sequence: [b!, a!, ...rest] };
+      type Key = { optionId?: string; optionIds?: string[]; mapping?: Record<string, string>; sequence?: string[] };
+      const keys = new Map((await db.question.findMany({ where: { certificationId: cert.id } })).map((q) => [q.id, q.answer as Key]));
+      // One matching question with all but its last target right, one ordering question with its first two steps swapped.
+      const partial = dragdrop[0]!;
+      const swapped = ordering[0]!;
+      for (const item of view.items) {
+        const key = keys.get(item.question.id)!;
+        let response: Key = key;
+        if (item === partial) {
+          const entries = Object.entries(key.mapping!);
+          expect(entries.length).toBeGreaterThan(1);
+          response = { mapping: Object.fromEntries(entries.slice(0, -1)) };
+        } else if (item === swapped) {
+          const [a, b, ...rest] = key.sequence!;
+          response = { sequence: [b!, a!, ...rest] };
+        }
+        await saveItem(db, { attemptId, itemId: item.id, userId, response, now: T0 });
       }
-      await saveItem(db, { attemptId, itemId: item.id, userId, response, now: T0 });
-    }
-    await submitAttempt(db, { attemptId, userId, now: new Date(T0.getTime() + (durationMin - 1) * 60_000) });
+      await submitAttempt(db, { attemptId, userId, now: new Date(T0.getTime() + (durationMin - 1) * 60_000) });
 
-    const r = await getAttemptResults(db, { attemptId, userId });
-    expect([r.durationMin, r.maxScore]).toEqual([durationMin, 1000]);
-    expect([r.earned, r.possible]).toEqual([63, 65]);
-    for (const id of [partial.question.id, swapped.question.id]) {
-      const missed = r.items.find((i) => i.question.id === id)!;
-      expect([missed.earned, missed.max]).toEqual([0, 1]);
+      const r = await getAttemptResults(db, { attemptId, userId });
+      expect([r.durationMin, r.maxScore]).toEqual([durationMin, 1000]);
+      expect([r.earned, r.possible]).toEqual([63, 65]);
+      for (const id of [partial.question.id, swapped.question.id]) {
+        const missed = r.items.find((i) => i.question.id === id)!;
+        expect([missed.earned, missed.max]).toEqual([0, 1]);
+      }
+      expect(r.types.find((t) => t.key === "dragdrop")).toMatchObject({ possible: dragdrop.length, earned: dragdrop.length - 1 });
+      expect(r.types.find((t) => t.key === "ordering")).toMatchObject({ possible: ordering.length, earned: ordering.length - 1 });
+    } finally {
+      await db.question.updateMany({ where: { certificationId: cert.id }, data: { status: "draft" } });
+      await db.certification.update({ where: { id: cert.id }, data: { active: false } });
     }
-    expect(r.types.find((t) => t.key === "dragdrop")).toMatchObject({ possible: dragdrop.length, earned: dragdrop.length - 1 });
-    expect(r.types.find((t) => t.key === "ordering")).toMatchObject({ possible: ordering.length, earned: ordering.length - 1 });
-
-    await db.question.updateMany({ where: { certificationId: cert.id }, data: { status: "draft" } });
-    await db.certification.update({ where: { id: cert.id }, data: { active: false } });
   });
 });
