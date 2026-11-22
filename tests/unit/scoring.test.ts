@@ -94,6 +94,19 @@ describe("scoring rules (blueprint.scoring)", () => {
     errors.mockRestore();
   });
 
+  it("bounds the memo of logged values: an old value is logged again once the memo has been purged", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // 200 new distinct values: the memo (100 values at most) is purged at least once after the first one.
+    const values = Array.from({ length: 200 }, () => ({ multi: `bogus-${randomUUID()}` }));
+    for (const v of values) scoringRules(v);
+    expect(errors).toHaveBeenCalledTimes(200);
+    scoringRules(values.at(-1)); // still in the memo
+    expect(errors).toHaveBeenCalledTimes(200);
+    scoringRules(values[0]); // purged since: logged again
+    expect(errors).toHaveBeenCalledTimes(201);
+    errors.mockRestore();
+  });
+
   it("multi: the same answers scored per option and all or nothing", () => {
     const perOption = DEFAULT_SCORING;
     expect(scoreItem(multi, { optionIds: ["a", "c"] }, perOption)).toEqual({ earned: 2, max: 2 });
