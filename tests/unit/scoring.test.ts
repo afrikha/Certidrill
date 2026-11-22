@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { describe, expect, it, vi } from "vitest";
@@ -75,14 +76,16 @@ describe("scoring rules (blueprint.scoring)", () => {
     expect(scoringRules({ dragdrop: "all_or_nothing" })).toEqual({ multi: "per_option", dragdrop: "all_or_nothing" });
     // Absent is silent; unreadable falls back too, but is logged.
     expect(errors).not.toHaveBeenCalled();
-    expect(scoringRules({ multi: "bogus" })).toEqual(DEFAULT_SCORING);
+    // The memo of logged values is module state: values unique to this run, whatever ran before.
+    const bogus = { multi: `bogus-${randomUUID()}` };
+    expect(scoringRules(bogus)).toEqual(DEFAULT_SCORING);
     expect(errors).toHaveBeenCalledOnce();
     const logged = JSON.parse(errors.mock.calls[0]![0] as string);
-    expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: { multi: "bogus" } });
+    expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: bogus });
     // Logged once per distinct value, not on every scored item.
-    expect(scoringRules({ multi: "bogus" })).toEqual(DEFAULT_SCORING);
+    expect(scoringRules({ ...bogus })).toEqual(DEFAULT_SCORING);
     expect(errors).toHaveBeenCalledOnce();
-    expect(scoringRules({ dragdrop: "bogus" })).toEqual(DEFAULT_SCORING);
+    expect(scoringRules({ dragdrop: `bogus-${randomUUID()}` })).toEqual(DEFAULT_SCORING);
     expect(errors).toHaveBeenCalledTimes(2);
     errors.mockRestore();
   });
