@@ -166,11 +166,13 @@ describe("compare-blind: blueprint.scoring", () => {
     expect(await blueprintScoring(dir("az-104"))).toEqual({ multi: "per_option", dragdrop: "per_element" });
   });
 
-  it("names the blueprint when it is missing or its scoring is invalid", async () => {
+  it("names the blueprint when it is missing, not YAML, or its scoring is invalid", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "certidrill-scoring-"));
     try {
       const file = path.join(tmp, "blueprint.yaml");
       await expect(blueprintScoring(tmp)).rejects.toThrow(`${file}: blueprint not found`);
+      await writeFile(file, "blueprint: [unclosed\n");
+      await expect(blueprintScoring(tmp)).rejects.toThrow(`${file}: invalid YAML`);
       await writeFile(file, "blueprint:\n  scoring:\n    multi: bogus\n");
       await expect(blueprintScoring(tmp)).rejects.toThrow(`${file}: invalid blueprint.scoring: multi`);
     } finally {
