@@ -26,7 +26,7 @@ Application et partage des remises :
 
 - Dans une organisation, les remises des instances réservées s'appliquent d'abord, puis les EC2 Instance Savings Plans, puis les Compute Savings Plans. L'engagement est un montant en dollars par heure ; l'usage au-delà est facturé On-Demand, et l'engagement inutilisé reste facturé.
 - Avec la facturation consolidée, les RI et Savings Plans d'un compte peuvent profiter aux autres ; le partage peut être désactivé pour un compte (par exemple une unité opérationnelle qui doit garder ses propres remises pour la refacturation).
-- Les conditions d'un Savings Plan ne peuvent pas être modifiées après l'achat. Les RI Standard peuvent être revendues sur le Marketplace d'instances réservées (Reserved Instance Marketplace) ; les RI Convertible peuvent être échangées mais pas revendues.
+- Les conditions d'un Savings Plan ne peuvent pas être modifiées après l'achat. Les RI Standard peuvent être revendues sur la place de marché des instances réservées (Reserved Instance Marketplace) ; les RI Convertible peuvent être échangées mais pas revendues.
 - Les frais des Dedicated Instances (2 USD par heure et par Région) et les frais de cluster Amazon EKS ne sont pas réduits par les Savings Plans ; les nœuds de travail EC2, si.
 
 Modèle professionnel courant : une équipe centrale de gestion financière du cloud achète des Compute Savings Plans dans un compte dédié, au niveau du socle de toute l'organisation indiqué par les recommandations de Cost Explorer, et laisse les équipes utiliser n'importe quelle famille d'instances, Région ou Fargate. Les équipes certaines de rester sur une famille dans une Région ajoutent des EC2 Instance Savings Plans.
