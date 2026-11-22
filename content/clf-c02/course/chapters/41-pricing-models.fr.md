@@ -43,7 +43,7 @@ Les Savings Plans et les RI ont les mêmes options de paiement : **All Upfront**
 | Remise | Plus forte | Plus faible |
 | Échange contre une autre famille d'instances, un autre système d'exploitation ou une autre location | Non | Oui, contre une RI Convertible de valeur égale ou supérieure |
 | Modification de la zone de disponibilité, de la portée ou de la taille dans la famille | Oui | Oui |
-| Vente sur le Marketplace des instances réservées | Oui | Non |
+| Vente sur la place de marché des instances réservées | Oui | Non |
 
 | Portée | Capacité réservée | La remise s'applique à |
 | --- | --- | --- |

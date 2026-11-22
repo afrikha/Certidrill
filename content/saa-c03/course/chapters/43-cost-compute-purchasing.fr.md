@@ -35,7 +35,7 @@ Instances réservées :
 | Remise | Plus forte | Plus faible |
 | Échange contre une autre famille, un autre OS ou une autre location | Non | Oui |
 | Modification (zone, portée, taille dans la famille) | Oui | Oui |
-| Revente sur le Marketplace des instances réservées | Oui | Non |
+| Revente sur la place de marché des instances réservées | Oui | Non |
 
 | Portée | Capacité réservée | Flexibilité de zone | Flexibilité de taille |
 | --- | --- | --- | --- |
