@@ -129,3 +129,52 @@ test("French rendering and option shuffling", async ({ page }) => {
   await expect(page.getByText("Que devez-vous configurer ?")).toBeVisible();
   await expect(page.getByRole("radio")).toHaveCount(4);
 });
+
+// AWS matching (dragdrop) and ordering questions, as AIF-C01 and SCS-C03 use them (drafts, previewed by an admin).
+for (const { id, targets } of [
+  { id: "aifc01-1c-src-match-types", targets: ["t1", "t2", "t3", "t4"] },
+  { id: "scsc03-4c-match-analysis-tools", targets: ["t1", "t2", "t3", "t4"] },
+]) {
+  test(`AWS dragdrop ${id} — one list per target, each item used once at most`, async ({ page }) => {
+    await open(page, id);
+    const lists = page.getByRole("combobox");
+    await expect(lists).toHaveCount(targets.length);
+    // Items cannot be reused: the same item chosen for a second target moves there.
+    await lists.nth(0).selectOption({ index: 1 });
+    await lists.nth(1).selectOption({ index: 1 });
+    let moved = (await responseJson(page)) as { mapping: Record<string, string> };
+    expect(Object.keys(moved.mapping)).toEqual([targets[1]]);
+    for (let i = 0; i < targets.length; i++) await lists.nth(i).selectOption({ index: i + 1 });
+    moved = (await responseJson(page)) as { mapping: Record<string, string> };
+    expect(Object.keys(moved.mapping).sort()).toEqual(targets);
+    expect(new Set(Object.values(moved.mapping)).size).toBe(targets.length);
+    await expectValidAndComplete(page);
+  });
+}
+
+for (const { id, count } of [
+  { id: "aifc01-1b-pipe-order-phases", count: 4 },
+  { id: "scsc03-4c-order-external-finding-fix", count: 4 },
+]) {
+  test(`AWS ordering ${id} — pick ${count} actions and reorder them`, async ({ page }) => {
+    await open(page, id);
+    for (let i = 0; i < count; i++) {
+      await page.getByRole("button", { name: "Add →" }).first().focus();
+      await page.keyboard.press("Enter");
+    }
+    await expect(page.getByRole("button", { name: "Add →" }).first()).toBeDisabled();
+    const before = ((await responseJson(page)) as { sequence: string[] }).sequence;
+    expect(before).toHaveLength(count);
+    await page.getByRole("button", { name: "Move down" }).first().focus();
+    await page.keyboard.press("Enter");
+    const after = ((await responseJson(page)) as { sequence: string[] }).sequence;
+    expect(after).toEqual([before[1], before[0], ...before.slice(2)]);
+    await expectValidAndComplete(page);
+  });
+}
+
+test("AWS ordering in French — SCS-C03 actions are rendered in French", async ({ page }) => {
+  await page.goto("/admin/questions/scsc03-4c-order-external-finding-fix?lang=fr");
+  await expect(page.getByText("Examiner le résultat pour identifier le principal externe et la politique qui accorde l'accès.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add →" })).toHaveCount(6); // the interface follows the session language
+});

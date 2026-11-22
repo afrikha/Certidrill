@@ -178,13 +178,13 @@ Le **Top 10 de l'OWASP pour les applications LLM (2025)** et les contrôles AWS 
 
 | Risque | Contrôles AWS |
 | --- | --- |
-| LLM01 Prompt Injection (injection de prompt) | Filtre de contenu **Prompt Attack** de Bedrock Guardrails, balisage du contenu utilisateur en entrée, outils au moindre privilège |
+| LLM01 Prompt Injection (injection d'invite) | Filtre de contenu **Prompt Attack** de Bedrock Guardrails, balisage du contenu utilisateur en entrée, outils au moindre privilège |
 | LLM02 Sensitive Information Disclosure (divulgation d'informations sensibles) | **Filtres d'informations sensibles** (bloquer ou masquer les données personnelles, expressions régulières personnalisées), Macie sur les données d'entraînement et de récupération, KMS |
 | LLM03 Supply Chain (chaîne d'approvisionnement) | Modèles approuvés uniquement, Inspector sur les conteneurs et les dépendances, SBOM |
 | LLM04 Data and Model Poisoning (empoisonnement des données et du modèle) | Accès en écriture contrôlé et gestion des versions sur les données d'entraînement et des bases de connaissances, vérification de la provenance |
 | LLM05 Improper Output Handling (traitement inapproprié des sorties) | Traiter la sortie du modèle comme une entrée non fiable : valider et encoder avant usage, garde-fous en sortie |
 | LLM06 Excessive Agency (autonomie excessive) | Rôles au moindre privilège pour les actions des agents et les outils Lambda, confirmation de l'utilisateur pour les actions sensibles |
-| LLM07 System Prompt Leakage (fuite du prompt système) | Aucun secret ni aucune logique d'autorisation dans les prompts ; secrets dans Secrets Manager |
+| LLM07 System Prompt Leakage (fuite de l'invite système) | Aucun secret ni aucune logique d'autorisation dans les invites ; secrets dans Secrets Manager |
 | LLM08 Vector and Embedding Weaknesses (faiblesses des vecteurs et embeddings) | Contrôle d'accès et filtrage par métadonnées par locataire sur les bases de connaissances, chiffrement |
 | LLM09 Misinformation (désinformation) | **Vérifications d'ancrage contextuel** (contextual grounding checks), **Automated Reasoning checks** |
 | LLM10 Unbounded Consumption (consommation non bornée) | Limitation et plans d'utilisation API Gateway, règles WAF basées sur le débit, limites de jetons, quotas |
@@ -217,7 +217,7 @@ Politiques d'**Amazon Bedrock Guardrails** : **filtres de contenu** (Hate, Insul
 
 À compléter par : journalisation des invocations de modèles vers CloudWatch Logs ou S3, points de terminaison VPC d'interface pour Bedrock, CloudTrail pour l'activité de l'API, et les signaux GuardDuty AI Protection issus des événements de données Bedrock et SageMaker AI.
 
-> **Piège d'examen.** La condition IAM sur le garde-fou ne convient pas aux API à appels multiples comme `RetrieveAndGenerate` ou `InvokeAgent`, et les balises d'entrée permettent à un appelant d'exclure son prompt de l'évaluation (la réponse reste évaluée). Pour garantir un garde-fou sur chaque invocation dans plusieurs comptes, utilisez l'application des garde-fous par une politique Amazon Bedrock.
+> **Piège d'examen.** La condition IAM sur le garde-fou ne convient pas aux API à appels multiples comme `RetrieveAndGenerate` ou `InvokeAgent`, et les balises d'entrée permettent à un appelant d'exclure son invite de l'évaluation (la réponse reste évaluée). Pour garantir un garde-fou sur chaque invocation dans plusieurs comptes, utilisez l'application des garde-fous par une politique Amazon Bedrock.
 
 <!-- section: key-points -->
 ## Points clés

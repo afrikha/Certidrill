@@ -130,7 +130,7 @@ people and agents who author or review questions.
 - Language-neutral texts (a command, `Standard_LRS`, a role name) can be a plain
   string instead of `{ en, fr }`.
 
-## AWS certifications (`vendor: AWS`: SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03)
+## AWS certifications (`vendor: AWS`: SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03)
 
 The rules above apply, except the points below, which replace the
 Microsoft-specific ones (from `factory/BRIEF-AWS.md`).
@@ -149,7 +149,7 @@ Microsoft-specific ones (from `factory/BRIEF-AWS.md`).
 3. **Types.** Those of the exam guide only. SAA-C03 and CLF-C02: `single`
    (1 correct of 4) and `multi` (5 options with 2 correct, or 6 with 3,
    "(Choose two.)" / « (Choisissez deux réponses.) » at the end of the stem).
-   AIF-C01 also has `ordering` and matching (`dragdrop`). No case study, no
+   AIF-C01 and SCS-C03 also have `ordering` and matching (`dragdrop`). No case study, no
    Yes/No series.
 4. **Scoring.** AWS scores `multi` and matching all or nothing
    (`blueprint.scoring`): **no** "NOTE: Each correct selection is worth one

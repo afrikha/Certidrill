@@ -16,7 +16,7 @@ Les questions de journalisation demandent quelle source enregistre la preuve, o�
 | Journaux standard CloudFront | Requêtes des utilisateurs | Non | CloudWatch Logs, Firehose, S3 |
 | Journaux d'accès au serveur S3 | Requêtes vers un compartiment, au mieux (best effort) | Non | Un autre compartiment |
 | Journaux du plan de contrôle EKS | `api`, `audit`, `authenticator`, `controllerManager`, `scheduler` | Non | CloudWatch Logs |
-| Journaux Lambda, API Gateway, d'invocation Bedrock | Sortie applicative, requêtes d'API, prompts et réponses | Lambda oui (si le rôle le permet) ; les autres non | CloudWatch Logs, S3, Firehose selon le service |
+| Journaux Lambda, API Gateway, d'invocation Bedrock | Sortie applicative, requêtes d'API, invites et réponses | Lambda oui (si le rôle le permet) ; les autres non | CloudWatch Logs, S3, Firehose selon le service |
 | AWS Config | Historique et instantanés de configuration | Quand l'enregistreur fonctionne | Compartiment S3 du canal de diffusion |
 
 Choisissez le stockage d'après l'exigence :
