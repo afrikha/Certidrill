@@ -24,6 +24,9 @@ export async function blueprintScoring(certDir: string): Promise<ScoringRules> {
     throw new Error(`${file}: invalid YAML: ${e instanceof Error ? e.message : String(e)}`);
   }
   const parsed = scoringRulesSchema.safeParse(doc?.blueprint?.scoring);
-  if (!parsed.success) throw new Error(`${file}: invalid blueprint.scoring: ${parsed.error.issues.map((i) => `${i.path.join(".") || "scoring"} ${i.message}`).join("; ")}`);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => (i.path.join(".") || "scoring") + " " + i.message).join("; ");
+    throw new Error(`${file}: invalid blueprint.scoring: ${issues}`);
+  }
   return parsed.data;
 }
