@@ -1,0 +1,80 @@
+id: scsc03-5a-bucket-key-context
+objective: "5.2.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany stores ingestion data in an Amazon S3 bucket named example-ingest with SSE-KMS and a customer managed key that the company must keep using. To reduce AWS KMS costs, the team enabled S3 Bucket Keys on the bucket. Since then, the ingestion role gets KMS AccessDenied errors when it uploads or reads new objects, but it can still read objects written before the change. The key policy statement for the role is:
+
+    ```json
+    {
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::111122223333:role/ingest" },
+      "Action": [ "kms:GenerateDataKey", "kms:Decrypt" ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::example-ingest/incoming/*"
+        }
+      }
+    }
+    ```
+
+    Which change will fix the issue while keeping S3 Bucket Keys enabled?
+  fr: |
+    AnyCompany stocke des données d'ingestion dans un compartiment Amazon S3 nommé example-ingest avec SSE-KMS et une clé gérée par le client que l'entreprise doit continuer à utiliser. Pour réduire les coûts AWS KMS, l'équipe a activé les clés de compartiment S3 sur le compartiment. Depuis, le rôle d'ingestion reçoit des erreurs KMS AccessDenied lorsqu'il charge ou lit de nouveaux objets, mais il peut toujours lire les objets écrits avant le changement. L'instruction de politique de clé pour le rôle est la suivante :
+
+    ```json
+    {
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::111122223333:role/ingest" },
+      "Action": [ "kms:GenerateDataKey", "kms:Decrypt" ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::example-ingest/incoming/*"
+        }
+      }
+    }
+    ```
+
+    Quelle modification corrige le problème tout en gardant les clés de compartiment S3 activées ?
+body:
+  options:
+    - id: a
+      text:
+        en: "Copy the existing objects onto themselves with CopyObject so that they are encrypted under the bucket key."
+        fr: "Copier les objets existants sur eux-mêmes avec CopyObject pour qu'ils soient chiffrés sous la clé de compartiment."
+    - id: b
+      text:
+        en: "Add kms:CreateGrant to the Action list of the statement, and keep the condition unchanged."
+        fr: "Ajouter kms:CreateGrant à la liste Action de l'instruction, et garder la condition inchangée."
+    - id: c
+      text:
+        en: "Change the condition value to the bucket ARN arn:aws:s3:::example-ingest, and keep the prefix restriction in the S3 permissions."
+        fr: "Remplacer la valeur de la condition par l'ARN du compartiment arn:aws:s3:::example-ingest, et garder la restriction de préfixe dans les autorisations S3."
+    - id: d
+      text:
+        en: "Change the condition key to kms:EncryptionContextKeys, and keep the object ARN pattern as its value."
+        fr: "Remplacer la clé de condition par kms:EncryptionContextKeys, et garder le modèle d'ARN d'objet comme valeur."
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "With S3 Bucket Keys, Amazon S3 uses the bucket ARN instead of the object ARN as the aws:s3:arn encryption context, so a key policy condition that matches object ARNs no longer matches new requests. The condition must use the bucket ARN, and the restriction to the incoming/ prefix moves to the S3 permissions of the role or the bucket policy. Objects written before the change keep their object ARN context, which is why they still decrypt."
+    fr: "Avec les clés de compartiment S3, Amazon S3 utilise l'ARN du compartiment au lieu de l'ARN de l'objet comme contexte de chiffrement aws:s3:arn : une condition de politique de clé qui correspond à des ARN d'objet ne correspond plus aux nouvelles requêtes. La condition doit utiliser l'ARN du compartiment, et la restriction au préfixe incoming/ passe dans les autorisations S3 du rôle ou dans la politique de compartiment. Les objets écrits avant le changement gardent leur contexte d'ARN d'objet, ce qui explique qu'ils se déchiffrent toujours."
+  options:
+    a:
+      en: "Re-encrypting the old objects under the bucket key would give them the bucket ARN context too, so they would also fail with the current condition."
+      fr: "Rechiffrer les anciens objets sous la clé de compartiment leur donnerait aussi le contexte d'ARN du compartiment : ils échoueraient aussi avec la condition actuelle."
+    b:
+      en: "The failure comes from the encryption context condition: the new requests still do not match it, so adding another action to the same statement changes nothing."
+      fr: "L'échec vient de la condition sur le contexte de chiffrement : les nouvelles requêtes n'y correspondent toujours pas, et ajouter une action à la même instruction ne change rien."
+    d:
+      en: "kms:EncryptionContextKeys matches the names of the encryption context keys, not their values, so an ARN pattern would never match."
+      fr: "kms:EncryptionContextKeys porte sur les noms des clés du contexte de chiffrement, pas sur leurs valeurs : un modèle d'ARN ne correspondrait jamais."
+references:
+  - title: Reducing the cost of SSE-KMS with Amazon S3 Bucket Keys - Amazon Simple Storage Service
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucket-key.html
+  - title: Using server-side encryption with AWS KMS keys (SSE-KMS) - Amazon Simple Storage Service
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html

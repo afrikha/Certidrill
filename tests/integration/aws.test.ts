@@ -23,13 +23,13 @@ beforeAll(async () => {
   await db.$executeRawUnsafe(
     'TRUNCATE "attempt_item","attempt_section","attempt","question_report","question","case_study","question_series","objective","domain","blueprint","certification","auth_account","auth_session","auth_verification_token","user" CASCADE',
   );
-  for (const code of ["az-104", "saa-c03", "soa-c03", "sap-c03"]) {
+  for (const code of ["az-104", "saa-c03", "soa-c03", "sap-c03", "aif-c01", "scs-c03"]) {
     const content = await loadCertification(path.resolve(__dirname, "../../content", code));
     await seedReferential(db, content);
     await seedBank(db, content, await loadBank(content));
   }
   userId = (await createUser(db, { email: "aws@example.com" })).id;
-}, 120_000); // four real banks to seed
+}, 240_000); // six real banks to seed
 afterAll(() => db.$disconnect());
 
 const saa = () => db.certification.findUniqueOrThrow({ where: { code: "saa-c03" } });
@@ -149,5 +149,76 @@ describe("the other AWS certifications", () => {
     expect(r.scaledScore).toBe(Math.round((1000 * 74) / 75));
     expect(r.items).toHaveLength(75);
     expect(r.domains.reduce((n, d) => n + d.possible, 0)).toBe(75);
+  });
+});
+
+describe.each([
+  { code: "aif-c01", title: "AWS Certified AI Practitioner", durationMin: 90 },
+  { code: "scs-c03", title: "AWS Certified Security – Specialty", durationMin: 170 },
+])("$code: ordering and matching (dragdrop) questions", ({ code, title, durationMin }) => {
+  it("is seeded inactive, in draft, with its blueprint duration and all-or-nothing rules", async () => {
+    const cert = await db.certification.findUniqueOrThrow({ where: { code } });
+    expect(cert).toMatchObject({ vendor: "AWS", active: false, title });
+    expect(await db.question.count({ where: { certificationId: cert.id, status: { not: "draft" } } })).toBe(0);
+    const blueprint = await db.blueprint.findFirstOrThrow({ where: { certificationId: cert.id, current: true } });
+    expect([blueprint.durationMin, blueprint.scoring]).toEqual([durationMin, { multi: "all_or_nothing", dragdrop: "all_or_nothing" }]);
+  });
+
+  it("serves them in an exam worth 1 point each, with no credit for a partial match or a wrong order", async () => {
+    const cert = await db.certification.findUniqueOrThrow({ where: { code } });
+    await db.certification.update({ where: { id: cert.id }, data: { active: true } });
+    await db.question.updateMany({ where: { certificationId: cert.id }, data: { status: "published" } });
+    await grantFullAccess(db, userId, code);
+    // Put back as seeded even when an assertion fails: the next tests start from inactive drafts.
+    try {
+      const { attemptId, shortfall } = await createAttempt(db, { userId, certificationCode: code, locale: "fr", now: T0 });
+      expect(shortfall).toBe(0);
+      const started = await startAttempt(db, { attemptId, userId, now: T0 });
+      expect(started.deadlineAt!.getTime() - T0.getTime()).toBe(durationMin * 60_000);
+      const view = await getAttemptView(db, { attemptId, userId, now: T0 });
+      expect([view.durationMin, view.totalQuestions]).toEqual([durationMin, 65]);
+      // The blueprint's typeMix asks for a few of each.
+      const dragdrop = view.items.filter((i) => i.question.type === "dragdrop");
+      const ordering = view.items.filter((i) => i.question.type === "ordering");
+      expect(dragdrop.length).toBeGreaterThan(0);
+      expect(ordering.length).toBeGreaterThan(0);
+      for (const i of view.items) expect(i.question.maxPoints).toBe(1);
+      // The view carries what the player needs to render them (items to place and targets; actions to pick and order).
+      for (const i of dragdrop) expect(i.question.body).toMatchObject({ items: expect.any(Array), targets: expect.any(Array) });
+      for (const i of ordering) expect(i.question.body).toMatchObject({ actions: expect.any(Array), count: expect.any(Number) });
+
+      type Key = { optionId?: string; optionIds?: string[]; mapping?: Record<string, string>; sequence?: string[] };
+      const keys = new Map((await db.question.findMany({ where: { certificationId: cert.id } })).map((q) => [q.id, q.answer as Key]));
+      // One matching question with all but its last target right, one ordering question with its first two steps swapped.
+      const partial = dragdrop[0]!;
+      const swapped = ordering[0]!;
+      for (const item of view.items) {
+        const key = keys.get(item.question.id)!;
+        let response: Key = key;
+        if (item === partial) {
+          const entries = Object.entries(key.mapping!);
+          expect(entries.length).toBeGreaterThan(1);
+          response = { mapping: Object.fromEntries(entries.slice(0, -1)) };
+        } else if (item === swapped) {
+          const [a, b, ...rest] = key.sequence!;
+          response = { sequence: [b!, a!, ...rest] };
+        }
+        await saveItem(db, { attemptId, itemId: item.id, userId, response, now: T0 });
+      }
+      await submitAttempt(db, { attemptId, userId, now: new Date(T0.getTime() + (durationMin - 1) * 60_000) });
+
+      const r = await getAttemptResults(db, { attemptId, userId });
+      expect([r.durationMin, r.maxScore]).toEqual([durationMin, 1000]);
+      expect([r.earned, r.possible]).toEqual([63, 65]);
+      for (const id of [partial.question.id, swapped.question.id]) {
+        const missed = r.items.find((i) => i.question.id === id)!;
+        expect([missed.earned, missed.max]).toEqual([0, 1]);
+      }
+      expect(r.types.find((t) => t.key === "dragdrop")).toMatchObject({ possible: dragdrop.length, earned: dragdrop.length - 1 });
+      expect(r.types.find((t) => t.key === "ordering")).toMatchObject({ possible: ordering.length, earned: ordering.length - 1 });
+    } finally {
+      await db.question.updateMany({ where: { certificationId: cert.id }, data: { status: "draft" } });
+      await db.certification.update({ where: { id: cert.id }, data: { active: false } });
+    }
   });
 });

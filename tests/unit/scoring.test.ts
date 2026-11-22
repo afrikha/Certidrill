@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { describe, expect, it, vi } from "vitest";
@@ -75,10 +76,34 @@ describe("scoring rules (blueprint.scoring)", () => {
     expect(scoringRules({ dragdrop: "all_or_nothing" })).toEqual({ multi: "per_option", dragdrop: "all_or_nothing" });
     // Absent is silent; unreadable falls back too, but is logged.
     expect(errors).not.toHaveBeenCalled();
-    expect(scoringRules({ multi: "bogus" })).toEqual(DEFAULT_SCORING);
+    // The memo of logged values is module state: values unique to this run, whatever ran before.
+    const bogus = { multi: `bogus-${randomUUID()}` };
+    expect(scoringRules(bogus)).toEqual(DEFAULT_SCORING);
     expect(errors).toHaveBeenCalledOnce();
     const logged = JSON.parse(errors.mock.calls[0]![0] as string);
-    expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: { multi: "bogus" } });
+    expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: JSON.stringify(bogus) });
+    // Logged once per distinct value, not on every scored item.
+    expect(scoringRules({ ...bogus })).toEqual(DEFAULT_SCORING);
+    expect(errors).toHaveBeenCalledOnce();
+    expect(scoringRules({ dragdrop: `bogus-${randomUUID()}` })).toEqual(DEFAULT_SCORING);
+    expect(errors).toHaveBeenCalledTimes(2);
+    // A value JSON cannot serialize still falls back without throwing.
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    expect(scoringRules(cyclic)).toEqual(DEFAULT_SCORING);
+    errors.mockRestore();
+  });
+
+  it("bounds the memo of logged values: an old value is logged again once the memo has been purged", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // 200 new distinct values: the memo (100 values at most) is purged at least once after the first one.
+    const values = Array.from({ length: 200 }, () => ({ multi: `bogus-${randomUUID()}` }));
+    for (const v of values) scoringRules(v);
+    expect(errors).toHaveBeenCalledTimes(200);
+    scoringRules(values.at(-1)); // still in the memo
+    expect(errors).toHaveBeenCalledTimes(200);
+    scoringRules(values[0]); // purged since: logged again
+    expect(errors).toHaveBeenCalledTimes(201);
     errors.mockRestore();
   });
 

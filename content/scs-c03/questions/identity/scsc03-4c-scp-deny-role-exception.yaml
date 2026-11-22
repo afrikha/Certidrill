@@ -1,0 +1,80 @@
+id: scsc03-4c-scp-deny-role-exception
+objective: "4.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    AnyCompany uses AWS Organizations. A service control policy (SCP) attached to the Workloads OU denies kms:ScheduleKeyDeletion on all resources. A new automation role named KeyLifecycle, which exists in every member account of the OU, must be able to schedule the deletion of AWS KMS keys. Its identity-based policy allows the action, but each attempt fails with the following error:
+
+    ```text
+    User: arn:aws:sts::111122223333:assumed-role/KeyLifecycle/run-42 is not authorized to perform: kms:ScheduleKeyDeletion on resource: arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab with an explicit deny in a service control policy: arn:aws:organizations::999999999999:policy/o-exampleorgid/service_control_policy/p-examplepolicy1
+    ```
+
+    All other principals in the OU must remain unable to schedule key deletion.
+
+    Which solution will meet these requirements?
+  fr: |
+    AnyCompany utilise AWS Organizations. Une politique de contrôle des services (SCP) attachée à l'unité d'organisation Workloads refuse kms:ScheduleKeyDeletion sur toutes les ressources. Un nouveau rôle d'automatisation nommé KeyLifecycle, présent dans chaque compte membre de l'unité d'organisation, doit pouvoir planifier la suppression de clés AWS KMS. Sa politique basée sur l'identité autorise l'action, mais chaque tentative échoue avec l'erreur suivante :
+
+    ```text
+    User: arn:aws:sts::111122223333:assumed-role/KeyLifecycle/run-42 is not authorized to perform: kms:ScheduleKeyDeletion on resource: arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab with an explicit deny in a service control policy: arn:aws:organizations::999999999999:policy/o-exampleorgid/service_control_policy/p-examplepolicy1
+    ```
+
+    Tous les autres principaux de l'unité d'organisation doivent rester dans l'impossibilité de planifier la suppression de clés.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Attach a second SCP to the Workloads OU with an Allow statement for kms:ScheduleKeyDeletion whose Condition matches the KeyLifecycle role ARN.
+        fr: |-
+          Attacher à l'unité d'organisation Workloads une seconde SCP avec une instruction Allow pour kms:ScheduleKeyDeletion dont la condition cible l'ARN du rôle KeyLifecycle.
+    - id: b
+      text:
+        en: |-
+          Add an ArnNotLike condition on aws:PrincipalArn with the value arn:aws:iam::*:role/KeyLifecycle to the Deny statement of the existing SCP.
+        fr: |-
+          Ajouter à l'instruction Deny de la SCP existante une condition ArnNotLike sur aws:PrincipalArn avec la valeur arn:aws:iam::*:role/KeyLifecycle.
+    - id: c
+      text:
+        en: |-
+          Add a statement to the key policy of each KMS key that allows the KeyLifecycle role to call kms:ScheduleKeyDeletion.
+        fr: |-
+          Ajouter à la politique de clé de chaque clé KMS une instruction qui autorise le rôle KeyLifecycle à appeler kms:ScheduleKeyDeletion.
+    - id: d
+      text:
+        en: |-
+          Attach a permissions boundary to the KeyLifecycle role that allows kms:ScheduleKeyDeletion on all KMS keys in the account.
+        fr: |-
+          Attacher au rôle KeyLifecycle une limite d'autorisations qui autorise kms:ScheduleKeyDeletion sur toutes les clés KMS du compte.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      The message names an explicit deny in an SCP, and an explicit deny overrides every Allow in any policy type. The only way to let one role through is to narrow the Deny itself: an ArnNotLike condition on aws:PrincipalArn excludes the KeyLifecycle role in every member account and keeps the deny for all other principals.
+    fr: |-
+      Le message indique un refus explicite dans une SCP, et un refus explicite l'emporte sur toute autorisation, quel que soit le type de politique. La seule façon de laisser passer un rôle est de restreindre le Deny lui-même : une condition ArnNotLike sur aws:PrincipalArn exclut le rôle KeyLifecycle dans chaque compte membre et maintient le refus pour tous les autres principaux.
+  options:
+    a:
+      en: |-
+        An SCP never grants permissions, and an Allow in another SCP cannot cancel the explicit deny of the existing SCP.
+      fr: |-
+        Une SCP n'accorde jamais d'autorisations, et une instruction Allow dans une autre SCP ne peut pas annuler le refus explicite de la SCP existante.
+    c:
+      en: |-
+        The key policy already works with the identity-based policy; the explicit deny in the SCP still applies to the role whatever the key policy allows.
+      fr: |-
+        La politique de clé fonctionne déjà avec la politique basée sur l'identité ; le refus explicite de la SCP s'applique toujours au rôle, quoi qu'autorise la politique de clé.
+    d:
+      en: |-
+        A permissions boundary only limits the maximum permissions of the role; it cannot override an explicit deny in an SCP.
+      fr: |-
+        Une limite d'autorisations ne fait que plafonner les autorisations du rôle ; elle ne peut pas annuler un refus explicite dans une SCP.
+references:
+  - title: Troubleshoot access denied error messages - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/troubleshoot_access-denied.html
+  - title: Service control policies (SCPs) - AWS Organizations
+    url: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html
