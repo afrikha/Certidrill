@@ -81,12 +81,16 @@ describe("scoring rules (blueprint.scoring)", () => {
     expect(scoringRules(bogus)).toEqual(DEFAULT_SCORING);
     expect(errors).toHaveBeenCalledOnce();
     const logged = JSON.parse(errors.mock.calls[0]![0] as string);
-    expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: bogus });
+    expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: JSON.stringify(bogus) });
     // Logged once per distinct value, not on every scored item.
     expect(scoringRules({ ...bogus })).toEqual(DEFAULT_SCORING);
     expect(errors).toHaveBeenCalledOnce();
     expect(scoringRules({ dragdrop: `bogus-${randomUUID()}` })).toEqual(DEFAULT_SCORING);
     expect(errors).toHaveBeenCalledTimes(2);
+    // A value JSON cannot serialize still falls back without throwing.
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    expect(scoringRules(cyclic)).toEqual(DEFAULT_SCORING);
     errors.mockRestore();
   });
 

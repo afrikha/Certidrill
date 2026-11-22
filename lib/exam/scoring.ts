@@ -29,6 +29,14 @@ export interface ScorableQuestion {
 /** Unreadable stored values already logged (by JSON form): one log per value, not per scored item. */
 const loggedRules = new Set<string>();
 const MAX_LOGGED_RULES = 100;
+/** A bounded memo key; never throws (BigInt, cycles), since this is already the unreadable-value path. */
+function memoKey(stored: unknown): string {
+  try {
+    return (JSON.stringify(stored) ?? String(stored)).slice(0, 500);
+  } catch {
+    return Object.prototype.toString.call(stored);
+  }
+}
 
 /**
  * The scoring rules stored with a blueprint (blueprint.scoring); the Microsoft
@@ -39,11 +47,12 @@ const MAX_LOGGED_RULES = 100;
 export function scoringRules(stored: unknown): ScoringRules {
   const parsed = scoringRulesSchema.safeParse(stored ?? undefined);
   if (parsed.success) return parsed.data;
-  const key = JSON.stringify(stored);
+  const key = memoKey(stored);
   if (!loggedRules.has(key)) {
     if (loggedRules.size >= MAX_LOGGED_RULES) loggedRules.clear();
     loggedRules.add(key);
-    logError("exam.scoring_rules", parsed.error, { stored });
+    // The bounded serialized form: the raw value may be large, or not serializable at all.
+    logError("exam.scoring_rules", parsed.error, { stored: key });
   }
   return DEFAULT_SCORING;
 }
