@@ -14,7 +14,8 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { scoreItem } from "../../lib/exam/scoring";
-import { DEFAULT_SCORING, scoringRulesSchema, type ScoringRules } from "../../lib/content/schema";
+import type { ScoringRules } from "../../lib/content/schema";
+import { blueprintScoring } from "./blueprint-scoring";
 import { listCertificationDirs } from "../../lib/content/loader";
 import { parseCertArgs } from "../cert-args";
 
@@ -38,10 +39,7 @@ function rulesOf(file: string): Promise<ScoringRules> {
   const certDir = path.resolve(file, "../../..");
   let rules = rulesByCert.get(certDir);
   if (!rules) {
-    rules = readFile(path.join(certDir, "blueprint.yaml"), "utf8").then(
-      (text) => scoringRulesSchema.parse((parse(text) as { blueprint?: { scoring?: unknown } }).blueprint?.scoring),
-      () => DEFAULT_SCORING,
-    );
+    rules = blueprintScoring(certDir);
     rulesByCert.set(certDir, rules);
   }
   return rules;

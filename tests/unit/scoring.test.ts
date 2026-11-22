@@ -79,6 +79,11 @@ describe("scoring rules (blueprint.scoring)", () => {
     expect(errors).toHaveBeenCalledOnce();
     const logged = JSON.parse(errors.mock.calls[0]![0] as string);
     expect(logged).toMatchObject({ level: "error", event: "exam.scoring_rules", stored: { multi: "bogus" } });
+    // Logged once per distinct value, not on every scored item.
+    expect(scoringRules({ multi: "bogus" })).toEqual(DEFAULT_SCORING);
+    expect(errors).toHaveBeenCalledOnce();
+    expect(scoringRules({ dragdrop: "bogus" })).toEqual(DEFAULT_SCORING);
+    expect(errors).toHaveBeenCalledTimes(2);
     errors.mockRestore();
   });
 

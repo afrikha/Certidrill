@@ -4,11 +4,14 @@
  * blueprints without case study nor series (fundamentals), and the AWS
  * glossary with its terminology check.
  */
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { certOfFile, parseCertArgs, requireCertDirs } from "../../tools/cert-args";
 import { splitGroups } from "../../tools/questions/export-blind";
 import { simulate } from "../../tools/questions/simulate";
+import { blueprintScoring } from "../../tools/questions/blueprint-scoring";
 import { CONTENT_ROOT, loadCertification } from "@/lib/content/loader";
 import { glossaryConflicts, loadGlossaries, loadVendorGlossary, sharedGlossarySchema, terminologyWarnings, vendorGlossaryConflicts } from "@/lib/content/glossary";
 import { VENDORS } from "@/lib/vendors";
@@ -154,5 +157,24 @@ describe("AWS glossary", () => {
     const terms = [term("bucket", "compartiment", { avoid: ["bucket", "buckets"] })];
     expect(terminologyWarnings("<!-- section: bucket | objectives: 1.1 -->\nL'énoncé dit « find PII in S3 buckets ».", terms)).toEqual([]);
     expect(terminologyWarnings("« find PII » dans un bucket.", terms)).toEqual([`French text uses « bucket »: the glossary says « compartiment » for "bucket"`]);
+  });
+});
+
+describe("compare-blind: blueprint.scoring", () => {
+  it("reads the rules of the certification, Microsoft by default", async () => {
+    expect(await blueprintScoring(dir("scs-c03"))).toEqual({ multi: "all_or_nothing", dragdrop: "all_or_nothing" });
+    expect(await blueprintScoring(dir("az-104"))).toEqual({ multi: "per_option", dragdrop: "per_element" });
+  });
+
+  it("names the blueprint when it is missing or its scoring is invalid", async () => {
+    const tmp = await mkdtemp(path.join(tmpdir(), "certidrill-scoring-"));
+    try {
+      const file = path.join(tmp, "blueprint.yaml");
+      await expect(blueprintScoring(tmp)).rejects.toThrow(`${file}: blueprint not found`);
+      await writeFile(file, "blueprint:\n  scoring:\n    multi: bogus\n");
+      await expect(blueprintScoring(tmp)).rejects.toThrow(`${file}: invalid blueprint.scoring: multi`);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
   });
 });
