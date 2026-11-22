@@ -1,0 +1,50 @@
+id: deac01-1d-redshift-qualify-latest-version
+objective: "1.4.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A pipeline loads change records from an operational database into a staging table named stg_orders in Amazon Redshift. stg_orders has the columns order_id, status, amount, and updated_at, in the same order as the orders table, and it can contain several versions of the same order_id. The following statement fails with the error "Found multiple matches to update the same tuple":
+
+    ```sql
+    MERGE INTO orders
+    USING stg_orders s
+    ON orders.order_id = s.order_id
+    WHEN MATCHED THEN UPDATE SET status = s.status, amount = s.amount, updated_at = s.updated_at
+    WHEN NOT MATCHED THEN INSERT VALUES (s.order_id, s.status, s.amount, s.updated_at);
+    ```
+
+    Only the latest version of each order must be applied. Which source should replace `stg_orders s` in the statement?
+  fr: |
+    Un pipeline charge les enregistrements de modification d'une base de données opérationnelle dans une table intermédiaire nommée stg_orders dans Amazon Redshift. stg_orders a les colonnes order_id, status, amount et updated_at, dans le même ordre que la table orders, et peut contenir plusieurs versions du même order_id. L'instruction suivante échoue avec l'erreur « Found multiple matches to update the same tuple » :
+
+    ```sql
+    MERGE INTO orders
+    USING stg_orders s
+    ON orders.order_id = s.order_id
+    WHEN MATCHED THEN UPDATE SET status = s.status, amount = s.amount, updated_at = s.updated_at
+    WHEN NOT MATCHED THEN INSERT VALUES (s.order_id, s.status, s.amount, s.updated_at);
+    ```
+
+    Seule la dernière version de chaque commande doit être appliquée. Quelle source doit remplacer `stg_orders s` dans l'instruction ?
+body:
+  options:
+    - { id: a, text: "`(SELECT * FROM stg_orders st QUALIFY ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC) = 1) AS s`" }
+    - { id: b, text: "`(SELECT DISTINCT order_id, status, amount, updated_at FROM stg_orders) AS s`" }
+    - { id: c, text: "`(SELECT * FROM stg_orders WHERE updated_at = (SELECT MAX(updated_at) FROM stg_orders)) AS s`" }
+    - { id: d, text: "`(SELECT order_id, MAX(updated_at) AS updated_at FROM stg_orders GROUP BY order_id) AS s`" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "In a MERGE, a target row cannot match several source rows, so the source must be deduplicated first. ROW_NUMBER() numbers the versions of each order_id from the most recent one, and QUALIFY filters on the result of the window function to keep only the row numbered 1, with all its columns."
+    fr: "Dans un MERGE, une ligne cible ne peut pas correspondre à plusieurs lignes source : il faut d'abord dédupliquer la source. ROW_NUMBER() numérote les versions de chaque order_id en partant de la plus récente, et QUALIFY filtre sur le résultat de la fonction de fenêtrage pour ne garder que la ligne numérotée 1, avec toutes ses colonnes."
+  options:
+    b: { en: "The versions of an order differ in status, amount, or updated_at, so DISTINCT keeps all of them and the error remains.", fr: "Les versions d'une commande diffèrent par status, amount ou updated_at : DISTINCT les conserve toutes et l'erreur persiste." }
+    c: { en: "The subquery keeps only the rows that have the latest updated_at of the whole table, so most orders are ignored.", fr: "La sous-requête ne garde que les lignes ayant le updated_at le plus récent de toute la table : la plupart des commandes sont ignorées." }
+    d: { en: "The subquery returns only order_id and updated_at, so s.status and s.amount do not exist and the statement fails.", fr: "La sous-requête ne renvoie que order_id et updated_at : s.status et s.amount n'existent pas et l'instruction échoue." }
+references:
+  - title: QUALIFY clause
+    url: https://docs.aws.amazon.com/redshift/latest/dg/r_QUALIFY_clause.html
+  - title: MERGE
+    url: https://docs.aws.amazon.com/redshift/latest/dg/r_MERGE.html

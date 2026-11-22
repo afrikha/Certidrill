@@ -1,0 +1,38 @@
+id: deac01-3c-glue-exclude-archived
+objective: "3.3.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AWS Glue ETL job reads a Data Catalog table of call records in Amazon S3 with create_dynamic_frame.from_catalog. A retention process now tags individual old files in every date partition, and an S3 Lifecycle rule moves the tagged files to S3 Glacier Flexible Retrieval or S3 Glacier Deep Archive. Since then, the job fails with AmazonS3Exception: The operation is not valid for the object's storage class. The job must keep processing all the files that are still in other storage classes, without restoring archived files.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une tâche ETL AWS Glue lit une table du Data Catalog contenant des enregistrements d'appels dans Amazon S3 avec create_dynamic_frame.from_catalog. Un processus de conservation balise désormais des fichiers anciens individuels dans chaque partition de date, et une règle de cycle de vie S3 déplace les fichiers balisés vers S3 Glacier Flexible Retrieval ou S3 Glacier Deep Archive. Depuis, la tâche échoue avec AmazonS3Exception: The operation is not valid for the object's storage class. La tâche doit continuer à traiter tous les fichiers encore stockés dans d'autres classes de stockage, sans restaurer les fichiers archivés.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Add a push_down_predicate that skips the date partitions older than the retention period.", fr: "Ajouter un push_down_predicate qui ignore les partitions de date antérieures à la période de conservation." } }
+    - { id: b, text: { en: "Enable job bookmarks so that the job skips the files that it already read before they were archived.", fr: "Activer les signets de tâche pour que la tâche ignore les fichiers qu'elle a déjà lus avant leur archivage." } }
+    - { id: c, text: { en: "Add excludeStorageClasses with the values GLACIER and DEEP_ARCHIVE to the additional_options of the from_catalog call.", fr: "Ajouter excludeStorageClasses avec les valeurs GLACIER et DEEP_ARCHIVE aux additional_options de l'appel from_catalog." } }
+    - { id: d, text: { en: "Set groupFiles to inPartition so that the archived files are grouped with readable files.", fr: "Définir groupFiles sur inPartition pour que les fichiers archivés soient regroupés avec des fichiers lisibles." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "Objects in the GLACIER and DEEP_ARCHIVE storage classes can be listed but not read until they are restored, so a job that reads them fails with this error. With excludeStorageClasses in additional_options, AWS Glue uses its own S3 lister to leave out the files of these classes and reads the rest of the table."
+    fr: "Les objets des classes de stockage GLACIER et DEEP_ARCHIVE peuvent être listés mais pas lus tant qu'ils ne sont pas restaurés : une tâche qui les lit échoue avec cette erreur. Avec excludeStorageClasses dans additional_options, AWS Glue utilise son propre outil de listage S3 pour écarter les fichiers de ces classes et lit le reste de la table."
+  options:
+    a:
+      en: "Archived files are spread across every date partition, so skipping old partitions does not avoid them and would also drop readable files."
+      fr: "Les fichiers archivés sont répartis dans toutes les partitions de date : ignorer les anciennes partitions ne les évite pas et écarterait aussi des fichiers lisibles."
+    b:
+      en: "Bookmarks track processed files, but the job still lists and can try to read archived files, and a first run or reset reads everything."
+      fr: "Les signets suivent les fichiers traités, mais la tâche liste toujours les fichiers archivés et peut tenter de les lire, et une première exécution ou une réinitialisation lit tout."
+    d:
+      en: "Grouping changes how files are combined into tasks; archived files would still be read and fail."
+      fr: "Le regroupement change la façon dont les fichiers sont combinés en tâches ; les fichiers archivés seraient toujours lus et échoueraient."
+references:
+  - title: Excluding Amazon S3 storage classes
+    url: https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-storage-classes.html

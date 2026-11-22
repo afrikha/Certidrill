@@ -1,0 +1,58 @@
+id: deac01-1b-glue-jdbc-parallel-read
+objective: "1.2.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS Glue job reads a full copy of a 200-million-row orders table from an Amazon RDS for PostgreSQL database each night with the following code. Adding workers to the job does not shorten the read, and metrics show a single query running against the database. The customer_id column is numeric and evenly distributed.
+
+    ```python
+    orders = glueContext.create_dynamic_frame.from_catalog(
+        database="sales",
+        table_name="erp_orders",
+        transformation_ctx="orders"
+    )
+    ```
+
+    Which change will reduce the read time?
+  fr: |
+    Une tâche AWS Glue lit chaque nuit une copie complète d'une table de commandes de 200 millions de lignes dans une base de données Amazon RDS for PostgreSQL avec le code suivant. Ajouter des workers à la tâche ne raccourcit pas la lecture, et les métriques montrent une seule requête exécutée sur la base de données. La colonne customer_id est numérique et répartie uniformément.
+
+    ```python
+    orders = glueContext.create_dynamic_frame.from_catalog(
+        database="sales",
+        table_name="erp_orders",
+        transformation_ctx="orders"
+    )
+    ```
+
+    Quelle modification réduit le temps de lecture ?
+body:
+  options:
+    - id: a
+      text: { en: "Change the worker type of the job to G.2X so that the single query gets more memory and more vCPUs.", fr: "Passer le type de worker de la tâche à G.2X pour que la requête unique dispose de plus de mémoire et de vCPU." }
+    - id: b
+      text: { en: "Enable job bookmarks so that each run reads only the rows that were added since the previous run.", fr: "Activer les signets de tâche pour que chaque exécution ne lise que les lignes ajoutées depuis l'exécution précédente." }
+    - id: c
+      text: { en: "Add a push_down_predicate on the customer_id column to the from_catalog call of the job.", fr: "Ajouter un push_down_predicate sur la colonne customer_id à l'appel from_catalog de la tâche." }
+    - id: d
+      text: { en: "Add additional_options with hashfield set to customer_id and hashpartitions set to 20 to the from_catalog call.", fr: "Ajouter à l'appel from_catalog des additional_options avec hashfield défini sur customer_id et hashpartitions défini à 20." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "With hashfield, AWS Glue divides the JDBC table into partitions on an evenly distributed column and runs non-overlapping queries in parallel. hashpartitions sets the number of parallel reads, 7 by default, so the workers read the table concurrently instead of through one query."
+    fr: "Avec hashfield, AWS Glue divise la table JDBC en partitions sur une colonne répartie uniformément et exécute en parallèle des requêtes sans chevauchement. hashpartitions définit le nombre de lectures parallèles, 7 par défaut : les workers lisent la table simultanément au lieu de passer par une seule requête."
+  options:
+    a:
+      en: "A larger worker type does not split the read; one query over one connection still reads the whole table."
+      fr: "Un type de worker plus grand ne divise pas la lecture ; une seule requête sur une seule connexion lit toujours toute la table."
+    b:
+      en: "The job must read a full copy every night, and bookmarks would skip the rows that were already read."
+      fr: "La tâche doit lire une copie complète chaque nuit, et les signets sauteraient les lignes déjà lues."
+    c:
+      en: "A push-down predicate filters the partitions of a partitioned catalog table; it neither applies to splitting a JDBC read nor keeps the full copy."
+      fr: "Un prédicat de pushdown filtre les partitions d'une table de catalogue partitionnée ; il ne sert pas à diviser une lecture JDBC et ne conserve pas la copie complète."
+references:
+  - title: Reading from JDBC tables in parallel
+    url: https://docs.aws.amazon.com/glue/latest/dg/run-jdbc-parallel-read-job.html

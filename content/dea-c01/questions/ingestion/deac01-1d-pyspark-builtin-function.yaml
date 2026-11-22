@@ -1,0 +1,54 @@
+id: deac01-1d-pyspark-builtin-function
+objective: "1.4.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS Glue for Apache Spark job processes 2 billion customer records each night. The Spark UI shows that most of the runtime is spent in the stage that runs the following code:
+
+    ```python
+    from pyspark.sql.functions import udf, col
+    from pyspark.sql.types import StringType
+
+    @udf(returnType=StringType())
+    def normalize_country(code):
+        return code.strip().upper() if code else None
+
+    df = df.withColumn("country", normalize_country(col("country")))
+    ```
+
+    Which code change will reduce the runtime of this stage the MOST?
+  fr: |
+    Une tâche AWS Glue for Apache Spark traite chaque nuit 2 milliards d'enregistrements de clients. L'interface Spark UI montre que l'essentiel du temps d'exécution est passé dans l'étape qui exécute le code suivant :
+
+    ```python
+    from pyspark.sql.functions import udf, col
+    from pyspark.sql.types import StringType
+
+    @udf(returnType=StringType())
+    def normalize_country(code):
+        return code.strip().upper() if code else None
+
+    df = df.withColumn("country", normalize_country(col("country")))
+    ```
+
+    Quelle modification du code réduira le PLUS le temps d'exécution de cette étape ?
+body:
+  options:
+    - { id: a, text: { en: "Register the function with spark.udf.register and call it from a Spark SQL query instead of the DataFrame API.", fr: "Enregistrer la fonction avec spark.udf.register et l'appeler depuis une requête Spark SQL au lieu de l'API DataFrame." } }
+    - { id: b, text: { en: "Replace the UDF with the built-in functions upper and trim from pyspark.sql.functions.", fr: "Remplacer l'UDF par les fonctions intégrées upper et trim de pyspark.sql.functions." } }
+    - { id: c, text: { en: "Convert the DataFrame with toPandas() and apply the function to the pandas column.", fr: "Convertir le DataFrame avec toPandas() et appliquer la fonction à la colonne pandas." } }
+    - { id: d, text: { en: "Call repartition(1) before the withColumn call so that the UDF runs in a single task.", fr: "Appeler repartition(1) avant l'appel withColumn pour que l'UDF s'exécute dans une seule tâche Spark." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "A Python UDF runs in a separate Python runtime, so Spark must serialize every row between the JVM and Python, which is expensive. Built-in functions such as upper(trim(col(\"country\"))) run in the executors' JVM with no Python round trip, and AWS recommends them whenever they can replace a UDF."
+    fr: "Une UDF Python s'exécute dans un environnement Python distinct : Spark doit sérialiser chaque ligne entre la JVM et Python, ce qui est coûteux. Les fonctions intégrées comme upper(trim(col(\"country\"))) s'exécutent dans la JVM des exécuteurs sans aller-retour vers Python, et AWS les recommande chaque fois qu'elles peuvent remplacer une UDF."
+  options:
+    a: { en: "A registered Python UDF called from Spark SQL is still a Python UDF, with the same serialization cost.", fr: "Une UDF Python enregistrée et appelée depuis Spark SQL reste une UDF Python, avec le même coût de sérialisation." }
+    c: { en: "toPandas() collects all 2 billion rows on the driver, which removes all parallelism and can exhaust the driver memory.", fr: "toPandas() rassemble les 2 milliards de lignes sur le pilote (driver), ce qui supprime tout parallélisme et peut épuiser la mémoire du pilote." }
+    d: { en: "A single partition runs the whole stage on one core, which makes it much slower.", fr: "Une seule partition exécute toute l'étape sur un seul cœur, ce qui la rend beaucoup plus lente." }
+references:
+  - title: Optimize user-defined functions
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/tuning-aws-glue-for-apache-spark/optimize-user-defined-functions.html

@@ -1,0 +1,72 @@
+id: deac01-2a-redshift-deadlock-order
+objective: "2.1.6"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Two jobs run concurrently on an Amazon Redshift cluster:
+
+    ```sql
+    -- Job 1
+    BEGIN;
+    UPDATE orders SET status = 'billed' WHERE batch_id = 42;
+    UPDATE shipments SET billed = true WHERE batch_id = 42;
+    END;
+
+    -- Job 2
+    BEGIN;
+    DELETE FROM shipments WHERE cancelled = true;
+    UPDATE orders SET status = 'cancelled' WHERE order_id IN (SELECT order_id FROM cancelled_orders);
+    END;
+    ```
+
+    From time to time, a deadlock stops one of the jobs.
+
+    Which changes will each prevent the deadlock? (Choose two.)
+  fr: |
+    Deux tâches s'exécutent simultanément sur un cluster Amazon Redshift :
+
+    ```sql
+    -- Job 1
+    BEGIN;
+    UPDATE orders SET status = 'billed' WHERE batch_id = 42;
+    UPDATE shipments SET billed = true WHERE batch_id = 42;
+    END;
+
+    -- Job 2
+    BEGIN;
+    DELETE FROM shipments WHERE cancelled = true;
+    UPDATE orders SET status = 'cancelled' WHERE order_id IN (SELECT order_id FROM cancelled_orders);
+    END;
+    ```
+
+    De temps en temps, un interblocage (deadlock) arrête l'une des tâches.
+
+    Quelles modifications empêchent chacune l'interblocage ? (Choisissez deux réponses.)
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "Set the database isolation level to SERIALIZABLE with ALTER DATABASE before the jobs run.", fr: "Définir le niveau d'isolation de la base de données à SERIALIZABLE avec ALTER DATABASE avant les tâches." } }
+    - { id: b, text: { en: "Change Job 2 to modify orders first and shipments second, as Job 1 does.", fr: "Modifier la tâche 2 pour qu'elle modifie orders puis shipments, comme la tâche 1." } }
+    - { id: c, text: { en: "Run VACUUM DELETE ONLY on the shipments table before Job 2 starts its transaction.", fr: "Exécuter VACUUM DELETE ONLY sur la table shipments avant que la tâche 2 ouvre sa transaction." } }
+    - { id: d, text: { en: "Route Job 2 to a separate WLM queue with its own memory and query slots.", fr: "Diriger la tâche 2 vers une file WLM distincte dotée de sa propre mémoire et de ses emplacements." } }
+    - { id: e, text: { en: "Start both transactions with `LOCK orders, shipments;` before any other statement.", fr: "Commencer les deux transactions par `LOCK orders, shipments;` avant toute autre instruction." } }
+answer: { optionIds: [ b, e ] }
+explanation:
+  correct:
+    en: "Each job holds a lock on the first table it changes while it waits for the other table, and a transaction releases its table locks only at commit or rollback. Redshift recommends updating tables in the same order in every transaction and, if locks are specified, locking the tables in the same order before any DML; either change removes the circular wait."
+    fr: "Chaque tâche détient un verrou sur la première table qu'elle modifie pendant qu'elle attend l'autre table, et une transaction ne libère ses verrous de table qu'à la validation ou à l'annulation. Redshift recommande de mettre à jour les tables dans le même ordre dans chaque transaction et, si des verrous sont spécifiés, de verrouiller les tables dans le même ordre avant tout DML ; chacune de ces modifications supprime l'attente circulaire."
+  options:
+    a:
+      en: "The isolation level does not change the order in which the jobs take their table locks, so the circular wait remains."
+      fr: "Le niveau d'isolation ne change pas l'ordre dans lequel les tâches prennent leurs verrous de table : l'attente circulaire demeure."
+    c:
+      en: "VACUUM reclaims the space of deleted rows; the jobs still lock the two tables in opposite orders."
+      fr: "VACUUM récupère l'espace des lignes supprimées ; les tâches verrouillent toujours les deux tables dans des ordres opposés."
+    d:
+      en: "A separate queue changes memory and slots, not the locks that the two transactions take on the same tables."
+      fr: "Une file distincte change la mémoire et les emplacements, pas les verrous que les deux transactions prennent sur les mêmes tables."
+references:
+  - title: Write and read/write operations
+    url: https://docs.aws.amazon.com/redshift/latest/dg/c_write_readwrite.html

@@ -1,0 +1,38 @@
+id: deac01-2a-aurora-mysql-select-for-update
+objective: "2.1.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A ticketing application uses Amazon Aurora MySQL version 3 with InnoDB tables. To sell a seat, the application reads the remaining seats of an event, checks that the value is above zero and then decrements it. Under heavy load, two sessions sometimes read the same value and sell the last seat twice. The application must stop other transactions from changing an event's row between the read and the update, without blocking sales for other events.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une application de billetterie utilise Amazon Aurora MySQL version 3 avec des tables InnoDB. Pour vendre une place, l'application lit le nombre de places restantes d'un événement, vérifie qu'il est supérieur à zéro, puis le décrémente. En forte charge, deux sessions lisent parfois la même valeur et vendent deux fois la dernière place. L'application doit empêcher les autres transactions de modifier la ligne d'un événement entre la lecture et la mise à jour, sans bloquer les ventes des autres événements.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Run LOCK TABLES events WRITE before the read and UNLOCK TABLES after the update.", fr: "Exécuter LOCK TABLES events WRITE avant la lecture et UNLOCK TABLES après la mise à jour." } }
+    - { id: b, text: { en: "Inside a transaction, read the event row with SELECT ... FOR UPDATE, update it and commit.", fr: "Dans une transaction, lire la ligne de l'événement avec SELECT ... FOR UPDATE, la mettre à jour et valider." } }
+    - { id: c, text: { en: "Set the session isolation level to READ UNCOMMITTED so that each session sees pending changes.", fr: "Définir le niveau d'isolation de session à READ UNCOMMITTED pour que chaque session voie les modifications en cours." } }
+    - { id: d, text: { en: "Send the read to an Aurora Replica and the update to the writer instance of the cluster.", fr: "Envoyer la lecture à un réplica Aurora et la mise à jour à l'instance d'écriture du cluster." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "SELECT ... FOR UPDATE is a locking read: InnoDB locks the selected row until the transaction commits, so a second session that tries to lock or update the same event waits and then reads the new value. Only the rows of that event are locked, so sales for other events continue."
+    fr: "SELECT ... FOR UPDATE est une lecture avec verrouillage : InnoDB verrouille la ligne sélectionnée jusqu'à la validation de la transaction ; une seconde session qui tente de verrouiller ou de modifier le même événement attend, puis lit la nouvelle valeur. Seules les lignes de cet événement sont verrouillées : les ventes des autres événements continuent."
+  options:
+    a:
+      en: "A table lock serializes every sale of every event, so it blocks the sales of other events."
+      fr: "Un verrou de table sérialise toutes les ventes de tous les événements : il bloque les ventes des autres événements."
+    c:
+      en: "READ UNCOMMITTED allows dirty reads and takes no lock between the read and the update, so double selling remains possible."
+      fr: "READ UNCOMMITTED autorise les lectures sales et ne prend aucun verrou entre la lecture et la mise à jour : la double vente reste possible."
+    d:
+      en: "A replica can return slightly stale data and holds no lock for the writer, which makes double selling more likely."
+      fr: "Un réplica peut renvoyer des données légèrement obsolètes et ne détient aucun verrou pour l'instance d'écriture, ce qui rend la double vente plus probable."
+references:
+  - title: synch/cond/innodb/row_lock_wait
+    url: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/ams-waits.row-lock-wait.html

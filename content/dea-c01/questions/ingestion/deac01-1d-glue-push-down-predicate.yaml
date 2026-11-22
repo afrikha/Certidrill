@@ -1,0 +1,50 @@
+id: deac01-1d-glue-push-down-predicate
+objective: "1.4.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A Data Catalog table named orders holds 5 years of JSON data in Amazon S3, partitioned by year, month, and day. A daily AWS Glue job processes only the previous day and runs the following code:
+
+    ```python
+    dyf = glueContext.create_dynamic_frame.from_catalog(
+        database="sales", table_name="orders")
+    dyf = dyf.filter(lambda r: r["year"] == "2026" and r["month"] == "11"
+                     and r["day"] == "21")
+    ```
+
+    The job reads the whole table on every run and takes more than an hour.
+
+    Which change will reduce the runtime the MOST?
+  fr: |
+    Une table du Data Catalog nommée orders contient 5 ans de données JSON dans Amazon S3, partitionnées par year, month et day. Une tâche AWS Glue quotidienne ne traite que la veille et exécute le code suivant :
+
+    ```python
+    dyf = glueContext.create_dynamic_frame.from_catalog(
+        database="sales", table_name="orders")
+    dyf = dyf.filter(lambda r: r["year"] == "2026" and r["month"] == "11"
+                     and r["day"] == "21")
+    ```
+
+    La tâche lit toute la table à chaque exécution et dure plus d'une heure.
+
+    Quelle modification réduira le PLUS le temps d'exécution ?
+body:
+  options:
+    - { id: a, text: { en: "Pass push_down_predicate=\"year='2026' and month='11' and day='21'\" to from_catalog and remove the filter call.", fr: "Passer push_down_predicate=\"year='2026' and month='11' and day='21'\" à from_catalog et supprimer l'appel filter." } }
+    - { id: b, text: { en: "Convert the DynamicFrame with toDF() right after from_catalog and apply the same condition with the DataFrame where method.", fr: "Convertir le DynamicFrame avec toDF() juste après from_catalog et appliquer la même condition avec la méthode where du DataFrame." } }
+    - { id: c, text: { en: "Add groupFiles set to inPartition to the table parameters so that small files are read in larger groups.", fr: "Ajouter groupFiles défini sur inPartition aux paramètres de la table pour que les petits fichiers soient lus par groupes plus grands." } }
+    - { id: d, text: { en: "Double the number of workers of the job and keep the code unchanged.", fr: "Doubler le nombre de nœuds de travail de la tâche et conserver le code tel quel." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "A pushdown predicate is applied to the partition metadata in the Data Catalog, so AWS Glue lists and reads only the partitions that match instead of reading the whole dataset and filtering afterward. Only one day of data is loaded into the DynamicFrame."
+    fr: "Un prédicat de pushdown est appliqué aux métadonnées de partition du Data Catalog : AWS Glue ne liste et ne lit que les partitions correspondantes au lieu de lire tout le jeu de données puis de filtrer. Une seule journée de données est chargée dans le DynamicFrame."
+  options:
+    b: { en: "from_catalog without a predicate has already read every partition before the conversion, so filtering the DataFrame afterward still reads 5 years of data.", fr: "Sans prédicat, from_catalog a déjà lu toutes les partitions avant la conversion : filtrer ensuite le DataFrame lit toujours 5 ans de données." }
+    c: { en: "Grouping reduces the number of tasks for many small files, but the job still reads every partition of the table.", fr: "Le regroupement réduit le nombre de tâches Spark pour de nombreux petits fichiers, mais la tâche lit toujours toutes les partitions de la table." }
+    d: { en: "More workers read the full table faster at a higher cost, but still read 5 years of data to keep one day.", fr: "Davantage de nœuds de travail lisent la table entière plus vite pour un coût plus élevé, mais lisent toujours 5 ans de données pour en garder une journée." }
+references:
+  - title: Managing partitions for ETL output in AWS Glue
+    url: https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-partitions.html

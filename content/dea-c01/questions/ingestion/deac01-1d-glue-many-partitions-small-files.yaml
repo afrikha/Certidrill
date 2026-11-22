@@ -1,0 +1,38 @@
+id: deac01-1d-glue-many-partitions-small-files
+objective: "1.4.1"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AWS Glue for Apache Spark job reads a Data Catalog table of JSON clickstream files in Amazon S3. The table has more than 2 million partitions (dt, hour, and source), and each run reads one dt value, which is about 40,000 files of 10 KB each. The job spends several minutes listing partitions before it reads any data, and then it creates about 40,000 tasks that each run for less than a second. The code reads the table with from_catalog and a push_down_predicate on dt.
+
+    Which combination of changes will reduce the runtime of the job? (Choose two.)
+  fr: |
+    Une tâche AWS Glue for Apache Spark lit une table du Data Catalog contenant des fichiers JSON de parcours de navigation (clickstream) dans Amazon S3. La table compte plus de 2 millions de partitions (dt, hour et source), et chaque exécution lit une valeur de dt, soit environ 40 000 fichiers de 10 Ko chacun. La tâche passe plusieurs minutes à lister les partitions avant de lire la moindre donnée, puis crée environ 40 000 tâches Spark qui durent chacune moins d'une seconde. Le code lit la table avec from_catalog et un push_down_predicate sur dt.
+
+    Quelle combinaison de modifications réduira le temps d'exécution de la tâche ? (Choisissez deux réponses.)
+body:
+  choose: 2
+  options:
+    - { id: a, text: { en: "Call repartition(1) on the data right after it is read.", fr: "Appeler repartition(1) sur les données juste après leur lecture." } }
+    - { id: b, text: { en: "Add groupFiles set to inPartition, with a groupSize, to the parameters of the table in the Data Catalog.", fr: "Ajouter groupFiles défini sur inPartition, avec un groupSize, aux paramètres de la table dans le Data Catalog." } }
+    - { id: c, text: { en: "Convert the DynamicFrame to a pandas DataFrame on the driver before the transformations.", fr: "Convertir le DynamicFrame en DataFrame pandas sur le pilote avant les transformations." } }
+    - { id: d, text: { en: "Create a partition index on dt and pass the dt condition in catalogPartitionPredicate in additional_options.", fr: "Créer un index de partition sur dt et passer la condition sur dt dans catalogPartitionPredicate via additional_options." } }
+    - { id: e, text: { en: "Increase the timeout of the job so that the listing phase can finish.", fr: "Augmenter le délai d'expiration de la tâche pour que la phase de listage puisse se terminer." } }
+answer: { optionIds: [ b, d ] }
+explanation:
+  correct:
+    en: |
+      push_down_predicate filters only after AWS Glue has listed all the partitions of the table; catalogPartitionPredicate prunes partitions on the server side by using partition indexes, which is much faster with millions of partitions. groupFiles set to inPartition makes each task read a group of small files into one in-memory partition; Glue enables grouping automatically only above 50,000 input files, so it is off for 40,000 files.
+    fr: |
+      push_down_predicate ne filtre qu'après qu'AWS Glue a listé toutes les partitions de la table ; catalogPartitionPredicate élague les partitions côté serveur grâce aux index de partition, ce qui est beaucoup plus rapide avec des millions de partitions. groupFiles défini sur inPartition fait lire à chaque tâche Spark un groupe de petits fichiers dans une seule partition en mémoire ; Glue n'active le regroupement automatiquement qu'au-delà de 50 000 fichiers d'entrée, il est donc désactivé pour 40 000 fichiers.
+  options:
+    a: { en: "One partition after the read does not shorten the listing or the read, and it makes the following stages run on a single core.", fr: "Une seule partition après la lecture ne raccourcit ni le listage ni la lecture, et fait exécuter les étapes suivantes sur un seul cœur." }
+    c: { en: "Collecting the data on the driver removes the parallelism of Spark and does not change the listing or the read.", fr: "Rassembler les données sur le pilote supprime le parallélisme de Spark et ne change ni le listage ni la lecture." }
+    e: { en: "The job does not time out; a longer timeout does not make the listing or the reading faster.", fr: "La tâche n'expire pas ; un délai plus long ne rend ni le listage ni la lecture plus rapides." }
+references:
+  - title: Managing partitions for ETL output in AWS Glue
+    url: https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-partitions.html
+  - title: Reading input files in larger groups
+    url: https://docs.aws.amazon.com/glue/latest/dg/grouping-input-files.html

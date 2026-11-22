@@ -1,0 +1,68 @@
+id: deac01-1b-s3-sourceip-gateway-endpoint
+objective: "1.1.8"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A media company uploads files from its data center to an Amazon S3 landing bucket. The bucket policy contains the following statement so that internet uploads come only from the data center range 203.0.113.0/24. AWS Glue jobs in the company's VPC now must read the bucket through an S3 gateway endpoint with the ID vpce-1a2b3c4d, but they receive AccessDenied errors although their IAM role allows the S3 actions.
+
+    ```json
+    {
+      "Sid": "DenyOutsideDataCenter",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::landing-bucket", "arn:aws:s3:::landing-bucket/*"],
+      "Condition": {
+        "NotIpAddress": { "aws:SourceIp": "203.0.113.0/24" }
+      }
+    }
+    ```
+
+    Which change to the statement will meet these requirements?
+  fr: |
+    Une entreprise de médias charge des fichiers depuis son centre de données dans un compartiment Amazon S3 de dépôt. La politique de compartiment contient l'instruction suivante pour que les chargements par Internet ne proviennent que de la plage du centre de données 203.0.113.0/24. Des tâches AWS Glue du VPC de l'entreprise doivent maintenant lire le compartiment par un point de terminaison de passerelle S3 dont l'ID est vpce-1a2b3c4d, mais elles reçoivent des erreurs AccessDenied alors que leur rôle IAM autorise les actions S3.
+
+    ```json
+    {
+      "Sid": "DenyOutsideDataCenter",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::landing-bucket", "arn:aws:s3:::landing-bucket/*"],
+      "Condition": {
+        "NotIpAddress": { "aws:SourceIp": "203.0.113.0/24" }
+      }
+    }
+    ```
+
+    Quelle modification de l'instruction répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Add the Elastic IP address of the NAT gateway of the VPC to the list of allowed aws:SourceIp values.", fr: "Ajouter l'adresse IP Elastic de la passerelle NAT du VPC à la liste des valeurs aws:SourceIp autorisées." }
+    - id: b
+      text: { en: "Add the private CIDR range of the VPC to the list of allowed aws:SourceIp values in the statement.", fr: "Ajouter la plage CIDR privée du VPC à la liste des valeurs aws:SourceIp autorisées dans l'instruction." }
+    - id: c
+      text: { en: "Replace the aws:SourceIp condition with a StringNotEquals condition on aws:SourceVpce set to vpce-1a2b3c4d.", fr: "Remplacer la condition aws:SourceIp par une condition StringNotEquals sur aws:SourceVpce définie à vpce-1a2b3c4d." }
+    - id: d
+      text: { en: "Keep the aws:SourceIp condition and add a StringNotEquals condition on aws:SourceVpce set to vpce-1a2b3c4d in the same statement.", fr: "Conserver la condition aws:SourceIp et ajouter dans la même instruction une condition StringNotEquals sur aws:SourceVpce définie à vpce-1a2b3c4d." }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "The aws:SourceIp key is not present when a request arrives through a VPC endpoint, so the NotIpAddress condition matches the Glue requests and the Deny applies. Conditions in one statement are combined with a logical AND: with the added aws:SourceVpce condition, the Deny applies only to requests that come neither from the data center range nor through the gateway endpoint."
+    fr: "La clé aws:SourceIp n'est pas présente lorsqu'une requête arrive par un point de terminaison de VPC : la condition NotIpAddress correspond donc aux requêtes Glue et le Deny s'applique. Les conditions d'une même instruction sont combinées par un ET logique : avec la condition aws:SourceVpce ajoutée, le Deny ne s'applique qu'aux requêtes qui ne viennent ni de la plage du centre de données ni du point de terminaison de passerelle."
+  options:
+    a:
+      en: "With a gateway endpoint, S3 traffic from the VPC follows the endpoint route instead of the NAT gateway, and aws:SourceIp is absent from those requests."
+      fr: "Avec un point de terminaison de passerelle, le trafic S3 du VPC suit l'itinéraire du point de terminaison au lieu de la passerelle NAT, et aws:SourceIp est absent de ces requêtes."
+    b:
+      en: "aws:SourceIp is not available for requests through a VPC endpoint, so private VPC addresses never match it; a VPC-specific key is needed."
+      fr: "aws:SourceIp n'est pas disponible pour les requêtes passant par un point de terminaison de VPC : les adresses privées du VPC ne lui correspondent jamais, il faut une clé propre au VPC."
+    c:
+      en: "Without the IP condition, the Deny would block every upload from the data center over the internet, because those requests do not use the endpoint."
+      fr: "Sans la condition d'IP, le Deny bloquerait tous les chargements du centre de données par Internet, car ces requêtes n'utilisent pas le point de terminaison."
+references:
+  - title: AWS global condition context keys
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html

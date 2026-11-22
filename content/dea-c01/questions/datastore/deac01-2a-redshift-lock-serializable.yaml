@@ -1,0 +1,40 @@
+id: deac01-2a-redshift-lock-serializable
+objective: "2.1.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A finance team's Amazon Redshift database uses SERIALIZABLE isolation, and the team must keep it to prevent write-skew anomalies in reconciliations. Two ETL jobs run at the same time. Job A reads the ledger table and inserts into the balances table in one transaction. Job B reads the balances table and inserts into the ledger table in one transaction. One job often fails with ERROR:1023 (serializable isolation violation). Each job's read and insert must stay atomic, and both jobs must complete even if one waits for the other.
+
+    Which solution will meet these requirements?
+  fr: |
+    La base de données Amazon Redshift d'une équipe financière utilise l'isolation SERIALIZABLE, et l'équipe doit la conserver pour éviter les anomalies d'écriture biaisée (write skew) dans les rapprochements. Deux tâches ETL s'exécutent en même temps. La tâche A lit la table ledger et insère dans la table balances dans une même transaction. La tâche B lit la table balances et insère dans la table ledger dans une même transaction. L'une des tâches échoue souvent avec ERROR:1023 (violation de l'isolation sérialisable). La lecture et l'insertion de chaque tâche doivent rester atomiques, et les deux tâches doivent se terminer même si l'une attend l'autre.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Run ALTER DATABASE with the SNAPSHOT isolation level so that both transactions can commit.", fr: "Exécuter ALTER DATABASE avec le niveau d'isolation SNAPSHOT pour que les deux transactions puissent être validées." } }
+    - { id: b, text: { en: "Add slots to the WLM queue so that both jobs get enough memory to finish faster.", fr: "Ajouter des emplacements à la file WLM pour que les deux tâches aient assez de mémoire pour finir plus vite." } }
+    - { id: c, text: { en: "Move the SELECT statements of both jobs outside their transactions and keep the inserts inside.", fr: "Sortir les instructions SELECT des deux tâches de leurs transactions et garder les insertions à l'intérieur." } }
+    - { id: d, text: { en: "Start each transaction with `LOCK ledger, balances;` in both jobs, before any other statement.", fr: "Commencer chaque transaction par `LOCK ledger, balances;` dans les deux tâches, avant toute autre instruction." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "LOCK takes an ACCESS EXCLUSIVE lock that makes other transactions wait until the lock holder commits, which forces the two jobs to run one after the other. To avoid serializable isolation errors, lock every table the transaction touches, including tables it only reads, at the start of the transaction and in the same order in every session."
+    fr: "LOCK prend un verrou ACCESS EXCLUSIVE qui fait attendre les autres transactions jusqu'à la validation du détenteur, ce qui oblige les deux tâches à s'exécuter l'une après l'autre. Pour éviter les erreurs d'isolation sérialisable, il faut verrouiller toutes les tables que la transaction touche, y compris celles qu'elle ne fait que lire, au début de la transaction et dans le même ordre dans chaque session."
+  options:
+    a:
+      en: "SNAPSHOT isolation would let both commit, but the team must keep SERIALIZABLE to prevent write skew."
+      fr: "L'isolation SNAPSHOT permettrait aux deux de valider, mais l'équipe doit conserver SERIALIZABLE pour éviter l'écriture biaisée."
+    b:
+      en: "More memory does not change the conflicting reads and writes, so the isolation violation still occurs."
+      fr: "Plus de mémoire ne change pas les lectures et écritures conflictuelles : la violation d'isolation se produit toujours."
+    c:
+      en: "This removes the conflict only by breaking the atomicity of each job's read and insert, which the requirements forbid."
+      fr: "Cela ne supprime le conflit qu'en cassant l'atomicité de la lecture et de l'insertion de chaque tâche, ce que les exigences interdisent."
+references:
+  - title: Troubleshooting serializable isolation errors
+    url: https://docs.aws.amazon.com/redshift/latest/dg/c_serial_isolation-serializable-isolation-troubleshooting.html
+  - title: LOCK
+    url: https://docs.aws.amazon.com/redshift/latest/dg/r_LOCK.html

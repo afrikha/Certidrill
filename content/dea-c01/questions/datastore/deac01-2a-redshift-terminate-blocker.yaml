@@ -1,0 +1,40 @@
+id: deac01-2a-redshift-terminate-blocker
+objective: "2.1.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A nightly ETL job in Amazon Redshift runs ALTER TABLE sales ADD COLUMN and has been waiting for 2 hours. Yesterday, an analyst opened a transaction in a SQL client, ran a SELECT on the sales table and left the session idle without committing. The data engineer, a superuser, must let the ETL job continue now with the least disruption to other users.
+
+    What should the data engineer do?
+  fr: |
+    Une tâche ETL nocturne d'Amazon Redshift exécute ALTER TABLE sales ADD COLUMN et attend depuis 2 heures. Hier, un analyste a ouvert une transaction dans un client SQL, exécuté un SELECT sur la table sales et laissé la session inactive sans valider. L'ingénieur data, superutilisateur, doit permettre à la tâche ETL de continuer immédiatement en perturbant le moins possible les autres utilisateurs.
+
+    Que doit faire l'ingénieur data ?
+body:
+  options:
+    - { id: a, text: { en: "Find the analyst's pid in SVV_TRANSACTIONS and run PG_TERMINATE_BACKEND on that pid.", fr: "Trouver le pid de l'analyste dans SVV_TRANSACTIONS et exécuter PG_TERMINATE_BACKEND sur ce pid." } }
+    - { id: b, text: { en: "Reboot the cluster so that every open transaction is rolled back and every lock is released.", fr: "Redémarrer le cluster pour que toutes les transactions ouvertes soient annulées et tous les verrous libérés." } }
+    - { id: c, text: { en: "Run ABORT in the session of the ETL job so that the waiting transaction gets the lock.", fr: "Exécuter ABORT dans la session de la tâche ETL pour que la transaction en attente obtienne le verrou." } }
+    - { id: d, text: { en: "Run LOCK sales in the session of the ETL job to take the table lock before the analyst does.", fr: "Exécuter LOCK sales dans la session de la tâche ETL pour prendre le verrou de table avant l'analyste." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "SVV_TRANSACTIONS lists the locks of open transactions with their pid and whether each lock is granted or pending; here the analyst's session holds a granted AccessShareLock and the ALTER TABLE waits for an exclusive lock. PG_TERMINATE_BACKEND ends that one session, rolls back its transaction and releases its locks; a superuser can terminate any session."
+    fr: "SVV_TRANSACTIONS liste les verrous des transactions ouvertes avec leur pid et indique si chaque verrou est accordé ou en attente ; ici la session de l'analyste détient un AccessShareLock accordé et l'ALTER TABLE attend un verrou exclusif. PG_TERMINATE_BACKEND met fin à cette seule session, annule sa transaction et libère ses verrous ; un superutilisateur peut mettre fin à n'importe quelle session."
+  options:
+    b:
+      en: "A reboot ends every user's session and query, which is far more disruptive than ending one idle session."
+      fr: "Un redémarrage met fin aux sessions et requêtes de tous les utilisateurs, ce qui perturbe bien plus que mettre fin à une session inactive."
+    c:
+      en: "ABORT rolls back the transaction of the session that runs it, so it would cancel the ETL job instead of the blocking transaction."
+      fr: "ABORT annule la transaction de la session qui l'exécute : il annulerait la tâche ETL au lieu de la transaction bloquante."
+    d:
+      en: "LOCK also waits for conflicting locks to be released, so it would wait behind the analyst's open transaction too."
+      fr: "LOCK attend lui aussi la libération des verrous en conflit : il attendrait également derrière la transaction ouverte de l'analyste."
+references:
+  - title: SVV_TRANSACTIONS
+    url: https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_TRANSACTIONS.html
+  - title: PG_TERMINATE_BACKEND
+    url: https://docs.aws.amazon.com/redshift/latest/dg/PG_TERMINATE_BACKEND.html

@@ -1,0 +1,56 @@
+id: deac01-3b-athena-window-exhausted
+objective: "3.3.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An Athena query returns the latest battery status of each sensor. Each sensor always has the same location. As the sensor_readings table grew, the query started to fail with the error Query exhausted resources at this scale factor.
+
+    ```sql
+    SELECT sensor_id, location, battery_status
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY updated_at DESC) AS rn
+      FROM sensor_readings
+    ) t
+    WHERE rn = 1
+    ```
+
+    Which change will let the query complete and return the same result?
+  fr: |
+    Une requête Athena renvoie le dernier état de batterie de chaque capteur. Chaque capteur a toujours le même emplacement. Avec la croissance de la table sensor_readings, la requête a commencé à échouer avec l'erreur Query exhausted resources at this scale factor.
+
+    ```sql
+    SELECT sensor_id, location, battery_status
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY sensor_id ORDER BY updated_at DESC) AS rn
+      FROM sensor_readings
+    ) t
+    WHERE rn = 1
+    ```
+
+    Quelle modification permet à la requête d'aboutir en renvoyant le même résultat ?
+body:
+  options:
+    - { id: a, text: { en: "Rewrite it as `SELECT sensor_id, arbitrary(location) AS location, max_by(battery_status, updated_at) AS battery_status FROM sensor_readings GROUP BY sensor_id`.", fr: "La réécrire en `SELECT sensor_id, arbitrary(location) AS location, max_by(battery_status, updated_at) AS battery_status FROM sensor_readings GROUP BY sensor_id`." } }
+    - { id: b, text: { en: "Replace ROW_NUMBER() with RANK() in the window function and keep the outer filter that selects the rows ranked 1.", fr: "Remplacer ROW_NUMBER() par RANK() dans la fonction de fenêtrage et conserver le filtre externe qui sélectionne les lignes classées 1." } }
+    - { id: c, text: { en: "Run the query in a workgroup that has a higher per-query data usage limit, so that the query can scan more data.", fr: "Exécuter la requête dans un groupe de travail dont la limite d'utilisation des données par requête est plus élevée, afin qu'elle puisse analyser plus de données." } }
+    - { id: d, text: { en: "Add ORDER BY sensor_id at the end of the outer query so that Athena processes the sensors one after another.", fr: "Ajouter ORDER BY sensor_id à la fin de la requête externe afin qu'Athena traite les capteurs l'un après l'autre." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "Window functions are resource intensive and can fail with Query exhausted resources at this scale factor. AWS recommends rewriting such queries without a window when possible: max_by returns the status of the row with the latest updated_at, and arbitrary returns the location, which is the same for every row of a sensor; this runs faster and uses less memory."
+    fr: "Les fonctions de fenêtrage sont gourmandes en ressources et peuvent échouer avec Query exhausted resources at this scale factor. AWS recommande de réécrire ces requêtes sans fenêtre lorsque c'est possible : max_by renvoie l'état de la ligne dont updated_at est le plus récent, et arbitrary renvoie l'emplacement, identique pour toutes les lignes d'un capteur ; cette requête est plus rapide et utilise moins de mémoire."
+  options:
+    d:
+      en: "Sorting the final result adds work and does not reduce the memory that the window function needs."
+      fr: "Trier le résultat final ajoute du travail et ne réduit pas la mémoire nécessaire à la fonction de fenêtrage."
+    b:
+      en: "RANK() needs the same window over all the rows of a sensor, and it can return several rows when timestamps tie."
+      fr: "RANK() exige la même fenêtre sur toutes les lignes d'un capteur, et peut renvoyer plusieurs lignes en cas d'égalité d'horodatage."
+    c:
+      en: "Data usage controls cap the bytes scanned; they do not give a query more memory."
+      fr: "Les contrôles d'utilisation des données plafonnent les octets analysés ; ils ne donnent pas plus de mémoire à une requête."
+references:
+  - title: Optimize queries
+    url: https://docs.aws.amazon.com/athena/latest/ug/performance-tuning-query-optimization-techniques.html

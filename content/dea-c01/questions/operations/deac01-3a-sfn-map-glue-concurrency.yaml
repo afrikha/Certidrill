@@ -1,0 +1,40 @@
+id: deac01-3a-sfn-map-glue-concurrency
+objective: "3.1.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AWS Step Functions Standard workflow receives a JSON array of 120 table names. For each table, the workflow must run the same AWS Glue job and pass the table name as a job argument. Because of the connection limit of the source database, the Glue job is configured with a maximum of 10 concurrent runs, and the workflow must never try to start more than 10 runs at a time. The workflow must wait for all runs and fail if any run fails.
+
+    Which solution will meet these requirements with the LEAST custom code?
+  fr: |
+    Un flux de travail Standard AWS Step Functions reçoit un tableau JSON de 120 noms de tables. Pour chaque table, le flux de travail doit exécuter la même tâche AWS Glue et lui transmettre le nom de la table comme argument. En raison de la limite de connexions de la base de données source, la tâche Glue est configurée avec un maximum de 10 exécutions simultanées, et le flux de travail ne doit jamais tenter de démarrer plus de 10 exécutions à la fois. Le flux de travail doit attendre toutes les exécutions et échouer si l'une d'elles échoue.
+
+    Quelle solution répond à ces exigences avec le MOINS de code personnalisé ?
+body:
+  options:
+    - { id: a, text: { en: "Add a Parallel state with one branch per table, each branch containing a glue:startJobRun.sync task for that table.", fr: "Ajouter un état Parallel avec une branche par table, chaque branche contenant une tâche glue:startJobRun.sync pour cette table." } }
+    - { id: b, text: { en: "Add a Map state that iterates over the array with MaxConcurrency set to 10 and runs a glue:startJobRun.sync task that passes the table name.", fr: "Ajouter un état Map qui parcourt le tableau avec MaxConcurrency défini sur 10 et exécute une tâche glue:startJobRun.sync qui transmet le nom de la table." } }
+    - { id: c, text: { en: "Add a Map state that iterates over the array with MaxConcurrency set to 0 and runs a glue:startJobRun task that uses the Request Response pattern.", fr: "Ajouter un état Map qui parcourt le tableau avec MaxConcurrency défini sur 0 et exécute une tâche glue:startJobRun qui utilise le modèle Request Response." } }
+    - { id: d, text: { en: "Add a Lambda task whose function loops over the array and calls StartJobRun for each table, then returns the list of job run IDs.", fr: "Ajouter une tâche Lambda dont la fonction parcourt le tableau et appelle StartJobRun pour chaque table, puis renvoie la liste des ID d'exécution." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "A Map state runs the same steps for each element of an input array, and MaxConcurrency caps the number of iterations that run in parallel. With the .sync Glue integration, each iteration waits for its job run, and a failed run fails the Map state, which fails the execution unless the error is caught."
+    fr: "Un état Map exécute les mêmes étapes pour chaque élément d'un tableau en entrée, et MaxConcurrency plafonne le nombre d'itérations exécutées en parallèle. Avec l'intégration Glue .sync, chaque itération attend son exécution de tâche, et une exécution en échec fait échouer l'état Map, donc l'exécution, sauf si l'erreur est interceptée."
+  options:
+    a:
+      en: "Parallel branches are fixed in the definition and all run at once, so 120 branches would exceed the 10-run limit and could not follow a changing list."
+      fr: "Les branches Parallel sont fixées dans la définition et s'exécutent toutes en même temps : 120 branches dépasseraient la limite de 10 exécutions et ne suivraient pas une liste qui change."
+    c:
+      en: "MaxConcurrency 0 means no limit, and Request Response returns as soon as each run starts, so the workflow neither respects the limit nor waits for the runs."
+      fr: "MaxConcurrency 0 signifie aucune limite, et Request Response rend la main dès le démarrage de chaque exécution : le flux de travail ne respecte pas la limite et n'attend pas les exécutions."
+    d:
+      en: "The function starts all runs without waiting for them, exceeds the concurrency limit, and is custom code."
+      fr: "La fonction démarre toutes les exécutions sans les attendre, dépasse la limite de simultanéité et constitue du code personnalisé."
+references:
+  - title: Using Map state in Inline mode in Step Functions workflows
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/state-map-inline.html
+  - title: Start an AWS Glue job with Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-glue.html
