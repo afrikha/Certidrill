@@ -1,0 +1,68 @@
+id: scsc03-4b-sns-sourcearn-bucket
+objective: "4.2.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    In account 111122223333, the Amazon S3 bucket intake-111 sends event notifications to the Amazon SNS topic upload-alerts in the same account. The topic policy allows the service principal s3.amazonaws.com to call sns:Publish on the topic with no conditions. A security review finds that a bucket in any AWS account could be configured to publish to this topic. The fix must follow the principle of least privilege and keep the notifications from intake-111 working.
+
+    Which solution will meet these requirements?
+  fr: |
+    Dans le compte 111122223333, le compartiment Amazon S3 intake-111 envoie des notifications d'événements à la rubrique Amazon SNS upload-alerts du même compte. La politique de la rubrique autorise le principal de service s3.amazonaws.com à appeler sns:Publish sur la rubrique, sans condition. Une revue de sécurité constate qu'un compartiment de n'importe quel compte AWS pourrait être configuré pour publier sur cette rubrique. La correction doit respecter le principe du moindre privilège et conserver le fonctionnement des notifications d'intake-111.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add a StringEquals condition on aws:PrincipalOrgID with the organization ID to the statement that allows s3.amazonaws.com.
+        fr: |-
+          Ajouter une condition StringEquals sur aws:PrincipalOrgID avec l'ID de l'organisation à l'instruction qui autorise s3.amazonaws.com.
+    - id: b
+      text:
+        en: |-
+          Add a StringEquals condition on aws:SourceVpce with the ID of the S3 gateway endpoint to the statement that allows s3.amazonaws.com.
+        fr: |-
+          Ajouter une condition StringEquals sur aws:SourceVpce avec l'ID du point de terminaison de passerelle S3 à l'instruction qui autorise s3.amazonaws.com.
+    - id: c
+      text:
+        en: |-
+          Add an ArnLike condition on aws:SourceArn for arn:aws:s3:::intake-111 and a StringEquals condition on aws:SourceAccount for 111122223333.
+        fr: |-
+          Ajouter une condition ArnLike sur aws:SourceArn pour arn:aws:s3:::intake-111 et une condition StringEquals sur aws:SourceAccount pour 111122223333.
+    - id: d
+      text:
+        en: |-
+          Replace the service principal with the principal arn:aws:iam::111122223333:root so that only principals in the account can publish.
+        fr: |-
+          Remplacer le principal de service par le principal arn:aws:iam::111122223333:root pour que seuls les principaux du compte puissent publier.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      This is a cross-service confused deputy risk. When a service principal acts for a resource, its request carries aws:SourceArn and aws:SourceAccount, so conditions on these keys limit the topic to notifications sent for intake-111 in the company's account. AWS recommends these keys whenever a resource policy grants access to a service principal.
+    fr: |-
+      Il s'agit d'un risque de député confus entre services. Quand un principal de service agit pour une ressource, sa demande porte aws:SourceArn et aws:SourceAccount : des conditions sur ces clés limitent la rubrique aux notifications envoyées pour intake-111 dans le compte de l'entreprise. AWS recommande ces clés chaque fois qu'une politique de ressource accorde l'accès à un principal de service.
+  options:
+    a:
+      en: |-
+        aws:PrincipalOrgID is present only when the principal is a member of an organization, which a service principal is not, so the condition never matches and the notifications stop.
+      fr: |-
+        aws:PrincipalOrgID n'est présent que si le principal est membre d'une organisation, ce qui n'est pas le cas d'un principal de service : la condition ne correspond jamais et les notifications s'arrêtent.
+    b:
+      en: |-
+        Event notifications are sent by the S3 service, not through a VPC endpoint in the account, so the request carries no aws:SourceVpce value and the notifications stop.
+      fr: |-
+        Les notifications d'événements sont envoyées par le service S3, et non par un point de terminaison de VPC du compte : la demande ne porte aucune valeur aws:SourceVpce et les notifications s'arrêtent.
+    d:
+      en: |-
+        The publisher is the S3 service principal, not an IAM principal of the account, so removing the service principal breaks the notifications.
+      fr: |-
+        L'éditeur est le principal de service S3, et non un principal IAM du compte : supprimer le principal de service bloque les notifications.
+references:
+  - title: The confused deputy problem - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html
+  - title: AWS global condition context keys - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html

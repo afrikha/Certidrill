@@ -1,0 +1,96 @@
+id: scsc03-4c-mfa-deny-bool-bypass
+objective: "4.2.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany attaches the following policy to an IAM group of operators to require MFA for every action except MFA self-management:
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Deny",
+        "NotAction": ["iam:CreateVirtualMFADevice", "iam:EnableMFADevice", "iam:ListMFADevices", "sts:GetSessionToken"],
+        "Resource": "*",
+        "Condition": {"Bool": {"aws:MultiFactorAuthPresent": "false"}}
+      }]
+    }
+    ```
+
+    An AWS CloudTrail review shows that an operator called ec2:TerminateInstances successfully with IAM user access keys and no MFA. The policy must deny such requests, and it must also deny requests made with temporary credentials that were obtained without MFA.
+
+    Which change will meet these requirements?
+  fr: |
+    AnyCompany attache la politique suivante à un groupe IAM d'opérateurs pour exiger la MFA pour toute action sauf l'autogestion de la MFA :
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Deny",
+        "NotAction": ["iam:CreateVirtualMFADevice", "iam:EnableMFADevice", "iam:ListMFADevices", "sts:GetSessionToken"],
+        "Resource": "*",
+        "Condition": {"Bool": {"aws:MultiFactorAuthPresent": "false"}}
+      }]
+    }
+    ```
+
+    Un examen d'AWS CloudTrail montre qu'un opérateur a appelé ec2:TerminateInstances avec succès avec les clés d'accès de son utilisateur IAM et sans MFA. La politique doit refuser de telles requêtes, et elle doit aussi refuser les requêtes faites avec des informations d'identification temporaires obtenues sans MFA.
+
+    Quelle modification permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Replace the Bool operator with BoolIfExists, so that the statement also applies when the key is absent from the request.
+        fr: |-
+          Remplacer l'opérateur Bool par BoolIfExists, afin que l'instruction s'applique aussi quand la clé est absente de la requête.
+    - id: b
+      text:
+        en: |-
+          Add a second condition `"NumericGreaterThan": {"aws:MultiFactorAuthAge": "3600"}` to the statement, so that old or missing MFA is denied.
+        fr: |-
+          Ajouter à l'instruction une seconde condition `"NumericGreaterThan": {"aws:MultiFactorAuthAge": "3600"}`, afin que les MFA anciennes ou absentes soient refusées.
+    - id: c
+      text:
+        en: |-
+          Replace the condition with `"Null": {"aws:MultiFactorAuthPresent": "true"}`, so that the statement denies requests in which the key is absent.
+        fr: |-
+          Remplacer la condition par `"Null": {"aws:MultiFactorAuthPresent": "true"}`, afin que l'instruction refuse les requêtes dans lesquelles la clé est absente.
+    - id: d
+      text:
+        en: |-
+          Replace the Bool operator with StringEquals and the value `"false"`, so that the comparison does not depend on the key type.
+        fr: |-
+          Remplacer l'opérateur Bool par StringEquals avec la valeur `"false"`, afin que la comparaison ne dépende pas du type de la clé.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      aws:MultiFactorAuthPresent is absent from requests signed with long-term access keys, and a condition on a missing key evaluates to false, so the Deny statement did not apply. With BoolIfExists, a missing key makes the condition true, so the statement denies requests signed with access keys and, as before, temporary credentials that carry the value false.
+    fr: |-
+      aws:MultiFactorAuthPresent est absente des requêtes signées avec des clés d'accès à long terme, et une condition sur une clé absente est évaluée à faux : l'instruction Deny ne s'appliquait donc pas. Avec BoolIfExists, une clé absente rend la condition vraie : l'instruction refuse les requêtes signées avec des clés d'accès et, comme avant, les informations d'identification temporaires qui portent la valeur false.
+  options:
+    b:
+      en: |-
+        Conditions in one statement must all match; aws:MultiFactorAuthAge is also absent for long-term keys, so the statement would still not apply to them.
+      fr: |-
+        Les conditions d'une instruction doivent toutes correspondre ; aws:MultiFactorAuthAge est aussi absente pour les clés à long terme : l'instruction ne s'appliquerait toujours pas à elles.
+    c:
+      en: |-
+        A Null test alone denies requests with long-term keys but no longer denies temporary credentials obtained without MFA, in which the key is present with the value false.
+      fr: |-
+        Un test Null seul refuse les requêtes à clés à long terme mais ne refuse plus les informations d'identification temporaires obtenues sans MFA, dans lesquelles la clé est présente avec la valeur false.
+    d:
+      en: |-
+        Any operator without IfExists fails to match a missing key, so requests signed with access keys would still bypass the Deny statement.
+      fr: |-
+        Tout opérateur sans IfExists échoue sur une clé absente : les requêtes signées avec des clés d'accès contourneraient toujours l'instruction Deny.
+references:
+  - title: AWS global condition context keys - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html
+  - title: "IAM JSON policy elements: Condition operators - AWS Identity and Access Management"
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html

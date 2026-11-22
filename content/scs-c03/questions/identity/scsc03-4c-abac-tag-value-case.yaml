@@ -1,0 +1,96 @@
+id: scsc03-4c-abac-tag-value-case
+objective: "4.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    AnyCompany uses attribute-based access control (ABAC) for Amazon EC2. Developers assume a role whose session carries the principal tag project=payments, and the role has the following identity-based policy:
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Action": ["ec2:StartInstances", "ec2:StopInstances"],
+        "Resource": "arn:aws:ec2:*:111122223333:instance/*",
+        "Condition": {"StringEquals": {"aws:ResourceTag/project": "${aws:PrincipalTag/project}"}}
+      }]
+    }
+    ```
+
+    The developers can stop the instances that they launched themselves, but they receive UnauthorizedOperation for the instances that a new deployment pipeline launched. The decoded authorization message for a failed request shows the value Payments for the project tag of the instance.
+
+    What is the cause of the failure?
+  fr: |
+    AnyCompany utilise le contrôle d'accès basé sur les attributs (ABAC) pour Amazon EC2. Les développeurs assument un rôle dont la session porte la balise de principal project=payments, et le rôle a la politique basée sur l'identité suivante :
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Action": ["ec2:StartInstances", "ec2:StopInstances"],
+        "Resource": "arn:aws:ec2:*:111122223333:instance/*",
+        "Condition": {"StringEquals": {"aws:ResourceTag/project": "${aws:PrincipalTag/project}"}}
+      }]
+    }
+    ```
+
+    Les développeurs peuvent arrêter les instances qu'ils ont lancées eux-mêmes, mais ils reçoivent UnauthorizedOperation pour les instances lancées par un nouveau pipeline de déploiement. Le message d'autorisation décodé d'une requête en échec affiche la valeur Payments pour la balise project de l'instance.
+
+    Quelle est la cause de l'échec ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          The ec2:StartInstances and ec2:StopInstances actions do not support the aws:ResourceTag condition key, so the condition never matches.
+        fr: |-
+          Les actions ec2:StartInstances et ec2:StopInstances ne prennent pas en charge la clé de condition aws:ResourceTag : la condition ne correspond jamais.
+    - id: b
+      text:
+        en: |-
+          Policy variables such as ${aws:PrincipalTag/project} are resolved only in the Resource element, not in a Condition element.
+        fr: |-
+          Les variables de politique comme ${aws:PrincipalTag/project} ne sont résolues que dans l'élément Resource, pas dans un élément Condition.
+    - id: c
+      text:
+        en: |-
+          StringEquals compares values with case sensitivity, so the tag value Payments does not match the principal tag value payments.
+        fr: |-
+          StringEquals compare les valeurs en respectant la casse : la valeur de balise Payments ne correspond pas à la valeur de balise de principal payments.
+    - id: d
+      text:
+        en: |-
+          Instances launched by another principal must also match an ec2:CreateAction condition before a developer can start or stop them.
+        fr: |-
+          Les instances lancées par un autre principal doivent aussi satisfaire une condition ec2:CreateAction pour qu'un développeur puisse les démarrer ou les arrêter.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      StringEquals is an exact, case-sensitive comparison, so Payments and payments are different values and the Allow statement does not apply, which leaves an implicit deny. The pipeline must tag instances with the same value, for example enforced with a tag policy, or the condition can use StringEqualsIgnoreCase.
+    fr: |-
+      StringEquals effectue une comparaison exacte qui respecte la casse : Payments et payments sont des valeurs différentes et l'instruction Allow ne s'applique pas, ce qui laisse un refus implicite. Le pipeline doit baliser les instances avec la même valeur, par exemple imposée par une politique de balises, ou la condition peut utiliser StringEqualsIgnoreCase.
+  options:
+    a:
+      en: |-
+        Both actions support resource tag conditions, which is why the developers can already stop the instances that they launched.
+      fr: |-
+        Les deux actions prennent en charge les conditions sur les balises de ressource, ce qui explique que les développeurs puissent déjà arrêter les instances qu'ils ont lancées.
+    b:
+      en: |-
+        Policy variables can be used in condition values; the same policy already works for the developers' own instances.
+      fr: |-
+        Les variables de politique peuvent être utilisées dans les valeurs de condition ; la même politique fonctionne déjà pour les instances des développeurs.
+    d:
+      en: |-
+        ec2:CreateAction applies to tagging during resource creation; it is not evaluated when an existing instance is started or stopped.
+      fr: |-
+        ec2:CreateAction s'applique au balisage lors de la création des ressources ; elle n'est pas évaluée quand une instance existante est démarrée ou arrêtée.
+references:
+  - title: "IAM JSON policy elements: Condition operators - AWS Identity and Access Management"
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+  - title: DecodeAuthorizationMessage - AWS Security Token Service
+    url: https://docs.aws.amazon.com/STS/latest/APIReference/API_DecodeAuthorizationMessage.html

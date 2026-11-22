@@ -1,0 +1,96 @@
+id: scsc03-4c-simulator-missing-context
+objective: "4.2.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A security engineer at AnyCompany wrote the following identity-based policy for an upload role:
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Action": "s3:PutObject",
+        "Resource": "arn:aws:s3:::example-uploads/*",
+        "Condition": {"StringEquals": {"s3:x-amz-server-side-encryption": "aws:kms"}}
+      }]
+    }
+    ```
+
+    Uploads that send the SSE-KMS header succeed in production. The engineer tests the policy with aws iam simulate-custom-policy for s3:PutObject on an object of the bucket. The result is implicitDeny, and the response lists s3:x-amz-server-side-encryption in MissingContextValues.
+
+    What should the engineer do to get a simulation that reflects the production uploads?
+  fr: |
+    Un ingénieur sécurité d'AnyCompany a rédigé la politique basée sur l'identité suivante pour un rôle de chargement :
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Action": "s3:PutObject",
+        "Resource": "arn:aws:s3:::example-uploads/*",
+        "Condition": {"StringEquals": {"s3:x-amz-server-side-encryption": "aws:kms"}}
+      }]
+    }
+    ```
+
+    Les chargements qui envoient l'en-tête SSE-KMS réussissent en production. L'ingénieur teste la politique avec aws iam simulate-custom-policy pour s3:PutObject sur un objet du compartiment. Le résultat est implicitDeny, et la réponse liste s3:x-amz-server-side-encryption dans MissingContextValues.
+
+    Que doit faire l'ingénieur pour obtenir une simulation qui reflète les chargements de production ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Run the simulation again and supply a context entry that sets s3:x-amz-server-side-encryption to aws:kms.
+        fr: |-
+          Relancer la simulation en fournissant une entrée de contexte qui définit s3:x-amz-server-side-encryption sur aws:kms.
+    - id: b
+      text:
+        en: |-
+          Run aws iam simulate-principal-policy for the role instead, because custom mode does not evaluate service-specific condition keys.
+        fr: |-
+          Exécuter plutôt aws iam simulate-principal-policy pour le rôle, car le mode personnalisé n'évalue pas les clés de condition propres aux services.
+    - id: c
+      text:
+        en: |-
+          Run the simulation again and supply the bucket policy as a resource policy, so that the default encryption of the bucket is evaluated.
+        fr: |-
+          Relancer la simulation en fournissant la politique du compartiment comme politique de ressource, pour que le chiffrement par défaut du compartiment soit évalué.
+    - id: d
+      text:
+        en: |-
+          Change the condition operator to StringEqualsIfExists, because the simulator cannot evaluate StringEquals on request headers.
+        fr: |-
+          Remplacer l'opérateur de condition par StringEqualsIfExists, car le simulateur ne peut pas évaluer StringEquals sur des en-têtes de requête.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      The simulator does not make a real request, so it only knows the context key values that you supply, apart from a few principal and organization keys that it fills in. When a referenced key has no value, the simulation still runs, returns an implicit deny and lists the key in MissingContextValues; supplying the value reproduces the production request.
+    fr: |-
+      Le simulateur n'envoie pas de vraie requête : il ne connaît que les valeurs de clés de contexte que vous fournissez, à part quelques clés de principal et d'organisation qu'il renseigne lui-même. Quand une clé référencée n'a pas de valeur, la simulation s'exécute quand même, renvoie un refus implicite et liste la clé dans MissingContextValues ; fournir la valeur reproduit la requête de production.
+  options:
+    b:
+      en: |-
+        Principal mode also needs context values for the keys that the policies reference; the missing value, not the mode, causes the implicit deny.
+      fr: |-
+        Le mode principal a lui aussi besoin des valeurs de contexte des clés référencées par les politiques ; c'est la valeur manquante, et non le mode, qui cause le refus implicite.
+    c:
+      en: |-
+        The condition tests the header sent with the request; a bucket policy or default encryption does not supply that request value to the simulation.
+      fr: |-
+        La condition teste l'en-tête envoyé avec la requête ; une politique de compartiment ou le chiffrement par défaut ne fournit pas cette valeur de requête à la simulation.
+    d:
+      en: |-
+        The simulator evaluates StringEquals normally; changing the operator would also let uploads without the header through in production.
+      fr: |-
+        Le simulateur évalue StringEquals normalement ; changer l'opérateur laisserait aussi passer en production les chargements sans l'en-tête.
+references:
+  - title: How to simulate policies - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies_policy-simulator-how-to.html
+  - title: IAM policy testing with the IAM policy simulator - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html

@@ -1,0 +1,66 @@
+id: scsc03-3c-hybrid-s3-interface-endpoint
+objective: "3.3.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    AnyCompany's on-premises batch servers upload files to an Amazon S3 bucket over the internet by using the Regional S3 endpoint name. The data center connects to a VPC through AWS Direct Connect, and EC2 instances in the VPC already reach Amazon S3 through a gateway endpoint. The security team requires that on-premises uploads use private connectivity over Direct Connect without changing the endpoint names in the batch scripts, and that VPC traffic keep using the gateway endpoint. The bucket must accept requests only when they arrive through one of the VPC endpoints.
+
+    Which solution will meet these requirements?
+  fr: |
+    Les serveurs de traitement par lots sur site d'AnyCompany chargent des fichiers dans un compartiment Amazon S3 par Internet en utilisant le nom de point de terminaison régional S3. Le centre de données est connecté à un VPC par AWS Direct Connect, et les instances EC2 du VPC accèdent déjà à Amazon S3 par un point de terminaison de passerelle. L'équipe de sécurité exige que les chargements depuis le site utilisent une connectivité privée sur Direct Connect sans modifier les noms de point de terminaison dans les scripts, et que le trafic du VPC continue d'utiliser le point de terminaison de passerelle. Le compartiment S3 ne doit accepter les requêtes que lorsqu'elles arrivent par l'un des points de terminaison de VPC.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Create an S3 interface endpoint with private DNS enabled only for inbound Resolver endpoints, forward the on-premises DNS queries to a Route 53 Resolver inbound endpoint, and deny requests whose aws:SourceVpce is neither endpoint ID in the bucket policy.
+        fr: |-
+          Créer un point de terminaison d'interface S3 avec le DNS privé activé uniquement pour les points de terminaison entrants du Resolver, transférer les requêtes DNS du site vers un point de terminaison entrant Route 53 Resolver, et refuser dans la politique de compartiment les requêtes dont aws:SourceVpce n'est aucun des deux ID de point de terminaison.
+    - id: b
+      text:
+        en: |-
+          Advertise the prefix list of the gateway endpoint to the on-premises routers over Direct Connect, and deny requests whose aws:SourceVpce is not the gateway endpoint ID in the bucket policy.
+        fr: |-
+          Annoncer la liste de préfixes du point de terminaison de passerelle aux routeurs sur site par Direct Connect, et refuser dans la politique de compartiment les requêtes dont aws:SourceVpce n'est pas l'ID du point de terminaison de passerelle.
+    - id: c
+      text:
+        en: |-
+          Create an S3 interface endpoint without private DNS, change the batch scripts to use the endpoint-specific DNS name, and deny requests whose aws:SourceVpce is neither endpoint ID in the bucket policy.
+        fr: |-
+          Créer un point de terminaison d'interface S3 sans DNS privé, modifier les scripts pour utiliser le nom DNS propre au point de terminaison, et refuser dans la politique de compartiment les requêtes dont aws:SourceVpce n'est aucun des deux ID de point de terminaison.
+    - id: d
+      text:
+        en: |-
+          Create a public virtual interface on the Direct Connect connection to reach the public S3 endpoints, and deny requests whose aws:SourceIp is outside the data center's public ranges in the bucket policy.
+        fr: |-
+          Créer une interface virtuelle publique sur la connexion Direct Connect pour joindre les points de terminaison publics S3, et refuser dans la politique de compartiment les requêtes dont aws:SourceIp est hors des plages publiques du centre de données.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      Interface endpoints for S3 are network interfaces with private IP addresses that on-premises clients can reach over Direct Connect. With private DNS and the option to enable it only for inbound Resolver endpoints (which requires a gateway endpoint in the VPC), on-premises queries forwarded to a Route 53 Resolver inbound endpoint resolve the Regional S3 name to the interface endpoint, while VPC traffic keeps using the gateway endpoint. The aws:SourceVpce condition then restricts the bucket to the two endpoints.
+    fr: |-
+      Les points de terminaison d'interface pour S3 sont des interfaces réseau dotées d'adresses IP privées que les clients sur site peuvent joindre par Direct Connect. Avec le DNS privé et l'option qui ne l'active que pour les points de terminaison entrants du Resolver (ce qui exige un point de terminaison de passerelle dans le VPC), les requêtes du site transférées à un point de terminaison entrant Route 53 Resolver résolvent le nom régional S3 vers le point de terminaison d'interface, tandis que le trafic du VPC continue d'utiliser le point de terminaison de passerelle. La condition aws:SourceVpce limite ensuite le compartiment aux deux points de terminaison.
+  options:
+    b:
+      en: |-
+        Gateway endpoints cannot be used from on-premises networks; only interface endpoints accept traffic that arrives over Direct Connect or VPN.
+      fr: |-
+        Les points de terminaison de passerelle ne sont pas utilisables depuis les réseaux sur site ; seuls les points de terminaison d'interface acceptent le trafic qui arrive par Direct Connect ou par VPN.
+    c:
+      en: |-
+        Endpoint-specific DNS names work without DNS changes, but they require the batch scripts to change their endpoint names, which the requirements forbid.
+      fr: |-
+        Les noms DNS propres au point de terminaison fonctionnent sans modification du DNS, mais ils obligent à modifier les noms de point de terminaison des scripts, ce que les exigences interdisent.
+    d:
+      en: |-
+        A public virtual interface reaches the public S3 endpoints with public IP addresses, not a VPC endpoint, so the bucket cannot require that requests arrive through a VPC endpoint.
+      fr: |-
+        Une interface virtuelle publique joint les points de terminaison publics S3 avec des adresses IP publiques, pas par un point de terminaison de VPC ; le compartiment ne peut donc pas exiger que les requêtes arrivent par un point de terminaison de VPC.
+references:
+  - title: AWS PrivateLink for Amazon S3 - Amazon Simple Storage Service
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/privatelink-interface-endpoints.html

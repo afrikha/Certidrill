@@ -1,0 +1,56 @@
+id: scsc03-1b-cwli-unauthorized-calls
+objective: "1.2.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany's multi-Region trail delivers CloudTrail events to an Amazon CloudWatch Logs log group. A security engineer suspects that a leaked credential is probing permissions across services, including Amazon EC2. The engineer must use CloudWatch Logs Insights to rank the IAM principals by the number of API calls that were denied for lack of authorization in the last 24 hours. Throttling and validation errors must not be counted.
+
+    Which query should the engineer run?
+  fr: |
+    Le journal de suivi multi-Régions d'AnyCompany livre les événements CloudTrail dans un groupe de journaux Amazon CloudWatch Logs. Un ingénieur sécurité soupçonne qu'un identifiant divulgué sonde les autorisations dans plusieurs services, dont Amazon EC2. L'ingénieur doit utiliser CloudWatch Logs Insights pour classer les principaux IAM selon le nombre d'appels d'API refusés faute d'autorisation au cours des dernières 24 heures. Les erreurs de limitation (throttling) et de validation ne doivent pas être comptées.
+
+    Quelle requête l'ingénieur doit-il exécuter ?
+body:
+  options:
+    - id: a
+      text: |-
+        filter ispresent(errorCode) | stats count(*) as denied by userIdentity.arn | sort denied desc | limit 10
+    - id: b
+      text: |-
+        filter errorCode = "AccessDenied" | stats count(*) as denied by userIdentity.arn | sort denied desc | limit 10
+    - id: c
+      text: |-
+        filter errorCode like /UnauthorizedOperation$/ or errorCode like /^AccessDenied/ | stats count(*) as denied by eventSource | sort denied desc | limit 10
+    - id: d
+      text: |-
+        filter errorCode like /UnauthorizedOperation$/ or errorCode like /^AccessDenied/ | stats count(*) as denied by userIdentity.arn | sort denied desc | limit 10
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Denied calls do not share one error code: Amazon EC2 returns codes that end with UnauthorizedOperation, and other services return codes that start with AccessDenied (such as AccessDeniedException). The Security Hub CSPM control for unauthorized API calls uses the same two patterns; grouping by userIdentity.arn ranks the principals.
+    fr: |-
+      Les appels refusés n'ont pas tous le même code d'erreur : Amazon EC2 renvoie des codes qui se terminent par UnauthorizedOperation, et d'autres services des codes qui commencent par AccessDenied (comme AccessDeniedException). Le contrôle Security Hub CSPM des appels d'API non autorisés utilise les deux mêmes modèles ; le regroupement par userIdentity.arn classe les principaux.
+  options:
+    a:
+      en: |-
+        Every failed call has an errorCode, so this query also counts throttling and validation errors.
+      fr: |-
+        Chaque appel en échec a un errorCode : cette requête compte donc aussi les erreurs de limitation et de validation.
+    b:
+      en: |-
+        An exact match on AccessDenied misses EC2 denials (UnauthorizedOperation) and codes such as AccessDeniedException.
+      fr: |-
+        Une correspondance exacte sur AccessDenied manque les refus EC2 (UnauthorizedOperation) et les codes comme AccessDeniedException.
+    c:
+      en: |-
+        The filter is right, but grouping by eventSource ranks services, not the IAM principals that made the calls.
+      fr: |-
+        Le filtre est correct, mais le regroupement par eventSource classe les services, et non les principaux IAM qui ont fait les appels.
+references:
+  - title: Security Hub CSPM controls for Amazon CloudWatch - AWS Security Hub
+    url: https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html
+  - title: Sample queries - Amazon CloudWatch Logs
+    url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-examples.html

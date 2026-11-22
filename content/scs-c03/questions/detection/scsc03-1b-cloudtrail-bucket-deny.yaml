@@ -1,0 +1,100 @@
+id: scsc03-1b-cloudtrail-bucket-deny
+objective: "1.3.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    AnyCompany's organization trail delivers log files to the S3 bucket anycompany-org-trail. The bucket policy contains the documented AWSCloudTrailAclCheck and AWSCloudTrailWrite statements for cloudtrail.amazonaws.com. To block access from outside the organization, an engineer added the following statement to the bucket policy. Since then, CloudTrail has stopped delivering log files to the bucket.
+
+    ```json
+    {
+      "Sid": "DenyOutsideOrg",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::anycompany-org-trail",
+        "arn:aws:s3:::anycompany-org-trail/*"
+      ],
+      "Condition": {
+        "StringNotEquals": { "aws:PrincipalOrgID": "o-a1b2c3d4e5" }
+      }
+    }
+    ```
+
+    How should the engineer change the policy so that CloudTrail delivers the log files and principals outside the organization stay blocked?
+  fr: |
+    Le journal de suivi d'organisation d'AnyCompany livre ses fichiers journaux dans le compartiment S3 anycompany-org-trail. La politique de compartiment contient les instructions documentées AWSCloudTrailAclCheck et AWSCloudTrailWrite pour cloudtrail.amazonaws.com. Pour bloquer l'accès depuis l'extérieur de l'organisation, un ingénieur a ajouté l'instruction suivante à la politique de compartiment. Depuis, CloudTrail ne livre plus de fichiers journaux dans le compartiment.
+
+    ```json
+    {
+      "Sid": "DenyOutsideOrg",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::anycompany-org-trail",
+        "arn:aws:s3:::anycompany-org-trail/*"
+      ],
+      "Condition": {
+        "StringNotEquals": { "aws:PrincipalOrgID": "o-a1b2c3d4e5" }
+      }
+    }
+    ```
+
+    Comment l'ingénieur doit-il modifier la politique pour que CloudTrail livre les fichiers journaux et que les principaux extérieurs à l'organisation restent bloqués ?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add another Allow statement for cloudtrail.amazonaws.com with s3:PutObject on arn:aws:s3:::anycompany-org-trail/AWSLogs/o-a1b2c3d4e5/*.
+        fr: |-
+          Ajouter une autre instruction Allow pour cloudtrail.amazonaws.com avec s3:PutObject sur arn:aws:s3:::anycompany-org-trail/AWSLogs/o-a1b2c3d4e5/*.
+    - id: b
+      text:
+        en: |-
+          Change the operator of the DenyOutsideOrg condition from StringNotEquals to StringNotEqualsIfExists.
+        fr: |-
+          Remplacer l'opérateur de la condition de DenyOutsideOrg StringNotEquals par StringNotEqualsIfExists.
+    - id: c
+      text:
+        en: |-
+          Add "BoolIfExists": { "aws:PrincipalIsAWSService": "false" } to the condition block of the DenyOutsideOrg statement.
+        fr: |-
+          Ajouter "BoolIfExists": { "aws:PrincipalIsAWSService": "false" } au bloc de conditions de l'instruction DenyOutsideOrg.
+    - id: d
+      text:
+        en: |-
+          Replace the aws:PrincipalOrgID condition key with aws:SourceVpce and the ID of the company's S3 gateway endpoint.
+        fr: |-
+          Remplacer la clé de condition aws:PrincipalOrgID par aws:SourceVpce et l'ID du point de terminaison de passerelle S3 de l'entreprise.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      aws:PrincipalOrgID is not present in requests made by a service principal, so StringNotEquals matches and the Deny blocks cloudtrail.amazonaws.com; an explicit Deny overrides the Allow statements. With BoolIfExists on aws:PrincipalIsAWSService set to false, the Deny no longer matches calls made directly by AWS services but still denies other principals outside the organization, including anonymous requests.
+    fr: |-
+      aws:PrincipalOrgID n'est pas présent dans les requêtes d'un principal de service : StringNotEquals correspond donc, et le Deny bloque cloudtrail.amazonaws.com ; un Deny explicite l'emporte sur les instructions Allow. Avec BoolIfExists sur aws:PrincipalIsAWSService à false, le Deny ne correspond plus aux appels faits directement par les services AWS, mais refuse toujours les autres principaux extérieurs à l'organisation, y compris les requêtes anonymes.
+  options:
+    a:
+      en: |-
+        An explicit Deny always overrides an Allow, so another Allow statement cannot restore delivery while the Deny matches CloudTrail.
+      fr: |-
+        Un Deny explicite l'emporte toujours sur un Allow : une autre instruction Allow ne peut pas rétablir la livraison tant que le Deny correspond à CloudTrail.
+    b:
+      en: |-
+        With IfExists, a missing key makes the condition true, so the Deny still applies to the service principal, whose requests have no aws:PrincipalOrgID.
+      fr: |-
+        Avec IfExists, une clé absente rend la condition vraie : le Deny s'applique toujours au principal de service, dont les requêtes n'ont pas d'aws:PrincipalOrgID.
+    d:
+      en: |-
+        CloudTrail does not deliver through the company's VPC endpoint, so this Deny would also block delivery, along with every principal that does not use the endpoint.
+      fr: |-
+        CloudTrail ne livre pas par le point de terminaison de VPC de l'entreprise : ce Deny bloquerait aussi la livraison, ainsi que tout principal qui n'utilise pas le point de terminaison.
+references:
+  - title: AWS global condition context keys - AWS Identity and Access Management
+    url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html
+  - title: Amazon S3 bucket policy for CloudTrail - AWS CloudTrail
+    url: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/create-s3-bucket-policy-for-cloudtrail.html
