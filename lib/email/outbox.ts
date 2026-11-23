@@ -13,10 +13,11 @@ import { getAccess } from "@/lib/access";
 import { send, type EmailMessage } from "@/lib/auth/email";
 import { logError } from "@/lib/log";
 import { expiredMessage, purchaseMessage, reminderMessage } from "./billing";
+import { adminNotifyAddress, signupNoticeMessage } from "./admin";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type EmailKind = "purchase" | "pass_reminder" | "pass_expired";
+export type EmailKind = "purchase" | "pass_reminder" | "pass_expired" | "signup_notice";
 
 /** The reminder goes this many days before a Pass ends. */
 export const REMINDER_DAYS = 7;
@@ -42,6 +43,15 @@ export async function enqueuePassEmails(
   ];
   if (remindAt > now) rows.push({ userId, kind: "pass_reminder", payload: pass, dedupeKey: `pass_reminder:${userId}:${certificationId}:${end}`, sendAfter: remindAt });
   await db.emailOutbox.createMany({ data: rows, skipDuplicates: true });
+}
+
+/**
+ * Queues the owner's notice of a new account (row of the new user), in the
+ * transaction that creates it. Nothing is queued without ADMIN_NOTIFY_EMAIL.
+ */
+export async function enqueueSignupNotice(db: Db, { userId, now }: { userId: string; now: Date }) {
+  if (!adminNotifyAddress()) return;
+  await db.emailOutbox.createMany({ data: [{ userId, kind: "signup_notice", payload: {}, dedupeKey: `signup_notice:${userId}`, sendAfter: now }], skipDuplicates: true });
 }
 
 export interface Mail {
@@ -135,6 +145,7 @@ async function compose(db: PrismaClient, row: EmailOutbox & { user: { email: str
   const payload = (row.payload ?? {}) as Record<string, unknown>;
   const link = (path: string) => new URL(path, base).toString();
   if (row.kind === "purchase") return composePurchase(db, { to, locale, paymentId: String(payload.paymentId) }, link);
+  if (row.kind === "signup_notice") return composeSignupNotice(db, row, link);
   if (row.kind !== "pass_reminder" && row.kind !== "pass_expired") throw new Error(`unknown e-mail kind: ${row.kind}`);
 
   const certificationId = String(payload.certificationId);
@@ -185,4 +196,18 @@ async function composePurchase(db: PrismaClient, { to, locale, paymentId }: { to
       : null;
   const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, ...charged, url, waiver });
   return { to, kind: "purchase", message, link: url };
+}
+
+/**
+ * The owner's notice of a new account, in the language of the owner's own
+ * account when the address has one (French otherwise); null once the address
+ * is removed from the configuration.
+ */
+async function composeSignupNotice(db: PrismaClient, row: EmailOutbox & { user: { email: string; locale: string } }, link: (path: string) => string): Promise<Mail | null> {
+  const to = adminNotifyAddress();
+  if (!to) return null;
+  const owner = await db.user.findUnique({ where: { email: to.toLowerCase() }, select: { locale: true } });
+  const url = link(`/admin/users/${row.userId}`);
+  const message = signupNoticeMessage({ locale: owner?.locale ?? "fr", email: row.user.email, userLocale: row.user.locale, createdAt: row.createdAt, url });
+  return { to, kind: row.kind, message, link: url };
 }

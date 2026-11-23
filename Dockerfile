@@ -25,6 +25,11 @@ CMD ["sh", "-c", "npx prisma migrate deploy && npm run seed"]
 # ---- runtime
 FROM base AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+# The deployed version (lib/version.ts): `git describe --tags` on the server,
+# passed by docker compose (README, "Version"). In the last stage only: a new
+# version rebuilds nothing but this stage.
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION}
 RUN groupadd --system --gid 1001 app && useradd --system --uid 1001 --gid app app
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static

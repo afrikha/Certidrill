@@ -1,0 +1,38 @@
+id: deac01-1c-glue-coalesce-straggler
+objective: "1.2.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS Glue Spark job reads 32 GB of compressed JSON files and writes JSON output to Amazon S3. The reads finish in a few minutes, but the job runs for about an hour. Job profiling metrics show that after a shuffle, all executors become idle and are released except one, which performs all the writes. The last transformation in the script calls `coalesce(1)` before the write.
+
+    What should the data engineer do to reduce the run time of the job?
+  fr: |
+    Une tâche Spark AWS Glue lit 32 Go de fichiers JSON compressés et écrit une sortie JSON dans Amazon S3. Les lectures se terminent en quelques minutes, mais la tâche s'exécute pendant environ une heure. Les métriques de profilage de la tâche montrent qu'après un remaniement (shuffle), tous les exécuteurs deviennent inactifs et sont libérés sauf un, qui effectue toutes les écritures. La dernière transformation du script appelle `coalesce(1)` avant l'écriture.
+
+    Que doit faire l'ingénieur de données pour réduire la durée d'exécution de la tâche ?
+body:
+  options:
+    - { id: a, text: { en: "Double the number of workers so that the remaining executor gets more memory.", fr: "Doubler le nombre de workers pour que l'exécuteur restant dispose de plus de mémoire." } }
+    - { id: b, text: { en: "Change the worker type to G.2X so that the remaining executor gets more CPU.", fr: "Remplacer le type de worker par G.2X pour que l'exécuteur restant dispose de plus de processeurs." } }
+    - { id: c, text: { en: "Remove the coalesce(1) call so that all executors write their partitions in parallel.", fr: "Supprimer l'appel coalesce(1) pour que tous les exécuteurs écrivent leurs partitions en parallèle." } }
+    - { id: d, text: { en: "Enable job bookmarks so that the job processes only new files at each run.", fr: "Activer les signets de tâche pour que la tâche ne traite que les nouveaux fichiers à chaque exécution." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "coalesce(1) funnels all the data into one partition, so a single straggler task writes everything while the other executors sit idle and are released. Without it, each executor writes its own partitions in parallel; grouping input files at read time can keep the number of partitions balanced."
+    fr: "coalesce(1) concentre toutes les données dans une seule partition : une seule tâche Spark retardataire écrit tout pendant que les autres exécuteurs restent inactifs et sont libérés. Sans cet appel, chaque exécuteur écrit ses propres partitions en parallèle ; le regroupement des fichiers d'entrée à la lecture peut garder un nombre de partitions équilibré."
+  options:
+    a:
+      en: "More workers stay idle as well, because all the output data is still in one partition handled by one task."
+      fr: "Les workers supplémentaires restent eux aussi inactifs, car toutes les données de sortie sont toujours dans une seule partition traitée par une seule tâche Spark."
+    b:
+      en: "A larger worker speeds up the single task only a little; the write remains serial."
+      fr: "Un worker plus grand n'accélère que légèrement la tâche Spark unique ; l'écriture reste séquentielle."
+    d:
+      en: "Bookmarks reduce the input of later runs, but the run still writes through a single partition."
+      fr: "Les signets réduisent les entrées des exécutions suivantes, mais l'exécution écrit toujours au travers d'une seule partition."
+references:
+  - title: Debugging demanding stages and straggler tasks
+    url: https://docs.aws.amazon.com/glue/latest/dg/monitor-profile-debug-straggler.html

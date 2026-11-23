@@ -233,7 +233,7 @@ describe("course checks — Markdown", () => {
 
   it("allows only the course's code languages", async () => {
     expect(await check((dir) => both(dir, "12-rbac", (t) => t.replace("```json", "```csharp")))).toEqual([
-      expect.stringMatching(/12-rbac\.en\.md:\d+: code block language "csharp" \(allowed: bash, powershell, json, bicep, kusto, yaml, python, javascript, typescript, java, text\)/),
+      expect.stringMatching(/12-rbac\.en\.md:\d+: code block language "csharp" \(allowed: bash, powershell, json, bicep, kusto, yaml, python, javascript, typescript, java, sql, text\)/),
       expect.stringMatching(/12-rbac\.fr\.md:\d+: code block language "csharp"/),
     ]);
   });

@@ -1,0 +1,60 @@
+id: deac01-2a-redshift-mv-incremental
+objective: "2.1.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A data engineer created the following materialized view in Amazon Redshift:
+
+    ```sql
+    CREATE MATERIALIZED VIEW mv_daily_sales AUTO REFRESH YES AS
+    SELECT o.order_date, c.region,
+           SUM(o.amount) AS total_amount, COUNT(*) AS order_count
+    FROM orders o
+    LEFT OUTER JOIN customers c ON o.customer_id = c.customer_id
+    GROUP BY o.order_date, c.region;
+    ```
+
+    The loading process guarantees that every order references an existing customer. SYS_MV_REFRESH_HISTORY shows that every refresh is a full recompute that takes 25 minutes and competes with user queries.
+
+    Which change will reduce the cost of each refresh?
+  fr: |
+    Un ingénieur data a créé la vue matérialisée suivante dans Amazon Redshift :
+
+    ```sql
+    CREATE MATERIALIZED VIEW mv_daily_sales AUTO REFRESH YES AS
+    SELECT o.order_date, c.region,
+           SUM(o.amount) AS total_amount, COUNT(*) AS order_count
+    FROM orders o
+    LEFT OUTER JOIN customers c ON o.customer_id = c.customer_id
+    GROUP BY o.order_date, c.region;
+    ```
+
+    Le processus de chargement garantit que chaque commande référence un client existant. SYS_MV_REFRESH_HISTORY montre que chaque actualisation est un recalcul complet qui dure 25 minutes et concurrence les requêtes des utilisateurs.
+
+    Quelle modification réduit le coût de chaque actualisation ?
+body:
+  options:
+    - { id: a, text: { en: "Set AUTO REFRESH YES INTERVAL 60 so that each refresh has fewer changes to process.", fr: "Définir AUTO REFRESH YES INTERVAL 60 pour que chaque actualisation ait moins de modifications à traiter." } }
+    - { id: b, text: { en: "Recreate the view with an INNER JOIN instead of the LEFT OUTER JOIN.", fr: "Recréer la vue avec une INNER JOIN au lieu de la LEFT OUTER JOIN." } }
+    - { id: c, text: { en: "Refresh the view with REFRESH MATERIALIZED VIEW mv_daily_sales CASCADE.", fr: "Actualiser la vue avec REFRESH MATERIALIZED VIEW mv_daily_sales CASCADE." } }
+    - { id: d, text: { en: "Run VACUUM FULL on the orders table before each refresh of the view.", fr: "Exécuter VACUUM FULL sur la table orders avant chaque actualisation de la vue." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "Redshift cannot refresh a materialized view incrementally when its definition uses an outer join, so every refresh reruns the whole query. Because every order has a customer, an INNER JOIN returns the same rows, and joins with SUM and COUNT aggregations support incremental refresh, which applies only the changes since the last refresh."
+    fr: "Redshift ne peut pas actualiser de façon incrémentielle une vue matérialisée dont la définition utilise une jointure externe : chaque actualisation réexécute toute la requête. Comme chaque commande a un client, une INNER JOIN renvoie les mêmes lignes, et les jointures avec des agrégations SUM et COUNT prennent en charge l'actualisation incrémentielle, qui n'applique que les modifications depuis la dernière actualisation."
+  options:
+    a:
+      en: "The outer join still forces a full recompute, so a shorter interval only runs the 25-minute refresh more often."
+      fr: "La jointure externe impose toujours un recalcul complet : un intervalle plus court ne fait qu'exécuter plus souvent l'actualisation de 25 minutes."
+    c:
+      en: "CASCADE refreshes upstream materialized views first; this view reads only tables, and its refresh stays a full recompute."
+      fr: "CASCADE actualise d'abord les vues matérialisées en amont ; cette vue ne lit que des tables, et son actualisation reste un recalcul complet."
+    d:
+      en: "VACUUM does not make an outer join incrementally refreshable, and some VACUUM operations on base tables can even force a full refresh."
+      fr: "VACUUM ne rend pas une jointure externe actualisable de façon incrémentielle, et certaines opérations VACUUM sur les tables de base peuvent même imposer une actualisation complète."
+references:
+  - title: Refreshing a materialized view
+    url: https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-refresh.html

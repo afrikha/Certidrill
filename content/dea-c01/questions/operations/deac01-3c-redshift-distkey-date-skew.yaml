@@ -1,0 +1,40 @@
+id: deac01-3c-redshift-distkey-date-skew
+objective: "3.4.5"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An Amazon Redshift provisioned cluster stores a 4-billion-row sales fact table with DISTSTYLE KEY on sale_date. Most queries filter on the last 7 days and join the fact table to a large customers dimension table that is distributed on customer_id. SVV_TABLE_INFO shows a high skew_rows value for the fact table, and during the queries a few slices do most of the work.
+
+    Which change will distribute the work more evenly and keep the join efficient?
+  fr: |
+    Un cluster provisionné Amazon Redshift stocke une table de faits des ventes de 4 milliards de lignes avec DISTSTYLE KEY sur sale_date. La plupart des requêtes filtrent sur les 7 derniers jours et joignent la table de faits à une grande table de dimension des clients distribuée sur customer_id. SVV_TABLE_INFO affiche une valeur skew_rows élevée pour la table de faits, et pendant les requêtes quelques tranches (slices) font l'essentiel du travail.
+
+    Quelle modification répartit le travail plus uniformément tout en gardant une jointure efficace ?
+body:
+  options:
+    - { id: a, text: { en: "Run ALTER TABLE ... ALTER DISTSTYLE ALL on the fact table.", fr: "Exécuter ALTER TABLE ... ALTER DISTSTYLE ALL sur la table de faits." } }
+    - { id: b, text: { en: "Run ALTER TABLE ... ALTER SORTKEY (sale_date) on the fact table and keep the distribution key.", fr: "Exécuter ALTER TABLE ... ALTER SORTKEY (sale_date) sur la table de faits et conserver la clé de distribution." } }
+    - { id: c, text: { en: "Run VACUUM and ANALYZE on the fact table after each nightly load.", fr: "Exécuter VACUUM et ANALYZE sur la table de faits après chaque chargement nocturne." } }
+    - { id: d, text: { en: "Run ALTER TABLE ... ALTER DISTKEY customer_id on the fact table.", fr: "Exécuter ALTER TABLE ... ALTER DISTKEY customer_id sur la table de faits." } }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: "When queries filter a narrow date range on a date distribution key, the filtered rows sit on a few slices and the workload is skewed. Distributing the fact table on customer_id, a high-cardinality column that is also the dimension's distribution key, spreads the rows and collocates the join; ALTER DISTKEY changes the key in place."
+    fr: "Lorsque les requêtes filtrent une plage de dates étroite sur une clé de distribution de type date, les lignes filtrées se trouvent sur quelques tranches et la charge de travail est asymétrique. Distribuer la table de faits sur customer_id, une colonne à forte cardinalité qui est aussi la clé de distribution de la dimension, répartit les lignes et colocalise la jointure ; ALTER DISTKEY modifie la clé sur place."
+  options:
+    a:
+      en: "ALL copies the whole 4-billion-row table to every node, which multiplies storage and load times and suits only slow-moving, smaller tables."
+      fr: "ALL copie toute la table de 4 milliards de lignes sur chaque nœud, ce qui multiplie le stockage et les temps de chargement et ne convient qu'à des tables plus petites et peu modifiées."
+    b:
+      en: "A sort key helps skip blocks, but the rows stay distributed by date, so the same few slices still do the work."
+      fr: "Une clé de tri aide à ignorer des blocs, mais les lignes restent distribuées par date : les mêmes quelques tranches font toujours le travail."
+    c:
+      en: "VACUUM sorts and reclaims space and ANALYZE refreshes statistics; neither changes how rows are distributed across slices."
+      fr: "VACUUM trie et récupère de l'espace, et ANALYZE actualise les statistiques ; aucun ne modifie la répartition des lignes entre les tranches."
+references:
+  - title: Choose the best distribution style
+    url: https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html
+  - title: ALTER TABLE
+    url: https://docs.aws.amazon.com/redshift/latest/dg/r_ALTER_TABLE.html

@@ -1,0 +1,38 @@
+id: deac01-2c-del-iceberg-erasure
+objective: "2.3.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A company stores customer orders in an Apache Iceberg table in Amazon S3, registered in the AWS Glue Data Catalog and queried with Amazon Athena engine version 3. The table uses default table properties. Under a privacy regulation, when a customer asks for erasure, the company must delete the customer's rows and ensure that the deleted data can no longer be read, including through time travel queries, within 2 days. The table must stay available to other queries. The solution must require the LEAST operational overhead.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise stocke les commandes clients dans une table Apache Iceberg dans Amazon S3, enregistrée dans AWS Glue Data Catalog et interrogée avec le moteur Amazon Athena version 3. La table utilise les propriétés de table par défaut. En vertu d'une réglementation sur la confidentialité, quand un client demande l'effacement, l'entreprise doit supprimer les lignes du client et garantir que les données supprimées ne peuvent plus être lues, y compris par des requêtes de voyage dans le temps (time travel), sous 2 jours. La table doit rester disponible pour les autres requêtes. La solution doit demander le MOINS d'efforts opérationnels.
+
+    Quelle solution permet de répondre à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Run a DELETE statement in Athena that removes the customer's rows from the table.", fr: "Exécuter dans Athena une instruction DELETE qui supprime les lignes du client de la table." }
+    - id: b
+      text: { en: "Create an S3 Lifecycle rule that expires the objects under the table's data/ prefix 1 day after creation.", fr: "Créer une règle S3 Lifecycle qui fait expirer les objets du préfixe data/ de la table 1 jour après leur création." }
+    - id: c
+      text: { en: "Run DELETE in Athena, set vacuum_max_snapshot_age_seconds to 86400 on the table, and then run VACUUM on the table.", fr: "Exécuter DELETE dans Athena, définir vacuum_max_snapshot_age_seconds à 86400 sur la table, puis exécuter VACUUM sur la table." }
+    - id: d
+      text: { en: "Run DELETE in Athena, and then run OPTIMIZE with REWRITE DATA USING BIN_PACK on the table.", fr: "Exécuter DELETE dans Athena, puis exécuter OPTIMIZE avec REWRITE DATA USING BIN_PACK sur la table." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      An Iceberg DELETE writes a new snapshot, but earlier snapshots still reference the files that contain the deleted rows. VACUUM expires snapshots older than vacuum_max_snapshot_age_seconds (5 days by default) and removes the files that no snapshot references, so lowering it to 1 day makes the data unreadable within the deadline while the table stays online.
+    fr: |
+      Un DELETE Iceberg écrit un nouvel instantané, mais les instantanés précédents référencent toujours les fichiers qui contiennent les lignes supprimées. VACUUM fait expirer les instantanés plus anciens que vacuum_max_snapshot_age_seconds (5 jours par défaut) et supprime les fichiers qu'aucun instantané ne référence : l'abaisser à 1 jour rend les données illisibles dans le délai, tandis que la table reste en ligne.
+  options:
+    a: { en: "Older snapshots keep the deleted rows readable through time travel, and with the defaults they are kept for 5 days, which exceeds the deadline.", fr: "Les instantanés plus anciens laissent les lignes supprimées lisibles par voyage dans le temps et, avec les valeurs par défaut, ils sont conservés 5 jours, ce qui dépasse le délai." }
+    b: { en: "Expiring the table's data files would delete every customer's data and break the table, which must stay available.", fr: "Faire expirer les fichiers de données de la table supprimerait les données de tous les clients et casserait la table, qui doit rester disponible." }
+    d: { en: "OPTIMIZE rewrites small files into larger ones, but the earlier snapshots and their files remain readable until they are expired.", fr: "OPTIMIZE réécrit les petits fichiers en fichiers plus gros, mais les instantanés précédents et leurs fichiers restent lisibles jusqu'à leur expiration." }
+references:
+  - title: VACUUM
+    url: https://docs.aws.amazon.com/athena/latest/ug/vacuum-statement.html
