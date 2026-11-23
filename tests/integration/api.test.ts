@@ -135,7 +135,7 @@ describe("API guards", () => {
   });
 
   it("health check answers ok with the database up", async () => {
-    expect(await json(await health.GET())).toEqual({ status: 200, body: { status: "ok", version: "dev" } });
+    expect(await json(await health.GET())).toEqual({ status: 200, body: { status: "ok" } });
   });
 });
 

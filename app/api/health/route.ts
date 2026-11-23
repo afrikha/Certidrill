@@ -1,15 +1,17 @@
 import { prisma } from "@/lib/db";
-import { appVersion } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
-/** Liveness + database check, used by Docker and the reverse proxy; names the deployed version (lib/version.ts). */
+/**
+ * Liveness + database check, used by Docker and the reverse proxy. Public:
+ * it does not name the deployed version, shown to administrators only
+ * (bottom of the back-office, lib/version.ts).
+ */
 export async function GET() {
-  const version = appVersion();
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return Response.json({ status: "ok", version });
+    return Response.json({ status: "ok" });
   } catch {
-    return Response.json({ status: "error", version }, { status: 503 });
+    return Response.json({ status: "error" }, { status: 503 });
   }
 }

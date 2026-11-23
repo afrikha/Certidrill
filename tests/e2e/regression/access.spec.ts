@@ -52,7 +52,7 @@ test("API: 401 without session, 403 cross-origin, JSON errors, no caching", asyn
   expect(sameOrigin.status()).toBe(401);
 
   const health = await request.get("/api/health");
-  expect(await health.json()).toEqual({ status: "ok", version: "dev" });
+  expect(await health.json()).toEqual({ status: "ok" });
 });
 
 test("security headers are set on pages and API", async ({ request }) => {

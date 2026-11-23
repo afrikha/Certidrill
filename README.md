@@ -225,7 +225,6 @@ cd /opt/certidrill
 docker compose exec backup pg_dump -h db -U certidrill -d certidrill -Fc -f /backups/avant-maj-$(date +%F-%H%M).dump
 git pull --ff-only --tags origin main
 APP_VERSION=$(git describe --tags --always) docker compose up -d --build   # migrate applique les migrations, puis app redémarre
-curl -s https://certidrill.com/api/health   # {"status":"ok","version":"v…"} : la version déployée
 docker compose ps -a                # migrate : Exited (0) ; app (certidrill-app-1), db, backup : Up
 curl -sI https://certidrill.com | head -3   # 200, ou 307 (redirection de langue)
 ```
@@ -313,15 +312,13 @@ Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). 
 
 Une boîte ou une redirection Ionos sur `dmarc@` ou `contact@<domaine>` permet de recevoir les rapports DMARC et les réponses.
 
-**Avis d'inscription au propriétaire** : avec `ADMIN_NOTIFY_EMAIL="vous@example.com"` dans `.env` (puis `docker compose up -d --force-recreate app`), chaque compte créé par l'inscription publique envoie un e-mail à cette adresse : l'adresse du nouvel inscrit, sa langue, la date et un lien vers son activité dans le back-office. L'avis est mis dans la file `email_outbox` dans la transaction qui crée le compte (pas de compte, pas d'avis), puis envoyé par le worker avec les autres e-mails. Il est rédigé dans la langue du compte qui porte cette adresse, en français sinon. Vide : aucun avis ; un avis encore en file quand l'adresse est retirée n'est pas envoyé. Les comptes créés par un administrateur (`user:create`, back-office) n'en déclenchent pas.
+**Avis d'inscription au propriétaire** : avec `ADMIN_NOTIFY_EMAIL="vous@example.com"` dans `.env` (puis `docker compose up -d --force-recreate app`), chaque compte créé par l'inscription publique envoie un e-mail à cette adresse : l'adresse du nouvel inscrit, sa langue, la date et un lien vers son activité dans le back-office (choix du propriétaire du 23/11/2026, mentionné dans la politique de confidentialité, rubrique *Destinataires*). L'avis est mis dans la file `email_outbox` dans la transaction qui crée le compte (pas de compte, pas d'avis), puis envoyé par le worker avec les autres e-mails. Il est rédigé dans la langue du compte qui porte cette adresse, en français sinon. Vide : aucun avis ; un avis encore en file quand l'adresse est retirée n'est pas envoyé. Les comptes créés par un administrateur (`user:create`, back-office) n'en déclenchent pas.
 
 ## Version
 
 Chaque fusion dans `main` qui passe toute la CI reçoit un tag `vAAAA.MM.JJ.N` (N-ième du jour, UTC ; job `tag` de `.github/workflows/ci.yml`). Au déploiement, `APP_VERSION=$(git describe --tags --always)` passe ce tag à l'image Docker (argument de build de `app`) ; sur un commit sans tag, `git describe` donne `<dernier tag>-<commits depuis>-g<commit>`. Sans `APP_VERSION`, la version vaut `dev`.
 
-La version déployée se lit :
-- en bas de chaque page du back-office, avec l'heure de démarrage de l'application (donc du dernier déploiement ou redémarrage) ; elle n'est pas montrée aux visiteurs ;
-- dans `/api/health` : `{"status":"ok","version":"v2026.11.23.1"}`.
+La version déployée se lit en bas de chaque page du back-office, avec l'heure de démarrage de l'application (donc du dernier déploiement ou redémarrage). Elle n'est montrée qu'aux administrateurs : ni dans le pied de page public, ni dans `/api/health`, qui est public (décision du propriétaire du 23/11/2026, pour ne pas aider à repérer une version vulnérable). Sur le serveur, `docker inspect certidrill-app-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep APP_VERSION` la donne aussi.
 
 La liste des versions et des commits qu'elles contiennent est sur GitHub, onglet *Tags* du dépôt.
 
