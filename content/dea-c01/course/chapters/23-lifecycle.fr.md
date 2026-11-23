@@ -27,7 +27,7 @@ Les données ont une vie : elles sont chargées, interrogées, refroidies, archi
 | Fichiers existants | Échec par défaut ; `ALLOWOVERWRITE` ou `CLEANPATH` (supprime d'abord les fichiers cibles) |
 | Compléments | `MANIFEST`, `HEADER` (pas avec Parquet), `REGION` |
 
-```text
+```sql
 COPY sales_stage
 FROM 's3://example-lake/exports/sales/2026-11-20/'
 IAM_ROLE 'arn:aws:iam::111122223333:role/RedshiftLoad'

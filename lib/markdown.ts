@@ -15,7 +15,7 @@ import { localizeDocsUrl } from "@/lib/vendors";
  * Highlighted languages: PowerShell, Azure CLI, ARM JSON, Bicep, KQL for Azure, and
  * application code (Python, JavaScript, TypeScript, Java) for AWS developer exams.
  */
-const LANGUAGES = ["powershell", "bash", "shell", "json", "bicep", "kusto", "yaml", "python", "javascript", "typescript", "java"] as const;
+const LANGUAGES = ["powershell", "bash", "shell", "json", "bicep", "kusto", "yaml", "python", "javascript", "typescript", "java", "sql"] as const;
 const ALIASES: Record<string, string> = {
   azcli: "bash",
   sh: "bash",

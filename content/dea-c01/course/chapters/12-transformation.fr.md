@@ -111,7 +111,7 @@ glueContext.write_dynamic_frame.from_options(
     transformation_ctx="curated")
 ```
 
-```text
+```sql
 CREATE TABLE curated.orders_parquet
 WITH (format = 'PARQUET',
       write_compression = 'SNAPPY',

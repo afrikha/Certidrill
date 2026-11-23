@@ -130,7 +130,7 @@ people and agents who author or review questions.
 - Language-neutral texts (a command, `Standard_LRS`, a role name) can be a plain
   string instead of `{ en, fr }`.
 
-## AWS certifications (`vendor: AWS`: SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03)
+## AWS certifications (`vendor: AWS`: SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03, DEA-C01)
 
 The rules above apply, except the points below, which replace the
 Microsoft-specific ones (from `factory/BRIEF-AWS.md`).
@@ -180,7 +180,9 @@ Microsoft-specific ones (from `factory/BRIEF-AWS.md`).
 8. **Code in courses:** `bash` (AWS CLI), `json` (IAM and bucket policies),
    `yaml` (CloudFormation, SAM), application code in `python`, `javascript`,
    `typescript` or `java` (aliases `py`, `js`, `ts` are highlighted too, but write
-   the full name), `text` for anything else (logs, Dockerfiles, query syntax).
+   the full name), `sql` for SQL (Redshift, Athena, Aurora), `text` for anything
+   else (logs, Dockerfiles, other query syntax such as CloudWatch Logs Insights
+   or DQDL).
    One language per block: split a Python and a JavaScript example into two
    blocks. The block is identical in the English and French chapters.
 

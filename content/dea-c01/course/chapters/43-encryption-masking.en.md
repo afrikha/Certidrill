@@ -29,7 +29,7 @@ Pseudonymized data (hashed, encrypted, tokenized) is still personal data under m
 
 **Mask at query time** with Redshift **dynamic data masking**: the stored data is unchanged; a masking policy rewrites the column for the users or roles it is attached to.
 
-```text
+```sql
 CREATE MASKING POLICY mask_card
 WITH (card_number VARCHAR(19))
 USING ('XXXX-XXXX-XXXX-' || RIGHT(card_number, 4));

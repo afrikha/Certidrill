@@ -16,7 +16,7 @@ Redshift répartit les lignes entre les tranches (slices) de ses nœuds de calcu
 | | `AUTO` | L'optimisation automatique des tables choisit d'après la charge de travail |
 | Compression des colonnes | `ENCODE AUTO` (par défaut), `AZ64`, `ZSTD`, `LZO` | Garder AUTO sauf si un encodage précis est demandé |
 
-```text
+```sql
 CREATE TABLE sales_fact (
   sale_id      BIGINT,
   customer_id  INTEGER,
@@ -83,7 +83,7 @@ Athena applique le schéma de la table à la lecture (schema on read) et ne ré�
 
 Les **tables Iceberg** permettent d'ajouter, supprimer, renommer et réordonner des colonnes, ainsi que des promotions comme int vers bigint ou float vers double, par des modifications **de métadonnées uniquement** : aucun fichier de données n'est réécrit.
 
-```text
+```sql
 ALTER TABLE lake.orders ADD COLUMNS (coupon_code string);
 ALTER TABLE lake.orders CHANGE COLUMN qty quantity int;
 ALTER TABLE lake.orders DROP COLUMN legacy_flag;
@@ -144,7 +144,7 @@ Le lignage (data lineage) enregistre d'où vient un jeu de données, quelles tâ
 | Compression | Snappy, ZSTD, GZIP | Athena facture les octets analysés avant décompression ; les fichiers texte compressés ne sont pas fractionnables, les fichiers en colonnes le sont |
 | Taille des fichiers | Lacs de données S3 | Moins de fichiers, plus gros ; compacter les petits fichiers (Glue, EMR, compactage Iceberg) |
 
-```text
+```sql
 CREATE EXTERNAL TABLE logs.clicks (user_id string, page string, ts timestamp)
 PARTITIONED BY (dt string)
 STORED AS PARQUET
@@ -184,7 +184,7 @@ Magasins de vecteurs : OpenSearch Serverless, clusters gérés OpenSearch Servic
 | **HNSW** | Graphe de voisins à plusieurs couches, parcouru du grossier au fin | Rappel élevé, faible latence, plus de mémoire, pas d'entraînement ; le choix par défaut habituel |
 | **IVF** | Vecteurs regroupés autour de centroïdes ; une requête ne parcourt que les groupes les plus proches | Moins de mémoire, entraînement nécessaire sur un échantillon, rappel dépendant du nombre de groupes explorés |
 
-```text
+```sql
 CREATE INDEX ON kb.chunks USING hnsw (embedding vector_cosine_ops);
 ```
 

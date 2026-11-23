@@ -83,7 +83,7 @@ DataSync ne copie que les données modifiées lors des exécutions suivantes, ch
 | D'autres clusters ou comptes lisent les mêmes données sans copie | Partage de données (data sharing) Redshift |
 | Migrer les données une fois dans Redshift | `COPY` depuis S3 (ou DMS pour une base de données source) |
 
-```text
+```sql
 CREATE EXTERNAL SCHEMA ops
 FROM POSTGRES DATABASE 'orders' SCHEMA 'public'
 URI 'orders-db.cluster-abc123.eu-west-1.rds.amazonaws.com'
@@ -109,7 +109,7 @@ Sur les nœuds RA3, Spectrum s'exécute sur une flotte séparée ; les nœuds RG
 
 **Redshift.** Les transactions s'exécutent par défaut en isolation **SNAPSHOT** sur les clusters provisionnés et les groupes de travail sans serveur ; **SERIALIZABLE** est plus strict et annule une transaction en conflit avec l'erreur 1023. Les `INSERT` et `COPY` simultanés partagent un verrou de table ; `UPDATE`, `DELETE`, `MERGE` et le DDL exigent un verrou exclusif. `LOCK` prend un verrou `ACCESS EXCLUSIVE` qui fait attendre les autres lectures et écritures jusqu'à la fin de la transaction.
 
-```text
+```sql
 BEGIN;
 LOCK sales;
 DELETE FROM sales USING sales_stage WHERE sales.sale_id = sales_stage.sale_id;
@@ -144,7 +144,7 @@ Apache Iceberg ajoute une couche de métadonnées (fichiers de métadonnées, li
 
 Apache Hudi et Delta Lake offrent des fonctionnalités similaires. Les Governed Tables de Lake Formation sont arrêtées : Iceberg est la réponse pour les tables transactionnelles sur AWS.
 
-```text
+```sql
 CREATE TABLE curated.orders (order_id string, customer_id string, amount double, ts timestamp)
 PARTITIONED BY (day(ts))
 LOCATION 's3://example-lake/curated/orders/'
@@ -186,7 +186,7 @@ Un plongement (embedding) est un vecteur de nombres qui représente le sens d'un
 | Vitesse de construction | Plus lente | Plus rapide |
 | Rappel et latence | Rappel élevé à faible latence | Rappel plus faible pour une même latence ; baisse quand les nouvelles données ne correspondent plus aux centroïdes (reconstruire) |
 
-```text
+```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE INDEX ON docs USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 256);
 SET hnsw.ef_search = 100;

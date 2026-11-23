@@ -33,7 +33,7 @@ Les auditeurs veulent des journaux complets, infalsifiables, conservés pendant 
 | Copie continue de CloudWatch Logs vers S3 ou un autre compte | Filtre d'abonnement vers Amazon Data Firehose (AWS recommande les abonnements plutôt que des exportations répétées) |
 | Activité des bases de données | Journaux d'audit Redshift, journaux RDS et Aurora publiés dans CloudWatch Logs, journaux des tâches DMS |
 
-```text
+```sql
 SELECT eventtime, useridentity.arn, eventname, requestparameters
 FROM cloudtrail_logs
 WHERE eventsource = 'glue.amazonaws.com'

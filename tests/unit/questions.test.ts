@@ -158,6 +158,7 @@ describe("markdown", () => {
     ["typescript", "typescript", "const x: number = 1;"],
     ["ts", "typescript", "const x: number = 1;"],
     ["java", "java", "public class App {}"],
+    ["sql", "sql", "SELECT id FROM orders;"],
   ])("highlights ```%s code as %s", async (fence, lang, code) => {
     const html = await renderMarkdown(`\`\`\`${fence}\n${code}\n\`\`\``);
     expect(html).toContain(`data-language="${lang}"`);

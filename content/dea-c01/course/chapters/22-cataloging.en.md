@@ -29,7 +29,7 @@ There is one Glue Data Catalog per account and Region. It contains **databases**
 | CloudFormation (`AWS::Glue::Table`), CDK or the Glue API | Tables deployed as code with the pipeline |
 | Glue ETL job with `enableUpdateCatalog` | The job that writes the data registers the table and its partitions |
 
-```text
+```sql
 CREATE EXTERNAL TABLE raw.clicks (
   user_id string,
   url string,
@@ -99,7 +99,7 @@ New folders in S3 are invisible to Athena and Spectrum until their partitions ex
 | Glue API `BatchCreatePartition` | A Lambda function triggered by S3 events registers each new folder |
 | Athena partition projection | Predictable values (dates, integers, enums, injected strings): partitions computed at query time, nothing to register |
 
-```text
+```sql
 ALTER TABLE raw.clicks ADD IF NOT EXISTS
 PARTITION (dt = '2026-11-20') LOCATION 's3://example-lake/raw/clicks/dt=2026-11-20/';
 

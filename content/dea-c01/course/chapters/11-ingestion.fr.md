@@ -15,7 +15,7 @@ Les questions d'ingestion fournissent une source, un débit et une échéance, e
 
 L'ingestion en streaming dans Redshift exige un schéma externe associé au service de flux et une vue matérialisée par flux :
 
-```text
+```sql
 CREATE EXTERNAL SCHEMA kds
 FROM KINESIS
 IAM_ROLE 'arn:aws:iam::111122223333:role/redshift-streaming-role';
