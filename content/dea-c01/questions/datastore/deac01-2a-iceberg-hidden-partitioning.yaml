@@ -1,0 +1,38 @@
+id: deac01-2a-iceberg-hidden-partitioning
+objective: "2.1.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A data engineer is creating a new events table in Amazon Athena. Analysts filter on ranges of the event_ts timestamp column. In the current Hive-style table, analysts often forget to also filter on the derived event_date partition column, so their queries scan the whole table. In the new table, a filter on event_ts alone must prune partitions, and analysts must not need an extra column.
+
+    Which statement should the data engineer use to create the table?
+  fr: |
+    Un ingénieur data crée une nouvelle table d'événements dans Amazon Athena. Les analystes filtrent sur des plages de la colonne d'horodatage event_ts. Dans la table actuelle de type Hive, les analystes oublient souvent de filtrer aussi sur la colonne de partition dérivée event_date : leurs requêtes analysent toute la table. Dans la nouvelle table, un filtre sur event_ts seul doit élaguer les partitions, et les analystes ne doivent pas avoir besoin d'une colonne supplémentaire.
+
+    Quelle instruction l'ingénieur data doit-il utiliser pour créer la table ?
+body:
+  options:
+    - { id: a, text: "CREATE TABLE events (event_id bigint, event_ts timestamp, payload string) PARTITIONED BY (day(event_ts)) LOCATION 's3://amzn-s3-demo-bucket/events/' TBLPROPERTIES ('table_type'='ICEBERG')" }
+    - { id: b, text: "CREATE EXTERNAL TABLE events (event_id bigint, event_ts timestamp, payload string) PARTITIONED BY (event_date string) LOCATION 's3://amzn-s3-demo-bucket/events/' TBLPROPERTIES ('projection.enabled'='true')" }
+    - { id: c, text: "CREATE TABLE events (event_id bigint, event_ts timestamp, event_date date, payload string) PARTITIONED BY (event_date) LOCATION 's3://amzn-s3-demo-bucket/events/' TBLPROPERTIES ('table_type'='ICEBERG')" }
+    - { id: d, text: "CREATE TABLE events (event_id bigint, event_ts timestamp, payload string) PARTITIONED BY (bucket(16, event_ts)) LOCATION 's3://amzn-s3-demo-bucket/events/' TBLPROPERTIES ('table_type'='ICEBERG')" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "Athena supports Iceberg hidden partitioning: with the day(event_ts) transform, Iceberg derives the partition from event_ts, so a query that filters only on event_ts ranges is pruned without any extra column. TBLPROPERTIES ('table_type'='ICEBERG') is required to create an Iceberg table from Athena."
+    fr: "Athena prend en charge le partitionnement masqué (hidden partitioning) d'Iceberg : avec la transformation day(event_ts), Iceberg dérive la partition d'event_ts, si bien qu'une requête qui filtre seulement sur des plages d'event_ts est élaguée sans colonne supplémentaire. TBLPROPERTIES ('table_type'='ICEBERG') est obligatoire pour créer une table Iceberg depuis Athena."
+  options:
+    b:
+      en: "Partition projection speeds up partition lookup, but queries must still filter on the event_date column to prune partitions."
+      fr: "La projection de partitions accélère la recherche des partitions, mais les requêtes doivent toujours filtrer sur la colonne event_date pour élaguer les partitions."
+    c:
+      en: "Partitioning on a separate event_date column keeps the extra column, and a filter on event_ts alone does not prune it."
+      fr: "Partitionner sur une colonne event_date distincte conserve la colonne supplémentaire, et un filtre sur event_ts seul ne l'élague pas."
+    d:
+      en: "The bucket transform hashes values into 16 buckets, so it cannot prune partitions for a range of timestamps."
+      fr: "La transformation bucket répartit les valeurs par hachage dans 16 compartiments : elle ne peut pas élaguer de partitions pour une plage d'horodatages."
+references:
+  - title: Create Iceberg tables
+    url: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-creating-tables.html

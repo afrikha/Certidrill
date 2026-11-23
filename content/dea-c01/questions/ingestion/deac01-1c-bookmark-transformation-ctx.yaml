@@ -1,0 +1,78 @@
+id: deac01-1c-bookmark-transformation-ctx
+objective: "1.2.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS Glue job runs every hour with the job bookmark option set to Enable. Each run reprocesses all the files in the source table instead of only the files added since the previous run. The script is the following:
+
+    ```python
+    job = Job(glueContext)
+    job.init(args["JOB_NAME"], args)
+
+    orders = glueContext.create_dynamic_frame.from_catalog(
+        database="sales",
+        table_name="raw_orders",
+    )
+
+    glueContext.write_dynamic_frame.from_options(
+        frame=orders,
+        connection_type="s3",
+        connection_options={"path": "s3://example-curated/orders/"},
+        format="parquet",
+        transformation_ctx="sink_orders",
+    )
+
+    job.commit()
+    ```
+
+    Which change will make the job process only new files?
+  fr: |
+    Une tâche AWS Glue s'exécute toutes les heures avec l'option de signet de tâche définie sur Enable. Chaque exécution retraite tous les fichiers de la table source au lieu des seuls fichiers ajoutés depuis l'exécution précédente. Le script est le suivant :
+
+    ```python
+    job = Job(glueContext)
+    job.init(args["JOB_NAME"], args)
+
+    orders = glueContext.create_dynamic_frame.from_catalog(
+        database="sales",
+        table_name="raw_orders",
+    )
+
+    glueContext.write_dynamic_frame.from_options(
+        frame=orders,
+        connection_type="s3",
+        connection_options={"path": "s3://example-curated/orders/"},
+        format="parquet",
+        transformation_ctx="sink_orders",
+    )
+
+    job.commit()
+    ```
+
+    Quelle modification fera traiter uniquement les nouveaux fichiers par la tâche ?
+body:
+  options:
+    - { id: a, text: { en: "Add a `transformation_ctx` parameter to the `create_dynamic_frame.from_catalog` call.", fr: "Ajouter un paramètre `transformation_ctx` à l'appel `create_dynamic_frame.from_catalog`." } }
+    - { id: b, text: { en: "Move the `job.commit()` call so that it runs before the write call.", fr: "Déplacer l'appel `job.commit()` pour qu'il s'exécute avant l'appel d'écriture." } }
+    - { id: c, text: { en: "Set the job bookmark option of the job to Pause instead of Enable.", fr: "Définir l'option de signet de la tâche sur Pause au lieu de Enable." } }
+    - { id: d, text: { en: "Remove the `transformation_ctx` parameter from the `write_dynamic_frame.from_options` call.", fr: "Supprimer le paramètre `transformation_ctx` de l'appel `write_dynamic_frame.from_options`." } }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: "AWS Glue uses the transformation_ctx of each method as the key of its bookmark state. When the read call has no transformation_ctx, bookmarks are not enabled for that source, so every run reads the whole table even though job.init and job.commit are present."
+    fr: "AWS Glue utilise le transformation_ctx de chaque méthode comme clé de son état de signet. Lorsque l'appel de lecture n'a pas de transformation_ctx, les signets ne sont pas activés pour cette source : chaque exécution lit toute la table, même si job.init et job.commit sont présents."
+  options:
+    b:
+      en: "job.commit must run at the end of the script to save the state of the run; moving it does not enable bookmarks for the source."
+      fr: "job.commit doit s'exécuter à la fin du script pour enregistrer l'état de l'exécution ; le déplacer n'active pas les signets pour la source."
+    c:
+      en: "Pause processes the data after the last bookmark without updating the bookmark state, and the source still has no bookmark key."
+      fr: "Pause traite les données postérieures au dernier signet sans mettre à jour l'état du signet, et la source n'a toujours pas de clé de signet."
+    d:
+      en: "The bookmark state of the source is keyed by the read call; removing the parameter from the sink changes nothing for the source."
+      fr: "L'état de signet de la source dépend de l'appel de lecture ; supprimer le paramètre de la cible ne change rien pour la source."
+references:
+  - title: Using job bookmarks
+    url: https://docs.aws.amazon.com/glue/latest/dg/programming-etl-connect-bookmarks.html

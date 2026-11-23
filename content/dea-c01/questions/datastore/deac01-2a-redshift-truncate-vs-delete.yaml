@@ -1,0 +1,58 @@
+id: deac01-2a-redshift-truncate-vs-delete
+objective: "2.1.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A nightly job reloads an Amazon Redshift table that dashboards query all day:
+
+    ```sql
+    BEGIN;
+    TRUNCATE daily_kpis;
+    INSERT INTO daily_kpis SELECT * FROM staging_kpis;
+    END;
+    ```
+
+    Dashboard queries that run during the reload wait until it finishes. When the INSERT failed last week, the table stayed empty. During a reload, dashboards must keep reading the previous data without waiting, and a failed reload must leave the previous data in place.
+
+    Which change will meet these requirements?
+  fr: |
+    Une tâche nocturne recharge une table Amazon Redshift que des tableaux de bord interrogent toute la journée :
+
+    ```sql
+    BEGIN;
+    TRUNCATE daily_kpis;
+    INSERT INTO daily_kpis SELECT * FROM staging_kpis;
+    END;
+    ```
+
+    Les requêtes des tableaux de bord exécutées pendant le rechargement attendent qu'il se termine. Lorsque l'INSERT a échoué la semaine dernière, la table est restée vide. Pendant un rechargement, les tableaux de bord doivent continuer à lire les données précédentes sans attendre, et un rechargement en échec doit laisser les données précédentes en place.
+
+    Quelle modification répond à ces exigences ?
+body:
+  options:
+    - { id: a, text: { en: "Add `LOCK daily_kpis;` as the first statement of the transaction.", fr: "Ajouter `LOCK daily_kpis;` comme première instruction de la transaction." } }
+    - { id: b, text: { en: "Run the TRUNCATE before BEGIN and keep only the INSERT inside the transaction.", fr: "Exécuter le TRUNCATE avant BEGIN et ne garder que l'INSERT dans la transaction." } }
+    - { id: c, text: { en: "Replace TRUNCATE daily_kpis with DELETE FROM daily_kpis inside the same transaction.", fr: "Remplacer TRUNCATE daily_kpis par DELETE FROM daily_kpis dans la même transaction." } }
+    - { id: d, text: { en: "Set the database to SNAPSHOT isolation and keep the TRUNCATE statement in the job.", fr: "Passer la base de données en isolation SNAPSHOT et garder l'instruction TRUNCATE dans la tâche." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "TRUNCATE takes an exclusive lock that prevents reads and automatically commits the current transaction, so a failed INSERT cannot restore the rows. DELETE stays inside the transaction: readers keep seeing the last committed data while the reload runs, and a rollback keeps the previous rows."
+    fr: "TRUNCATE prend un verrou exclusif qui empêche les lectures et valide automatiquement la transaction en cours : un INSERT en échec ne peut pas restaurer les lignes. DELETE reste dans la transaction : les lecteurs continuent de voir les dernières données validées pendant le rechargement, et une annulation conserve les lignes précédentes."
+  options:
+    a:
+      en: "LOCK takes an ACCESS EXCLUSIVE lock that makes reads wait, which is the opposite of the requirement, and TRUNCATE still commits."
+      fr: "LOCK prend un verrou ACCESS EXCLUSIVE qui fait attendre les lectures, l'inverse de l'exigence, et TRUNCATE valide toujours."
+    b:
+      en: "The table is then empty as soon as the TRUNCATE commits, so dashboards see no data and a failed INSERT still leaves it empty."
+      fr: "La table est alors vide dès la validation du TRUNCATE : les tableaux de bord ne voient aucune donnée et un INSERT en échec la laisse toujours vide."
+    d:
+      en: "The isolation level does not change TRUNCATE, which still takes an exclusive lock and commits the transaction."
+      fr: "Le niveau d'isolation ne change pas TRUNCATE, qui prend toujours un verrou exclusif et valide la transaction."
+references:
+  - title: Managing concurrent write operations
+    url: https://docs.aws.amazon.com/redshift/latest/dg/c_Concurrent_writes.html
+  - title: LOCK
+    url: https://docs.aws.amazon.com/redshift/latest/dg/r_LOCK.html

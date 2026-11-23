@@ -1,0 +1,66 @@
+id: deac01-3a-glue-bookmark-commit
+objective: "3.1.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AWS Glue Spark job runs every hour and must process only the files that arrived in the source table since the previous run. Job bookmarks are enabled on the job, but every run reprocesses all the files of the table. The script is shown below.
+
+    ```python
+    args = getResolvedOptions(sys.argv, ["JOB_NAME"])
+    glueContext = GlueContext(SparkContext())
+    job = Job(glueContext)
+    job.init(args["JOB_NAME"], args)
+    orders = glueContext.create_dynamic_frame.from_catalog(
+        database="sales", table_name="orders_raw",
+        transformation_ctx="orders_src")
+    glueContext.write_dynamic_frame.from_options(
+        frame=orders, connection_type="s3",
+        connection_options={"path": "s3://example-curated/orders/"},
+        format="parquet", transformation_ctx="orders_sink")
+    ```
+
+    Which change will make the job process only new files?
+  fr: |
+    Une tâche Spark AWS Glue s'exécute toutes les heures et ne doit traiter que les fichiers arrivés dans la table source depuis l'exécution précédente. Les signets de tâche (job bookmarks) sont activés sur la tâche, mais chaque exécution retraite tous les fichiers de la table. Le script est présenté ci-dessous.
+
+    ```python
+    args = getResolvedOptions(sys.argv, ["JOB_NAME"])
+    glueContext = GlueContext(SparkContext())
+    job = Job(glueContext)
+    job.init(args["JOB_NAME"], args)
+    orders = glueContext.create_dynamic_frame.from_catalog(
+        database="sales", table_name="orders_raw",
+        transformation_ctx="orders_src")
+    glueContext.write_dynamic_frame.from_options(
+        frame=orders, connection_type="s3",
+        connection_options={"path": "s3://example-curated/orders/"},
+        format="parquet", transformation_ctx="orders_sink")
+    ```
+
+    Quelle modification permet à la tâche de ne traiter que les nouveaux fichiers ?
+body:
+  options:
+    - { id: a, text: { en: "Add a push_down_predicate on the ingestion date to the from_catalog call.", fr: "Ajouter un push_down_predicate sur la date d'ingestion à l'appel from_catalog." } }
+    - { id: b, text: { en: "Remove the transformation_ctx parameter from the write_dynamic_frame call.", fr: "Supprimer le paramètre transformation_ctx de l'appel write_dynamic_frame." } }
+    - { id: c, text: { en: "Add a job.commit() call at the end of the script.", fr: "Ajouter un appel job.commit() à la fin du script." } }
+    - { id: d, text: { en: "Change the job bookmark option of the job from Enable to Pause.", fr: "Faire passer l'option de signet de la tâche de Enable à Pause." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "Job bookmarks need job.init at the start and job.commit at the end of the script: commit saves the state change to the bookmark service, and bookmarks do not work without it. The source already has a transformation_ctx, so only the missing commit prevents the job from remembering which files it processed."
+    fr: "Les signets de tâche nécessitent job.init au début et job.commit à la fin du script : commit enregistre le changement d'état auprès du service de signets, et les signets ne fonctionnent pas sans lui. La source a déjà un transformation_ctx : seul le commit manquant empêche la tâche de mémoriser les fichiers traités."
+  options:
+    a:
+      en: "A pushdown predicate filters partitions by value; it does not track which files were already processed."
+      fr: "Un prédicat pushdown filtre les partitions par valeur ; il ne suit pas les fichiers déjà traités."
+    b:
+      en: "transformation_ctx is what indexes bookmark state; removing it does not save any state."
+      fr: "transformation_ctx est ce qui indexe l'état des signets ; le supprimer n'enregistre aucun état."
+    d:
+      en: "Pause stops the bookmark from being updated, which is the opposite of the requirement."
+      fr: "Pause empêche la mise à jour du signet, ce qui est l'inverse de l'exigence."
+references:
+  - title: Using job bookmarks
+    url: https://docs.aws.amazon.com/glue/latest/dg/programming-etl-connect-bookmarks.html

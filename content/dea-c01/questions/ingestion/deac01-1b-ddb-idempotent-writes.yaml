@@ -1,0 +1,42 @@
+id: deac01-1b-ddb-idempotent-writes
+objective: "1.1.12"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A payment company ingests payment events from an Amazon SQS standard queue with an AWS Lambda function that writes each payment to an Amazon DynamoDB table. The partition key of the table is the payment ID. Because delivery is at least once, a payment is sometimes processed twice, and the second write overwrites a status that a later process already updated. The function must stay stateless, and each payment must be written only once.
+
+    Which solution will meet these requirements?
+  fr: |
+    Une entreprise de paiement ingère des événements de paiement depuis une file d'attente Amazon SQS standard avec une fonction AWS Lambda qui écrit chaque paiement dans une table Amazon DynamoDB. La clé de partition de la table est l'ID du paiement. Comme la livraison est au moins une fois (at least once), un paiement est parfois traité deux fois, et la seconde écriture écrase un statut qu'un processus ultérieur a déjà mis à jour. La fonction doit rester sans état, et chaque paiement ne doit être écrit qu'une fois.
+
+    Quelle solution répond à ces exigences ?
+body:
+  options:
+    - id: a
+      text: { en: "Keep the processed payment IDs in the /tmp directory of the function and skip IDs that are already there.", fr: "Conserver les ID de paiement traités dans le répertoire /tmp de la fonction et ignorer les ID déjà présents." }
+    - id: b
+      text: { en: "Increase the visibility timeout of the queue so that messages are delivered less often.", fr: "Augmenter le délai de visibilité de la file pour que les messages soient livrés moins souvent." }
+    - id: c
+      text: { en: "Write each payment with PutItem and the condition expression attribute_not_exists on the payment ID.", fr: "Écrire chaque paiement avec PutItem et l'expression de condition attribute_not_exists sur l'ID du paiement." }
+    - id: d
+      text: { en: "Switch the queue to SQS FIFO with content-based deduplication and keep the same function code.", fr: "Passer la file en SQS FIFO avec la déduplication basée sur le contenu et conserver le même code de fonction." }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: "A condition expression lets the write proceed only when no item with the same primary key exists, and DynamoDB rejects a duplicate write instead of overwriting the item. The state that makes the processing idempotent lives in the table, so the function itself stays stateless."
+    fr: "Une expression de condition n'autorise l'écriture que si aucun élément avec la même clé primaire n'existe, et DynamoDB rejette une écriture en double au lieu d'écraser l'élément. L'état qui rend le traitement idempotent est dans la table : la fonction reste elle-même sans état."
+  options:
+    a:
+      en: "The /tmp directory belongs to one execution environment, so other concurrent or new environments do not see the IDs, and the function is no longer stateless."
+      fr: "Le répertoire /tmp appartient à un seul environnement d'exécution : les autres environnements, simultanés ou nouveaux, ne voient pas les ID, et la fonction n'est plus sans état."
+    b:
+      en: "A longer visibility timeout reduces some redeliveries but cannot prevent them, for example after a function error."
+      fr: "Un délai de visibilité plus long réduit certaines nouvelles livraisons mais ne peut pas les empêcher, par exemple après une erreur de la fonction."
+    d:
+      en: "FIFO deduplication removes duplicate sends within a short interval, but a message can still be processed again after a failed attempt, so the overwrite can still happen."
+      fr: "La déduplication FIFO supprime les envois en double dans un court intervalle, mais un message peut encore être retraité après une tentative en échec : l'écrasement peut toujours se produire."
+references:
+  - title: DynamoDB condition expression CLI example
+    url: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html

@@ -1,0 +1,40 @@
+id: deac01-3c-spark-salting-aggregation
+objective: "3.4.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AWS Glue 4.0 Spark job computes the total bytes per device_id from 3 billion telemetry rows with a groupBy and a sum. The job has no join. About 40% of the rows have device_id set to UNKNOWN. In the Spark UI, one task of the aggregation stage runs for 50 minutes while the other tasks finish in 2 minutes, and adding workers did not shorten the stage. The result for UNKNOWN must stay in the output.
+
+    Which change will reduce the duration of the stage?
+  fr: |
+    Une tâche Spark AWS Glue 4.0 calcule le total des octets par device_id à partir de 3 milliards de lignes de télémétrie, avec un groupBy et une somme. La tâche ne comporte aucune jointure. Environ 40 % des lignes ont un device_id égal à UNKNOWN. Dans Spark UI, une tâche (task) de l'étape d'agrégation dure 50 minutes alors que les autres se terminent en 2 minutes, et l'ajout de nœuds de travail (workers) n'a pas raccourci l'étape. Le résultat pour UNKNOWN doit rester dans la sortie.
+
+    Quelle modification réduit la durée de l'étape ?
+body:
+  options:
+    - { id: a, text: { en: "Set spark.sql.adaptive.skewJoin.enabled to true so that Spark splits the skewed partition into several smaller tasks.", fr: "Définir spark.sql.adaptive.skewJoin.enabled sur true pour que Spark divise la partition asymétrique en plusieurs tâches plus petites." } }
+    - { id: b, text: { en: "Add a random salt from 0 to 31 to each row, aggregate by device_id and salt, and then sum the partial results by device_id.", fr: "Ajouter à chaque ligne un sel aléatoire de 0 à 31, agréger par device_id et par sel, puis additionner les résultats partiels par device_id." } }
+    - { id: c, text: { en: "Change the worker type from G.1X to G.2X and double the number of workers.", fr: "Passer le type de nœud de travail de G.1X à G.2X et doubler le nombre de nœuds de travail." } }
+    - { id: d, text: { en: "Wrap the telemetry DataFrame in a broadcast() hint before the groupBy so that Spark avoids the shuffle.", fr: "Envelopper le DataFrame de télémétrie dans une indication broadcast() avant le groupBy pour que Spark évite le brassage." } }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "Data skew happens when data is not uniformly distributed across partitions, so one task processes most of the rows. Salting spreads the UNKNOWN rows over 32 keys, and because a sum can be computed in two steps, the second aggregation by device_id gives the same totals while the heavy work runs in parallel tasks."
+    fr: "L'asymétrie des données se produit lorsque les données ne sont pas réparties uniformément entre les partitions, de sorte qu'une seule tâche traite la plupart des lignes. Le salage répartit les lignes UNKNOWN sur 32 clés et, comme une somme peut être calculée en deux étapes, la seconde agrégation par device_id donne les mêmes totaux tandis que le travail lourd s'exécute dans des tâches parallèles."
+  options:
+    a:
+      en: "The skew join optimization splits skewed tasks of sort-merge joins; it does not apply to an aggregation without a join."
+      fr: "L'optimisation des jointures asymétriques divise les tâches asymétriques des jointures sort-merge ; elle ne s'applique pas à une agrégation sans jointure."
+    c:
+      en: "All the UNKNOWN rows still go to a single task, so more or larger workers do not remove the bottleneck, as the team already saw."
+      fr: "Toutes les lignes UNKNOWN vont toujours à une seule tâche : des nœuds de travail plus nombreux ou plus gros ne suppriment pas le goulot d'étranglement, comme l'équipe l'a déjà constaté."
+    d:
+      en: "A broadcast hint avoids the shuffle of a small table in a join; it does nothing for a groupBy on a large table."
+      fr: "Une indication broadcast évite le brassage (shuffle) d'une petite table dans une jointure ; elle n'a aucun effet sur un groupBy appliqué à une grande table."
+references:
+  - title: Optimize shuffles
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/tuning-aws-glue-for-apache-spark/optimize-shuffles.html
+  - title: Key topics in Apache Spark
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/tuning-aws-glue-for-apache-spark/key-topics-apache-spark.html
