@@ -174,7 +174,7 @@ Moteurs : Athena (tables Iceberg du Glue Data Catalog), tâches Glue (`--datalak
 <!-- section: vector-indexes | objectives: 2.1.8 -->
 ## Types d'index vectoriels : HNSW et IVF
 
-Un plongement (embedding) est un vecteur de nombres qui représente le sens d'un texte, d'une image ou d'un enregistrement. La recherche par similarité trouve les vecteurs les plus proches selon la similarité cosinus, la distance euclidienne (L2) ou le produit scalaire. Une recherche k-NN exacte compare la requête à chaque vecteur ; les index de plus proches voisins approximatifs (ANN) sacrifient un peu de rappel pour une latence bien plus faible.
+Une vectorisation (embedding) est un vecteur de nombres qui représente le sens d'un texte, d'une image ou d'un enregistrement. La recherche par similarité trouve les vecteurs les plus proches selon la similarité cosinus, la distance euclidienne (L2) ou le produit scalaire. Une recherche k-NN exacte compare la requête à chaque vecteur ; les index de plus proches voisins approximatifs (ANN) sacrifient un peu de rappel pour une latence bien plus faible.
 
 | | HNSW (Hierarchical Navigable Small Worlds) | IVF (fichier inversé) |
 | --- | --- | --- |
