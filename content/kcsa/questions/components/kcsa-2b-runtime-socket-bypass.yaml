@@ -1,0 +1,38 @@
+id: kcsa-2b-runtime-socket-bypass
+objective: "2.5.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A Pod in the namespace `ci` mounts the container runtime socket of its node. The other namespaces enforce the Restricted Pod Security Standard, and the API server writes audit events for all requests. An attacker in the `ci` Pod uses the socket to start a privileged container on the node. Why is this new container neither blocked by Pod Security Admission nor recorded in the API audit log?
+body:
+  options:
+    - id: a
+      text: { en: "The runtime creates the container directly, so no request reaches the API server" }
+    - id: b
+      text: { en: "Pod Security Admission evaluates Deployments only, not individual containers" }
+    - id: c
+      text: { en: "Privileged containers are excluded from audit logging by default" }
+    - id: d
+      text: { en: "The audit policy records only the requests made by human users" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A container created through the runtime socket is not a Kubernetes API object: authentication, RBAC, admission control, Pod Security Admission and API auditing all happen in the API server, which never sees the request. Only node-level controls, such as runtime threat detection, can notice it. This is why the socket must not be mounted into workloads in the first place.
+  options:
+    b:
+      en: |
+        Pod Security Admission evaluates Pods, and warns on workload templates. It cannot evaluate a container that was never submitted to the API server.
+    c:
+      en: |
+        No such default exclusion exists. Audit policy rules decide what is logged, but they only apply to requests that reach the API server.
+    d:
+      en: |
+        An audit policy can record requests from any user, including ServiceAccounts. The problem is that no API request was made at all.
+references:
+  - title: "Volume Types"
+    url: https://kubernetes.io/docs/reference/storage/volume-types/
+  - title: "Admission Control in Kubernetes"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/

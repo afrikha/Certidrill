@@ -1,0 +1,46 @@
+id: dopc02-5a-esm-filter-shared-queue-loss
+objective: "5.1.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A finance application sends invoice and refund messages to one Amazon SQS standard queue. To split the work, a DevOps engineer created two AWS Lambda functions, each with its own event source mapping on the same queue. The mapping of the invoice function has filter criteria that match messages whose type is invoice, and the mapping of the refund function has filter criteria that match messages whose type is refund. Since the change, about half of all messages are never processed by any function, and nothing appears in the queue's dead-letter queue. The company wants each message type processed by its own function, with no lost messages and without changing the function code.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Increase the visibility timeout of the queue to six times the longer function timeout so that each message stays available long enough for the second mapping to read it.
+    - id: b
+      text:
+        en: |-
+          Publish the messages to an Amazon SNS topic with two subscription filter policies on the type attribute that deliver to two separate queues, each processed by one of the functions.
+    - id: c
+      text:
+        en: |-
+          Add the other message type as a second filter pattern on each event source mapping so that both mappings match all messages and each function ignores the type it does not handle.
+    - id: d
+      text:
+        en: |-
+          Convert the queue to an SQS FIFO queue with the type field as the message group ID so that each mapping only receives messages from its own message group.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      When a message does not match the filter criteria of an SQS event source mapping, Lambda deletes it from the queue. Two filtered mappings on one queue therefore delete each other's messages whenever a poller receives a message of the other type. Giving each function its own queue, fed by SNS subscription filter policies, removes the conflict without code changes.
+  options:
+    a:
+      en: |-
+        The messages are lost because Lambda deletes non-matching messages, not because they become visible again too early; a longer visibility timeout does not stop the deletion.
+    c:
+      en: |-
+        Each function would then receive both types, and ignoring the other type would require changing the function code; messages handled by the wrong function would still be removed from the queue.
+    d:
+      en: |-
+        Event source mappings do not select a message group; both mappings would still poll the same queue and delete the messages that do not match their filters.
+references:
+  - title: "Control which events Lambda sends to your Event Function - AWS Lambda"
+    url: https://docs.aws.amazon.com/lambda/latest/dg/invocation-eventfiltering.html

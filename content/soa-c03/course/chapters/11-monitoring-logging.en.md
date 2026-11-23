@@ -13,7 +13,7 @@ Monitoring questions check that the right signal exists: is the metric or log co
 **CloudWatch Logs features** you must place:
 
 - **Metric filter**: a pattern on a log group that counts matches or extracts a value into a metric. It applies only to events ingested after it is created.
-- **Subscription filter**: streams matching events in near real time to Kinesis Data Streams, Amazon Data Firehose, Lambda or OpenSearch Service (two per log group).
+- **Subscription filter**: streams matching events in near real time to Kinesis Data Streams, Amazon Data Firehose, Lambda or OpenSearch Service (up to five per log group).
 - **Logs Insights**: an interactive query language over one or more log groups; **Live Tail** streams events as they arrive.
 - **Log alarm**: runs a Logs Insights query on a schedule and compares the aggregated result with a threshold, with M-out-of-N evaluation; the alternative to metric filter plus metric alarm.
 

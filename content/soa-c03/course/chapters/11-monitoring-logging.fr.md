@@ -13,7 +13,7 @@ Les questions de surveillance vérifient que le bon signal existe : la métrique
 Les **fonctionnalités de CloudWatch Logs** à savoir situer :
 
 - **Filtre de métrique** : un modèle sur un groupe de journaux qui compte les correspondances ou extrait une valeur dans une métrique. Il ne s'applique qu'aux événements ingérés après sa création.
-- **Filtre d'abonnement** : diffuse quasi en temps réel les événements correspondants vers Kinesis Data Streams, Amazon Data Firehose, Lambda ou OpenSearch Service (deux par groupe de journaux).
+- **Filtre d'abonnement** : diffuse quasi en temps réel les événements correspondants vers Kinesis Data Streams, Amazon Data Firehose, Lambda ou OpenSearch Service (jusqu'à cinq par groupe de journaux).
 - **Logs Insights** : un langage de requête interactif sur un ou plusieurs groupes de journaux ; **Live Tail** affiche les événements à leur arrivée.
 - **Alarme de journal** : exécute une requête Logs Insights selon une planification et compare le résultat agrégé à un seuil, avec une évaluation M sur N ; l'alternative au couple filtre de métrique plus alarme sur métrique.
 

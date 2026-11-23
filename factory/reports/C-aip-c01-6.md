@@ -1,0 +1,19 @@
+# C-aip-c01-6 — course chapters 52, 53 (AIP-C01, English only)
+
+Files: `content/aip-c01/course/chapters/52-rag-agent-evaluation.en.md` (5.1.3, 5.1.5, 5.1.6, 5.1.7) and `53-troubleshooting.en.md` (5.2.1–5.2.5). Check: `check-cert.ts aip-c01 52-rag-agent-evaluation 53-troubleshooting` → course problems (your chapters): 0; `content:validate --course --chapters` → 0 problem(s). Length with tables: 2,420 and 2,868 words (53 covers 5 objectives).
+
+## Facts verified on docs.aws.amazon.com (2026-11-23)
+- RAG evaluation: retrieve-only metrics (ContextRelevance, ContextCoverage, needs ground truth), retrieve-and-generate 10 metrics; 1,000 prompts per job; 5 turns (R&G), single turn (retrieve only); BYO inference responses keys (`output.knowledgeBaseIdentifier`, `retrievedPassages.retrievalResults`).
+- Judge built-in metrics (11 `Builtin.*` names); custom metrics use a separate judge list.
+- Human-based evaluation jobs: up to two inference sources, rating methods (ThumbsUpDown, ComparisonChoice, IndividualLikertScale...), 1,000 prompts.
+- AgentCore Evaluations: built-in evaluators by level (session/trace/tool call), online config (up to 25 evaluators, console default sampling 10 %, CloudWatch log-group data source), results in `/aws/bedrock-agentcore/evaluations/results/...` and namespace `Bedrock-AgentCore/Evaluations`; on-demand on chosen trace/span IDs; Strands and LangGraph via OpenTelemetry/OpenInference.
+- Bedrock API errors and HTTP codes (troubleshooting page + Converse reference), `stopReason` values incl. `model_context_window_exceeded`, `CountTokens` free, `requestMetadata` 16 pairs, runtime metrics, invocation logging (off by default, 100 KB, S3 for large data), KB logging statuses and Logs Insights, chunking immutable on data source, `knowledgeBaseConfiguration`/`storageConfiguration` immutable, hybrid search stores, implicit filtering Claude-only, structured outputs limits, Prompt Management ARN restrictions, OptimizePrompt and Advanced Prompt Optimization (10 templates, 100 samples, 5 models), inference profile IAM policy, API Gateway 29 s integration timeout, 350 s idle timeout, X-Ray SDK maintenance (Feb 25, 2026), parsers (default text only; BDA and FM parser for all PDFs), Aurora pgvector indexes, OpenSearch Serverless NextGen/Classic.
+- June 2026 "AWS Service Availability Updates": A2I, Ground Truth, Clarify, Model Monitor, Kendra, Q Business, Bedrock Agents (→ Agents Classic) closed to new customers July 30, 2026.
+
+## Doubts / deviations
+- **Bedrock human-based evaluation jobs** rely, through the API, on a SageMaker AI flow definition and a private work team. The June 2026 closure of Ground Truth and A2I doesn't mention Bedrock human evaluation; I kept it as an available Bedrock feature but didn't verify that new customers can still create work teams. Question writers should avoid making it the decisive answer until checked.
+- Oversized input → `ValidationException` (400): stated from the generic ValidationException definition; no page states it explicitly for context overflow.
+- "Some models are offered in a Region only through cross-Region inference": supported by the CountTokens page wording ("launch with cross-Region inference (CRIS) only"); the exact error message isn't quoted.
+- Online evaluation: the AgentCore CLI page mentions 10 evaluators per config, the console/API 25; chapter uses 25 (console/API). Sampling semantics in the SDK snippet are inconsistent on the page; chapter only states the console default 10 %.
+- Left out (not verified): reranker model names, Retrieve `score` range, `numberOfResults` maximum, HNSW tuning parameters (`ef_search`, `m`) for OpenSearch, Strands default window size, AgentCore Evaluations on-demand API name, boto3 retry defaults.
+- Generic IR metrics (hit rate at k, MRR, recall at k) and feedback architecture (API Gateway/Lambda/DynamoDB/S3/Athena/AWS Quick) are standard patterns, not AWS-specific features.

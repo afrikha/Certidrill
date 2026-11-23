@@ -1,0 +1,38 @@
+id: kcsa-2a-kcm-cluster-signing-key
+objective: "2.2.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    In a kubeadm cluster, kube-controller-manager runs with `--cluster-signing-key-file=/etc/kubernetes/pki/ca.key`. This is the private key of the cluster CA, which kube-apiserver also trusts for client certificates. An attacker copies this file from a control plane node. What can the attacker do with it?
+body:
+  options:
+    - id: a
+      text: { en: "Decrypt the Secrets that are encrypted at rest in etcd" }
+    - id: b
+      text: { en: "Forge legacy Secret-based ServiceAccount tokens" }
+    - id: c
+      text: { en: "Issue client certificates for any identity, even `system:masters`" }
+    - id: d
+      text: { en: "Create Pods that bypass every admission controller" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      kube-controller-manager uses this key to sign certificates for approved CertificateSigningRequests. With the CA private key, an attacker can sign a client certificate with any common name and organization, and the API server will authenticate it. A certificate in the `system:masters` group gets unrestricted access, and Kubernetes cannot revoke certificates before they expire.
+  options:
+    a:
+      en: |
+        Encryption at rest uses the keys of the API server's EncryptionConfiguration or an external KMS, not the cluster CA key.
+    b:
+      en: |
+        Legacy ServiceAccount tokens are signed with a different key, set with `--service-account-private-key-file` (`sa.key` in kubeadm).
+    d:
+      en: |
+        A forged certificate gives a powerful identity, but admission control still applies to every write request, whoever makes it.
+references:
+  - title: kube-controller-manager
+    url: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/
+  - title: Authenticating
+    url: https://kubernetes.io/docs/reference/access-authn-authz/authentication/

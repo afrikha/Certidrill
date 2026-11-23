@@ -1,0 +1,46 @@
+id: kcsa-4b-namespace-name-label
+objective: "4.5.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The `db` Pods accept ingress only through this rule:
+
+    ```yaml
+    ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            team: frontend
+    ```
+
+    Tenants are allowed to edit the labels of their own namespaces. A compromised tenant adds `team: frontend` to its namespace and reaches the database. How should the rule identify the `frontend` namespace instead?
+body:
+  options:
+    - id: a
+      text: { en: "Add `Egress` to the `policyTypes` of the policy that protects the `db` Pods" }
+    - id: b
+      text: { en: "Replace `namespaceSelector` with an `ipBlock` for the frontend Pods' current IPs" }
+    - id: c
+      text: { en: "Add a second `from` element with a `podSelector` for the frontend Pods" }
+    - id: d
+      text: { en: "Select it with the `kubernetes.io/metadata.name` label instead of `team`" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      The control plane sets an immutable label `kubernetes.io/metadata.name` on every namespace, whose value is the namespace name. Selecting `kubernetes.io/metadata.name: frontend` cannot be matched by another namespace, whatever labels its owners add. Permission to patch namespaces should also be limited, since labels can change both NetworkPolicy and Pod Security Admission decisions.
+  options:
+    a:
+      en: |
+        `Egress` controls traffic leaving the `db` Pods. It does not change which namespaces may connect to them.
+    b:
+      en: |
+        Pod IPs are ephemeral and unpredictable, so `ipBlock` is meant for cluster-external ranges; the rule would break as Pods are rescheduled.
+    c:
+      en: |
+        A separate `from` element is ORed with the existing one, so the relabelled namespace would still be allowed.
+references:
+  - title: Network Policies
+    url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

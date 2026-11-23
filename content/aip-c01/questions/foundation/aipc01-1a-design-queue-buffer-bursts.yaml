@@ -1,0 +1,48 @@
+id: aipc01-1a-design-queue-buffer-bursts
+objective: "1.1.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A property-management company lets landlords upload lease agreements, and a model in Amazon Bedrock extracts key clauses from each lease. Uploads arrive in bursts of several thousand files at the end of each month, and the current design, in which an Amazon S3 event invokes an AWS Lambda function that calls the model directly, fails with many ThrottlingException errors during bursts. Landlords accept results within a few hours. The company wants to stay within its on-demand quotas without buying capacity.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Send the S3 events to an Amazon SQS queue, and process the queue with a Lambda function whose reserved concurrency keeps model calls within the quota.
+    - id: b
+      text:
+        en: |-
+          Increase the Lambda function's memory and timeout, and set the AWS SDK's maximum retry attempts to the highest allowed value.
+    - id: c
+      text:
+        en: |-
+          Purchase Provisioned Throughput with a 1-month commitment for the model, and keep invoking the Lambda function directly from the S3 events.
+    - id: d
+      text:
+        en: |-
+          Switch the Lambda function to the Priority service tier so that its requests are served ahead of other requests during bursts.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      ThrottlingException (HTTP 429) means the account quota was exceeded. An SQS queue absorbs the burst, and a consumer function with capped concurrency drains it at a rate that the on-demand quota supports, which is acceptable because landlords can wait a few hours. No capacity has to be purchased.
+  options:
+    c:
+      en: |-
+        Provisioned Throughput is purchased capacity billed hourly for the term, which the company does not want for a monthly burst.
+    b:
+      en: |-
+        More memory or retries do not reduce the request rate: thousands of concurrent functions keep exceeding the quota and keep being throttled.
+    d:
+      en: |-
+        The Priority tier gives precedence over Standard and Flex requests at a premium price, but the on-demand quota is shared across these tiers, so the burst still exceeds it.
+references:
+  - title: Troubleshooting Amazon Bedrock API Error Codes - Amazon Bedrock
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/troubleshooting-api-error-codes.html
+  - title: Service tiers for optimizing performance and cost - Amazon Bedrock
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html

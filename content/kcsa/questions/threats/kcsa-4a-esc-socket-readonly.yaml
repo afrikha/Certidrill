@@ -1,0 +1,52 @@
+id: kcsa-4a-esc-socket-readonly
+objective: "4.4.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A team argues that the following mount of the container runtime socket is safe because it is read-only:
+
+    ```yaml
+        volumeMounts:
+        - name: cri
+          mountPath: /run/containerd/containerd.sock
+          readOnly: true
+      volumes:
+      - name: cri
+        hostPath:
+          path: /run/containerd/containerd.sock
+          type: Socket
+    ```
+
+    Is the team right?
+body:
+  options:
+    - id: a
+      text: { en: "Yes, because a read-only mount stops the container from sending requests through the socket" }
+    - id: b
+      text: { en: "Yes, because the container runtime rejects any request that comes from inside a container" }
+    - id: c
+      text: { en: "No, because a process can still use the socket to have the runtime start a privileged container" }
+    - id: d
+      text: { en: "No, but only because `type: Socket` turns the mount back into a read-write mount" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A read-only mount prevents changes to the file, but a process can still connect to the socket and use the runtime's API, for example to start a privileged container with the host's root filesystem mounted. The Kubernetes documentation warns that `hostPath` volumes, whether mounted read-only or read-write, can expose privileged APIs such as the container runtime socket and allow container escape.
+  options:
+    a:
+      en: |
+        Read-only applies to modifying the file. Talking over an existing socket is not a write to the mounted file.
+    b:
+      en: |
+        The runtime trusts whoever can reach its socket. It does not know or check that the caller runs in a container.
+    d:
+      en: |
+        `type: Socket` only requires that a UNIX socket exist at the path. It does not change the mount mode.
+references:
+  - title: Volume Types
+    url: https://kubernetes.io/docs/reference/storage/volume-types/
+  - title: "Escape to Host, Technique T1611 - Enterprise | MITRE ATT&CK®"
+    url: https://attack.mitre.org/techniques/T1611/

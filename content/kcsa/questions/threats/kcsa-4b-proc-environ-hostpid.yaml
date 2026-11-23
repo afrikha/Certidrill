@@ -1,0 +1,40 @@
+id: kcsa-4b-proc-environ-hostpid
+objective: "4.6.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    In a namespace without Pod Security Admission, an attacker creates a Pod with `hostPID: true` and a container that runs with `privileged: true` on `node-5`. Other Pods on `node-5` receive database passwords through environment variables set with `secretKeyRef`. The attacker has no RBAC permission on Secrets.
+
+    How can the attacker read those passwords from the new container?
+body:
+  options:
+    - id: a
+      text: { en: "From the kubelet read-only port, which serves resolved environment values" }
+    - id: b
+      text: { en: "From the node's `/etc/environment`, where the kubelet writes container variables" }
+    - id: c
+      text: { en: "From the API server's audit log, which records resolved environment values" }
+    - id: d
+      text: { en: "From `/proc/<pid>/environ` of the other Pods' processes, visible in the host PID namespace" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      With `hostPID: true` the container sees every process on the node, and privileged mode removes the confinement that would stop root from inspecting them. Each process's environment, including values injected from Secrets, can be read under `/proc/<pid>/environ`. Node-level access bypasses RBAC on Secrets entirely, which is why Baseline forbids host namespaces and privileged containers.
+  options:
+    a:
+      en: |
+        Pod specs only contain the `secretKeyRef` reference, not the resolved value; the read-only port does not expose the Secret's data this way.
+    b:
+      en: |
+        The kubelet does not write container variables to a node file; they exist in the processes' environment.
+    c:
+      en: |
+        Audit events record API requests. The resolved environment of a running process never passes through the API server.
+references:
+  - title: Secrets
+    url: https://kubernetes.io/docs/concepts/configuration/secret/
+  - title: Pod Security Standards
+    url: https://kubernetes.io/docs/concepts/security/pod-security-standards/

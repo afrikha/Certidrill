@@ -1,0 +1,49 @@
+id: kcsa-1b-cred-env-not-updated
+objective: "1.6.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The operations team rotates a database password by updating the Secret `db-cred` in the `payments` namespace. Hours later, the running Pods still use the old password until they are restarted. The container specification contains:
+
+    ```yaml
+    env:
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: db-cred
+          key: password
+    ```
+
+    What explains this behavior?
+body:
+  options:
+    - id: a
+      text: { en: "The kubelet refreshes the Secrets of running Pods only once a day" }
+    - id: b
+      text: { en: "Environment variables are set when the container starts; a Secret volume would be updated eventually" }
+    - id: c
+      text: { en: "The API server keeps serving the previous version of the Secret until every Pod that uses it is deleted" }
+    - id: d
+      text: { en: "The update of the Secret was ignored because Secrets referenced by running Pods are read-only" }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      Values from a Secret or a ConfigMap are copied into environment variables when the container starts and aren't updated afterwards: the container must be restarted. Data consumed through a volume is updated by the kubelet with an eventually consistent approach, except for `subPath` mounts. To rotate credentials without restarts, mount the Secret as a volume and have the application reread the file.
+  options:
+    a:
+      en: |
+        There is no daily refresh: environment variables of a running container are never refreshed, and Secret volumes are updated much sooner.
+    c:
+      en: |
+        The API server stores and serves only the current version of a Secret.
+    d:
+      en: |
+        Secrets used by Pods can be updated unless they are marked `immutable`; the update succeeded here, but environment variables don't follow it.
+references:
+  - title: "Secrets"
+    url: https://kubernetes.io/docs/concepts/configuration/secret/
+  - title: "ConfigMaps"
+    url: https://kubernetes.io/docs/concepts/configuration/configmap/

@@ -1,0 +1,48 @@
+id: aipc01-3c-token-anomaly-per-role
+objective: "3.3.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A company's AWS account serves 30 internal applications that call Amazon Bedrock, each with its own IAM role. Model invocation logging sends records to a CloudWatch Logs log group. The security team wants to detect automatically when any single application's token consumption deviates from its usual daily and weekly pattern, which might indicate a leaked credential or a runaway agent loop. The team then wants to revoke that role's active sessions automatically and notify the application owner. Fixed thresholds per application are not acceptable.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Create CloudWatch anomaly detection alarms on the InputTokenCount and OutputTokenCount metrics in the AWS/Bedrock namespace for each model, and invoke a Lambda function that revokes the sessions of all 30 roles and notifies every owner when an alarm fires.
+    - id: b
+      text:
+        en: |-
+          Create a metric filter on the invocation log group that publishes token counts per calling role from identity.arn, add anomaly detection alarms on those metrics, and route them through EventBridge to a Lambda function that revokes the role's sessions and notifies the owner.
+    - id: c
+      text:
+        en: |-
+          Create an AWS Cost Anomaly Detection monitor for Amazon Bedrock with an Amazon SNS subscription that invokes a Lambda function, which looks up the role with the highest Bedrock cost, revokes its active sessions, and notifies the owner.
+    - id: d
+      text:
+        en: |-
+          Enable CloudTrail data events for Amazon Bedrock, and run a daily Amazon Athena query that compares each role's InvokeModel call count with the same day of the previous week, then revokes the sessions of the outlier roles and notifies their owners.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Each invocation log record carries the caller's identity.arn and the token counts, so a metric filter can create a token metric per role by using that field as a dimension. Anomaly detection learns hourly, daily and weekly patterns and alarms when a value leaves the expected band, with no static threshold, and alarm state changes can trigger the remediation Lambda function through EventBridge.
+  options:
+    a:
+      en: |-
+        The AWS/Bedrock token metrics are not broken down by caller, so they cannot show which application deviates, and revoking all 30 roles would stop healthy applications.
+    c:
+      en: |-
+        Cost data is not attributed to the calling IAM role and arrives with a delay, so the monitor cannot identify the application within minutes.
+    d:
+      en: |-
+        InvokeModel is a management event, not a data event, call counts do not measure tokens, and a daily query is not timely detection.
+references:
+  - title: "Monitor model invocation using CloudWatch Logs and Amazon S3 - Amazon Bedrock"
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html
+  - title: "Using CloudWatch anomaly detection - Amazon CloudWatch"
+    url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Anomaly_Detection.html

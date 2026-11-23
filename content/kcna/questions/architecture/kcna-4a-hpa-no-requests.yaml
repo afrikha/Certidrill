@@ -1,0 +1,52 @@
+id: kcna-4a-hpa-no-requests
+objective: "4.2.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    metrics-server is installed and `kubectl top pods` shows the CPU usage of the `api` Pods. The HorizontalPodAutoscaler below never scales the `api` Deployment, whose container section is also shown. What is the cause?
+
+    ```yaml
+    # Deployment "api" (excerpt)
+          containers:
+          - name: api
+            image: example.com/api:2.1
+    ---
+    # HorizontalPodAutoscaler "api" (excerpt)
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+    ```
+body:
+  options:
+    - id: a
+      text: { en: "The container sets no CPU request, so CPU utilization cannot be computed" }
+    - id: b
+      text: { en: "Utilization targets require the `autoscaling/v1` API instead of `autoscaling/v2`" }
+    - id: c
+      text: { en: "A HorizontalPodAutoscaler can scale StatefulSets only, not Deployments" }
+    - id: d
+      text: { en: "CPU targets must use `averageValue`, because `Utilization` is for memory only" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      Utilization is calculated as a percentage of the container's resource request. If a container of the Pod has no CPU request, CPU utilization is not defined and the HPA takes no action for that metric. Adding `resources.requests.cpu` to the container fixes it.
+  options:
+    b:
+      en: |
+        `autoscaling/v2` is the current API and supports resource utilization targets as well as custom and external metrics.
+    c:
+      en: |
+        The HPA scales any workload with a scale subresource, such as Deployments and StatefulSets. Only non-scalable objects such as DaemonSets are excluded.
+    d:
+      en: |
+        `Utilization` is the usual target type for CPU (the documentation's examples use it). `averageValue` is an alternative, not a requirement.
+references:
+  - title: Horizontal Pod Autoscaling
+    url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

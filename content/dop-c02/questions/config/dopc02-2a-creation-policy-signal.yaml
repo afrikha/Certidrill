@@ -1,0 +1,51 @@
+id: dopc02-2a-creation-policy-signal
+objective: "2.1.4"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS CloudFormation template creates an Auto Scaling group of three Amazon EC2 instances behind a load balancer, followed by an Amazon Route 53 record and a smoke-test custom resource that depends on the group. The user data of the launch template runs cfn-init, which installs and configures the application for about 10 minutes. The stack currently reaches CREATE_COMPLETE before cfn-init has finished, so the smoke test fails. The stack must wait until all three instances report that cfn-init succeeded, and creation must fail and roll back if configuration fails on any instance or takes more than 15 minutes.
+
+    Which combination of steps will meet these requirements? (Choose two.)
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: |-
+          Add a CreationPolicy to the Auto Scaling group with a ResourceSignal Count of 3 and a Timeout of PT15M.
+    - id: b
+      text:
+        en: |-
+          Add a DependsOn attribute that points to the Auto Scaling group to the Route 53 record and the smoke-test custom resource.
+    - id: c
+      text:
+        en: |-
+          Add an UpdatePolicy with AutoScalingRollingUpdate and WaitOnResourceSignals set to true to the Auto Scaling group.
+    - id: d
+      text:
+        en: |-
+          In the user data, run cfn-signal after cfn-init with -e $? and --resource set to the logical ID of the Auto Scaling group.
+    - id: e
+      text:
+        en: |-
+          Add DeletionPolicy: Retain to the Auto Scaling group so that the instances stay available for troubleshooting when creation fails.
+answer: { optionIds: [ a, d ] }
+explanation:
+  correct:
+    en: |-
+      A CreationPolicy keeps the Auto Scaling group from reaching CREATE_COMPLETE until it receives the required number of success signals; a failure signal or a timeout makes creation fail and the stack roll back. Each instance sends the exit status of cfn-init with cfn-signal -e $?, and --resource must name the resource that has the CreationPolicy.
+  options:
+    b:
+      en: |-
+        The resources that depend on the group already wait for it; the problem is that the group reaches CREATE_COMPLETE before configuration ends, which DependsOn does not change.
+    c:
+      en: |-
+        UpdatePolicy applies to rolling updates of an existing group, not to the creation of the stack.
+    e:
+      en: |-
+        DeletionPolicy controls what happens on deletion; it does not make the stack wait for configuration.
+references:
+  - title: CreationPolicy attribute - AWS CloudFormation
+    url: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-creationpolicy.html

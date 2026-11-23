@@ -1,0 +1,58 @@
+id: kcsa-1a-imds-egress-policy
+objective: "1.2.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The network plugin of a cluster enforces NetworkPolicy, and namespace `shop` contains only this policy:
+
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: block-metadata
+      namespace: shop
+    spec:
+      podSelector: {}
+      policyTypes:
+      - Egress
+      egress:
+      - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+            - 169.254.169.254/32
+    ```
+
+    What does this policy do?
+body:
+  options:
+    - id: a
+      text: { en: "It blocks all egress of the `shop` Pods except their traffic to `169.254.169.254`" }
+    - id: b
+      text: { en: "It blocks the traffic sent from `169.254.169.254` to the Pods of the `shop` namespace" }
+    - id: c
+      text: { en: "It blocks `169.254.169.254` only for the `shop` Pods that set `hostNetwork: true`" }
+    - id: d
+      text: { en: "It allows egress from all `shop` Pods to any address except `169.254.169.254`" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      The empty `podSelector` selects every Pod of `shop` and isolates them for egress. The only egress rule allows `0.0.0.0/0` minus the `except` range, so the Pods can reach every address except the instance metadata service. This is the network filtering that the Kubernetes documentation recommends for the metadata API.
+  options:
+    a:
+      en: |
+        This reverses the rule: `except` removes the metadata address from the allowed range, it doesn't make it the only allowed destination.
+    b:
+      en: |
+        `policyTypes` lists only `Egress`, so the policy controls outbound connections from the Pods, not inbound traffic.
+    c:
+      en: |
+        The selector is empty, so the policy applies to every Pod of the namespace. Pods with `hostNetwork: true` are in fact the ones that NetworkPolicy usually can't filter, because their traffic is treated as node traffic.
+references:
+  - title: "Network Policies"
+    url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+  - title: "Securing a Cluster"
+    url: https://kubernetes.io/docs/tasks/administer-cluster/securing-a-cluster/

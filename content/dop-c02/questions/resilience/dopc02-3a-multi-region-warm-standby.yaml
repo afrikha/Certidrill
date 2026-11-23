@@ -1,0 +1,53 @@
+id: dopc02-3a-multi-region-warm-standby
+objective: "3.1.1"
+type: multi
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A financial services company runs a customer API as an Amazon ECS service on AWS Fargate behind an Application Load Balancer (ALB) in us-east-1. The API stores its data in an Amazon Aurora MySQL DB cluster. A new requirement states that if us-east-1 becomes unavailable, the API must accept reads and writes in us-west-2 within 15 minutes, and only the transactions of the last few seconds can be lost. The company wants a low standby cost but does not want to deploy infrastructure during a disaster. The same CI/CD pipeline must deploy the application to both Regions.
+
+    Which combination of steps will meet these requirements? (Choose two.)
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: |-
+          Convert the DB cluster to an Aurora global database with a secondary DB cluster in us-west-2, and use a global database failover to promote the secondary cluster if us-east-1 fails.
+    - id: b
+      text:
+        en: |-
+          Use AWS Backup to copy hourly snapshots of the DB cluster to us-west-2, and restore the latest snapshot to a new DB cluster if us-east-1 fails.
+    - id: c
+      text:
+        en: |-
+          Add private subnets from a VPC in us-west-2 to the existing ECS service so that the service runs its tasks in both Regions at the same time.
+    - id: d
+      text:
+        en: |-
+          Deploy the ECS service and an ALB in us-west-2 with a small desired count, and create Route 53 failover alias records for both ALBs with Evaluate Target Health set to Yes.
+    - id: e
+      text:
+        en: |-
+          Create an Amazon RDS Proxy in us-west-2 that targets the DB cluster in us-east-1, so that the tasks in us-west-2 keep a database connection during the outage.
+answer: { optionIds: [ a, d ] }
+explanation:
+  correct:
+    en: |-
+      An Aurora global database replicates the primary cluster asynchronously to the secondary Region, and a global database failover promotes the secondary cluster without waiting for synchronization, so only transactions that were not yet replicated are lost. A scaled-down ECS service that is already deployed in us-west-2 is a warm standby that the pipeline updates with every release; Route 53 failover alias records with Evaluate Target Health send traffic to it when the primary ALB becomes unhealthy, and the service then scales out.
+  options:
+    b:
+      en: |-
+        Hourly snapshot copies give an RPO of up to an hour, and restoring a DB cluster from a snapshot during the disaster takes far longer than the allowed data loss of a few seconds.
+    c:
+      en: |-
+        An ECS service runs in the Region of its cluster and uses subnets of that Region; it cannot place tasks in subnets of another Region.
+    e:
+      en: |-
+        RDS Proxy runs in the same Region and VPC as its database, and the target database is in the failed Region, so the proxy would not provide a writable database.
+references:
+  - title: "Using switchover or failover in Amazon Aurora Global Database - Amazon Aurora"
+    url: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database-disaster-recovery.html
+  - title: "Active-active and active-passive failover - Amazon Route 53"
+    url: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html

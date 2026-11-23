@@ -1,0 +1,56 @@
+id: kcsa-2b-runtime-socket-risk
+objective: "2.5.2"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    A team deploys this Pod:
+
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: log-agent
+    spec:
+      containers:
+      - name: agent
+        image: registry.example.com/tools/agent:2.1
+        volumeMounts:
+        - name: cri
+          mountPath: /run/containerd/containerd.sock
+      volumes:
+      - name: cri
+        hostPath:
+          path: /run/containerd/containerd.sock
+    ```
+
+    What is the main risk if the `agent` container is compromised?
+body:
+  options:
+    - id: a
+      text: { en: "It can read the kube-proxy metrics of the node" }
+    - id: b
+      text: { en: "It can change the Service routing of the whole cluster" }
+    - id: c
+      text: { en: "It can start a privileged container and take over the node" }
+    - id: d
+      text: { en: "It can read the logs of other containers, but nothing more" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      The containerd socket is the runtime's API: whoever can use it can create, start and exec into containers on the node. A compromised agent can start a privileged container that mounts the host filesystem, gaining root on the node and the credentials stored there. The Kubernetes documentation warns that host paths can expose privileged APIs such as the container runtime socket, usable for container escape.
+  options:
+    a:
+      en: |
+        Reading metrics would be a minor information disclosure. The runtime socket gives far more: control of every container on the node.
+    b:
+      en: |
+        Service routing is programmed by kube-proxy from API objects on every node. The socket controls the containers of one node, not cluster Service objects.
+    d:
+      en: |
+        The runtime API is not read-only: it also creates containers and runs commands in them, which leads to a node takeover.
+references:
+  - title: "Volume Types"
+    url: https://kubernetes.io/docs/reference/storage/volume-types/

@@ -1,0 +1,48 @@
+id: dopc02-4c-s3-duplicate-sequencer
+objective: "4.3.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A billing application stores usage files in an Amazon S3 bucket. An S3 event notification invokes an AWS Lambda function for every s3:ObjectCreated:Put event, and the function writes a billing record to an Amazon DynamoDB table whose partition key is the object key. Partners sometimes overwrite a file with a corrected version a few seconds after the first upload. Auditors found two problems: some files produced the same billing record twice, and for a few overwritten files the table holds the data of the older version. The company must fix both problems without changing how partners upload files.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Change the event notification to send events to an Amazon SQS FIFO queue with content-based deduplication, and have the function consume the queue.
+    - id: b
+      text:
+        en: |-
+          Store each event's sequencer value, and write the item with a condition that the stored sequencer for the key is lower than the new one.
+    - id: c
+      text:
+        en: |-
+          Set the reserved concurrency of the function to 1 so that the events for each object key are processed one at a time, in the order in which they occurred.
+    - id: d
+      text:
+        en: |-
+          Change the event type of the notification to s3:ObjectCreated:CompleteMultipartUpload so that each uploaded file generates exactly one event.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      S3 event notifications are delivered at least once, so the same event can arrive twice, and they aren't guaranteed to arrive in the order in which the events occurred. For the same object key, the event with the greater sequencer value occurred later. A conditional write that requires a higher sequencer than the stored one rejects both duplicates (equal value) and late-arriving older events (lower value).
+  options:
+    a:
+      en: |-
+        S3 event notifications can't target SQS FIFO queues directly, and deduplication wouldn't restore the order of events that arrive out of order.
+    c:
+      en: |-
+        Processing one event at a time doesn't change the order in which notifications arrive, and a duplicate notification is still processed again.
+    d:
+      en: |-
+        This event type is emitted only for multipart uploads, so single PUT uploads would no longer be processed, and delivery would still be at least once.
+references:
+  - title: "Event message structure - Amazon Simple Storage Service"
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-content-structure.html
+  - title: "Amazon S3 Event Notifications - Amazon Simple Storage Service"
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/EventNotifications.html

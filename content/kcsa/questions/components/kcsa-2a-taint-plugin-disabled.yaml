@@ -1,0 +1,51 @@
+id: kcsa-2a-taint-plugin-disabled
+objective: "2.3.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The nodes reserved for the payments team carry the taint `dedicated=payments:NoSchedule`. An administrator deploys this kube-scheduler configuration:
+
+    ```yaml
+    apiVersion: kubescheduler.config.k8s.io/v1
+    kind: KubeSchedulerConfiguration
+    profiles:
+    - schedulerName: default-scheduler
+      plugins:
+        filter:
+          disabled:
+          - name: TaintToleration
+    ```
+
+    What is the security impact?
+body:
+  options:
+    - id: a
+      text: { en: "Pods without a matching toleration can be placed on the payments nodes" }
+    - id: b
+      text: { en: "Payments Pods can no longer be scheduled on any node" }
+    - id: c
+      text: { en: "Pods that set `spec.nodeName` are now rejected by the API server" }
+    - id: d
+      text: { en: "The `dedicated` taint is removed from the payments nodes" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      The TaintToleration plugin implements taints and tolerations in the scheduler, and its filter step removes nodes whose taints a Pod does not tolerate. With that filter disabled, the default scheduler no longer excludes the tainted nodes, so untrusted Pods can land next to the payments workloads. A misconfigured scheduler profile silently breaks isolation, which is why the configuration file must be protected.
+  options:
+    b:
+      en: |
+        Disabling a filter removes a restriction; it does not block scheduling. Payments Pods can still be placed.
+    c:
+      en: |
+        The scheduler configuration does not change how the API server validates Pods. `nodeName` still bypasses the scheduler.
+    d:
+      en: |
+        The scheduler configuration does not modify Node objects. The taint stays on the nodes; the scheduler just ignores it when filtering.
+references:
+  - title: Scheduler Configuration
+    url: https://kubernetes.io/docs/reference/scheduling/config/
+  - title: Taints and Tolerations
+    url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/

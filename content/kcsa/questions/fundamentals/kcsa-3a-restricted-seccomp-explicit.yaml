@@ -1,0 +1,40 @@
+id: kcsa-3a-restricted-seccomp-explicit
+objective: "3.1.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Every node of a cluster runs a kubelet configured with `seccompDefault: true`, so containers without a seccomp profile get the runtime's default profile. Namespace `payments` enforces the Restricted profile.
+
+    A Pod sets `runAsNonRoot: true`, `allowPrivilegeEscalation: false` and drops `ALL` capabilities, but sets no `seccompProfile`. What happens when it is created?
+body:
+  options:
+    - id: a
+      text: { en: "It is admitted, because the kubelet applies the RuntimeDefault profile" }
+    - id: b
+      text: { en: "It is admitted with a warning, because seccomp is checked only in audit mode" }
+    - id: c
+      text: { en: "It is rejected, because Restricted accepts only a Localhost seccomp profile" }
+    - id: d
+      text: { en: "It is rejected, because admission requires the profile to be set in the Pod spec" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      Pod Security Admission evaluates the Pod object sent to the API server, not the configuration of the nodes. Restricted requires `seccompProfile.type` to be `RuntimeDefault` or `Localhost` at Pod level or on every container, and an absent profile is prohibited, so the Pod is rejected before any kubelet sees it.
+  options:
+    a:
+      en: |
+        The kubelet default applies only after the Pod has been admitted and scheduled. The admission controller cannot see node settings, so it treats the profile as missing.
+    b:
+      en: |
+        The mode is set per namespace with labels, not per control. With `enforce: restricted`, a missing seccomp profile rejects the Pod.
+    c:
+      en: |
+        Restricted accepts both `RuntimeDefault` and `Localhost`. Only `Unconfined` and an absent profile are prohibited.
+references:
+  - title: Pod Security Standards
+    url: https://kubernetes.io/docs/concepts/security/pod-security-standards/
+  - title: Pod Security Admission
+    url: https://kubernetes.io/docs/concepts/security/pod-security-admission/

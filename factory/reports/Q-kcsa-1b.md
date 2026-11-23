@@ -1,0 +1,19 @@
+# Q-kcsa-1b — KCSA questions, domain overview (2026-11-23)
+
+44 `single` questions in `content/kcsa/questions/overview/` (`kcsa-1b-*`), 4 per objective (1.3.3, 1.4.1–1.4.3, 1.5.1–1.5.4, 1.6.1–1.6.3). Difficulty 18 easy / 20 medium / 6 hard. Correct answers 11 a / 11 b / 11 c / 11 d. English only. Check: `CERT=kcsa npx tsx factory/validate.ts --prefix kcsa-1b-` → 0 problem(s); `content:validate` → 0 problems, 0 warnings.
+
+## Overlap with other batches
+The first draft duplicated about 25 decisions that sibling batches (1a, 2a, 2b, 3a, 3b, 3c, 4a, 4b, 5a, 5b, 6a, 6b) had already written: privileged overrides, user namespaces for root, Kata, RuntimeClass scheduling, taints plus affinity, setuid and allowPrivilegeEscalation, readOnlyRootFilesystem, runAsNonRoot with a root image, NIST SP 800-190, kube-bench as the CIS tool, manifest scanning, pull Secret namespace, ServiceAccount imagePullSecrets, AlwaysPullImages, tag plus digest, signature at admission, SBOM lookup, Secrets Store CSI, env vs volume, secret in an image layer, cluster per tenant, ImagePolicyWebhook (5b). I replaced all of them with other decisions of the same objectives. Remaining close neighbours, kept because they test a different decision: `scan-ci-gate` (where to scan) vs `6b-trivy-pipeline-gate` (effect of a command); `digest-vs-signature` vs `4a-pc-digest-signature`; `cred-env-not-updated` (env var) vs `3b-secret-subpath-update` (subPath); `cred-configmap-secret` vs `4b-configmap-password-view`.
+
+## Sources fetched (all references point to fetched pages)
+kubernetes.io: Security Checklist, Application Security Checklist, Cloud Native Security and Kubernetes, Linux kernel security constraints, User Namespaces, Runtime Class, Taints and Tolerations, Multi-tenancy, Images, Pull an Image from a Private Registry, Configure a Security Context, Pod (API reference), Pod Security Standards, Secrets, Good practices for Kubernetes Secrets, ConfigMaps, Service Accounts, Admission Control in Kubernetes, Using Node Authorization, Verify Signed Kubernetes Artifacts, Resource Management, About cgroup v2, seccomp and AppArmor tutorials, Share Process Namespace. Others: csrc.nist.gov (SP 800-190), CNCF blog (whitepaper v2), attack.mitre.org (Containers matrix), docs.sigstore.dev (policy-controller), github.com (kube-bench, Trivy, gVisor, docker/docs best practices and build secrets), owasp.org (Source Code Analysis Tools, Vulnerability Scanning Tools, Component Analysis).
+
+## Doubts
+1. **OWASP URLs** `owasp.org/www-community/...` now redirect (302) to `community.owasp.org/...`, which isn't in the CNCF host list. The references keep the `owasp.org` URL (allowed host); titles are those of the redirect target.
+2. **Env vars not refreshed after a Secret update** (`cred-env-not-updated`): the Secrets page doesn't say so explicitly; the ConfigMaps page does for ConfigMaps. Both are cited.
+3. **Kubelet image pull credential verification** (`registry-kubelet-verification`): based on the Images page (beta since v1.35, on by default, default policy `NeverVerifyPreloadedImages`). The exact Pod error isn't stated, so the answer only says the Pod can't use the cached image.
+4. **PodNodeSelector** is alpha and disabled by default (admission page). The question says "built-in admission plugin" and the explanation mentions the alpha status.
+5. **hostUsers + hostNetwork** (`isolation-userns-host-namespaces`): the page says "not allowed". The answer avoids saying whether API validation or the kubelet rejects it.
+6. **CIS managed-service variants**: not used (the question was replaced because 6b covers it).
+7. **runAsUser overriding the image user** and **runAsGroup defaulting to group 0**: the first comes from the Security Checklist ("USER in the Dockerfile or runAsUser/runAsGroup"); the second is quoted from the Security Context task page.
+8. MITRE ATT&CK tactic names aren't tested; only technique names appear (`guidance-attack-coverage`).

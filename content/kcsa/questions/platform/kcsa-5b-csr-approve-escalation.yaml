@@ -1,0 +1,40 @@
+id: kcsa-5b-csr-approve-escalation
+objective: "5.5.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A developer group is bound to a ClusterRole that allows `create` on `certificatesigningrequests`, `update` on `certificatesigningrequests/approval`, and `approve` on the `signers` resource named `kubernetes.io/kube-apiserver-client`. The API server runs the default admission plugins of Kubernetes v1.37.
+
+    What is the main security risk of this permission set?
+body:
+  options:
+    - id: a
+      text: { en: "None, because the signer only issues certificates for the user who created the CSR" }
+    - id: b
+      text: { en: "The developers can issue certificates in the `system:masters` group and bypass RBAC" }
+    - id: c
+      text: { en: "The developers can approve kubelet serving certificates and intercept kubelet API traffic" }
+    - id: d
+      text: { en: "The developers can issue client certificates for any user name and authenticate as that user" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      The subject of the certificate comes from the PKCS#10 request written by the requester, and the API server takes the user name from the certificate's CN. A user who can both create and approve CSRs for `kubernetes.io/kube-apiserver-client` can therefore mint a certificate for an administrator's user name and act with that user's permissions. Approval rights are an escalation path and must be limited.
+  options:
+    a:
+      en: |
+        The signer does not force the subject to match the CSR creator. That check is the job of the approver, which here is the developers themselves.
+    b:
+      en: |
+        The `CertificateSubjectRestriction` admission plugin, enabled by default, rejects CSRs for `kubernetes.io/kube-apiserver-client` that request the `system:masters` group.
+    c:
+      en: |
+        Approving requires the `approve` verb on the specific signer name. This role covers only `kubernetes.io/kube-apiserver-client`, not `kubernetes.io/kubelet-serving`.
+references:
+  - title: "Certificates and Certificate Signing Requests"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/
+  - title: "Admission Control in Kubernetes"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/

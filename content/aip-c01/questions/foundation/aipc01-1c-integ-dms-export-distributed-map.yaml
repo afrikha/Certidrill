@@ -1,0 +1,48 @@
+id: aipc01-1c-integ-dms-export-distributed-map
+objective: "1.4.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A company must load 300,000 documents from its document management system (DMS) into a custom data source of an Amazon Bedrock knowledge base. A Lambda function pages through the DMS API, downloads each document, and calls IngestKnowledgeBaseDocuments, but a full load takes about 6 hours and the function times out. Future full reloads must finish within 1 hour, and the company does not want to manage servers.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Increase the timeout of the Lambda function to 6 hours and its memory to 10,240 MB so that one invocation completes the full load.
+    - id: b
+      text:
+        en: |-
+          Chain Lambda invocations through an Amazon SQS queue so that each invocation processes the next page of the DMS API in sequence.
+    - id: c
+      text:
+        en: |-
+          Run the existing code from a cron job on an Amazon EC2 instance that is sized for the load and stopped between reloads.
+    - id: d
+      text:
+        en: |-
+          Use a Step Functions Distributed Map state over the document IDs, with Lambda child executions that each ingest up to 25 documents, and cap MaxConcurrency.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      A Distributed Map state runs many child executions in parallel (up to 10,000 by default), so the load is split into batches processed concurrently, and MaxConcurrency protects the DMS API and Amazon Bedrock quotas. Batches of 25 match the maximum number of documents in one IngestKnowledgeBaseDocuments request, and no servers are involved.
+  options:
+    a:
+      en: |-
+        The maximum Lambda timeout is 1,800 seconds (30 minutes), so a 6-hour run cannot fit in one invocation.
+    b:
+      en: |-
+        Processing pages one after another avoids the timeout but keeps the load sequential, so it still takes about 6 hours.
+    c:
+      en: |-
+        An EC2 instance is a server to manage, and a single sequential process does not shorten the load.
+references:
+  - title: "Using Map state in Distributed mode for large-scale parallel workloads in Step Functions"
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/state-map-distributed.html
+  - title: "Lambda quotas - AWS Lambda"
+    url: https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html

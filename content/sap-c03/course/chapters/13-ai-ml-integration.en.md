@@ -45,7 +45,7 @@ Supporting controls: interface VPC endpoints for the Bedrock runtime so calls ne
 
 An agent is a model in a loop that plans, calls tools, reads results and decides the next step. Two managed approaches exist:
 
-- **Amazon Bedrock Agents**: a configured agent with action groups (Lambda functions or OpenAPI schemas) and attached knowledge bases; the least code for a single, Bedrock-native agent.
+- **Amazon Bedrock Agents Classic** (formerly Amazon Bedrock Agents): a configured agent with action groups (Lambda functions or OpenAPI schemas) and attached knowledge bases. Closed to new customers since July 30, 2026 (maintenance mode; existing customers keep using it): never the answer for a new design, AWS points to AgentCore.
 - **Amazon Bedrock AgentCore**: modular services to deploy and operate agents built with any framework (Strands Agents, LangGraph, CrewAI, LlamaIndex...) and any model, in or outside Bedrock.
 
 | AgentCore service | Role in the architecture |

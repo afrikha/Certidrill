@@ -1,0 +1,48 @@
+id: dopc02-1b-exit-cfn-signal
+objective: "1.2.5"
+type: single
+difficulty: 1
+status: draft
+stem:
+  en: |
+    A company provisions a reporting server on Amazon EC2 with an AWS CloudFormation template. The instance's user data runs cfn-init to install and configure the application from the template metadata. Last week, cfn-init failed because a package repository was unavailable, but the stack still reached CREATE_COMPLETE and the pipeline continued with a broken server. The company wants the stack creation to fail and roll back when cfn-init returns a non-zero exit code. CloudFormation must wait no longer than 15 minutes for the result.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add a DependsOn attribute to the instance that references the security group, and add set -e at the start of the user data script.
+    - id: b
+      text:
+        en: |-
+          Add a CreationPolicy with a ResourceSignal timeout of PT15M to the instance, and run cfn-signal --success true as the last line of the user data.
+    - id: c
+      text:
+        en: |-
+          Add a CreationPolicy with a ResourceSignal timeout of PT15M to the instance, and run cfn-signal -e $? immediately after cfn-init in the user data.
+    - id: d
+      text:
+        en: |-
+          Add a rollback trigger to the stack that monitors a CloudWatch alarm on the instance's StatusCheckFailed metric for 15 minutes.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      With a CreationPolicy, CloudFormation waits for a success signal before it marks the instance CREATE_COMPLETE. cfn-signal -e $? sends the exit code of cfn-init, so a non-zero code is a failure signal; a failure signal or no signal within the timeout makes the resource fail and the stack roll back.
+  options:
+    a:
+      en: |-
+        Without a CreationPolicy and a signal, CloudFormation never sees the script's exit code, so the stack still completes.
+    b:
+      en: |-
+        Signaling success unconditionally reports success even when cfn-init failed, so the stack still completes with a broken server.
+    d:
+      en: |-
+        Instance status checks report EC2 hardware and operating system problems, not the exit code of the application installation.
+references:
+  - title: cfn-signal - AWS CloudFormation
+    url: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/cfn-signal.html
+  - title: CreationPolicy attribute - AWS CloudFormation
+    url: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-creationpolicy.html

@@ -1,0 +1,45 @@
+id: kcsa-2a-scheduler-config-profiling
+objective: "2.3.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    kube-scheduler is started as follows, yet its `/debug/pprof/` endpoint still responds:
+
+    ```bash
+    kube-scheduler --config=/etc/kubernetes/scheduler-config.yaml \
+      --profiling=false --bind-address=127.0.0.1
+    ```
+
+    What explains this, and what is the fix?
+body:
+  options:
+    - id: a
+      text: { en: "Profiling cannot be disabled on kube-scheduler; block the port with a firewall instead" }
+    - id: b
+      text: { en: "`--profiling` needs `--secure-port=0` to take effect; set both flags" }
+    - id: c
+      text: { en: "With `--config`, the deprecated flag is ignored; set `enableProfiling: false` in the configuration file" }
+    - id: d
+      text: { en: "`/debug/pprof/` is in the always-allowed paths; remove it from `--authorization-always-allow-paths`" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      `--profiling` is a deprecated kube-scheduler flag that is ignored when a configuration file is given with `--config`. The KubeSchedulerConfiguration file is the source of truth: its `enableProfiling` field controls the `/debug/pprof/` endpoint. This is also why that file must be protected and kept under change control.
+  options:
+    a:
+      en: |
+        Profiling can be turned off with the `enableProfiling` field of the KubeSchedulerConfiguration.
+    b:
+      en: |
+        `--secure-port=0` stops kube-scheduler from serving HTTPS at all, which also breaks health checks and metrics. It is not related to how profiling is configured.
+    d:
+      en: |
+        The default always-allowed paths are `/healthz`, `/readyz` and `/livez`. `/debug/pprof/` is not among them.
+references:
+  - title: kube-scheduler
+    url: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/
+  - title: kube-scheduler Configuration (v1)
+    url: https://kubernetes.io/docs/reference/config-api/kube-scheduler-config.v1/

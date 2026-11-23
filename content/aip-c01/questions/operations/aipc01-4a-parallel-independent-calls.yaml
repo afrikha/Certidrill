@@ -1,0 +1,48 @@
+id: aipc01-4a-parallel-independent-calls
+objective: "4.2.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A lender's loan-review workflow makes four Amazon Bedrock calls in sequence from one AWS Lambda function: it summarizes the income documents, summarizes the credit report, checks the application against lending policy, and then writes a recommendation from the three results. The first three calls are independent of each other, and a run takes about 45 seconds. The company wants to reduce end-to-end latency, retry each failed model call individually, and write as little custom code as possible.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Keep the Lambda function, and switch the four calls to ConverseStream so that each model response starts to return to the function sooner.
+    - id: b
+      text:
+        en: |-
+          Use an AWS Step Functions Parallel state with three Bedrock InvokeModel task branches that each retry on failure, then a recommendation task.
+    - id: c
+      text:
+        en: |-
+          Submit the four prompts as records of one Amazon Bedrock batch inference job, and read the results from Amazon S3 when the job completes.
+    - id: d
+      text:
+        en: |-
+          Use an AWS Step Functions workflow that runs the four Bedrock InvokeModel tasks one after the other, each with a Retry policy.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      A Parallel state runs its branches as concurrently as possible and waits for all of them, so the three independent calls take about as long as the slowest one, and its output array feeds the final task. The optimized Bedrock integration calls the model without custom code, and each task has its own Retry policy.
+  options:
+    a:
+      en: |-
+        Streaming lowers the time to first token, but the calls still run one after the other, so end-to-end time barely changes.
+    c:
+      en: |-
+        The recommendation needs the three results, so it cannot be in the same batch, and batch jobs are asynchronous and not designed for low latency.
+    d:
+      en: |-
+        A sequential workflow adds per-task retries but keeps the same end-to-end latency as the current function.
+references:
+  - title: "Parallel workflow state - AWS Step Functions"
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/state-parallel.html
+  - title: "Invoke and customize Amazon Bedrock models with Step Functions - AWS Step Functions"
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-bedrock.html

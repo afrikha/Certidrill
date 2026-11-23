@@ -1,0 +1,48 @@
+id: aipc01-2b-app-webhook-enqueue
+objective: "2.3.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A software company's ticketing SaaS sends a webhook for each new ticket and waits at most 10 seconds for an HTTP 2xx response before it retries. The company wants to generate triage notes for each ticket with Amazon Bedrock, which takes about 40 seconds. Each webhook carries an HMAC signature that must be verified, and duplicate triage notes must be avoided.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Use a function URL whose function verifies the signature, calls Amazon Bedrock and returns the triage notes in its response.
+    - id: b
+      text:
+        en: |-
+          Use a function URL whose function has a 900-second timeout and calls Amazon Bedrock before it returns 200 to the sender.
+    - id: c
+      text:
+        en: |-
+          Point the webhook to an Amazon EventBridge API destination that forwards each ticket to Amazon Bedrock for triage.
+    - id: d
+      text:
+        en: |-
+          Use a function URL whose function verifies the signature, queues the payload in SQS and returns 200; a worker calls Bedrock.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Webhook senders expect a fast acknowledgement. Verifying the signature, enqueuing the payload and returning 200 within the sender's timeout prevents retries and duplicates, and a worker function that reads the queue calls the model asynchronously, with its own scaling and retry settings.
+  options:
+    a:
+      en: |-
+        The 40-second model call exceeds the sender's 10-second wait, so the sender retries and creates duplicate notes.
+    b:
+      en: |-
+        A longer Lambda timeout doesn't change how long the sender waits; it still times out and retries.
+    c:
+      en: |-
+        API destinations are outbound HTTPS targets of event bus rules; they don't receive webhooks.
+references:
+  - title: "Control access to Lambda function URLs - AWS Lambda"
+    url: https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html
+  - title: "Configuring scaling behavior for SQS event source mappings - AWS Lambda"
+    url: https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-scaling.html
