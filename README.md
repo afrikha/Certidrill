@@ -223,8 +223,9 @@ Déployer une nouvelle version, après une sauvegarde :
 ```bash
 cd /opt/certidrill
 docker compose exec backup pg_dump -h db -U certidrill -d certidrill -Fc -f /backups/avant-maj-$(date +%F-%H%M).dump
-git pull --ff-only origin main
-docker compose up -d --build        # migrate applique les migrations, puis app redémarre
+git pull --ff-only --tags origin main
+APP_VERSION=$(git describe --tags --always) docker compose up -d --build   # migrate applique les migrations, puis app redémarre
+curl -s https://certidrill.com/api/health   # {"status":"ok","version":"v…"} : la version déployée
 docker compose ps -a                # migrate : Exited (0) ; app (certidrill-app-1), db, backup : Up
 curl -sI https://certidrill.com | head -3   # 200, ou 307 (redirection de langue)
 ```
@@ -311,6 +312,18 @@ Il faut un service d'envoi transactionnel (Brevo, Scaleway TEM, Amazon SES…). 
    `email:test` se connecte, s'authentifie et envoie un message de test. Le mot de passe n'apparaît jamais dans la sortie, ni l'identifiant s'il fait au moins 3 caractères, que ce soit en clair, décodé ou en base64. En cas d'échec, le code d'erreur indique l'étape fautive : `EAUTH` (identifiants), `ECONNECTION` ou `ETIMEDOUT` (serveur ou port), `ESOCKET` (TLS). Dans le message reçu, les en-têtes doivent montrer `spf=pass`, `dkim=pass` et `dmarc=pass`.
 
 Une boîte ou une redirection Ionos sur `dmarc@` ou `contact@<domaine>` permet de recevoir les rapports DMARC et les réponses.
+
+**Avis d'inscription au propriétaire** : avec `ADMIN_NOTIFY_EMAIL="vous@example.com"` dans `.env` (puis `docker compose up -d --force-recreate app`), chaque compte créé par l'inscription publique envoie un e-mail à cette adresse : l'adresse du nouvel inscrit, sa langue, la date et un lien vers son activité dans le back-office. L'avis est mis dans la file `email_outbox` dans la transaction qui crée le compte (pas de compte, pas d'avis), puis envoyé par le worker avec les autres e-mails. Il est rédigé dans la langue du compte qui porte cette adresse, en français sinon. Vide : aucun avis ; un avis encore en file quand l'adresse est retirée n'est pas envoyé. Les comptes créés par un administrateur (`user:create`, back-office) n'en déclenchent pas.
+
+## Version
+
+Chaque fusion dans `main` qui passe toute la CI reçoit un tag `vAAAA.MM.JJ.N` (N-ième du jour, UTC ; job `tag` de `.github/workflows/ci.yml`). Au déploiement, `APP_VERSION=$(git describe --tags --always)` passe ce tag à l'image Docker (argument de build de `app`) ; sur un commit sans tag, `git describe` donne `<dernier tag>-<commits depuis>-g<commit>`. Sans `APP_VERSION`, la version vaut `dev`.
+
+La version déployée se lit :
+- en bas de chaque page du back-office, avec l'heure de démarrage de l'application (donc du dernier déploiement ou redémarrage) ; elle n'est pas montrée aux visiteurs ;
+- dans `/api/health` : `{"status":"ok","version":"v2026.11.23.1"}`.
+
+La liste des versions et des commits qu'elles contiennent est sur GitHub, onglet *Tags* du dépôt.
 
 ## Paiement (Stripe)
 
@@ -401,6 +414,12 @@ Règles appliquées par le serveur (`lib/exam/session.ts`) : le temps fait foi c
   - **Connexions** (`login_event`) : chaque connexion par mot de passe ou par lien magique, mot de passe erroné, connexion bloquée par la limite d'essais et changement de mot de passe, avec l'**adresse IP complète** (`X-Real-IP` posé par Caddy, `unknown` sinon). Seuls les événements d'un compte existant sont gardés : une adresse e-mail inconnue tapée à la connexion n'est pas enregistrée. Conservation **un an** (`LOGIN_RETENTION_DAYS`), choix du propriétaire : le worker de l'application supprime les plus anciennes une fois par heure (événement `activity.purge` dans les journaux ; après un échec, nouvel essai l'heure suivante). Ce worker est celui des e-mails : avec `EMAIL_WORKER=off`, **aucune connexion n'est plus supprimée** et la durée annoncée n'est plus tenue, sauf à lancer la purge ailleurs (`purgeLogins`). Elles disparaissent avec le compte. Seuls les administrateurs les voient (choix du propriétaire) : l'utilisateur n'a pas d'historique de ses connexions. Une tentative sur un compte est inscrite à ce compte avec l'adresse IP de son auteur. L'adresse est gardée si c'est une IPv4 ou une IPv6 valide, sinon `unknown`.
   - **Activité d'un utilisateur** (`/admin/users/[id]`, depuis la liste des utilisateurs ou la fiche *Droits*) : les 200 derniers événements, du plus récent au plus ancien. On y trouve la création du compte et la vérification de l'adresse, les connexions, les examens blancs et entraînements (lancés, puis rendus ou expirés, avec le score) et le cours lu (une ligne par chapitre et par jour). Les tentatives refusées (mot de passe erroné, blocage) sont listées à part, les 50 dernières avec leur nombre total, pour qu'une rafale d'essais d'un tiers ne chasse pas les vraies connexions de la chronologie. S'y ajoutent les questions signalées, les résultats d'examen réel déclarés, les paiements, les Pass accordés ou révoqués et les gestes des administrateurs (journal d'audit). Tout vient des tables existantes, sauf les connexions : rien d'autre n'est collecté.
   - **Vue d'ensemble** (*Administration → Activité*, `/admin/activity`) : sur les 30 derniers jours, par jour UTC, les inscriptions, les utilisateurs actifs (connectés, ayant lancé un examen ou lu le cours), les examens lancés et terminés, et les Pass vendus. Elle donne aussi les actifs sur 7 et 30 jours et le montant des Pass vendus par devise.
+  - **Pour améliorer le site** (même page, sous le tableau ; `lib/activity/insights.ts`), sans les comptes administrateurs :
+    - **Parcours des nouveaux inscrits** : comptes créés sur 30 jours, puis combien ont vérifié leur adresse, lancé un premier examen ou entraînement, acheté un Pass (même remboursé depuis) ;
+    - **Retour des utilisateurs** : parmi les comptes créés sur 90 jours, la part revenue (connexion, examen, lecture du cours) au moins 7 et 30 jours après l'inscription. Un utilisateur resté connecté qui relit des sections déjà lues ne laisse pas de trace : c'est un minimum ;
+    - **Examens par certification** (30 jours) : examens blancs lancés et terminés, score moyen et taux de réussite des examens terminés, entraînements ;
+    - **Cours par certification** (depuis l'ouverture) : lecteurs (au moins une section lue), chapitres terminés en moyenne par lecteur (toutes leurs sections lues), les trois chapitres les plus et les moins lus.
+  - **Visiteurs non inscrits** : rien n'est mesuré (choix du propriétaire du 23/11/2026 : pas d'outil d'audience tiers). Pour le référencement, Google Search Console (requêtes, pages vues dans les résultats, clics) se branche sans code : vérification du domaine par un enregistrement DNS `TXT`.
   - Le journal d'audit reste réservé aux gestes des administrateurs : l'activité des utilisateurs n'y est pas écrite.
   - **Politique de confidentialité** (`/privacy`, lien dans le pied de page de chaque page publique et sous le formulaire d'inscription) : données collectées, finalités, destinataires, durées, droits et cookies, d'après ce que le site fait réellement (messages `privacy`, en anglais et en français). Le texte est complet : responsable du traitement (Square-soft), adresse de contact (`contact@certidrill.com`), hébergeur (IONOS), service d'e-mail (Brevo) et paiement (Stripe). Reste à y ajouter le numéro RCS une fois la société immatriculée. Mettre à jour la date `UPDATED` de la page à chaque modification du texte.
   - **Mentions légales** (`/legal`) et **CGV** (`/terms`), liées dans le même pied de page.
