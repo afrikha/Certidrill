@@ -27,7 +27,7 @@ Data has a life: it is loaded, queried, cooled down, archived, expired or delete
 | Existing files | Fails by default; `ALLOWOVERWRITE` or `CLEANPATH` (deletes the target files first) |
 | Extras | `MANIFEST`, `HEADER` (not with Parquet), `REGION` |
 
-```text
+```sql
 COPY sales_stage
 FROM 's3://example-lake/exports/sales/2026-11-20/'
 IAM_ROLE 'arn:aws:iam::111122223333:role/RedshiftLoad'

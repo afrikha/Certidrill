@@ -166,7 +166,7 @@ Implémentations AWS :
 | Spark sur Glue ou EMR | `df.sample(fraction=0.01)` aléatoire ; `df.sampleBy("region", fractions)` stratifié |
 | Glue Detect Sensitive Data | Le mode « Detect fields containing PII » analyse une portion échantillonnée (pourcentage de lignes) avec un seuil de détection |
 
-```text
+```sql
 SELECT region, avg(amount)
 FROM sales TABLESAMPLE BERNOULLI (5)
 GROUP BY region;
@@ -188,7 +188,7 @@ L'asymétrie (skew) est une répartition inégale des données ou du travail : u
 | Kinesis Data Streams | Métriques améliorées au niveau des partitions : une partition avec un `IncomingBytes` et un `WriteProvisionedThroughputExceeded` élevés |
 | DynamoDB | Limitation sur quelques clés ; CloudWatch Contributor Insights montre les clés les plus sollicitées |
 
-```text
+```sql
 SELECT "table", diststyle, skew_rows
 FROM svv_table_info
 ORDER BY skew_rows DESC;

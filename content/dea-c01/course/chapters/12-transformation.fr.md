@@ -111,7 +111,7 @@ glueContext.write_dynamic_frame.from_options(
     transformation_ctx="curated")
 ```
 
-```text
+```sql
 CREATE TABLE curated.orders_parquet
 WITH (format = 'PARQUET',
       write_compression = 'SNAPPY',
@@ -180,7 +180,7 @@ aws redshift-data get-statement-result --id "$STATEMENT_ID"
 <!-- section: llm-processing | objectives: 1.2.10 -->
 ## Intégrer des grands modèles de langage au traitement des données
 
-Les grands modèles de langage d'Amazon Bedrock transforment une entrée non structurée ou désordonnée en champs structurés : classer des tickets de support, extraire des entités de contrats, normaliser des adresses en texte libre, résumer des documents, générer des embeddings. Le rôle de l'ingénieur de données est d'appeler le modèle au bon endroit du pipeline, à un coût raisonnable, et de vérifier ce qui revient.
+Les grands modèles de langage d'Amazon Bedrock transforment une entrée non structurée ou désordonnée en champs structurés : classer des tickets de support, extraire des entités de contrats, normaliser des adresses en texte libre, résumer des documents, générer des vectorisations (embeddings). Le rôle de l'ingénieur de données est d'appeler le modèle au bon endroit du pipeline, à un coût raisonnable, et de vérifier ce qui revient.
 
 | Modèle | Quand |
 | --- | --- |

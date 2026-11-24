@@ -29,7 +29,7 @@ Les données pseudonymisées (hachées, chiffrées, tokenisées) restent des don
 
 **Les masquer au moment de la requête** avec le **masquage dynamique des données** (dynamic data masking) de Redshift : les données stockées ne changent pas ; une politique de masquage réécrit la colonne pour les utilisateurs ou rôles auxquels elle est attachée.
 
-```text
+```sql
 CREATE MASKING POLICY mask_card
 WITH (card_number VARCHAR(19))
 USING ('XXXX-XXXX-XXXX-' || RIGHT(card_number, 4));

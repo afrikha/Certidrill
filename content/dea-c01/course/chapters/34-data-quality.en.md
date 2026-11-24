@@ -166,7 +166,7 @@ AWS implementations:
 | Spark on Glue or EMR | `df.sample(fraction=0.01)` random; `df.sampleBy("region", fractions)` stratified |
 | Glue Detect Sensitive Data | "Detect fields containing PII" mode scans a sample portion (percentage of rows) with a detection threshold |
 
-```text
+```sql
 SELECT region, avg(amount)
 FROM sales TABLESAMPLE BERNOULLI (5)
 GROUP BY region;
@@ -188,7 +188,7 @@ Skew is an uneven distribution of data or work: one Spark task, Redshift slice, 
 | Kinesis Data Streams | Enhanced shard-level metrics: one shard with high `IncomingBytes` and `WriteProvisionedThroughputExceeded` |
 | DynamoDB | Throttling on a few keys; CloudWatch Contributor Insights shows the most accessed keys |
 
-```text
+```sql
 SELECT "table", diststyle, skew_rows
 FROM svv_table_info
 ORDER BY skew_rows DESC;

@@ -1,4 +1,4 @@
-Les questions de modélisation décrivent les requêtes qu'une équipe va exécuter et demandent la structure qui les rend rapides et peu coûteuses : clés de distribution et de tri Redshift, clés et index DynamoDB, partitions et formats d'un lac de données. Puis quelque chose change (une nouvelle colonne, un nouveau moteur source, dix fois plus de données) et vous choisissez la conception qui absorbe ce changement. Le chapitre couvre aussi la conversion de schémas, le lignage des données et les plongements (embeddings) vectoriels.
+Les questions de modélisation décrivent les requêtes qu'une équipe va exécuter et demandent la structure qui les rend rapides et peu coûteuses : clés de distribution et de tri Redshift, clés et index DynamoDB, partitions et formats d'un lac de données. Puis quelque chose change (une nouvelle colonne, un nouveau moteur source, dix fois plus de données) et vous choisissez la conception qui absorbe ce changement. Le chapitre couvre aussi la conversion de schémas, le lignage des données et la vectorisation (embeddings).
 
 <!-- section: redshift-schema | objectives: 2.4.1 -->
 ## Concevoir des schémas Amazon Redshift
@@ -16,7 +16,7 @@ Redshift répartit les lignes entre les tranches (slices) de ses nœuds de calcu
 | | `AUTO` | L'optimisation automatique des tables choisit d'après la charge de travail |
 | Compression des colonnes | `ENCODE AUTO` (par défaut), `AZ64`, `ZSTD`, `LZO` | Garder AUTO sauf si un encodage précis est demandé |
 
-```text
+```sql
 CREATE TABLE sales_fact (
   sale_id      BIGINT,
   customer_id  INTEGER,
@@ -83,7 +83,7 @@ Athena applique le schéma de la table à la lecture (schema on read) et ne ré�
 
 Les **tables Iceberg** permettent d'ajouter, supprimer, renommer et réordonner des colonnes, ainsi que des promotions comme int vers bigint ou float vers double, par des modifications **de métadonnées uniquement** : aucun fichier de données n'est réécrit.
 
-```text
+```sql
 ALTER TABLE lake.orders ADD COLUMNS (coupon_code string);
 ALTER TABLE lake.orders CHANGE COLUMN qty quantity int;
 ALTER TABLE lake.orders DROP COLUMN legacy_flag;
@@ -144,7 +144,7 @@ Le lignage (data lineage) enregistre d'où vient un jeu de données, quelles tâ
 | Compression | Snappy, ZSTD, GZIP | Athena facture les octets analysés avant décompression ; les fichiers texte compressés ne sont pas fractionnables, les fichiers en colonnes le sont |
 | Taille des fichiers | Lacs de données S3 | Moins de fichiers, plus gros ; compacter les petits fichiers (Glue, EMR, compactage Iceberg) |
 
-```text
+```sql
 CREATE EXTERNAL TABLE logs.clicks (user_id string, page string, ts timestamp)
 PARTITIONED BY (dt string)
 STORED AS PARQUET
@@ -165,9 +165,9 @@ S3 prend en charge au moins 3 500 requêtes d'écriture et 5 500 requêtes de le
 <!-- section: vectorization | objectives: 2.4.6 -->
 ## Vectorisation et bases de connaissances Amazon Bedrock
 
-La **vectorisation** transforme un contenu en **plongements (embeddings)** : des tableaux de nombres de longueur fixe produits par un modèle d'embedding, proches les uns des autres quand les sens sont proches. Un magasin de vecteurs les indexe ; une question convertie avec le même modèle retrouve les fragments les plus proches (distance cosinus ou euclidienne). C'est l'étape de récupération de la génération augmentée par récupération (RAG).
+La **vectorisation (embedding)** transforme un contenu en **vecteurs** : des tableaux de nombres de longueur fixe produits par un modèle de vectorisation, proches les uns des autres quand les sens sont proches. Un magasin de vecteurs les indexe ; une question convertie avec le même modèle retrouve les fragments les plus proches (distance cosinus ou euclidienne). C'est l'étape de récupération de la génération à enrichissement contextuel (RAG).
 
-Une **base de connaissances Amazon Bedrock (knowledge base)** exécute le pipeline : une **source de données** (par exemple S3) contient les documents ; une **synchronisation** (tâche d'ingestion) les analyse, les découpe en **fragments (chunks)**, appelle le modèle d'embedding et écrit vecteurs et métadonnées dans le magasin de vecteurs (resynchroniser quand les documents changent) ; les applications appellent `Retrieve` (fragments) ou `RetrieveAndGenerate` (fragments transmis à un modèle de fondation).
+Une **base de connaissances Amazon Bedrock (knowledge base)** exécute le pipeline : une **source de données** (par exemple S3) contient les documents ; une **synchronisation** (tâche d'ingestion) les analyse, les découpe en **fragments (chunks)**, appelle le modèle de vectorisation et écrit vecteurs et métadonnées dans le magasin de vecteurs (resynchroniser quand les documents changent) ; les applications appellent `Retrieve` (fragments) ou `RetrieveAndGenerate` (fragments transmis à un modèle de fondation).
 
 | Stratégie de découpage | Comportement |
 | --- | --- |
@@ -177,18 +177,18 @@ Une **base de connaissances Amazon Bedrock (knowledge base)** exécute le pipeli
 | Sémantique | Découpe là où le sens change ; utilise un modèle de fondation, coûte plus cher |
 | Sans découpage | Un fragment par fichier (contenu déjà découpé) |
 
-Magasins de vecteurs : OpenSearch Serverless, clusters gérés OpenSearch Service, **Amazon S3 Vectors**, Aurora PostgreSQL (pgvector), Neptune Analytics (GraphRAG), Pinecone, Redis Enterprise Cloud, MongoDB Atlas. La dimension de l'index doit correspondre au modèle d'embedding.
+Magasins de vecteurs : OpenSearch Serverless, clusters gérés OpenSearch Service, **Amazon S3 Vectors**, Aurora PostgreSQL (pgvector), Neptune Analytics (GraphRAG), Pinecone, Redis Enterprise Cloud, MongoDB Atlas. La dimension de l'index doit correspondre au modèle de vectorisation.
 
 | Index | Fonctionnement | Compromis |
 | --- | --- | --- |
 | **HNSW** | Graphe de voisins à plusieurs couches, parcouru du grossier au fin | Rappel élevé, faible latence, plus de mémoire, pas d'entraînement ; le choix par défaut habituel |
 | **IVF** | Vecteurs regroupés autour de centroïdes ; une requête ne parcourt que les groupes les plus proches | Moins de mémoire, entraînement nécessaire sur un échantillon, rappel dépendant du nombre de groupes explorés |
 
-```text
+```sql
 CREATE INDEX ON kb.chunks USING hnsw (embedding vector_cosine_ops);
 ```
 
-> **Piège d'examen.** Un nouveau modèle d'embedding impose de recalculer les vecteurs de tous les documents : les vecteurs de deux modèles ne sont pas comparables et les dimensions peuvent différer. Prévoyez un nouvel index et une synchronisation complète.
+> **Piège d'examen.** Un nouveau modèle de vectorisation impose de recalculer les vecteurs de tous les documents : les vecteurs de deux modèles ne sont pas comparables et les dimensions peuvent différer. Prévoyez un nouvel index et une synchronisation complète.
 
 <!-- section: key-points -->
 ## Points clés

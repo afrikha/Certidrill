@@ -90,7 +90,7 @@ aws redshift-data execute-statement \
 | Rôle (RBAC) | Ensemble d'autorisations sur les objets et d'autorisations système ; attribué à des utilisateurs ou à d'autres rôles ; le modèle recommandé |
 | Rôles système | `sys:monitor` (catalogue et tables système), `sys:operator` (plus `ANALYZE`, `VACUUM`, annulation de requêtes), `sys:dba` (création et suppression de schémas, tables, vues, procédures), `sys:secadmin` (utilisateurs, rôles, politiques RLS et de masquage, aucun accès aux données par défaut), `sys:superuser` |
 
-```text
+```sql
 CREATE ROLE sales_analyst;
 GRANT USAGE ON SCHEMA sales TO ROLE sales_analyst;
 GRANT SELECT ON ALL TABLES IN SCHEMA sales TO ROLE sales_analyst;

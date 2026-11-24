@@ -22,6 +22,7 @@ import { EMAIL_VERIFY_HOURS, sendAccountExistsEmail, sendVerificationEmail } fro
 import { locales } from "@/lib/i18n/config";
 import { readSwitches } from "@/lib/settings";
 import type { RateLimiter } from "@/lib/security/rate-limit";
+import { enqueueSignupNotice } from "@/lib/email/outbox";
 
 export const signupSchema = z.object({
   email: z.string().trim().toLowerCase().max(254).pipe(z.email()),
@@ -125,7 +126,9 @@ export async function confirmSignup(
       // Deleted first: a concurrent submission waits on this row, then finds it gone.
       const { count } = await tx.signupRequest.deleteMany({ where: { id: request.id } });
       if (count === 0) return false;
-      await tx.user.create({ data: { email, passwordHash: request.passwordHash, locale: request.locale, emailVerified: now } });
+      const user = await tx.user.create({ data: { email, passwordHash: request.passwordHash, locale: request.locale, emailVerified: now }, select: { id: true } });
+      // The owner's notice (ADMIN_NOTIFY_EMAIL) goes with the account: no account, no notice.
+      await enqueueSignupNotice(tx, { userId: user.id, now });
       // The other pending sign-ups of this address are void once it has an account.
       await tx.signupRequest.deleteMany({ where: { email } });
       return true;

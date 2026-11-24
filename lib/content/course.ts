@@ -28,7 +28,7 @@ import { docsPage, isDocsUrl, vendorOf } from "@/lib/vendors";
 export const INTRO_MODULE = "intro";
 
 /** Code block languages a chapter may use. */
-export const COURSE_CODE_LANGUAGES = ["bash", "powershell", "json", "bicep", "kusto", "yaml", "python", "javascript", "typescript", "java", "text"] as const;
+export const COURSE_CODE_LANGUAGES = ["bash", "powershell", "json", "bicep", "kusto", "yaml", "python", "javascript", "typescript", "java", "sql", "text"] as const;
 
 /** Callouts: a quotation that starts with one of these bold labels. */
 export const CALLOUTS = {

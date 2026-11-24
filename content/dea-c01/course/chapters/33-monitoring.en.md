@@ -33,7 +33,7 @@ Auditors want logs that are complete, tamper-evident, kept for the required peri
 | Continuous copy of CloudWatch Logs to S3 or another account | Subscription filter to Amazon Data Firehose (AWS recommends subscriptions, not repeated exports) |
 | Database activity | Redshift audit logs, RDS and Aurora logs published to CloudWatch Logs, DMS task logs |
 
-```text
+```sql
 SELECT eventtime, useridentity.arn, eventname, requestparameters
 FROM cloudtrail_logs
 WHERE eventsource = 'glue.amazonaws.com'

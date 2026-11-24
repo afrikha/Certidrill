@@ -16,7 +16,7 @@ Redshift spreads rows across the slices of its compute nodes: a query is fast wh
 | | `AUTO` | Automatic table optimization chooses from the workload |
 | Column compression | `ENCODE AUTO` (default), `AZ64`, `ZSTD`, `LZO` | Keep AUTO unless a specific encoding is asked |
 
-```text
+```sql
 CREATE TABLE sales_fact (
   sale_id      BIGINT,
   customer_id  INTEGER,
@@ -83,7 +83,7 @@ Athena applies the table schema when it reads (schema on read) and never rewrite
 
 **Iceberg tables** support adding, dropping, renaming and reordering columns, and promotions such as int to bigint or float to double, as **metadata-only** changes: no data file is rewritten.
 
-```text
+```sql
 ALTER TABLE lake.orders ADD COLUMNS (coupon_code string);
 ALTER TABLE lake.orders CHANGE COLUMN qty quantity int;
 ALTER TABLE lake.orders DROP COLUMN legacy_flag;
@@ -144,7 +144,7 @@ Lineage records where a data set came from, which jobs transformed it and who co
 | Compression | Snappy, ZSTD, GZIP | Athena bills bytes scanned before decompression; compressed text files can't be split, columnar files can |
 | File size | S3 data lakes | Fewer, larger files; compact small files (Glue, EMR, Iceberg compaction) |
 
-```text
+```sql
 CREATE EXTERNAL TABLE logs.clicks (user_id string, page string, ts timestamp)
 PARTITIONED BY (dt string)
 STORED AS PARQUET
@@ -184,7 +184,7 @@ Vector stores: OpenSearch Serverless, OpenSearch Service managed clusters, **Ama
 | **HNSW** | Multi-layer graph of neighbors, searched from coarse to fine | High recall, low latency, more memory, no training; the usual default |
 | **IVF** | Vectors clustered around centroids; a query searches the nearest clusters | Less memory, needs training on sample vectors, recall depends on clusters probed |
 
-```text
+```sql
 CREATE INDEX ON kb.chunks USING hnsw (embedding vector_cosine_ops);
 ```
 

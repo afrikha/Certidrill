@@ -33,7 +33,7 @@ La vérification répond à « les données sont-elles complètes, uniques, vali
 | **SageMaker Data Wrangler** (désormais dans **SageMaker Canvas**) | Flux de données low-code avec transformations, rapport Data Quality and Insights, export vers S3, Feature Store, SageMaker Pipelines ou un script Python |
 | **Glue DataBrew** | Recettes de nettoyage visuelles et tâches de profil avec des règles de qualité des données |
 
-```text
+```sql
 SELECT order_id, COUNT(*) AS copies
 FROM raw.orders
 WHERE dt = '2026-11-21'
@@ -53,7 +53,7 @@ HAVING COUNT(*) > 1;
 | Vue matérialisée | Conserver les résultats avec CTAS ou `INSERT INTO` | `CREATE MATERIALIZED VIEW` : résultat stocké, actualisation incrémentielle ou complète, `AUTO REFRESH YES`, réécriture automatique des requêtes |
 | Interroger S3 | Natif (tables du catalogue de données) | Schéma externe Redshift Spectrum sur le catalogue de données |
 
-```text
+```sql
 CREATE MATERIALIZED VIEW mv_daily_sales
 AUTO REFRESH YES
 AS
@@ -129,7 +129,7 @@ Compromis :
 | Moyenne mobile (rolling average) | Moyenne sur une fenêtre glissante de lignes, qui lisse le bruit quotidien | Fonction de fenêtrage `AVG(...) OVER (PARTITION BY ... ORDER BY ... ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` |
 | Pivotement | Transformer des valeurs de lignes en colonnes (une colonne par mois) | `PIVOT` et `UNPIVOT` dans Redshift ; agrégation conditionnelle dans Athena |
 
-```text
+```sql
 SELECT store_id,
        sale_date,
        total_amount,
