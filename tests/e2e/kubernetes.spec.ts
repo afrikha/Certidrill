@@ -36,7 +36,9 @@ test.afterAll(async () => {
   await db.$disconnect();
 });
 
-test("KCNA with a French interface: English course and exam, the note, a score in percent, the CNCF trademark", async ({ page }) => {
+test("KCNA with a French interface: English course and exam, the note, a score in percent, the CNCF trademark", async ({ page, baseURL }) => {
+  // The interface language chosen with the switcher.
+  await page.context().addCookies([{ name: "NEXT_LOCALE", value: "fr", url: baseURL! }]);
   await login(page, USER);
   await page.goto(`/dashboard?certification=${CODE}`);
   await expect(page.getByTestId("english-only-badge").first()).toHaveText("Anglais seulement");
