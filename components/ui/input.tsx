@@ -5,7 +5,7 @@ export function Input({ className, ...props }: Readonly<React.InputHTMLAttribute
   return (
     <input
       className={cn(
-        "block w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring",
+        "block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm shadow-slate-900/5 placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring",
         className,
       )}
       {...props}
@@ -21,7 +21,7 @@ export function Label({ className, htmlFor, ...props }: Readonly<React.LabelHTML
 export function Select({ className, ...props }: Readonly<React.SelectHTMLAttributes<HTMLSelectElement>>) {
   return (
     <select
-      className={cn("block rounded-md border border-border bg-background px-3 py-2 text-sm", className)}
+      className={cn("block rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm shadow-slate-900/5", className)}
       {...props}
     />
   );

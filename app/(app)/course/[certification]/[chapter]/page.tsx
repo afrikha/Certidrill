@@ -65,7 +65,7 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
   return (
     <div className="lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-10">
       <aside className="hidden lg:block">
-        <nav aria-label={t("toc")} className="sticky top-4 max-h-[calc(100vh-2rem)] space-y-3 overflow-y-auto">
+        <nav aria-label={t("toc")} className="sticky top-20 max-h-[calc(100vh-6rem)] space-y-3 overflow-y-auto">
           <p className="px-2 text-sm font-semibold">{t("toc")}</p>
           <Toc chapter={chapter} label={t("read")} />
         </nav>

@@ -88,9 +88,9 @@ export default async function DashboardPage({ searchParams }: Readonly<{ searchP
 
       {certifications.length > 1 && (
         <form method="get" className="flex flex-wrap items-end gap-3" data-testid="certification-picker">
-          <div>
+          <div className="min-w-0 max-w-full">
             <label htmlFor="dashboard-certification" className="block text-sm font-medium">{t("chooseCertification")}</label>
-            <select id="dashboard-certification" name="certification" defaultValue={selected ?? undefined} className="mt-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
+            <select id="dashboard-certification" name="certification" defaultValue={selected ?? undefined} className="mt-1 w-full max-w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm shadow-slate-900/5 sm:w-auto">
               {/* Several vendors: one group per vendor, named. */}
               {groupByVendor(certifications).map((g, _, groups) => {
                 const options = g.certifications.map((c) => <option key={c.code} value={c.code}>{c.code.toUpperCase()} — {c.title}</option>);

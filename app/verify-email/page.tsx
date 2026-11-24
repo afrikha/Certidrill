@@ -29,7 +29,7 @@ export default async function VerifyEmailPage({ searchParams }: Readonly<{ searc
   return (
     <>
       <SiteHeader />
-      <main id="main" className="mx-auto max-w-md px-4 py-12">
+      <main id="main" className="relative isolate mx-auto max-w-md px-4 py-14 before:pointer-events-none before:fixed before:inset-x-0 before:top-0 before:-z-10 before:h-[32rem] before:bg-[radial-gradient(60%_60%_at_50%_0%,var(--color-blue-100),transparent)] before:content-['']">
         <h1 className="mb-2 text-2xl font-bold">{t("confirmTitle")}</h1>
         <p className="mb-6 text-sm text-muted-foreground">{t("confirmHelp", { email: link.email })}</p>
         <Card>

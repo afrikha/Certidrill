@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, ...props }: Readonly<React.HTMLAttributes<HTMLDivElement>>) {
-  return <div className={cn("rounded-lg border border-border bg-background p-6 shadow-sm", className)} {...props} />;
+  return <div className={cn("rounded-xl border border-border bg-background p-6 shadow-sm shadow-slate-900/5", className)} {...props} />;
 }
 
 export function Alert({
@@ -15,7 +15,7 @@ export function Alert({
     success: "border-green-200 bg-green-50 text-green-900",
     error: "border-red-200 bg-red-50 text-red-900",
   };
-  const classes = cn("block rounded-md border px-4 py-3 text-sm", tones[tone], className);
+  const classes = cn("block rounded-lg border px-4 py-3 text-sm", tones[tone], className);
   // Errors interrupt (role alert); other messages are polite: <output> has the status role.
   if (tone === "error") return <div role="alert" className={classes} {...props} />;
   return <output className={classes} {...props} />;
