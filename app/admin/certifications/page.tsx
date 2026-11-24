@@ -60,6 +60,12 @@ export default async function AdminCertificationsPage() {
                       {(["draft", "reviewed", "needs_review"] as const).filter((s) => r.questions[s]).map((s) => t("statusCount", { status: t(`status_${s}`), count: r.questions[s] ?? 0 })).join(" · ")}
                     </span>
                     <Link href={`/admin/questions?${new URLSearchParams({ certification: r.code })}`} className="text-xs text-primary underline">{t("publishQuestions")}</Link>
+                    {Object.keys(r.quizzes).length > 0 && (
+                      <span className="mt-2 block text-xs" data-testid="quiz-questions">
+                        {t("quizQuestions", { published: r.quizzes.published ?? 0, total: Object.values(r.quizzes).reduce((n, x) => n + (x ?? 0), 0) - (r.quizzes.retired ?? 0) })}{" "}
+                        <Link href={`/admin/questions?${new URLSearchParams({ certification: r.code, usage: "quiz" })}`} className="text-primary underline">{t("publishQuizzes")}</Link>
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3" data-testid="exam-check">
                     {r.exam.ok ? (

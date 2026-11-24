@@ -4,6 +4,8 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { getCourseOutline, offerUrl } from "@/lib/course/read";
+import { quizSummaries } from "@/lib/course/quiz";
+import { QuizBadge } from "@/components/course/quiz-badge";
 import { defaultLocale, isLocale } from "@/lib/i18n/config";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,6 +24,7 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
   const locale = isLocale(current) ? current : defaultLocale;
   const outline = await getCourseOutline(prisma, { certification, viewer: { userId: user.id, isAdmin: user.role === "admin" }, locale });
   if (!outline) notFound();
+  const quizzes = await quizSummaries(prisma, { userId: user.id, isAdmin: user.role === "admin" }, outline.certification.code);
   const t = await getTranslations("course");
   const code = outline.certification.code;
   const chapters = outline.modules.flatMap((m) => m.chapters);
@@ -88,6 +91,7 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
                     <p className="text-sm text-muted-foreground">
                       {t("minutes", { n: c.minutes })} · {t("sectionsRead", { read: c.read, total: c.sections.length })}
                     </p>
+                    {quizzes.has(c.code) && <QuizBadge summary={quizzes.get(c.code)!} href={`/course/${code}/${c.code}/quiz`} />}
                   </Card>
                 </li>
               );

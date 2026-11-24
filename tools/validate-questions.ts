@@ -19,12 +19,17 @@
  * any argument (every course), or with --course; `--chapters` keeps the
  * problems of those chapters only. Given files or --prefix check those files
  * only, unless --course is added.
+ * The end-of-chapter quizzes (quizzes/<chapter>.yaml, lib/content/quiz.ts:
+ * schema, languages, chapter, ids, difficulty by position, objectives,
+ * explanations, similarity with the exam questions) are checked with the
+ * courses, or alone with --quizzes; `--chapters` applies to them too.
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
-import { listCertificationDirs, loadCertification } from "../lib/content/loader";
-import { formatProblem, validateCourse } from "../lib/content/course";
+import { listCertificationDirs, loadCertification, readYamlFiles } from "../lib/content/loader";
+import { formatProblem, parseChapter, validateCourse } from "../lib/content/course";
+import { checkQuizzes, QUIZ_FOLDER, type QuizChapter } from "../lib/content/quiz";
 import { loadVendorGlossary, terminologyWarnings, type GlossaryTerm } from "../lib/content/glossary";
 import { allOrNothing, caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
 import { compareCodeUnits } from "../lib/sort";
@@ -110,6 +115,7 @@ interface Options {
   files: string[] | null;
   prefix: string | null;
   checkCourses: boolean;
+  checkQuizzes: boolean;
   chapters: string[];
 }
 
@@ -118,10 +124,12 @@ async function parseOptions(argv: string[]): Promise<Options> {
   let prefix: string | null = null;
   let chapters: string[] = [];
   let course = false;
+  let quizzes = false;
   const files: string[] = [];
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i]!;
     if (a === "--course") course = true;
+    else if (a === "--quizzes") quizzes = true;
     else if (a === "--prefix") prefix = rest[++i] ?? "";
     else if (a === "--chapters") chapters = (rest[++i] ?? "").split(",").filter(Boolean);
     else if (a.startsWith("--")) throw new Error(`unknown option ${a}`);
@@ -137,7 +145,8 @@ async function parseOptions(argv: string[]): Promise<Options> {
     files: files.length > 0 ? files : null,
     prefix,
     // Without --cert nor files: the courses only (the questions are checked by content:check).
-    checkCourses: course || !onlyQuestions,
+    checkCourses: course || (!onlyQuestions && !quizzes),
+    checkQuizzes: quizzes || course || !onlyQuestions,
     chapters,
   };
 }
@@ -225,6 +234,61 @@ async function validateCourses(dirs: string[], chapters: string[]): Promise<numb
   return problems;
 }
 
+/** The chapters of a course as the quizzes see them, from the section markers of the English files (even when the course has problems). */
+async function chaptersOf(dir: string): Promise<QuizChapter[]> {
+  const folder = path.join(dir, "course", "chapters");
+  const files = (await readdir(folder).catch(() => [] as string[])).filter((f) => f.endsWith(".en.md")).sort(compareCodeUnits);
+  const texts = await Promise.all(files.map((f) => readFile(path.join(folder, f), "utf8")));
+  return files.map((f, i) => ({ id: f.replace(/\.en\.md$/, ""), objectives: [...new Set(parseChapter(f, texts[i]!, "en").sections.flatMap((s) => s.objectives))] }));
+}
+
+/** The ids of every exam question, case study, series and quiz question of the repository: id → file. */
+async function repositoryIds(dirs: string[]): Promise<Map<string, string>> {
+  const files = (await Promise.all(dirs.flatMap((dir) => ["questions", "case-studies", "series", QUIZ_FOLDER].map((d) => listYaml(path.join(dir, d)))))).flat();
+  // Thousands of files: 32 at a time (the open files limit).
+  const texts: string[] = [];
+  for (let i = 0; i < files.length; i += 32) texts.push(...(await Promise.all(files.slice(i, i + 32).map((f) => readFile(f, "utf8"))))); // NOSONAR: batches on purpose
+  const ids = new Map<string, string>();
+  files.forEach((f, i) => {
+    // A bank file has one top-level id; a quiz file one per question.
+    for (const m of texts[i]!.matchAll(/^(?:- +| {2}- +)?id:\s*["']?([A-Za-z0-9_-]+)/gm)) ids.set(m[1]!, path.relative(process.cwd(), f));
+  });
+  return ids;
+}
+
+/** Checks the quizzes of each certification that has a quizzes/ folder; returns the number of problems. */
+async function validateQuizzes(dirs: string[], chapters: string[]): Promise<number> {
+  // Quiz ids are unique in the whole repository: bank and quizzes of every certification.
+  const ids = await repositoryIds(await listCertificationDirs());
+  const mine = (file: string) => chapters.length === 0 || chapters.some((id) => path.basename(file).startsWith(`${id}.`));
+  let problems = 0;
+  for (const dir of dirs) {
+    const quizzes = path.relative(process.cwd(), path.join(dir, QUIZ_FOLDER)) + path.sep;
+    const content = await loadCertification(dir); // NOSONAR: sequential on purpose (readable output)
+    const vendor = vendorOf(content.blueprint.certification.vendor);
+    const examFiles = await listYaml(path.join(dir, "questions"));
+    const exam = (await readYamlFiles(examFiles)).map((r) => (r.ok ? (r.value as { id?: string; stem?: { en?: string } } | null) : null));
+    const check = await checkQuizzes(dir, {
+      code: content.blueprint.certification.code,
+      languages: content.blueprint.certification.languages,
+      chapters: await chaptersOf(dir),
+      bank: exam.flatMap((q) => (q?.id && q.stem?.en ? [{ id: q.id, stem: q.stem.en }] : [])),
+      // This certification's quizzes are compared with each other by checkQuizzes.
+      takenIds: new Map([...ids].filter(([, f]) => !f.startsWith(quizzes))),
+      vendor,
+      terms: await termsOf(vendor),
+    });
+    if (check.files === 0) continue;
+    const shown = check.problems.filter((p) => mine(p.file));
+    for (const p of shown) console.log(`✘ ${path.relative(process.cwd(), p.file)}: ${p.message}`);
+    const warned = check.warnings.filter((w) => mine(w.file));
+    for (const w of warned) console.log(`⚠ ${path.relative(process.cwd(), w.file)}: ${w.message}`);
+    problems += shown.length;
+    console.log(`Quizzes ${content.blueprint.certification.code}: ${check.files} files, ${check.quizzes.reduce((n, q) => n + q.questions.length, 0)} questions, ${shown.length} problem(s), ${warned.length} warning(s).`);
+  }
+  return problems;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const opts = await parseOptions(argv);
@@ -240,7 +304,8 @@ async function main() {
   }
   if (selected === 0 && (opts.files || opts.prefix !== null)) throw new Error("no file to validate");
   const courseErrors = opts.checkCourses ? await validateCourses(opts.dirs, opts.chapters) : 0;
-  process.exit(errors + courseErrors ? 1 : 0);
+  const quizErrors = opts.checkQuizzes ? await validateQuizzes(opts.dirs, opts.chapters) : 0;
+  process.exit(errors + courseErrors + quizErrors ? 1 : 0);
 }
 
 try {

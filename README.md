@@ -83,6 +83,31 @@ Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime :
 
 **Liens avec l'examen** : sous l'explication de chaque question de la correction, « Revoir le cours : … » mène aux sections qui couvrent son objectif (deux au plus, dans l'ordre du cours, avec un cadenas si le chapitre est payant) ; le rapport de score liste les chapitres des domaines sous le seuil ; le tableau de bord suggère les trois sections non lues qui couvrent le plus de questions manquées au dernier examen blanc. Rien de tout cela n'apparaît pendant l'examen.
 
+### Quiz de fin de chapitre
+
+Les quiz (`docs/SPECS-QUIZ-CHAPITRE.md`) sont dans `content/<code>/quizzes/<chapitre>.yaml` : 10 questions au format de la banque, par difficulté croissante (1 à 5 : consolidation ; 6 à 10 : niveau de l'examen). Les 23 certifications Microsoft en ont un par chapitre, sauf `00-getting-started` : 297 quiz, 2 970 questions, toutes en `draft` jusqu'à relecture humaine.
+
+- **Jamais dans un examen blanc** : les questions de quiz vont dans la table `question` avec `usage = quiz`, leur chapitre et leur position. Toute requête qui sélectionne ou compte la banque d'examen passe par `examBank()` de `lib/questions/usage.ts` : banque de l'assembleur, compteurs du back-office, seed de la banque, page Questions. Les outils sur fichiers (simulation, export à l'aveugle, `content:check`) ne lisent que `questions/`, `case-studies/` et `series/`. Un test d'intégration vérifie qu'aucun examen ne contient de question de quiz, même avec `EXAM_INCLUDE_UNPUBLISHED=true`.
+- **Validation** : `npm run content:validate` contrôle les quiz avec les cours, ou seuls avec `--quizzes`. Les règles sont dans `lib/content/quiz.ts`, communes au seed : schéma et langues, chapitre existant, 10 questions, identifiants attendus et uniques dans tout le dépôt, difficulté par position, au moins deux formats autres que `single` en 6 à 10, objectifs du chapitre tous testés, explication de chaque mauvaise option. S'y ajoute une similarité de Jaccard sur les 4-grammes de l'énoncé anglais, refusée à partir de 0,35 avec une question d'examen de la même certification. Les références et la terminologie donnent des avertissements.
+- **Seed** : après le cours, mêmes règles de statut et de version que la banque. Une question retirée des fichiers est retirée en base (`retired`) et libère sa position.
+- **Élève** : un encadré « Valider le chapitre » en bas de chaque chapitre, et l'état du quiz dans le sommaire (non tenté, à revoir, acquis, avec le meilleur score). Le quiz est sur `/course/<code>/<chapitre>/quiz` :
+  - une question à la fois, avec les composants et la notation de l'examen ;
+  - le corrigé arrive seulement dans la réponse au « Valider » de la question, par une action serveur (`lib/course/quiz.ts`) ;
+  - le résultat est sur 10, avec le détail consolidation / niveau examen et les sections à relire ;
+  - le meilleur résultat est conservé ;
+  - les tentatives sont dans `quiz_attempt`, hors de la préparation et des statistiques d'examen.
+
+  Un quiz n'est visible des élèves que si ses 10 questions sont publiées ; un administrateur peut le prévisualiser avant.
+- **Règles à confirmer (§8)** : elles sont toutes dans `lib/course/quiz-rules.ts`.
+  - Seuil : 8/10, dont 4/5 au niveau examen.
+  - XP : 25 par chapitre acquis, une seule fois (`xpPerChapter`, 0 pour désactiver).
+  - Accès : les quiz des chapitres gratuits sont ouverts au niveau gratuit (`freeChaptersOpen`), les autres demandent l'accès complet.
+- **Back-office** :
+  - la page Questions a un filtre « Usage » (banque ou quiz) et un filtre « Chapitre », et publie un quiz par lot comme la banque (audit `question.status`, filtres `usage` et `chapter`) ;
+  - l'aperçu d'une question donne son chapitre et sa position ;
+  - la page Certifications compte les questions de quiz à part ;
+  - l'aperçu d'un chapitre mène à ses questions et au quiz.
+
 ### Autres certifications
 
 `content/` contient 35 certifications : AZ-104 (en ligne), 21 autres certifications Microsoft, dont l'état est décrit dans `docs/ETAT-CONTENU-MULTI-CERTIFICATIONS.md`, 10 certifications AWS (SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03, DEA-C01, DOP-C02, AIP-C01) et 2 certifications CNCF (KCNA, KCSA), voir « Plusieurs éditeurs », toutes livrées en brouillon (`active: false`, tout en `status: draft`). Une certification inactive est invisible partout : accueil, tarifs, offre, tableau de bord, cours, plan du site, démarrage d'un examen, achat et déclaration d'un résultat réel. Seul le back-office (cours, prix) la montre.

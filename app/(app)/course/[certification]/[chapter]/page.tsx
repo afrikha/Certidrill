@@ -13,6 +13,8 @@ import { CodeCopy } from "@/components/course/code-copy";
 import { MarkRead } from "@/components/course/mark-read";
 import { ProgressBar } from "@/components/course/progress-bar";
 import { EnglishOnlyNotice } from "@/components/english-only";
+import { QuizBox } from "@/components/course/quiz-box";
+import { quizSummaries } from "@/lib/course/quiz";
 
 export const metadata = { title: "Course" };
 export const dynamic = "force-dynamic";
@@ -42,8 +44,10 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
   const user = await requireUser();
   const current = await getLocale();
   const locale = isLocale(current) ? current : defaultLocale;
-  const chapter = await getChapter(prisma, { certification, chapter: code, viewer: { userId: user.id, isAdmin: user.role === "admin" }, locale });
+  const viewer = { userId: user.id, isAdmin: user.role === "admin" };
+  const chapter = await getChapter(prisma, { certification, chapter: code, viewer, locale });
   if (!chapter) notFound();
+  const quiz = chapter.locked ? undefined : (await quizSummaries(prisma, viewer, chapter.certification.code)).get(chapter.code);
   // A certification offered in English only: its content is in English, under a French interface (docs/SPECS-AWS.md §3.7).
   const contentLocale = chapter.certification.languages.includes(locale) ? locale : "en";
   const t = await getTranslations("course");
@@ -129,6 +133,8 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
             </ul>
           </section>
         )}
+
+        {quiz && <QuizBox summary={quiz} href={`${base}/${chapter.code}/quiz`} finished={chapter.sections.length > 0 && read === chapter.sections.length} />}
 
         <nav aria-label={t("chapterNav")} className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:justify-between">
           {chapter.previous ? (

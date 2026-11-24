@@ -5,6 +5,8 @@ import type { CertificationContent } from "./loader";
 import type { QuestionBank } from "./bank";
 import type { Course } from "./course";
 import { servedDeep } from "./languages";
+import { EXAM_USAGE, QUIZ_USAGE, examBank, quizQuestions } from "@/lib/questions/usage";
+import type { ChapterQuiz } from "./quiz";
 
 export interface SeedReport {
   certification: string;
@@ -183,14 +185,18 @@ export async function seedBank(db: PrismaClient, content: CertificationContent, 
         fileStatus: q.status,
         version: q.version,
         blueprintVersion: version,
+        usage: EXAM_USAGE,
+        chapterId: null,
+        quizPosition: null,
       };
       if (before && sameRow(before, data)) continue;
       written += 1;
       await tx.question.upsert({ where: { id: q.id }, create: { id: q.id, certificationId: certification.id, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
     }
     const keep = bank.questions.map((q) => q.id);
+    // Quiz questions are seeded (and retired) by seedQuizzes, never here.
     const retired = await tx.question.updateMany({
-      where: { certificationId: certification.id, id: { notIn: keep }, status: { not: "retired" } },
+      where: examBank({ certificationId: certification.id, id: { notIn: keep }, status: { not: "retired" } }),
       data: { status: "retired" },
     });
     // Case studies and series removed from the repository are retired too.
@@ -324,5 +330,90 @@ export async function seedCourse(db: PrismaClient, content: CertificationContent
       removed: { modules: goneModules.count, chapters: goneChapters.count, sections: goneSections.count, progress: goneProgress },
       statusKept,
     };
+  }, { timeout: 120_000 });
+}
+
+export interface QuizSeedReport {
+  quizzes: number;
+  questions: number;
+  /** Quiz questions created or changed. */
+  written: number;
+  /** Quiz questions removed from the files. */
+  retired: number;
+}
+
+/**
+ * Upserts the end-of-chapter quizzes (docs/SPECS-QUIZ-CHAPITRE.md §4.2),
+ * after the course: in the question table, with usage quiz, their chapter
+ * and position, and the bank's rules of status and version
+ * (`bankStatusAfterSeed`). A quiz question removed from the files is
+ * retired, never deleted (attempts keep its id), and leaves its position.
+ */
+export async function seedQuizzes(db: PrismaClient, content: CertificationContent, files: readonly ChapterQuiz[]): Promise<QuizSeedReport> {
+  const code = content.blueprint.certification.code;
+  const quizzes = servedDeep(files, content.blueprint.certification.languages);
+  const version = content.blueprint.blueprint.version;
+  return db.$transaction(async (tx) => {
+    const certification = await tx.certification.findUniqueOrThrow({ where: { code } });
+    const certificationId = certification.id;
+    const blueprint = await tx.blueprint.findUniqueOrThrow({
+      where: { certificationId_version: { certificationId, version } },
+      include: { domains: { include: { objectives: true } } },
+    });
+    const objectiveIds = new Map(blueprint.domains.flatMap((d) => d.objectives.map((o) => [o.code, o.id] as const)));
+    const chapterIds = new Map((await tx.courseChapter.findMany({ where: { certificationId }, select: { id: true, code: true } })).map((c) => [c.code, c.id]));
+    const existing = new Map((await tx.question.findMany({ where: quizQuestions({ certificationId }) })).map((q) => [q.id, q]));
+
+    const rows = quizzes.flatMap((quiz) => {
+      const chapterId = chapterIds.get(quiz.chapter);
+      if (!chapterId) throw new Error(`${code}: quiz of unknown chapter ${quiz.chapter} (seed the course first)`);
+      return quiz.questions.map((q) => ({ q, chapterId }));
+    });
+    const keep = rows.map((r) => r.q.id);
+    // Positions are unique per chapter: free those that move, and those of removed questions, before writing.
+    const moving = rows.filter(({ q, chapterId }) => {
+      const before = existing.get(q.id);
+      return before && (before.chapterId !== chapterId || before.quizPosition !== q.position);
+    });
+    await tx.question.updateMany({
+      where: quizQuestions({ certificationId, quizPosition: { not: null }, OR: [{ id: { notIn: keep } }, { id: { in: moving.map((r) => r.q.id) } }] }),
+      data: { quizPosition: null },
+    });
+    for (const r of moving) existing.get(r.q.id)!.quizPosition = null;
+
+    let written = 0;
+    for (const { q, chapterId } of rows) {
+      const before = existing.get(q.id);
+      const data = {
+        objectiveId: objectiveIds.get(q.objective)!,
+        type: q.type,
+        difficulty: q.difficulty,
+        stem: q.stem,
+        exhibits: q.exhibits as Prisma.InputJsonValue,
+        body: q.body as Prisma.InputJsonValue,
+        answer: q.answer as Prisma.InputJsonValue,
+        explanation: q.explanation as Prisma.InputJsonValue,
+        references: q.references as Prisma.InputJsonValue,
+        caseStudyId: null,
+        seriesId: null,
+        seriesOrder: null,
+        shuffle: q.shuffle,
+        status: bankStatusAfterSeed(before, q),
+        fileStatus: q.status,
+        version: q.version,
+        blueprintVersion: version,
+        usage: QUIZ_USAGE,
+        chapterId,
+        quizPosition: q.position,
+      };
+      if (before && sameRow(before, data)) continue;
+      written += 1;
+      await tx.question.upsert({ where: { id: q.id }, create: { id: q.id, certificationId, ...data }, update: data }); // NOSONAR: sequential upserts in one interactive transaction (single connection; FK order)
+    }
+    const retired = await tx.question.updateMany({
+      where: quizQuestions({ certificationId, id: { notIn: keep }, status: { not: "retired" } }),
+      data: { status: "retired" },
+    });
+    return { quizzes: quizzes.length, questions: rows.length, written, retired: retired.count };
   }, { timeout: 120_000 });
 }
