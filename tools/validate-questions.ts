@@ -9,6 +9,7 @@
  *   npm run content:validate                                 (the courses only, every certification)
  *   npm run content:validate -- --cert dp-900 --course --chapters 10-core-data,11-relational
  * Checks: YAML syntax, Zod schema, answer/body consistency, file name = id,
+ * French wherever the certification offers it (certification.languages),
  * known objective in the right domain folder, existing case study / series.
  * Warnings (not problems): a reference off the documentation of the
  * certification's vendor, a vendor unknown to lib/vendors.ts, scoring rules
@@ -30,6 +31,8 @@ import { compareCodeUnits } from "../lib/sort";
 import { certOfFile, parseCertArgs } from "./cert-args";
 import { referenceWarnings, vendorOf, vendorWarnings, type Vendor } from "../lib/vendors";
 import type { ScoringRules } from "../lib/content/schema";
+import { frenchProblems } from "../lib/content/languages";
+import type { Locale } from "../lib/i18n/config";
 
 async function listYaml(dir: string): Promise<string[]> {
   try {
@@ -46,8 +49,8 @@ function schemaFor(folder: string | undefined) {
   return questionFileSchema;
 }
 
-type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string>; vendor: Vendor; scoring: ScoringRules; terms: readonly GlossaryTerm[] };
-type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string; stem?: { en: string; fr: string }; references?: { url: string }[] };
+type Context = { root: string; objectiveDomain: Map<string, string>; caseIds: Set<string>; seriesIds: Set<string>; vendor: Vendor; scoring: ScoringRules; terms: readonly GlossaryTerm[]; languages: readonly Locale[] };
+type FileData = { id: string; objective?: string; caseStudy?: string; series?: string; type?: string; stem?: { en: string; fr?: string }; references?: { url: string }[] };
 
 /** The note that states per-element scoring, in each language (tools/questions/WRITING_GUIDE.md, rule 7). */
 const PER_ELEMENT_NOTE = [/worth one point/i, /vaut un point/i];
@@ -61,7 +64,7 @@ function questionProblems(data: FileData, folder: string | undefined, ctx: Conte
   if (data.caseStudy && !ctx.caseIds.has(data.caseStudy)) problems.push(`unknown case study ${data.caseStudy}`);
   if (data.series && !ctx.seriesIds.has(data.series)) problems.push(`unknown series ${data.series}`);
   // Scored all or nothing (blueprint.scoring): a note promising a point per selection would be false.
-  if (data.type && data.stem && allOrNothing(data.type as Parameters<typeof allOrNothing>[0], ctx.scoring) && PER_ELEMENT_NOTE.some((re) => re.test(data.stem!.en) || re.test(data.stem!.fr)))
+  if (data.type && data.stem && allOrNothing(data.type as Parameters<typeof allOrNothing>[0], ctx.scoring) && PER_ELEMENT_NOTE.some((re) => re.test(data.stem!.en) || re.test(data.stem!.fr ?? "")))
     problems.push(`stem says each selection is worth one point, but blueprint.scoring scores ${data.type} all or nothing`);
   return problems;
 }
@@ -94,6 +97,7 @@ function validateFile(file: string, text: string, ctx: Context): { problems: str
   if (!r.success) return { problems: r.error.issues.map((i) => `${i.path.map(String).join(".") || "(root)"}: ${i.message}`) };
   const data = r.data as FileData;
   const problems = path.basename(file, ".yaml") === data.id ? [] : [`file name must be ${data.id}.yaml`];
+  problems.push(...frenchProblems(raw, ctx.languages));
   if (rel[0] !== "questions") return { problems };
   const warnings = [...referenceWarnings(data.references ?? [], ctx.vendor), ...terminologyWarnings(frenchTexts(raw).join("\n"), ctx.terms)];
   return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], warnings, type: data.type };
@@ -160,6 +164,7 @@ async function validateQuestions(root: string, opts: Options, wholeBank: boolean
     vendor: vendorOf(content.blueprint.certification.vendor),
     scoring: content.blueprint.blueprint.scoring,
     terms: await termsOf(vendorOf(content.blueprint.certification.vendor)),
+    languages: content.blueprint.certification.languages,
   };
   const blueprintWarnings = vendorWarnings(content.blueprint);
   for (const w of blueprintWarnings) console.log(`⚠ ${path.relative(process.cwd(), path.join(root, "blueprint.yaml"))}: ${w}`);

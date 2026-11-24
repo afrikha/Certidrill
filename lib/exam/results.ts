@@ -46,7 +46,8 @@ export interface AttemptResults {
   status: "submitted" | "expired";
   locale: Locale;
   /** vendor: certification.vendor (the score note and the documentation named, lib/vendors.ts). */
-  certification: { code: string; title: string; vendor: string };
+  /** languages: those of the official exam; without the result's locale, its content is in English (docs/SPECS-AWS.md §3.7). */
+  certification: { code: string; title: string; vendor: string; languages: string[] };
   scaledScore: number;
   passed: boolean;
   passScore: number;
@@ -234,7 +235,7 @@ export async function getAttemptResults(
     id: attempt.id,
     status: attempt.status as "submitted" | "expired",
     locale,
-    certification: { code: attempt.certification.code, title: attempt.certification.title, vendor: attempt.certification.vendor },
+    certification: { code: attempt.certification.code, title: attempt.certification.title, vendor: attempt.certification.vendor, languages: attempt.certification.languages },
     scaledScore: attempt.scaledScore ?? 0,
     passed: attempt.passed ?? false,
     passScore: attempt.blueprint.passScore,

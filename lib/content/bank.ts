@@ -2,7 +2,9 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { ContentError, parseWith, readYamlFiles, type CertificationContent } from "./loader";
 import { caseStudyFileSchema, questionFileSchema, seriesFileSchema, type CaseStudyFile, type QuestionFile, type SeriesFile } from "@/lib/questions/schema";
+import type { Locale } from "@/lib/i18n/config";
 import { compareCodeUnits } from "@/lib/sort";
+import { frenchProblems } from "./languages";
 
 export interface QuestionBank {
   questions: (QuestionFile & { file: string; domain: string })[];
@@ -29,6 +31,7 @@ async function yamlFiles(dir: string): Promise<string[]> {
  * Throws a ContentError naming the faulty file on the first problem.
  */
 export async function loadBank(content: CertificationContent): Promise<QuestionBank> {
+  const { languages } = content.blueprint.certification;
   const objectiveDomain = new Map<string, string>();
   for (const [domain, groups] of Object.entries(content.objectives)) {
     for (const g of groups) for (const o of g.objectives) objectiveDomain.set(o.code, domain);
@@ -38,12 +41,12 @@ export async function loadBank(content: CertificationContent): Promise<QuestionB
     const cs = parseWith(caseStudyFileSchema, raw, file);
     checkFileName(file, cs.id);
     return { ...cs, file };
-  });
+  }, languages);
   const series = await loadFiles(path.join(content.dir, "series"), (raw, file) => {
     const s = parseWith(seriesFileSchema, raw, file);
     checkFileName(file, s.id);
     return { ...s, file };
-  });
+  }, languages);
   const ids = new Set<string>([...caseStudies.map((c) => c.id), ...series.map((s) => s.id)]);
   if (ids.size !== caseStudies.length + series.length) throw new ContentError(content.dir, "case study and series ids must be unique");
   // A blueprint without case studies (or series), like the fundamentals, has no file for them.
@@ -62,18 +65,21 @@ export async function loadBank(content: CertificationContent): Promise<QuestionB
     if (q.caseStudy && !caseStudies.some((c) => c.id === q.caseStudy)) throw new ContentError(file, `unknown case study "${q.caseStudy}"`);
     if (q.series) checkSeriesMember(q.series, q.seriesOrder, file, series, seriesOrders);
     return { ...q, file, domain };
-  });
+  }, languages);
   return { questions, caseStudies, series };
 }
 
 /** Reads every YAML file of a folder (sorted) and checks each one, in order. */
-async function loadFiles<T>(dir: string, check: (raw: unknown, file: string) => T): Promise<T[]> {
+async function loadFiles<T>(dir: string, check: (raw: unknown, file: string) => T, languages: readonly Locale[]): Promise<T[]> {
   const files = await yamlFiles(dir);
   const reads = await readYamlFiles(files);
   return files.map((file, i) => {
     const read = reads[i]!;
     if (!read.ok) throw read.error;
-    return check(read.value, file);
+    const result = check(read.value, file);
+    const missing = frenchProblems(read.value, languages);
+    if (missing.length > 0) throw new ContentError(file, missing.join("; "));
+    return result;
   });
 }
 

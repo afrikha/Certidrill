@@ -12,6 +12,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { CodeCopy } from "@/components/course/code-copy";
 import { MarkRead } from "@/components/course/mark-read";
 import { ProgressBar } from "@/components/course/progress-bar";
+import { EnglishOnlyNotice } from "@/components/english-only";
 
 export const metadata = { title: "Course" };
 export const dynamic = "force-dynamic";
@@ -43,14 +44,16 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
   const locale = isLocale(current) ? current : defaultLocale;
   const chapter = await getChapter(prisma, { certification, chapter: code, viewer: { userId: user.id, isAdmin: user.role === "admin" }, locale });
   if (!chapter) notFound();
+  // A certification offered in English only: its content is in English, under a French interface (docs/SPECS-AWS.md §3.7).
+  const contentLocale = chapter.certification.languages.includes(locale) ? locale : "en";
   const t = await getTranslations("course");
   const labels: CourseLabels = { table: t("table"), copy: t("copy") };
   // A locked chapter has no text to render: its titles only.
   const [summary, ...bodies] = chapter.locked
     ? []
     : await Promise.all([
-        courseHtml({ key: `chapter:${chapter.certification.code}:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary }, locale, labels),
-        ...chapter.sections.map((s) => courseHtml({ key: s.id, contentHash: s.contentHash, markdown: s.body }, locale, labels)),
+        courseHtml({ key: `chapter:${chapter.certification.code}:${chapter.code}`, contentHash: chapter.contentHash, markdown: chapter.summary }, contentLocale, labels),
+        ...chapter.sections.map((s) => courseHtml({ key: s.id, contentHash: s.contentHash, markdown: s.body }, contentLocale, labels)),
       ]);
   const base = `/course/${chapter.certification.code}`;
   const read = chapter.sections.filter((s) => s.read).length;
@@ -64,7 +67,7 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
         </nav>
       </aside>
 
-      <article className="min-w-0 space-y-8" lang={locale}>
+      <article className="min-w-0 space-y-8" lang={contentLocale}>
         <header className="space-y-3">
           <p className="text-sm">
             <Link href={base} className="text-primary underline">← {t("backToOutline")}</Link>
@@ -72,6 +75,7 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
           </p>
           <h1 className="text-2xl font-bold sm:text-3xl">{chapter.title}</h1>
           <p className="text-sm text-muted-foreground">{t("minutes", { n: chapter.minutes })}</p>
+          <EnglishOnlyNotice languages={chapter.certification.languages} />
           {chapter.status !== "published" && <Alert>{t("preview", { status: t(`status_${chapter.status}`) })}</Alert>}
           {chapter.locked ? (
             <Card className="space-y-3 border-primary bg-primary/5" data-testid="course-locked">
@@ -120,7 +124,7 @@ export default async function ChapterReadPage({ params }: Readonly<{ params: Par
             <h2 id="references-title" className="text-xl font-semibold">{t("references")}</h2>
             <ul className="list-disc space-y-1 pl-5">
               {chapter.references.map((r) => (
-                <li key={r.url}><a href={localizeDocsUrl(r.url, locale)} target="_blank" rel="noopener noreferrer" className="text-primary underline">{r.title}</a></li>
+                <li key={r.url}><a href={localizeDocsUrl(r.url, contentLocale)} target="_blank" rel="noopener noreferrer" className="text-primary underline">{r.title}</a></li>
               ))}
             </ul>
           </section>

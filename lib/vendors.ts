@@ -6,7 +6,7 @@
  */
 import type { BlueprintFile, ScoringRules } from "@/lib/content/schema";
 
-export type VendorKey = "microsoft" | "aws";
+export type VendorKey = "microsoft" | "aws" | "cncf";
 type DocsLocale = "en" | "fr";
 
 export interface Vendor {
@@ -59,9 +59,31 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" },
     glossary: "_shared/glossary-aws.yaml",
   },
+  cncf: {
+    key: "cncf",
+    name: "CNCF",
+    docsName: "Kubernetes Documentation",
+    // The Kubernetes docs, the CNCF and Linux Foundation pages of the exams, the CNCF projects' own documentation,
+    // and the security frameworks the KCSA curriculum names (NIST, MITRE ATT&CK, SLSA, OWASP).
+    docsHosts: [
+      "kubernetes.io", "www.cncf.io", "cncf.io", "glossary.cncf.io", "landscape.cncf.io", "tag-security.cncf.io",
+      "training.linuxfoundation.org", "docs.linuxfoundation.org", "github.com",
+      "helm.sh", "prometheus.io", "opentelemetry.io", "falco.org", "istio.io", "linkerd.io", "argo-cd.readthedocs.io",
+      "argoproj.github.io", "fluxcd.io", "etcd.io", "containerd.io", "opencontainers.org", "cilium.io", "docs.cilium.io",
+      "coredns.io", "www.openpolicyagent.org", "openpolicyagent.org", "kyverno.io", "docs.sigstore.dev", "www.sigstore.dev",
+      "in-toto.io", "spiffe.io", "cert-manager.io", "www.envoyproxy.io", "keda.sh", "knative.dev", "cri-o.io", "gateway-api.sigs.k8s.io",
+      "goharbor.io", "gvisor.dev", "katacontainers.io", "kubescape.io", "trivy.dev", "kubewarden.io",
+      "slsa.dev", "csrc.nist.gov", "nvlpubs.nist.gov", "attack.mitre.org", "owasp.org", "community.owasp.org",
+    ],
+    // English only: the Kubernetes certifications are not offered in French.
+    localizeDocsUrl: (url) => url,
+    docsPage: (url) => url,
+    scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" },
+    glossary: null,
+  },
 };
 
-const ALIASES: Record<string, VendorKey> = { microsoft: "microsoft", aws: "aws", "amazon web services": "aws" };
+const ALIASES: Record<string, VendorKey> = { microsoft: "microsoft", aws: "aws", "amazon web services": "aws", cncf: "cncf", "linux foundation": "cncf" };
 
 /** The vendor named in blueprint.yaml (any case), or null when it has no entry here. */
 export function knownVendor(vendor: string): Vendor | null {

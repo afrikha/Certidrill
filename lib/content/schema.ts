@@ -1,9 +1,13 @@
 import { z } from "zod";
 
-/** Text available in every supported locale. */
+/**
+ * Text in the content languages: English always, French when the
+ * certification offers it (blueprint certification.languages; checked by
+ * missingFrench in lib/content/languages.ts, not here).
+ */
 export const localizedSchema = z.strictObject({
   en: z.string().min(1),
-  fr: z.string().min(1),
+  fr: z.string().min(1).optional(),
 });
 
 const share = z.number().min(0).max(1);
@@ -166,6 +170,13 @@ export const blueprintFileSchema = z
       title: z.string().min(1),
       vendor: z.string().min(1),
       active: z.boolean().default(true),
+      /** The languages of the official exam, among those of the site (docs/SPECS-AWS.md §3.7). */
+      languages: z
+        .array(z.enum(["en", "fr"]))
+        .min(1)
+        .default(["en", "fr"])
+        .refine((l) => l.includes("en"), "languages must include en")
+        .refine((l) => new Set(l).size === l.length, "languages must be unique"),
     }),
     blueprint: z.object({
       version: z.string().min(1),
@@ -204,7 +215,7 @@ export type BlueprintFile = z.infer<typeof blueprintFileSchema>;
 export const objectiveFileSchema = z.object({
   code: z.string().regex(/^\d+(\.\d+)*$/),
   en: z.string().min(1),
-  fr: z.string().min(1),
+  fr: z.string().min(1).optional(),
   learnUrl: z.url().optional(),
 });
 

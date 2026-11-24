@@ -9,6 +9,10 @@ export function isLocale(value: unknown): value is Locale {
 /** A user-facing text stored in every supported language. */
 export type Localized = Record<Locale, string>;
 
-export function pick(text: Localized, locale: Locale): string {
-  return text[locale] ?? text[defaultLocale];
+/** A content text: English always, French only when the certification offers it (docs/SPECS-AWS.md §3.7). */
+export type ContentText = { en: string; fr?: string };
+
+/** The text in that locale, or in English when it has none (content offered in English only). */
+export function pick(text: ContentText, locale: Locale): string {
+  return text[locale] || text.en;
 }

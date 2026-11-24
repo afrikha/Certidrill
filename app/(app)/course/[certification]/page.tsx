@@ -8,6 +8,7 @@ import { defaultLocale, isLocale } from "@/lib/i18n/config";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/course/progress-bar";
+import { EnglishOnlyNotice } from "@/components/english-only";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Course" };
@@ -33,6 +34,7 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
       <header className="space-y-4">
         <h1 className="text-2xl font-bold">{t("title", { code: code.toUpperCase() })}</h1>
         <p className="text-muted-foreground">{outline.certification.title}</p>
+        <EnglishOnlyNotice languages={outline.certification.languages} />
         <Card className="space-y-4">
           <ProgressBar read={outline.read} total={outline.sections} label={t("progressLabel")} text={t("progress", { read: outline.read, total: outline.sections })} />
           {outline.resume && (

@@ -20,6 +20,7 @@ import { CourseCard } from "./course-card";
 import { OverviewCard } from "@/components/progress/overview-card";
 import { progressOverview, selectedCertification } from "@/lib/progress/overview";
 import { groupByVendor } from "@/lib/vendors";
+import { EnglishOnlyBadge } from "@/components/english-only";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -106,7 +107,7 @@ export default async function DashboardPage({ searchParams }: Readonly<{ searchP
         const busy = inProgress.some((a) => a.certificationId === c.id);
         return (
           <Card key={c.id}>
-            <h2 className="mb-1 font-semibold">{t("newExamFor", { code: c.code.toUpperCase() })}</h2>
+            <h2 className="mb-1 font-semibold">{t("newExamFor", { code: c.code.toUpperCase() })}<EnglishOnlyBadge languages={c.languages} /></h2>
             {bp && (
               <p className="mb-4 text-sm text-muted-foreground">
                 {c.title} — {bp.durationMin} min, {bp.minQuestions}–{bp.maxQuestions} questions, {bp.passScore}/{bp.maxScore}

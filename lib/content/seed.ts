@@ -4,6 +4,7 @@ import type { ContentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type { CertificationContent } from "./loader";
 import type { QuestionBank } from "./bank";
 import type { Course } from "./course";
+import { servedDeep } from "./languages";
 
 export interface SeedReport {
   certification: string;
@@ -21,8 +22,10 @@ export interface SeedReport {
  * database can be rebuilt from it at any time.
  */
 export async function seedReferential(db: PrismaClient, content: CertificationContent): Promise<SeedReport> {
-  const { blueprint: file, objectives } = content;
-  const c = file.certification;
+  const c = content.blueprint.certification;
+  // Without French, its texts are served in English (docs/SPECS-AWS.md §3.7).
+  const file = servedDeep(content.blueprint, c.languages);
+  const objectives = servedDeep(content.objectives, c.languages);
   const b = file.blueprint;
 
   return db.$transaction(async (tx) => {
@@ -31,8 +34,8 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
     const active = before?.fileActive === c.active ? before.active : c.active;
     const certification = await tx.certification.upsert({
       where: { code: c.code },
-      create: { code: c.code, title: c.title, vendor: c.vendor, active, fileActive: c.active },
-      update: { title: c.title, vendor: c.vendor, active, fileActive: c.active },
+      create: { code: c.code, title: c.title, vendor: c.vendor, languages: c.languages, active, fileActive: c.active },
+      update: { title: c.title, vendor: c.vendor, languages: c.languages, active, fileActive: c.active },
     });
 
     const data = {
@@ -122,8 +125,10 @@ export function bankStatusAfterSeed(
   return before.status;
 }
 
-export async function seedBank(db: PrismaClient, content: CertificationContent, bank: QuestionBank) {
+export async function seedBank(db: PrismaClient, content: CertificationContent, fileBank: QuestionBank) {
   const code = content.blueprint.certification.code;
+  // Without French, its texts are served in English (docs/SPECS-AWS.md §3.7).
+  const bank = servedDeep(fileBank, content.blueprint.certification.languages);
   const version = content.blueprint.blueprint.version;
   return db.$transaction(async (tx) => {
     const certification = await tx.certification.findUniqueOrThrow({ where: { code } });

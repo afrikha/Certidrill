@@ -1,3 +1,4 @@
+import { frenchProblems } from "./languages";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
@@ -68,6 +69,11 @@ export async function loadCertification(dir: string): Promise<CertificationConte
     throw new ContentError(bpFile, `certification.code "${blueprint.certification.code}" must match its folder name`);
   }
   checkObjectives(blueprint, objectives, objFile);
+  const { languages } = blueprint.certification;
+  for (const [file, data] of [[bpFile, blueprint], [objFile, objectives]] as const) {
+    const missing = frenchProblems(data, languages);
+    if (missing.length > 0) throw new ContentError(file, missing.join("; "));
+  }
   return { dir, blueprint, objectives };
 }
 

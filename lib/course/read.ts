@@ -59,7 +59,7 @@ export interface OutlineChapter {
 }
 
 export interface CourseOutline {
-  certification: { code: string; title: string };
+  certification: { code: string; title: string; languages: string[] };
   level: AccessLevel;
   modules: { code: string; title: string; chapters: OutlineChapter[] }[];
   sections: number;
@@ -104,7 +104,7 @@ export async function coursesFor(db: PrismaClient, viewer: Viewer) {
   return db.certification.findMany({
     where: { active: true, courseChapters: { some: { status: { in: visibleStatuses(viewer) } } } },
     orderBy: { code: "asc" },
-    select: { code: true, title: true, vendor: true },
+    select: { code: true, title: true, vendor: true, languages: true },
   });
 }
 
@@ -113,7 +113,7 @@ export async function getCourseOutline(
   db: PrismaClient,
   { certification: code, viewer, locale }: { certification: string; viewer: Viewer; locale: Locale },
 ): Promise<CourseOutline | null> {
-  const certification = await db.certification.findFirst({ where: { code, active: true }, select: { id: true, code: true, title: true } });
+  const certification = await db.certification.findFirst({ where: { code, active: true }, select: { id: true, code: true, title: true, languages: true } });
   if (!certification) return null;
   const [modules, weak, level] = await Promise.all([
     db.courseModule.findMany({
@@ -143,7 +143,7 @@ export async function getCourseOutline(
     courseLevel(db, viewer, certification.id),
   ]);
   const outline: CourseOutline = {
-    certification: { code: certification.code, title: certification.title },
+    certification: { code: certification.code, title: certification.title, languages: certification.languages },
     level,
     modules: modules
       .filter((m) => m.chapters.length > 0)
@@ -183,7 +183,7 @@ export interface ChapterSection {
 }
 
 export interface ChapterPage {
-  certification: { code: string; title: string };
+  certification: { code: string; title: string; languages: string[] };
   /** Titles only: summary, bodies and references are empty, the offer screen is the way on. */
   locked: boolean;
   module: { code: string; title: string };
@@ -206,7 +206,7 @@ export async function getChapter(
   db: PrismaClient,
   { certification: code, chapter: chapterCode, viewer, locale }: { certification: string; chapter: string; viewer: Viewer; locale: Locale },
 ): Promise<ChapterPage | null> {
-  const certification = await db.certification.findFirst({ where: { code, active: true }, select: { id: true, code: true, title: true } });
+  const certification = await db.certification.findFirst({ where: { code, active: true }, select: { id: true, code: true, title: true, languages: true } });
   if (!certification) return null;
   const statuses = visibleStatuses(viewer);
   const where = { certificationId: certification.id, code: chapterCode, status: { in: statuses } };
@@ -250,7 +250,7 @@ export async function getChapter(
   const at = order.findIndex((c) => c.code === chapter.code);
   const neighbour = (i: number) => (order[i] ? { code: order[i].code, title: localized(order[i].title, locale) } : null);
   return {
-    certification: { code: certification.code, title: certification.title },
+    certification: { code: certification.code, title: certification.title, languages: certification.languages },
     locked,
     module: { code: chapter.module.code, title: localized(chapter.module.title, locale) },
     code: chapter.code,

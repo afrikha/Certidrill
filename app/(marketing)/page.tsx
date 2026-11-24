@@ -19,6 +19,7 @@ import { activeCatalog, joinNames } from "@/lib/catalog";
 import { groupByVendor } from "@/lib/vendors";
 import { VendorGroups } from "@/components/vendor-groups";
 import { ExamPreview, Icon } from "./landing-visuals";
+import { EnglishOnlyBadge } from "@/components/english-only";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export default async function HomePage() {
     prisma.certification.findMany({
       where: { active: true },
       orderBy: { code: "asc" },
-      select: { id: true, code: true, title: true, vendor: true, blueprints: { where: { current: true }, take: 1, select: { durationMin: true, minQuestions: true, maxQuestions: true, passScore: true, maxScore: true, _count: { select: { domains: true } } } } },
+      select: { id: true, code: true, title: true, vendor: true, languages: true, blueprints: { where: { current: true }, take: 1, select: { durationMin: true, minQuestions: true, maxQuestions: true, passScore: true, maxScore: true, _count: { select: { domains: true } } } } },
     }),
     readSwitches(prisma),
     getOffers(prisma),
@@ -278,7 +279,7 @@ export default async function HomePage() {
                   <ul className="mt-4 flex flex-wrap justify-center gap-3">
                     {g.certifications.map((c) => (
                       <li key={c.id} className="rounded-md border border-border px-4 py-2">
-                        <span className="font-mono text-sm font-semibold uppercase">{c.code}</span> — {c.title}
+                        <span className="font-mono text-sm font-semibold uppercase">{c.code}</span> — {c.title}<EnglishOnlyBadge languages={c.languages} />
                       </li>
                     ))}
                   </ul>

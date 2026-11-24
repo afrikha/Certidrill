@@ -14,6 +14,7 @@ import { XpGainCard } from "@/components/progress/xp-gain";
 import { xpStart } from "@/lib/progress/celebration";
 import { chaptersForDomains } from "@/lib/course/read";
 import { vendorOf } from "@/lib/vendors";
+import { EnglishOnlyNotice } from "@/components/english-only";
 
 export const metadata = { title: "Results" };
 export const dynamic = "force-dynamic";
@@ -48,6 +49,7 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("title")} — <span className="font-mono uppercase">{r.certification.code}</span></h1>
+      <EnglishOnlyNotice languages={r.certification.languages} />
       <Card className="flex flex-wrap items-center gap-8">
         <div>
           <p className="text-sm text-muted-foreground">{t("score")}</p>
