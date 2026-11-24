@@ -13,7 +13,7 @@ Un pipeline d'ingestion Lakeflow Connect comporte trois parties :
 
 Pour les **connecteurs de base de données** (SQL Server, MySQL, PostgreSQL), créer le pipeline crée aussi une **passerelle d'ingestion** qui extrait les modifications en continu et les écrit dans un stockage intermédiaire ; le pipeline d'ingestion les applique ensuite selon sa planification. Les **connecteurs SaaS** (Salesforce, Workday, ServiceNow...) et les **connecteurs basés sur les requêtes** interrogent directement la source, sans passerelle. Les pipelines s'exécutent sur le calcul serverless et écrivent des **tables de streaming**.
 
-Dans l'interface : **Data Ingestion**, choisissez la source, créez ou sélectionnez la connexion (et, pour une base de données, la passerelle), choisissez les objets, puis le catalogue et le schéma de destination. Les pipelines peuvent aussi être définis dans des Databricks Asset Bundles, des notebooks ou la CLI :
+Dans l'interface : **Data Ingestion**, choisissez la source, créez ou sélectionnez la connexion (et, pour une base de données, la passerelle), choisissez les objets, puis le catalogue et le schéma de destination. Les pipelines peuvent aussi être définis dans des Databricks Asset Bundles (désormais nommés Declarative Automation Bundles sur Learn), des notebooks ou la CLI :
 
 ```yaml
 resources:
@@ -44,7 +44,7 @@ resources:
 | Exécutions suivantes | Incrémentielles : seulement les lignes modifiées (CDC ou suivi des modifications pour SQL Server, colonne curseur pour les connecteurs basés sur les requêtes et certains connecteurs SaaS) |
 | `scd_type` | `SCD_TYPE_1` (écrasement, état courant) ou `SCD_TYPE_2` (historique avec `__START_AT` et `__END_AT`) |
 | `include_columns` / `exclude_columns` | Avec `include_columns`, les nouvelles colonnes de la source n'apparaissent pas ; avec `exclude_columns`, elles apparaissent |
-| Actualisation complète | Recharge une table de zéro (après une modification de schéma irrécupérable) ; les données existantes restent lisibles jusqu'à la fin du nouvel instantané ; une fenêtre d'actualisation complète peut la cantonner aux heures creuses |
+| Actualisation complète | Recharge une table de zéro (après une modification de schéma irrécupérable) ; pour les connecteurs de base de données, les données existantes restent interrogeables jusqu'à la fin du nouvel instantané, une fenêtre d'actualisation complète (`start_hour`, `days_of_week`, `time_zone_id`) peut la cantonner aux heures creuses, et une stratégie d'actualisation complète automatique (désactivée par défaut ; `min_interval_hours` à 24 par défaut) la déclenche après une troncature, une modification de schéma incompatible, le renommage d'une colonne ou l'ajout d'une colonne avec une valeur par défaut |
 | Échecs | Nouvelles tentatives automatiques avec interruption exponentielle ; reprise au dernier curseur |
 
 Lots ou streaming : chaque exécution planifiée du pipeline d'ingestion charge les modifications depuis l'exécution précédente (lots incrémentiels). Pour les bases de données, la passerelle capture les modifications en continu, si bien qu'une planification fréquente donne des tables en quasi temps réel. Les connecteurs de streaming (bus de messages comme RabbitMQ) ingèrent des flux d'événements dans des tables de streaming.
@@ -253,7 +253,7 @@ orders = (events.select(from_json(col("value").cast("string"),
 | `subscribe` | Le nom de l'Event Hub |
 | Préfixe de la classe JAAS sur Databricks | `kafkashaded.` |
 
-Stockez la chaîne de connexion dans une étendue de secrets. Event Hubs recommande Microsoft Entra ID (OAuth) plutôt que les clés d'accès partagé, car il permet le RBAC Azure. Dans un pipeline Lakeflow, les mêmes options se placent dans une fonction `@dp.table`, et les valeurs non secrètes comme l'espace de noms sont passées en paramètres du pipeline.
+Stockez la chaîne de connexion dans une étendue de secrets. Event Hubs recommande Microsoft Entra ID (OAuth) plutôt que les clés d'accès partagé, car il permet le RBAC Azure. À partir de Databricks Runtime 16.1, Databricks recommande des **informations d'identification de service** Unity Catalog quand le streaming Kafka s'exécute en mode d'accès standard ou sur un calcul serverless : définissez `databricks.serviceCredential` sur leur nom et ne définissez ni `kafka.security.protocol` ni les options `kafka.sasl.*` ; le connecteur d'accès associé doit disposer d'autorisations sur Event Hubs. Microsoft Entra ID avec un ID client et un secret (`OAUTHBEARER`) n'est pas pris en charge dans les pipelines Lakeflow configurés avec Unity Catalog. Dans un pipeline Lakeflow, les options Kafka se placent dans une fonction `@dp.table`, et les valeurs non secrètes comme l'espace de noms sont passées en paramètres du pipeline.
 
 > **Piège d'examen.** Port 9093, pas 9092 : le point de terminaison Kafka d'Event Hubs n'accepte que `SASL_SSL` sur le port 9093. Un espace de noms du niveau Basic n'a pas du tout de point de terminaison Kafka.
 
@@ -302,6 +302,8 @@ Hors pipeline, Auto Loader exige aussi `cloudFiles.schemaLocation` (où le sché
 | `failOnNewColumns` | Le flux échoue jusqu'à la mise à jour du schéma ou le retrait du fichier |
 | `none` (par défaut avec un schéma) | Nouvelles colonnes ignorées |
 
+`addNewColumns` ne peut pas être combiné avec un schéma fourni (`.schema(...)`) ; donnez plutôt les types connus en indications de schéma (schema hints), qu'Auto Loader n'applique que si aucun schéma n'est fourni.
+
 Découverte des fichiers : **liste de répertoires** (par défaut, sans configuration) ou **notification de fichiers** ; Databricks recommande la notification de fichiers avec les **événements de fichiers** (file events) activés sur l'emplacement externe Unity Catalog en production, pour réduire la latence et le coût des listes. `cloud_files_state('<checkpoint>')` affiche les fichiers découverts.
 
 Plusieurs sources peuvent alimenter une même table de streaming par des **flux** (flows : `CREATE FLOW ... AS INSERT INTO ... BY NAME`, ou `@dp.append_flow(target=...)` en Python). Kafka et Event Hubs se lisent avec `read_kafka(...)` en SQL ou les options Kafka en Python.
@@ -316,5 +318,5 @@ Plusieurs sources peuvent alimenter une même table de streaming par des **flux*
 - CTAS crée, `CREATE OR REPLACE` remplace mais conserve autorisations et historique, `COPY INTO` ajoute de façon idempotente les nouveaux fichiers à une table existante.
 - AUTO CDC exige des clés, `SEQUENCE BY` et une condition de suppression ; SCD de type 1 ou 2 ; les instantanés utilisent AUTO CDC FROM SNAPSHOT.
 - Structured Streaming : un point de contrôle par requête, `availableNow` pour les exécutions incrémentielles planifiées, `append` pour l'ingestion.
-- Event Hubs : point de terminaison Kafka sur le port 9093, `SASL_SSL`, `$ConnectionString`, niveau Standard ou supérieur.
+- Event Hubs : point de terminaison Kafka sur le port 9093, `SASL_SSL`, `$ConnectionString`, niveau Standard ou supérieur ; des informations d'identification de service Unity Catalog (`databricks.serviceCredential`, DBR 16.1+) en mode d'accès standard ou sur serverless.
 - Auto Loader : `cloudFiles` ou `STREAM read_files`, emplacement de schéma, `addNewColumns` par défaut, `_rescued_data` en mode rescue, événements de fichiers en production.

@@ -9,7 +9,7 @@ Microsoft Foundry is organized in two Azure resource types plus the resources yo
 | --- | --- | --- |
 | Foundry resource | `Microsoft.CognitiveServices/accounts`, kind `AIServices` | Administrative, security and monitoring boundary: networking, model deployments, connections, quota usage |
 | Foundry project | `Microsoft.CognitiveServices/accounts/projects` | Work of a team or use case: agents, evaluations, files, datasets; its own access control |
-| Connected resources | Storage account, Azure Key Vault, Azure AI Search, Azure Cosmos DB, Application Insights | Your data, secrets, indexes, agent state and telemetry, each with its own network and access settings |
+| Connected resources | Storage account, Azure Key Vault, Foundry IQ (Azure AI Search), Azure Cosmos DB, Application Insights | Your data, secrets, indexes, agent state and telemetry, each with its own network and access settings |
 
 Projects are child resources: they have their own role assignments but **share** the network security, the model deployments and the connections of their parent Foundry resource. The project endpoint is:
 
@@ -27,7 +27,7 @@ The previous model, a **hub** with hub-based projects (built on Azure Machine Le
 | Network isolation or a different region for one workload | A separate Foundry resource (network and deployments are resource-level) |
 | Self-service exploration in a locked-down subscription | Administrators create the resource; users add projects to it |
 
-The **default project** matters. The first project of a Foundry resource is tagged default (`is_default` in code). Only the default project supports OpenAI Batch, fine-tuning, stored completions and Speech fine-tuning; other projects support Responses, Files and Conversations from the OpenAI API. If you delete the default project, the next project you create becomes the default. A deleted project can't be recovered.
+The **default project** matters. The first project of a Foundry resource is tagged default (`is_default` in code). Only the default project supports OpenAI Batch, OpenAI fine-tuning, stored completions and Speech fine-tuning; other projects support Responses, Files and Conversations from the OpenAI API. Language fine-tuning is available in every project. If you delete the default project, the next project you create becomes the default. A deleted project can't be recovered.
 
 **Agent capability settings** (where agent state, vectors and files are stored) can be set on the Foundry resource as defaults. Projects inherit them unless they override them with `capabilitySettings` (`blobStore`, `documentStore`, `vectorStore`), which can only be set when the project is created. Changing the resource defaults later doesn't update existing projects. The identity that sets them needs Storage Blob Data Contributor on the storage account and Cosmos DB Operator on the Azure Cosmos DB account; runtime access for the project's managed identity is configured separately.
 
@@ -35,7 +35,7 @@ The **default project** matters. The first project of a Foundry resource is tagg
 
 To create a Foundry resource you need a role such as **Foundry Account Owner** or **Foundry Owner** on the subscription or resource group; to create it for a team and give members access, you also need a role that can assign roles, such as **Owner**.
 
-> **Exam trap.** Fine-tuning and Batch jobs fail in a second project of the same Foundry resource: those features are available only in the default project. And private endpoints or deployments can't be set per project: they belong to the Foundry resource.
+> **Exam trap.** OpenAI fine-tuning and Batch jobs fail in a second project of the same Foundry resource: those features are available only in the default project. And private endpoints or deployments can't be set per project: they belong to the Foundry resource.
 
 <!-- section: identity-rbac | objectives: 3.1.2 -->
 ## Identity and access management
@@ -74,7 +74,7 @@ Roles that start with "Cognitive Services" (except Usages Reader) target AI Serv
 
 **Keyless access.** RBAC applies only with Microsoft Entra ID authentication. An API key grants full access with no role restriction. Applications use their managed identity and `DefaultAzureCredential`; then set `disableLocalAuth: true` on the Foundry resource so keys stop working.
 
-When a user with role-assignment rights creates a Foundry resource in the Azure portal or the Foundry portal, Foundry User is assigned to them automatically. That doesn't happen when the resource is deployed with the SDK, the CLI or a template: add the assignment to your template or script.
+When a user with role-assignment rights creates a Foundry resource in the Azure portal or the Foundry portal, Foundry User is assigned to them automatically. That doesn't happen when the resource is deployed with the SDK, the CLI or a template: add the assignment to your template or script. In the same way, a project created in the Foundry portal by a user who can assign roles gets two assignments automatically: Foundry User for that user and Foundry User for the project's managed identity on the Foundry resource.
 
 ```bash
 # Least privilege for an application that calls one agent only
@@ -106,7 +106,7 @@ Only private endpoints in the **Approved** state carry traffic; creating one nee
 
 **Outbound** (agents reaching your resources) uses **virtual network injection**: the agent client runs in your subnet, which must be delegated to `Microsoft.App/environments` and be /27 or larger. Use the standard agent setup (your own Storage, Azure AI Search and Azure Cosmos DB) so that agent data stays in your tenant, and create a private endpoint on each of those resources: they aren't created automatically. A Microsoft-managed network for subnet delegation also exists (`networkInjections.useMicrosoftManagedNetwork`, `az cognitiveservices account managed-network` commands in preview).
 
-Outbound decisions are made at deployment time: you can't change the delegated subnet or add network injection to an existing resource; you redeploy. Don't use `172.17.0.0/16` for the virtual network (reserved for Docker bridge networking).
+Outbound decisions are made at deployment time: you can't change the delegated subnet or add network injection to an existing resource; you redeploy. Don't use `172.17.0.0/16` for the virtual network (reserved for Docker bridge networking). For the agent subnet, the virtual network and its peered networks must not overlap `169.254.0.0/16`, `172.30.0.0/16`, `172.31.0.0/16`, `192.0.2.0/24`, `0.0.0.0/8`, `127.0.0.0/8`, `100.100.0.0/17`, `100.100.192.0/19` or `100.100.224.0/19`, and private endpoint addresses must avoid `192.168.0.0/24` (hosted agent sandbox network). The Foundry resource must be in the same region as the virtual network; each Foundry resource needs its own agent subnet (it can't be shared), and /24 or larger is the starting point for production. To remove a private setup, delete and purge the Foundry resource before you delete the virtual network.
 
 | Agent tool | Behavior with network injection |
 | --- | --- |
@@ -211,7 +211,7 @@ Practical notes from the Learn templates: the resource name must be globally uni
 ## Key points
 
 - Foundry resource (`accounts`, kind `AIServices`) = network, deployments, connections; projects (`accounts/projects`) = agents, evaluations, files, access control.
-- One resource per environment; one project per team. Batch, fine-tuning and stored completions only in the default project.
+- One resource per environment; one project per team. OpenAI Batch, OpenAI fine-tuning, stored completions and Speech fine-tuning only in the default project.
 - Foundry User for builders and project managed identities; Agent Consumer for callers; Account Owner for administrators; Usages Reader at subscription scope for quota.
 - Keys bypass RBAC: managed identity, `DefaultAzureCredential`, then `disableLocalAuth: true`.
 - Inbound: private endpoint plus `publicNetworkAccess: 'Disabled'`; outbound: subnet delegated to `Microsoft.App/environments`, /27 or larger, decided at deployment. Connected resources need their own private endpoints.

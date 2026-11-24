@@ -9,7 +9,7 @@ Ce qu'il faut prendre en compte :
 
 - **Biais dans les données.** Un biais peut entrer lors de la collecte des données, de la construction du modèle ou de l'exploitation du système. Vérifiez d'où vient un jeu de données et si chaque groupe y est correctement représenté.
 - **Résultats par groupe.** Comparez les résultats pour les groupes sensibles comme le genre, l'origine ethnique ou l'âge, et pas seulement la précision globale.
-- **Évaluation.** Dans Foundry, les évaluateurs de sécurité analysent la sortie d'un modèle ou d'un agent à la recherche de biais et d'iniquité. Les évaluateurs détectent et notent les problèmes ; ils ne les corrigent pas.
+- **Évaluation.** Dans Foundry, l'évaluateur de risque et de sécurité Hateful and unfairness attribue à la sortie d'un modèle ou d'un agent un score de gravité (de 0 à 7) pour les propos haineux et les représentations inéquitables de groupes sociaux. Il juge le contenu de chaque réponse, pas le fait que des personnes comparables obtiennent des résultats comparables : il faut donc toujours comparer les résultats par groupe. Les évaluateurs détectent et notent les problèmes ; ils ne les corrigent pas.
 
 <!-- section: reliability-safety | objectives: 1.1.2 -->
 ## Fiabilité et sécurité
@@ -22,7 +22,7 @@ Ce qu'il faut prendre en compte :
 - **Circonstances imprévues.** Concevez le système pour les mauvais usages accidentels, les données malveillantes et les attaques.
 - **Surveillance et retours.** Suivez les performances après la mise en service et donnez aux utilisateurs un moyen de signaler les problèmes.
 - **Intervention humaine.** Décidez quand le système doit passer la main à une personne.
-- **Contenu généré.** Un modèle génératif peut produire un texte faux ou nuisible. Les modèles Foundry appliquent par défaut des filtres de sécurité du contenu (garde-fous), qui bloquent les invites et les réponses nuisibles, et ancrer l'invite dans des données de confiance rend les réponses plus fiables.
+- **Contenu généré.** Un modèle génératif peut produire un texte faux ou nuisible. Les modèles Foundry appliquent par défaut des filtres de sécurité du contenu (garde-fous), qui bloquent les invites et les réponses nuisibles. Pour les modèles Azure OpenAI, tous les modèles sauf les modèles de transcription reçoivent une stratégie par défaut ; sur le texte, elle filtre les contenus haineux et inéquitables (hate and fairness), violents, sexuels et d'automutilation à un seuil Medium dans les invites et les complétions, et détecte les attaques par invite utilisateur (jailbreak). Ancrer l'invite dans des données de confiance rend les réponses plus fiables.
 
 <!-- section: privacy-security | objectives: 1.1.3 -->
 ## Confidentialité et sécurité

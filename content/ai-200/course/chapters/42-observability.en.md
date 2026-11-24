@@ -30,7 +30,7 @@ traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
              version-trace id (32 hex)-parent span id (16 hex)-flags (01 = sampled)
 ```
 
-In the tables, the trace ID becomes `OperationId`, the span ID `Id` and the parent span ID `ParentId`. Instrumented HTTP clients and servers inject and extract this header automatically; for a custom transport you do it yourself (see below). The OpenTelemetry **resource** attribute `service.name` (prefixed by `service.namespace` when set) becomes the cloud role name (`AppRoleName`), the node of the application map; `service.instance.id` becomes `AppRoleInstance`.
+In the tables, the trace ID becomes `OperationId`, the span ID `Id` and the parent span ID `ParentId`. Instrumented HTTP clients and servers inject and extract this header automatically; for a custom transport you do it yourself (see below). The OpenTelemetry **resource** attributes `service.namespace` and `service.name` (only `service.name` when no namespace is set) become the cloud role name (`AppRoleName`), the node of the application map; `service.instance.id` becomes `AppRoleInstance`.
 
 <!-- section: otel-python | objectives: 4.2.1 -->
 ## Enabling the Azure Monitor OpenTelemetry Distro in Python
@@ -127,7 +127,7 @@ How Azure Monitor aggregates custom metric instruments:
 | Histogram | Min, Max, Average, Sum and Count |
 | Asynchronous gauge | Average |
 
-> **Exam trap.** A counter only adds values: use it for tokens consumed or documents indexed. To analyze a distribution (p95 latency), use a histogram. A value that goes up and down (queue length) is an UpDownCounter or an asynchronous gauge.
+> **Exam trap.** A counter only adds values: use it for tokens consumed or documents indexed. A histogram records a distribution, but Azure Monitor currently flattens it into Min, Max, Average, Sum and Count (percentile support is underway): for p95 latency, query `percentile(DurationMs, 95)` on the `AppRequests` or `AppDependencies` rows. A value that goes up and down (queue length) is an UpDownCounter or an asynchronous gauge.
 
 <!-- section: kql-basics | objectives: 4.2.2 -->
 ## KQL essentials and the telemetry tables

@@ -107,9 +107,9 @@ Un client choisit l'un de ses rôles avec l'en-tête `X-MS-API-ROLE` ; sans cet 
 | `actions` | `create`, `read`, `update`, `delete`, `execute` (procédures stockées), `*` (CRUD pour les tables et les vues, `execute` pour les procédures) |
 | `fields.include` / `fields.exclude` | Restriction par colonne, pour chaque action |
 | `policy.database` | Prédicat de style OData avec `@item.<field>` et `@claims.<claim>`, ajouté à la requête. Pris en charge pour `read`, `update` et `delete` ; pas pour `create` ni `execute` |
-| `cache` | `enabled`, `ttl-seconds` (par défaut : la valeur du runtime), `level` `L1` (en mémoire) ou `L1L2` (mémoire plus un cache Redis distribué configuré dans `runtime.cache.level-2`) |
+| `cache` | `enabled`, `ttl-seconds` (par défaut : la valeur du runtime), `level` `L1` (en mémoire) ou `L1L2` (par défaut : mémoire plus un cache Redis distribué configuré dans `runtime.cache.level-2`). S'applique uniquement aux points de terminaison REST, pas à GraphQL |
 
-> **Piège d'examen.** La mise en cache d'une entité ne fonctionne que si `runtime.cache.enabled` vaut `true` (`false` par défaut) ; sinon, le bloc `cache` de l'entité n'a aucun effet. La durée de vie par défaut du runtime est de 5 secondes.
+> **Piège d'examen.** La mise en cache d'une entité ne fonctionne que si `runtime.cache.enabled` vaut `true` (`false` par défaut) ; sinon, le bloc `cache` de l'entité n'a aucun effet. La durée de vie par défaut du runtime est de 5 secondes. Activer `set-session-context` désactive la mise en cache des réponses pour cette source de données.
 
 La **pagination** se configure dans `runtime.pagination` : `default-page-size` (100 par défaut), `max-page-size` (100 000 par défaut) et `next-link-relative`. Les requêtes demandent davantage avec `$first` (REST) ou `first` (GraphQL), `-1` signifiant la taille de page maximale, et continuent avec le curseur retourné dans `nextLink` (REST) ou `endCursor` / `hasNextPage` (GraphQL).
 
@@ -335,7 +335,7 @@ Le **déclencheur SQL d'Azure Functions** crée une table de baux dans le schém
 
 - `dab init` crée (et écrase) `dab-config.json` ; `dab add` / `dab update` gèrent les entités ; secrets par `@env()` ou `@akv()`, idéalement une identité managée.
 - Autorisations : rôle + actions + champs et stratégie de base de données facultatifs (`@item`, `@claims`) ; `execute` pour les procédures.
-- Le cache exige `runtime.cache.enabled` ; pagination par défaut 100 / 100 000 ; `$filter`, `$orderby`, `$select`, `$first`, `$after` en REST, `filter`, `orderBy`, `first`, `after` en GraphQL.
+- Le cache exige `runtime.cache.enabled`, ne s'applique qu'à REST et est désactivé avec `set-session-context` ; pagination par défaut 100 / 100 000 ; `$filter`, `$orderby`, `$select`, `$first`, `$after` en REST, `filter`, `orderBy`, `first`, `after` en GraphQL.
 - Les vues exigent une clé déclarée ; les procédures utilisent par défaut `POST` et une mutation GraphQL ; les relations sont réservées à GraphQL.
 - Déployez le conteneur `data-api-builder` sur Container Apps, App Service, Container Instances ou AKS en mode `production`.
 - Télémétrie : Application Insights pour la durée des appels d'API et des dépendances SQL ; les paramètres de diagnostic envoient les journaux de la base vers Log Analytics, Event Hubs ou le stockage.

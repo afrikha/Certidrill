@@ -22,7 +22,7 @@ Règles de redimensionnement :
 
 - **Étendre** un volume uniquement dans l'espace non alloué **situé juste après lui sur le même disque**, et seulement s'il est en NTFS ou ReFS (`Resize-Partition -DriveLetter E -Size (Get-PartitionSupportedSize -DriveLetter E).SizeMax`).
 - **Réduire** uniquement des volumes de base NTFS ou bruts, jamais ReFS. Les fichiers non déplaçables (fichier d'échange, zone de stockage des clichés instantanés) limitent la réduction ; l'événement 259 nomme le fichier bloquant. `diskpart` : `select volume 3`, puis `shrink desired=10240`.
-- Un volume peut être monté dans un dossier NTFS vide au lieu d'une lettre de lecteur.
+- Un volume formaté en NTFS ou ReFS peut être monté dans un dossier vide d'un volume NTFS ou ReFS au lieu d'une lettre de lecteur (la Gestion des disques nomme toujours l'option *Mount in the following empty NTFS folder*).
 
 **Disques durs virtuels.** La Gestion des disques (Action > Créer un disque dur virtuel / Attacher un disque dur virtuel) ou les cmdlets Hyper-V créent des fichiers `.vhd` ou `.vhdx` (recommandé), de **taille fixe** ou à **expansion dynamique**. Un VHDX attaché se comporte comme un disque physique ; le détacher conserve le fichier et ses données.
 
@@ -42,7 +42,7 @@ Prérequis des disques : SAS, SATA, NVMe (USB possible mais déconseillé) ; au 
 | --- | --- | --- | --- | --- |
 | Simple | Entrelacement, sans redondance | 1 | Rien | Données temporaires ou faciles à recréer |
 | Miroir bidirectionnel | 2 copies | 2 | 1 disque | La plupart des charges, partages de fichiers, bibliothèques de VHD |
-| Miroir tridirectionnel | 3 copies | 5 | 2 disques | Données critiques qui doivent supporter deux pannes |
+| Miroir tridirectionnel | 3 copies | 5, sans compter les disques de secours | 2 disques | Données critiques qui doivent supporter deux pannes |
 | Parité | Données et parité (journalisées) | 3 | 1 disque | Archives, sauvegardes, charges séquentielles |
 
 - **Provisionnement** : **fixe** prend toute la taille dans le pool à la création ; **dynamique** (thin) alloue à la demande et permet la surallocation, donc surveillez l'espace libre du pool. Les deux peuvent coexister dans un même pool.
@@ -133,7 +133,7 @@ Set-SRPartnership -NewSourceComputerName SR-SRV02 -SourceRGName RG02 `
   -DestinationComputerName SR-SRV01 -DestinationRGName RG01
 ```
 
-- Le **volume de destination est démonté** pendant la réplication ; un test de basculement (Windows Server 2019 et ultérieur) en monte temporairement un instantané accessible en écriture pour des tests ou des sauvegardes.
+- Le **volume de destination est démonté** pendant la réplication ; un test de basculement (Windows Server 2019 et ultérieur) en monte temporairement un instantané accessible en écriture pour des tests ou des sauvegardes : `Mount-SRDestination -Name RG02 -TemporaryPath T:\` sur la destination, avec comme chemin temporaire un volume NTFS ou ReFS inutilisé et non répliqué, puis `Dismount-SRDestination`.
 - Pour supprimer la réplication, exécutez `Remove-SRPartnership` sur la **source** uniquement et `Remove-SRGroup` sur les deux serveurs.
 - Le réplica de stockage **n'est pas une sauvegarde** : une suppression est répliquée immédiatement. Il réplique aussi les clichés instantanés VSS, puisqu'il travaille sous le système de fichiers.
 
@@ -166,6 +166,7 @@ La QoS du stockage gère de façon centralisée les performances de stockage des
 
 - Les performances se mesurent en **IOPS normalisées** : chaque E/S de 8 Ko ou moins compte pour une ; une E/S de 256 Ko compte pour 32.
 - Une stratégie a **MinimumIops** (réservation), **MaximumIops** (limite) et éventuellement **MaximumIOBandwidth** (octets par seconde) ; la première limite atteinte s'applique.
+- `Set-StorageQosPolicy` peut modifier plus tard le nom et les limites d'une stratégie, mais pas son **type de stratégie** : pour passer de Dedicated à Aggregated ou l'inverse, créez une nouvelle stratégie et attribuez-la.
 
 | Type de stratégie | S'applique |
 | --- | --- |

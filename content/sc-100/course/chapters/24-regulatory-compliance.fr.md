@@ -1,4 +1,4 @@
-Les réglementations nomment rarement un produit : elles demandent des contrôles, comme « les données personnelles doivent rester dans l'UE », « l'accès aux données des titulaires de carte doit être journalisé et révisé », « les enregistrements doivent être conservés sept ans ». L'architecte traduit chaque exigence en contrôles techniques, choisit l'outil Microsoft qui applique ou mesure chacun d'eux, et prouve l'alignement aux auditeurs. L'examen teste trois outils faciles à confondre : Microsoft Purview, Azure Policy et le tableau de bord de conformité réglementaire de Microsoft Defender pour le cloud.
+Les réglementations nomment rarement un produit : elles demandent des contrôles, comme « les données personnelles doivent rester dans l'UE », « l'accès aux données des titulaires de carte doit être journalisé et révisé », « les enregistrements doivent être conservés sept ans ». L'architecte traduit chaque exigence en contrôles techniques, choisit l'outil Microsoft qui applique ou mesure chacun d'eux, et prouve l'alignement aux auditeurs. L'examen teste trois outils faciles à confondre : Microsoft Purview, Azure Policy et le tableau de bord de conformité réglementaire de Microsoft Defender for Cloud.
 
 <!-- section: requirements-to-controls | objectives: 2.4.1 -->
 ## Traduire les exigences de conformité en contrôles de sécurité
@@ -20,7 +20,7 @@ Méthode :
 | Les données personnelles doivent être trouvées et protégées | Classification, étiquetage, DLP | Microsoft Purview Information Protection et protection contre la perte de données |
 | Conserver les enregistrements sept ans, puis les supprimer | Rétention et destruction | Purview Data Lifecycle Management et Records Management |
 | Seules les personnes autorisées accèdent aux systèmes sensibles ; accès révisé | Privilège minimum, recertification | PIM, révisions d'accès, accès conditionnel |
-| Les ressources doivent respecter la base de référence de sécurité | Normes de configuration, détection des écarts | Azure Policy, recommandations de Defender pour le cloud |
+| Les ressources doivent respecter la base de référence de sécurité | Normes de configuration, détection des écarts | Azure Policy, recommandations de Defender for Cloud |
 
 > **Piège d'examen.** Les certifications de Microsoft couvrent la part du service qui revient à Microsoft. Une charge de travail du client n'est pas conforme PCI DSS parce qu'Azure l'est : le client doit implémenter et prouver ses propres contrôles.
 
@@ -33,11 +33,11 @@ Le **Gestionnaire de conformité Microsoft Purview** (Compliance Manager) transf
 | --- | --- |
 | Modèle de réglementation | Une liste prédéfinie de contrôles pour une réglementation ou une norme (des centaines disponibles, modèles personnalisés possibles) |
 | Évaluation | Un modèle appliqué à votre environnement, avec son propre score |
-| Contrôle | Une exigence de la réglementation |
+| Contrôle | Une exigence de la réglementation, de l'un de trois types : géré par Microsoft (Microsoft l'implémente pour ses services cloud), vos contrôles (gérés par le client) ou partagé (les deux se partagent la responsabilité) |
 | Action d'amélioration | Ce que vous devez faire pour satisfaire un contrôle ; attribuée à un propriétaire, avec état, notes et preuves ; les actions techniques sont testées automatiquement quand c'est possible |
 | Score de conformité | Progression sur les actions d'amélioration, pondérée par le risque ; inclut les actions gérées par Microsoft et les vôtres |
 
-Le Gestionnaire de conformité évalue Microsoft 365 par défaut et peut évaluer d'autres clouds par des connecteurs. Le score de conformité mesure la progression sur les actions recommandées ; ce n'est pas une certification.
+Le Gestionnaire de conformité évalue Microsoft 365 par défaut. Il évalue Azure, AWS et GCP par son intégration avec Defender for Cloud, qui teste les ressources des abonnements inclus dans l'étendue d'une réglementation correspondante dans Defender for Cloud ; les connecteurs servent aux services non Microsoft comme Salesforce et Zoom. Le score de conformité mesure la progression sur les actions recommandées ; ce n'est pas une certification.
 
 Les autres solutions Purview implémentent les contrôles :
 
@@ -52,9 +52,9 @@ Les autres solutions Purview implémentent les contrôles :
 | Détecter le vol de données par des employés sur le départ | Gestion des risques internes (Insider Risk Management) |
 | Détecter le harcèlement ou les violations réglementaires dans les messages | Conformité des communications (Communication Compliance) |
 | Contrôler les données sensibles dans les applications d'IA générative et Microsoft 365 Copilot | Data Security Posture Management (DSPM) for AI, avec étiquettes et DLP |
-| Inventorier et classer les données dans Azure, AWS, des bases de données locales | Purview Data Map et Unified Catalog (gouvernance des données) |
+| Inventorier et classer les données dans Azure, AWS, des bases de données locales | Purview Unified Catalog et fonctionnalités classiques de gouvernance des données (anciennement Azure Purview) : en cours de retrait ; plus de création de comptes de gouvernance des données, mode maintenance jusqu'au 12 novembre 2027, gouvernance des données regroupée dans Microsoft Fabric |
 
-> **Piège d'examen.** Purview gouverne et protège les **données** (Microsoft 365, points de terminaison, patrimoines de données). Il n'évalue pas la configuration des ressources Azure : « les comptes de stockage doivent refuser l'accès public » relève d'Azure Policy ou de Defender pour le cloud, pas de Purview.
+> **Piège d'examen.** Purview gouverne et protège les **données** (Microsoft 365, points de terminaison, patrimoines de données). Il n'évalue pas la configuration des ressources Azure : « les comptes de stockage doivent refuser l'accès public » relève d'Azure Policy ou de Defender for Cloud, pas de Purview.
 
 <!-- section: azure-policy | objectives: 2.4.3 -->
 ## Solutions Azure Policy pour la sécurité et la conformité
@@ -92,23 +92,23 @@ Principes de conception :
 | Signaler les paramètres de stratégie de mot de passe dans les serveurs Windows Azure et locaux | Configuration machine, serveurs intégrés avec Azure Arc |
 | Une application héritée a besoin d'une dérogation temporaire | Exemption, catégorie Waiver, avec une date d'expiration |
 
-> **Piège d'examen.** Azure Policy ne peut pas évaluer un compte AWS ou un projet GCP. Pour la conformité de configuration multicloud, utilisez les normes de Defender pour le cloud sur les connecteurs AWS et GCP ; Azure Policy n'atteint les autres clouds que par les serveurs et clusters Kubernetes avec Azure Arc.
+> **Piège d'examen.** Azure Policy ne peut pas évaluer un compte AWS ou un projet GCP. Pour la conformité de configuration multicloud, utilisez les normes de Defender for Cloud sur les connecteurs AWS et GCP ; Azure Policy n'atteint les autres clouds que par les serveurs et clusters Kubernetes avec Azure Arc.
 
 <!-- section: defender-regulatory | objectives: 2.4.4 -->
-## Valider l'alignement avec la conformité réglementaire de Defender pour le cloud
+## Valider l'alignement avec la conformité réglementaire de Defender for Cloud
 
-Le **tableau de bord de conformité réglementaire** de Defender pour le cloud affiche chaque norme attribuée, ses contrôles et les ressources qui réussissent ou échouent aux évaluations derrière chaque contrôle.
+Le **tableau de bord de conformité réglementaire** de Defender for Cloud affiche chaque norme attribuée, ses contrôles et les ressources qui réussissent ou échouent aux évaluations derrière chaque contrôle.
 
 | Élément | Détail |
 | --- | --- |
 | Norme par défaut | Azure : MCSB. AWS : MCSB et AWS Foundational Security Best Practices. GCP : MCSB et GCP Default |
 | Normes pour Azure, AWS et GCP | Entre autres : ISO/IEC 27001:2022, NIST SP 800-53, NIST CSF v2.0, PCI DSS v4.0.1, CIS Controls v8.1, SOC, EU GDPR, NIS2, DORA, EU AI Act |
 | Normes propres à un cloud | Benchmarks CIS pour Azure, AWS, GCP et leurs services Kubernetes ; HIPAA et FedRAMP pour Azure ; AWS Well-Architected Framework |
-| Prérequis pour ajouter des normes | Un plan Defender pour le cloud payant, sauf Defender for Servers Plan 1 et Defender for APIs Plan 1 |
+| Prérequis pour ajouter des normes | Un plan Defender for Cloud payant, sauf Defender for Servers Plan 1 et Defender for APIs Plan 1 |
 | État des contrôles | Les contrôles évalués automatiquement sont conformes ou non conformes ; ceux qui ne peuvent pas l'être sont grisés et demandent des preuves manuelles |
 | Où | Configuration et attribution dans le portail Azure ; supervision en lecture seule dans le portail Defender |
 
-Le MCSB est la norme de sécurité derrière les recommandations de Defender pour le cloud et le **degré de sécurisation de Defender pour le cloud** ; les normes réglementaires réutilisent les mêmes évaluations, associées à leurs propres contrôles. Dans Azure, ces normes sont des initiatives Azure Policy.
+Le MCSB est la norme de sécurité derrière les recommandations de Defender for Cloud et le **degré de sécurisation de Defender for Cloud** ; les normes réglementaires réutilisent les mêmes évaluations, associées à leurs propres contrôles. Dans Azure, ces normes sont des initiatives Azure Policy.
 
 Comment l'utiliser dans une conception :
 
@@ -119,19 +119,19 @@ Comment l'utiliser dans une conception :
 
 | Outil | Répond à |
 | --- | --- |
-| Conformité réglementaire de Defender pour le cloud | Mes ressources Azure, AWS et GCP respectent-elles les contrôles techniques d'une norme ? |
+| Conformité réglementaire de Defender for Cloud | Mes ressources Azure, AWS et GCP respectent-elles les contrôles techniques d'une norme ? |
 | Gestionnaire de conformité Purview | Où en est l'organisation, Microsoft 365 compris, dans l'implémentation de tous les contrôles d'une réglementation, techniques et organisationnels ? |
 | Azure Policy | Imposer ou auditer une règle de configuration sur les ressources Azure |
 | Niveau de sécurité Microsoft (Microsoft Secure Score) | Posture de sécurité des charges de travail Microsoft 365 et d'identité |
 
-> **Piège d'examen.** Une norme au vert dans Defender pour le cloud signifie que les vérifications automatisées réussissent, pas que l'organisation est certifiée. Et le tableau de bord de conformité réglementaire exige un plan payant pour ajouter des normes au-delà du MCSB : Defender for Servers Plan 1 seul ne suffit pas.
+> **Piège d'examen.** Une norme au vert dans Defender for Cloud signifie que les vérifications automatisées réussissent, pas que l'organisation est certifiée. Et le tableau de bord de conformité réglementaire exige un plan payant pour ajouter des normes au-delà du MCSB : Defender for Servers Plan 1 seul ne suffit pas.
 
 <!-- section: key-points -->
 ## Points clés
 
-- Exigence, puis contrôle, puis outil : préventif (Azure Policy `deny`, DLP), détectif (Defender pour le cloud, Audit), correctif (correction, rétention).
+- Exigence, puis contrôle, puis outil : préventif (Azure Policy `deny`, DLP), détectif (Defender for Cloud, Audit), correctif (correction, rétention).
 - Responsabilité partagée : les rapports d'audit de Microsoft sur le Portail d'approbation de services ne couvrent pas les contrôles du client.
-- Le MCSB est associé aux CIS, NIST et PCI DSS et c'est la norme par défaut de Defender pour le cloud.
+- Le MCSB est associé aux CIS, NIST et PCI DSS et c'est la norme par défaut de Defender for Cloud.
 - Purview protège et gouverne les données ; le Gestionnaire de conformité note la progression sur les réglementations avec des actions d'amélioration.
 - Azure Policy impose la configuration dans Azure et, par Arc, sur les serveurs hybrides et Kubernetes ; attribuer aux groupes d'administration, auditer avant de refuser.
-- La conformité réglementaire de Defender pour le cloud valide les ressources Azure, AWS et GCP par rapport aux normes ; ajouter des normes exige un plan payant autre que Servers Plan 1 ou APIs Plan 1.
+- La conformité réglementaire de Defender for Cloud valide les ressources Azure, AWS et GCP par rapport aux normes ; ajouter des normes exige un plan payant autre que Servers Plan 1 ou APIs Plan 1.

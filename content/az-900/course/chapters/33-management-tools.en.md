@@ -19,7 +19,7 @@ The **Azure mobile app** gives access to resources, alerts and a command line fr
 | --- | --- | --- |
 | **Azure PowerShell** | A module of **cmdlets** (command-lets) for PowerShell; runs on Windows, Linux and macOS | `New-AzVM`, `Get-AzResourceGroup` |
 | **Azure CLI** | A command-line interface with **Bash-style** commands; runs on Windows, Linux and macOS | `az vm create`, `az group list` |
-| **Azure Cloud Shell** | A **browser-based** shell, opened from the portal or at shell.azure.com, with both tools already installed | Bash or PowerShell, your choice |
+| **Azure Cloud Shell** | A **browser-based** shell, opened from the portal, at shell.azure.com or from the Azure mobile app, with both tools already installed | Bash or PowerShell, your choice |
 
 Azure PowerShell and the Azure CLI do the same things; they differ only by syntax. Both call the Azure REST API behind the scenes, and both let you write scripts to automate the creation of one resource or of a whole infrastructure.
 
@@ -82,6 +82,8 @@ An **ARM template** is a **JSON** file that describes the resources to deploy.
 | **Extensibility** | Deployment scripts in PowerShell or Bash can be added |
 
 **Bicep** is a language that also describes resources declaratively, with a simpler and more concise syntax than JSON. It supports all resource types, is modular and gives repeatable results; a Bicep file is converted to an ARM template at deployment.
+
+When a template or Bicep file is redeployed, ARM reapplies all the properties of each resource it describes, because the file always describes the final state: a manual change made since the last deployment, for example in the portal, is overwritten.
 
 > **Exam trap.** Declarative means describing the final state ("a storage account named X exists"). Scripts are imperative: a list of commands to run in order. ARM templates and Bicep are declarative.
 

@@ -78,6 +78,8 @@ La liste de contrôle **sauvegardes sécurisées** de l'étape de récupération
 3. Protégez les sauvegardes contre l'effacement et le chiffrement délibérés. **Forte** : exigez des étapes hors bande (authentification multifacteur ou code PIN) avant toute modification des sauvegardes en ligne. **La plus forte** : conservez les sauvegardes dans un stockage immuable en ligne, comme le stockage immuable des objets blob Azure, ou complètement hors ligne ou hors site.
 4. Protégez les documents nécessaires à la récupération : procédures de restauration, base de données de gestion des configurations (CMDB) et schémas réseau. Les attaquants les ciblent délibérément.
 
+Microsoft donne un ordre de priorité pour les applications les plus importantes : systèmes d'identité, vie humaine, systèmes financiers, fourniture des produits ou services, puis sécurité (minimale). La liste de sauvegarde priorisée devient aussi la liste de restauration priorisée.
+
 La liste de contrôle de protection des données ajoute : déplacer les données utilisateur vers OneDrive et SharePoint, désigner des dossiers protégés (accès contrôlé aux dossiers de Microsoft Defender), et réduire les autorisations larges d'écriture et de suppression sur les partages de fichiers et SharePoint, puis surveiller pour qu'elles ne reviennent pas.
 
 Pour les patrimoines hybrides et multiclouds, appliquez partout les mêmes exigences : sauvegardes administrées par des identités distinctes, copies immuables ou hors ligne, documents de récupération protégés et restaurations testées.

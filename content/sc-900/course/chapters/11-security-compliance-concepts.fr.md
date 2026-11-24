@@ -19,6 +19,8 @@ Quel que soit le modèle, ces responsabilités **restent toujours les vôtres** 
 - vos **points de terminaison** : les ordinateurs portables, téléphones et tablettes qui se connectent au service ;
 - vos **choix de configuration** dans le service.
 
+Le modèle s'étend aux services d'IA : le fournisseur sécurise l'infrastructure, l'environnement d'hébergement des modèles d'IA et les contrôles de sécurité de la plateforme, comme le filtrage de contenu ; vous restez responsable des données auxquelles l'IA a accès, de qui peut l'utiliser, de sa configuration, des risques propres à l'IA comme l'injection de prompt, et de la formation des utilisateurs.
+
 > **Piège d'examen.** Passer au SaaS ne transfère jamais la responsabilité de vos données ni de vos comptes. Le centre de données physique, le réseau physique et les hôtes physiques relèvent toujours du fournisseur dans le cloud.
 
 <!-- section: defense-in-depth | objectives: 1.1.2 -->
@@ -32,8 +34,8 @@ La **défense en profondeur** empile plusieurs couches de protection au lieu de 
 | Identité et accès | Authentification multifacteur, contrôle d'accès en fonction du rôle, accès conditionnel |
 | Périmètre | Protection DDoS, pare-feux de périmètre |
 | Réseau | Segmentation, groupes de sécurité réseau |
-| Calcul | Correctifs, fermeture des ports inutilisés, restriction des accès d'administration |
-| Application | Développement sécurisé, validation des entrées contre l'injection SQL et le scripting inter-site |
+| Calcul | Correctifs, fermeture des ports inutilisés, restriction des accès d'administration, surveillance des comportements inhabituels |
+| Application | Développement sécurisé, validation des entrées contre l'injection SQL et le scripting inter-site, authentification et autorisation au niveau de l'application |
 | Données | Contrôle d'accès, chiffrement, classification ; la couche la plus interne |
 
 Les contrôles de sécurité servent trois objectifs, la triade **CIA** :
@@ -41,13 +43,13 @@ Les contrôles de sécurité servent trois objectifs, la triade **CIA** :
 | Objectif | Sens | Contrôle type |
 | --- | --- | --- |
 | **Confidentialité** | Seules les personnes autorisées peuvent lire l'information | Chiffrement, contrôle d'accès |
-| **Intégrité** | Les données restent exactes et non modifiées, sauf par des changements autorisés | Hachage, signatures numériques |
+| **Intégrité** | Les données restent exactes et non modifiées, sauf par des changements autorisés | Hachage, signatures numériques, journaux d'audit |
 | **Disponibilité** | Les données et les systèmes sont accessibles quand les utilisateurs autorisés en ont besoin | Redondance, protection DDoS |
 
 <!-- section: zero-trust | objectives: 1.1.3 -->
 ## Le modèle Confiance Zéro
 
-Le modèle traditionnel faisait confiance à tout ce qui se trouvait dans le réseau de l'entreprise. La **Confiance Zéro** (Zero Trust) est une stratégie de sécurité, pas un produit, qui traite chaque demande d'accès comme non approuvée, d'où qu'elle vienne : « ne jamais faire confiance, toujours vérifier ».
+Le modèle traditionnel approuvait tout ce qui se trouvait dans le réseau de l'entreprise. La **Confiance Zéro** (Zero Trust) est une stratégie de sécurité, pas un produit, qui traite chaque demande d'accès comme non approuvée, d'où qu'elle vienne : « ne jamais faire confiance, toujours vérifier ».
 
 | Principe | Sens |
 | --- | --- |
@@ -85,7 +87,9 @@ Le **chiffrement** rend les données illisibles pour quiconque ne détient pas l
 | **En transit** | En déplacement sur un réseau | TLS, comme dans HTTPS ; VPN |
 | **En cours d'utilisation** | En cours de traitement en mémoire | Informatique confidentielle, dans des enclaves sécurisées |
 
-Le **hachage** convertit n'importe quelle entrée en une valeur de longueur fixe, le hachage. Il est **à sens unique** (l'entrée ne peut pas être retrouvée), **déterministe** (la même entrée donne toujours le même hachage) et n'utilise **aucune clé**. Il sert à vérifier, pas à cacher : comparer des hachages montre si un fichier a été modifié, et les systèmes stockent le hachage d'un mot de passe plutôt que le mot de passe. Un **sel**, valeur aléatoire ajoutée à chaque mot de passe avant le hachage, fait que deux mots de passe identiques produisent des hachages différents et met en échec les tables précalculées.
+Le chiffrement ne vaut que par la protection de ses clés. La **gestion des clés** conserve les clés à l'écart des données qu'elles protègent, les stocke dans des modules de sécurité matériels (HSM) ou un service managé comme Azure Key Vault, en effectue la rotation régulière et restreint qui peut les utiliser.
+
+Le **hachage** convertit n'importe quelle entrée en une valeur de longueur fixe, le hachage. Il est **à sens unique** (l'entrée ne peut pas être retrouvée), **déterministe** (la même entrée donne toujours le même hachage) et n'utilise **aucune clé**. Il sert à vérifier, pas à cacher : comparer des hachages montre si un fichier a été modifié, et les systèmes stockent le hachage d'un mot de passe plutôt que le mot de passe. Un **sel**, valeur aléatoire ajoutée à chaque mot de passe avant le hachage, fait que deux mots de passe identiques produisent des hachages différents et met en échec les tables précalculées (tables arc-en-ciel).
 
 Une **signature numérique** combine les deux idées : elle prouve qui a envoyé les données (authenticité) et qu'elles n'ont pas été modifiées (intégrité).
 
@@ -99,6 +103,8 @@ Une **signature numérique** combine les deux idées : elle prouve qui a envoyé
 | **Gouvernance** | Les règles, pratiques et processus qu'une organisation utilise pour diriger et contrôler ses activités |
 | **Gestion des risques** | Identifier, évaluer et traiter les menaces ou événements qui peuvent affecter les objectifs de l'organisation ou la confiance de ses clients |
 | **Conformité** | Respecter les lois, réglementations, normes et stratégies qui s'appliquent à l'organisation |
+
+La gestion des risques ne vise pas à éliminer tous les risques. Elle identifie les risques, évalue chacun selon son impact et sa probabilité, y répond, puis les surveille. Les quatre réponses : **accepter** un risque à faible impact, l'**atténuer** par des contrôles, le **transférer** (par exemple par une assurance) ou l'**éviter** en changeant le processus qui le crée. Des cadres comme ISO 27001, SOC 2 et HIPAA fixent les exigences à respecter.
 
 Trois notions sur les données accompagnent la conformité :
 
@@ -118,4 +124,4 @@ Sécurité et conformité ne sont pas synonymes : la sécurité couvre tout ce q
 - Confiance Zéro : vérifier explicitement, utiliser l'accès selon le moindre privilège, supposer une violation.
 - Chiffrement symétrique : une seule clé. Asymétrique : clé publique et clé privée. Données au repos, en transit, en cours d'utilisation.
 - Hachage : à sens unique, déterministe, sans clé ; sert à l'intégrité et au stockage des mots de passe, renforcé par un sel.
-- La gouvernance dirige, la gestion des risques anticipe, la conformité suit les règles. Résidence : où les données sont stockées. Souveraineté : quelles lois s'appliquent. Confidentialité : comment les données personnelles sont traitées.
+- La gouvernance dirige, la gestion des risques anticipe (identifier, évaluer, répondre, surveiller ; accepter, atténuer, transférer ou éviter), la conformité suit les règles. Résidence : où les données sont stockées. Souveraineté : quelles lois s'appliquent. Confidentialité : comment les données personnelles sont traitées.

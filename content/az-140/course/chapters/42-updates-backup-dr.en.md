@@ -14,7 +14,7 @@ Two strategies exist:
 
 1. One session host is updated first to validate the process, then the others in **batches** (*Max VMs removed during update*, default 1).
 2. For each batch: users receive the **logoff message** and are signed out after the **logoff delay** (0–60 minutes, default 2), the hosts are drained and removed, new VMs are created from the new configuration with the same host names, join the directory and the host pool, then the old VMs are deleted.
-3. Network, availability configuration and location are kept; manual customizations (files, registry keys, certificates) are lost, so put them in the image, Intune, Group Policy or the custom script.
+3. Network, availability configuration and location are kept; manual customizations (files, registry keys, certificates) are lost, so put them in the image, Intune, Group Policy or the custom script. The existing power state and drain mode of the hosts are honored (a host pool whose hosts are all deallocated can be updated), and the purchase plan of a gallery image isn't retained.
 
 Rules to remember: one update per host pool at a time; individual hosts can't be updated alone; **disable autoscale** on the host pool for the duration of the update; check subscription quotas, since new VMs are created before the old ones are deleted; Azure Monitor Agent isn't reinstalled automatically on the new hosts (use Azure Policy). With **standard management**, session host update isn't available: you rebuild hosts with your own pipelines and a registration token.
 
@@ -120,7 +120,7 @@ az backup protection enable-for-azurefileshare --vault-name rsv-avd-weu --resour
   --policy-name DailyProfiles --storage-account stprofweu --azure-file-share profiles
 ```
 
-> **Exam tip.** The vault for Azure Files or VM backup is in the **same region** as the protected storage account or VM. Profiles in two regions with Cloud Cache: back up the primary copy.
+> **Exam tip.** The vault for Azure Files or VM backup is in the **same region** as the protected storage account or VM; for Azure Files, also in the same subscription unless you use Cross Subscription Backup. Profiles in two regions with Cloud Cache: back up the primary copy.
 
 <!-- section: backup-restore | objectives: 4.2.5 -->
 ## Configure backup and restore for profiles, personal desktops and images
@@ -131,7 +131,7 @@ az backup protection enable-for-azurefileshare --vault-name rsv-avd-weu --resour
 2. In the vault, choose **Item Level Restore** for the share, select the recovery point and the user's folder or VHDX (up to 99 files or folders per restore).
 3. Restore to the **original location** (overwrite) to roll back the profile, or to an **alternate location** to extract data and keep the current profile.
 
-**Full Share Restore** (original or alternate location) is for a lost or corrupted share. Restores run from the snapshot when it exists, from the vault otherwise.
+**Full Share Restore** (original or alternate location) is for a lost or corrupted share. Item Level Restore and any restore to the original location need the recovery point's snapshot (tier Snapshot, or Snapshot and Vault-tier): if the snapshot is gone, the restore fails. From the vault, the only option is a Full Share Restore to an alternate location.
 
 **FSLogix profiles on Azure NetApp Files** (up to 255 snapshots per volume):
 

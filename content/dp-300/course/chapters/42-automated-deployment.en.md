@@ -58,7 +58,7 @@ output serverFqdn string = sqlServer.properties.fullyQualifiedDomainName
 | Element | Rule |
 | --- | --- |
 | `sku.name` | `GP_Gen5` (provisioned General Purpose), `GP_S_Gen5` (serverless), `BC_Gen5`, `HS_Gen5`, or DTU names (`Basic`, `S0`, `P1`); `capacity` = vCores or DTUs |
-| `autoPauseDelay`, `minCapacity` | Serverless only; `autoPauseDelay: -1` disables auto-pause |
+| `autoPauseDelay`, `minCapacity` | Serverless only; `autoPauseDelay: -1` disables auto-pause. Auto-pause is GA in General Purpose and preview in Hyperscale |
 | `requestedBackupStorageRedundancy` | `Local`, `Zone`, `Geo`, `GeoZone` |
 | `@secure()` | The value isn't logged or shown in the deployment history |
 | `parent` / child names | A child resource needs its parent: missing parent = `ParentResourceNotFound` |
@@ -192,7 +192,7 @@ Debug logging is enabled only from PowerShell (`-DeploymentDebugLogLevel All`, `
 | `AuthorizationFailed` | Missing role (for example SQL Server Contributor) or unregistered resource provider | Assign the role, register `Microsoft.Sql` |
 | `RequestDisallowedByPolicy` | An Azure Policy assignment denies the resource (for example public network access, region) | Comply with or get an exemption from the policy |
 | `Conflict` | Operation not allowed in the resource's current state (another operation running) | Wait and retry |
-| `DeploymentQuotaExceeded` | 800 deployments in the group's history | History cleanup is automatic from 700 entries (down to 600) unless blocked by a `CanNotDelete` lock or missing `Microsoft.Resources/deployments/delete` permission; delete old deployments |
+| `DeploymentQuotaExceeded` | 800 deployments in the group's history | History cleanup is automatic from 700 entries (down to 600), also triggered by what-if and validate, unless blocked by a `CanNotDelete` lock on the resource group or the subscription, missing `Microsoft.Resources/deployments/delete` permission, or the subscription feature `DisableDeploymentGrooming` (the 800 limit still applies); delete old deployments |
 
 A server name must be globally unique (it becomes `name.database.windows.net`): a name already taken fails the deployment, and `uniqueString()` avoids it.
 

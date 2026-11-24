@@ -71,7 +71,7 @@ print(completion.choices[0].message.audio.transcript)
 | Need | Use |
 | --- | --- |
 | Understand a spoken question and answer it, in one call | A multimodal model |
-| Transcribe large volumes of audio with predictable cost, or in batch | Azure Speech |
+| Transcribe large volumes of stored recordings, in batch | Azure Speech |
 | A specific or custom voice for the output | Azure Speech |
 
 <!-- section: speech-app | objectives: 2.2.3 -->

@@ -109,11 +109,11 @@ Serverless means no server to size, scaling driven by events and billing that fo
 
 | Plan | Scale | Virtual network | Execution timeout | Use |
 | --- | --- | --- | --- | --- |
-| Flex Consumption | Event driven, to zero, up to 1,000 instances; optional always-ready instances | Yes | 30 minutes by default, unbounded | Default choice for new serverless applications; Linux only |
+| Flex Consumption | Event driven, to zero, up to 1,000 instances; optional always-ready instances | Yes | 30 minutes by default, unbounded | Default choice for new serverless applications; Linux only; no deployment slots, one app per plan |
 | Premium | Event driven, at least one instance always warm | Yes | 30 minutes by default, unbounded | No cold start, Windows or Linux, custom containers |
 | Dedicated (App Service plan) | Manual or autoscale of the plan | Yes | 30 minutes by default, unbounded with Always On | Reuse spare capacity of an existing plan; predictable cost |
-| Container Apps | Event driven (KEDA), to zero | Yes | Depends on triggers | Functions packaged as containers next to other microservices |
-| Consumption (legacy) | Event driven, to zero | No | 5 minutes by default, 10 at most | Existing applications; new ones use Flex Consumption |
+| Container Apps | Event driven (KEDA), to zero | Yes | 30 minutes by default, unbounded; with a minimum of zero replicas, the default depends on the triggers | Functions packaged as containers next to other microservices |
+| Consumption (legacy) | Event driven, to zero | No | 5 minutes by default, 10 at most | Existing applications; new ones use Flex Consumption; Linux hosting retires on September 30, 2028 |
 
 Whatever the plan, an HTTP-triggered function must answer within 230 seconds. A longer operation returns immediately and continues in the background: a queue message, or **Durable Functions**, which writes stateful orchestrations in code (function chaining, fan-out and fan-in, waiting for a human approval, timers).
 
@@ -138,7 +138,7 @@ Batch workloads run to completion without a user waiting: rendering, risk simula
 | Requirement | Recommend |
 | --- | --- |
 | Large-scale parallel or HPC jobs, with managed scheduling and no cluster software to install | Azure Batch |
-| Keep an existing scheduler (Slurm, PBS Pro, LSF, Grid Engine, HTCondor, HPC Pack) or burst an on-premises cluster to Azure | Azure CycleCloud |
+| Keep an existing scheduler (Slurm, PBS Pro, LSF, Grid Engine, HTCondor) or burst an on-premises cluster to Azure | Azure CycleCloud |
 | Containerized task that runs on demand, on a schedule or per event, then stops | Container Apps job |
 | Short scheduled code | Azure Functions with a timer trigger |
 | Batch work inside an existing Kubernetes platform | Kubernetes jobs on AKS |

@@ -1,0 +1,16 @@
+# QZ-az-104-52-backup-recovery — doubts and notes
+
+Quiz: `content/az-104/course/quizzes/52-backup-recovery.yaml` (10 questions; check-quiz 0 problem(s), 0 warning(s)).
+
+## The chapter is out of date on these points (checked on Learn, Nov. 2026; the chapter was not changed)
+
+1. **Trusted Launch and the Enhanced policy.** The chapter (policy table and key points) says Enhanced is *required* for trusted launch machines. *Back Up Azure VMs with the Enhanced Policy* now says Trusted Launch VM backup with the **Standard** policy is supported through Azure CLI 2.73.0+, Az PowerShell 14.0.0+ and REST API 2025-01-01+. Standard still doesn't support Ultra Disk and Premium SSD v2. The quiz avoids the Trusted Launch claim. Suggest fixing the chapter.
+2. **Backup center.** *Backup center overview and transition to Resiliency* calls Backup center the "legacy" experience. It no longer comes up in portal search, and Learn points to Azure Business Continuity Center, now **Resiliency** (*What is Resiliency?*). The chapter still says "Backup center (business continuity center)". The quiz doesn't name the console.
+3. **Blob backup policies.** *Overview of Azure Blobs backup*: the new backup policy can't be operational-only; vaulted backup is selected by default and can't be turned off (operational can be added). The chapter shows the two tiers as separate choices. Q3 asks which tier protects against account deletion, which is still correct.
+4. **Default VM policy.** Learn contradicts itself. *Back Up Azure VMs in a Recovery Services Vault* says daily, 30 days, instant restore 2 days. The VM backup FAQ says that by default backups are kept 7 days in snapshot and 180 days in the vault, which looks like Enhanced defaults. The quiz doesn't test the default policy. The chapter's "30 days" should be checked.
+
+## Other notes
+
+- Q6 was rewritten at the coordinator's request because the backup metrics (Backup Health Events / Restore Health Events) are still **(preview)** on Learn. It now uses only generally available features: the job failure alerts toggle in the vault monitoring settings, a log search alert on the workspace (AddonAzureBackupJobs), an alert processing rule that applies an action group, and two distractors (an alert processing rule with suppression, Backup reports). Sources: *Manage Azure Monitor based alerts for Azure Backup*, *Azure Monitor Logs in Azure Backup* and *Alert processing rules for Azure Monitor alerts*, all fetched. The chapter still teaches the preview metrics in its 5.2.7 section; consider removing them or marking them as preview.
+- Q10 uses `--retain-as-per-policy` (`az backup protection disable`) as a distractor. It is real (CLI reference fetched) but is not in the chapter; its name says what it does.
+- Decisions already in the mock exam were avoided: vault region and count, CRR, redundancy change, soft-delete 90 days, settings before protect, Enhanced 4 h / Premium SSD v2, instant restore, MARS, file recovery, replace existing, Azure Files restore, cache storage, NSG tags, enable-replication order, test failover network, failover/failback order, recovery point choice, recovery plan, report setup, built-in alert types, and email via alert processing rule for job failures. The backup roles dragdrop was dropped because `i2-builtin-monitor-backup-roles` already exists.

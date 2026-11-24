@@ -5,28 +5,28 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    Proseware stores 3,072-dimension embeddings in a `vector(3072)` column of a 12-million-row table on Azure Database for PostgreSQL. The vectors must stay at their full dimension and precision. Version 0.6 of the pg_diskann extension is allowed and created in the database.
+    Proseware stores 3,072-dimension embeddings in a `vector(3072)` column of a 12-million-row table on Azure Database for PostgreSQL. The embeddings are generated in SQL by calling `azure_openai.create_embeddings` with a text-embedding-3-large deployment, and version 1.1.0 of the azure_ai extension is installed.
 
-    `CREATE INDEX ... USING hnsw` fails with the error `column cannot have more than 2000 dimensions for hnsw index`.
+    `CREATE INDEX ... USING hnsw` fails with the error `column cannot have more than 2000 dimensions for hnsw index`. The search team accepts a one-time re-embedding of the content.
 
-    You need an approximate nearest neighbor index on the column. What should you do?
+    You need an approximate nearest neighbor index for the embeddings. What should you do?
   fr: |
-    Proseware stocke des incorporations de 3 072 dimensions dans une colonne `vector(3072)` d'une table de 12 millions de lignes sur Azure Database for PostgreSQL. Les vecteurs doivent conserver leur dimension et leur précision complètes. La version 0.6 de l'extension pg_diskann est autorisée et créée dans la base de données.
+    Proseware stocke des incorporations de 3 072 dimensions dans une colonne `vector(3072)` d'une table de 12 millions de lignes sur Azure Database for PostgreSQL. Les incorporations sont générées en SQL en appelant `azure_openai.create_embeddings` avec un déploiement text-embedding-3-large, et la version 1.1.0 de l'extension azure_ai est installée.
 
-    `CREATE INDEX ... USING hnsw` échoue avec l'erreur `column cannot have more than 2000 dimensions for hnsw index`.
+    `CREATE INDEX ... USING hnsw` échoue avec l'erreur `column cannot have more than 2000 dimensions for hnsw index`. L'équipe de recherche accepte une nouvelle génération ponctuelle des incorporations du contenu.
 
-    Vous avez besoin d'un index de recherche approximative du plus proche voisin sur la colonne. Que devez-vous faire ?
+    Vous avez besoin d'un index de recherche approximative du plus proche voisin pour les incorporations. Que devez-vous faire ?
 body:
   options:
-    - { id: a, text: { en: "Create an IVFFlat index on the column with `lists = 3500`.", fr: "Créer un index IVFFlat sur la colonne avec `lists = 3500`." } }
-    - { id: b, text: { en: "Raise `maintenance_work_mem` to 8 GB, and then run the HNSW statement again.", fr: "Porter `maintenance_work_mem` à 8 Go, puis exécuter de nouveau l'instruction HNSW." } }
-    - { id: c, text: { en: "Create the HNSW index with `m = 64` and `ef_construction = 256`.", fr: "Créer l'index HNSW avec `m = 64` et `ef_construction = 256`." } }
-    - { id: d, text: { en: "Create a DiskANN index on the column with `product_quantized = true`.", fr: "Créer un index DiskANN sur la colonne avec `product_quantized = true`." } }
+    - { id: a, text: { en: "Keep the `vector(3072)` column, and create an IVFFlat index on it with `lists = 3500`.", fr: "Conserver la colonne `vector(3072)` et créer sur elle un index IVFFlat avec `lists = 3500`." } }
+    - { id: b, text: { en: "Keep the `vector(3072)` column, raise `maintenance_work_mem` to 8 GB, and run the HNSW statement again.", fr: "Conserver la colonne `vector(3072)`, porter `maintenance_work_mem` à 8 Go et exécuter de nouveau l'instruction HNSW." } }
+    - { id: c, text: { en: "Re-embed into a `vector(1536)` column by passing `batch_size => 1536`, and create the HNSW index on it.", fr: "Régénérer les incorporations dans une colonne `vector(1536)` en passant `batch_size => 1536`, et créer l'index HNSW sur elle." } }
+    - { id: d, text: { en: "Re-embed into a `vector(1536)` column by passing `dimensions => 1536`, and create the HNSW index on it.", fr: "Régénérer les incorporations dans une colonne `vector(1536)` en passant `dimensions => 1536`, et créer l'index HNSW sur elle." } }
 answer: { optionId: d }
 explanation:
   correct:
-    en: "pgvector IVFFlat and HNSW indexes support at most 2,000 dimensions. pg_diskann 0.6 and later can index vectors of up to 16,000 dimensions when product quantization is enabled (a preview feature), and Learn recommends product quantization for tables of more than one million rows."
-    fr: "Les index IVFFlat et HNSW de pgvector prennent en charge au plus 2 000 dimensions. pg_diskann 0.6 et versions ultérieures peut indexer des vecteurs jusqu'à 16 000 dimensions quand la quantification de produit est activée (une fonctionnalité en préversion), et Learn recommande la quantification de produit pour les tables de plus d'un million de lignes."
+    en: "pgvector can store vectors of more than 2,000 dimensions but can't index them with IVFFlat or HNSW; Learn suggests dimensionality reduction to fit within the limit. With azure_ai 1.1.0 or later and a text-embedding-3 model, the `dimensions` argument of `azure_openai.create_embeddings` returns shorter embeddings, which a `vector(1536)` column and an HNSW index accept."
+    fr: "pgvector peut stocker des vecteurs de plus de 2 000 dimensions, mais ne peut pas les indexer avec IVFFlat ni HNSW ; Learn suggère une réduction de dimensionnalité pour respecter la limite. Avec azure_ai 1.1.0 ou version ultérieure et un modèle text-embedding-3, l'argument `dimensions` de `azure_openai.create_embeddings` renvoie des incorporations plus courtes, qu'une colonne `vector(1536)` et un index HNSW acceptent."
   options:
     a:
       en: "IVFFlat has the same 2,000-dimension limit and fails with the same kind of error."
@@ -35,10 +35,10 @@ explanation:
       en: "The failure is a dimension limit, not a lack of memory; more build memory does not lift it."
       fr: "L'échec vient d'une limite de dimensions, pas d'un manque de mémoire ; plus de mémoire de construction ne la lève pas."
     c:
-      en: "Graph parameters do not change the 2,000-dimension limit of HNSW."
-      fr: "Les paramètres du graphe ne changent pas la limite de 2 000 dimensions de HNSW."
+      en: "`batch_size` sets how many texts of a `text[]` input are sent per call; the model still returns 3,072 dimensions, which a `vector(1536)` column rejects."
+      fr: "`batch_size` définit le nombre de textes d'une entrée `text[]` envoyés par appel ; le modèle renvoie toujours 3 072 dimensions, qu'une colonne `vector(1536)` refuse."
 references:
-  - title: Enable and Use DiskANN in Azure Database for PostgreSQL Flexible Server
-    url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-use-pgdiskann
   - title: Optimize Performance when Using pgvector in Azure Database for PostgreSQL Flexible Server
     url: https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-optimize-performance-pgvector
+  - title: Generate Vector Embeddings with Azure OpenAI - Azure Database for PostgreSQL
+    url: https://learn.microsoft.com/en-us/azure/postgresql/azure-ai/generative-ai-azure-openai

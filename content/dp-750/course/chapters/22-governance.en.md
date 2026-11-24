@@ -9,7 +9,7 @@ Comments are the descriptions that Catalog Explorer, search and AI/BI Genie show
 | --- | --- |
 | At creation | `COMMENT` option of `CREATE TABLE`, and `COMMENT` after a column definition |
 | Existing object (catalog, schema, table, volume...) | `COMMENT ON <object> IS '...'`, or the `COMMENT` option of `ALTER <object>` |
-| Existing column | `ALTER TABLE ... ALTER COLUMN ... COMMENT '...'` |
+| Existing column | `ALTER TABLE ... ALTER COLUMN ... COMMENT '...'`, or `COMMENT ON COLUMN table.column IS '...'` (Databricks SQL, Databricks Runtime 16.1 and above) |
 
 ```text
 CREATE TABLE sales.bronze.orders (
@@ -33,14 +33,14 @@ Privileges to set a comment:
 
 Anyone with `BROWSE` can read comments. Basic Markdown renders in Catalog Explorer (not in `DESCRIBE` output). Saving a comment runs an `ALTER` statement and is recorded in the table history.
 
-> **Exam trap.** `COMMENT ON` doesn't target columns. For a column of an existing table, the answer is `ALTER TABLE ... ALTER COLUMN ... COMMENT`.
+> **Exam trap.** `COMMENT ON COLUMN` exists only on Databricks SQL and Databricks Runtime 16.1 and above. On an older runtime, comment a column of an existing table with `ALTER TABLE ... ALTER COLUMN ... COMMENT`, which works everywhere.
 
 Tags complement comments for discovery and governance: key-value pairs on catalogs, schemas, tables, columns and volumes, queryable in `INFORMATION_SCHEMA.TABLE_TAGS`, `COLUMN_TAGS`, `SCHEMA_TAGS`, `CATALOG_TAGS` and `VOLUME_TAGS`.
 
 <!-- section: abac | objectives: 2.2.2 -->
 ## Attribute-based access control with tags and policies
 
-ABAC evaluates **governed tags** on objects to decide which data a **policy** protects. A single policy attached high in the hierarchy protects every current and future table that carries the tag.
+ABAC evaluates **governed tags** on objects to decide which data a **policy** protects. A single policy attached high in the hierarchy protects every current and future table that carries the tag. Besides row filter and column mask policies, ABAC has GRANT policies (privileges granted dynamically from tags) and DENY policies (Beta); policies on views are Beta.
 
 **Governed tags** are defined at the account level with a list of allowed values (up to 500 values per tag, 1,000 governed tags per account). Only principals with the **ASSIGN** permission on a governed tag can apply it. System tags such as `class.*` (applied by data classification) and `system.certification_status` are predefined. To tag an object you also need `APPLY TAG` on it (or ownership) plus `USE SCHEMA` and `USE CATALOG`. Limits: 50 tags per object, 1,000 column tags per table, one column per `ALTER TABLE` statement.
 
@@ -84,7 +84,7 @@ USING COLUMNS (region);
 | `ON COLUMN` | The matched column a mask applies to |
 | `USING COLUMNS` | Arguments passed to the UDF: aliases or literals |
 
-Requirements: `MANAGE` on the securable (or ownership) and `EXECUTE` on the UDF; compute on serverless, or standard or dedicated compute on Databricks Runtime 16.4 or above. Quotas: 50 policies per table, 100 per schema, 100 per catalog. Tag changes take a few minutes to apply.
+Requirements: `MANAGE` on the securable (or ownership) and `EXECUTE` on the UDF; compute on serverless, standard compute on Databricks Runtime 16.4 or above, or dedicated compute on 16.4 or above with fine-grained access control filtering enabled. Older runtimes can't read ABAC-secured tables; to keep such a workload running during a migration, put its principal in `EXCEPT`. Quotas: 50 policies per table, 100 per schema, 100 per catalog. Tag changes take a few minutes to apply.
 
 Only one distinct row filter can resolve for a user and a table, and one distinct mask per column. If two policies resolve to different UDFs, the query fails with an error, even if the results would be identical.
 
@@ -118,8 +118,8 @@ Privileges: `EXECUTE` on the function, `USE SCHEMA`, `USE CATALOG`; on an existi
 
 Limitations to know:
 
-- Not on views (use a dynamic view or ABAC instead). One mask per column.
-- Databricks Runtime below 12.2 LTS fails securely and returns no data. Dedicated access mode needs 15.4 LTS or above with serverless enabled in the workspace (filtering runs on serverless).
+- Not on views (use a dynamic view instead; ABAC policies on views are Beta). One mask per column.
+- Databricks Runtime below 12.2 LTS fails securely and returns no data. Dedicated access mode needs 15.4 LTS or above with serverless enabled in the workspace (filtering runs on serverless); only reads are supported up to 16.2, writes need 16.3 or above with supported patterns such as `MERGE INTO`.
 - No time travel and no deep or shallow clone on tables with table-level filters or masks.
 - Tables with table-level filters or masks can't be added to a share (schemas that contain them are filtered out of a schema share).
 
@@ -143,7 +143,7 @@ Delta (and managed Iceberg) tables keep old data files and history for time trav
 | `delta.deletedFileRetentionDuration` | `interval 7 days` | How old unreferenced files must be before `VACUUM` deletes them, so how far back time travel works |
 | `delta.logRetentionDuration` | `interval 30 days` | How long the transaction log (table history) is kept |
 
-From Databricks Runtime 18.0, `logRetentionDuration` must be greater than or equal to `deletedFileRetentionDuration`.
+From Databricks Runtime 18.0 (from 12.2 for Unity Catalog managed tables), `logRetentionDuration` must be greater than or equal to `deletedFileRetentionDuration`, and time travel to a version older than `deletedFileRetentionDuration` is blocked.
 
 ```text
 ALTER TABLE finance.gold.ledger SET TBLPROPERTIES (
@@ -164,7 +164,7 @@ ALTER TABLE web.bronze.clicks DELETE ROWS 30 DAYS AFTER event_ts;
 ALTER TABLE web.bronze.clicks DROP ROW DELETION;
 ```
 
-Predictive optimization then runs `DELETE`, `PURGE` (when deletion vectors are on) and `VACUUM` in the background; timing isn't guaranteed. Auto time-to-live isn't supported on materialized views, and streaming readers of such a table must set `skipChangeCommits`.
+Predictive optimization then runs `DELETE`, `PURGE` (when deletion vectors are on) and `VACUUM` in the background; timing isn't guaranteed: permanent deletion can come up to 6 days plus `deletedFileRetentionDuration` after expiration, so to remove rows within 30 days with the default 7-day retention, set 17 days. Auto time-to-live isn't supported on materialized views, and streaming readers of such a table must set `skipChangeCommits`.
 
 For a "right to be forgotten" request on a table with deletion vectors: `DELETE` the rows, `REORG TABLE ... APPLY (PURGE)` to rewrite the files, then `VACUUM` after the retention period.
 
@@ -188,7 +188,7 @@ Unity Catalog captures lineage **automatically**, down to the column level, for 
 
 To view lineage you need at least `BROWSE` on the parent catalog; neighbors you can't access appear as masked nodes. Lineage in Catalog Explorer is kept indefinitely (captured since September 1, 2024); the lineage system tables keep 395 days.
 
-Lineage is not captured or preserved for renamed objects, RDDs, global temp views, or path-based references (column lineage). UDFs give table-level lineage only.
+Lineage is not captured or preserved for renamed objects, RDDs, global temp views, or path-based references (column lineage). UDFs give table-level lineage only. Jobs that use the Jobs API `runs submit` request or the `spark submit` task type don't appear in lineage views: table and column lineage is captured, but not the link to the job run.
 
 > **Exam trap.** Renaming a table, schema, catalog or column (`ALTER TABLE ... RENAME TO`) doesn't carry its lineage over: plan names before production, because lineage isn't preserved through renames.
 
@@ -199,7 +199,7 @@ Two ways to get audit events (both need the **Premium** plan):
 
 | Option | Content | Setup |
 | --- | --- | --- |
-| System table `system.access.audit` (recommended) | All services, including account-level events (`workspace_id` = 0); kept 395 days; regional | Grant `USE CATALOG` on `system`, `USE SCHEMA` and `SELECT` on `system.access` |
+| System table `system.access.audit` (Public Preview; recommended) | All services, including account-level events (`workspace_id` = 0); kept 395 days; regional | Grant `USE CATALOG` on `system`, `USE SCHEMA` and `SELECT` on `system.access` |
 | Azure diagnostic settings | Workspace services only, no account-level events | Azure portal: workspace, **Diagnostic settings**, **Turn on diagnostics**; destination Log Analytics, storage account or event hub |
 
 Configuring diagnostic settings requires Owner, Contributor or a custom role with `Microsoft.Databricks/workspaces/assignWorkspaceAdmin/action`. Logs usually appear within 15 minutes (no guarantee). If the portal reports that the subscription isn't registered to use `microsoft.insights`, register that resource provider.
@@ -210,6 +210,8 @@ FROM system.access.audit
 WHERE service_name = 'unityCatalog' AND event_date >= current_date() - 7
 ORDER BY event_time DESC;
 ```
+
+For some events, `request_params` keys that hold SQL definitions are omitted unless you are an account admin or a member of the `databricks_pii_access` group. When a workspace is deleted, its audit events older than 14 days are removed from the table.
 
 **Verbose audit logs** add the text of every notebook command and Databricks SQL query (`runCommand`, `commandSubmit`, `commandFinish`). They are off by default; a workspace admin turns on **Verbose Audit Logs** in the **Advanced** tab of the workspace admin settings.
 
@@ -222,7 +224,7 @@ Delta Sharing (documented on Microsoft Learn under the name **OpenSharing**) sha
 
 | Recipient | Protocol | Authentication | Shareable |
 | --- | --- | --- | --- |
-| Databricks workspace with Unity Catalog, any cloud or account | Databricks-to-Databricks | Sharing identifier of the recipient metastore, no token | Tables, views, materialized views, streaming tables, volumes, notebooks, models |
+| Databricks workspace with Unity Catalog, any cloud or account | Databricks-to-Databricks | Sharing identifier of the recipient metastore, no token | Tables, views, materialized views, streaming tables, metric views, volumes, notebooks, models |
 | Any tool outside Databricks (Spark, pandas, Power BI) | Databricks-to-Open | Bearer token (activation link) or OIDC federation | Tabular data only |
 
 Within the same metastore, don't share: grant privileges in Unity Catalog.
@@ -243,8 +245,8 @@ REVOKE SELECT ON SHARE fabrikam_sales FROM RECIPIENT fabrikam;
 Security levers:
 
 - **Least data**: share a partition (`PARTITION (...)`), a view, or a dynamic view filtered with `CURRENT_RECIPIENT('country')` on recipient properties, instead of the full table. `AS` hides the real table name.
-- **History**: `WITH HISTORY` (default from Databricks Runtime 16.2) enables time travel and streaming reads by the recipient; `WITHOUT HISTORY` limits the recipient to the current version. Querying the change data feed requires CDF enabled on the table before sharing it with history.
-- **Tokens** (open sharing): the activation link lets the recipient download the credential file **once**. Tokens last at most one year; the metastore default lifetime applies to new tokens, and existing recipients get a new lifetime only when their token is rotated (`databricks recipients rotate-token`, `0` seconds expires the old token immediately). Prefer OIDC federation (short-lived tokens) when the recipient's identity provider supports it. Restrict a token recipient to known IP addresses with an IP access list.
+- **History**: `WITH HISTORY` (default from Databricks Runtime 16.2) enables time travel and streaming reads by the recipient; `WITHOUT HISTORY` limits the recipient to the current version. Querying the change data feed requires CDF enabled on the table before sharing it with history. Sharing a whole schema always includes history, whatever the runtime, and doesn't allow table aliases or partitions.
+- **Tokens** (open sharing): the activation link lets the recipient download the credential file **once**. Tokens last at most one year; the metastore default lifetime applies to new tokens, and existing recipients get a new lifetime only when their token is rotated (`databricks recipients rotate-token`, `0` seconds expires the old token immediately). Prefer OIDC federation (short-lived tokens) when the recipient's identity provider supports it. Restrict a token recipient to known IP addresses with an IP access list: it controls the sharing REST API, the activation URL and the credential file download; without SecureConnect on the provider side, storage URLs stay reachable from any client IP.
 - **Governed tables**: a table under ABAC policies can be shared only if the share owner is in the policy's `EXCEPT`; recipients then see the shared data unfiltered. Tables with table-level row filters or masks can't be shared at all.
 - **Privileges**: `CREATE SHARE` and `CREATE RECIPIENT` on the metastore; share owner with `SELECT` on each table (keep it, or recipients lose access); granting a share to a recipient requires metastore admin, or share ownership (or `USE SHARE` + `SET SHARE PERMISSION`) and recipient ownership (or `USE RECIPIENT`). Make a group the share owner.
 
@@ -253,7 +255,7 @@ Security levers:
 <!-- section: key-points -->
 ## Key points
 
-- Column descriptions on an existing table: `ALTER TABLE ... ALTER COLUMN ... COMMENT`; AI-generated comments must be accepted.
+- Column descriptions on an existing table: `ALTER TABLE ... ALTER COLUMN ... COMMENT`, or `COMMENT ON COLUMN` on Databricks Runtime 16.1+; AI-generated comments must be accepted.
 - ABAC = governed tags + `CREATE POLICY` at catalog or schema level; needs `MANAGE` and `EXECUTE`, serverless or Databricks Runtime 16.4+; owners can't override it.
 - Table-level filters and masks: `SET ROW FILTER ... ON (...)`, `ALTER COLUMN ... SET MASK`; not on views, no time travel or clone.
 - Retention: 7 days for files, 30 days for the log; `VACUUM` ends time travel; auto time-to-live deletes rows by age.

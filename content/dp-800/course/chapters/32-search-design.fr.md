@@ -120,7 +120,7 @@ Un **index vectoriel** (`CREATE VECTOR INDEX`) construit une structure de plus p
 | Données | Au moins 100 lignes avec un vecteur non NULL, sinon erreur 42266 |
 | Métrique | Une par index : `cosine`, `euclidean` ou `dot` |
 | DML | Dernière version de l'index : `INSERT`, `UPDATE`, `DELETE`, `MERGE` maintenus automatiquement |
-| Non pris en charge | Partitionnement de l'index, réplication vers les abonnés, `TRUNCATE TABLE` sur la table, déploiement dans un DACPAC |
+| Non pris en charge | Partitionnement de l'index, réplication vers les abonnés, `TRUNCATE TABLE` sur la table, déploiement dans un DACPAC (un BACPAC qui contient des index vectoriels peut être déployé à partir de DacFx 170.5.96) |
 | Statut | GA dans Azure SQL Database, SQL Database dans Fabric et Managed Instance (Always-up-to-date) ; préversion dans SQL Server 2025 |
 
 Modèle de conception : conservez les vecteurs dans une **table d'incorporations dédiée** (clé de la ligne source, texte du bloc, vecteur). Elle isole l'espace qu'ils occupent, et les incorporations peuvent être reconstruites sans toucher aux lignes sources.

@@ -157,7 +157,8 @@ The **Access control (IAM)** page of any scope has these tabs:
 | Role assignments | Who holds which role at this scope, with the scope each assignment comes from |
 | Roles | Role definitions and their permissions |
 | Deny assignments | Deny assignments that apply |
-| Classic administrators | Retired co-administrator model; no longer used |
+
+There is no *Classic administrators* tab any more: classic administrator roles (Co-Administrator, Service Administrator) are fully retired since May 2026, and the tab was removed from the portal. In December 2025, Azure assigned Owner at subscription scope to the users who still held one of these roles. Manage access with Azure RBAC only.
 
 ```bash
 # Current subscription only by default; add scopes explicitly

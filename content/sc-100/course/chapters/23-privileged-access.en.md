@@ -43,7 +43,7 @@ The three features answer different questions:
 | Model | Eligible versus active assignments, just-in-time activation | Access packages (groups, Teams, apps, SharePoint sites) with request policies, approvals and expiration | Recurring recertification by reviewers, with automatic removal |
 | Scope | Microsoft Entra roles, Azure resource roles, PIM for Groups | Employees and external users (connected organizations) | Groups, Teams, apps, guests, access packages, privileged roles |
 
-**PIM** design: eligible assignments for every privileged role; activation requires MFA or a Conditional Access **authentication context** (for example phishing-resistant authentication), a justification and, for the most sensitive roles, an approval; short maximum activation (1 to 24 hours); time-bound eligibility; alerts on roles assigned outside PIM; PIM for Groups to make group membership just in time.
+**PIM** design: eligible assignments for every privileged role; activation requires MFA or a Conditional Access **authentication context** (for example phishing-resistant authentication), a justification and, for the most sensitive roles, an approval; short maximum activation (1 to 24 hours); time-bound eligibility; alerts on roles assigned outside PIM (high severity) and on too many Global Administrators (raised only when both the minimum number and the percentage of Global Administrators set in the alert are reached); PIM for Groups to make group membership just in time.
 
 **Entitlement management** design: catalogs owned by the business, access packages with expiration, separation of duties checks (incompatible packages), connected organizations so partners request access themselves and are removed when it expires.
 
@@ -134,12 +134,14 @@ Evaluate an access review design against these criteria:
 | Criterion | Good design |
 | --- | --- |
 | Scope | All privileged roles (Microsoft Entra and Azure, through PIM), guests in all groups and Teams, access packages, high-value apps |
-| Reviewers | Resource owners or managers for business access; a second reviewer stage for privileged roles; self-review only for low-risk access |
+| Reviewers | Resource owners or managers for business access; named reviewers (selected users) for privileged roles, because a PIM role review has a single stage (selected users, members themselves, or managers with a fallback reviewer); self-review only for low-risk access |
 | Frequency | Quarterly or more for privileged roles and guests; at least yearly for standard app access |
 | Decision helpers | Recommendations based on sign-in activity (inactive users), so reviewers don't approve blindly |
 | No response | *If reviewers don't respond*: remove access or take recommendations, not approve |
 | Enforcement | **Auto apply results** to remove access automatically; guests removed from the tenant after denial |
 | Evidence | Review history kept and exportable for auditors |
+
+PIM role review behaviors to know: in a Microsoft Entra role review, a role-assignable group appears as one item (its members aren't expanded) and the reviewer approves or denies the whole group; in an Azure resource role review, denying a user who holds the role through a security group doesn't remove the user from the group, so an administrator must act; reviewing service principals needs Microsoft Entra Workload ID Premium in addition to Microsoft Entra ID P2 or Microsoft Entra ID Governance.
 
 Weak designs: reviews without auto-apply (decisions never enforced), reviewers who don't know the resource, a default of "approve" when nobody answers, and privileged roles left out of the scope.
 
@@ -156,7 +158,7 @@ The **clean source principle**: a session is never more secure than the device i
 | Specialized | Users who need a controlled environment | No local admin, only authorized apps (application control enforced), apps installed only through Intune |
 | Privileged access workstation (PAW) | Roles whose compromise would materially affect the organization | No local admin, application control enforced, web browsing denied by default except approved destinations, no email, Credential Guard, BitLocker, no BYOD |
 
-PAWs are deployed with **Windows Autopilot** on hardware with TPM 2.0, Secure Boot and virtualization-based security, managed by Intune, and their compliance is enforced by Conditional Access (admin portals only from compliant PAWs). Administrators therefore use separate accounts and separate devices for productivity and administration.
+PAWs are deployed with **Windows Autopilot** on hardware with TPM 2.0, UEFI Secure Boot, and virtualization and HVCI enabled, managed by Intune, and their compliance is enforced by Conditional Access (admin portals only from compliant PAWs). Administrators therefore use separate accounts and separate devices for productivity and administration.
 
 **Remote access through intermediaries**:
 

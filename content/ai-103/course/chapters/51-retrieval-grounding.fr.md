@@ -1,4 +1,4 @@
-Ancrer un agent, c'est lui donner, au moment de répondre, les bons passages de votre propre contenu. Dans Foundry, le moteur de récupération est Azure AI Search : un indexeur extrait le contenu, un ensemble de compétences l'enrichit et le découpe en blocs, un index stocke le texte et les vecteurs, et une requête (par mots clés, vectorielle, hybride, sémantique) renvoie les passages. L'examen demande de choisir la méthode de récupération, de remettre dans l'ordre les étapes d'ingestion, de choisir la compétence adaptée à un type de contenu et de connecter l'index à un agent ou à un flux de travail.
+Ancrer un agent, c'est lui donner, au moment de répondre, les bons passages de votre propre contenu. Dans Foundry, le moteur de récupération est Azure AI Search : un indexeur extrait le contenu, un ensemble de compétences l'enrichit et le découpe en blocs, un index stocke le texte et les vecteurs, et une requête (par mots clés, vectorielle, hybride, sémantique) renvoie les passages. L'examen demande de choisir la méthode de récupération, de remettre dans l'ordre les étapes d'ingestion, de choisir la compétence adaptée à un type de contenu et de connecter l'index à un agent ou à un flux de travail. Learn intitule désormais le service **Foundry IQ (Azure AI Search)** ; les classes du SDK et les URL conservent les noms Azure AI Search.
 
 <!-- section: ingest-index | objectives: 5.1.1 -->
 ## Ingérer et indexer du contenu
@@ -33,7 +33,7 @@ Les types de contenu et la façon dont ils deviennent interrogeables :
 | --- | --- |
 | PDF numériques, fichiers Office, HTML | Le craquage de documents extrait le texte ; découpez-le en blocs ; calculez l'embedding de chaque bloc |
 | PDF numérisés, photos de formulaires | Extraire les images pendant le craquage, puis OCR ou compétence Document Layout |
-| Images contenant peu de texte | Légendes et étiquettes d'Image Analysis, ou embeddings multimodaux de l'image elle-même |
+| Images contenant peu de texte | Légendes et étiquettes d'Image Analysis, ou embeddings multimodaux de l'image elle-même (compétences en préversion) |
 | Audio et vidéo | Transcrire et décrire d'abord (Content Understanding `prebuilt-audioSearch`, `prebuilt-videoSearch`, ou Azure Speech), puis indexer le texte |
 
 Dans le portail Azure, l'assistant **Import data** crée en une seule passe la source de données, l'ensemble de compétences, l'index et l'indexeur, découpage en blocs et vectorisation compris.
@@ -57,7 +57,7 @@ Les paramètres de la recherche vectorielle se trouvent dans l'index :
 | Algorithme | `hnsw` (plus proches voisins approximatifs, rapide, le choix habituel) ou `exhaustiveKnn` (parcourt tous les vecteurs : exact, lent, pour de petits ensembles ou pour mesurer le rappel) |
 | Métrique | `cosine` (la valeur par défaut et celle qu'attendent les embeddings Azure OpenAI), `euclidean`, `dotProduct` |
 | Vectoriseur | Convertit le texte de la requête en vecteur au moment de la requête, avec le même modèle qu'à l'indexation (Azure OpenAI, Azure Vision, API web personnalisée) |
-| Compression | Quantification scalaire ou binaire pour réduire le stockage des vecteurs |
+| Compression | Quantification scalaire ou binaire pour réduire la taille de l'index vectoriel (mémoire et disque) ; HNSW uniquement dans l'API stable |
 
 Une requête hybride avec classement sémantique :
 
@@ -96,7 +96,7 @@ Une compétence prend ses entrées dans l'arborescence du document enrichi (`/do
 | Remettre le texte OCR à sa place dans le texte du document | Compétence **Text Merge** |
 | Découper un texte long en blocs, avec chevauchement | Compétence **Text Split** (`textSplitMode: pages`, `maximumPageLength`, `pageOverlapLength`) |
 | Calculer l'embedding des blocs de texte | Compétence **Azure OpenAI Embedding** |
-| Placer images et texte dans un même espace vectoriel | Compétence **Azure AI Vision multimodal embeddings** |
+| Placer images et texte dans un même espace vectoriel | Compétence **Azure Vision multimodal embeddings** (préversion) |
 | Langue, entités, expressions clés, données personnelles (PII), traduction | Compétences Language (détection de langue, reconnaissance d'entités, extraction d'expressions clés, détection des PII, traduction de texte) |
 | Une logique qu'aucune compétence intégrée ne fournit | Compétence **Custom Web API** : un point de terminaison HTTPS, souvent une fonction Azure Functions |
 
@@ -112,7 +112,7 @@ Une compétence Custom Web API reçoit et renvoie un lot d'enregistrements, asso
 
 La réponse contient les mêmes valeurs `recordId`, chacune avec `data` (les sorties déclarées dans la compétence) et, éventuellement, `errors` et `warnings`.
 
-La compétence Document Layout lit le fichier lui-même (`/document/file_data`, que l'indexeur fournit quand `allowSkillsetToReadFileData` vaut true), renvoie des sections `markdown_document` jusqu'au niveau `markdownHeaderDepth` (`h1` à `h6`), ou des blocs de texte avec `outputFormat: text`. Au-delà de 20 documents par indexeur et par jour, les compétences intégrées comme OCR, Image Analysis et Document Layout demandent une ressource Foundry facturable attachée à l'ensemble de compétences ; la compétence Azure OpenAI Embedding appelle votre déploiement d'embedding.
+La compétence Document Layout lit le fichier lui-même (`/document/file_data`, que l'indexeur fournit quand `allowSkillsetToReadFileData` vaut true), renvoie des sections `markdown_document` jusqu'au niveau `markdownHeaderDepth` (`h1` à `h6`), ou des blocs de texte avec `outputFormat: text`. Au-delà de 20 documents par indexeur et par jour, les compétences intégrées comme OCR, Image Analysis et Document Layout demandent une ressource Foundry facturable attachée à l'ensemble de compétences ; la compétence Azure OpenAI Embedding appelle votre déploiement d'embedding. Les compétences utilitaires qui n'appellent pas Foundry Tools (Conditional, Document Extraction, Shaper, Text Merge, Text Split) ne sont pas facturables.
 
 > **Conseil d'examen.** « Extraire uniquement le texte » de pages numérisées : OCR plus Text Merge. « Conserver titres et tableaux pour que les blocs suivent les sections du document » : Document Layout. « Notre propre service de classification doit étiqueter chaque bloc » : compétence Custom Web API.
 
@@ -126,6 +126,8 @@ Ordre des opérations pour un pipeline pull :
 3. Créer l'**ensemble de compétences** : OCR ou Document Layout, Text Merge, Text Split, Azure OpenAI Embedding, et des **projections d'index** qui écrivent un document de recherche par bloc.
 4. Créer l'**indexeur**, qui relie source de données, ensemble de compétences et index, avec les paramètres d'image quand l'OCR est nécessaire.
 5. L'exécuter, puis vérifier l'historique d'exécution pour les erreurs et les avertissements.
+
+Une exécution ultérieure utilise la détection des modifications : les objets blob inchangés ne sont pas retraités, si bien qu'une simple exécution ne leur applique pas une nouvelle compétence ou un nouveau champ. **Réinitialisez** l'indexeur (réindexation complète de tous les documents), puis exécutez-le. Reset Skills, Reset Documents et Resync sont des API en préversion.
 
 L'OCR ne travaille que sur les images extraites par l'indexeur. Pour des PDF numérisés, la configuration de l'indexeur doit les demander :
 
@@ -164,8 +166,8 @@ L'accès sans clé tout au long du flux :
 | --- | --- |
 | Un agent ancre ses réponses sur un index Azure AI Search existant, avec des citations | L'**outil Azure AI Search** de Foundry Agent Service, via une connexion du projet au service de recherche |
 | Un agent répond à partir de quelques fichiers chargés par les utilisateurs, sans index à gérer | L'outil **file search** (un magasin de vecteurs managé) |
-| Plusieurs sources, des questions complexes découpées en sous-requêtes, une couche de récupération partagée par de nombreux agents | Une **base de connaissances Foundry IQ** (récupération agentique dans Azure AI Search), exposée aux agents comme outil de connaissances |
-| Une étape déterministe d'un flux de travail ou d'une application, avec un contrôle total de la requête et de l'invite | Votre code appelle Azure AI Search (`SearchClient`), puis transmet les passages au modèle |
+| Plusieurs sources, des questions complexes découpées en sous-requêtes, une couche de récupération partagée par de nombreux agents | Une **base de connaissances Foundry IQ** (récupération agentique dans Azure AI Search), exposée aux agents comme outil MCP. La connexion de projet `RemoteTool` et le point de terminaison MCP de la base de connaissances sont en préversion |
+| Une étape déterministe d'un flux de travail ou d'une application, avec un contrôle total de la requête et de l'invite | Votre code appelle Azure AI Search (`SearchClient`), ou l'API retrieve d'une base de connaissances (GA en `2026-10-01`), puis transmet les passages au modèle |
 
 L'outil Azure AI Search cible **un seul index** via une connexion du projet :
 
@@ -193,7 +195,7 @@ agent = project.agents.create_version(
 | Nombre de résultats (`top_k`) | 5 |
 | Filtre | Facultatif, appliqué à chaque requête que l'agent envoie à l'index |
 
-L'index a besoin d'un champ texte récupérable contenant le contenu à citer, et d'un champ d'URL source (éventuellement d'un titre) pour que les citations pointent vers les documents. Les citations n'apparaissent que si les instructions les demandent ; dans une réponse en flux, elles arrivent sous forme d'annotations `url_citation`. Sur un réseau virtuel privé, l'outil doit utiliser l'authentification sans clé.
+L'index doit être configuré pour la recherche vectorielle : des champs `Edm.String` interrogeables et récupérables, des champs vectoriels interrogeables, un champ texte récupérable contenant le contenu à citer, et un champ d'URL source récupérable (éventuellement un titre) pour que les citations pointent vers les documents. Les citations n'apparaissent que si les instructions les demandent ; dans une réponse en flux, elles arrivent sous forme d'annotations `url_citation`. Sur un réseau virtuel privé, l'outil doit utiliser l'authentification sans clé. Learn suggère d'ajouter l'outil via une **boîte à outils** (toolbox), attachée aux agents comme outil MCP, pour le réutiliser et gérer ses informations d'identification en un seul endroit.
 
 Le chemin par le code garde l'ancrage explicite :
 
@@ -224,4 +226,5 @@ sources = "\n".join(f"[{r['title']}] {r['chunk']}" for r in results)
 - Les requêtes vectorielles `kind: text` exigent un vectoriseur avec le modèle d'indexation ; HNSW pour la vitesse, KNN exhaustif pour des résultats exacts.
 - Documents numérisés : `imageAction: generateNormalizedImages`, OCR, Text Merge, Text Split, embedding, projections d'index.
 - Document Layout pour des blocs Markdown qui suivent la structure ; compétence Custom Web API pour votre propre logique.
-- Les agents s'ancrent via l'outil Azure AI Search, file search ou une base de connaissances Foundry IQ ; les flux de travail interrogent eux-mêmes `SearchClient`.
+- Les agents s'ancrent via l'outil Azure AI Search, file search ou une base de connaissances Foundry IQ (connexion de l'agent en préversion) ; les flux de travail interrogent eux-mêmes `SearchClient` ou l'API retrieve de la base de connaissances.
+- Après une modification de l'ensemble de compétences ou de l'index, réinitialisez l'indexeur avant de l'exécuter : sinon les documents inchangés ne sont pas retraités.

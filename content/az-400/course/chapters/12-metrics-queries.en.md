@@ -139,11 +139,11 @@ The Azure DevOps **Security overview** has three tabs:
 | Coverage | Enablement of each feature for every repository (disabled and deleted repositories excluded) |
 | Alerts | Individual code scanning, dependency scanning and secret scanning alerts, filtered by tool, severity, state, project and repository |
 
-Risk and Coverage export to CSV; the Alerts tab exports the first 1,000 alerts that match the filters. Advanced Security for Azure DevOps is sold as two products, **GitHub Secret Protection for Azure DevOps** (push protection and secret scanning alerts) and **GitHub Code Security for Azure DevOps** (dependency alerts, CodeQL code scanning and third-party findings), billed on active committers and enabled per repository, project or organization.
+Risk and Coverage export to CSV; the Alerts tab exports the first 1,000 alerts that match the filters. The organization-level rollup metrics of the Risk and Coverage tabs are in private preview, so their availability varies by organization. Advanced Security for Azure DevOps is sold as two products, **GitHub Secret Protection for Azure DevOps** (push protection and secret scanning alerts) and **GitHub Code Security for Azure DevOps** (dependency alerts, CodeQL code scanning and third-party findings), billed on active committers and enabled per repository, project or organization.
 
 **DevOps security in Defender for Cloud** gives security teams scan findings by severity and type (code, secrets, dependencies, infrastructure as code), DevOps posture recommendations, Advanced Security coverage and an inventory of connected repositories, with a customizable DevOps workbook. Pull request annotations are available for Azure DevOps repositories.
 
-> **Exam trap.** The Azure DevOps security overview counts only alerts on the **default branch**, and coverage turns on only after a scan result has been submitted. A repository whose last scan ran on a feature branch shows no risk.
+> **Exam trap.** The Azure DevOps security overview counts only alerts on the **default branch**: alerts found only on a feature branch don't appear in Risk. Coverage turns on only after a scan result has been submitted, but a successful scan on **any** branch lights it up, and the recency of the scan isn't considered.
 
 <!-- section: delivery-metrics | objectives: 1.2.6 -->
 ## Metrics and queries for delivery
@@ -190,5 +190,5 @@ The instrumentation chapters detail telemetry collection, alerts and KQL; here, 
 - Query charts need a flat-list query of 1,000 items or fewer; WIQL `ASOF` queries the past; OData on Analytics aggregates.
 - Analytics is near real time (up to about 30 seconds), enabled by default in Azure DevOps Services.
 - Flaky test exclusion works with the Visual Studio Test and Publish Test Results tasks.
-- Security overview: Risk, Coverage, Alerts, default branch only; Defender for Cloud unifies Azure DevOps, GitHub and GitLab.
+- Security overview: Risk, Coverage, Alerts; Risk counts the default branch only, coverage lights up after a scan on any branch; Defender for Cloud unifies Azure DevOps, GitHub and GitLab.
 - Pipeline pass rate points to failing tasks; Test failures points to failing tests.

@@ -92,7 +92,7 @@ Azure File Sync is the answer when users must keep accessing a local file server
 | App Service migration assistant | Assess and migrate web applications to Azure App Service |
 | Azure Data Box | Move large amounts of offline data |
 
-**Azure Data Box** is a physical device that Microsoft ships to you. You copy the data to it and ship it back; Microsoft loads it into your storage account and then wipes the device. It holds about 80 terabytes.
+**Azure Data Box** is a physical device that Microsoft ships to you. You copy the data to it and ship it back; Microsoft loads it into your storage account and then wipes the device. The next-generation devices hold up to 120 or 525 terabytes of usable data; the older 80-terabyte device is being retired region by region.
 
 | Choose Data Box when | Examples |
 | --- | --- |

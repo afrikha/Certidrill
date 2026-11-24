@@ -77,12 +77,13 @@ Debug-AzStorageAccountAuth -StorageAccountName contosofiles01 -ResourceGroupName
 | Storage File Data SMB Share Reader | Read |
 | Storage File Data SMB Share Contributor | Read, write, delete |
 | Storage File Data SMB Share Elevated Contributor | Read, write, delete, modify ACLs (like the *Change* share permission) |
-| Storage File Data SMB Admin | Admin access over SMB, including take ownership of any file |
+| Storage File Data SMB Admin | Admin access over SMB, equivalent to the storage account key |
+| Storage File Data SMB Take Ownership | Take ownership of a file or directory |
 | Storage File Data Privileged Reader / Privileged Contributor | Read / read-write-modify ACLs, overriding existing ACLs |
 
 A **default share-level permission** (`Set-AzStorageAccount -DefaultSharePermission StorageFileDataSmbShareContributor`) gives one role to every authenticated identity on every share of the account: use it for identities not synced to Microsoft Entra ID (computer accounts, gMSAs), for AD DS synced to another tenant, or to let only ACLs decide. It starts at **None**. With both, the higher permission applies. Changes take up to about 30 minutes.
 
-> **Exam trap.** Share-level roles are assigned to the **Microsoft Entra** identity of a synced user or group. A user or a computer account that exists only in AD DS can't receive an RBAC role: give it access with the default share-level permission.
+> **Exam trap.** Share-level roles are assigned to the **Microsoft Entra** identity of a synced user or group. A user or a computer account that exists only in AD DS can't receive an RBAC role itself. With AD DS authentication, it still gets the role of a synced AD DS group it belongs to, because Azure Files reads the group SIDs from its Kerberos ticket; otherwise, give it access with the default share-level permission.
 
 **Windows ACLs.** Share level and ACL combine and the **most restrictive** wins: Contributor plus a Read ACL gives Read. To edit ACLs, mount with `net use` from a machine that reaches a domain controller, as a holder of **Storage File Data SMB Admin** (recommended) or with the account key, then use File Explorer or `icacls`.
 
@@ -98,7 +99,7 @@ A **default share-level permission** (`Set-AzStorageAccount -DefaultSharePermiss
 | Cloud endpoint | Pointer to a classic SMB Azure file share | Storage account in the **same region** as the Storage Sync Service |
 | Server endpoint | A path (volume root, folder or mount point) on a registered server | One server endpoint per server in a given sync group; 30 per server; local NTFS volume only, no NAS or mapped share |
 
-Prerequisites: Windows Server 2016 to 2025 (Full or Core), .NET Framework 4.7.2, 2 GiB of memory, a local **NTFS** volume (not ReFS), and on a cluster the **File Server for general use** role with clustered disks (not Scale-Out File Server or CSV) and the agent on every node. The account must allow SMB 3.1.1, NTLMv2 and AES-128-GCM. The administrator needs Azure File Sync Administrator, Owner or Contributor on the service, plus `listKeys` on the account (Reader and Data Access or Storage Account Contributor).
+Prerequisites: Windows Server 2016 to 2025 (Full or Core), .NET Framework 4.7.2, 2 GiB of memory, a local **NTFS** volume (not ReFS), and on a cluster the **File Server for general use** role with clustered disks (not Scale-Out File Server or CSV) and the agent on every node. The account must allow SMB 3.1.1, NTLMv2 and AES-128-GCM. The administrator needs Azure File Sync Administrator, Owner or Contributor on the service, plus `listKeys` on the account (Reader and Data Access or Storage Account Contributor); read-only access to the account isn't enough to create a cloud endpoint. In a managed identity deployment, the Azure File Sync managed identity needs storage account roles such as Reader and Data Access or Storage File Data Privileged Contributor.
 
 Deployment order:
 

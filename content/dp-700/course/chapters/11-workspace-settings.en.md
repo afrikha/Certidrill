@@ -35,7 +35,7 @@ Options of a custom pool:
 <!-- section: spark-environment-jobs | objectives: 1.1.1 -->
 ## Environment, jobs and high concurrency
 
-**Environment.** An **Environment** item bundles the Spark runtime version, Spark properties, compute properties and libraries. Select one as the workspace **default environment** to give every notebook the same libraries and runtime; if no default environment is set, choose the **Runtime version** in a drop-down list. The toggle **Customize compute configurations for items** lets users change driver and executor cores and memory per item (through an environment or a session). When it is off, the default pool and its configuration apply to every environment of the workspace.
+**Environment.** An **Environment** item bundles the Spark runtime version, Spark properties, compute properties and libraries. Select one as the workspace **default environment** to give every notebook the same libraries and runtime; if no default environment is set, choose the **Runtime version** in a drop-down list. The toggle **Customize compute configurations for items** lets users change driver and executor cores and memory per item (through an environment or a session). When it is off, the **Compute** section of environment items is disabled (no **Environment pool**, no driver or executor sizes) and every Spark job uses the workspace default pool: choosing a pool in an environment requires this toggle on.
 
 **Jobs.** These settings control how Spark jobs are admitted on the capacity:
 
@@ -104,10 +104,10 @@ The **OneLake** tab of the workspace settings holds two features that exam quest
 - Files larger than **1 GB** aren't cached.
 - **Reset cache** removes every cached file of the workspace at once.
 
-**OneLake diagnostics.** The toggle **Add diagnostic events to a lakehouse** streams **data access events** (who read or wrote which file, through the portal, APIs, pipelines or engines, including access through shortcuts) as JSON files into a lakehouse you select.
+**OneLake diagnostics.** The toggle **Add diagnostic events to a lakehouse** streams **data access events** as JSON files into a lakehouse you select. Every operation through the Fabric portal and the Blob or ADLS APIs is logged, including access through shortcuts; for access by Fabric engines (Spark, SQL), only a `FabricWorkloadAccess` event records that temporary access was granted, and the details are in the engine's own logs.
 
 - Requires the **Admin** role on the monitored workspace and **Contributor** on the destination lakehouse.
-- The destination lakehouse must be on the **same capacity** as the monitored workspace.
+- The destination lakehouse must be on the **same capacity** as the monitored workspace. Moving the workspace to another capacity, or deleting the destination lakehouse, disables diagnostics (for every workspace that points to that lakehouse); events already written aren't deleted.
 - Events start to arrive within about an hour, under `Files/DiagnosticLogs/OneLake/Workspaces/...`.
 - **Immutability** can be applied to the workspace that holds the diagnostic lakehouse, so no one can change or delete the files during the retention period; it can't be changed once set.
 
@@ -127,8 +127,8 @@ An **Apache Airflow job** runs Airflow DAGs on Fabric-managed compute. Its works
 | | Starter pool | Custom pool |
 | --- | --- | --- |
 | Default | Yes | No: select **New Pool** |
-| Availability | Resumes in up to 5 minutes; **shuts down after 20 minutes of inactivity** | **Always on** until manually paused; resumes in up to 5 minutes |
-| Node size | Fixed | **Small** (simple DAGs) or **Large** (complex or production DAGs) |
+| Availability | Starts instantly, resumes in up to 5 minutes; **shuts down after 20 minutes of inactivity** | Created stopped; **always on** until manually paused; resumes in up to 5 minutes |
+| Node size | Large (fixed) | **Small** (simple DAGs) or **Large** (complex or production DAGs) |
 | Scaling | None | **Enable autoscale**, and **Extra nodes**: each one adds capacity for about three more workers, so more DAG tasks run in parallel |
 | Suggested use | Development and occasional runs | Production DAGs that must run on schedule without start delay |
 

@@ -30,7 +30,7 @@ Une référence SKU de circuit combine un **niveau** (Local, Standard, Premium) 
 | Transfert de données sortant | Inclus | Au Go (données limitées) ou inclus (illimitées) | Au Go (données limitées) ou inclus (illimitées) |
 | Microsoft 365 par le peering Microsoft | Non | Non | Obligatoire |
 
-Limites Premium de réseaux virtuels liés : 20 à 50 Mbit/s, 25 à 100 et 200 Mbit/s, 40 à 500 Mbit/s, 50 à 1 Gbit/s, 60 à 2 Gbit/s, 75 à 5 Gbit/s, 100 à 10 Gbit/s et au-delà.
+Limites Premium de réseaux virtuels liés : 20 à 50 Mbit/s, 25 à 100 et 200 Mbit/s, 40 à 500 Mbit/s, 50 à 1 Gbit/s, 60 à 2 Gbit/s, 75 à 5 Gbit/s, 100 à 10 Gbit/s et au-delà. Les connexions Global Reach comptent dans la même limite : un circuit Premium de 10 Gbit/s peut avoir, par exemple, 5 connexions Global Reach et 95 connexions de passerelle.
 
 Modèles de facturation :
 
@@ -47,7 +47,7 @@ Modifications autorisées sans recréer le circuit :
 | Augmenter la bande passante | Oui, si le port du fournisseur a la capacité |
 | Diminuer la bande passante | Non : créer un nouveau circuit |
 | Standard vers Premium, Premium vers Standard | Oui |
-| Local vers Standard ou Premium | Oui, avec Azure CLI ou PowerShell |
+| Standard ou Premium vers Local | Oui, avec Azure CLI ou PowerShell (pas dans le portail) |
 | Données limitées vers illimitées | Oui |
 | Données illimitées vers limitées | Non |
 
@@ -91,7 +91,7 @@ Orientez les deux sens de façon cohérente, sinon les flux sont asymétriques.
 | Option | Problème résolu | Exigences principales |
 | --- | --- | --- |
 | Global Reach | Deux sites locaux, chacun sur son circuit, doivent échanger du trafic par le réseau Microsoft | Peering privé sur les deux circuits ; circuits dans des emplacements de peering différents ; pays/régions pris en charge ; Premium uniquement si les circuits sont dans des zones géopolitiques différentes |
-| FastPath | Le trafic du réseau local vers les machines virtuelles doit éviter la passerelle pour réduire la latence | Référence SKU de passerelle `UltraPerformance`, `ErGw3AZ`, ou `ErGwScale` avec au moins 10 unités d'échelle |
+| FastPath | Le trafic du réseau local vers les machines virtuelles doit éviter la passerelle pour réduire la latence | Référence SKU de passerelle `UltraPerformance`, `ErGw3AZ`, ou `ErGwScale` avec au moins 10 unités d'échelle ; dans Virtual WAN, une passerelle ExpressRoute d'au moins 5 unités d'échelle |
 | ExpressRoute Direct | Très haut débit, isolation physique, ou nombreux circuits sous votre contrôle | Une paire de ports de 10, 100 ou 400 Gbit/s dans un emplacement de peering ; vous fournissez les interconnexions |
 
 **Global Reach.** Sans lui, deux sites connectés à Azure par deux circuits atteignent chacun les réseaux virtuels mais pas l'autre site. Global Reach relie les peerings privés des deux circuits ; il demande un sous-réseau **/29** dédié, inutilisé en local comme dans Azure. Il se configure sur l'un des deux circuits. Il n'est pas transitif : avec les circuits A, B et C, relier A à B et B à C ne connecte pas A à C. Il est facturé comme un module complémentaire, et il n'est pas disponible sur les circuits Local.
@@ -101,8 +101,9 @@ Orientez les deux sens de façon cohérente, sinon les flux sont asymétriques.
 | Capacité | Circuit ExpressRoute Direct | Circuit de fournisseur |
 | --- | --- | --- |
 | FastPath vers le réseau virtuel hub, IPv4 | Oui | Oui |
+| FastPath vers le réseau virtuel hub, IPv6 | Oui | Non |
 | Peering de réseaux virtuels sur FastPath (même région) | Oui | Non |
-| Routes définies par l'utilisateur sur FastPath | Oui | Non |
+| Itinéraires définis par l'utilisateur sur FastPath | Oui | Non |
 | Points de terminaison privés sur FastPath | Oui, disponibilité limitée | Non |
 
 Le trafic non éligible continue de passer par la passerelle, par exemple vers un spoke joint par un peering mondial de réseaux virtuels ou vers un équilibreur de charge interne situé dans un spoke.
@@ -113,7 +114,7 @@ Le trafic non éligible continue de passer par la passerelle, par exemple vers u
 | --- | --- |
 | 10 Gbit/s | 1, 2, 5, 10 Gbit/s |
 | 100 Gbit/s | 5, 10, 40, 100 Gbit/s |
-| 400 Gbit/s | 5, 10, 40, 100, 200, 400 Gbit/s |
+| 400 Gbit/s | 5, 10, 40, 100, 200, 400 Gbit/s (emplacements de peering limités, inscription requise) |
 
 Les ports utilisent de la fibre monomode et acceptent l'encapsulation QinQ ou Dot1Q. ExpressRoute Direct est le seul modèle qui prend en charge le chiffrement **MACsec** des liaisons physiques, et il donne accès à l'ensemble des fonctionnalités FastPath. Déclencheurs typiques : ingestion massive de données dans Stockage Azure ou Azure Cosmos DB, secteurs réglementés qui exigent des ports dédiés, un circuit par unité commerciale.
 

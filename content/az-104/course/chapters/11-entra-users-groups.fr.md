@@ -10,7 +10,7 @@ Les fonctionnalités dépendent de l'édition :
 | Édition | Ce qui compte pour l'examen |
 | --- | --- |
 | Gratuite (Free) | Utilisateurs, groupes, invités B2B, **changement** de mot de passe, paramètres de sécurité par défaut |
-| P1 | Groupes à appartenance dynamique, licences basées sur les groupes, **réinitialisation** de mot de passe en libre-service avec réécriture, accès conditionnel |
+| P1 | Groupes d'appartenance dynamique, licences basées sur un groupe, **réinitialisation** de mot de passe en libre-service avec réécriture, accès conditionnel |
 | P2 | P1, plus Privileged Identity Management, Identity Protection, révisions d'accès |
 
 Deux systèmes de rôles coexistent et ne se remplacent pas :
@@ -29,7 +29,8 @@ Rôles Microsoft Entra de moindre privilège à connaître :
 | Créer et gérer des groupes, leurs membres et leurs propriétaires | Groups Administrator |
 | Seulement inviter des invités | Guest Inviter |
 | Réinitialiser le mot de passe des non-administrateurs et de certains administrateurs limités | Helpdesk Administrator |
-| Attribuer des licences | License Administrator |
+| Attribuer des licences à des utilisateurs | License Administrator |
+| Attribuer des licences à des groupes (licence basée sur un groupe) | User Administrator |
 | Attribuer des rôles Microsoft Entra, créer des groupes auxquels des rôles peuvent être attribués | Privileged Role Administrator |
 
 > **Piège d'examen.** L'Administrateur général n'a par défaut aucun accès aux ressources Azure. Il peut **élever** son accès (Microsoft Entra ID > Propriétés > *Gestion de l'accès pour les ressources Azure*), ce qui lui attribue le rôle User Access Administrator à l'étendue racine. Retirez cet accès après usage.
@@ -75,7 +76,7 @@ Propriétés à retenir :
 | Choix | Options | Règles |
 | --- | --- | --- |
 | Type de groupe | **Sécurité** ou **Microsoft 365** | Non modifiable après la création. Un groupe de sécurité peut contenir des utilisateurs, des appareils, des principaux de service et d'autres groupes. Un groupe Microsoft 365 ne contient que des utilisateurs et s'accompagne d'une boîte aux lettres, d'un site SharePoint et d'autres ressources de collaboration |
-| Type d'appartenance | **Attribué** (Assigned), **Utilisateur dynamique** (Dynamic User), **Appareil dynamique** (Dynamic Device) | Appareil dynamique n'existe que pour les groupes de sécurité. Le type d'appartenance peut être changé plus tard |
+| Type d'appartenance | **Affecté** (Assigned), **Utilisateur dynamique** (Dynamic User), **Appareil dynamique** (Dynamic Device) | Appareil dynamique n'existe que pour les groupes de sécurité. Le type d'appartenance peut être changé plus tard |
 
 L'**appartenance dynamique** ajoute et retire les membres automatiquement, selon une règle sur des attributs :
 
@@ -94,9 +95,9 @@ Direct Reports for "{object ID of the manager}"
 - Convertir un groupe attribué en groupe dynamique conserve son nom et son ID ; les membres qui ne correspondent pas à la règle sont retirés.
 - La règle *Direct Reports* ne peut pas être combinée avec d'autres expressions.
 
-**Imbrication.** Un groupe de sécurité peut être membre d'un autre groupe de sécurité, et les attributions de rôles Azure faites au groupe parent s'appliquent aux membres imbriqués. Les licences basées sur les groupes et plusieurs fonctionnalités applicatives ignorent en revanche les groupes imbriqués.
+**Imbrication.** Un groupe de sécurité peut être membre d'un autre groupe de sécurité, et les attributions de rôles Azure faites au groupe parent s'appliquent aux membres imbriqués. Les licences basées sur un groupe et plusieurs fonctionnalités applicatives ignorent en revanche les groupes imbriqués.
 
-**Groupes auxquels des rôles peuvent être attribués.** Pour attribuer un rôle Microsoft Entra à un groupe, il faut le créer avec *Des rôles Microsoft Entra peuvent être attribués au groupe* = Oui. Ce choix est définitif, l'appartenance doit être Attribué, le groupe ne peut pas contenir d'autres groupes, et sa création demande le rôle Privileged Role Administrator et une licence P1.
+**Groupes auxquels des rôles peuvent être attribués.** Pour attribuer un rôle Microsoft Entra à un groupe, il faut le créer avec *Des rôles Microsoft Entra peuvent être attribués au groupe* = Oui. Ce choix est définitif, l'appartenance doit être Affecté, le groupe ne peut pas contenir d'autres groupes, et sa création demande le rôle Privileged Role Administrator et une licence P1.
 
 Les **propriétaires** gèrent les membres de leur groupe sans détenir de rôle d'administrateur. Un groupe Microsoft 365 supprimé peut être restauré pendant 30 jours.
 
@@ -108,9 +109,9 @@ Une licence (produit, ou SKU) contient des **plans de service** que l'on peut d�
 | Méthode | Fonctionnement |
 | --- | --- |
 | Attribution directe | À un utilisateur. Celui-ci doit avoir un emplacement d'utilisation |
-| Licences basées sur les groupes | À un groupe de sécurité ou à un groupe Microsoft 365 ; chaque membre direct reçoit la licence, y compris les membres ajoutés plus tard. Un membre qui quitte le groupe la perd |
+| Licence basée sur un groupe | À un groupe de sécurité ou à un groupe Microsoft 365 ; chaque membre direct reçoit la licence, y compris les membres ajoutés plus tard. Un membre qui quitte le groupe la perd |
 
-Règles des licences basées sur les groupes :
+Règles des licences basées sur un groupe :
 
 - **Les groupes imbriqués ne sont pas pris en charge** : seuls les utilisateurs membres de premier niveau reçoivent la licence.
 - Les utilisateurs sans emplacement d'utilisation héritent de celui du locataire.
@@ -163,7 +164,7 @@ SSPR permet aux utilisateurs de réinitialiser un mot de passe oublié ou de dé
 | Page | Paramètres |
 | --- | --- |
 | Propriétés | SSPR activée pour **Aucun**, **Sélectionné** (un groupe de sécurité ; les groupes imbriqués sont pris en charge) ou **Tous** |
-| Méthodes d'authentification | Nombre de méthodes requises pour réinitialiser : **1 ou 2** ; méthodes disponibles : Microsoft Authenticator, jetons OATH, e-mail, téléphone mobile (SMS ou appel), téléphone professionnel, questions de sécurité |
+| Méthodes d'authentification | Nombre de méthodes requises pour réinitialiser : **1 ou 2** ; questions de sécurité. Depuis le 30 septembre 2025, les autres méthodes (Microsoft Authenticator, jetons OATH, e-mail, SMS ou appel vocal...) ne se gèrent plus ici : activez-les pour SSPR dans la **stratégie de méthodes d'authentification** |
 | Inscription | Obliger les utilisateurs à s'inscrire à la connexion ; nombre de jours avant de devoir reconfirmer ses informations (0 à 730 ; 0 = jamais) |
 | Notifications | Avertir les utilisateurs lors d'une réinitialisation ; avertir tous les administrateurs quand un autre administrateur réinitialise son mot de passe |
 | Personnalisation | Lien ou adresse e-mail du support personnalisés |
@@ -187,8 +188,8 @@ Un utilisateur ne peut réinitialiser que s'il est dans le périmètre, s'il a i
 ## Points clés
 
 - Les rôles Microsoft Entra gèrent l'annuaire ; les rôles Azure gèrent les ressources. Aucun des deux ne donne l'autre.
-- L'appartenance dynamique et les licences basées sur les groupes demandent P1 ; le type de groupe ne change jamais, le type d'appartenance si.
-- Les licences basées sur les groupes ignorent les groupes imbriqués ; l'attribution directe d'une licence exige un emplacement d'utilisation.
+- L'appartenance dynamique et les licences basées sur un groupe demandent P1 ; le type de groupe ne change jamais, le type d'appartenance si.
+- Les licences basées sur un groupe ignorent les groupes imbriqués ; l'attribution directe d'une licence exige un emplacement d'utilisation.
 - Les utilisateurs et les groupes Microsoft 365 supprimés sont restaurables pendant 30 jours.
 - L'UPN d'un invité contient `#EXT#` ; qui peut inviter et quels domaines sont autorisés relèvent des paramètres de collaboration externe.
 - SSPR : Aucun, Sélectionné (un groupe) ou Tous ; 1 ou 2 méthodes ; la réécriture demande P1 et Microsoft Entra Connect ; les administrateurs utilisent toujours deux méthodes.

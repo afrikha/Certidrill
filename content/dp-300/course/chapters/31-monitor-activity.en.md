@@ -17,7 +17,7 @@ How to build one:
 | --- | --- | --- | --- |
 | `sys.dm_db_resource_stats` (each database) | 15 seconds | About 1 hour | Short-term detail, current state |
 | `sys.resource_stats` (in `master` of the logical server) | 5 minutes | About 14 days | Two-week history per database |
-| `sys.elastic_pool_resource_stats` (in `master`) | Aggregated | About 14 days | Elastic pool history |
+| `sys.elastic_pool_resource_stats` (in `master`, `dbmanager` role) | 15 seconds, one row per pool | About 14 days | Elastic pool history |
 | Azure Monitor platform metrics | 1 minute | 93 days | Trends, alerts, dashboards |
 | Query Store | Configurable interval | Configurable (size and age) | Query-level baseline: compare plans and durations before and after a change |
 | Performance Monitor (SQL Server on VM) | Configurable | What you keep | OS and SQL Server counters |
@@ -37,7 +37,7 @@ How to build one:
 | Intelligent Insights | Azure SQL Database, SQL Managed Instance | AI-based detection of performance degradation, through the `SQLInsights` log |
 | Database watcher (preview) | Azure SQL Database, SQL Managed Instance | DMV data collected into Azure Data Explorer or Fabric, with dashboards |
 | Performance Monitor counters, Azure Monitor Agent | SQL Server on Azure VM | OS counters (`% Processor Time`, `Avg. Disk sec/Read`) and SQL Server counters (`Batch Requests/sec`, `Page life expectancy`), sent to Log Analytics with a data collection rule |
-| `sys.dm_os_performance_counters` | SQL Server, Managed Instance | SQL Server counters from T-SQL |
+| `sys.dm_os_performance_counters` | All (on Basic, S0, S1 and pooled Azure SQL databases, only the server admin, the Microsoft Entra admin or `##MS_ServerStateReader##`) | SQL Server counters from T-SQL |
 
 Choose by need:
 
@@ -122,7 +122,7 @@ Other monitoring tools:
 | --- | --- | --- |
 | Query Performance Insight | Azure portal, Azure SQL Database | Top resource-consuming and long-running queries, built on Query Store |
 | Metrics explorer | Azure portal | Charts of platform metrics, pinned to dashboards |
-| Activity Monitor | SSMS | Live processes, waits, data file I/O, recent expensive queries |
+| Activity Monitor | SSMS, SQL Server only | Live processes, waits, data file I/O, recent expensive queries; needs `VIEW SERVER STATE`, plus `CREATE DATABASE`, `ALTER ANY DATABASE` or `VIEW ANY DEFINITION` for the Data File I/O section |
 | Query Store reports | SSMS | Regressed queries, top resource consumers, forced plans |
 | XEvent Profiler | SSMS | Quick live trace with Extended Events |
 
@@ -182,13 +182,13 @@ Extended Events (XEvents) is the lightweight event-capture engine that replaces 
 | Event | What happened | `sql_statement_completed`, `rpc_completed`, `sql_batch_completed`, `error_reported`, `xml_deadlock_report`, `blocked_process_report`, `wait_info` |
 | Action | Extra data added to the event | `sql_text`, `session_id`, `client_app_name`, `username`, `query_hash` |
 | Predicate | Filter evaluated before collection | `duration > 5000000` (microseconds), `database_name = N'Sales'` |
-| Target | Where events go | `event_file` (persistent), `ring_buffer` (memory), `histogram` (bucket counts), `event_counter`, `pair_matching` |
+| Target | Where events go | `event_file` (persistent), `ring_buffer` (memory), `histogram` (bucket counts), `event_counter`, `pair_matching` (SQL Server only, not Azure SQL Database or Managed Instance) |
 
 | | Azure SQL Database | SQL Managed Instance, SQL Server |
 | --- | --- | --- |
 | Scope | `ON DATABASE` only; events of that database | `ON SERVER` (recommended), Managed Instance also accepts `ON DATABASE` |
 | `event_file` target | Azure Blob Storage only, with a **database-scoped credential** | Azure Blob Storage on Managed Instance (server credential); local disk or URL on SQL Server |
-| Storage | Same region, Hot tier, no hierarchical namespace; credential with a SAS (`rwdl`) or a managed identity with Storage Blob Data Contributor | Same rules for blob targets |
+| Storage | Standard general-purpose v2 account in the same region, Hot tier, redundancy matching the database (LRS, GRS or RA-GRS for a locally redundant resource; ZRS, GZRS or RA-GZRS for a zone-redundant one), no hierarchical namespace (error 13), no immutability policy; credential named after the container URL without a trailing slash (error 86), with a SAS (`rwdl`) or a managed identity with Storage Blob Data Contributor | Same rules for blob targets |
 | Limits | 128 MB of session memory and 100 started sessions per database | Instance memory |
 | Running sessions | `sys.dm_xe_database_sessions` | `sys.dm_xe_sessions` |
 

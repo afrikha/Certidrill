@@ -5,7 +5,7 @@ Securing Unity Catalog means granting the right privileges to the right principa
 
 A **principal** is a user (email address), a group, or a service principal (its **application ID**). Names with special characters such as `@` or `-` go in backticks. Grant to groups whenever possible: membership then drives access.
 
-Privileges are **inherited** downward: a privilege granted on a catalog applies to all its current and future schemas and objects. Reading a table always needs three privileges:
+Privileges are **inherited** downward: a privilege granted on a catalog applies to all its current and future schemas and objects. Denials inherit the same way: ABAC policies can grant privileges, or deny some of them (DENY policies are Beta), on all child objects. Reading a table always needs three privileges:
 
 ```text
 GRANT USE CATALOG ON CATALOG prod_sales TO `sales-analysts`;
@@ -36,14 +36,15 @@ ALTER SCHEMA prod_sales.gold OWNER TO `sales-data-owners`;
 | `BROWSE` | See metadata and request access without data access | Catalog |
 | `APPLY TAG` | Add and edit tags | Any object |
 | `MANAGE` | Grant and revoke, transfer ownership, rename, drop | Any object; inherited by children |
-| `ALL PRIVILEGES` | Every privilege on the object and children, except `MANAGE` and `EXTERNAL USE SCHEMA` | Any object |
+| `READ METADATA` | See all owner-visible metadata (permissions, row filters, column masks, ABAC policies) without modifying it or reading data; a child of `MANAGE` | Any object; on the metastore, inherited by every object |
+| `ALL PRIVILEGES` | Every privilege on the object and children, except `MANAGE`, `READ METADATA`, `EXTERNAL USE SCHEMA` and `EXTERNAL USE LOCATION` | Any object |
 | `READ FILES` / `WRITE FILES` / `CREATE EXTERNAL TABLE` / `CREATE MANAGED STORAGE` | Path-level access and table or storage creation | External location |
 
-Who can grant on an object: its **owner**, the owner of its catalog or schema, a user with **`MANAGE`** on it, or a **metastore admin**. Every object has one owner, who holds all privileges on it; assign production ownership to groups. `MANAGE` doesn't grant data access by itself: a user with `MANAGE` can grant themselves `SELECT`. `REVOKE` succeeds even if the privilege was never granted. Workspace admins own the workspace catalog; all workspace users get `USE CATALOG` on it.
+Who can grant on an object: its **owner**, the owner of its catalog or schema, a user with **`MANAGE`** on it, or a **metastore admin**. Every object has one owner, who holds all privileges on it; assign production ownership to groups. The owner of a parent object doesn't own its children, but can manage all new and existing child objects, which works like `MANAGE` (not shown by `SHOW GRANTS`). `MANAGE` doesn't grant data access by itself: a user with `MANAGE` can grant themselves `SELECT`. `REVOKE` succeeds even if the privilege was never granted. Workspace admins own the workspace catalog; all workspace users get `USE CATALOG` on it.
 
 > **Exam trap.** Revoking `SELECT` on a table doesn't remove access inherited from a `SELECT` grant on the schema or catalog. Revoke at the level where it was granted.
 
-> **Exam trap.** `ALL PRIVILEGES` doesn't include `MANAGE`: a principal with `ALL PRIVILEGES` can read and write but can't grant to others.
+> **Exam trap.** `ALL PRIVILEGES` doesn't include `MANAGE` (nor `READ METADATA`, `EXTERNAL USE SCHEMA` or `EXTERNAL USE LOCATION`): a principal with `ALL PRIVILEGES` can read and write but can't grant to others.
 
 <!-- section: table-column-row-security | objectives: 2.1.2 -->
 ## Table-, column- and row-level security
@@ -86,7 +87,7 @@ Rules to know:
 - Applying them requires `EXECUTE` on the function, `USE SCHEMA` and `USE CATALOG`, and being the table owner or holding `MANAGE` (plus `SELECT` for masks).
 - `is_account_group_member()` checks account-level group membership of the user running the query.
 - Filters and masks can't be applied to a view, block time travel and clones on the table, and can't reference tables that also have filters or masks. Prefer simple `CASE` expressions over mapping tables for performance.
-- Compute: DBR 12.2 LTS and above (older runtimes return no data); dedicated access mode needs DBR 15.4 LTS and above with serverless enabled for the workspace, because filtering runs on serverless compute.
+- Compute: DBR 12.2 LTS and above (older runtimes return no data); dedicated access mode needs DBR 15.4 LTS and above with serverless enabled for the workspace, because filtering runs on serverless compute. On dedicated compute, DBR 15.4 to 16.2 only read such tables; writes need DBR 16.3 and above with supported patterns such as `MERGE INTO`.
 - Databricks recommends **ABAC policies** when the same filter or mask must apply consistently across many tables; table owners can't override them.
 
 > **Exam trap.** Column masks change the values returned, not the column list; to remove a column from users' sight entirely, expose a view without it. A row filter is attached with `ALTER TABLE ... SET ROW FILTER`, never with `GRANT`.
@@ -125,7 +126,9 @@ password secret('kv-finance', 'erp-sql-password')
 | WRITE | Yes | Yes | No |
 | MANAGE | Yes | Yes | Yes |
 
-ACLs apply to a **whole scope**: users granted a Key Vault-backed scope can read every secret of that vault. To separate secrets, use separate key vaults and scopes. Values read with `dbutils.secrets.get()` or referenced in Spark config are shown as `[REDACTED]` in output; redaction is best effort, so grant scopes only to those who need them. Key Vault-backed scopes are read-only from Azure Databricks: create and update their secrets in Azure.
+ACLs apply to a **whole scope**, and granting permissions on a scope requires the Premium plan: users granted a Key Vault-backed scope can read every secret of that vault. To separate secrets, use separate key vaults and scopes. Values read with `dbutils.secrets.get()` or referenced in Spark config are shown as `[REDACTED]` in output; redaction is best effort, so grant scopes only to those who need them. Key Vault-backed scopes are read-only from Azure Databricks: create and update their secrets in Azure.
+
+Learn also documents **Unity Catalog secrets**: securables named `catalog.schema.secret`, available in every workspace attached to the metastore, with Unity Catalog privileges granted on the secret, schema or catalog. They are Azure Databricks-managed or backed by Azure Key Vault (Beta). Workspace secret scopes have no secret-level access control.
 
 > **Exam trap.** "The key vault uses Azure RBAC and scope creation fails" is fixed by switching the vault to the access policy model, not by assigning Key Vault Secrets User.
 
@@ -140,7 +143,7 @@ A service principal is an API-only identity for automation: jobs, CI/CD, scripts
 | Microsoft Entra ID managed | Microsoft Entra ID (an app registration) | Databricks OAuth, Microsoft Entra ID tokens | Accessing Azure Databricks and other Azure resources with the same identity |
 
 - **Service principal user** role: lets a user run jobs as the service principal, so production jobs don't break when the owner leaves. The **service principal manager** role manages the principal's roles and doesn't include the user role.
-- **OAuth machine-to-machine (M2M)**: generate an OAuth secret for the service principal (lifetime up to 730 days, up to five secrets, shown once). Access tokens last one hour and are renewed automatically by unified authentication.
+- **OAuth machine-to-machine (M2M)**: generate an OAuth secret for the service principal (lifetime up to 730 days, up to five secrets, shown once; scopes are fixed when the secret is generated, and a secret unused for 90 days is deleted automatically). Access tokens last one hour and are renewed automatically by unified authentication.
 - Production writes: Databricks recommends running jobs as service principals and reserving `MODIFY` on production tables for them.
 
 ```bash
@@ -194,7 +197,7 @@ GRANT READ FILES ON EXTERNAL LOCATION finance_raw TO `data-engineers`;
 GRANT CREATE EXTERNAL TABLE ON EXTERNAL LOCATION finance_raw TO `data-engineers`;
 ```
 
-Creating an external location requires metastore admin or `CREATE EXTERNAL LOCATION` on the metastore, plus `CREATE EXTERNAL LOCATION` on the storage credential.
+Creating an external location requires metastore admin or `CREATE EXTERNAL LOCATION` on the metastore, plus `CREATE EXTERNAL LOCATION` on the storage credential. Metastore admins hold `CREATE EXTERNAL LOCATION` and `CREATE STORAGE CREDENTIAL` on the metastore by default, and so do workspace admins of workspaces enabled for Unity Catalog automatically.
 
 | Requirement | Answer |
 | --- | --- |

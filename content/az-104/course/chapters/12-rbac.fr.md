@@ -134,7 +134,7 @@ Règles pour calculer ce qu'un utilisateur peut faire sur une ressource :
 1. Rassemblez toutes les attributions qui s'appliquent : faites à l'utilisateur ou à un groupe dont il est membre (de façon **transitive**, à travers les groupes imbriqués), à l'étendue de la ressource ou à **n'importe quelle étendue parente**.
 2. Les autorisations sont **additives** : le résultat est l'union de tous les rôles. Reader hérité de l'abonnement plus Contributor sur un groupe de ressources donne Contributor sur ce groupe de ressources et Reader ailleurs.
 3. Une étendue inférieure ne peut pas retirer ce qu'une étendue supérieure accorde. Une attribution héritée ne se supprime qu'à l'étendue où elle a été faite.
-4. Les **attributions de refus** (deny assignments) sont vérifiées en premier et l'emportent sur toute attribution de rôle. Vous ne pouvez pas en créer vous-même : c'est Azure qui les crée, par exemple pour les piles de déploiement (deployment stacks) avec paramètres de refus et pour les applications managées.
+4. Les **affectations de refus** (deny assignments) sont vérifiées en premier et l'emportent sur toute attribution de rôle. Vous ne pouvez pas en créer vous-même : c'est Azure qui les crée, par exemple pour les piles de déploiement (deployment stacks) avec paramètres de refus et pour les applications managées.
 5. Pour une opération de données, il faut un rôle avec les `DataActions` correspondantes. Owner n'en a aucune.
 6. Si l'attribution comporte une **condition**, elle est évaluée en dernier.
 
@@ -156,8 +156,9 @@ La page **Contrôle d'accès (IAM)** de toute étendue comporte ces onglets :
 | Vérifier l'accès | Les attributions d'un principal à cette étendue et celles dont elle hérite (pas celles faites aux étendues enfants) |
 | Attributions de rôles | Qui détient quel rôle à cette étendue, avec l'étendue d'origine de chaque attribution |
 | Rôles | Les définitions de rôles et leurs autorisations |
-| Attributions de refus | Les attributions de refus qui s'appliquent |
-| Administrateurs classiques | L'ancien modèle des coadministrateurs, retiré ; il n'est plus utilisé |
+| Affectations de refus | Les affectations de refus qui s'appliquent |
+
+L'onglet *Administrateurs classiques* n'existe plus : les rôles d'administrateur classique (Co-Administrator, Service Administrator) sont entièrement retirés depuis mai 2026, et l'onglet a été supprimé du portail. En décembre 2025, Azure a attribué le rôle Owner à l'étendue de l'abonnement aux utilisateurs qui détenaient encore l'un de ces rôles. Gérez l'accès uniquement avec Azure RBAC.
 
 ```bash
 # Current subscription only by default; add scopes explicitly
@@ -175,7 +176,7 @@ Les changements peuvent mettre quelques minutes à s'appliquer ; un utilisateur 
 ## Points clés
 
 - Attribution = principal + rôle + étendue ; elle est héritée vers le bas ; les autorisations s'additionnent.
-- `NotActions` soustrait du rôle lui-même ; seules les attributions de refus (créées par Azure) refusent.
+- `NotActions` soustrait du rôle lui-même ; seules les affectations de refus (créées par Azure) refusent.
 - Contributor gère tout sauf l'accès ; User Access Administrator et Role Based Access Control Administrator gèrent l'accès mais pas les ressources.
 - Les rôles du plan de contrôle ne donnent pas accès aux données ; les rôles de données du stockage, si. `listKeys` contourne les rôles de données.
 - Moindre privilège = le rôle le plus spécifique à l'étendue la plus étroite qui couvre les ressources présentes et futures.

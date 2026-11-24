@@ -8,16 +8,20 @@ Une méthode peut servir d'authentification **principale** (la façon de se conn
 | Méthode | Connexion principale | MFA | SSPR |
 | --- | --- | --- | --- |
 | Mot de passe | Oui | Non | Non |
-| Windows Hello Entreprise | Oui | Oui | Non |
+| Windows Hello Entreprise | Oui | Seulement en renforcement (step-up), si l'utilisateur a aussi inscrit une clé d'accès (FIDO2) | Non |
 | Clé d'accès (FIDO2) | Oui | Oui | Non |
-| Microsoft Authenticator | Oui, connexion sans mot de passe | Oui, notification Push | Oui |
+| Microsoft Authenticator, connexion sans mot de passe | Oui | Non | Non |
+| Microsoft Authenticator, notifications Push | Non | Oui | Oui |
+| Platform Credential pour macOS | Oui | Oui | Non |
 | Authentification basée sur un certificat | Oui | Oui | Non |
 | Passe d'accès temporaire | Oui | Oui | Non |
 | Code QR | Oui | Non | Non |
 | SMS | Oui | Oui | Oui |
 | Appel vocal | Non | Oui | Oui |
-| Jetons OATH, logiciels ou matériels | Non | Oui | Oui |
+| Jetons OATH, logiciels ou matériels (jetons matériels en préversion) | Non | Oui | Oui |
 | Code secret à usage unique par e-mail | Non | Non | Oui |
+
+Le code secret à usage unique par e-mail peut aussi être configuré pour la connexion des utilisateurs invités.
 
 Les méthodes **sans mot de passe** remplacent le mot de passe par quelque chose que vous possédez, plus quelque chose que vous êtes ou savez :
 
@@ -56,7 +60,10 @@ Les paramètres de sécurité par défaut, activés par défaut sur les nouveaux
 - exigent des administrateurs la MFA à chaque connexion ;
 - exigent des utilisateurs la MFA quand c'est nécessaire ;
 - bloquent les protocoles d'authentification hérités ;
+- bloquent le flux de code d'appareil ;
 - protègent les activités privilégiées comme l'accès au portail Azure.
+
+Les utilisateurs inscrivent Microsoft Authenticator avec les notifications (ou une application qui génère des codes OATH TOTP) ; l'ancien délai de grâce de 14 jours pour l'inscription n'existe plus.
 
 > **Piège d'examen.** Les paramètres de sécurité par défaut et les stratégies d'accès conditionnel ne s'utilisent pas ensemble : une organisation qui adopte l'accès conditionnel désactive les paramètres de sécurité par défaut.
 
@@ -67,7 +74,7 @@ La **protection par mot de passe Microsoft Entra** (Microsoft Entra Password Pro
 
 | Liste | Contenu | Détails |
 | --- | --- | --- |
-| **Liste globale de mots de passe interdits** | Les mots de passe faibles repérés par Microsoft dans sa télémétrie de sécurité | Appliquée automatiquement à tous les locataires ; non publiée, impossible à désactiver |
+| **Liste globale de mots de passe interdits** | Les mots de passe faibles repérés par Microsoft dans sa télémétrie de sécurité | Appliquée automatiquement à tous les locataires ; non publiée, impossible à désactiver ; gratuite pour les utilisateurs cloud uniquement, P1 ou P2 pour les utilisateurs synchronisés depuis AD DS |
 | **Liste personnalisée de mots de passe interdits** | Des termes propres à l'organisation : marque, produits, lieux | Jusqu'à 1 000 termes, combinés avec la liste globale ; demande Microsoft Entra ID P1 ou P2 |
 
 La correspondance est approximative : le mot de passe est d'abord normalisé (minuscules, substitutions courantes comme `@` pour `a`), si bien que les variantes d'un terme interdit sont repérées aussi. Cela bloque les mots de passe courants utilisés dans les attaques par **pulvérisation de mots de passe**, qui essaient quelques mots de passe sur de nombreux comptes. La protection par mot de passe peut s'étendre à un environnement Active Directory Domain Services local grâce à des agents installés sur les contrôleurs de domaine.
@@ -82,7 +89,7 @@ La **réinitialisation de mot de passe en libre-service** (SSPR) laisse les util
 | Réinitialisation | A oublié son mot de passe |
 | Déverrouillage | Est verrouillé et déverrouille son compte |
 
-L'utilisateur doit être activé pour SSPR et avoir inscrit les méthodes d'authentification que l'administrateur autorise ; l'administrateur décide si une ou deux méthodes sont exigées. Dans un environnement hybride, la **réécriture du mot de passe** réécrit le nouveau mot de passe dans l'Active Directory local.
+L'utilisateur doit être activé pour SSPR et avoir inscrit les méthodes d'authentification que l'administrateur autorise ; l'administrateur décide si une ou deux méthodes sont exigées. Les comptes d'administrateur suivent une stratégie distincte, plus stricte, que Microsoft fixe et qui ne peut pas être modifiée : en général deux méthodes, jamais de questions de sécurité. Dans un environnement hybride, la **réécriture du mot de passe** réécrit le nouveau mot de passe dans l'Active Directory local.
 
 > **Conseil d'examen.** « Empêcher les utilisateurs de choisir le nom de l'entreprise comme mot de passe » : liste personnalisée de mots de passe interdits. « Réduire les appels au support pour des mots de passe oubliés » : SSPR. « Arrêter les tentatives par force brute » : verrouillage intelligent.
 

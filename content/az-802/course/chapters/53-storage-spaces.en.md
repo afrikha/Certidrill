@@ -22,7 +22,7 @@ Rules for resizing:
 
 - **Extend** a volume only into unallocated space **immediately after it on the same disk**, and only if it is NTFS or ReFS (`Resize-Partition -DriveLetter E -Size (Get-PartitionSupportedSize -DriveLetter E).SizeMax`).
 - **Shrink** only NTFS or raw basic volumes, never ReFS. Unmovable files (page file, shadow copy storage) limit the shrink; event 259 names the blocking file. `diskpart`: `select volume 3`, then `shrink desired=10240`.
-- A volume can be mounted in an empty NTFS folder instead of a drive letter.
+- A volume formatted with NTFS or ReFS can be mounted in an empty folder of an NTFS or ReFS volume instead of a drive letter (Disk Management still labels the option *Mount in the following empty NTFS folder*).
 
 **Virtual hard disks.** Disk Management (Action > Create VHD / Attach VHD) or Hyper-V cmdlets create `.vhd` or `.vhdx` (recommended) files, **fixed size** or **dynamically expanding**. An attached VHDX behaves like a physical disk; detaching it keeps the file and its data.
 
@@ -42,7 +42,7 @@ Disk prerequisites: SAS, SATA, NVMe (USB possible but not recommended); at least
 | --- | --- | --- | --- | --- |
 | Simple | Stripe, no redundancy | 1 | Nothing | Temporary or easily recreated data |
 | Two-way mirror | 2 copies | 2 | 1 disk | Most workloads, file shares, VHD libraries |
-| Three-way mirror | 3 copies | 5 | 2 disks | Critical data needing two failures |
+| Three-way mirror | 3 copies | 5, not counting hot spares | 2 disks | Critical data needing two failures |
 | Parity | Data plus parity (journaled) | 3 | 1 disk | Archives, backups, sequential workloads |
 
 - **Provisioning**: **fixed** takes the full size from the pool at creation; **thin** allocates on demand and allows over-allocation, so monitor pool free space. Both can coexist in one pool.
@@ -133,7 +133,7 @@ Set-SRPartnership -NewSourceComputerName SR-SRV02 -SourceRGName RG02 `
   -DestinationComputerName SR-SRV01 -DestinationRGName RG01
 ```
 
-- The **destination volume is dismounted** while it replicates; a test failover (Windows Server 2019 and later) temporarily mounts a writable snapshot of it for tests or backups.
+- The **destination volume is dismounted** while it replicates; a test failover (Windows Server 2019 and later) temporarily mounts a writable snapshot of it for tests or backups: `Mount-SRDestination -Name RG02 -TemporaryPath T:\` on the destination, with an unused NTFS or ReFS volume that isn't replicating as the temporary path, then `Dismount-SRDestination`.
 - To remove replication, run `Remove-SRPartnership` on the **source** only and `Remove-SRGroup` on both servers.
 - Storage Replica **isn't a backup**: a deletion is replicated at once. It also replicates VSS snapshots, since it works below the file system.
 
@@ -166,6 +166,7 @@ Storage Quality of Service manages storage performance of **Hyper-V virtual disk
 
 - Performance is measured in **normalized IOPS**: each I/O of 8 KB or less counts as one; a 256 KB I/O counts as 32.
 - A policy has **MinimumIops** (reservation), **MaximumIops** (limit) and optionally **MaximumIOBandwidth** (bytes per second); the first limit reached applies.
+- `Set-StorageQosPolicy` can change the name and the limits of a policy later, but not its **policy type**: to switch between Dedicated and Aggregated, create a new policy and assign it.
 
 | Policy type | Applies |
 | --- | --- |

@@ -165,7 +165,7 @@ Index metrics add overhead: enable them while troubleshooting, and use diagnosti
 
 Changing the indexing policy doesn't affect read or write availability; the transformation runs in the background and its progress can be read through the SDK. Until a new composite index is built, the engine keeps using the existing range indexes. To replace an index, add the new one, wait for the transformation to complete, then remove the old one.
 
-> **Exam tip.** Storage tells the same story: the Storage tab of Insights compares data size with index size. An index close to the data size points to an indexing policy that indexes paths no query uses.
+> **Exam tip.** Storage tells the same story: the Storage tab of Insights compares data size with index size. An index close to the data size points to an indexing policy that indexes paths no query uses. The Data Usage and Index Usage metrics behind it are `DataUsageV2` and `IndexUsageV2`; the original `DataUsage` and `IndexUsage` are deprecated.
 
 <!-- section: latency | objectives: 2.3.4 -->
 ## Monitoring end-to-end latency against service objectives
@@ -179,7 +179,7 @@ The Azure Cosmos DB SLA covers **under 10 ms for point reads and point writes wi
 | `Diagnostics.GetClientElapsedTime()` | SDK response | Full time seen by the application, retries included |
 | `BELatencyInMs` in the diagnostics `StoreResult` | SDK diagnostics | Backend time of one direct call |
 
-The old Server Side Latency metric is deprecated. Latency metrics are collected without configuration, split by `DatabaseName`, `CollectionName`, `OperationType`, `Region` or `PublicAPIType`, and kept 30 days in the metrics view.
+The old Server Side Latency metric is deprecated. Latency metrics are collected without configuration, split by `DatabaseName`, `CollectionName`, `OperationType`, `Region` or `PublicAPIType`, and stored 93 days (a single chart in the metrics view shows at most 30 days).
 
 Log the diagnostics when a request is slower than your objective or fails:
 
@@ -228,6 +228,8 @@ Create a rule from the account (Monitoring > Alerts) or from Azure Monitor: scop
 | Availability below target | Service Availability | Minimum, hourly grain |
 | Logical partition near 20 GB | Log search on `CDBPartitionKeyStatistics` | `SizeKb` above a threshold |
 | Account keys regenerated | Activity log | Operation on the account keys |
+
+Learn's own 429 example uses the **Total Request Units** signal with the same `StatusCode` = 429 dimension, aggregation Total, Greater than 100; **Total Requests** supports only the Count aggregation.
 
 Settings to know: **static** threshold (fixed value) or **dynamic** threshold (machine learning on the metric's history); aggregation type, aggregation granularity and evaluation frequency; dimensions filter the metric (status code, database, container). An **action group** (unique name in the resource group, short name used in notifications) sends email, SMS, push or voice notifications, or runs an Azure Function or another action.
 
@@ -289,7 +291,7 @@ CDBPartitionKeyRUConsumption
 | Which logical partition approaches 20 GB? | `CDBPartitionKeyStatistics.SizeKb` |
 | Who changed the indexing policy? | `CDBControlPlaneRequests` |
 
-> **Exam tip.** Metrics are free, preaggregated and kept 90 days; logs cost ingestion and storage but give each request. Choose logs when the question needs a partition key value, a query text or one request's `ActivityId`.
+> **Exam tip.** Metrics are free, preaggregated and stored 93 days; logs cost ingestion and storage but give each request. Choose logs when the question needs a partition key value, a query text or one request's `ActivityId`.
 
 <!-- section: key-points -->
 ## Key points

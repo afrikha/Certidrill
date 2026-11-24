@@ -1,0 +1,492 @@
+chapter: 12-database-operations
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp420-qz-12-01
+    objective: "1.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso has an Azure Cosmos DB for NoSQL container partitioned by `/customerId`. An application creates an item with `"id": "order-1"` and `"customerId": "c1"`, and then an item with `"id": "order-1"` and `"customerId": "c2"`.
+
+        The application then calls `ReadItemAsync<Order>("order-1", new PartitionKey("c2"))`. What happens?
+      fr: |
+        Contoso dispose d'un conteneur Azure Cosmos DB for NoSQL partitionné par `/customerId`. Une application crée un élément avec `"id": "order-1"` et `"customerId": "c1"`, puis un élément avec `"id": "order-1"` et `"customerId": "c2"`.
+
+        L'application appelle ensuite `ReadItemAsync<Order>("order-1", new PartitionKey("c2"))`. Que se passe-t-il ?
+    body:
+      options:
+        - { id: a, text: { en: "Both creates succeed, and the read returns the item of customer c2.", fr: "Les deux créations réussissent, et la lecture renvoie l'élément du client c2." } }
+        - { id: b, text: { en: "The second create fails with 409 Conflict, and the read returns 404 Not Found.", fr: "La seconde création échoue avec 409 Conflict, et la lecture renvoie 404 Not Found." } }
+        - { id: c, text: { en: "The second create replaces the first item, and the read returns that item.", fr: "La seconde création remplace le premier élément, et la lecture renvoie cet élément." } }
+        - { id: d, text: { en: "Both creates succeed, and the read returns both items because they share the id.", fr: "Les deux créations réussissent, et la lecture renvoie les deux éléments, car ils partagent l'id." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          An item's `id` is unique only within its logical partition: the partition key value and the `id` together identify the item. The two items live in different logical partitions (c1 and c2), so both creates succeed, and the point read with the partition key value c2 returns the second item.
+        fr: |
+          L'`id` d'un élément n'est unique qu'au sein de sa partition logique : la valeur de clé de partition et l'`id` identifient ensemble l'élément. Les deux éléments se trouvent dans des partitions logiques différentes (c1 et c2) : les deux créations réussissent, et la lecture ponctuelle avec la valeur de clé de partition c2 renvoie le second élément.
+      options:
+        b: { en: "A 409 Conflict occurs only when the id already exists in the same logical partition; c2 is a different partition.", fr: "Un 409 Conflict ne se produit que si l'id existe déjà dans la même partition logique ; c2 est une autre partition." }
+        c: { en: "Create never replaces an item, and the two items don't collide: they belong to different logical partitions.", fr: "Create ne remplace jamais un élément, et les deux éléments n'entrent pas en collision : ils appartiennent à des partitions logiques différentes." }
+        d: { en: "A point read targets one item, identified by its id and its partition key value; it never returns several items.", fr: "Une lecture ponctuelle cible un seul élément, identifié par son id et sa valeur de clé de partition ; elle ne renvoie jamais plusieurs éléments." }
+    references:
+      - title: Partitioning and horizontal scaling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning-overview
+
+  # ------------------------------------------------------------------ 2
+  - id: dp420-qz-12-02
+    objective: "1.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A Fabrikam back-office page lists the orders of one customer, 20 orders per page, from the most recent to the oldest.
+
+        Which query returns the orders of page 3?
+      fr: |
+        Une page de back-office de Fabrikam liste les commandes d'un client, 20 commandes par page, de la plus récente à la plus ancienne.
+
+        Quelle requête renvoie les commandes de la page 3 ?
+    body:
+      options:
+        - { id: a, text: "`SELECT * FROM c WHERE c.customerId = @id ORDER BY c.orderDate DESC OFFSET 60 LIMIT 20`" }
+        - { id: b, text: "`SELECT * FROM c WHERE c.customerId = @id ORDER BY c.orderDate DESC OFFSET 40 LIMIT 20`" }
+        - { id: c, text: "`SELECT * FROM c WHERE c.customerId = @id ORDER BY c.orderDate DESC OFFSET 20 LIMIT 40`" }
+        - { id: d, text: "`SELECT * FROM c WHERE c.customerId = @id ORDER BY c.orderDate DESC OFFSET 2 LIMIT 20`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `OFFSET n LIMIT m` skips n results and returns the next m. Pages 1 and 2 hold the first 40 orders, so page 3 skips 40 results and takes 20. `ORDER BY c.orderDate DESC` gives a stable order from the most recent order.
+        fr: |
+          `OFFSET n LIMIT m` ignore n résultats et renvoie les m suivants. Les pages 1 et 2 contiennent les 40 premières commandes : la page 3 ignore donc 40 résultats et en prend 20. `ORDER BY c.orderDate DESC` donne un ordre stable à partir de la commande la plus récente.
+      options:
+        a: { en: "Skipping 60 results returns page 4 (orders 61 to 80).", fr: "Ignorer 60 résultats renvoie la page 4 (commandes 61 à 80)." }
+        c: { en: "This skips only page 1 and returns 40 orders, which is pages 2 and 3 together.", fr: "Cette requête n'ignore que la page 1 et renvoie 40 commandes, soit les pages 2 et 3 ensemble." }
+        d: { en: "OFFSET counts results, not pages: OFFSET 2 skips only two orders.", fr: "OFFSET compte des résultats, pas des pages : OFFSET 2 n'ignore que deux commandes." }
+    references:
+      - title: OFFSET LIMIT - Query Language for Cosmos DB (in Azure and Fabric)
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query/offset-limit
+
+  # ------------------------------------------------------------------ 3
+  - id: dp420-qz-12-03
+    objective: "1.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum's .NET API validates discount codes stored in an Azure Cosmos DB for NoSQL container. Each request knows the code's `id` and partition key value. About 70 % of the requests target codes that don't exist, and profiling shows a high CPU cost from the exceptions thrown by `ReadItemAsync`. For existing codes, the API returns the stored JSON unchanged.
+
+        You need to remove the exception overhead while keeping the lowest RU charge per lookup. What should you do?
+      fr: |
+        L'API .NET d'Adatum valide des codes de réduction stockés dans un conteneur Azure Cosmos DB for NoSQL. Chaque requête connaît l'`id` et la valeur de clé de partition du code. Environ 70 % des requêtes visent des codes qui n'existent pas, et le profilage montre un coût processeur élevé dû aux exceptions levées par `ReadItemAsync`. Pour les codes existants, l'API renvoie le JSON stocké sans le modifier.
+
+        Vous devez supprimer le surcoût des exceptions tout en gardant le coût en RU le plus faible par recherche. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Call ReadItemStreamAsync and check the StatusCode of the ResponseMessage.", fr: "Appeler ReadItemStreamAsync et vérifier le StatusCode du ResponseMessage." } }
+        - { id: b, text: { en: "Run SELECT * FROM c WHERE c.id = @id with the partition key in the options.", fr: "Exécuter SELECT * FROM c WHERE c.id = @id avec la clé de partition dans les options." } }
+        - { id: c, text: { en: "Keep ReadItemAsync and set MaxRetryAttemptsOnRateLimitedRequests to 0.", fr: "Conserver ReadItemAsync et définir MaxRetryAttemptsOnRateLimitedRequests sur 0." } }
+        - { id: d, text: { en: "Keep ReadItemAsync and set ConsistencyLevel to Eventual in its request options.", fr: "Conserver ReadItemAsync et définir ConsistencyLevel sur Eventual dans ses options de requête." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          `ReadItemStreamAsync` is still a point read, the cheapest way to fetch an item by `id` and partition key. Stream operations throw only on client-side errors: a missing item comes back as a `ResponseMessage` whose status code you check, with no exception overhead. The stream is also returned without deserialization, which suits an API that passes the JSON through.
+        fr: |
+          `ReadItemStreamAsync` reste une lecture ponctuelle, le moyen le moins cher de récupérer un élément par son `id` et sa clé de partition. Les opérations de flux ne lèvent d'exception que pour les erreurs côté client : un élément absent revient sous la forme d'un `ResponseMessage` dont vous vérifiez le code d'état, sans surcoût d'exception. Le flux est aussi renvoyé sans désérialisation, ce qui convient à une API qui transmet le JSON tel quel.
+      options:
+        b: { en: "An empty query result doesn't throw, but a query costs more RU than a point read that returns the same item.", fr: "Un résultat de requête vide ne lève pas d'exception, mais une requête coûte plus de RU qu'une lecture ponctuelle qui renvoie le même élément." }
+        c: { en: "Retry settings apply to 429 responses; ReadItemAsync still throws a CosmosException for every 404.", fr: "Les paramètres de nouvelles tentatives s'appliquent aux réponses 429 ; ReadItemAsync lève toujours une CosmosException pour chaque 404." }
+        d: { en: "Eventual consistency changes which replicas serve the read, not how a missing item is reported: the 404 still raises an exception.", fr: "La cohérence Eventual change les réplicas qui servent la lecture, pas la façon de signaler un élément absent : le 404 lève toujours une exception." }
+    references:
+      - title: Container.ReadItemStreamAsync Method (Microsoft.Azure.Cosmos)
+        url: https://learn.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.container.readitemstreamasync
+      - title: Read an Item Using .NET - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-dotnet-read-item
+
+  # ------------------------------------------------------------------ 4
+  - id: dp420-qz-12-04
+    objective: "1.2.5"
+    difficulty: 2
+    status: draft
+    shuffle: false
+    type: single
+    stem:
+      en: |
+        Tailspin Toys has an Azure Cosmos DB for NoSQL container whose `DefaultTimeToLive` is 86400. At 08:00, an application creates an item that has `"ttl": 7200`. At 09:00, a `PatchItemAsync` call increments the `viewCount` property of the item. The item isn't modified again.
+
+        When does the item expire?
+      fr: |
+        Tailspin Toys dispose d'un conteneur Azure Cosmos DB for NoSQL dont la propriété `DefaultTimeToLive` vaut 86400. À 08:00, une application crée un élément qui a `"ttl": 7200`. À 09:00, un appel à `PatchItemAsync` incrémente la propriété `viewCount` de l'élément. L'élément n'est plus modifié ensuite.
+
+        Quand l'élément expire-t-il ?
+    body:
+      options:
+        - { id: a, text: { en: "At 10:00 the same day", fr: "À 10:00 le même jour" } }
+        - { id: b, text: { en: "At 11:00 the same day", fr: "À 11:00 le même jour" } }
+        - { id: c, text: { en: "At 08:00 the next day", fr: "À 08:00 le lendemain" } }
+        - { id: d, text: { en: "At 09:00 the next day", fr: "À 09:00 le lendemain" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The item's `ttl` (7,200 seconds) overrides the container default because the container TTL is set. TTL counts from the item's last modification, and the patch at 09:00 is a modification: the item expires two hours later, at 11:00. From then on, queries no longer return it, even before the background purge removes it.
+        fr: |
+          Le `ttl` de l'élément (7 200 secondes) remplace la valeur par défaut du conteneur, car la durée de vie du conteneur est définie. La durée de vie se compte à partir de la dernière modification de l'élément, et le patch de 09:00 est une modification : l'élément expire deux heures plus tard, à 11:00. Dès lors, les requêtes ne le renvoient plus, même avant que la purge en arrière-plan le supprime.
+      options:
+        a: { en: "10:00 counts from the creation; the patch at 09:00 modified the item and restarted the countdown.", fr: "10:00 compte à partir de la création ; le patch de 09:00 a modifié l'élément et relancé le décompte." }
+        c: { en: "The item's own ttl overrides the 86,400-second default, and the countdown restarts at the patch.", fr: "Le ttl propre à l'élément remplace la valeur par défaut de 86 400 secondes, et le décompte repart au patch." }
+        d: { en: "The countdown does restart at 09:00, but with the item's ttl of 7,200 seconds, not the container default.", fr: "Le décompte repart bien à 09:00, mais avec le ttl de 7 200 secondes de l'élément, pas la valeur par défaut du conteneur." }
+    references:
+      - title: Time to Live (TTL) in Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live
+      - title: Frequently Asked Questions on Partial Document Update - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partial-document-update-faq
+
+  # ------------------------------------------------------------------ 5
+  - id: dp420-qz-12-05
+    objective: "1.2.1"
+    difficulty: 2
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Northwind Traders is writing a .NET method that lists the open orders of one customer with LINQ. The **orders** container is partitioned by `/customerId`. The method must:
+
+        - run only against the logical partition of the customer;
+        - execute the query asynchronously, page by page, without blocking a thread.
+
+        How should you complete the code? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind Traders écrit une méthode .NET qui liste les commandes ouvertes d'un client avec LINQ. Le conteneur **orders** est partitionné par `/customerId`. La méthode doit :
+
+        - s'exécuter uniquement sur la partition logique du client ;
+        - exécuter la requête de manière asynchrone, page par page, sans bloquer de thread.
+
+        Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: csharp
+      template: |
+        QueryRequestOptions options = new QueryRequestOptions
+        {
+            [[scope]]
+        };
+
+        using FeedIterator<Order> iterator = container
+            .GetItemLinqQueryable<Order>(requestOptions: options)
+            .Where(o => o.customerId == customerId && o.status == "open")
+            .[[run]]();
+
+        List<Order> results = new();
+        while (iterator.HasMoreResults)
+        {
+            FeedResponse<Order> page = await iterator.ReadNextAsync();
+            results.AddRange(page);
+        }
+      slots:
+        - id: scope
+          options:
+            - { id: pk, text: "PartitionKey = new PartitionKey(customerId)" }
+            - { id: scan, text: "EnableScanInQuery = true" }
+            - { id: conc, text: "MaxConcurrency = 1" }
+            - { id: items, text: "MaxItemCount = -1" }
+        - id: run
+          options:
+            - { id: feed, text: "ToFeedIterator" }
+            - { id: list, text: "ToList" }
+            - { id: enumerable, text: "AsEnumerable" }
+            - { id: def, text: "ToQueryDefinition" }
+    answer:
+      values: { scope: pk, run: feed }
+    explanation:
+      correct:
+        en: |
+          Setting `PartitionKey` in the `QueryRequestOptions` passed to `GetItemLinqQueryable` scopes the query to one logical partition, with no fan-out. `ToFeedIterator()` turns the LINQ query into a `FeedIterator`, which reads one page per `ReadNextAsync` call while `HasMoreResults` is true.
+        fr: |
+          Définir `PartitionKey` dans les `QueryRequestOptions` passées à `GetItemLinqQueryable` limite la requête à une seule partition logique, sans distribution vers les autres. `ToFeedIterator()` transforme la requête LINQ en `FeedIterator`, qui lit une page à chaque appel de `ReadNextAsync` tant que `HasMoreResults` vaut true.
+      options:
+        scope: { en: "EnableScanInQuery allows a scan when no index serves the filter, MaxConcurrency limits parallelism across partitions and MaxItemCount sets the page size: none of them restricts the query to one logical partition.", fr: "EnableScanInQuery autorise un balayage quand aucun index ne sert le filtre, MaxConcurrency limite le parallélisme entre partitions et MaxItemCount fixe la taille de page : aucun ne limite la requête à une partition logique." }
+        run: { en: "ToList and AsEnumerable enumerate the query synchronously, which blocks the calling thread. ToQueryDefinition only returns the translated query text, without running it.", fr: "ToList et AsEnumerable énumèrent la requête de manière synchrone, ce qui bloque le thread appelant. ToQueryDefinition ne renvoie que le texte de la requête traduite, sans l'exécuter." }
+    references:
+      - title: LINQ translation - Query language in Cosmos DB (in Azure and Fabric)
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query/linq-to-sql
+
+  # ------------------------------------------------------------------ 6
+  - id: dp420-qz-12-06
+    objective: "1.2.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso stores each order as one header item and one item per order line in an Azure Cosmos DB for NoSQL container partitioned by `/orderId`. Each line item is about 1 KB. A .NET service writes a new order with one `TransactionalBatch` that contains a `CreateItem` operation per item, so that the order is written completely or not at all.
+
+        Business customers now place orders of up to 150 lines, and their batches are rejected. The order must still be written all or nothing, and the service must keep the current container.
+
+        What should you do?
+      fr: |
+        Contoso stocke chaque commande sous la forme d'un élément d'en-tête et d'un élément par ligne de commande dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/orderId`. Chaque élément de ligne fait environ 1 Ko. Un service .NET écrit une nouvelle commande avec un seul `TransactionalBatch` qui contient une opération `CreateItem` par élément, afin que la commande soit écrite entièrement ou pas du tout.
+
+        Les clients professionnels passent désormais des commandes allant jusqu'à 150 lignes, et leurs lots sont rejetés. La commande doit toujours être écrite en tout ou rien, et le service doit conserver le conteneur actuel.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Split large orders into two transactional batches of up to 100 operations, and run them one after the other.", fr: "Diviser les grandes commandes en deux lots transactionnels de 100 opérations au plus, exécutés l'un après l'autre." } }
+        - { id: b, text: { en: "Group the lines into items of up to 50 lines, and create the header and these items in one transactional batch.", fr: "Regrouper les lignes dans des éléments de 50 lignes au plus, puis créer l'en-tête et ces éléments dans un seul lot transactionnel." } }
+        - { id: c, text: { en: "Enable AllowBulkExecution, and create the header and all the lines as concurrent CreateItemAsync tasks.", fr: "Activer AllowBulkExecution, puis créer l'en-tête et toutes les lignes sous forme de tâches CreateItemAsync concurrentes." } }
+        - { id: d, text: { en: "Keep one transactional batch per order, and raise RequestTimeout in the client options to 30 seconds.", fr: "Conserver un lot transactionnel par commande, et porter RequestTimeout à 30 secondes dans les options du client." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A transactional batch accepts at most 100 operations, within 2 MB and 5 seconds; a 150-line order needs 151 operations. Storing several lines per item brings the batch to four operations (one header and three items of 50 lines, about 50 KB each), well within the limits, and the batch stays atomic because all the items share the `orderId` value.
+        fr: |
+          Un lot transactionnel accepte au plus 100 opérations, dans la limite de 2 Mo et de 5 secondes ; une commande de 150 lignes exige 151 opérations. Stocker plusieurs lignes par élément ramène le lot à quatre opérations (un en-tête et trois éléments de 50 lignes, environ 50 Ko chacun), bien en deçà des limites, et le lot reste atomique, car tous les éléments partagent la valeur `orderId`.
+      options:
+        a: { en: "Each batch is atomic on its own, but if the second batch fails, the first is already committed: the order is half written.", fr: "Chaque lot est atomique à lui seul, mais si le second échoue, le premier est déjà validé : la commande est écrite à moitié." }
+        c: { en: "Bulk execution maximizes throughput but gives no atomicity: each operation succeeds or fails on its own.", fr: "L'exécution en bloc maximise le débit mais n'apporte aucune atomicité : chaque opération réussit ou échoue seule." }
+        d: { en: "The batch is rejected because of the 100-operation limit, which no client timeout changes.", fr: "Le lot est rejeté à cause de la limite de 100 opérations, qu'aucun délai d'expiration du client ne modifie." }
+    references:
+      - title: Transactional batch operations in Azure Cosmos DB using the .NET or Java SDK
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/transactional-batch
+
+  # ------------------------------------------------------------------ 7
+  - id: dp420-qz-12-07
+    objective: "1.2.3"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware's fleet application stores vehicles in an Azure Cosmos DB for NoSQL container partitioned by `/depotId`. The vehicle `veh-77` is stored with `"depotId": "paris-north"` and must be transferred to the depot `lyon-east`.
+
+        After the transfer, the vehicle must exist only under `lyon-east`. The application can tolerate a few seconds during which both items exist, but it must never lose the vehicle.
+
+        What should you do?
+      fr: |
+        L'application de gestion de flotte de Litware stocke des véhicules dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/depotId`. Le véhicule `veh-77` est stocké avec `"depotId": "paris-north"` et doit être transféré au dépôt `lyon-east`.
+
+        Après le transfert, le véhicule ne doit exister que sous `lyon-east`. L'application tolère quelques secondes pendant lesquelles les deux éléments existent, mais elle ne doit jamais perdre le véhicule.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Call PatchItemAsync on the item in paris-north with PatchOperation.Set(\"/depotId\", \"lyon-east\").", fr: "Appeler PatchItemAsync sur l'élément de paris-north avec PatchOperation.Set(\"/depotId\", \"lyon-east\")." } }
+        - { id: b, text: { en: "Call ReplaceItemAsync with the updated item, its id and new PartitionKey(\"lyon-east\").", fr: "Appeler ReplaceItemAsync avec l'élément mis à jour, son id et new PartitionKey(\"lyon-east\")." } }
+        - { id: c, text: { en: "Run a transactional batch for lyon-east that creates the new item and deletes veh-77.", fr: "Exécuter un lot transactionnel pour lyon-east qui crée le nouvel élément et supprime veh-77." } }
+        - { id: d, text: { en: "Create the item with depotId set to lyon-east, then delete veh-77 from paris-north, retrying the delete on failure.", fr: "Créer l'élément avec depotId défini sur lyon-east, puis supprimer veh-77 de paris-north, en relançant la suppression en cas d'échec." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Partition key values are immutable: an item can't be moved to another logical partition in place. You create a new item with the new value, then delete the original. The two operations target different logical partitions, so they can't be atomic; creating first and retrying the delete means the vehicle is never lost, at the cost of a short window with two items.
+        fr: |
+          Les valeurs de clé de partition sont immuables : un élément ne peut pas passer dans une autre partition logique sur place. Vous créez un nouvel élément avec la nouvelle valeur, puis vous supprimez l'original. Les deux opérations visent des partitions logiques différentes et ne peuvent donc pas être atomiques ; créer d'abord et relancer la suppression garantit que le véhicule n'est jamais perdu, au prix d'une courte fenêtre avec deux éléments.
+      options:
+        a: { en: "A patch updates an item inside its logical partition; it can't change the partition key value of the item.", fr: "Un patch met à jour un élément dans sa partition logique ; il ne peut pas changer la valeur de clé de partition de l'élément." }
+        b: { en: "Replace requires the partition key of the existing item: veh-77 doesn't exist under lyon-east, so the call fails instead of moving it.", fr: "Replace exige la clé de partition de l'élément existant : veh-77 n'existe pas sous lyon-east, l'appel échoue donc au lieu de le déplacer." }
+        c: { en: "A batch is scoped to one partition key value: the delete in lyon-east can't reach the item stored in paris-north.", fr: "Un lot est limité à une seule valeur de clé de partition : la suppression dans lyon-east ne peut pas atteindre l'élément stocké dans paris-north." }
+    references:
+      - title: Partitioning and horizontal scaling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning-overview
+
+  # ------------------------------------------------------------------ 8
+  - id: dp420-qz-12-08
+    objective: "1.2.6"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Adatum has an Azure Cosmos DB for NoSQL account with multi-region writes in West Europe and East US. A .NET service in each region updates customer profiles: it reads a profile, changes it, and calls `ReplaceItemAsync` with `IfMatchEtag` set to the `_etag` of its read.
+
+        The instance in West Europe and the instance in East US read the same version of profile **p-1** and replace it at the same moment, each with different changes.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum dispose d'un compte Azure Cosmos DB for NoSQL avec des écritures multirégions en West Europe et East US. Un service .NET dans chaque région met à jour des profils clients : il lit un profil, le modifie, puis appelle `ReplaceItemAsync` avec `IfMatchEtag` défini sur l'`_etag` de sa lecture.
+
+        L'instance de West Europe et celle d'East US lisent la même version du profil **p-1** et la remplacent au même moment, chacune avec des modifications différentes.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "Each replace can be committed in its own region, because its _etag matches the item in that region.", fr: "Chaque remplacement peut être validé dans sa propre région, car son _etag correspond à l'élément de cette région." }
+        - id: s2
+          text: { en: "If conflict resolution rejects a version, the region that committed it is rolled back to the original data and _etag.", fr: "Si la résolution des conflits rejette une version, la région qui l'a validée revient aux données et à l'_etag d'origine." }
+        - id: s3
+          text: { en: "Passing the session token of each read to its replace makes the second replace fail with HTTP 412.", fr: "Transmettre le jeton de session de chaque lecture à son remplacement fait échouer le second remplacement avec HTTP 412." }
+    answer:
+      values: { s1: true, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          With multi-region writes, an update is committed independently in a region when its `_etag` matches the item in that local region, so both conditional replaces can succeed locally. The data is then merged in the hub region by the conflict resolution policy: a merged version is replicated with a new `_etag`, and a rejected one is rolled back to the original data and `_etag`. Session tokens only give read-your-writes; the precondition is checked against the `_etag`.
+        fr: |
+          Avec des écritures multirégions, une mise à jour est validée indépendamment dans une région quand son `_etag` correspond à l'élément de cette région locale : les deux remplacements conditionnels peuvent donc réussir localement. Les données sont ensuite fusionnées dans la région principale par la stratégie de résolution des conflits : une version retenue est répliquée avec un nouvel `_etag`, et une version rejetée revient aux données et à l'`_etag` d'origine. Les jetons de session ne garantissent que la lecture de ses propres écritures ; la condition préalable est vérifiée sur l'`_etag`.
+      options:
+        s3: { en: "A session token isn't a precondition: only If-Match with the _etag makes the server return 412, and in each region the _etag still matches locally.", fr: "Un jeton de session n'est pas une condition préalable : seul If-Match avec l'_etag fait renvoyer 412 par le serveur, et dans chaque région l'_etag correspond toujours localement." }
+    references:
+      - title: Database Transactions and Optimistic Concurrency Control - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/database-transactions-optimistic-concurrency
+
+  # ------------------------------------------------------------------ 9
+  - id: dp420-qz-12-09
+    objective: "1.2.4"
+    difficulty: 3
+    status: draft
+    type: ordering
+    stem:
+      en: |
+        Fabrikam's loyalty program stores member items in an Azure Cosmos DB for NoSQL container partitioned by `/householdId`. A .NET service must transfer points between two members of the same household.
+
+        Both balances must change together or not at all, and the transfer must never overwrite a change that another process makes to either member at the same time. The service must not hold locks.
+
+        Which five actions should the service perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+      fr: |
+        Le programme de fidélité de Fabrikam stocke des éléments de membres dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/householdId`. Un service .NET doit transférer des points entre deux membres du même foyer.
+
+        Les deux soldes doivent changer ensemble ou pas du tout, et le transfert ne doit jamais écraser une modification qu'un autre processus apporte au même moment à l'un des membres. Le service ne doit pas poser de verrous.
+
+        Quelles cinq actions le service doit-il effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste des actions vers la zone de réponse et classez-les dans le bon ordre.
+    body:
+      count: 5
+      actions:
+        - { id: read, text: { en: "Read both members with point reads, and keep the ETag of each response.", fr: "Lire les deux membres par des lectures ponctuelles, et conserver l'ETag de chaque réponse." } }
+        - { id: compute, text: { en: "Compute the new point balances of the two members in memory.", fr: "Calculer en mémoire les nouveaux soldes de points des deux membres." } }
+        - { id: build, text: { en: "Create a transactional batch for the household's partition key, with one ReplaceItem per member whose IfMatchEtag is that member's ETag.", fr: "Créer un lot transactionnel pour la clé de partition du foyer, avec un ReplaceItem par membre dont IfMatchEtag est l'ETag de ce membre." } }
+        - { id: exec, text: { en: "Run the batch with ExecuteAsync.", fr: "Exécuter le lot avec ExecuteAsync." } }
+        - { id: retry, text: { en: "If IsSuccessStatusCode is false and an operation returned 412, start again from the reads.", fr: "Si IsSuccessStatusCode vaut false et qu'une opération a renvoyé 412, recommencer à partir des lectures." } }
+        - { id: bulk, text: { en: "Create a second CosmosClient with AllowBulkExecution set to true.", fr: "Créer un second CosmosClient avec AllowBulkExecution défini sur true." } }
+        - { id: strong, text: { en: "Set ConsistencyLevel to Strong in the request options of the reads.", fr: "Définir ConsistencyLevel sur Strong dans les options de requête des lectures." } }
+        - { id: upsert, text: { en: "Create a transactional batch for the household's partition key, with one UpsertItem per member and no request options.", fr: "Créer un lot transactionnel pour la clé de partition du foyer, avec un UpsertItem par membre et sans options de requête." } }
+    answer:
+      sequence: [read, compute, build, exec, retry]
+    explanation:
+      correct:
+        en: |
+          Both members share the household's partition key value, so one transactional batch can change them atomically. Each `ReplaceItem` carries the ETag read for that member: if another process changed a member in between, that operation fails with 412, the other gets 424, and nothing is committed. The service then reads again and retries, which is optimistic concurrency without locks.
+        fr: |
+          Les deux membres partagent la valeur de clé de partition du foyer : un seul lot transactionnel peut donc les modifier de façon atomique. Chaque `ReplaceItem` porte l'ETag lu pour ce membre : si un autre processus a modifié un membre entre-temps, cette opération échoue avec 412, l'autre reçoit 424, et rien n'est validé. Le service relit alors et recommence, ce qui constitue un contrôle d'accès concurrentiel optimiste sans verrou.
+      options:
+        bulk: { en: "Bulk execution groups independent operations for throughput; it adds no atomicity and no concurrency check.", fr: "L'exécution en bloc regroupe des opérations indépendantes pour le débit ; elle n'ajoute ni atomicité ni contrôle de concurrence." }
+        strong: { en: "Strong reads return the latest committed version at read time, but they don't stop the later write from overwriting a change made after the read.", fr: "Des lectures Strong renvoient la dernière version validée au moment de la lecture, mais elles n'empêchent pas l'écriture suivante d'écraser une modification faite après la lecture." }
+        upsert: { en: "The batch would be atomic, but unconditional upserts overwrite any change made after the reads: updates could be lost.", fr: "Le lot serait atomique, mais des upserts sans condition écrasent toute modification faite après les lectures : des mises à jour pourraient être perdues." }
+    references:
+      - title: Transactional batch operations in Azure Cosmos DB using the .NET or Java SDK
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/transactional-batch
+      - title: Database Transactions and Optimistic Concurrency Control - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/database-transactions-optimistic-concurrency
+
+  # ------------------------------------------------------------------ 10
+  - id: dp420-qz-12-10
+    objective: "1.2.3"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Proseware is migrating customer profiles stored in an Azure Cosmos DB for NoSQL container partitioned by `/tenantId`. A Python worker uses the `azure-cosmos` SDK and must, in a single patch request for each profile:
+
+        - rename the `addr` property to `address`: the service must move the existing value, and the worker must not send the address in the request;
+        - set `schemaVersion` to 2;
+        - apply the patch only if the profile hasn't changed since the worker read it, and put the profile back in the queue when it has.
+
+        How should you complete the code? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Proseware migre des profils clients stockés dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/tenantId`. Un worker Python utilise le SDK `azure-cosmos` et doit, dans une seule requête de patch par profil :
+
+        - renommer la propriété `addr` en `address` : le service doit déplacer la valeur existante, et le worker ne doit pas envoyer l'adresse dans la requête ;
+        - définir `schemaVersion` sur 2 ;
+        - n'appliquer le patch que si le profil n'a pas changé depuis que le worker l'a lu, et remettre le profil dans la file d'attente dans le cas contraire.
+
+        Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: python
+      template: |
+        from azure.core import MatchConditions
+        from azure.cosmos import exceptions
+
+        profile = container.read_item(item=profile_id, partition_key=tenant_id)
+
+        operations = [
+            {"op": [[op]], [[key]]: "/addr", "path": "/address"},
+            {"op": "set", "path": "/schemaVersion", "value": 2},
+        ]
+
+        try:
+            container.patch_item(
+                item=profile_id,
+                partition_key=tenant_id,
+                patch_operations=operations,
+                etag=profile["_etag"],
+                match_condition=MatchConditions.[[cond]])
+        except exceptions.CosmosHttpResponseError as error:
+            if error.status_code == [[code]]:
+                requeue(profile_id)
+            else:
+                raise
+      slots:
+        - id: op
+          options:
+            - { id: move, text: "\"move\"" }
+            - { id: add, text: "\"add\"" }
+            - { id: replace, text: "\"replace\"" }
+            - { id: remove, text: "\"remove\"" }
+        - id: key
+          options:
+            - { id: from, text: "\"from\"" }
+            - { id: value, text: "\"value\"" }
+            - { id: path, text: "\"path\"" }
+        - id: cond
+          options:
+            - { id: notmod, text: IfNotModified }
+            - { id: mod, text: IfModified }
+            - { id: present, text: IfPresent }
+            - { id: missing, text: IfMissing }
+        - id: code
+          options:
+            - { id: c404, text: "404" }
+            - { id: c409, text: "409" }
+            - { id: c412, text: "412" }
+            - { id: c424, text: "424" }
+    answer:
+      values: { op: move, key: from, cond: notmod, code: c412 }
+    explanation:
+      correct:
+        en: |
+          The `move` operation removes the value at `from` and adds it at `path`, entirely on the server, so the client sends no address value; `from` must exist. Passing the `_etag` of the read with `MatchConditions.IfNotModified` makes the patch conditional on the item being unchanged. When the `_etag` no longer matches, the service rejects the request with HTTP 412 Precondition Failed, and the worker requeues the profile.
+        fr: |
+          L'opération `move` supprime la valeur située à `from` et l'ajoute à `path`, entièrement côté serveur : le client n'envoie donc aucune valeur d'adresse ; `from` doit exister. Passer l'`_etag` de la lecture avec `MatchConditions.IfNotModified` rend le patch conditionnel à un élément inchangé. Quand l'`_etag` ne correspond plus, le service rejette la requête avec HTTP 412 Precondition Failed, et le worker remet le profil dans la file.
+      options:
+        op: { en: "add or replace would need the address in value, which the worker must not send; remove would delete addr without creating address.", fr: "add ou replace exigeraient l'adresse dans value, que le worker ne doit pas envoyer ; remove supprimerait addr sans créer address." }
+        key: { en: "A move identifies its source with the from member; value carries data and path is already the destination.", fr: "Un move identifie sa source avec le membre from ; value transporte des données et path est déjà la destination." }
+        cond: { en: "IfModified applies the patch only when the item changed, the opposite of the requirement; IfPresent and IfMissing test whether the item exists, not its version.", fr: "IfModified n'applique le patch que si l'élément a changé, l'inverse de l'exigence ; IfPresent et IfMissing testent l'existence de l'élément, pas sa version." }
+        code: { en: "404 means the item doesn't exist, 409 is a conflict on create, and 424 is the status of the other operations of a failed transactional batch.", fr: "404 signifie que l'élément n'existe pas, 409 est un conflit à la création, et 424 est le statut des autres opérations d'un lot transactionnel en échec." }
+    references:
+      - title: Partial Document Update - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partial-document-update
+      - title: azure.cosmos.ContainerProxy class
+        url: https://learn.microsoft.com/en-us/python/api/azure-cosmos/azure.cosmos.containerproxy

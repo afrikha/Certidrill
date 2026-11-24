@@ -12,12 +12,14 @@ After March 31, 2027, Microsoft Sentinel is supported only in the Defender porta
 
 Investigation steps on the incident page: read the **attack story** and graph, review the **Alerts** (with the reason they were correlated), open **Assets** and entity pages, check **Evidence and Response**, then pivot to raw data with **Go hunt** or, for incidents from analytics rules, **Run query**, which runs the rule query in Advanced hunting.
 
+Learn now labels this incident page the **legacy** experience: incident cases (preview, see the last section) are recommended, and the legacy page stays available during the preview. On it, an incident has a single owner, a user or a group, and assigning the incident gives the same owner to all its alerts.
+
 The Azure portal (until its retirement) adds widgets of its own:
 
 | Feature | Detail |
 | --- | --- |
 | Incident timeline | Alerts and bookmarks in time order, with MITRE tactics and the system alert ID |
-| Similar incidents | Up to 20 similar incidents, with a similarity reason; not supported in the Defender portal |
+| Similar incidents | Up to 20 similar incidents, with a similarity reason; preview, not supported in the Defender portal |
 | Top insights | Security research queries, from 24 hours before the first alert to the last alert |
 | Investigation graph | Requires entity mapping in the rule; incidents up to 30 days old |
 | Entities tab | Entity side pane with a seven-day timeline; full entity page for longer |
@@ -47,7 +49,7 @@ Copilot in Defender is available to users who have provisioned access to Securit
 | Guided responses | Recommended triage, containment and remediation actions for the incident |
 | Script analysis, File analysis | Explains a command line or a suspicious file in the evidence |
 | Device summary, Identity summary | Key information about a device or a user |
-| Generate KQL queries | Advanced hunting: natural language to KQL |
+| Generate KQL queries | Advanced hunting: the threat hunting assistant (prerelease) turns natural language into KQL (**Query only** mode) or runs a multistep investigation (**Rich insights**, the default) |
 | Incident report | A report of the incident and the actions taken |
 
 **Defender Chat** (preview), opened with the **Copilot** button, answers questions in plain language with page context ("which users are involved in this incident?"). For multi-step requests it proposes a plan that you **Approve** or **Reject** before anything runs. **AI-generated analyst notes** need the tenant opt-in (**Opt-in to analyst notes** under Advanced features), a Security Copilot license and Security Data Read or Manage; they take up to 20 minutes.
@@ -71,13 +73,13 @@ An incident correlates alerts from endpoints, identities, email, SaaS apps, clou
 | Tool | Use it to |
 | --- | --- |
 | Incident graph | See where the attack started, how it spread over time and how far it went; **Play** replays alerts and nodes in order |
-| Group similar nodes, entity type filters | Simplify large graphs |
+| Graph filters (severity, status, service sources), **Entity types** | Simplify large graphs |
 | Alerts tab, correlation reason | Understand why alerts were linked |
-| Assets tab | Devices, users, mailboxes, apps and cloud resources, ordered by risk |
+| Assets tab | Devices, users, mailboxes and apps, with the number of assets in each category |
 | Blast radius analysis | Possible propagation paths from a breached node to critical targets |
 | Go hunt | Run queries on an entity (All Activity, Related Alerts) and link results to the incident |
 
-**Blast radius analysis** replaces attack path analysis. It requires the tenant onboarded to the Microsoft Sentinel data lake and **Exposure management (read)** or higher; it shows the eight top-rated paths, up to seven hops (five for cloud, five on-premises, three for hybrid). Paths are possible routes, not proof that the attacker took them.
+**Blast radius analysis** replaces attack path analysis. It is available only to tenants onboarded to the Microsoft Sentinel data lake **before September 23, 2026**, and requires **Exposure management (read)** or higher; it shows the eight top-rated paths, up to seven hops (five for cloud, five on-premises, three for hybrid). Paths are possible routes, not proof that the attacker took them.
 
 Hunting complements the graph. Accounts with alerts in several workloads:
 
@@ -138,6 +140,6 @@ Related incident cases can be merged; existing incident email notification rules
 - `SecurityIncident` keeps every update: `arg_max` by `IncidentNumber` first.
 - Copilot: summaries, guided responses, script and file analysis, KQL generation, incident reports; Defender Chat plans need approval.
 - Phishing Triage Agent: Defender for Office 365 Plan 2, reported-message alerts, Agent tag, feedback taught only on request.
-- Complex attacks: incident graph with Play, MITRE-aligned summary, blast radius (data lake, Exposure management read), hunting on `AlertEvidence` and logon tables.
+- Complex attacks: incident graph with Play, MITRE-aligned summary, blast radius (data lake onboarded before September 23, 2026, Exposure management read), hunting on `AlertEvidence` and logon tables.
 - Cases: Sentinel workspace required, statuses New/Open/Closed plus custom, three RBAC levels.
 - Incident cases: Security Data Read or Manage; resolving doesn't resolve the alerts.

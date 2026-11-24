@@ -5,7 +5,7 @@ La gestion de la posture répond à une question de l'architecte : dans Azure, A
 
 Microsoft Defender for Cloud est une plateforme de protection des applications cloud natives en deux moitiés : la **gestion de la posture de sécurité cloud (CSPM)**, qui trouve les erreurs de configuration avant un attaquant, et la **protection des charges de travail cloud (CWP)**, qui détecte les attaques sur les ressources en cours d'exécution (voir [protection des charges de travail](#workload-protection)).
 
-Le **benchmark de sécurité cloud Microsoft (MCSB)** est la norme par défaut de Defender for Cloud. Il est attribué automatiquement à chaque abonnement Azure, compte AWS et projet GCP connecté à Defender for Cloud, et ses recommandations intégrées alimentent le degré de sécurisation. Les contrôles du MCSB sont regroupés par domaine de sécurité (par exemple sécurité réseau, gestion des identités, accès privilégié, protection des données, journalisation et détection des menaces, gestion de la posture et des vulnérabilités, sécurité des points de terminaison, sauvegarde et récupération, sécurité DevOps), et chaque service Azure a une **base de référence de sécurité** qui associe les contrôles du MCSB aux paramètres de ce service.
+Le **benchmark de sécurité cloud Microsoft (MCSB)** est la norme par défaut de Defender for Cloud. Il est attribué automatiquement à chaque abonnement Azure, compte AWS et projet GCP connecté à Defender for Cloud, et ses recommandations intégrées alimentent le degré de sécurisation. Les contrôles du MCSB sont regroupés par domaine de sécurité (par exemple sécurité réseau, gestion des identités, accès privilégié, protection des données, journalisation et détection des menaces, gestion de la posture et des vulnérabilités, sécurité des points de terminaison, sauvegarde et récupération, sécurité DevOps), et chaque service Azure a une **base de référence de sécurité** qui associe les contrôles du MCSB aux paramètres de ce service. Le MCSB v2 (préversion) remplace la v1 avec 12 domaines, dont un nouveau domaine Artificial Intelligence Security ; les bases de référence des services, comme celle de Key Vault, sont encore basées sur le MCSB v1.0 et renvoient aux recommandations de sécurité propres au service pour les conseils actuels.
 
 | Fonctionnalité | Foundational CSPM (gratuit) | Defender CSPM (payant) |
 | --- | --- | --- |
@@ -18,9 +18,9 @@ Le **benchmark de sécurité cloud Microsoft (MCSB)** est la norme par défaut d
 | Informations sur la surface d'attaque externe (EASM) des ressources cloud | Non | Oui |
 | Règles de gouvernance, ressources critiques | Non | Oui |
 
-Les **recommandations** sont l'unité de travail (ressources concernées, gravité, correction) ; les risques acceptés deviennent des **exemptions** avec une date d'expiration. La **conformité réglementaire** associe les mêmes évaluations aux contrôles d'une norme ; les contrôles manuels doivent être attestés avec des preuves. Attribuez les stratégies et les plans au **groupe d'administration** pour que les nouveaux abonnements en héritent.
+Les **recommandations** sont l'unité de travail (ressources concernées, gravité, correction) ; les risques acceptés deviennent des **exemptions** avec une date d'expiration. La **conformité réglementaire** associe les mêmes évaluations aux contrôles d'une norme ; les contrôles manuels doivent être attestés avec des preuves. Ajouter des normes au-delà du MCSB exige un plan payant : Defender CSPM, ou tout autre plan Defender for Cloud sauf Defender for Servers Plan 1 et Defender for APIs Plan 1. Attribuez les stratégies et les plans au **groupe d'administration** pour que les nouveaux abonnements en héritent.
 
-> **Piège d'examen.** « Évaluer Azure, AWS et GCP selon un benchmark commun sans coût supplémentaire » correspond à Foundational CSPM avec le MCSB. Dès que l'exigence cite **une autre norme**, des **chemins d'attaque** ou le **contexte des données sensibles**, la réponse devient Defender CSPM.
+> **Piège d'examen.** « Évaluer Azure, AWS et GCP selon un benchmark commun sans coût supplémentaire » correspond à Foundational CSPM avec le MCSB. Dès que l'exigence cite des **chemins d'attaque** ou le **contexte des données sensibles**, la réponse devient Defender CSPM ; **une autre norme** exige un plan payant, et Defender CSPM est le plan de posture qui l'ajoute.
 
 <!-- section: secure-score | objectives: 3.1.2 -->
 ## Évaluer la posture avec le Niveau de sécurité Microsoft
@@ -31,9 +31,9 @@ Les règles qui décident des réponses :
 
 - Chaque action recommandée vaut **10 points ou moins**. La plupart des actions sont binaires ; certaines donnent des **points partiels** (50 utilisateurs sur 100 protégés par MFA sur une action de 10 points donnent 5 points).
 - Les produits contributeurs incluent Microsoft Entra ID, les produits Defender for Endpoint, for Identity, for Office 365 et for Cloud Apps, Exchange Online, SharePoint Online, Teams, ainsi que des applications SaaS comme Salesforce, ServiceNow et Okta.
-- Une action traitée autrement peut être marquée **résolue par un tiers** ou **résolue par une atténuation alternative** (par exemple, les paramètres de sécurité par défaut couvrent les actions MFA et authentification héritée), ou son risque peut être **accepté**.
+- Une action traitée autrement peut être marquée **résolue par un tiers** ou **résolue par une atténuation alternative** (par exemple, avec les paramètres de sécurité par défaut activés, Microsoft recommande cet état pour les actions des stratégies de risque de connexion et de risque utilisateur ; les paramètres de sécurité par défaut rapportent déjà tous les points des actions MFA et authentification héritée), ou son risque peut être **accepté**.
 - Les recommandations apparaissent quelle que soit la licence : le score reflète la posture absolue, pas ce que vous avez acheté.
-- Accès : autorisations RBAC unifié de Defender **Exposure Management (read)** et **(manage)**, ou rôles Microsoft Entra (Security Administrator en lecture-écriture ; Security Reader, Global Reader et Security Operator en lecture seule).
+- Accès : autorisations RBAC unifié de Defender **Exposure Management (read)** et **(manage)**, ou rôles Microsoft Entra (Security Administrator ou supérieur, Exchange Administrator et SharePoint Administrator en lecture-écriture ; Helpdesk Administrator, User Administrator, Service Support Administrator, Security Reader, Security Operator et Global Reader en lecture seule).
 
 Cinq scores que l'examen mélange :
 
@@ -67,7 +67,7 @@ Principes de conception :
 
 1. **Une seule vue.** Defender for Cloud est intégré au portail Microsoft Defender, à côté des signaux des points de terminaison, des identités et de la messagerie ; Exposure Management les met en corrélation.
 2. **Hiérarchiser selon le risque.** La hiérarchisation des risques de Defender CSPM et les **ressources critiques** placent une machine virtuelle exposée à Internet ayant accès à des données sensibles avant une machine virtuelle de test isolée.
-3. **Attribuer et automatiser.** Les règles de gouvernance attribuent un propriétaire et une date d'échéance ; l'automatisation des workflows et l'exportation continue alimentent la gestion des tickets et Microsoft Sentinel.
+3. **Attribuer et automatiser.** Les règles de gouvernance attribuent un propriétaire et une date d'échéance ; l'automatisation des workflows alimente la gestion des tickets ; Microsoft Sentinel ingère les alertes par ses connecteurs Defender for Cloud intégrés ; l'exportation continue vers Azure Event Hubs alimente les SIEM tiers comme Splunk et QRadar, et la stratégie intégrée qui déploie l'exportation vers un hub d'événements, attribuée au groupe d'administration racine, couvre tout le locataire.
 4. **Appliquer à grande échelle.** Azure Policy (DeployIfNotExists) active les plans partout ; les stratégies de refus empêchent l'erreur de configuration de revenir.
 
 > **Conseil d'examen.** Quand le scénario demande « un tableau de bord unique pour Azure, AWS, GCP et les serveurs locaux avec le moins d'effort d'administration », la conception attendue est Defender for Cloud avec les connecteurs AWS et GCP et Azure Arc pour les serveurs, pas un outil CSPM tiers ni un déploiement de Defender for Cloud par cloud.
@@ -81,7 +81,7 @@ La posture trouve les faiblesses ; la **protection des charges de travail** dét
 | --- | --- |
 | EDR, évaluation des vulnérabilités et détection des menaces sur les serveurs Windows et Linux dans n'importe quel cloud ou en local | Defender for Servers (Plan 1 ou Plan 2) |
 | Accès juste-à-temps aux machines virtuelles, surveillance de l'intégrité des fichiers, analyse sans agent des logiciels malveillants, évaluation de la base de référence du système d'exploitation | Defender for Servers **Plan 2** |
-| Protection à l'exécution d'AKS, EKS, GKE et Kubernetes compatible Arc, évaluation des vulnérabilités des images, déploiement contrôlé | Defender for Containers |
+| Protection à l'exécution d'AKS, EKS, GKE et Kubernetes compatible Arc, évaluation des vulnérabilités des images, déploiement contrôlé (AKS uniquement) | Defender for Containers |
 | Analyse des logiciels malveillants au chargement et menaces sur Stockage Blob, Azure Files, Data Lake Storage | Defender for Storage |
 | Injection SQL et accès anormaux sur Azure SQL, SQL Server sur des machines, bases de données open source, Azure Cosmos DB | Defender for Databases |
 | Attaques sur les applications web hébergées dans App Service | Defender for App Service |

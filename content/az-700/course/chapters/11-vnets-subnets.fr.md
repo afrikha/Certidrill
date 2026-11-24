@@ -9,11 +9,11 @@ Un réseau virtuel (VNet) appartient à **une seule région et un seul abonnemen
 | --- | --- |
 | Plages recommandées | RFC 1918 : 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16. La plage partagée 100.64.0.0/10 (RFC 6598) est elle aussi traitée comme privée. Une plage publique appartenant à votre organisation est autorisée : elle n'est joignable que depuis le réseau virtuel et les réseaux qui lui sont connectés |
 | Plages impossibles à ajouter | 224.0.0.0/4 (multidiffusion), 255.255.255.255/32 (diffusion), 127.0.0.0/8 (bouclage), 169.254.0.0/16 (lien-local), 168.63.129.16/32 (DNS Azure, DHCP et sondes d'intégrité) |
-| Chevauchement | Deux réseaux virtuels dont les espaces d'adressage se chevauchent ne peuvent pas être appairés ; il en va de même pour un réseau local joint par une passerelle |
+| Chevauchement | Deux réseaux virtuels dont les espaces d'adressage se chevauchent ne peuvent pas être reliés par peering ; il en va de même pour un réseau local joint par une passerelle |
 | IPv6 | S'ajoute à IPv4 (double pile). Un sous-réseau IPv6 doit être exactement un /64 |
 | Limites | 1 000 réseaux virtuels par abonnement et par région, 3 000 sous-réseaux et 65 536 adresses IP privées par réseau virtuel |
 
-Vous pouvez ajouter, supprimer ou redimensionner des plages après la création. Une plage ne peut être réduite que si elle contient encore ses sous-réseaux, et elle ne peut être supprimée que si aucun sous-réseau ne l'utilise. Quand le réseau virtuel est appairé, le changement ne provoque aucune interruption, mais la nouvelle plage ne doit pas chevaucher l'espace d'adressage du pair et vous devez ensuite sélectionner **Synchroniser** (Sync) sur chaque peering : d'ici là, le pair conserve l'ancien espace d'adressage.
+Vous pouvez ajouter, supprimer ou redimensionner des plages après la création. Une plage ne peut être réduite que si elle contient encore ses sous-réseaux, et elle ne peut être supprimée que si aucun sous-réseau ne l'utilise. Quand le réseau virtuel est relié par peering, le changement ne provoque aucune interruption, mais la nouvelle plage ne doit pas chevaucher l'espace d'adressage du pair et vous devez ensuite sélectionner **Synchroniser** (Sync) sur chaque peering : d'ici là, le pair conserve l'ancien espace d'adressage.
 
 Segmenter, c'est choisir entre plusieurs réseaux virtuels et plusieurs sous-réseaux :
 
@@ -61,7 +61,7 @@ $vnet | Set-AzVirtualNetwork
 
 Sans préfixe d'adresse, `az network vnet create` utilise 10.0.0.0/16. Dans `az network vnet update`, la liste remplace tout l'espace d'adressage : répétez les plages existantes. En PowerShell, les modifications se font sur l'objet local, puis s'écrivent avec `Set-AzVirtualNetwork`.
 
-**Accès sortant par défaut.** Pour les versions d'API publiées après le 31 mars 2026, les sous-réseaux d'un nouveau réseau virtuel sont **privés** par défaut (`defaultOutboundAccess` vaut `false`), et le portail crée déjà des sous-réseaux privés. Une machine virtuelle d'un sous-réseau privé n'atteint internet que par une méthode explicite : une passerelle NAT sur le sous-réseau, une adresse IP publique sur son interface réseau, ou les règles de trafic sortant d'un équilibreur de charge public Standard. Les réseaux virtuels existants ne sont pas modifiés. Quand vous rendez privé un sous-réseau existant (`az network vnet subnet update --default-outbound false`), les machines virtuelles doivent être arrêtées et libérées pour que le changement atteigne leurs interfaces réseau.
+**Accès sortant par défaut.** Pour les versions d'API publiées après le 31 mars 2026, les sous-réseaux d'un nouveau réseau virtuel sont **privés** par défaut (`defaultOutboundAccess` vaut `false`), et le portail crée déjà des sous-réseaux privés. Une machine virtuelle d'un sous-réseau privé n'atteint internet que par une méthode explicite : une passerelle NAT sur le sous-réseau, une adresse IP publique sur son interface réseau, ou les règles de trafic sortant d'un équilibreur de charge public Standard. Les réseaux virtuels existants ne sont pas modifiés. Quand vous rendez privé un sous-réseau existant (`az network vnet subnet update --default-outbound false`), les machines virtuelles doivent être arrêtées et libérées pour que le changement atteigne leurs interfaces réseau. Dans un sous-réseau privé, les itinéraires définis par l'utilisateur de tronçon suivant `Internet` (par exemple des itinéraires vers des étiquettes de service qui contournent un pare-feu) cessent de fonctionner sans méthode sortante explicite ; les machines virtuelles joignent toujours les comptes de stockage Azure de la même région ; les sous-réseaux délégués ne sont pas concernés, car le service gère leur accès sortant.
 
 <!-- section: subnet-sizing | objectives: 1.1.1, 1.1.3 -->
 ## Dimensionner et configurer les sous-réseaux
@@ -194,7 +194,7 @@ Raisons de partager : moins de sous-réseaux à gérer et moins d'espace d'adres
 <!-- section: key-points -->
 ## Points clés
 
-- Un réseau virtuel = une région, un abonnement ; les espaces d'adressage de réseaux connectés ne se chevauchent jamais ; après avoir modifié l'espace d'adressage d'un réseau virtuel appairé, synchronisez les peerings.
+- Un réseau virtuel = une région, un abonnement ; les espaces d'adressage de réseaux connectés ne se chevauchent jamais ; après avoir modifié l'espace d'adressage d'un réseau virtuel relié par peering, synchronisez les peerings.
 - Cinq adresses réservées par sous-réseau ; /29 est le plus petit sous-réseau et laisse 3 adresses ; les sous-réseaux IPv6 sont des /64.
 - Noms réservés : `GatewaySubnet` (/27 ou plus grand), `AzureBastionSubnet` (/26 ou plus grand), `AzureFirewallSubnet` et `AzureFirewallManagementSubnet` (/26), `RouteServerSubnet` (/26 ou plus grand). Application Gateway : nom libre, dédié, /24 recommandé.
 - Ni NSG ni remplacement de l'itinéraire par défaut sur `GatewaySubnet`.

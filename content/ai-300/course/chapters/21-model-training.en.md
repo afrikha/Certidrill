@@ -126,7 +126,7 @@ AutoML trains many algorithm and featurization combinations in parallel and rank
 | Data | Task types |
 | --- | --- |
 | Tabular | `classification`, `regression`, `forecasting` |
-| Images | Image classification, object detection |
+| Images | Image classification (multi-class or multi-label), object detection, instance segmentation; at least 10 images, as an MLTable built from JSONL |
 | Text | Text classification, named entity recognition |
 
 Tabular training data must be an **MLTable** with the target column present.
@@ -158,9 +158,9 @@ ml_client.jobs.create_or_update(job)
 | Regression and forecasting metrics | `r2_score`, `normalized_mean_absolute_error`, `normalized_root_mean_squared_error`, `spearman_correlation` |
 | Default validation | More than 20,000 rows: 10 % held out for validation. 20,000 rows or fewer: cross-validation (10 folds under 1,000 rows, 3 folds otherwise) |
 | `timeout_minutes` | Whole job, 8,640 minutes (6 days) by default |
-| `trial_timeout_minutes` | One trial |
+| `trial_timeout_minutes` | One trial, 43,200 minutes (1 month) by default |
 | `max_trials` | 1,000 by default |
-| `max_concurrent_trials` | Parallel trials; match it to the number of cluster nodes |
+| `max_concurrent_trials` | Parallel trials; match it to the number of cluster nodes (on a compute instance, to its number of cores). Ignored by distributed training for classification and regression |
 | `enable_early_termination` | Stops the job when the score stops improving |
 | Algorithms | `allowed_training_algorithms` or `blocked_training_algorithms` |
 | Ensembles | `enable_vote_ensemble`, `enable_stack_ensemble` |
@@ -230,7 +230,7 @@ Search space types: `choice` and `randint` (discrete); `uniform`, `loguniform`, 
 | `truncation_selection` | Cancels the lowest `truncation_percentage` % of trials at each interval |
 | None (default) | All trials run to completion |
 
-`evaluation_interval` is counted in logged values of the primary metric; `delay_evaluation` skips the first intervals. In limits, `max_total_trials` and `timeout` stop the sweep at whichever comes first; `trial_timeout` caps each trial.
+`evaluation_interval` is counted in logged values of the primary metric; with `delay_evaluation`, the policy applies at every multiple of `evaluation_interval` that is greater than or equal to `delay_evaluation` (with 1 and 5: from interval 5 on). In limits, `max_total_trials` and `timeout` stop the sweep at whichever comes first; `trial_timeout` caps each trial.
 
 > **Exam trap.** `objective.primary_metric` must exactly match the name the script logs with `mlflow.log_metric()`. A sweep on `accuracy` while the script logs `val_accuracy` produces no ranking. Also, `grid` with a `uniform` parameter is invalid.
 
@@ -330,7 +330,7 @@ jobs:
 | `continue_on_step_failure` | `True` | `False` stops the pipeline and cancels running steps when one fails |
 | `force_rerun` | `False` | `True` reruns every step instead of reusing earlier outputs |
 
-Components are **deterministic** by default (`is_deterministic: true`): a step whose code, environment, inputs and settings didn't change reuses the previous output. Set it to `false` for a step that reads data from a URL that changes. Steps in a pipeline are command or sweep jobs. Register components with `az ml component create --file train.yml`, run the pipeline with `az ml job create --file pipeline.yml`, and schedule it with a schedule resource (see the monitoring chapter).
+Components are **deterministic** by default (`is_deterministic: true`): a step whose code, environment, inputs and settings didn't change reuses the previous output. Set it to `false` for a step that reads data from a URL that changes. Steps in a pipeline are command or sweep jobs, and a parallel job runs only as a pipeline step. Register components with `az ml component create --file train.yml`, run the pipeline with `az ml job create --file pipeline.yml`, and schedule it with a schedule resource (see the monitoring chapter).
 
 > **Exam trap.** A step doesn't run after another because of its position in the YAML: order comes from data bindings. A step that must wait for `prep` must consume an output of `prep`.
 
@@ -361,6 +361,7 @@ history = mlflow.tracking.MlflowClient().get_metric_history(run_id, "loss")
 | Filters join with `AND` only | No `OR`; run two queries |
 | `order_by` doesn't accept `metrics.*`, `params.*` or `tags.*` | Sort with pandas `sort_values` |
 | Parameters filter with `=`, `!=`, `like` | Parameters are strings: `params.num_boost_round='100'` |
+| Tags don't support `!=` | Filter tags with `=` or `LIKE` |
 | `attributes.*` values are quoted strings | `attributes.status = 'Failed'` |
 | Search returns the **last** value of each metric | Use `get_metric_history` for the curve |
 | No experiment given | Searches the active experiment only; `search_all_experiments=True` widens it |

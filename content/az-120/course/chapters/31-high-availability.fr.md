@@ -32,7 +32,7 @@ Sans cluster, le **redémarrage de machine virtuelle Azure** (réparation de ser
 | Protège contre | Défaillance d'hôte, de rack, d'alimentation ou de commutateur dans un centre de données (domaines d'erreur) et maintenance planifiée (domaines de mise à jour, un seul redémarré à la fois) | Perte d'un centre de données entier (alimentation, refroidissement et réseau indépendants) |
 | Disques | Les disques managés sont alignés sur le domaine d'erreur de la machine virtuelle | Les disques managés sont créés dans la zone de la machine virtuelle ; les disques managés sont obligatoires |
 | Latence | La plus faible (un seul centre de données) | Variable entre zones : à mesurer |
-| Restrictions de stockage | SSD Premium v2 et Disque Ultra non pris en charge | Disque Ultra et SSD Premium v2 pris en charge |
+| Restrictions de stockage | Disque Ultra non pris en charge ; SSD Premium v2 uniquement dans quelques régions sans zones de disponibilité, après inscription de la fonctionnalité | Disque Ultra et SSD Premium v2 pris en charge |
 | Affectation | Seulement à la création de la machine virtuelle (ou lors d'un redéploiement) | Seulement à la création de la machine virtuelle |
 
 Règles de conception :
@@ -103,7 +103,7 @@ resource ilb 'Microsoft.Network/loadBalancers@2023-11-01' = {
 | Verrous au redémarrage de l'enqueue | Perdus | Conservés |
 | Taille du cluster | Deux nœuds | Deux nœuds, ou trois nœuds (ENSA2 uniquement) |
 
-Pour les nouveaux déploiements SLES 15, Microsoft recommande la configuration **simple mount** (systèmes de fichiers montés par le système d'exploitation, pas par le cluster). Sur Linux, un cluster peut héberger au plus cinq SID SAP (multi-SID).
+Pour les nouveaux déploiements SLES 15, Microsoft recommande la configuration **simple mount** (systèmes de fichiers montés par le système d'exploitation, pas par le cluster). Sur Linux, un cluster peut héberger au plus cinq SID SAP (multi-SID), et des systèmes ENSA1 et ENSA2 ne peuvent pas être mélangés dans un même cluster.
 
 **Windows** met l'ASCS/SCS en cluster avec WSFC, en utilisant soit un **partage de fichiers** (SMB sur Azure Files ou Azure NetApp Files, ou Scale-Out File Server), soit un **disque partagé** (disque partagé Azure sur SSD Premium, `Premium_LRS` avec des groupes à haute disponibilité, `Premium_ZRS` avec des zones, `maxShares` 2 ; ou SIOS DataKeeper). Utilisez Windows Server 2019 Datacenter ou ultérieur : WSFC y est compatible Azure et utilise un nom réseau distribué pour le nom du cluster.
 
@@ -216,8 +216,8 @@ Le stockage de blocs Azure conserve trois copies synchrones dans une zone, mais 
 | SSD Premium v1 (`Premium_ZRS`) | Synchrone, mais non testée avec les bases de données SAP | Non pris en charge pour les fichiers de base de données ; pris en charge pour les disques partagés Azure (ASCS/SCS sur WSFC, SBD) |
 | SSD Premium v2, Disque Ultra | Aucune | Répliquer avec le SGBD (HSR, Always On) |
 | Azure Files SSD (ZRS) | Synchrone sur trois zones, transparente pour les clients | Entièrement pris en charge pour `sapmnt`, le transport et la haute disponibilité des services centraux |
-| Réplication entre zones d'Azure NetApp Files | **Asynchrone** vers un volume d'une autre zone | Résilience de zone pour les volumes qu'aucune réplication applicative ne protège ; destination en lecture seule jusqu'à la rupture de l'appairage de réplication (basculement manuel) ; aucun coût en plus des pools de capacité |
-| Réplication entre régions d'Azure NetApp Files | Asynchrone vers une région appairée | Reprise d'activité ; facturée par Gio répliqué |
+| Réplication entre zones d'Azure NetApp Files | **Asynchrone** vers un volume d'une autre zone | Résilience de zone pour les volumes qu'aucune réplication applicative ne protège ; destination en lecture seule jusqu'à ce que vous interrompiez le peering de réplication et la montiez (basculement manuel) ; aucun coût en plus des pools de capacité |
+| Réplication entre régions d'Azure NetApp Files | Asynchrone vers une région d'une paire de réplication prise en charge (régions jumelées Azure et certaines paires non standard) | Reprise d'activité ; facturée par Gio répliqué |
 | SIOS DataKeeper | Miroir synchrone entre deux disques managés | Option tierce de disque partagé pour l'ASCS/SCS Windows |
 
 Règles de conception :

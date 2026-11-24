@@ -26,6 +26,8 @@ featurestore.generate_feature_retrieval_spec(spec_folder, features)
 
 The file must be named **`feature_retrieval_spec.yaml`** when you package it with the model, so the system recognizes it. Using the specification and the built-in component is optional: code can also call `get_offline_features()` directly, but then nothing ties the model to its feature list.
 
+The feature retrieval component needs only one of its `input_model` (a `custom_model`) and `feature_retrieval_spec` inputs, and always outputs Parquet data with `feature_retrieval_spec.yaml` at the root of the output folder. When the training data comes from another method, such as `get_offline_features()`, pass the specification to the training job as an input and copy it into the model folder in the training script.
+
 > **Exam trap.** The specification travels **inside the model artifact**, not as a separate data asset or an environment variable. A batch inference pipeline given the registered model finds it there; given only the observation data, it has no feature list to retrieve.
 
 <!-- section: mlflow-models | objectives: 2.2.2 -->
@@ -110,20 +112,20 @@ Microsoft's responsible AI principles are fairness, reliability and safety, priv
 | Component | Question answered | Principle |
 | --- | --- | --- |
 | Error analysis | Which cohorts (data subgroups) have the highest error rate? | Reliability and safety |
-| Model overview and fairness metrics | Do performance metrics differ across groups (age, gender, region)? | Fairness |
-| Data analysis | Is the data balanced and representative across features and cohorts? | Fairness, inclusiveness |
+| Model overview and fairness metrics | Do performance metrics differ across groups (age, gender, region)? | Fairness and inclusiveness |
+| Data analysis | Is the data balanced and representative across features and cohorts? | Fairness |
 | Feature importances (model explanations) | Which features drive predictions, globally and for one row? | Transparency |
-| Counterfactual what-if | What minimal change would flip a prediction? (at least 10 counterfactuals per data point) | Transparency, accountability |
+| Counterfactual what-if | What minimal change would flip a prediction? (`total_CFs`: 10 per test row by default) | Transparency, accountability |
 | Causal analysis | What is the effect of changing a treatment feature on a real-world outcome? | Accountability |
 
 Requirements and build:
 
-- The model must be registered in **MLflow format with the `sklearn` flavor**, loadable and pickleable. Task types: `classification`, `regression` (and `forecasting`).
+- The model must be registered in **MLflow format with the `sklearn` flavor**, loadable and pickleable. Task types: `classification`, `regression` (and `forecasting`). AutoML MLflow models and AutoML models registered from the UI aren't supported.
 - Train and test data are **`mltable`** inputs. By default the test set shown in the UI is limited to 5,000 rows (`maximum_rows_for_test_dataset`).
-- The dashboard is a pipeline of components from the `azureml` registry: **RAI Insights dashboard constructor** and **Gather RAI Insights dashboard** are always required, plus at least one tool component (Add Explanation, Add Causal, Add Counterfactuals, Add Error Analysis), referenced as `azureml://registries/azureml/components/microsoft_azureml_rai_tabular_insight_constructor/versions/<version>` and so on. The model is supplied by the Fetch Registered Model component. You generate the dashboard from the studio UI or with the CLI or SDK.
+- The dashboard is a pipeline of components from the `azureml` registry: **RAI Insights dashboard constructor** and **Gather RAI Insights dashboard** are always required, plus at least one tool component (Add Explanation, Add Causal, Add Counterfactuals, Add Error Analysis), referenced as `azureml://registries/azureml/components/microsoft_azureml_rai_tabular_insight_constructor/versions/<version>` and so on. The registered model goes to the constructor's model input as `type: mlflow_model` with `path: azureml:<name>:<version>`. You generate the dashboard from the studio UI or with the CLI or SDK.
 - A causal-only analysis still needs a model: use `DummyClassifier` or `DummyRegressor`.
 
-To view it, open the registered model and select the **Responsible AI** tab; several dashboards can be attached to one model. Interactive features (what-if counterfactuals, ICE plots, changing error analysis cohorts) need a **running compute instance** connected to the dashboard. Least privilege to use it: Reader plus AzureML Compute Operator. The **Responsible AI scorecard** (component `rai_score_card`) exports a PDF summary with target thresholds for metrics, top features (up to 10) and fairness as `difference` or `ratio`, for stakeholders who don't use the studio.
+To view it, open the registered model and select the **Responsible AI** tab; several dashboards can be attached to one model. Interactive features (what-if counterfactuals, ICE plots, changing error analysis cohorts) need a **running compute instance** connected to the dashboard. Least privilege to use it: Reader plus AzureML Compute Operator. The **Responsible AI scorecard** (preview, component `rai_score_card`) exports a PDF summary with target thresholds for metrics, top features (up to 10) and fairness as `difference` or `ratio`, for stakeholders who don't use the studio.
 
 > **Exam trap.** Overall accuracy can hide a failing subgroup. "Find the cohorts where the model fails" is error analysis; "compare results between groups" is fairness; "explain why this applicant was rejected" is feature importance for one data point.
 
@@ -143,7 +145,7 @@ To view it, open the registered model and select the **Responsible AI** tab; sev
 
 Models can't be renamed: create a new name and register again. A typical lifecycle uses tags for state (`stage=Staging`, `stage=Prod`, `validated=true`), registers each retrained model as a new version, keeps the previous production version available for rollback, and archives obsolete versions to declutter lists without breaking deployments or pipelines that still reference them.
 
-MLflow **stages** (`Staging`, `Production`, `Archived`, set with `transition_model_version_stage`) exist only through the MLflow SDK in Azure Machine Learning: they aren't shown in the studio, can't be read with the Azure Machine Learning CLI or SDK, and you can't deploy "from a stage". Use tags or explicit versions instead.
+MLflow **stages** (`Staging`, `Production`, `Archived`, set with `transition_model_version_stage`) exist only through the MLflow SDK in Azure Machine Learning: they aren't shown in the studio, can't be read with the Azure Machine Learning CLI or SDK, and you can't deploy "from a stage". Use tags or explicit versions instead. Don't confuse them with the `--stage` parameter of `az ml model create`, `update` and `list` ("Stage of the model" in the CLI reference): MLflow stages still can't be read through the Azure Machine Learning CLI.
 
 > **Exam trap.** Archiving isn't deleting. An archived version disappears from list queries such as `az ml model list`, but a deployment or job that references `churn-classifier:2` keeps working. To stop it being used, update the deployments; to remove it, delete the version.
 
@@ -153,6 +155,6 @@ MLflow **stages** (`Staging`, `Production`, `Archived`, set with `transition_mod
 - The feature retrieval specification is generated during experimentation, named `feature_retrieval_spec.yaml` and packaged inside the model artifact; batch inference reads it from the registered model.
 - MLflow models carry an MLmodel file, flavors and a signature: no-code deployment, swagger and Responsible AI support.
 - Register from `runs:/` or `azureml://jobs/...` to keep lineage; versions are immutable except description and tags.
-- Responsible AI dashboard: MLflow `sklearn` model, `mltable` data, constructor + gather + at least one tool; scorecard exports a PDF.
+- Responsible AI dashboard: MLflow `sklearn` model, `mltable` data, constructor + gather + at least one tool; the scorecard (preview) exports a PDF.
 - Archive hides, doesn't delete; restore the container if it was archived as a whole; share copies a version to a registry.
 - MLflow stages aren't visible to Azure Machine Learning tools: use tags and versions.

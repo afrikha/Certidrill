@@ -97,7 +97,7 @@ EXEC sys.sp_query_store_set_hints @query_id = 39,
 EXEC sys.sp_query_store_clear_hints @query_id = 39;
 ```
 
-Query Store hints override hard-coded statement-level hints and plan guides. A hint that can't be applied is ignored, never blocking the query; the failure reason is in `sys.query_store_query_hints`.
+Query Store hints override hard-coded statement-level hints and plan guides. A hint that can't be applied is ignored, never blocking the query; the failure reason is in `sys.query_store_query_hints`. Hints apply on the primary replica only, except in SQL Server 2025 with Query Store for secondary replicas enabled, where they can also apply on availability group secondaries (`@replica_group_id` targets one replica group).
 
 > **Exam tip.** "The application code can't be modified" points to plan forcing or Query Store hints. Forcing a plan manually is the one-off fix; automatic plan correction (`FORCE_LAST_GOOD_PLAN`, chapter 33) does it continuously.
 
@@ -138,7 +138,7 @@ WHERE s.session_id = 72;
 
 Reduce blocking by design: short transactions, the right indexes (fewer rows read means fewer locks), and **row versioning**. Read committed snapshot isolation (RCSI) is on by default for new Azure SQL Database databases: readers don't take shared locks, so they don't block writers. On SQL Server, enable it with `ALTER DATABASE SalesDB SET READ_COMMITTED_SNAPSHOT ON`.
 
-**Optimized locking** (transaction ID locking plus lock after qualification) reduces lock memory and the number of locks held by writers. It's always on in Azure SQL Database and in Azure SQL Managed Instance with the SQL Server 2025 or Always-up-to-date update policy; in SQL Server 2025 it's off by default and requires accelerated database recovery. Lock after qualification works only with RCSI. Check it with `DATABASEPROPERTYEX(DB_NAME(), 'IsOptimizedLockingOn')`.
+**Optimized locking** (transaction ID locking plus lock after qualification) reduces lock memory and the number of locks held by writers. It's always on in Azure SQL Database and in Azure SQL Managed Instance with the SQL Server 2025 or Always-up-to-date update policy (not available with the SQL Server 2022 update policy); in SQL Server 2025 it's off by default and requires accelerated database recovery. Lock after qualification works only with RCSI. Check it with `DATABASEPROPERTYEX(DB_NAME(), 'IsOptimizedLockingOn')`.
 
 > **Exam trap.** A timeout or a cancel ends the batch but doesn't roll back the open transaction: its locks stay until the application commits, rolls back or disconnects.
 

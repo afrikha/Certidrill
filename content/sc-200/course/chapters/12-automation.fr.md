@@ -32,7 +32,7 @@ L'interruption des attaques corrèle les signaux des points de terminaison, des 
 
 | Action | Produit qui l'exécute |
 | --- | --- |
-| Contenir l'appareil, contenir l'IP, isoler l'appareil | Defender for Endpoint |
+| Contenir l'appareil, contenir l'IP, isoler l'appareil (isolation automatique en préversion) | Defender for Endpoint |
 | Contenir l'utilisateur | Defender for Endpoint |
 | Désactiver l'utilisateur (Active Directory) | Defender for Identity, par le capteur d'un contrôleur de domaine |
 | Révoquer la session, suspendre l'utilisateur | Microsoft Entra ID |
@@ -43,7 +43,7 @@ Les prérequis que l'examen teste :
 
 | Produit | Exigence |
 | --- | --- |
-| Defender for Endpoint | Découverte des appareils en **Standard discovery** (pour Contain device) ; niveau d'automatisation **Full** recommandé sur les groupes d'appareils ; agent Sense 10.8470 ou ultérieur pour Contain user |
+| Defender for Endpoint | Découverte des appareils en **Standard discovery** (pour Contain device) ; niveau d'automatisation **Full** recommandé sur les groupes d'appareils (un niveau **Semi** laisse aussi l'interruption agir sans approbation manuelle) ; agent Sense 10.8470 ou ultérieur pour Contain user |
 | Defender for Identity | Stratégies d'audit sur les contrôleurs de domaine ; le compte d'action est par défaut le **LocalSystem** du contrôleur de domaine ; un capteur sur le contrôleur de domaine où le compte est désactivé |
 | Defender for Cloud Apps | Microsoft 365 connecté avec le connecteur **Microsoft Office 365**, toutes les options cochées |
 | Defender for Office 365 | Boîtes aux lettres dans Exchange Online, avec l'audit de MailItemsAccessed, UpdateInboxRules, MoveToDeletedItems, SoftDelete et HardDelete |
@@ -90,7 +90,7 @@ Les niveaux d'automatisation :
 | Full - remediate threats automatically | Automatique ; les actions apparaissent dans History. Recommandé, et valeur par défaut des locataires créés depuis le 16 août 2020 |
 | Semi - require approval for all folders | Toutes les actions en attente |
 | Semi - require approval for core folders | En attente pour les fichiers des dossiers système comme `\windows\*`, automatique ailleurs |
-| Semi - require approval for non-temp folders | Automatique uniquement dans les dossiers temporaires comme `\users\*\downloads\*` ou `\windows\temp\*`, en attente ailleurs |
+| Semi - require approval for non-temp folders | Automatique uniquement dans les dossiers temporaires comme `\users\*\downloads\*` ou `\windows\temp\*` (la liste d'exemples de Learn inclut aussi `\program files\` et `\program files (x86)\*`), en attente ailleurs |
 | No automated response | Ni enquête automatisée ni correction ; déconseillé |
 
 **Autorisations.** Les rôles Defender for Endpoint (Paramètres > Points de terminaison > Rôles > **Add role**) combinent des autorisations et sont attribués à des groupes Entra, puis liés à des groupes d'appareils :
@@ -104,14 +104,14 @@ Les niveaux d'automatisation :
 | Manage portal system settings | Chargements automatisés de fichiers, rôles et groupes d'appareils (uniquement dans le rôle d'administrateur par défaut) |
 | Live response capabilities | **Basic** (commandes en lecture seule, téléchargement de fichiers) ou **Advanced** (envoi de fichiers, exécution de scripts de la bibliothèque) |
 
-Depuis le 16 février 2025, les nouveaux clients Defender for Endpoint n'ont que le modèle **RBAC unifié de Microsoft Defender XDR** ; les clients existants conservent leurs rôles Defender for Endpoint jusqu'à leur migration. En RBAC unifié, les rôles personnalisés combinent des groupes d'autorisations (Security operations, Authorization and settings, Data operations) et sont attribués avec une étendue de sources de données et de groupes d'appareils.
+Depuis le 16 février 2025, les nouveaux clients Defender for Endpoint n'ont que le modèle **RBAC unifié de Microsoft Defender XDR** ; les clients existants conservent leurs rôles Defender for Endpoint jusqu'à leur migration. En RBAC unifié, les rôles personnalisés combinent des groupes d'autorisations (Security operations, Security posture, Authorization and settings, et Data operations en préversion) et sont attribués à des utilisateurs ou des groupes avec une étendue de sources de données et de collections de données Sentinel. Les groupes d'appareils de Defender for Endpoint, configurés séparément, décident toujours des appareils que ces utilisateurs voient et sur lesquels ils agissent.
 
 > **Piège d'examen.** Un analyste qui doit collecter des packages d'investigation sans exécuter de scripts a besoin d'**Alerts investigation**, pas de **Live response capabilities: Advanced**. Le privilège minimum, c'est en général l'autorisation la plus étroite, sur le seul groupe d'appareils de l'analyste.
 
 <!-- section: automation-rules | objectives: 1.1.10 -->
 ## Les règles d'automatisation de Microsoft Sentinel
 
-Les règles d'automatisation se créent dans **Microsoft Sentinel > Configuration > Automatisation** (ou depuis l'onglet **Réponse automatisée** d'une règle d'analyse, ou depuis un incident). Elles demandent **Microsoft Sentinel Contributor**.
+Les règles d'automatisation se créent dans **Microsoft Sentinel > Configuration > Automatisation** (ou depuis l'onglet **Réponse automatisée** d'une règle d'analytique, ou depuis un incident). Elles demandent **Microsoft Sentinel Contributor**.
 
 | Élément | Valeurs |
 | --- | --- |
@@ -123,7 +123,7 @@ Les règles d'automatisation se créent dans **Microsoft Sentinel > Configuratio
 
 Les règles à retenir :
 
-- Le déclencheur d'alerte fonctionne pour les alertes des règles d'analyse **planifiées**, **NRT** et **Microsoft security**, avec les règles d'analyse comme seule condition.
+- Le déclencheur d'alerte fonctionne pour les alertes des règles d'analytique **planifiées**, **NRT** et **Microsoft security**, avec les règles d'analytique comme seule condition.
 - Dans le portail Defender, les règles de création d'incidents de Sentinel doivent être désactivées : les incidents viennent de la corrélation Defender XDR. L'automatisation à déclencheur d'alerte pour les alertes Defender XDR n'est pas disponible. Plusieurs modifications d'un incident en 5 à 10 minutes arrivent dans Sentinel en une seule mise à jour.
 - **Mis à jour par** distingue une modification faite par un utilisateur, une application, un playbook, une autre règle d'automatisation, AIR ou le regroupement d'alertes : servez-vous-en pour éviter les boucles.
 - Deux règles de même numéro d'ordre s'exécutent dans un ordre aléatoire.
@@ -131,10 +131,10 @@ Les règles à retenir :
 
 | Exigence | Réponse |
 | --- | --- |
-| Fermer pendant deux semaines les incidents d'un test d'intrusion connu | Règle d'automatisation, déclencheur de création, condition sur la règle d'analyse ou l'entité, statut Fermé, date d'expiration |
+| Fermer pendant deux semaines les incidents d'un test d'intrusion connu | Règle d'automatisation, déclencheur de création, condition sur la règle d'analytique ou l'entité, statut Fermé, date d'expiration |
 | Donner une liste de contrôle à chaque nouvel incident d'une règle | Règle d'automatisation avec **Ajouter une tâche** |
 | Augmenter la gravité quand un compte VIP apparaît | Règle d'automatisation avec une condition d'entité et **Changer la gravité** |
-| Attribuer à une équipe les incidents de nombreuses règles d'analyse | Une règle d'automatisation dont la condition liste ces règles |
+| Attribuer à une équipe les incidents de nombreuses règles d'analytique | Une règle d'automatisation dont la condition liste ces règles |
 | Prévenir un canal Teams quand un incident est fermé | Déclencheur de mise à jour, condition « Statut modifié en Fermé », action **Exécuter un playbook** |
 
 > **Piège d'examen.** « Réduire l'effort administratif » et une action disponible dans la liste (statut, gravité, propriétaire, étiquette, tâche) désignent une règle d'automatisation. Un playbook n'est la réponse que si l'action exige un connecteur ou plusieurs étapes.
@@ -157,11 +157,11 @@ Les autorisations sont la partie la plus testée :
 | L'ingénieur qui écrit le playbook | **Logic App Contributor** (Consumption) ou un rôle Logic Apps Standard | Créer et modifier le workflow |
 | L'analyste qui l'exécute manuellement | **Microsoft Sentinel Playbook Operator** | Exécuter un playbook sur un incident, une alerte ou une entité |
 | L'identité managée du playbook | **Microsoft Sentinel Responder** sur l'espace de travail (mettre à jour les incidents), Reader s'il ne fait que lire | Agir sur Sentinel |
-| Le compte de service Sentinel | **Microsoft Sentinel Automation Contributor** sur le groupe de ressources du playbook, accordé avec **Gérer les autorisations des playbooks** par un **Owner** | Permettre aux règles d'automatisation d'exécuter le playbook |
+| Le compte de service Sentinel | **Microsoft Sentinel Automation Contributor** sur le groupe de ressources du playbook, accordé avec **Gérer les autorisations des playbooks** par un **Owner** ou un **User Access Administrator** | Permettre aux règles d'automatisation d'exécuter le playbook |
 
-Dans le concepteur, les sorties du déclencheur (ID ARM de l'incident, entités, détails personnalisés) se choisissent dans **Contenu dynamique**. Un playbook d'entité exécuté hors d'un incident reçoit un ID ARM d'incident nul : testez-le avec une condition avant de l'utiliser. L'historique des exécutions se trouve sur la page de l'application logique.
+Dans le concepteur, les sorties du déclencheur (ID ARM de l'incident, entités, détails personnalisés) se choisissent dans **Contenu dynamique**. Un playbook d'entité exécuté hors d'un incident reçoit un ID ARM d'incident nul : testez-le avec une condition avant de l'utiliser. L'historique des exécutions se trouve sur la page de l'application logique, et dans l'onglet **Runs** du volet **Run playbook** d'un incident.
 
-> **Piège d'examen.** Le playbook est listé mais la règle d'automatisation n'arrive pas à l'exécuter : le compte de service de Sentinel n'a pas d'autorisation sur le groupe de ressources du playbook. Donner Logic App Contributor à l'analyste ne règle rien ; un Owner doit accorder **Gérer les autorisations des playbooks**.
+> **Piège d'examen.** Le playbook est listé mais la règle d'automatisation n'arrive pas à l'exécuter : le compte de service de Sentinel n'a pas d'autorisation sur le groupe de ressources du playbook. Donner Logic App Contributor à l'analyste ne règle rien ; un Owner ou un User Access Administrator doit accorder **Gérer les autorisations des playbooks**.
 
 <!-- section: key-points -->
 ## Points clés

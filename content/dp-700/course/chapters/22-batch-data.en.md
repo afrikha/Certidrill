@@ -7,7 +7,7 @@ Batch ingestion and transformation is the core of the exam: pick the store, deci
 | --- | --- | --- | --- |
 | Data | Files of any format plus Delta tables | Structured tables, star schemas | Events, logs, telemetry, time series, JSON |
 | Write with | Spark, Dataflow Gen2, pipelines, eventstreams | T-SQL (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `COPY INTO`, CTAS), pipelines, Dataflow Gen2 | Eventstreams, KQL ingestion, update policies |
-| Read with | Spark; T-SQL **read-only** through the SQL analytics endpoint | T-SQL | KQL (and T-SQL) |
+| Read with | Spark; T-SQL **read-only** through the SQL analytics endpoint | T-SQL | KQL (and read-only T-SQL) |
 | Transactions | Per Delta table | Multi-table T-SQL transactions | Append-optimized ingestion |
 | Typical team | Data engineers, PySpark | SQL developers | Real-time analysts |
 
@@ -40,7 +40,8 @@ All three keep their data in OneLake (the eventhouse through OneLake availabilit
 A shortcut is a pointer: the data stays at the target and is read in place, without copy or schedule.
 
 - Create it in a **lakehouse** (Tables or Files) or a **KQL database**: **New shortcut**, pick the source, then the folder or table.
-- Internal targets: lakehouses, warehouses, KQL databases, mirrored databases and other Fabric items. External targets: ADLS Gen2, Azure Blob Storage, Amazon S3 and S3-compatible, Google Cloud Storage, Dataverse, and on-premises sources through a gateway.
+- Lakehouse shortcuts: internal targets are lakehouses, warehouses, KQL databases, mirrored databases and other Fabric items; external targets are ADLS Gen2, Azure Blob Storage, Amazon S3 and S3-compatible, Google Cloud Storage, Dataverse, and on-premises sources through a gateway.
+- KQL database shortcuts: internal targets are KQL databases, lakehouses and warehouses; external targets are ADLS, Amazon S3 and Google Cloud Storage.
 - In **Tables**, a shortcut must sit at the **top level** and point to **Delta** data to be recognized as a table. In **Files**, any folder and format.
 - **Authentication**: an internal shortcut uses the **identity of the caller** (who needs access to the target); an external shortcut uses the credentials of its **cloud connection**.
 - **Deleting a shortcut** never deletes the target. **Deleting a file or folder through the shortcut** deletes it at the target.
@@ -75,8 +76,8 @@ Mirroring replicates an external database into OneLake as Delta tables and keeps
 | Open mirroring | Your application writes change files into a landing zone through public APIs | Any source |
 
 - Creating a mirror produces a **mirrored database** item with a **SQL analytics endpoint**; query it with T-SQL (three-part names across warehouses and lakehouses), Spark, Power BI Direct Lake or shortcuts.
-- **Cost**: replication compute is free; storage is free up to **1 TB per capacity unit** (64 TB on an F64). Queries are billed normally. A paused capacity stops replication (status **Paused**).
-- **Monitor replication** shows the database status (Running, Running with warning, Stopping/Stopped, Failed, Paused) and, per table, the status, **rows replicated** and **last completed** time. Workspace monitoring adds logs in the `MirroredDatabaseTableExecution` table.
+- **Cost**: replication compute is free; storage is free up to **1 TB per capacity unit** (64 TB on an F64). Queries are billed normally. A paused capacity stops replication; after the capacity resumes, the mirrored database stays **Paused** until you select **Resume replication** (after a long pause, mirroring can reseed from the beginning). A throttled capacity resumes mirroring by itself once the overload ends.
+- **Monitor replication** shows the database status (Running, Running with warning, Stopping/Stopped, Failed, Paused) and, per table, the status, **rows replicated** and **last completed** time. Workspace monitoring (preview) adds logs in the `MirroredDatabaseTableExecution` table.
 - Fabric SQL database is mirrored automatically.
 
 | Requirement | Method |
@@ -95,7 +96,7 @@ The **Copy data** activity moves data from 50+ source connectors to 40+ destinat
 
 - Sources behind a firewall or on-premises use an **on-premises data gateway** or a **virtual network data gateway**; the activity binds to a **connection** that holds the credentials.
 - Lakehouse table destinations are written as Delta tables (append or overwrite).
-- Other activities of an ingestion pipeline: **Lookup** (control table or watermark), **Get metadata** (list files), **ForEach**, **Delete data**, **Copy job** (runs a copy job), **Dataflow Gen2**, **Notebook**, **Stored procedure**, **SQL script**, **Refresh SQL analytics endpoint** and **Lakehouse maintenance**.
+- Other activities of an ingestion pipeline: **Lookup** (control table or watermark), **Get metadata** (list files), **ForEach**, **Delete data**, **Copy job** (runs a copy job), **Dataflow Gen2**, **Notebook**, **Stored procedure**, **SQL script**, **Refresh SQL analytics endpoint**, **Refresh materialized lake view** and **Lakehouse maintenance**.
 
 Metadata-driven ingestion keeps one pipeline for many tables:
 
@@ -147,7 +148,7 @@ INSERT INTO dbo.FactReturns (OrderID, ReturnDate, Amount)
 SELECT OrderID, ReturnDate, Amount FROM SalesLakehouse.dbo.returns;
 ```
 
-KQL in an eventhouse:
+KQL in an eventhouse (T-SQL in a KQL database is query-only: `SELECT` works, `CREATE`, `INSERT` and `ALTER` don't, and `explain` before a `SELECT` returns its KQL translation):
 
 ```kusto
 // Query-time transformation
@@ -252,6 +253,6 @@ In an eventhouse, a materialized view keeps deduplicated or latest data up to da
 - Lakehouse for Spark and files, warehouse for T-SQL writes, eventhouse for events and KQL.
 - Dataflow Gen2 = no code; notebook = Spark at scale; T-SQL = warehouse; KQL = eventhouse.
 - Shortcut = no copy; Tables shortcuts must be top-level Delta; internal shortcuts use the caller's identity; deleting through a shortcut deletes at the target.
-- Mirroring = continuous replica as Delta, free compute, 1 TB per CU, Monitor replication for status and rows.
+- Mirroring = continuous replica as Delta, free compute, 1 TB per CU, Monitor replication for status and rows; after a capacity pause, select Resume replication.
 - Pipelines: Copy data at scale, gateways, Lookup and ForEach for metadata-driven loads.
 - Dedupe with `row_number()` or `arg_max`, fill nulls with `COALESCE` or `fillna`, handle late data with a lookback window and `MERGE`.

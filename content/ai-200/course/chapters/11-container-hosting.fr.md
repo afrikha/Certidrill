@@ -3,13 +3,13 @@ Un back-end d'IA est le plus souvent livré sous forme d'image conteneur : une A
 <!-- section: acr-registry | objectives: 1.1.1 -->
 ## Stocker et versionner des images dans Azure Container Registry
 
-Un registre a un serveur de connexion `<registry>.azurecr.io`. Une image s'adresse sous la forme `<registry>.azurecr.io/<repository>:<tag>` ou, de façon immuable, par la synthèse (digest) de son manifeste `<repository>@sha256:<digest>`. Les dépôts peuvent être organisés en espaces de noms (`rag/api`, `rag/indexer`).
+Un registre a un serveur de connexion `<registry>.azurecr.io`. Une image s'adresse sous la forme `<registry>.azurecr.io/<repository>:<tag>` ou, de façon immuable, par la synthèse (digest) de son manifeste `<repository>@sha256:<digest>`. Les référentiels peuvent être organisés en espaces de noms (`rag/api`, `rag/indexer`).
 
 | Niveau | Stockage inclus | Ce que seul ce niveau ajoute |
 | --- | --- | --- |
 | Basic | 10 Gio | Niveau d'entrée, débit le plus faible ; ni cache d'artefacts ni tirage anonyme |
 | Standard | 100 Gio | Mêmes fonctionnalités que Basic avec plus de stockage et de débit, plus le cache d'artefacts et le tirage anonyme |
-| Premium | 500 Gio | Géoréplication, points de terminaison privés, points de terminaison de données dédiés, règles d'accès IP, clés gérées par le client, registres connectés, streaming d'artefacts, stratégie de rétention des manifestes non étiquetés, pools d'agents dédiés pour les tâches |
+| Premium | 500 Gio | Géoréplication, points de terminaison privés, points de terminaison de données dédiés, règles d'accès IP, clés gérées par le client, registres connectés, streaming d'artefacts, stratégie de rétention des manifestes non balisés, pools d'agents dédiés pour les tâches |
 
 Vous pouvez changer de niveau à tout moment sans interruption (`az acr update --name crcontoso --sku Premium`) ; pour descendre depuis Premium, supprimez d'abord les géoréplications et les registres connectés. La redondance de zone est activée par défaut dans les régions prises en charge, pour tous les niveaux.
 
@@ -38,21 +38,21 @@ Le jeton obtenu par `az acr login` est valide **3 heures**. Sans démon Docker (
 | Identité managée avec un rôle | Services Azure qui tirent des images (App Service, Container Apps, AKS) ou pipelines sur Azure | Uniquement les services qui prennent en charge les identités managées |
 | Principal de service avec un rôle | CI/CD sans surveillance hors d'Azure | Secret à renouveler (1 an par défaut) |
 | Utilisateur administrateur | Tests rapides par une seule personne | **Désactivé par défaut** ; push et pull complets, aucune restriction par rôle |
-| Jeton limité à des dépôts | Pull ou push limité à certains dépôts, hors Microsoft Entra ID | Non intégré au RBAC Microsoft Entra |
+| Jeton limité à des référentiels | Pull ou push limité à certains référentiels, hors Microsoft Entra ID | Non intégré au RBAC Microsoft Entra |
 
-Rôles : **AcrPull** (pull) et **AcrPush** (push et pull) sur le registre. Un registre en mode **RBAC Registry + ABAC Repository Permissions** utilise à la place les rôles de dépôt, qui acceptent des conditions les limitant à certains dépôts : **Container Registry Repository Reader** (pull), **Container Registry Repository Writer** (push, sans suppression), **Container Registry Repository Contributor** (suppression en plus). **Container Registry Tasks Contributor** gère les tâches et `az acr build` / `az acr run` sans aucun accès aux données.
+Rôles : **AcrPull** (pull) et **AcrPush** (push et pull) sur le registre. Un registre en mode **RBAC Registry + ABAC Repository Permissions** (disponible sur tous les niveaux) utilise à la place les rôles de référentiel, qui acceptent des conditions les limitant à certains référentiels : **Container Registry Repository Reader** (pull), **Container Registry Repository Writer** (push, sans suppression), **Container Registry Repository Contributor** (suppression en plus). **Container Registry Tasks Contributor** gère les tâches et `az acr build` / `az acr run` sans aucun accès aux données.
 
-**Stratégie d'étiquetage (tags) :**
+**Stratégie de balisage (tags) :**
 
-| Type d'étiquette | Exemple | Usage |
+| Type de balise | Exemple | Usage |
 | --- | --- | --- |
-| Étiquette stable | `python:3.12`, `rag/api:1` | Images de base : l'étiquette continue de recevoir des correctifs |
-| Étiquette unique | `rag/api:1.4.0-7f3c2a1`, ID de build | **Déploiements** : chaque nœud et chaque réplica redémarré tire exactement la même image |
+| Balise stable | `python:3.12`, `rag/api:1` | Images de base : la balise continue de recevoir des correctifs |
+| Balise unique | `rag/api:1.4.0-7f3c2a1`, ID de build | **Déploiements** : chaque nœud et chaque réplica redémarré tire exactement la même image |
 | Synthèse (digest) | `rag/api@sha256:...` | Référence totalement immuable, mais peu lisible et sans lien avec le build |
 
-> **Piège d'examen.** Déployer `:latest` ou une autre étiquette stable signifie qu'un scale-out ou un redémarrage peut tirer une image différente de celle qui tourne déjà. La réponse à « toutes les instances doivent exécuter le même build » est une étiquette unique (ou la synthèse), pas `latest`.
+> **Piège d'examen.** Déployer `:latest` ou une autre balise stable signifie qu'un scale-out ou un redémarrage peut tirer une image différente de celle qui tourne déjà. La réponse à « toutes les instances doivent exécuter le même build » est une balise unique (ou la synthèse), pas `latest`.
 
-Quand une étiquette stable est envoyée de nouveau, l'image précédente devient un **manifeste non étiqueté** : il occupe toujours du stockage et peut toujours être tiré par sa synthèse.
+Quand une balise stable est envoyée de nouveau, l'image précédente devient un **manifeste non balisé** : il occupe toujours du stockage et peut toujours être tiré par sa synthèse.
 
 **Gérer le contenu :**
 
@@ -76,11 +76,11 @@ az acr run --registry crcontoso \
 | Besoin | Réponse |
 | --- | --- |
 | Protéger l'image de production contre un push ou une suppression accidentels | `az acr repository update ... --write-enabled false` |
-| Supprimer automatiquement les manifestes non étiquetés, registre Premium | Stratégie de rétention (0 à 365 jours, 7 par défaut) ; ne s'applique qu'aux manifestes devenus non étiquetés après son activation |
-| Nettoyer les anciennes étiquettes selon une planification, tout niveau | `acr purge` dans une tâche planifiée ; testez d'abord avec `--dry-run` |
-| Des systèmes tirent les images par synthèse | Ne purgez pas et ne faites pas expirer les manifestes non étiquetés : leurs images disparaîtraient |
+| Supprimer automatiquement les manifestes non balisés, registre Premium | Stratégie de rétention (0 à 365 jours, 7 par défaut) ; ne s'applique qu'aux manifestes devenus non balisés après son activation |
+| Nettoyer les anciennes balises selon une planification, tout niveau | `acr purge` dans une tâche planifiée ; testez d'abord avec `--dry-run` |
+| Des systèmes tirent les images par synthèse | Ne purgez pas et ne faites pas expirer les manifestes non balisés : leurs images disparaîtraient |
 
-> **Piège d'examen.** Sans `--untagged`, `acr purge` ne supprime que les étiquettes ; les manifestes et les couches restent et continuent d'occuper du stockage. Les images verrouillées (`write-enabled` ou `delete-enabled` à false) sont ignorées, sauf si vous ajoutez `--include-locked`. Les données d'image supprimées sont irrécupérables.
+> **Piège d'examen.** Sans `--untagged`, `acr purge` ne supprime que les balises ; les manifestes et les couches restent et continuent d'occuper du stockage. Les images verrouillées (`write-enabled` ou `delete-enabled` à false) sont ignorées, sauf si vous ajoutez `--include-locked`. Les données d'image supprimées sont irrécupérables.
 
 <!-- section: acr-tasks | objectives: 1.1.2 -->
 ## Générer et exécuter des images avec ACR Tasks
@@ -152,7 +152,7 @@ steps:
 | Élément | Signification |
 | --- | --- |
 | `build` | Comme `docker build` ; l'image n'est **pas envoyée** tant qu'aucune étape `push` ne le fait |
-| `push` | Envoie une ou plusieurs images générées ou réétiquetées |
+| `push` | Envoie une ou plusieurs images générées ou dont la balise a été changée |
 | `cmd` | Exécute un conteneur (une image sans préfixe de registre vient de Docker Hub) |
 | `when` | Dépendances vers des ID d'étapes ; `["-"]` = démarrer tout de suite, en parallèle |
 | `$Registry`, `$ID`, `$Date`, `$Commit`, `$Branch` | Alias des variables d'exécution `{{.Run.Registry}}`, `{{.Run.ID}}`... |
@@ -168,7 +168,7 @@ steps:
 
 App Service exécute un conteneur personnalisé Linux tiré d'un registre et ajoute ce dont une API web a besoin : TLS, domaines personnalisés, emplacements de déploiement, authentification et mise à l'échelle automatique du plan. Il convient à **un conteneur HTTP** (plus d'éventuels sidecars), pas à une mise à l'échelle pilotée par les événements jusqu'à zéro.
 
-**Tirer l'image d'ACR avec une identité managée**, la méthode recommandée (un principal de service n'est plus pris en charge pour le tirage d'images) :
+**Tirer l'image d'ACR avec une identité managée**, la méthode recommandée pour les conteneurs Linux et Windows (un principal de service n'est plus pris en charge pour le tirage d'images de conteneurs Windows) :
 
 ```bash
 az webapp identity assign --resource-group rg-rag --name app-rag-api \
@@ -192,7 +192,7 @@ Le registre doit accepter les jetons d'audience ARM (`az acr config authenticati
 | Paramètre | Effet |
 | --- | --- |
 | Paramètres d'application | Injectés dans le conteneur comme **variables d'environnement** ; en modifier un redémarre l'application |
-| `WEBSITES_PORT` | Port d'écoute du conteneur quand ce n'est pas 80 ; un seul port HTTP est exposé |
+| `WEBSITES_PORT` | Port d'écoute du conteneur quand ce n'est pas 80 ; un seul port HTTP est exposé ; non injecté dans le conteneur |
 | `WEBSITES_ENABLE_APP_SERVICE_STORAGE` | `true` = `/home` persiste entre les redémarrages et est partagé par les instances ; **désactivé par défaut** pour les conteneurs personnalisés |
 | `DOCKER_REGISTRY_SERVER_*` | Informations d'identification du registre ; non exposées à l'application |
 
@@ -234,9 +234,9 @@ az webapp log config --resource-group rg-rag --name app-rag-api \
 az webapp log tail --resource-group rg-rag --name app-rag-api
 ```
 
-Le terminal SSH du navigateur et `az webapp exec` passent par Kudu et ne demandent aucun serveur SSH dans l'image, mais ils ont besoin d'un shell (`/bin/bash` pour le terminal du navigateur) : les images distroless ne peuvent pas ouvrir de session. Les journaux de la plateforme (Docker) sont activés par défaut et disponibles aussi à `https://<app>.scm.azurewebsites.net/api/logs/docker`.
+Le terminal SSH du navigateur et la commande `az webapp exec` (en préversion) passent par Kudu et ne demandent aucun serveur SSH dans l'image, mais ils ont besoin d'un shell (`/bin/bash` pour le terminal du navigateur ; `az webapp exec --shell` peut en utiliser un autre, comme `/bin/sh`) : les images distroless ne peuvent pas ouvrir de session. Les journaux de la plateforme (Docker) sont activés par défaut et disponibles aussi à `https://<app>.scm.azurewebsites.net/api/logs/docker`.
 
-**Plusieurs conteneurs :** ajoutez jusqu'à neuf conteneurs **sidecar** à côté du conteneur principal (Centre de déploiement > Conteneurs), par exemple un collecteur OpenTelemetry ; les paramètres d'application sont visibles par tous les conteneurs. Les applications multiconteneurs Docker Compose sont mises hors service le 31 mars 2027 et remplacées par les sidecars.
+**Plusieurs conteneurs :** ajoutez jusqu'à neuf conteneurs **sidecar** à côté du conteneur principal (Centre de déploiement > Conteneurs), par exemple un collecteur OpenTelemetry ; les paramètres d'application sont visibles par tous les conteneurs, et chaque conteneur peut aussi avoir ses propres variables d'environnement. Dans une application avec sidecars, `WEBSITES_PORT` et les paramètres `DOCKER_REGISTRY_SERVER_*` ne s'appliquent pas : chaque conteneur écoute sur son propre port, et seuls les ports 80 et 8080 reçoivent le trafic HTTP externe. Les applications multiconteneurs Docker Compose sont mises hors service le 31 mars 2027 et remplacées par les sidecars.
 
 | Exigence | Service |
 | --- | --- |
@@ -247,9 +247,9 @@ Le terminal SSH du navigateur et `az webapp exec` passent par Kudu et ne demande
 <!-- section: key-points -->
 ## Points clés
 
-- Déployez avec une étiquette unique ou une synthèse, jamais une étiquette mobile ; verrouillez les images déployées avec `--write-enabled false`.
-- Premium uniquement : géoréplication, points de terminaison privés, stratégie de rétention des manifestes non étiquetés, pools d'agents dédiés. La redondance de zone est activée par défaut pour tous les niveaux.
+- Déployez avec une balise unique ou une synthèse, jamais une balise mobile ; verrouillez les images déployées avec `--write-enabled false`.
+- Premium uniquement : géoréplication, points de terminaison privés, stratégie de rétention des manifestes non balisés, pools d'agents dédiés. La redondance de zone est activée par défaut pour tous les niveaux.
 - Utilisateur administrateur désactivé par défaut ; les services tirent les images avec une identité managée qui détient AcrPull (ou Container Registry Repository Reader sur un registre ABAC).
 - `az acr build` = build et push dans Azure sans Docker ; `az acr task create` ajoute les déclencheurs de commit, d'image de base et de minuteur (cron UTC) ; le YAML multiétape enchaîne `build`, `cmd`, `push`.
-- App Service : les paramètres d'application deviennent des variables d'environnement, `WEBSITES_PORT` pour un port autre que 80, `acrUseManagedIdentityCreds` pour tirer l'image avec l'identité.
+- App Service : les paramètres d'application deviennent des variables d'environnement, `WEBSITES_PORT` pour un port autre que 80 (pas dans une application avec sidecars, qui reçoit le trafic externe sur le port 80 ou 8080), `acrUseManagedIdentityCreds` pour tirer l'image avec l'identité.
 - Les références Key Vault `@Microsoft.KeyVault(...)` exigent l'identité de l'application avec Key Vault Secrets User ; les références sans version suivent la rotation sous 24 heures.

@@ -24,7 +24,7 @@ Le flux de travail comporte cinq étapes :
 | **Examiner** | Un **cas** rassemble l'activité de l'utilisateur, le contenu lié et les notes de cas |
 | **Action** | Envoyer un rappel à l'utilisateur, ou transmettre le cas à eDiscovery pour une investigation juridique |
 
-Modèles de stratégie à reconnaître : **vol de données par des utilisateurs sortants** (utilise un connecteur RH pour savoir qui part), **fuites de données**, **violations de stratégie de sécurité** (utilise les signaux de Microsoft Defender pour point de terminaison), **utilisation risquée de l'IA**, **utilisation abusive des données des patients**.
+Modèles de stratégie à reconnaître : **vol de données par des utilisateurs sortants** (déclenché par une date de démission ou de fin de contrat issue d'un connecteur RH, ou par la suppression du compte Microsoft Entra de l'utilisateur), **fuites de données**, **violations de stratégie de sécurité** (utilise les signaux de Microsoft Defender pour point de terminaison), **utilisation risquée de l'IA**. L'**utilisation abusive des données des patients** est encore en préversion.
 
 > **Piège d'examen.** La DLP regarde le **contenu** et bloque une action au moment où elle se produit. La gestion des risques internes regarde le **comportement d'un utilisateur** dans la durée et émet des alertes en vue d'une investigation : son but est de détecter et d'examiner, pas de bloquer.
 

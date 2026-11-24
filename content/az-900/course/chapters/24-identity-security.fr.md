@@ -27,7 +27,7 @@ L'**authentification** établit qui est une personne, un service ou un appareil.
 | **Authentification multifacteur** (MFA) | Une preuve supplémentaire à la connexion, venant d'au moins deux catégories : quelque chose que vous **savez** (mot de passe), que vous **possédez** (téléphone, clé matérielle), que vous **êtes** (empreinte, visage) | Un mot de passe volé ne suffit plus |
 | **Sans mot de passe** (passwordless) | Le mot de passe est remplacé par quelque chose que vous possédez, plus quelque chose que vous êtes ou savez | Plus pratique et plus sûr qu'un mot de passe |
 
-Options sans mot de passe dans Microsoft Entra ID : **Windows Hello Entreprise** (biométrie ou code PIN liés à un appareil), l'application **Microsoft Authenticator**, et les **clés de sécurité FIDO2** ou clés d'accès.
+Options sans mot de passe dans Microsoft Entra ID : **Windows Hello Entreprise** (biométrie ou code PIN liés à un appareil), l'application **Microsoft Authenticator**, et les **clés de sécurité FIDO2** ou clés d'accès. Les clés d'accès sont soit **liées à l'appareil** (une clé de sécurité FIDO2 ou Microsoft Authenticator), recommandées pour les secteurs très réglementés et les utilisateurs privilégiés, soit **synchronisées** (Apple iCloud Keychain, Google Password Manager), pour la plupart des autres utilisateurs.
 
 <!-- section: external-identities | objectives: 2.4.3 -->
 ## Identités externes

@@ -93,7 +93,7 @@ RDP Shortpath ajoute un transport UDP entre le client et l'hôte de session, ave
 
 Règles à connaître :
 
-- Dans le pool d'hôtes, chaque option se trouve sur la page **Mise en réseau > RDP Shortpath** et vaut **Activé** par défaut. UDP est activé par défaut dans Windows sur les hôtes et les clients.
+- Dans le pool d'hôtes, chaque option se trouve sur la page **Mise en réseau > RDP Shortpath** et vaut **Default**, ce qui équivaut à activé. UDP est activé par défaut dans Windows sur les hôtes et les clients.
 - Si le paramètre du pool d'hôtes et celui de l'hôte de session se contredisent, le **plus restrictif** l'emporte.
 - L'écouteur des réseaux gérés exige la stratégie **Enable RDP Shortpath for managed networks** (Modèles d'administration > Composants Windows > Services Bureau à distance > Hôte de session Bureau à distance > Azure Virtual Desktop), le port entrant autorisé dans le Pare-feu Windows et les NSG, puis un redémarrage.
 - Quand les chemins gérés et publics sont tous deux possibles, la première connexion établie l'emporte ; c'est généralement le chemin géré.

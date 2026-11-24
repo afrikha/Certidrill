@@ -32,7 +32,7 @@ Les **étiquettes de service** sont des groupes de préfixes d'adresses tenus à
 
 | Étiquette | Représente |
 | --- | --- |
-| `VirtualNetwork` | L'espace d'adressage du réseau virtuel, des réseaux **appairés** et des réseaux **locaux** connectés par une passerelle |
+| `VirtualNetwork` | L'espace d'adressage du réseau virtuel, des réseaux reliés par **peering** et des réseaux **locaux** connectés par une passerelle |
 | `Internet` | Les adresses publiques extérieures au réseau virtuel, y compris les adresses publiques d'Azure |
 | `AzureLoadBalancer` | La source des sondes d'intégrité (168.63.129.16) |
 | `Storage`, `Sql`, `AzureKeyVault`... | Les adresses d'un service ; limitables à une région : `Storage.WestEurope` |
@@ -85,12 +85,12 @@ Prérequis d'un déploiement dédié (Basic et supérieurs) :
 
 - Un sous-réseau nommé exactement **`AzureBastionSubnet`**, en **/26 ou plus grand**, dans le réseau virtuel.
 - Une **adresse IP publique Standard statique** pour l'hôte bastion (sauf déploiement Premium privé uniquement).
-- Un seul Bastion dessert les machines de son réseau virtuel et des réseaux virtuels **appairés**.
+- Un seul Bastion dessert les machines de son réseau virtuel et des réseaux virtuels **directement reliés par peering**, y compris par des peerings entre abonnements du **même locataire Microsoft Entra** (pas entre deux locataires). Le peering n'est pas transitif : un réseau relié seulement à un pair du réseau du bastion n'est pas atteint.
 
 | SKU | Ce qu'il ajoute |
 | --- | --- |
 | **Developer** | Gratuit, infrastructure partagée, **ni sous-réseau dédié ni IP publique**, une connexion à la fois, pas de prise en charge du peering |
-| **Basic** | Hôte dédié (2 instances), connexions par le portail, réseaux appairés, clés SSH Linux depuis Key Vault |
+| **Basic** | Hôte dédié (2 instances), connexions par le portail, réseaux reliés par peering, clés SSH Linux depuis Key Vault |
 | **Standard** | Mise à l'échelle de l'hôte (2 à 50 instances), **client natif** (`az network bastion rdp` / `ssh` / `tunnel`), **transfert de fichiers**, **connexion basée sur IP** (machines locales), **liens partageables**, ports personnalisés, RDP vers Linux et SSH vers Windows |
 | **Premium** | **Enregistrement des sessions**, déploiement **privé uniquement** |
 
@@ -98,7 +98,7 @@ Un SKU peut être mis à niveau sur place, pas rétrogradé.
 
 Si un NSG est associé à `AzureBastionSubnet`, il doit autoriser en entrée le port 443 depuis `Internet` et `GatewayManager` ainsi que depuis `AzureLoadBalancer`, plus les ports internes de Bastion et les règles sortantes requises. Sur les sous-réseaux cibles, autorisez 3389 et 22 **depuis la plage d'AzureBastionSubnet**.
 
-Pour se connecter, un utilisateur a besoin du rôle Reader sur la machine virtuelle, sur son interface réseau et sur la ressource Bastion.
+Pour se connecter, un utilisateur a besoin du rôle Reader sur la machine virtuelle, sur son interface réseau (celle qui porte l'adresse IP privée) et sur la ressource Bastion, plus **Reader sur le réseau virtuel de la machine cible quand le bastion est dans un réseau virtuel relié par peering**.
 
 > **Piège d'examen.** Une machine de rebond avec IP publique, une règle NAT d'équilibreur de charge public ou une règle de NSG limitée à l'IP d'un bureau exposent toutes un port sur internet. Quand l'exigence dit « aucune adresse IP publique sur les machines virtuelles » et « depuis le portail Azure », la réponse est Azure Bastion.
 
@@ -116,9 +116,9 @@ Ce qu'un point de terminaison de service est, et n'est pas :
 
 - Le service garde son **adresse IP publique** et son nom DNS public ; rien ne change dans le DNS.
 - L'adresse source vue par le service devient l'adresse **privée** de la machine : les règles IP existantes fondées sur l'ancienne adresse publique ne correspondent plus.
-- Il ne fonctionne que depuis le sous-réseau : **pas depuis le réseau local**, ni depuis les réseaux appairés (activez-le aussi sur leurs sous-réseaux).
+- Il ne fonctionne que depuis le sous-réseau : **pas depuis le réseau local**, ni depuis les réseaux reliés par peering (activez-le aussi sur leurs sous-réseaux).
 - **Aucun coût supplémentaire.**
-- Pour Azure SQL Database (`Microsoft.Sql`), le réseau virtuel doit être dans la même région que le serveur ; la plupart des autres services acceptent des sous-réseaux de toute région.
+- Pour Azure SQL Database (`Microsoft.Sql`), chaque sous-réseau référencé par une règle de réseau virtuel doit être dans la même région que le serveur. Le sous-réseau peut appartenir à un **autre abonnement** seulement si les deux abonnements sont dans le **même locataire Microsoft Entra** et ont tous deux le fournisseur de ressources `Microsoft.Sql` inscrit.
 - Une **stratégie de point de terminaison de service** (Stockage Azure) limite le sous-réseau aux seuls comptes de stockage listés, pour empêcher l'exfiltration de données vers d'autres comptes.
 
 ```bash
@@ -135,7 +135,7 @@ Un **point de terminaison privé** est une interface réseau dotée d'une **adre
 | --- | --- | --- |
 | Adresse du service | Publique | **Privée**, dans votre sous-réseau |
 | Portée | Tout le service ; filtré par le pare-feu de la ressource | **Une ressource**, une sous-ressource |
-| Depuis le réseau local (VPN, ExpressRoute) et les réseaux appairés | Non | **Oui** |
+| Depuis le réseau local (VPN, ExpressRoute) et les réseaux reliés par peering | Non | **Oui** |
 | Changement DNS | Aucun | **Obligatoire** (zone DNS privée) |
 | Accès public désactivable | Non | Oui |
 | Coût | Gratuit | Facturé à l'heure et au Go |
@@ -143,11 +143,11 @@ Un **point de terminaison privé** est une interface réseau dotée d'une **adre
 Points testés :
 
 - Un point de terminaison privé par **sous-ressource** : `blob`, `file`, `dfs`, `web` pour le stockage ; `vault` pour Key Vault ; `sqlServer` pour Azure SQL ; `sites` pour App Service.
-- **DNS.** Le nom public devient un CNAME vers un nom `privatelink` : `stor1.blob.core.windows.net` → `stor1.privatelink.blob.core.windows.net`. Une **zone DNS privée** `privatelink.blob.core.windows.net`, **liée à chaque réseau virtuel qui doit résoudre le nom**, renvoie l'adresse IP privée. Les clients gardent la même URL et la même chaîne de connexion. Depuis le réseau local, le DNS local doit transférer ces noms vers Azure (redirecteur DNS ou Azure DNS Private Resolver).
+- **DNS.** Le nom public devient un CNAME vers un nom `privatelink` : `stor1.blob.core.windows.net` → `stor1.privatelink.blob.core.windows.net`. Une **zone DNS privée** `privatelink.blob.core.windows.net`, **liée à chaque réseau virtuel qui doit résoudre le nom**, renvoie l'adresse IP privée. Les clients gardent la même URL et la même chaîne de connexion. Depuis le réseau local, le serveur DNS local a besoin d'un **redirecteur conditionnel** pour ces noms, qui cible l'adresse IP du **point de terminaison entrant** d'un Azure DNS Private Resolver (ou d'une machine virtuelle redirecteur DNS dans Azure) ; la zone doit aussi être liée au réseau virtuel où le résolveur est déployé.
 - Zones courantes : `privatelink.blob.core.windows.net`, `privatelink.file.core.windows.net`, `privatelink.vaultcore.azure.net`, `privatelink.database.windows.net`, `privatelink.azurewebsites.net`, `privatelink.azurecr.io`.
 - **Approbation.** *Automatique* si vous avez des autorisations sur la ressource ; sinon *manuelle* : la connexion reste **Pending** jusqu'à l'approbation du propriétaire de la ressource.
 - Les NSG et les tables de routage ne s'appliquent aux points de terminaison privés que si les **stratégies réseau** sont activées sur le sous-réseau.
-- Un point de terminaison privé ne ferme pas à lui seul le point de terminaison public : réglez aussi l'accès réseau public sur Désactivé.
+- Un point de terminaison privé ne ferme pas à lui seul le point de terminaison public : désactivez aussi l'accès réseau public (option **Disable** dans les paramètres réseau d'un compte de stockage).
 - Votre propre service, derrière un équilibreur de charge Standard, peut être publié avec un **service Private Link**.
 
 ```bash
@@ -163,7 +163,7 @@ az network private-dns link vnet create -g RG1 -n link-vnet1 \
 
 - Règles de NSG : priorité de 100 à 4096, la première correspondance l'emporte, avec état. Par défaut : refus de l'entrant depuis internet, autorisation à l'intérieur du réseau virtuel et en sortie.
 - Entrant : NSG du sous-réseau puis NSG de l'interface ; sortant : l'inverse ; les deux doivent autoriser.
-- `VirtualNetwork` inclut les plages appairées et locales. Les membres d'un ASG doivent être dans un seul réseau virtuel.
+- `VirtualNetwork` inclut les plages des réseaux reliés par peering et des réseaux locaux. Les membres d'un ASG doivent être dans un seul réseau virtuel.
 - Bastion : `AzureBastionSubnet` en /26, IP publique Standard ; client natif, connexion basée sur IP et liens partageables demandent Standard ; l'enregistrement des sessions demande Premium.
 - Point de terminaison de service : identité du sous-réseau, adresse publique inchangée, gratuit, pas depuis le réseau local.
 - Point de terminaison privé : adresse privée, une sous-ressource, zone DNS privée `privatelink.*` liée aux réseaux virtuels, fonctionne depuis le réseau local.

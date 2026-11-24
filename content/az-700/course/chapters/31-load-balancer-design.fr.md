@@ -35,12 +35,12 @@ Les modes de distribution, définis par règle (`loadDistribution`), se changent
 | Portail : Persistance de session | Valeur d'API | Hachage | Effet |
 | --- | --- | --- | --- |
 | None | `Default` | 5-tuple : IP source, port source, IP de destination, port de destination, protocole | Une nouvelle connexion du même client peut atteindre une autre instance |
-| Client IP | `SourceIP` | 2-tuple : IP source, IP de destination | Même IP client, même instance |
-| Client IP and protocol | `SourceIPProtocol` | 3-tuple : ajoute le protocole | Un canal de contrôle TCP et un flux de données UDP d'un même client atteignent la même instance ; corrige Passerelle des services Bureau à distance (RD Gateway) |
+| Client IP | `SourceIP` | 2-tuple : IP source, IP de destination | Même IP client, même instance, quel que soit le protocole : un canal de contrôle TCP et un flux de données UDP d'un même client (chargement multimédia) atteignent la même instance |
+| Client IP and protocol | `SourceIPProtocol` | 3-tuple : ajoute le protocole | Même IP client et même protocole, même instance : les flux TCP et UDP d'un client peuvent atteindre des instances différentes ; corrige Passerelle des services Bureau à distance (RD Gateway) |
 
-L'état administratif remplace la sonde, par instance du pool principal : **Up** toujours éligible, **Down** aucune nouvelle connexion (les flux TCP établis continuent), **None** suit la sonde. Il exige une règle d'équilibrage de charge avec sonde et n'est pas pris en charge avec les règles NAT entrantes.
+L'état administratif remplace la sonde, par instance du pool principal : **Up** toujours éligible, **Down** aucune nouvelle connexion (les flux TCP établis continuent, les flux UDP existants passent sur une autre instance saine), **None** suit la sonde. Une VM présente dans deux pools principaux garde son état dans l'autre pool. Il exige une règle d'équilibrage de charge avec sonde, n'est pas pris en charge avec les règles NAT entrantes et ne peut pas se définir pendant la création d'un pool principal basé sur les cartes réseau.
 
-Limites qui orientent une conception (Standard) : 1 500 règles (équilibrage de charge plus NAT entrantes) par équilibreur de charge, 600 configurations IP frontales, 600 règles de trafic sortant, 5 000 instances par pool principal, 300 règles par carte réseau, une règle Ports HA par adresse frontale interne.
+Limites qui orientent une conception (Standard) : 1 500 règles (équilibrage de charge plus NAT entrantes) par équilibreur de charge, 600 configurations IP frontales, 600 règles de trafic sortant, 5 000 instances par pool principal, 300 règles par carte réseau, une règle Ports HA par adresse frontale interne. Plusieurs règles Ports HA sur un même équilibreur de charge interne exigent chacune une adresse IP frontale unique et l'IP flottante activée sur toutes. La symétrie des flux n'est pas prise en charge pour des NVA placées entre un équilibreur de charge public et un interne : utilisez Gateway Load Balancer dans ce cas.
 
 > **Piège d'examen.** Load Balancer ne peut pas terminer le TLS, router selon le chemin d'URL ou le nom d'hôte, réécrire des en-têtes ni héberger un WAF. Toute exigence de couche 7 désigne Application Gateway (régional) ou Front Door (global). Les règles d'équilibrage de charge et les règles NAT entrantes ne transportent que TCP et UDP ; l'ICMP ne passe que par une règle Ports HA sur un équilibreur de charge interne.
 
@@ -59,7 +59,7 @@ Les quatre services d'équilibrage de charge diffèrent par la couche et la port
 Choisissez Load Balancer quand :
 
 - Le protocole n'est pas HTTP : SQL Server, SMTP, un service TCP personnalisé, DNS ou syslog sur UDP, jeu ou média sur UDP.
-- Un niveau doit être joignable uniquement en privé : depuis d'autres sous-réseaux, des réseaux virtuels appairés, ou l'environnement local via VPN ou ExpressRoute.
+- Un niveau doit être joignable uniquement en privé : depuis d'autres sous-réseaux, des réseaux virtuels reliés par peering, ou l'environnement local via VPN ou ExpressRoute.
 - Des appliances virtuelles réseau (pare-feu, SD-WAN) ont besoin d'une haute disponibilité actif-actif : équilibreur de charge interne avec une règle Ports HA comme tronçon suivant des itinéraires définis par l'utilisateur.
 - La latence la plus faible compte : pas de proxy, l'adresse IP du client est conservée.
 - Les VM du back-end ont besoin d'un accès internet sortant explicite via des adresses IP publiques partagées (règles de trafic sortant), quand une passerelle NAT n'est pas utilisée.
@@ -110,7 +110,7 @@ Start-AzBasicLoadBalancerUpgrade -ResourceGroupName RG1 -BasicLoadBalancerName l
 
 Le **niveau** est le second choix. **Regional** (par défaut) sert des back-ends dans une région. **Global** est un équilibreur de charge public dont le pool principal contient des équilibreurs de charge régionaux (voir la dernière section).
 
-Les zones se choisissent sur chaque adresse frontale : **redondante interzone** (servie depuis toutes les zones, survit à la panne d'une zone), **zonale** (attachée à une zone, tombe avec elle) ou sans zone dans les régions qui n'en ont pas. Pour une adresse frontale publique, c'est l'adresse IP publique qui le décide.
+Les zones se choisissent sur chaque adresse frontale : **redondante interzone** (servie depuis toutes les zones, survit à la panne d'une zone), **zonale** (attachée à une zone, tombe avec elle) ou sans zone dans les régions qui n'en ont pas. Pour une adresse frontale publique, c'est l'adresse IP publique qui le décide. Learn recommande des adresses frontales redondantes interzone pour toutes les charges de travail, même celles déployées dans une seule zone. Pour changer la configuration de zone, créez une nouvelle configuration IP frontale, déplacez-y les règles et supprimez l'ancienne : les clients doivent utiliser la nouvelle adresse.
 
 > **Piège d'examen.** Des VM placées derrière un nouvel équilibreur de charge Standard ne répondent pas tant qu'un NSG sur leur sous-réseau ou leur carte réseau n'autorise pas le trafic des clients. La règle par défaut `AllowAzureLoadBalancerInBound` laisse entrer la sonde d'intégrité, pas les clients.
 
@@ -122,7 +122,7 @@ Le type d'adresse frontale fixe le type d'équilibreur de charge :
 | | Équilibreur de charge public | Équilibreur de charge interne |
 | --- | --- | --- |
 | Adresse frontale | Adresse IP publique Standard (un préfixe d'adresses IP publiques uniquement pour les règles de trafic sortant) | Adresse IP privée d'un sous-réseau du réseau virtuel |
-| Joignable depuis | Internet (sous réserve des NSG) | Le réseau virtuel, les réseaux virtuels appairés (y compris en peering global), l'environnement local via VPN ou ExpressRoute. Jamais depuis internet |
+| Joignable depuis | Internet (sous réserve des NSG) | Le réseau virtuel, les réseaux virtuels reliés par peering (y compris en peering global), l'environnement local via VPN ou ExpressRoute. Jamais depuis internet |
 | Usage type | Service exposé à internet, réacheminement de port, SNAT sortant pour les back-ends | Niveau application ou données, application métier utilisée depuis l'environnement local, haute disponibilité des NVA avec Ports HA |
 | Ports HA | Non | Oui |
 | Connectivité sortante des back-ends | Par les règles de trafic sortant | Aucune : ajoutez une passerelle NAT, des adresses IP publiques au niveau de l'instance ou un équilibreur de charge public sortant uniquement |

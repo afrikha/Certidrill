@@ -9,7 +9,7 @@ Parmi les éléments d'ingénierie des données pris en charge par Git figurent 
 
 | Élément | Stocké dans Git | Non stocké |
 | --- | --- | --- |
-| Lakehouse | Métadonnées (nom, description, métadonnées du point de terminaison d'analytique SQL) et définitions des **raccourcis** OneLake (`shortcuts.metadata.json`) | Tables et fichiers : les données sont préservées par toutes les opérations Git |
+| Lakehouse | Métadonnées (nom, description, métadonnées du point de terminaison d'analytique SQL) et définitions des **raccourcis** OneLake (`shortcuts.metadata.json`) ; les types d'objets suivis se choisissent dans **Lakehouse settings** (enregistrés dans `alm.settings.json`, tous les types en disponibilité générale sélectionnés pour un nouveau lakehouse) | Tables et fichiers : les données sont préservées par toutes les opérations Git |
 | Notebook, pipeline, définition de travail Spark, environnement | La définition de l'élément (code, activités, paramètres) | L'historique des exécutions |
 | Entrepôt | Un **projet de base de données** : un fichier T-SQL par objet | Les données des tables |
 | Base de données SQL | Un dossier de projet SQL (`<name>.SQLDatabase`) avec un fichier `.sql` par objet | Les données, le classement (collation) et le niveau de compatibilité |
@@ -41,12 +41,12 @@ Fonctionnement de la synchronisation :
 | Conflict | Modifié des deux côtés |
 | Unsupported item | Ne peut pas être versionné |
 
-> **Piège d'examen.** L'intégration Git ne déplace jamais les données d'un lakehouse. Un nouvel espace de travail synchronisé depuis Git obtient un lakehouse **vide** avec ses définitions de raccourcis ; les raccourcis OneLake dont la cible n'existe pas dans cet espace de travail restent invalides tant que la cible n'est pas créée.
+> **Piège d'examen.** L'intégration Git ne déplace jamais les données d'un lakehouse. Un nouvel espace de travail synchronisé depuis Git obtient un lakehouse **vide** avec ses définitions de raccourcis ; les raccourcis OneLake dont la cible n'existe pas dans cet espace de travail sont invalides (dans la section Tables, ils passent dans **Unidentified**) tant que la cible n'est pas créée. Une mise à jour crée, modifie ou supprime aussi les raccourcis de l'espace de travail pour correspondre à la branche.
 
 <!-- section: database-projects | objectives: 1.2.2 -->
 ## Les projets de base de données
 
-Un **projet de base de données** (projet SQL) décrit le schéma d'une base de manière déclarative : un script `CREATE` par table, vue, fonction ou procédure, plus un fichier `.sqlproj`. La génération (build) du projet valide le T-SQL et produit un **.dacpac** ; la publication compare le .dacpac à la cible et génère les instructions `ALTER` nécessaires. Dans Fabric, les projets de base de données s'appliquent à l'**entrepôt** et à la **base de données SQL** (les projets d'entrepôt sont en préversion).
+Un **projet de base de données** (projet SQL) décrit le schéma d'une base de manière déclarative : un script `CREATE` par table, vue, fonction ou procédure, plus un fichier `.sqlproj`. La génération (build) du projet valide le T-SQL et produit un **.dacpac** ; la publication compare le .dacpac à la cible et génère les instructions `ALTER` nécessaires. Dans Fabric, les projets de base de données s'appliquent à la **base de données SQL** (plateforme cible SQL database in Microsoft Fabric ; les projets de style SDK sont en disponibilité générale dans Visual Studio Code) et à l'**entrepôt**, où les projets d'entrepôt sont encore **en préversion**.
 
 Développer un projet d'entrepôt dans Visual Studio Code demande le **SDK .NET**, les extensions **SQL Database Projects** et **SQL Server (mssql)**, et le rôle Contributor ou plus sur l'entrepôt.
 
@@ -74,8 +74,8 @@ Propriétés de déploiement du profil de publication :
 
 | Propriété | Effet | Recommandation |
 | --- | --- | --- |
-| `BlockOnPossibleDataLoss` | Arrête le déploiement si un changement peut perdre des données (suppression d'une colonne, type réduit) | `True` en production |
-| `DropObjectsNotInSource` | Supprime les objets de la cible absents du projet | Développement et test uniquement |
+| `BlockOnPossibleDataLoss` | Arrête le déploiement si un changement peut perdre des données (suppression d'une colonne, type réduit) | `True` par défaut : ne jamais le passer à `False` en production |
+| `DropObjectsNotInSource` | Supprime les objets de la cible absents du projet | `False` par défaut ; l'activer en développement et en test uniquement |
 | Script de prédéploiement | S'exécute avant les changements de schéma | Scripts idempotents |
 | Script de post-déploiement | S'exécute après les changements de schéma, par exemple pour charger des données de référence avec `MERGE` | Évitez les opérations lourdes sur de grandes tables de production |
 
@@ -101,7 +101,7 @@ Pour une **base de données SQL** dans Fabric, l'intégration Git stocke la base
 <!-- section: deployment-pipelines | objectives: 1.2.3 -->
 ## Les pipelines de déploiement
 
-Un pipeline de déploiement comporte **2 à 10 phases** (3 par défaut : Development, Test, Production), et chaque phase est **un espace de travail** sur une capacité Fabric. Le nombre et les noms des phases ne peuvent plus être modifiés après la création. Déployer copie les éléments sélectionnés vers la phase suivante et **écrase** les éléments appariés ; un élément garde son ID, son URL et ses autorisations dans la cible. Un déploiement contient au plus **300 éléments**.
+Un pipeline de déploiement comporte **2 à 10 phases** (3 par défaut : Development, Test, Production), et chaque phase est **un espace de travail** sur une capacité Fabric ; un espace de travail ne peut être attribué qu'à un seul pipeline de déploiement. Le nombre et les noms des phases ne peuvent plus être modifiés après la création. Déployer copie les éléments sélectionnés vers la phase suivante et **écrase** les éléments appariés ; un élément garde son ID, son URL et ses autorisations dans la cible. Un déploiement contient au plus **300 éléments**.
 
 | Copié | Non copié |
 | --- | --- |
@@ -113,7 +113,7 @@ Les éléments d'ingénierie des données dans un pipeline :
 
 | Élément | Comportement au déploiement |
 | --- | --- |
-| Lakehouse | Un lakehouse **vide** du même nom est créé dans la cible ; ses raccourcis sont déployés. Les raccourcis vers des cibles **externes** (ADLS Gen2, S3) gardent la même cible ; les raccourcis **OneLake** sont remappés vers la phase cible, mais les tables et dossiers cibles doivent y exister |
+| Lakehouse | Un lakehouse **vide** du même nom est créé dans la cible ; ses raccourcis sont déployés. Les raccourcis vers des cibles **externes** (ADLS Gen2, S3) gardent la même cible ; les raccourcis **OneLake** sont remappés vers la phase cible, mais les tables et dossiers cibles doivent y exister. Le déploiement remplace les raccourcis de la cible : ils sont créés, modifiés ou supprimés pour correspondre à la source, donc les modifications manuelles faites dans la cible sont perdues |
 | Notebook, définition de travail Spark | Les références à un lakehouse de la phase sont **remappées** vers le lakehouse de la phase cible ; une **règle de lakehouse par défaut** désigne un autre lakehouse |
 | Entrepôt | Définition déployée, données non copiées |
 | Tout élément qui dépend d'un autre | Lié à la copie de la même phase ; si la dépendance n'est pas dans la cible, le déploiement échoue : utilisez **Select related** |
@@ -153,7 +153,7 @@ Choisir l'outil :
 ## Points clés
 
 - Git : un espace de travail, une branche, un dossier ; l'Admin connecte ; Contributor fait les commits et les mises à jour ; Update récupère toute la branche ; les données et tables d'un lakehouse ne vont jamais dans Git, seulement les métadonnées et les raccourcis.
-- Projets de base de données : style SDK, plateforme cible Synapse Data Warehouse in Microsoft Fabric ; le build produit un .dacpac ; Generate Script pour relire, Publish pour appliquer ; `BlockOnPossibleDataLoss` en production ; scripts de prédéploiement et de post-déploiement.
+- Projets de base de données : style SDK ; base de données SQL dans Fabric (disponibilité générale) ou entrepôt (plateforme cible Synapse Data Warehouse in Microsoft Fabric, préversion) ; le build produit un .dacpac ; Generate Script pour relire, Publish pour appliquer ; `BlockOnPossibleDataLoss` reste à `True` (sa valeur par défaut) en production ; scripts de prédéploiement et de post-déploiement.
 - Pipelines de déploiement : 2 à 10 phases, un espace de travail chacune, 300 éléments par déploiement, métadonnées uniquement ; les lakehouses arrivent vides ; liaison automatique à l'intérieur de la phase.
 - Les règles se trouvent dans la phase cible, sont créées par le propriétaire de l'élément et s'appliquent au déploiement suivant ; règle de lakehouse par défaut pour les notebooks ; bibliothèques de variables pour le reste.
 - Déployer demande Admin du pipeline plus Contributor sur les deux espaces de travail.

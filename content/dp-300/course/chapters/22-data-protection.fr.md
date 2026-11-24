@@ -22,7 +22,7 @@ TDE chiffre les fichiers de base de données, le journal des transactions et les
 | Protecteur | Certificat géré par le service ou clé gérée par le client, défini sur le **serveur** (ou par base pour SQL Database) | Clé gérée par le service ou par le client, définie sur l'instance | Certificat dans `master`, ou clé asymétrique par EKM (connecteur Azure Key Vault) |
 | Activer ou désactiver | Portail, PowerShell, CLI | T-SQL `ALTER DATABASE ... SET ENCRYPTION` | T-SQL |
 
-TDE géré par le service utilise un certificat propre au serveur, renouvelé par Microsoft. **TDE géré par le client (BYOK)** stocke une clé RSA ou RSA-HSM (2 048 ou 3 072 bits) dans Azure Key Vault ou Azure Key Vault Managed HSM :
+TDE géré par le service utilise un certificat propre au serveur, renouvelé par Microsoft. **TDE géré par le client (BYOK)** utilise une clé d'Azure Key Vault ou d'Azure Key Vault Managed HSM : une clé RSA ou RSA-HSM de 2 048 ou 3 072 bits (le seul type pour SQL Managed Instance) ou, pour Azure SQL Database uniquement, une clé symétrique AES de 128, 192 ou 256 bits dans Key Vault Premium ou Managed HSM (AES-256 est recommandée pour les nouveaux protecteurs) :
 
 1. Le coffre de clés doit avoir la **suppression réversible et la protection contre le vidage** activées, sinon la configuration échoue.
 2. Le serveur ou l'instance a besoin d'une **identité managée** affectée par le système ou par l'utilisateur avec **Key Vault Crypto Service Encryption User** (modèle Azure RBAC) ou les autorisations de clé get, wrapKey et unwrapKey (modèle de stratégie d'accès).
@@ -37,7 +37,7 @@ az sql server tde-key set --resource-group RG1 --server sql-contoso \
   --kid https://kv-contoso.vault.azure.net/keys/tde-key/0123456789abcdef0123456789abcdef
 ```
 
-Si le serveur perd l'accès à la clé (autorisation révoquée, clé supprimée), la base devient **Inaccessible** après environ 30 minutes et refuse les connexions. Rétablie en moins de 30 minutes, elle se rétablit automatiquement ; au-delà, elle doit être revalidée manuellement. Conservez les anciennes versions de clé : les anciennes sauvegardes en ont encore besoin. Avec la géoréplication, les deux serveurs doivent atteindre le matériel de clé du primaire avant la création du lien ou du groupe de basculement.
+Si le serveur perd l'accès à la clé (autorisation révoquée, clé supprimée), la base commence à refuser les connexions et devient **Inaccessible** en 10 minutes au plus (30 minutes après une erreur 4XX de Key Vault ; une erreur réseau 5XX intermittente bénéficie d'un délai de 24 heures et se résout d'elle-même). Rétablie en moins de 30 minutes, elle se rétablit automatiquement. Au-delà, corrigez la cause, puis, dans la page **Transparent data encryption**, sélectionnez **Retry existing key** et **Validate key** : il faut la clé d'origine (une nouvelle version de clé ne suffit pas), et certains paramètres peuvent être perdus (groupe de basculement, étiquettes, configuration du pool élastique, scale-out en lecture, pause automatique, historique de restauration à un point dans le temps, stratégies de rétention à long terme). Conservez les anciennes versions de clé : les anciennes sauvegardes en ont encore besoin. Avec la géoréplication ou un groupe de basculement, les deux serveurs ont besoin d'autorisations sur chaque coffre de clés qui contient une clé nécessaire ; si les serveurs utilisent des clés différentes, ajoutez les deux clés aux deux serveurs avant de créer le lien ou le groupe de basculement.
 
 SQL Server sur machine virtuelle, la procédure classique :
 
@@ -164,7 +164,7 @@ CREATE TABLE HR.Employee (
 );
 ```
 
-Limites à connaître : les colonnes de chaînes en chiffrement déterministe exigent un classement `_BIN2` ; pas de comparaison avec des littéraux (utiliser des paramètres) ; non pris en charge pour `xml`, `rowversion`, `sql_variant`, les types spatiaux ou les colonnes d'identité ; pas de contraintes par défaut ou de vérification, d'index de recherche en texte intégral ni de réplication sur les colonnes chiffrées. Les groupes de disponibilité Always On sont pris en charge. Dans Azure SQL Database, accordez explicitement `VIEW ANY COLUMN MASTER KEY DEFINITION` et `VIEW ANY COLUMN ENCRYPTION KEY DEFINITION` aux utilisateurs qui interrogent des colonnes chiffrées.
+Limites à connaître : les colonnes de chaînes en chiffrement déterministe exigent un classement `_BIN2` ; pas de comparaison avec des littéraux (utiliser des paramètres) ; non pris en charge pour `xml`, `timestamp`, `rowversion`, `image`, `ntext`, `text`, `sql_variant`, `hierarchyid`, `vector`, les types spatiaux, les colonnes d'identité, calculées, éparses ou de partitionnement, ni les colonnes masquées par le masquage dynamique des données ; pas de contraintes par défaut ou de vérification, d'index de recherche en texte intégral ni de réplication sur les colonnes chiffrées ; pas de `FOR XML` ni de `FOR JSON`, de paramètres table ni de requêtes distribuées sur ces colonnes. Les groupes de disponibilité Always On sont pris en charge. Dans Azure SQL Database, accordez explicitement `VIEW ANY COLUMN MASTER KEY DEFINITION` et `VIEW ANY COLUMN ENCRYPTION KEY DEFINITION` aux utilisateurs qui interrogent des colonnes chiffrées.
 
 > **Piège d'examen.** « Les administrateurs de base de données ne doivent pas pouvoir lire les numéros de carte bancaire » élimine TDE, le masquage dynamique des données et le chiffrement au niveau des colonnes : seul Always Encrypted tient les clés hors du serveur, à condition que les DBA n'aient pas accès à la clé principale de colonne.
 
@@ -237,15 +237,15 @@ Règles des points de terminaison privés :
 - Les clients continuent d'utiliser `sql-contoso.database.windows.net` : le nom est résolu en IP privée par le DNS. Se connecter directement à l'IP ou au nom `privatelink` échoue.
 - Un point de terminaison privé ne bloque pas à lui seul l'accès public : sélectionnez **Refuser l'accès au réseau public**. Une fois l'accès refusé, les connexions publiques échouent avec l'erreur 47073, et les règles de pare-feu ne peuvent plus être modifiées (erreur 42101).
 - L'administrateur SQL approuve ou rejette les connexions en attente sous Sécurité > Mise en réseau > **Accès privé**.
-- Avec la stratégie de connexion **Redirect** (recommandée pour la latence), les clients ont besoin des ports 1433 à 65535 ; Proxy n'utilise que 1433.
+- Avec la stratégie de connexion **Redirect** (recommandée pour la latence), le trafic via un point de terminaison privé a besoin des ports 1433 à 65535, en entrée vers le réseau virtuel du point de terminaison et en sortie depuis celui du client. Seuls les pilotes ODBC, OLE DB, .NET SqlClient et JDBC 9.4 ou ultérieur sont redirigés ; les autres pilotes passent par le proxy. Proxy n'utilise que 1433, et les points de terminaison privés existants avec la stratégie **Default** utilisent Proxy.
 
-Autres paramètres réseau du serveur logique (Sécurité > Mise en réseau > Connectivité) : la **version TLS minimale** (1.2 est la plus basse encore disponible ; les clients plus anciens échouent avec l'erreur 47072) et la stratégie de connexion.
+Autres paramètres réseau du serveur logique (Sécurité > Mise en réseau > Connectivité) : la **version TLS minimale** (1.2 est la plus basse encore disponible ; les clients plus anciens échouent avec l'erreur 47072 ; la valeur par défaut accepte TLS 1.2 et ultérieur, et une fois une version imposée, impossible de revenir à la valeur par défaut) et la stratégie de connexion.
 
 Points de terminaison de SQL Managed Instance :
 
 | Point de terminaison | Adresse | Port | Usage |
 | --- | --- | --- | --- |
-| Local au réseau virtuel (par défaut) | `mi-contoso.0123abcd.database.windows.net`, IP privée du sous-réseau | 1433 | Applications du réseau virtuel ou de réseaux appairés |
+| Local au réseau virtuel (par défaut) | `mi-contoso.0123abcd.database.windows.net`, IP privée du sous-réseau | 1433 | Applications du réseau virtuel ou de réseaux connectés par peering |
 | Point de terminaison public | `mi-contoso.public.0123abcd.database.windows.net` | **3342** | Clients sur Internet ; à restreindre par une règle NSG ; trafic client uniquement |
 | Point de terminaison privé | IP fixe dans un autre réseau virtuel | 1433 | Trafic client depuis un autre réseau virtuel ; plusieurs points de terminaison par instance |
 

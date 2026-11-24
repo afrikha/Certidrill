@@ -1,0 +1,519 @@
+chapter: 32-data-modeling
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp750-qz-32-01
+    objective: "3.1.6"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys maintains **tailspin.gold.dim_store** as an SCD Type 2 dimension: when a store moves to another sales district, its current row is closed and a new version is inserted.
+
+        The fact table **tailspin.gold.fact_sales** must link each sale to the store version that was in effect when the sale occurred.
+
+        Which column of dim_store should fact_sales reference?
+      fr: |
+        Tailspin Toys gère **tailspin.gold.dim_store** comme une dimension SCD de type 2 : quand un magasin change de district commercial, sa ligne actuelle est clôturée et une nouvelle version est insérée.
+
+        La table de faits **tailspin.gold.fact_sales** doit relier chaque vente à la version du magasin en vigueur au moment de la vente.
+
+        Quelle colonne de dim_store fact_sales doit-elle référencer ?
+    body:
+      options:
+        - { id: a, text: { en: "The natural key store_code that comes from the source system", fr: "La clé naturelle store_code issue du système source" } }
+        - { id: b, text: { en: "The valid_from date of each version", fr: "La date valid_from de chaque version" } }
+        - { id: c, text: { en: "The is_current flag of each version", fr: "L'indicateur is_current de chaque version" } }
+        - { id: d, text: { en: "A surrogate key store_sk generated for each version", fr: "Une clé de substitution store_sk générée pour chaque version" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          In a type 2 dimension, one natural key has several rows, one per version. A surrogate key, for example a `BIGINT GENERATED ALWAYS AS IDENTITY` column, identifies each version, so a fact row stores the key of the version in effect when the event occurred.
+        fr: |
+          Dans une dimension de type 2, une même clé naturelle a plusieurs lignes, une par version. Une clé de substitution, par exemple une colonne `BIGINT GENERATED ALWAYS AS IDENTITY`, identifie chaque version : une ligne de faits stocke la clé de la version en vigueur au moment de l'événement.
+      options:
+        a: { en: "The natural key is shared by every version of the store, so a join on it can't tell which district was in effect.", fr: "La clé naturelle est partagée par toutes les versions du magasin : une jointure sur elle ne peut pas indiquer quel district était en vigueur." }
+        b: { en: "valid_from describes the validity period of a version; it isn't a key and isn't unique across stores.", fr: "valid_from décrit la période de validité d'une version ; ce n'est pas une clé et elle n'est pas unique d'un magasin à l'autre." }
+        c: { en: "is_current only marks the latest version of each store and identifies nothing.", fr: "is_current marque seulement la dernière version de chaque magasin et n'identifie rien." }
+    references:
+      - title: Choose a slowly changing dimension (SCD) type
+        url: https://learn.microsoft.com/en-us/training/modules/design-implement-data-modeling-unity-catalog/6-choose-slowly-changing-dimension-type
+
+  # ------------------------------------------------------------------ 2
+  - id: dp750-qz-32-02
+    objective: "3.1.10"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso registered existing Delta files as the external table **contoso.bronze.partner_orders**, with a `LOCATION` path in a Unity Catalog external location.
+
+        A data engineer runs `DROP TABLE contoso.bronze.partner_orders;`.
+
+        What happens to the table and its data files?
+      fr: |
+        Contoso a inscrit des fichiers Delta existants comme table externe **contoso.bronze.partner_orders**, avec un chemin `LOCATION` dans un emplacement externe Unity Catalog.
+
+        Un ingénieur données exécute `DROP TABLE contoso.bronze.partner_orders;`.
+
+        Qu'advient-il de la table et de ses fichiers de données ?
+    body:
+      options:
+        - { id: a, text: { en: "The table is removed from Unity Catalog, and its data files stay in storage", fr: "La table est retirée d'Unity Catalog, et ses fichiers de données restent dans le stockage" } }
+        - { id: b, text: { en: "The table is removed from Unity Catalog, and its data files are deleted at once", fr: "La table est retirée d'Unity Catalog, et ses fichiers de données sont supprimés immédiatement" } }
+        - { id: c, text: { en: "The table is removed from Unity Catalog, and its data files are deleted after 7 days", fr: "La table est retirée d'Unity Catalog, et ses fichiers de données sont supprimés au bout de 7 jours" } }
+        - { id: d, text: { en: "The table stays in Unity Catalog, and only its data files are deleted", fr: "La table reste dans Unity Catalog, et seuls ses fichiers de données sont supprimés" } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Unity Catalog doesn't manage the data files of an external table: dropping the table removes only its metadata, and the files remain at their location until someone deletes them in storage.
+        fr: |
+          Unity Catalog ne gère pas les fichiers de données d'une table externe : supprimer la table ne retire que ses métadonnées, et les fichiers restent à leur emplacement jusqu'à ce que quelqu'un les supprime dans le stockage.
+      options:
+        b: { en: "Neither table type deletes the files at once; for an external table, the files must be deleted manually.", fr: "Aucun type de table ne supprime les fichiers immédiatement ; pour une table externe, il faut supprimer les fichiers manuellement." }
+        c: { en: "Deletion after the recovery period (7 days by default) applies to managed tables, not to external ones.", fr: "La suppression après la période de récupération (7 jours par défaut) s'applique aux tables managées, pas aux tables externes." }
+        d: { en: "DROP TABLE always removes the table from the catalog; it never deletes the files of an external table.", fr: "DROP TABLE retire toujours la table du catalogue ; il ne supprime jamais les fichiers d'une table externe." }
+    references:
+      - title: Unity Catalog managed tables for Delta Lake and Apache Iceberg
+        url: https://learn.microsoft.com/en-us/azure/databricks/tables/managed
+      - title: Work with external tables
+        url: https://learn.microsoft.com/en-us/azure/databricks/tables/external
+
+  # ------------------------------------------------------------------ 3
+  - id: dp750-qz-32-03
+    objective: "3.1.8"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A faulty MERGE ran this morning on the Unity Catalog managed table **fabrikam.sales.orders**. Before choosing how to fix the data, you need the version number and the timestamp of that commit, together with its operation metrics, such as the number of rows updated.
+
+        Which statement should you run?
+      fr: |
+        Un MERGE erroné s'est exécuté ce matin sur la table managée Unity Catalog **fabrikam.sales.orders**. Avant de choisir comment corriger les données, vous avez besoin du numéro de version et de l'horodatage de cette validation, ainsi que de ses métriques d'opération, comme le nombre de lignes mises à jour.
+
+        Quelle instruction devez-vous exécuter ?
+    body:
+      options:
+        - { id: a, text: "`DESCRIBE DETAIL fabrikam.sales.orders`" }
+        - { id: b, text: "`DESCRIBE HISTORY fabrikam.sales.orders`" }
+        - { id: c, text: "`SHOW TBLPROPERTIES fabrikam.sales.orders`" }
+        - { id: d, text: "`SELECT * FROM fabrikam.sales.orders VERSION AS OF 0`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `DESCRIBE HISTORY` returns one row per write to the table, most recent first, with the version, the timestamp, the user, the operation and its metrics. You can then query or restore the version that precedes the MERGE.
+        fr: |
+          `DESCRIBE HISTORY` retourne une ligne par écriture dans la table, de la plus récente à la plus ancienne, avec la version, l'horodatage, l'utilisateur, l'opération et ses métriques. Vous pouvez ensuite interroger ou restaurer la version qui précède le MERGE.
+      options:
+        a: { en: "DESCRIBE DETAIL describes the current state of the table (format, location, size, number of files), not its commits.", fr: "DESCRIBE DETAIL décrit l'état actuel de la table (format, emplacement, taille, nombre de fichiers), pas ses validations." }
+        c: { en: "Table properties show the configuration of the table, such as its retention settings, not its history.", fr: "Les propriétés de table montrent la configuration de la table, comme ses paramètres de rétention, pas son historique." }
+        d: { en: "VERSION AS OF 0 returns the rows of the first version of the table; it gives no commit information.", fr: "VERSION AS OF 0 retourne les lignes de la première version de la table ; il ne donne aucune information de validation." }
+    references:
+      - title: Work with table history
+        url: https://learn.microsoft.com/en-us/azure/databricks/delta/history
+
+  # ------------------------------------------------------------------ 4
+  - id: dp750-qz-32-04
+    objective: "3.1.7"
+    difficulty: 2
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Northwind is creating the fact table **northwind.gold.fact_fuel_sales**. Analysts must report sales by hour of the day. Fuel prices are quoted per liter to a tenth of a cent, with three decimals (for example 1.879), and never reach 1,000.
+
+        Each column must keep the detail that the reports need.
+
+        How should you complete the statement? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind crée la table de faits **northwind.gold.fact_fuel_sales**. Les analystes doivent présenter les ventes par heure de la journée. Les prix du carburant sont cotés au litre au dixième de centime, avec trois décimales (par exemple 1,879), et n'atteignent jamais 1 000.
+
+        Chaque colonne doit conserver le niveau de détail dont les rapports ont besoin.
+
+        Comment devez-vous compléter l'instruction ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        CREATE TABLE northwind.gold.fact_fuel_sales (
+          sale_id BIGINT,
+          station_key INT,
+          sale_time [[time]],
+          unit_price [[price]],
+          liters DECIMAL(10,2)
+        );
+      slots:
+        - id: time
+          options:
+            - { id: date, text: "DATE" }
+            - { id: ts, text: "TIMESTAMP" }
+            - { id: int, text: "INT" }
+        - id: price
+          options:
+            - { id: d62, text: "DECIMAL(6,2)" }
+            - { id: d63, text: "DECIMAL(6,3)" }
+            - { id: d33, text: "DECIMAL(3,3)" }
+            - { id: d60, text: "DECIMAL(6,0)" }
+    answer:
+      values: { time: ts, price: d63 }
+    explanation:
+      correct:
+        en: |
+          A `TIMESTAMP` keeps the time of day that the hourly reports need; a `DATE` loses it for good. In `DECIMAL(p,s)`, the scale `s` must match the smallest unit reported: three digits after the decimal point, with a precision of 6 that leaves three digits for the integer part.
+        fr: |
+          Un `TIMESTAMP` conserve l'heure de la journée dont les rapports horaires ont besoin ; un `DATE` la perd définitivement. Dans `DECIMAL(p,s)`, l'échelle `s` doit correspondre à la plus petite unité présentée : trois chiffres après la virgule, avec une précision de 6 qui laisse trois chiffres pour la partie entière.
+      options:
+        date: { en: "A DATE column has no time of day, so sales can't be reported by hour.", fr: "Une colonne DATE n'a pas d'heure : les ventes ne peuvent pas être présentées par heure." }
+        d62: { en: "A scale of 2 rounds prices to the cent and loses the tenth of a cent.", fr: "Une échelle de 2 arrondit les prix au centime et perd le dixième de centime." }
+        d33: { en: "DECIMAL(3,3) keeps no digit for the integer part, so it can't store 1.879.", fr: "DECIMAL(3,3) ne garde aucun chiffre pour la partie entière : il ne peut pas stocker 1,879." }
+    references:
+      - title: Choose granularity on a column or table based on requirements
+        url: https://learn.microsoft.com/en-us/training/modules/design-implement-data-modeling-unity-catalog/9-choose-granularity
+      - title: DECIMAL type
+        url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/data-types/decimal-type
+
+  # ------------------------------------------------------------------ 5
+  - id: dp750-qz-32-05
+    objective: "3.1.9"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has a 6 TB unpartitioned Delta table named **litware.crm.contacts**. Neither deletion vectors nor auto compaction are enabled on the table. Every 15 minutes, a MERGE updates a few hundred rows spread across thousands of data files, and each run rewrites every file that contains a matched row. All compute runs Databricks Runtime 17.3 LTS.
+
+        You need to reduce the amount of data that each MERGE rewrites.
+
+        What should you do?
+      fr: |
+        Litware dispose d'une table Delta non partitionnée de 6 To nommée **litware.crm.contacts**. Ni les vecteurs de suppression ni le compactage automatique ne sont activés sur la table. Toutes les 15 minutes, un MERGE met à jour quelques centaines de lignes réparties dans des milliers de fichiers de données, et chaque exécution réécrit tous les fichiers qui contiennent une ligne correspondante. Tout le calcul exécute Databricks Runtime 17.3 LTS.
+
+        Vous devez réduire la quantité de données que chaque MERGE réécrit.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Run OPTIMIZE with ZORDER BY on the merge key every hour.", fr: "Exécuter OPTIMIZE avec ZORDER BY sur la clé de fusion toutes les heures." } }
+        - { id: b, text: { en: "Set the delta.autoOptimize.autoCompact property to true.", fr: "Définir la propriété delta.autoOptimize.autoCompact sur true." } }
+        - { id: c, text: { en: "Set the delta.enableDeletionVectors property to true.", fr: "Définir la propriété delta.enableDeletionVectors sur true." } }
+        - { id: d, text: { en: "Partition the table by the merge key.", fr: "Partitionner la table par la clé de fusion." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          With deletion vectors, `DELETE`, `UPDATE` and `MERGE` mark the changed rows as removed in a small file and write only the new row versions, instead of rewriting every Parquet file that contains a matched row. Readers apply the deletion vectors on the fly, and `OPTIMIZE` or auto compaction applies them physically later.
+        fr: |
+          Avec les vecteurs de suppression, `DELETE`, `UPDATE` et `MERGE` marquent les lignes modifiées comme supprimées dans un petit fichier et n'écrivent que les nouvelles versions des lignes, au lieu de réécrire chaque fichier Parquet qui contient une ligne correspondante. Les lecteurs appliquent les vecteurs de suppression à la volée, et `OPTIMIZE` ou le compactage automatique les appliquent physiquement plus tard.
+      options:
+        a: { en: "Z-ordering co-locates rows to improve data skipping, but a MERGE without deletion vectors still rewrites each file it touches, and Z-ordering itself rewrites data.", fr: "L'ordre Z regroupe les lignes pour améliorer le saut de données, mais un MERGE sans vecteurs de suppression réécrit toujours chaque fichier touché, et l'ordre Z réécrit lui-même des données." }
+        b: { en: "Auto compaction combines small files after a write; each MERGE still rewrites every file that contains a matched row.", fr: "Le compactage automatique combine les petits fichiers après une écriture ; chaque MERGE réécrit toujours tous les fichiers qui contiennent une ligne correspondante." }
+        d: { en: "A high-cardinality key would over-partition the table, and the files of each partition would still be rewritten.", fr: "Une clé à cardinalité élevée surpartitionnerait la table, et les fichiers de chaque partition seraient toujours réécrits." }
+    references:
+      - title: Deletion vectors in Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/delta/deletion-vectors
+
+  # ------------------------------------------------------------------ 6
+  - id: dp750-qz-32-06
+    objective: "3.1.7"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Fabrikam collects vibration, temperature and energy readings from its factory machines into the **fabrikam.iot** schema. Each requirement below is served by its own table.
+
+        For each requirement, you must store the coarsest grain that still meets it, to minimize storage.
+
+        Which grain should you use for each requirement? To answer, drag the appropriate grains to the correct requirements. Each grain may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam collecte les relevés de vibration, de température et d'énergie de ses machines d'usine dans le schéma **fabrikam.iot**. Chaque exigence ci-dessous est servie par sa propre table.
+
+        Pour chaque exigence, vous devez stocker la granularité la plus grossière qui y répond encore, afin de réduire au minimum le stockage.
+
+        Quelle granularité devez-vous utiliser pour chaque exigence ? Pour répondre, faites glisser les granularités appropriées vers les exigences correspondantes. Chaque granularité peut être utilisée une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: event, text: { en: "Each reading, with a millisecond timestamp", fr: "Chaque relevé, avec un horodatage à la milliseconde" } }
+        - { id: second, text: { en: "Per-second aggregate", fr: "Agrégat par seconde" } }
+        - { id: minute, text: { en: "Per-minute aggregate", fr: "Agrégat par minute" } }
+        - { id: hour, text: { en: "Hourly aggregate", fr: "Agrégat horaire" } }
+        - { id: day, text: { en: "Daily aggregate", fr: "Agrégat quotidien" } }
+      targets:
+        - { id: spikes, text: { en: "Count the vibration spikes that last less than 200 milliseconds", fr: "Compter les pics de vibration qui durent moins de 200 millisecondes" } }
+        - { id: model, text: { en: "Feed a predictive maintenance model with the average temperature of each second", fr: "Alimenter un modèle de maintenance prédictive avec la température moyenne de chaque seconde" } }
+        - { id: billing, text: { en: "Bill the energy consumption of each machine in 15-minute intervals", fr: "Facturer la consommation d'énergie de chaque machine par intervalles de 15 minutes" } }
+        - { id: report, text: { en: "Publish a daily production report with a breakdown by hour", fr: "Publier un rapport de production quotidien avec une ventilation par heure" } }
+    answer:
+      mapping: { spikes: event, model: second, billing: minute, report: hour }
+    explanation:
+      correct:
+        en: |
+          A grain can be aggregated up, never split down, so each requirement takes the coarsest grain from which its answer can still be computed. Spikes shorter than 200 ms are visible only in the individual readings. Per-second averages need per-second rows. 15-minute intervals can be summed from minutes but not from hours. An hourly breakdown of a daily report needs hourly rows.
+        fr: |
+          Une granularité peut être agrégée vers le haut, jamais découpée vers le bas : chaque exigence prend donc la granularité la plus grossière à partir de laquelle sa réponse reste calculable. Des pics de moins de 200 ms ne sont visibles que dans les relevés individuels. Des moyennes par seconde exigent des lignes par seconde. Des intervalles de 15 minutes s'obtiennent en sommant des minutes, mais pas des heures. La ventilation horaire d'un rapport quotidien exige des lignes horaires.
+      options:
+        hour: { en: "An hourly aggregate can't be split into 15-minute intervals, so it doesn't meet the billing requirement.", fr: "Un agrégat horaire ne peut pas être découpé en intervalles de 15 minutes : il ne répond pas à l'exigence de facturation." }
+        day: { en: "A daily aggregate loses the hourly breakdown that the report needs.", fr: "Un agrégat quotidien perd la ventilation horaire dont le rapport a besoin." }
+    references:
+      - title: Choose granularity on a column or table based on requirements
+        url: https://learn.microsoft.com/en-us/training/modules/design-implement-data-modeling-unity-catalog/9-choose-granularity
+
+  # ------------------------------------------------------------------ 7
+  - id: dp750-qz-32-07
+    objective: "3.1.10"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Adatum is moving five datasets to Unity Catalog in Azure Databricks. The data platform team follows the Databricks recommendation to use managed tables unless a requirement prevents it.
+
+        For which two datasets should you create external tables?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum migre cinq jeux de données vers Unity Catalog dans Azure Databricks. L'équipe de la plateforme de données suit la recommandation de Databricks d'utiliser des tables managées, sauf si une exigence l'empêche.
+
+        Pour quels deux jeux de données devez-vous créer des tables externes ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Sales data in Delta written only by Lakeflow jobs, whose OPTIMIZE and VACUUM must run automatically", fr: "Des données de ventes en Delta écrites uniquement par des jobs Lakeflow, dont OPTIMIZE et VACUUM doivent s'exécuter automatiquement" } }
+        - { id: b, text: { en: "Delta data that a partner's Spark cluster outside Azure Databricks, which supports only path-based access, writes to the files in storage", fr: "Des données Delta qu'un cluster Spark d'un partenaire, hors d'Azure Databricks et limité à l'accès par chemin, écrit dans les fichiers du stockage" } }
+        - { id: c, text: { en: "Shipment data that Trino and Apache Flink must read and write through the Iceberg REST Catalog API", fr: "Des données d'expédition que Trino et Apache Flink doivent lire et écrire via l'API Iceberg REST Catalog" } }
+        - { id: d, text: { en: "Data whose files must remain in storage after a DROP TABLE, because a records-retention policy outside Azure Databricks controls their deletion", fr: "Des données dont les fichiers doivent rester dans le stockage après un DROP TABLE, car une stratégie de conservation des enregistrements extérieure à Azure Databricks régit leur suppression" } }
+        - { id: e, text: { en: "Customer data that users may access only through Unity Catalog permissions, with every access audited", fr: "Des données clients auxquelles les utilisateurs ne peuvent accéder que via les autorisations Unity Catalog, avec un audit de chaque accès" } }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          An external table keeps its files at a path that you manage: other systems can read and write them directly, and `DROP TABLE` removes only the metadata, so the files stay under the control of the external policy. A managed table's files belong to Unity Catalog, which deletes them after the recovery period.
+        fr: |
+          Une table externe conserve ses fichiers dans un chemin que vous gérez : d'autres systèmes peuvent les lire et les écrire directement, et `DROP TABLE` ne retire que les métadonnées, si bien que les fichiers restent sous le contrôle de la stratégie externe. Les fichiers d'une table managée appartiennent à Unity Catalog, qui les supprime après la période de récupération.
+      options:
+        a: { en: "Automatic maintenance through predictive optimization is a reason to choose a managed table.", fr: "La maintenance automatique par l'optimisation prédictive est une raison de choisir une table managée." }
+        c: { en: "A managed Iceberg table lets external engines read and write through the Iceberg REST Catalog API while Unity Catalog manages the files.", fr: "Une table Iceberg managée permet aux moteurs externes de lire et d'écrire via l'API Iceberg REST Catalog pendant qu'Unity Catalog gère les fichiers." }
+        e: { en: "Direct file access to an external table bypasses Unity Catalog permissions and auditing, so a managed table fits this requirement better.", fr: "L'accès direct aux fichiers d'une table externe contourne les autorisations et l'audit d'Unity Catalog : une table managée répond mieux à cette exigence." }
+    references:
+      - title: Work with external tables
+        url: https://learn.microsoft.com/en-us/azure/databricks/tables/external
+      - title: Unity Catalog managed tables for Delta Lake and Apache Iceberg
+        url: https://learn.microsoft.com/en-us/azure/databricks/tables/managed
+
+  # ------------------------------------------------------------------ 8
+  - id: dp750-qz-32-08
+    objective: "3.1.9"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Wingtip Toys has a 4 TB Delta table named **wingtip.sales.orders** that is partitioned by `order_date`. Deletion vectors are enabled. A streaming job runs a MERGE every minute to update order statuses, and a second job deletes cancelled orders every 10 minutes. Both jobs write to the most recent dates.
+
+        The jobs often fail with concurrent write conflicts, although they never modify the same rows. Queries filter on `order_date` and `customer_id`. All compute runs Databricks Runtime 17.3 LTS.
+
+        You need to stop the conflicts between the two jobs. What should you do?
+      fr: |
+        Wingtip Toys dispose d'une table Delta de 4 To nommée **wingtip.sales.orders**, partitionnée par `order_date`. Les vecteurs de suppression sont activés. Un job de streaming exécute un MERGE chaque minute pour mettre à jour les statuts de commande, et un second job supprime les commandes annulées toutes les 10 minutes. Les deux jobs écrivent dans les dates les plus récentes.
+
+        Les jobs échouent souvent sur des conflits d'écriture simultanée, alors qu'ils ne modifient jamais les mêmes lignes. Les requêtes filtrent sur `order_date` et `customer_id`. Tout le calcul exécute Databricks Runtime 17.3 LTS.
+
+        Vous devez faire cesser les conflits entre les deux jobs. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Add customer_id as a second partition column of the table.", fr: "Ajouter customer_id comme seconde colonne de partition de la table." } }
+        - { id: b, text: { en: "Move the table to liquid clustering on order_date and customer_id, without partitioning.", fr: "Passer la table au clustering liquide sur order_date et customer_id, sans partitionnement." } }
+        - { id: c, text: { en: "Schedule OPTIMIZE with ZORDER BY (customer_id) on the table every hour.", fr: "Planifier OPTIMIZE avec ZORDER BY (customer_id) sur la table toutes les heures." } }
+        - { id: d, text: { en: "Set the isolation level of the table to WriteSerializable.", fr: "Définir le niveau d'isolation de la table sur WriteSerializable." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Row-level concurrency detects conflicts at the row level, so concurrent writes that touch the same files but different rows both succeed. It requires deletion vectors and a table without partitioning, such as a liquid clustered table, and liquid clustering on order_date and customer_id also serves the query filters.
+        fr: |
+          La concurrence au niveau des lignes détecte les conflits ligne par ligne : des écritures simultanées qui touchent les mêmes fichiers mais des lignes différentes réussissent toutes les deux. Elle exige les vecteurs de suppression et une table sans partitionnement, comme une table avec clustering liquide, et le clustering liquide sur order_date et customer_id sert aussi les filtres des requêtes.
+      options:
+        a: { en: "A partitioned table never gets row-level concurrency, and a high-cardinality partition column would over-partition the table.", fr: "Une table partitionnée n'obtient jamais la concurrence au niveau des lignes, et une colonne de partition à cardinalité élevée surpartitionnerait la table." }
+        c: { en: "Z-ordering rewrites files and adds a third writer that can itself conflict with the jobs; it doesn't change conflict detection.", fr: "L'ordre Z réécrit des fichiers et ajoute un troisième rédacteur qui peut lui-même entrer en conflit avec les jobs ; il ne change pas la détection des conflits." }
+        d: { en: "WriteSerializable is already the default isolation level; conflicts on the same partitions remain.", fr: "WriteSerializable est déjà le niveau d'isolation par défaut ; les conflits sur les mêmes partitions demeurent." }
+    references:
+      - title: Row-level concurrency
+        url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/isolation/row-level-concurrency
+      - title: Deletion vectors in Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/delta/deletion-vectors
+
+  # ------------------------------------------------------------------ 9
+  - id: dp750-qz-32-09
+    objective: "3.1.8"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso enabled change data feed on the Delta table **contoso.sales.orders** at version 100. The table is now at version 180 and uses the default retention settings.
+
+        An incident review needs, for the commits of versions 120 through 135 included, the values that the updated rows had before each update, and the rows that were deleted. You read the changes as a batch DataFrame in a notebook.
+
+        How should you complete the code? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso a activé le flux de données modifiées sur la table Delta **contoso.sales.orders** à la version 100. La table est maintenant à la version 180 et utilise les paramètres de rétention par défaut.
+
+        Une revue d'incident a besoin, pour les validations des versions 120 à 135 incluses, des valeurs qu'avaient les lignes mises à jour avant chaque mise à jour, ainsi que des lignes supprimées. Vous lisez les modifications sous forme de DataFrame par lots dans un notebook.
+
+        Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: python
+      template: |
+        changes = (spark.read
+          .option([[feed]], "true")
+          .option([[start]], 120)
+          .option("endingVersion", 135)
+          .table("contoso.sales.orders")
+          .filter("_change_type IN ('[[kind]]', 'delete')"))
+      slots:
+        - id: feed
+          options:
+            - { id: rcf, text: '"readChangeFeed"' }
+            - { id: skip, text: '"skipChangeCommits"' }
+            - { id: ignore, text: '"ignoreDeletes"' }
+        - id: start
+          options:
+            - { id: sv, text: '"startingVersion"' }
+            - { id: vao, text: '"versionAsOf"' }
+            - { id: so, text: '"startingOffsets"' }
+        - id: kind
+          options:
+            - { id: pre, text: "update_preimage" }
+            - { id: post, text: "update_postimage" }
+            - { id: upd, text: "update" }
+            - { id: ins, text: "insert" }
+    answer:
+      values: { feed: rcf, start: sv, kind: pre }
+    explanation:
+      correct:
+        en: |
+          `readChangeFeed` returns the change rows instead of the table rows; a batch read then needs a `startingVersion` (or `startingTimestamp`), and `endingVersion` closes the range, both bounds included. An update produces an `update_preimage` row with the old values and an `update_postimage` row with the new ones; deleted rows have the `delete` type.
+        fr: |
+          `readChangeFeed` retourne les lignes de modification au lieu des lignes de la table ; une lecture par lots exige alors un `startingVersion` (ou `startingTimestamp`), et `endingVersion` ferme la plage, les deux bornes étant incluses. Une mise à jour produit une ligne `update_preimage` avec les anciennes valeurs et une ligne `update_postimage` avec les nouvelles ; les lignes supprimées ont le type `delete`.
+      options:
+        skip: { en: "skipChangeCommits makes a streaming read of the table ignore commits that update or delete rows; it doesn't return change rows.", fr: "skipChangeCommits fait ignorer à une lecture en streaming de la table les validations qui mettent à jour ou suppriment des lignes ; il ne retourne pas de lignes de modification." }
+        ignore: { en: "ignoreDeletes is a legacy streaming option that ignores deletes at partition boundaries; it doesn't return change rows.", fr: "ignoreDeletes est une option de streaming héritée qui ignore les suppressions aux limites de partition ; elle ne retourne pas de lignes de modification." }
+        so: { en: "startingOffsets is an option of streaming sources such as Kafka, not of the change data feed.", fr: "startingOffsets est une option de sources de streaming comme Kafka, pas du flux de données modifiées." }
+        vao: { en: "versionAsOf is time travel: it returns the table as it was at one version, without change metadata.", fr: "versionAsOf relève du voyage dans le temps : il retourne la table telle qu'elle était à une version, sans métadonnées de modification." }
+        post: { en: "update_postimage holds the values after the update, not before it.", fr: "update_postimage contient les valeurs après la mise à jour, pas avant." }
+    references:
+      - title: Use change data feed on Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/delta/delta-change-data-feed
+      - title: Delta Lake table streaming reads and writes
+        url: https://learn.microsoft.com/en-us/azure/databricks/structured-streaming/delta-lake
+
+  # ------------------------------------------------------------------ 10
+  - id: dp750-qz-32-10
+    objective: "3.1.6"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Tailspin Toys maintains the SCD Type 2 dimension **tailspin.gold.dim_store** with the following statement, run after each load of **tailspin.silver.store_updates**:
+
+        ```sql
+        MERGE INTO tailspin.gold.dim_store AS t
+        USING (
+          SELECT s.store_code AS merge_key, s.* FROM tailspin.silver.store_updates AS s
+          UNION ALL
+          SELECT NULL AS merge_key, s.* FROM tailspin.silver.store_updates AS s
+          JOIN tailspin.gold.dim_store AS d
+            ON s.store_code = d.store_code AND d.is_current = true
+          WHERE s.district <> d.district
+        ) AS u
+        ON t.store_code = u.merge_key AND t.is_current = true
+        WHEN MATCHED AND t.district <> u.district THEN
+          UPDATE SET is_current = false, valid_to = u.change_ts
+        WHEN NOT MATCHED THEN
+          INSERT (store_code, store_name, district, valid_from, valid_to, is_current)
+          VALUES (u.store_code, u.store_name, u.district, u.change_ts, NULL, true);
+        ```
+
+        Today, store_updates contains one row for each of three stores:
+
+        - S100 exists in dim_store, and its district changed.
+        - S200 exists in dim_store; only its store_name changed.
+        - S300 doesn't exist in dim_store yet.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin Toys gère la dimension SCD de type 2 **tailspin.gold.dim_store** avec l'instruction suivante, exécutée après chaque chargement de **tailspin.silver.store_updates** :
+
+        ```sql
+        MERGE INTO tailspin.gold.dim_store AS t
+        USING (
+          SELECT s.store_code AS merge_key, s.* FROM tailspin.silver.store_updates AS s
+          UNION ALL
+          SELECT NULL AS merge_key, s.* FROM tailspin.silver.store_updates AS s
+          JOIN tailspin.gold.dim_store AS d
+            ON s.store_code = d.store_code AND d.is_current = true
+          WHERE s.district <> d.district
+        ) AS u
+        ON t.store_code = u.merge_key AND t.is_current = true
+        WHEN MATCHED AND t.district <> u.district THEN
+          UPDATE SET is_current = false, valid_to = u.change_ts
+        WHEN NOT MATCHED THEN
+          INSERT (store_code, store_name, district, valid_from, valid_to, is_current)
+          VALUES (u.store_code, u.store_name, u.district, u.change_ts, NULL, true);
+        ```
+
+        Aujourd'hui, store_updates contient une ligne pour chacun de trois magasins :
+
+        - S100 existe dans dim_store, et son district a changé.
+        - S200 existe dans dim_store ; seul son store_name a changé.
+        - S300 n'existe pas encore dans dim_store.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "For S100, the statement closes the current row and inserts a new current row with the new district.", fr: "Pour S100, l'instruction clôture la ligne actuelle et insère une nouvelle ligne actuelle avec le nouveau district." } }
+        - { id: s2, text: { en: "For S200, the statement writes the new store_name to the current row.", fr: "Pour S200, l'instruction écrit le nouveau store_name dans la ligne actuelle." } }
+        - { id: s3, text: { en: "For S300, the statement inserts two current rows.", fr: "Pour S300, l'instruction insère deux lignes actuelles." } }
+    answer:
+      values: { s1: true, s2: false, s3: false }
+    explanation:
+      correct:
+        en: |
+          S100 appears twice in the source: with its key, it matches the current row, which is closed; with a NULL key, it matches nothing and is inserted as the new current version. S200 appears only with its key: it matches, but the `WHEN MATCHED` condition requires a district change, so nothing is written. S300 appears only once, because the join finds no current row for it, and it is inserted once.
+        fr: |
+          S100 apparaît deux fois dans la source : avec sa clé, elle correspond à la ligne actuelle, qui est clôturée ; avec une clé NULL, elle ne correspond à rien et est insérée comme nouvelle version actuelle. S200 n'apparaît qu'avec sa clé : elle correspond, mais la condition `WHEN MATCHED` exige un changement de district, donc rien n'est écrit. S300 n'apparaît qu'une fois, car la jointure ne lui trouve aucune ligne actuelle, et elle est insérée une seule fois.
+      options:
+        s2: { en: "The only update clause closes rows whose district changed; a change limited to store_name is ignored by this statement.", fr: "La seule clause de mise à jour clôture les lignes dont le district a changé ; un changement limité à store_name est ignoré par cette instruction." }
+        s3: { en: "The second part of the source keeps only stores that already have a current row, so a new store enters the source once.", fr: "La seconde partie de la source ne garde que les magasins qui ont déjà une ligne actuelle : un nouveau magasin n'entre qu'une fois dans la source." }
+    references:
+      - title: Implement a slowly changing dimension (SCD) type 2
+        url: https://learn.microsoft.com/en-us/training/modules/design-implement-data-modeling-unity-catalog/7-implement-slowly-changing-dimension-type-2
+      - title: Upsert into a Delta Lake table using merge
+        url: https://learn.microsoft.com/en-us/azure/databricks/delta/merge

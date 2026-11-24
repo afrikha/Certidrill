@@ -65,7 +65,7 @@ Azure Monitor disk metrics separate the two possible bottlenecks:
 | --- | --- |
 | Data Disk IOPS Consumed Percentage, Data Disk Bandwidth Consumed Percentage | The disk's own limit caps I/O |
 | VM Cached / Uncached IOPS Consumed Percentage, VM Cached / Uncached Bandwidth Consumed Percentage | The VM's storage limit caps I/O, even if disks are below their limits |
-| Data Disk Latency, Data Disk Queue Depth | Response time and queuing (latency only for SCSI disks, not NVMe) |
+| Data Disk Latency (preview), Data Disk Queue Depth | Response time and queuing (latency only for SCSI disks, not NVMe) |
 | Data Disk Used Burst IO / BPS Credits Percentage | Consumption of Premium SSD burst credits |
 
 The consumed-percentage metrics exist only on VM series that support premium storage. For HANA, alert on `/hana/log` latency and on capacity of `/hana/data` and `/hana/shared`.
@@ -82,15 +82,15 @@ Other sources:
 
 | Network Watcher tool | Use for SAP |
 | --- | --- |
-| Connection monitor | Continuous latency and reachability between application servers, database and on-premises |
-| Connection troubleshoot | Point-in-time test from a VM to a host and port, for example the HANA SQL port |
+| Connection monitor | Continuous latency and reachability between application servers, database and on-premises; Azure VM sources need the Network Watcher Agent extension |
+| Connection troubleshoot | Point-in-time test from a VM to a host and port, for example the HANA SQL port; no agent extension needed |
 | IP flow verify | Is a packet allowed or denied at a VM NIC, and by which rule |
 | NSG diagnostics | Same check at VM, scale set or Application Gateway level |
 | Next hop | Routing problems, for example traffic sent through an NVA between tiers |
 | Effective security rules | Rules applied to a NIC |
 | Packet capture, VPN troubleshoot, Topology | Remote capture on a VM, gateway diagnosis, visual layout |
 
-Flow logs: **NSG flow logs retire on September 30, 2027** and no longer accept new creations; use **virtual network flow logs**, analyzed with **traffic analytics**. Azure Monitor also gives metrics for ExpressRoute circuits, VPN gateways and load balancers.
+Flow logs: **NSG flow logs retire on September 30, 2027** and no longer accept new creations; use **virtual network flow logs**, analyzed with **traffic analytics**. After that date, Azure deletes the NSG flow log resources and stops traffic analytics on them; records already in storage are kept. Azure Monitor also gives metrics for ExpressRoute circuits, VPN gateways and load balancers.
 
 For SAP latency itself, measure with `niping` with accelerated networking enabled; `ping` doesn't use the accelerated path.
 
@@ -159,7 +159,7 @@ From the VIS you start or stop the whole application tier (ASCS and application 
 | Timeout | Operations longer than 300 seconds end; monitoring keeps updating the status |
 | Same VM | Several application instances on one VM stop one at a time |
 
-Prerequisites: **Azure Center for SAP solutions administrator** role on the VIS; `sapstartsrv` running on all VMs; for start, VMs running (or `--start-vm`); for HA, `sap_vendor_cluster_connector` installed on the ASCS instance; for HANA, cluster maintenance mode **Disabled** to stop and **Enabled** to start.
+Prerequisites: **Azure Center for SAP solutions administrator** role on the VIS; `sapstartsrv` running on all VMs; for start, VMs running (or `--start-vm`); for HA, SUSE or RHEL Pacemaker or Windows Server Failover Clustering (other cluster software isn't supported) and `sap_vendor_cluster_connector` installed on the ASCS instance; for HANA, cluster maintenance mode **Disabled** to stop and **Enabled** to start.
 
 ```bash
 az workloads sap-virtual-instance stop --resource-group rg-sap-dev --name DEV --deallocate-vm true

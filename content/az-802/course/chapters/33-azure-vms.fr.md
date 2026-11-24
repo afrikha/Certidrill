@@ -19,7 +19,7 @@ Une machine virtuelle a trois sortes de disques :
 | SSD Standard | 32 767 Gio | 6 000 | Oui |
 | HDD Standard | 32 767 Gio | 2 000 ou 3 000 | Oui, mise hors service le 8 septembre 2028 |
 
-Le SSD Premium exige une taille de machine virtuelle qui prend en charge le stockage Premium. Les disques Ultra et SSD Premium v2 permettent de modifier les IOPS et le débit indépendamment de la taille ; un SSD Premium tire ses performances de sa taille, ou d'un **niveau de performance** que vous relevez temporairement.
+Le SSD Premium exige une taille de machine virtuelle qui prend en charge le stockage Premium. Les disques Ultra et SSD Premium v2 permettent de modifier les IOPS et le débit indépendamment de la taille ; un SSD Premium tire ses performances de sa taille, ou d'un **niveau de performance** que vous relevez temporairement. Le bursting est l'autre moyen d'obtenir des performances à court terme : bursting **basé sur les crédits** (SSD Premium de 512 Gio ou moins, SSD Standard de 1 024 Gio ou moins ; activé par défaut, sans coût supplémentaire, au mieux, jusqu'à 30 minutes au taux de burst maximal) ou bursting **à la demande** (SSD Premium de plus de 512 Gio ; vous l'activez, et il est facturé).
 
 ```powershell
 # Create an empty data disk and attach it at LUN 1
@@ -97,7 +97,7 @@ La mise à l'échelle automatique (Azure Monitor) repose sur un profil et des r�
 | Règle de scale-in | Exemple : Percentage CPU inférieur à 30 %, diminuer le nombre. Toujours l'associer à une règle de scale-out |
 | Durée | Période sur laquelle la métrique est moyennée (10 minutes dans la règle par défaut du portail) |
 | Refroidissement | Attente avant l'action de mise à l'échelle suivante (5 minutes par défaut) |
-| Stratégie de scale-in | Quelles instances sont supprimées : Default (équilibre entre zones, puis domaines d'erreur, puis ID d'instance le plus élevé), NewestVM ou OldestVM |
+| Stratégie de scale-in | Quelles instances sont supprimées : Default (équilibre entre zones, puis domaines d'erreur, puis ID d'instance le plus élevé), NewestVM ou OldestVM (qui équilibrent aussi d'abord entre zones dans un groupe identique réparti sur plusieurs zones) |
 
 ```bash
 az vmss scale --resource-group RG1 --name VMSS1 --new-capacity 5
@@ -146,7 +146,7 @@ L'**accès juste-à-temps (JIT) aux machines virtuelles** garde les ports d'admi
 
 | Élément | Détail |
 | --- | --- |
-| Prérequis | Microsoft Defender pour les serveurs **Plan 2** sur l'abonnement ; un groupe de sécurité réseau ou un Pare-feu Azure (règles classiques, pas de stratégies Firewall Manager) devant la machine virtuelle ; machines virtuelles Azure Resource Manager |
+| Prérequis | Microsoft Defender pour les serveurs **Plan 2** sur l'abonnement ; un groupe de sécurité réseau, ou un Pare-feu Azure du même réseau virtuel que la machine virtuelle (règles classiques ; les pare-feu contrôlés par Azure Firewall Manager ne sont pas pris en charge), devant la machine virtuelle ; machines virtuelles Azure Resource Manager |
 | À l'activation | Defender pour le cloud ajoute des règles *refuser tout le trafic entrant* pour les ports choisis (par défaut 3389 pour Windows, 22 pour Linux ; 5985 et 5986 pour WinRM sont suggérés) |
 | Par port | Protocole, adresses IP sources autorisées (par défaut toutes), durée maximale de la demande (3 heures par défaut) |
 | À la demande | Règles d'autorisation pour l'adresse IP du demandeur et les ports demandés, pendant la durée demandée ; les règles sont ensuite restaurées. Les connexions établies ne sont pas coupées |
@@ -166,7 +166,7 @@ Set-AzJitNetworkAccessPolicy -Kind "Basic" -Location "westeurope" -Name "default
 | Fonctionnalité | Developer | Basic | Standard | Premium |
 | --- | --- | --- | --- | --- |
 | Sous-réseau AzureBastionSubnet dédié et adresse IP publique | Non | Oui | Oui | Sous-réseau oui ; pas d'adresse IP publique en déploiement privé uniquement |
-| Machines virtuelles de réseaux virtuels appairés | Non | Oui | Oui | Oui |
+| Machines virtuelles de réseaux virtuels connectés par peering | Non | Oui | Oui | Oui |
 | Client natif (`az network bastion rdp`), transfert de fichiers | Non | Non | Oui | Oui |
 | Lien partageable, connexion par adresse IP, port personnalisé | Non | Non | Oui | Oui |
 | Mise à l'échelle de l'hôte | Non | Non (2 instances) | 2 à 50 instances | 2 à 50 instances |
@@ -174,7 +174,7 @@ Set-AzJitNetworkAccessPolicy -Kind "Basic" -Location "westeurope" -Name "default
 
 - Le sous-réseau doit s'appeler **AzureBastionSubnet**, en /26 ou plus grand, dans le réseau virtuel de l'hôte. L'adresse IP publique est de référence SKU Standard, statique.
 - On peut passer à une référence SKU supérieure, jamais revenir à une inférieure.
-- Pour se connecter, un utilisateur a besoin du rôle Reader sur la machine virtuelle, sur sa carte réseau et sur la ressource Bastion (plus le réseau virtuel de la machine quand Bastion est dans un réseau appairé), et du droit d'ouvrir une session Windows (Utilisateurs du Bureau à distance ou Administrateurs). La machine virtuelle n'a besoin d'aucune adresse IP publique.
+- Pour se connecter, un utilisateur a besoin du rôle Reader sur la machine virtuelle, sur sa carte réseau et sur la ressource Bastion (plus le réseau virtuel de la machine quand Bastion est dans un réseau connecté par peering), et du droit d'ouvrir une session Windows (Utilisateurs du Bureau à distance ou Administrateurs). La machine virtuelle n'a besoin d'aucune adresse IP publique.
 
 ```bash
 az network bastion rdp --name Bastion1 --resource-group RG1 \

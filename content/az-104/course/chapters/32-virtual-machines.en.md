@@ -55,7 +55,7 @@ Other facts: **boot diagnostics** shows a screenshot and the serial log of a mac
 Azure Disk Encryption requirements, the classic exam topic:
 
 - A key vault in the **same region and subscription** as the virtual machine, with the access policy **Azure Disk Encryption for volume encryption** enabled (`EnabledForDiskEncryption`).
-- A supported size and OS: not Basic or A-series machines, and enough memory.
+- A supported size: not Basic or A-series, not v6-series sizes with a temporary disk (Ddsv6, Edsv6...), not v7-series or newer sizes, not the L family, and at least 2 GB of memory. Ultra Disks and Premium SSD v2 disks can't be encrypted with ADE.
 - The machine must be **running**: the extension encrypts volumes from inside the guest.
 - Encrypt the OS disk before or together with the data disks on Windows.
 
@@ -67,6 +67,8 @@ Set-AzVMDiskEncryptionExtension -ResourceGroupName RG1 -VMName VM1 `
 ```bash
 az vm encryption enable -g RG1 -n VM1 --disk-encryption-keyvault kv1 --volume-type All
 ```
+
+The temporary disk is encrypted automatically on sizes of version 5 and later (Dsv5, Dsv6...); on older sizes, only encryption at host, or ADE with the volume type `All` (`EncryptFormatAll` on Linux), encrypts it.
 
 Encryption at host: register the `EncryptionAtHost` feature on the subscription, then enable it at creation, or on an existing machine after **deallocating** it. It can't be combined with Azure Disk Encryption on the same machine.
 
@@ -106,7 +108,8 @@ Resizing:
 - Changing the size **restarts** the machine.
 - A running machine can only take a size available on its current hardware cluster. If the size isn't listed, **deallocate** the machine first: all sizes of the region become available.
 - In an **availability set**, when the new size isn't available on the cluster, **all the machines of the set** must be deallocated before resizing.
-- Quotas (vCPUs per family and per region) can block a resize.
+- Quotas (vCPUs per family and total regional vCPUs) can block a resize. They count **deallocated** machines too: deallocating a machine frees no quota.
+- On Windows, a size with a local temporary disk can only be resized to another size with one, and a size without one to a size without one. Linux machines can move between the two.
 
 ```bash
 az vm list-vm-resize-options -g RG1 -n VM1 --output table
@@ -209,8 +212,8 @@ Other settings:
 | Setting | Values |
 | --- | --- |
 | **Upgrade policy** (how instances receive a model change) | **Manual** (you upgrade each instance), **Automatic** (all at once, in random order), **Rolling** (in batches with health checks; recommended for production) |
-| **Scale-in policy** (which instance is removed) | **Default** (balance zones and fault domains, then highest instance ID), **NewestVM**, **OldestVM** |
-| Instance protection | Protect an instance from scale-in or from scale set actions |
+| **Scale-in policy** (which instance is removed) | **Default** (balance zones and fault domains, then highest instance ID), **NewestVM** or **OldestVM** (also after balancing zones in a zone-spanning scale set) |
+| Instance protection | *Protect from scale-in* blocks autoscale scale-in; *protect from scale set actions* also blocks upgrade, reimage or deallocate started on the scale set. A user can still delete the instance |
 | Automatic instance repairs | Replace unhealthy instances (needs the Application Health extension or a load balancer probe) |
 | Zones | Spread instances across zones for resilience |
 | Spot | Use Spot instances for interruptible workloads |

@@ -1,0 +1,496 @@
+chapter: 32-agent-memory
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp420-qz-32-01
+    objective: "3.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind Traders stores the turns of its support agent in an Azure Cosmos DB for NoSQL container, one item per turn. To spread the writes as evenly as possible, the developers chose a partition key whose value is a new GUID for every item.
+
+        Before each model call, the agent loads the latest turns of the current thread.
+
+        What is the main drawback of this partition key for the agent?
+      fr: |
+        Northwind Traders stocke les tours de son agent de support dans un conteneur Azure Cosmos DB for NoSQL, à raison d'un élément par tour. Pour répartir les écritures le plus uniformément possible, les développeurs ont choisi une clé de partition dont la valeur est un nouveau GUID pour chaque élément.
+
+        Avant chaque appel au modèle, l'agent charge les derniers tours du thread en cours.
+
+        Quel est le principal inconvénient de cette clé de partition pour l'agent ?
+    body:
+      options:
+        - { id: a, text: { en: "The turns of a busy thread are all written to the same hot partition.", fr: "Les tours d'un thread très actif sont tous écrits dans la même partition chaude." } }
+        - { id: b, text: { en: "The turn items can no longer expire automatically with a time to live.", fr: "Les éléments de tour ne peuvent plus expirer automatiquement avec une durée de vie." } }
+        - { id: c, text: { en: "Each query for the turns of one thread fans out to every physical partition.", fr: "Chaque requête sur les tours d'un thread est diffusée vers toutes les partitions physiques." } }
+        - { id: d, text: { en: "A long thread quickly reaches the 20 GB limit of a logical partition.", fr: "Un long thread atteint rapidement la limite de 20 Go d'une partition logique." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A GUID per item maximizes write distribution and avoids hot partitions, but the turns of one thread are scattered across all the partitions. Loading the latest turns of a thread then becomes a cross-partition query, which costs more RUs and adds latency. Partitioning on `/threadId` (or on the tenant, then the thread) keeps that query in one partition.
+        fr: |
+          Un GUID par élément maximise la répartition des écritures et évite les partitions chaudes, mais les tours d'un même thread sont dispersés dans toutes les partitions. Le chargement des derniers tours d'un thread devient alors une requête entre partitions, qui coûte plus de RU et ajoute de la latence. Partitionner sur `/threadId` (ou sur le locataire, puis le thread) garde cette requête dans une seule partition.
+      options:
+        a: { en: "The opposite is true: with a different value for each item, writes are spread over all the partitions and no partition gets hot.", fr: "C'est l'inverse : avec une valeur différente pour chaque élément, les écritures sont réparties sur toutes les partitions et aucune ne devient chaude." }
+        b: { en: "Time to live doesn't depend on the partition key: each item still expires according to the container's default and its own ttl.", fr: "La durée de vie ne dépend pas de la clé de partition : chaque élément expire toujours selon la valeur par défaut du conteneur et sa propre ttl." }
+        d: { en: "Each item is alone in its logical partition, so no logical partition grows with the thread.", fr: "Chaque élément est seul dans sa partition logique : aucune partition logique ne grossit avec le thread." }
+    references:
+      - title: Agent memories in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories
+
+  # ------------------------------------------------------------------ 2
+  - id: dp420-qz-32-02
+    objective: "3.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso's booking agent stores one item per turn in an Azure Cosmos DB for NoSQL container partitioned by `/threadId`. Each turn item has an integer `turnIndex`, its `messages` and an embedding of the turn in `/embedding`.
+
+        Before each model call, the agent must add the eight most recent turns of the current thread to the prompt.
+
+        Which query should the agent run?
+      fr: |
+        L'agent de réservation de Contoso stocke un élément par tour dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/threadId`. Chaque élément de tour a un entier `turnIndex`, ses `messages` et une incorporation du tour dans `/embedding`.
+
+        Avant chaque appel au modèle, l'agent doit ajouter au prompt les huit tours les plus récents du thread en cours.
+
+        Quelle requête l'agent doit-il exécuter ?
+    body:
+      options:
+        - { id: a, text: "`SELECT TOP 8 c.turnIndex, c.messages FROM c WHERE c.threadId = @t ORDER BY VectorDistance(c.embedding, @q)`" }
+        - { id: b, text: "`SELECT TOP 8 c.turnIndex, c.messages FROM c WHERE c.threadId = @t ORDER BY c.turnIndex DESC`" }
+        - { id: c, text: "`SELECT TOP 8 c.turnIndex, c.messages FROM c WHERE c.threadId = @t ORDER BY c.turnIndex ASC`" }
+        - { id: d, text: "`SELECT TOP 8 c.turnIndex, c.messages FROM c ORDER BY c.turnIndex DESC`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The latest turns are selected by recency, not by meaning: `TOP 8 ... ORDER BY c.turnIndex DESC` returns the eight highest turn numbers. The filter on `threadId` keeps the query in the thread's partition, which is the cheapest way to load the context. The application then reverses the list to send the turns in chronological order.
+        fr: |
+          Les derniers tours se choisissent par récence, pas par sens : `TOP 8 ... ORDER BY c.turnIndex DESC` renvoie les huit numéros de tour les plus élevés. Le filtre sur `threadId` garde la requête dans la partition du thread, ce qui est la façon la moins coûteuse de charger le contexte. L'application inverse ensuite la liste pour envoyer les tours dans l'ordre chronologique.
+      options:
+        a: { en: "A vector search returns the turns closest in meaning to the question, from anywhere in the thread, not the most recent ones.", fr: "Une recherche vectorielle renvoie les tours les plus proches de la question par le sens, n'importe où dans le thread, pas les plus récents." }
+        c: { en: "An ascending order with TOP 8 returns the first eight turns of the thread, the oldest ones.", fr: "Un ordre croissant avec TOP 8 renvoie les huit premiers tours du thread, les plus anciens." }
+        d: { en: "Without a filter on the thread, the query fans out to every partition and returns the latest turns of all threads.", fr: "Sans filtre sur le thread, la requête est diffusée vers toutes les partitions et renvoie les derniers tours de tous les threads." }
+    references:
+      - title: Agent memories in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories
+
+  # ------------------------------------------------------------------ 3
+  - id: dp420-qz-32-03
+    objective: "3.2.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum is adding long-term memory to an internal HR assistant used by 400 employees. Facts are stored in a container named **memories**, partitioned by `/userId`. Each fact has a 1,536-dimension embedding in `/embedding`, declared in the container's vector policy. The container will hold about 30,000 facts in total, and the volume will remain stable.
+
+        You need to index `/embedding` by following the Azure Cosmos DB guidance for this volume.
+
+        Which index should you add to the indexing policy?
+      fr: |
+        Adatum ajoute une mémoire à long terme à un assistant RH interne utilisé par 400 employés. Les faits sont stockés dans un conteneur nommé **memories**, partitionné par `/userId`. Chaque fait a une incorporation de 1 536 dimensions dans `/embedding`, déclarée dans la stratégie vectorielle du conteneur. Le conteneur contiendra environ 30 000 faits au total, et ce volume restera stable.
+
+        Vous devez indexer `/embedding` en suivant les recommandations d'Azure Cosmos DB pour ce volume.
+
+        Quel index devez-vous ajouter à la stratégie d'indexation ?
+    body:
+      options:
+        - { id: a, text: { en: "A `flat` vector index on `/embedding`", fr: "Un index vectoriel `flat` sur `/embedding`" } }
+        - { id: b, text: { en: "A `diskANN` vector index on `/embedding`", fr: "Un index vectoriel `diskANN` sur `/embedding`" } }
+        - { id: c, text: { en: "A range index on `/embedding/*`", fr: "Un index de plage sur `/embedding/*`" } }
+        - { id: d, text: { en: "A `quantizedFlat` vector index on `/embedding`", fr: "Un index vectoriel `quantizedFlat` sur `/embedding`" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `quantizedFlat` suits modest volumes, such as tens of thousands of vectors: it compresses the vectors and searches them exhaustively. Microsoft recommends it when the search is scoped to 50,000 vectors or fewer, and it supports up to 4,096 dimensions, so 1,536-dimension embeddings fit.
+        fr: |
+          `quantizedFlat` convient aux volumes modestes, comme quelques dizaines de milliers de vecteurs : il compresse les vecteurs et les parcourt de façon exhaustive. Microsoft le recommande quand la recherche porte sur 50 000 vecteurs ou moins, et il accepte jusqu'à 4 096 dimensions : des incorporations de 1 536 dimensions y tiennent.
+      options:
+        a: { en: "A flat index is limited to 505 dimensions, so it can't index 1,536-dimension embeddings.", fr: "Un index flat est limité à 505 dimensions : il ne peut pas indexer des incorporations de 1 536 dimensions." }
+        b: { en: "DiskANN is the better choice from hundreds of thousands to billions of vectors, or when a search is scoped to more than 50,000 vectors; the guidance for 30,000 vectors is quantizedFlat.", fr: "DiskANN est le meilleur choix de quelques centaines de milliers à des milliards de vecteurs, ou quand une recherche porte sur plus de 50 000 vecteurs ; pour 30 000 vecteurs, la recommandation est quantizedFlat." }
+        c: { en: "A range index doesn't serve VectorDistance; vector paths are usually excluded from range indexing to save write RUs.", fr: "Un index de plage ne sert pas VectorDistance ; les chemins vectoriels sont généralement exclus de l'indexation de plage pour économiser des RU d'écriture." }
+    references:
+      - title: Vector search in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search
+      - title: Agent memories in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories
+
+  # ------------------------------------------------------------------ 4
+  - id: dp420-qz-32-04
+    objective: "3.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam's travel agent keeps long-term memory in a container named **memories**, partitioned by `/userId`. When a thread ends, a background pipeline writes one `summary` item for that thread, with its topic, the decisions made, the open issues and an `endedAt` timestamp. The pipeline also writes `fact` items with embeddings, and one profile item per user that condenses all the user's threads.
+
+        In a new thread, a user asks: "What did we decide in our last conversation?"
+
+        Which data should the agent load to answer?
+      fr: |
+        L'agent de voyage de Fabrikam conserve sa mémoire à long terme dans un conteneur nommé **memories**, partitionné par `/userId`. À la fin d'un thread, un pipeline en arrière-plan écrit un élément `summary` pour ce thread, avec son sujet, les décisions prises, les points ouverts et un horodatage `endedAt`. Le pipeline écrit aussi des éléments `fact` avec leurs incorporations, et un élément de profil par utilisateur qui condense tous les threads de l'utilisateur.
+
+        Dans un nouveau thread, un utilisateur demande : « Qu'avons-nous décidé lors de notre dernière conversation ? »
+
+        Quelles données l'agent doit-il charger pour répondre ?
+    body:
+      options:
+        - { id: a, text: { en: "The user's profile item, loaded with a point read", fr: "L'élément de profil de l'utilisateur, chargé par une lecture ponctuelle" } }
+        - { id: b, text: { en: "The user's most recent summary item by endedAt, from the user's partition", fr: "L'élément summary le plus récent de l'utilisateur selon endedAt, dans la partition de l'utilisateur" } }
+        - { id: c, text: { en: "The user's fact items closest to the embedding of the question, from the user's partition", fr: "Les éléments fact de l'utilisateur les plus proches de l'incorporation de la question, dans sa partition" } }
+        - { id: d, text: { en: "The latest turns of the current thread, from the thread's partition", fr: "Les derniers tours du thread en cours, dans la partition du thread" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The question is about one specific past thread, the last one, and its decisions are recorded in that thread's summary item. A query on the user's partition, filtered on the summary type and ordered by `endedAt` descending with `TOP 1`, returns it at a low RU cost.
+        fr: |
+          La question porte sur un thread passé précis, le dernier, et ses décisions sont enregistrées dans l'élément de résumé de ce thread. Une requête sur la partition de l'utilisateur, filtrée sur le type summary et triée par `endedAt` décroissant avec `TOP 1`, le renvoie pour un faible coût en RU.
+      options:
+        a: { en: "The profile condenses all the user's threads; it isn't the record of what was decided in the last one.", fr: "Le profil condense tous les threads de l'utilisateur ; ce n'est pas l'enregistrement de ce qui a été décidé lors du dernier." }
+        c: { en: "A similarity search returns facts close to the wording of the question, from any period, not the decisions of the last thread.", fr: "Une recherche de similarité renvoie des faits proches de la formulation de la question, de n'importe quelle période, pas les décisions du dernier thread." }
+        d: { en: "The current thread has just started: its turns don't contain the previous conversation.", fr: "Le thread en cours vient de commencer : ses tours ne contiennent pas la conversation précédente." }
+    references:
+      - title: Agent memories in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories
+
+  # ------------------------------------------------------------------ 5
+  - id: dp420-qz-32-05
+    objective: "3.2.2"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Litware stores the conversation state of its agent in an Azure Cosmos DB for NoSQL container named **turns**. The default time to live of the container is 86,400 seconds (one day). The agent writes three kinds of items:
+
+        - Turn items, without a `ttl` property
+        - Pinned turn items, with `ttl` set to -1
+        - Draft items, with `ttl` set to 2,592,000 (30 days)
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware stocke l'état de conversation de son agent dans un conteneur Azure Cosmos DB for NoSQL nommé **turns**. La durée de vie par défaut du conteneur est de 86 400 secondes (un jour). L'agent écrit trois sortes d'éléments :
+
+        - Des éléments de tour, sans propriété `ttl`
+        - Des éléments de tour épinglés, avec `ttl` à -1
+        - Des éléments de brouillon, avec `ttl` à 2 592 000 (30 jours)
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "A pinned turn item is never deleted by the time to live.", fr: "Un élément de tour épinglé n'est jamais supprimé par la durée de vie." }
+        - id: s2
+          text: { en: "A draft item expires one day after its last write, because the default time to live of the container is shorter.", fr: "Un élément de brouillon expire un jour après sa dernière écriture, car la durée de vie par défaut du conteneur est plus courte." }
+        - id: s3
+          text: { en: "A turn item whose time to live has elapsed is still returned by queries until the background deletion removes it.", fr: "Un élément de tour dont la durée de vie est écoulée est encore renvoyé par les requêtes jusqu'à ce que la suppression en arrière-plan le retire." }
+    answer:
+      values: { s1: true, s2: false, s3: false }
+    explanation:
+      correct:
+        en: |
+          When the container has a default time to live, an item's `ttl` overrides it: -1 means the item never expires, and 2,592,000 makes the draft expire 30 days after its last modification. Items without `ttl` use the default, one day. An expired item stops appearing in query results immediately, even if the background task, which uses leftover RUs, hasn't deleted it yet.
+        fr: |
+          Quand le conteneur a une durée de vie par défaut, la `ttl` d'un élément la remplace : -1 signifie que l'élément n'expire jamais, et 2 592 000 fait expirer le brouillon 30 jours après sa dernière modification. Les éléments sans `ttl` utilisent la valeur par défaut, un jour. Un élément expiré cesse immédiatement d'apparaître dans les résultats des requêtes, même si la tâche en arrière-plan, qui utilise les RU inutilisées, ne l'a pas encore supprimé.
+      options:
+        s2: { en: "The item's ttl overrides the container's default in both directions, longer or shorter: the draft expires after 30 days.", fr: "La ttl de l'élément remplace la valeur par défaut du conteneur dans les deux sens, plus longue ou plus courte : le brouillon expire après 30 jours." }
+        s3: { en: "Expired items disappear from query responses at once; only their physical deletion is deferred.", fr: "Les éléments expirés disparaissent aussitôt des réponses aux requêtes ; seule leur suppression physique est différée." }
+    references:
+      - title: Time to live in Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/time-to-live
+
+  # ------------------------------------------------------------------ 6
+  - id: dp420-qz-32-06
+    objective: "3.2.3"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Wingtip Toys' support agent uses a semantic cache in an Azure Cosmos DB for NoSQL container named **cache**. Each cache item holds the embedding of a user's last prompt and the answer that the model generated. A lookup returns the cached answer when the similarity score of the nearest item is above 0.95.
+
+        In a thread about a Contoso X200 router, a user asked "How do I reset it?". A few minutes later, in another thread about a Contoso C40 camera, a different user asked "How do I reset it?" and received the router instructions from the cache.
+
+        You need to prevent such wrong answers while keeping cache hits for questions asked in the same context.
+
+        What should you do?
+      fr: |
+        L'agent de support de Wingtip Toys utilise un cache sémantique dans un conteneur Azure Cosmos DB for NoSQL nommé **cache**. Chaque élément du cache contient l'incorporation du dernier prompt d'un utilisateur et la réponse générée par le modèle. Une recherche renvoie la réponse en cache quand le score de similarité de l'élément le plus proche dépasse 0,95.
+
+        Dans un thread sur un routeur Contoso X200, un utilisateur a demandé « How do I reset it? ». Quelques minutes plus tard, dans un autre thread sur une caméra Contoso C40, un autre utilisateur a demandé « How do I reset it? » et a reçu du cache les instructions du routeur.
+
+        Vous devez empêcher ces mauvaises réponses tout en conservant les accès au cache pour les questions posées dans le même contexte.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Raise the similarity threshold of every cache lookup from 0.95 to 0.99.", fr: "Relever le seuil de similarité de chaque recherche dans le cache de 0,95 à 0,99." } }
+        - { id: b, text: { en: "Lower the time to live of the cache items from one day to 15 minutes.", fr: "Réduire la durée de vie des éléments du cache d'un jour à 15 minutes." } }
+        - { id: c, text: { en: "Embed the prompts of the context window with the last prompt, and use that vector as the cache key.", fr: "Incorporer les prompts de la fenêtre de contexte avec le dernier prompt, et utiliser ce vecteur comme clé du cache." } }
+        - { id: d, text: { en: "Rank cache lookups with RRF over VectorDistance and FullTextScore on the last prompt.", fr: "Classer les recherches dans le cache avec RRF sur VectorDistance et FullTextScore du dernier prompt." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A follow-up prompt such as "How do I reset it?" only has a meaning with the conversation before it. A semantic cache should therefore use a context window as its key: vectorize the earlier prompts of the window together with the last prompt, store that vector with the answer and query with it. The two threads then produce different vectors, while a question repeated in the same context still hits the cache.
+        fr: |
+          Un prompt de suivi comme « How do I reset it? » n'a de sens qu'avec la conversation qui le précède. Un cache sémantique doit donc utiliser une fenêtre de contexte comme clé : vectoriser les prompts précédents de la fenêtre avec le dernier prompt, stocker ce vecteur avec la réponse et interroger avec lui. Les deux threads produisent alors des vecteurs différents, tandis qu'une question répétée dans le même contexte trouve toujours le cache.
+      options:
+        a: { en: "The two prompts are identical, so their embeddings match exactly and pass any threshold; a higher threshold only reduces hits for legitimate rephrasings.", fr: "Les deux prompts sont identiques : leurs incorporations correspondent exactement et dépassent n'importe quel seuil ; un seuil plus élevé réduit seulement les accès légitimes pour des reformulations." }
+        b: { en: "The wrong hit came minutes after the first question; a shorter time to live wouldn't prevent it and would remove useful entries.", fr: "Le mauvais accès est survenu quelques minutes après la première question ; une durée de vie plus courte ne l'empêcherait pas et supprimerait des entrées utiles." }
+        d: { en: "Hybrid ranking still compares only the last prompt, whose words and meaning are the same in both threads.", fr: "Le classement hybride compare toujours le seul dernier prompt, dont les mots et le sens sont les mêmes dans les deux threads." }
+    references:
+      - title: Introduction to semantic cache
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/semantic-cache
+
+  # ------------------------------------------------------------------ 7
+  - id: dp420-qz-32-07
+    objective: "3.2.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Tailspin Toys' planning agent stores its conversation state in an Azure Cosmos DB for NoSQL container named **turns**, partitioned by `/threadId`. Turn items have `type` set to `turn` and an integer `turnIndex`. Every 20 turns, a background job writes a new item of type `summary` in the thread's partition; its `coveredUpTo` property is the `turnIndex` of the last turn that it summarizes. Older summary items are kept.
+
+        Before each model call, the agent must load the newest summary of the thread and every turn that this summary doesn't cover, in chronological order. No turn may be sent twice to the model, and both queries must stay in one partition.
+
+        How should you complete the Python code? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'agent de planification de Tailspin Toys stocke son état de conversation dans un conteneur Azure Cosmos DB for NoSQL nommé **turns**, partitionné par `/threadId`. Les éléments de tour ont `type` égal à `turn` et un entier `turnIndex`. Tous les 20 tours, une tâche en arrière-plan écrit un nouvel élément de type `summary` dans la partition du thread ; sa propriété `coveredUpTo` est le `turnIndex` du dernier tour qu'il résume. Les anciens éléments de résumé sont conservés.
+
+        Avant chaque appel au modèle, l'agent doit charger le résumé le plus récent du thread et tous les tours que ce résumé ne couvre pas, dans l'ordre chronologique. Aucun tour ne doit être envoyé deux fois au modèle, et les deux requêtes doivent rester dans une seule partition.
+
+        Comment devez-vous compléter le code Python ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: python
+      template: |
+        summary = next(iter(turns.query_items(
+            query="SELECT TOP 1 c.text, c.coveredUpTo FROM c "
+                  "WHERE c.threadId = @th AND c.type = 'summary' "
+                  "ORDER BY [[sumOrder]]",
+            parameters=[{"name": "@th", "value": thread_id}],
+            partition_key=[[pk]])), None)
+
+        start = summary["coveredUpTo"] if summary else -1
+
+        recent = list(turns.query_items(
+            query="SELECT c.turnIndex, c.messages FROM c "
+                  "WHERE c.threadId = @th AND c.type = 'turn' "
+                  "AND c.turnIndex [[cmp]] @start "
+                  "ORDER BY [[turnOrder]]",
+            parameters=[{"name": "@th", "value": thread_id},
+                        {"name": "@start", "value": start}],
+            partition_key=thread_id))
+      slots:
+        - id: sumOrder
+          options:
+            - { id: asc, text: "c.coveredUpTo ASC" }
+            - { id: desc, text: "c.coveredUpTo DESC" }
+            - { id: etag, text: "c._etag DESC" }
+        - id: pk
+          options:
+            - { id: thread, text: "thread_id" }
+            - { id: literal, text: "\"summary\"" }
+            - { id: pair, text: "[thread_id, \"summary\"]" }
+        - id: cmp
+          options:
+            - { id: gte, text: ">=" }
+            - { id: gt, text: ">" }
+            - { id: lt, text: "<" }
+            - { id: lte, text: "<=" }
+        - id: turnOrder
+          options:
+            - { id: asc, text: "c.turnIndex ASC" }
+            - { id: desc, text: "c.turnIndex DESC" }
+            - { id: etag, text: "c._etag ASC" }
+    answer:
+      values: { sumOrder: desc, pk: thread, cmp: gt, turnOrder: asc }
+    explanation:
+      correct:
+        en: |
+          `TOP 1 ... ORDER BY c.coveredUpTo DESC` returns the summary that covers the most turns, the newest one. Passing `thread_id` as the partition key scopes the query to the thread's single partition, the container's partition key value. `turnIndex > @start` skips the last turn already included in the summary, and `ORDER BY c.turnIndex ASC` returns the remaining turns in chronological order, ready for the prompt.
+        fr: |
+          `TOP 1 ... ORDER BY c.coveredUpTo DESC` renvoie le résumé qui couvre le plus de tours, le plus récent. Passer `thread_id` comme clé de partition limite la requête à la seule partition du thread, la valeur de clé de partition du conteneur. `turnIndex > @start` ignore le dernier tour déjà inclus dans le résumé, et `ORDER BY c.turnIndex ASC` renvoie les tours restants dans l'ordre chronologique, prêts pour le prompt.
+      options:
+        sumOrder: { en: "ASC returns the oldest summary, which covers only the first 20 turns; _etag values aren't ordered in time.", fr: "ASC renvoie le résumé le plus ancien, qui ne couvre que les 20 premiers tours ; les valeurs _etag ne sont pas ordonnées dans le temps." }
+        pk: { en: "The container is partitioned by /threadId only: \"summary\" isn't a thread ID, and a two-value key matches no partition of a single-path container.", fr: "Le conteneur est partitionné uniquement par /threadId : \"summary\" n'est pas un ID de thread, et une clé à deux valeurs ne correspond à aucune partition d'un conteneur à chemin unique." }
+        cmp: { en: ">= would send the turn numbered coveredUpTo twice (in the summary and as a turn); < and <= return the turns the summary already covers.", fr: ">= enverrait deux fois le tour numéroté coveredUpTo (dans le résumé et comme tour) ; < et <= renvoient les tours que le résumé couvre déjà." }
+        turnOrder: { en: "DESC returns the turns newest first, so the code would have to reverse them; _etag gives no chronological order.", fr: "DESC renvoie les tours du plus récent au plus ancien, et le code devrait les inverser ; _etag ne donne aucun ordre chronologique." }
+    references:
+      - title: Agent memories in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories
+
+  # ------------------------------------------------------------------ 8
+  - id: dp420-qz-32-08
+    objective: "3.2.1"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Proseware's shopping assistant has 4 million users. Its long-term memory is stored in an Azure Cosmos DB for NoSQL container named **memories**, partitioned by `/userId`, which will hold about 2 billion facts. Each fact has a 1,536-dimension embedding in `/embedding`, declared in the container's vector policy.
+
+        At the start of each thread, the agent recalls the facts of the current user that are closest to the question. The recall must search only the vectors of the current user, with the lowest possible latency and RU charge.
+
+        Which two actions should you perform? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'assistant d'achat de Proseware compte 4 millions d'utilisateurs. Sa mémoire à long terme est stockée dans un conteneur Azure Cosmos DB for NoSQL nommé **memories**, partitionné par `/userId`, qui contiendra environ 2 milliards de faits. Chaque fait a une incorporation de 1 536 dimensions dans `/embedding`, déclarée dans la stratégie vectorielle du conteneur.
+
+        Au début de chaque thread, l'agent rappelle les faits de l'utilisateur en cours les plus proches de la question. Le rappel ne doit parcourir que les vecteurs de l'utilisateur en cours, avec la latence et la charge en RU les plus faibles possible.
+
+        Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Add a `flat` vector index on `/embedding` to get exact results for each user.", fr: "Ajouter un index vectoriel `flat` sur `/embedding` pour obtenir des résultats exacts pour chaque utilisateur." } }
+        - { id: b, text: { en: "Add a `diskANN` vector index on `/embedding` with `vectorIndexShardKey` set to `[\"/userId\"]`.", fr: "Ajouter un index vectoriel `diskANN` sur `/embedding` avec `vectorIndexShardKey` défini sur `[\"/userId\"]`." } }
+        - { id: c, text: { en: "Add a `quantizedFlat` vector index on `/embedding` with `vectorIndexShardKey` set to `[\"/userId\"]`.", fr: "Ajouter un index vectoriel `quantizedFlat` sur `/embedding` avec `vectorIndexShardKey` défini sur `[\"/userId\"]`." } }
+        - { id: d, text: { en: "Order the recall query by `VectorDistance` and keep only the user's facts in the application code.", fr: "Trier la requête de rappel par `VectorDistance` et ne garder que les faits de l'utilisateur dans le code de l'application." } }
+        - { id: e, text: { en: "Filter the recall query with `WHERE c.userId = @userId` and order it by `VectorDistance`.", fr: "Filtrer la requête de rappel avec `WHERE c.userId = @userId` et la trier par `VectorDistance`." } }
+    answer: { optionIds: [b, e] }
+    explanation:
+      correct:
+        en: |
+          At billions of vectors, DiskANN is the recommended index, and Sharded DiskANN builds a separate index per value of `vectorIndexShardKey`. With the shard key on the user, a query filtered on `c.userId` searches only that user's index, and the same filter on the partition key keeps the query in one partition. Both are needed: the shard key prepares the per-user index, and the filter focuses each query on it.
+        fr: |
+          À des milliards de vecteurs, DiskANN est l'index recommandé, et Sharded DiskANN crée un index distinct par valeur de `vectorIndexShardKey`. Avec `vectorIndexShardKey` sur l'utilisateur, une requête filtrée sur `c.userId` ne parcourt que l'index de cet utilisateur, et le même filtre sur la clé de partition garde la requête dans une seule partition. Les deux sont nécessaires : `vectorIndexShardKey` prépare l'index par utilisateur, et le filtre y concentre chaque requête.
+      options:
+        a: { en: "A flat index is limited to 505 dimensions, so it can't index these embeddings, and a brute-force search doesn't scale to this volume.", fr: "Un index flat est limité à 505 dimensions : il ne peut pas indexer ces incorporations, et une recherche exhaustive ne passe pas à cette échelle." }
+        c: { en: "vectorIndexShardKey is the Sharded DiskANN option, and quantizedFlat is meant for searches scoped to 50,000 vectors or fewer, not billions.", fr: "vectorIndexShardKey est l'option de Sharded DiskANN, et quantizedFlat est prévu pour des recherches portant sur 50 000 vecteurs ou moins, pas des milliards." }
+        d: { en: "Without a filter, the query searches every user's vectors in every partition, costs far more RUs and returns other users' memories to the application.", fr: "Sans filtre, la requête parcourt les vecteurs de tous les utilisateurs dans toutes les partitions, coûte beaucoup plus de RU et renvoie à l'application les mémoires d'autres utilisateurs." }
+    references:
+      - title: "Sharded DiskANN: Focused vector search"
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/sharded-diskann
+      - title: Vector search in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search
+
+  # ------------------------------------------------------------------ 9
+  - id: dp420-qz-32-09
+    objective: "3.2.3"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Woodgrove Bank's advisory agent uses two Azure Cosmos DB for NoSQL containers:
+
+        - **turns**, partitioned by `/threadId`: one item per turn, with an integer `turnIndex` and an embedding of the turn
+        - **memories**, partitioned by `/userId`: one item per fact, with a `text` property and an embedding; `text` is covered by a full-text policy and index
+
+        Some threads exceed 500 turns. Before each model call, the agent builds its prompt from four kinds of context.
+
+        Which operation should retrieve each kind of context? To answer, drag the appropriate operations to the correct contexts. Each operation may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'agent de conseil de Woodgrove Bank utilise deux conteneurs Azure Cosmos DB for NoSQL :
+
+        - **turns**, partitionné par `/threadId` : un élément par tour, avec un entier `turnIndex` et une incorporation du tour
+        - **memories**, partitionné par `/userId` : un élément par fait, avec une propriété `text` et une incorporation ; `text` est couvert par une stratégie et un index de texte intégral
+
+        Certains threads dépassent 500 tours. Avant chaque appel au modèle, l'agent construit son prompt à partir de quatre sortes de contexte.
+
+        Quelle opération doit récupérer chaque sorte de contexte ? Pour répondre, faites glisser les opérations appropriées vers les contextes correspondants. Chaque opération peut être utilisée une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: point, text: { en: "Point read on memories", fr: "Lecture ponctuelle sur memories" } }
+        - { id: recent, text: { en: "TOP N query on turns, filtered on the thread, ordered by turnIndex DESC", fr: "Requête TOP N sur turns, filtrée sur le thread, triée par turnIndex DESC" } }
+        - { id: vthread, text: { en: "Vector search on turns, filtered on the thread", fr: "Recherche vectorielle sur turns, filtrée sur le thread" } }
+        - { id: vuser, text: { en: "Vector search on memories, filtered on the user", fr: "Recherche vectorielle sur memories, filtrée sur l'utilisateur" } }
+        - { id: hybrid, text: { en: "Hybrid search (RRF of VectorDistance and FullTextScore) on memories, filtered on the user", fr: "Recherche hybride (RRF de VectorDistance et FullTextScore) sur memories, filtrée sur l'utilisateur" } }
+      targets:
+        - { id: t1, text: { en: "The last six turns of the current thread", fr: "Les six derniers tours du thread en cours" } }
+        - { id: t2, text: { en: "A preference that the user stated weeks ago in another thread, worded differently from the new question", fr: "Une préférence exprimée par l'utilisateur il y a des semaines dans un autre thread, formulée autrement que la nouvelle question" } }
+        - { id: t3, text: { en: "The user's facts that mention the transfer reference TRF-88213 quoted in the new question", fr: "Les faits de l'utilisateur qui mentionnent la référence de virement TRF-88213 citée dans la nouvelle question" } }
+        - { id: t4, text: { en: "An earlier exchange of the current 520-turn thread on the same topic as the new question", fr: "Un échange antérieur du thread en cours, long de 520 tours, sur le même sujet que la nouvelle question" } }
+    answer:
+      mapping: { t1: recent, t2: vuser, t3: hybrid, t4: vthread }
+    explanation:
+      correct:
+        en: |
+          Recent turns are read by recency: a TOP N query ordered by `turnIndex` in the thread's partition. A preference from another thread lives in long-term memory and must be found by meaning, with a vector search scoped to the user. A reference such as TRF-88213 has no useful meaning for an embedding, so hybrid ranking adds the full-text score of the exact term. An old exchange of a long thread is found by meaning inside the thread's partition, with a vector search on the turns.
+        fr: |
+          Les tours récents se lisent par récence : une requête TOP N triée par `turnIndex` dans la partition du thread. Une préférence venue d'un autre thread se trouve dans la mémoire à long terme et doit être retrouvée par le sens, avec une recherche vectorielle limitée à l'utilisateur. Une référence comme TRF-88213 n'a pas de sens exploitable par une incorporation : le classement hybride ajoute le score en texte intégral du terme exact. Un ancien échange d'un long thread se retrouve par le sens dans la partition du thread, avec une recherche vectorielle sur les tours.
+      options:
+        point: { en: "A point read needs a known id; none of these contexts is a single item whose id the agent knows in advance.", fr: "Une lecture ponctuelle exige un id connu ; aucun de ces contextes n'est un élément unique dont l'agent connaît l'id à l'avance." }
+    references:
+      - title: Agent memories in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories
+      - title: Vector search in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search
+
+  # ------------------------------------------------------------------ 10
+  - id: dp420-qz-32-10
+    objective: "3.2.1"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Contoso designs the memory of a multitenant assistant in Azure Cosmos DB for NoSQL. Every item has `tenantId`, `userId` and `threadId` properties.
+
+        - Container **turns**: partition key `/threadId`, default time to live 604,800 seconds (7 days). It holds turn items without a `ttl` property and one `summary` item per thread, written with `ttl` set to -1.
+        - Container **memories**: partition key `/userId`, no default time to live configured. It holds permanent facts without a `ttl` property and temporary preferences written with `ttl` set to 2,592,000 (30 days).
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso conçoit la mémoire d'un assistant multilocataire dans Azure Cosmos DB for NoSQL. Chaque élément a des propriétés `tenantId`, `userId` et `threadId`.
+
+        - Conteneur **turns** : clé de partition `/threadId`, durée de vie par défaut de 604 800 secondes (7 jours). Il contient des éléments de tour sans propriété `ttl` et un élément `summary` par thread, écrit avec `ttl` à -1.
+        - Conteneur **memories** : clé de partition `/userId`, aucune durée de vie par défaut configurée. Il contient des faits permanents sans propriété `ttl` et des préférences temporaires écrites avec `ttl` à 2 592 000 (30 jours).
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "A temporary preference is removed from memories 30 days after its last write.", fr: "Une préférence temporaire est retirée de memories 30 jours après sa dernière écriture." }
+        - id: s2
+          text: { en: "The summary item of a thread remains in turns after the turns of that thread have expired.", fr: "L'élément summary d'un thread reste dans turns après l'expiration des tours de ce thread." }
+        - id: s3
+          text: { en: "A query on turns that returns the summary items of all the threads of one user, filtered on c.userId, is served by a single logical partition.", fr: "Une requête sur turns qui renvoie les éléments summary de tous les threads d'un utilisateur, filtrée sur c.userId, est servie par une seule partition logique." }
+    answer:
+      values: { s1: false, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          An item's `ttl` has an effect only when the container has a default time to live (-1 or a number of seconds); memories has none, so the temporary preferences never expire. In turns, the default applies to turns without `ttl`, while `ttl` -1 keeps each summary forever. Because turns is partitioned by thread, a user's summaries are spread over as many logical partitions as the user has threads.
+        fr: |
+          La `ttl` d'un élément n'a d'effet que si le conteneur a une durée de vie par défaut (-1 ou un nombre de secondes) ; memories n'en a pas, donc les préférences temporaires n'expirent jamais. Dans turns, la valeur par défaut s'applique aux tours sans `ttl`, tandis que `ttl` à -1 conserve chaque résumé indéfiniment. Comme turns est partitionné par thread, les résumés d'un utilisateur sont répartis sur autant de partitions logiques que l'utilisateur a de threads.
+      options:
+        s1: { en: "Without a default time to live on memories, the item's ttl is ignored; set the container's default to -1 so that only the temporary preferences expire.", fr: "Sans durée de vie par défaut sur memories, la ttl de l'élément est ignorée ; définissez la valeur par défaut du conteneur à -1 pour que seules les préférences temporaires expirent." }
+        s3: { en: "The filter isn't on the partition key: the query fans out to the partitions of every thread. Storing summaries in memories, partitioned by user, would make it single-partition.", fr: "Le filtre ne porte pas sur la clé de partition : la requête est diffusée vers les partitions de tous les threads. Stocker les résumés dans memories, partitionné par utilisateur, la ramènerait à une seule partition." }
+    references:
+      - title: Time to live in Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/time-to-live
+      - title: Agent memories in Azure Cosmos DB for NoSQL
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/gen-ai/agentic-memories

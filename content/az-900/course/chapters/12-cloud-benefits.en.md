@@ -19,7 +19,7 @@ The exam names eight benefits of the cloud, grouped in pairs. Questions give a s
 <!-- section: reliability-predictability | objectives: 1.2.2 -->
 ## Reliability and predictability
 
-**Reliability** is the ability of a system to recover from failures and continue to function. The cloud supports it by design: resources can be deployed in several regions around the world, so that if one region has a catastrophic event, another keeps running.
+**Reliability** is the ability of a system to recover from failures and continue to function; it is also one of the pillars of the Azure Well-Architected Framework. The cloud supports it by design: resources can be deployed in several regions around the world, so that if one region has a catastrophic event, another keeps running.
 
 **Predictability** lets you move forward with confidence. It has two sides:
 

@@ -5,7 +5,7 @@ Un réseau virtuel est le réseau privé de vos ressources dans Azure. Ce chapit
 
 Un réseau virtuel appartient à **une région et un abonnement**. Il possède une ou plusieurs plages d'adresses (son **espace d'adressage**), découpées en **sous-réseaux**. Les ressources d'un même réseau virtuel communiquent par défaut, d'un sous-réseau à l'autre, avec leurs adresses privées.
 
-- Utilisez des plages privées (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16). Les plages ne doivent **pas se chevaucher** avec les réseaux que vous connecterez : réseaux virtuels appairés et sites locaux.
+- Utilisez des plages privées (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16). Les plages ne doivent **pas se chevaucher** avec les réseaux que vous connecterez : réseaux virtuels reliés par peering et sites locaux.
 - Plages interdites : 224.0.0.0/4, 255.255.255.255/32, 127.0.0.0/8, 169.254.0.0/16 et 168.63.129.16/32.
 - Vous pouvez ajouter des plages d'adresses et des sous-réseaux plus tard ; un sous-réseau qui contient des ressources ne peut pas être réduit en dessous de ce qui est utilisé.
 
@@ -31,7 +31,7 @@ Certains services exigent un **sous-réseau dédié**, parfois avec un nom impos
 
 Les adresses IP privées viennent du sous-réseau, en mode **dynamique** (par défaut : la prochaine adresse libre, conservée tant que l'interface existe) ou **statique** (vous la choisissez). Les machines virtuelles utilisent par défaut le DNS fourni par Azure ; des serveurs DNS personnalisés définis sur le réseau virtuel s'appliquent après le redémarrage des machines.
 
-**Accès sortant à internet.** Historiquement, une machine sans IP publique disposait d'un « accès sortant par défaut » implicite. Pour les réseaux virtuels créés après le 31 mars 2026, les sous-réseaux sont **privés par défaut** : l'accès sortant doit être explicite, par une **passerelle NAT** (recommandée), une règle de trafic sortant d'équilibreur de charge, une IP publique sur la machine, ou un pare-feu.
+**Accès sortant à internet.** Historiquement, une machine sans IP publique disposait d'un « accès sortant par défaut » implicite. Avec les versions d'API publiées après le 31 mars 2026, les sous-réseaux des **nouveaux** réseaux virtuels sont **privés par défaut** (le portail crée déjà des sous-réseaux privés ; les réseaux virtuels existants ne changent pas) : l'accès sortant doit être explicite, par une **passerelle NAT** (recommandée), une règle de trafic sortant d'équilibreur de charge, une IP publique sur la machine, ou un pare-feu.
 
 ```bash
 az network vnet create -g RG1 -n VNet1 --address-prefixes 10.20.0.0/16 \
@@ -48,8 +48,8 @@ Le peering connecte deux réseaux virtuels pour que leurs ressources communiquen
 - Il fonctionne dans la même région et **entre régions** (peering mondial), entre abonnements et même entre locataires.
 - Les espaces d'adressage **ne doivent pas se chevaucher**.
 - Un peering est fait de **deux liens**, un dans chaque sens. Le portail crée les deux ; avec la CLI ou PowerShell, vous créez chacun. État **Initiated** après le premier lien, **Connected** quand les deux existent.
-- Le peering n'est **pas transitif** : si A est appairé avec B et B avec C, A n'atteint pas C.
-- Après l'ajout d'une plage d'adresses à un réseau appairé, **synchronisez** le peering ; inutile de le supprimer.
+- Le peering n'est **pas transitif** : si A est relié par peering à B et B à C, A n'atteint pas C.
+- Après l'ajout d'une plage d'adresses à un réseau relié par peering, **synchronisez** le peering ; inutile de le supprimer.
 
 Réglages de chaque lien de peering :
 
@@ -60,7 +60,7 @@ Réglages de chaque lien de peering :
 | **Autoriser le transit par passerelle** | Sur le réseau qui **possède** la passerelle VPN ou ExpressRoute : la partage avec le pair |
 | **Utiliser les passerelles distantes** | Sur le réseau **sans** passerelle : utilise la passerelle du pair. Possible seulement si le pair autorise le transit par passerelle et si le réseau local n'a pas de passerelle |
 
-**Hub-and-spoke.** Les spokes sont appairés à un hub qui porte les services partagés. Pour le trafic de spoke à spoke, il faut l'une de ces solutions : un peering direct entre les spokes ; ou une appliance virtuelle réseau ou un Pare-feu Azure dans le hub, avec des **itinéraires définis par l'utilisateur** dans chaque spoke qui pointent vers elle, et *Autoriser le trafic transféré* sur les peerings. Pour l'accès au réseau local depuis les spokes : transit par passerelle sur le hub, passerelles distantes sur les spokes.
+**Hub-and-spoke.** Les spokes sont reliés par peering à un hub qui porte les services partagés. Pour le trafic de spoke à spoke, il faut l'une de ces solutions : un peering direct entre les spokes ; ou une appliance virtuelle réseau ou un Pare-feu Azure dans le hub, avec des **itinéraires définis par l'utilisateur** dans chaque spoke qui pointent vers elle, et *Autoriser le trafic transféré* sur les peerings. Pour l'accès au réseau local depuis les spokes : transit par passerelle sur le hub, passerelles distantes sur les spokes.
 
 ```bash
 az network vnet peering create -g RG1 -n Hub-to-Spoke1 --vnet-name Hub \
@@ -74,14 +74,14 @@ az network vnet peering create -g RG1 -n Spoke1-to-Hub --vnet-name Spoke1 \
 
 Une adresse IP publique est une ressource que l'on associe à une interface réseau, un équilibreur de charge, une passerelle VPN, une passerelle d'application, une passerelle NAT, Azure Bastion ou un Pare-feu Azure.
 
-| Propriété | SKU Standard (le seul SKU actuel) |
+| Propriété | SKU Standard |
 | --- | --- |
 | Allocation | Toujours **statique** : attribuée à la création, conservée jusqu'à la suppression de la ressource |
 | Sécurité | **Fermée au trafic entrant par défaut** : un NSG doit l'autoriser explicitement |
-| Zones de disponibilité | **Redondante interzone** (zones 1, 2, 3), **zonale** (une zone) ou sans zone. Non modifiable après la création |
+| Zones de disponibilité | **Redondante interzone** (zones 1, 2, 3 ; régions à trois zones) ou **zonale** (une zone). Non zonale uniquement dans les régions sans zones de disponibilité. Non modifiable après la création |
 | Niveau | Régional, ou Global pour les équilibreurs de charge interrégionaux |
 
-Le SKU Basic, qui permettait l'allocation dynamique, a été retiré le 30 septembre 2025.
+Le SKU Basic, qui permettait l'allocation dynamique, a été retiré le 30 septembre 2025. Il existe aussi un SKU **Standard v2** : toujours redondant interzone, et pour l'instant utilisable uniquement avec la passerelle NAT Standard v2, avec aucune autre ressource.
 
 - Une **étiquette de nom DNS** donne à l'adresse le nom `<étiquette>.<région>.cloudapp.azure.com`.
 - Un **préfixe d'adresses IP publiques** réserve une plage contiguë d'adresses statiques (par exemple /28 = 16 adresses, toutes utilisables) à partir de laquelle vous créez des IP publiques ; utile pour les listes d'autorisation des pare-feux.
@@ -95,7 +95,7 @@ az network public-ip create -g RG1 -n pip-vm1 --sku Standard --zone 1 2 3 --dns-
 <!-- section: user-defined-routes | objectives: 4.1.4 -->
 ## Itinéraires définis par l'utilisateur
 
-Azure crée des **itinéraires système** pour chaque sous-réseau : vers le réseau virtuel lui-même, vers les réseaux appairés, vers internet (0.0.0.0/0) et, quand une passerelle existe, vers les réseaux locaux (itinéraires BGP). Vous les remplacez par des **itinéraires définis par l'utilisateur** (UDR), regroupés dans une **table de routage** que vous associez à des sous-réseaux.
+Azure crée des **itinéraires système** pour chaque sous-réseau : vers le réseau virtuel lui-même, vers les réseaux reliés par peering, vers internet (0.0.0.0/0) et, quand une passerelle existe, vers les réseaux locaux (itinéraires BGP). Vous les remplacez par des **itinéraires définis par l'utilisateur** (UDR), regroupés dans une **table de routage** que vous associez à des sous-réseaux.
 
 | Type de tronçon suivant | Envoie le trafic vers |
 | --- | --- |

@@ -26,7 +26,7 @@ Autorisations sur un job (chacune inclut celles du dessous) :
 | CAN MANAGE RUN | Déclencher et annuler des exécutions |
 | CAN VIEW | Consulter les résultats, les détails, l'historique et l'état des exécutions |
 
-Les exécutions lancées avec **Run now** utilisent les autorisations de l'identité **Run as**, pas celles de l'utilisateur qui a cliqué. Modifier **Run as** demande CAN MANAGE ou IS OWNER, et vous ne pouvez choisir un principal de service que si vous avez le rôle **Service Principal User** sur lui. Exécutez les jobs de production sous un principal de service, pour qu'ils ne dépendent pas du compte d'une personne.
+Les exécutions lancées avec **Run now** utilisent les autorisations de l'identité **Run as**, pas celles de l'utilisateur qui a cliqué. Modifier **Run as** demande CAN MANAGE ou IS OWNER, et vous ne pouvez choisir un principal de service que si vous avez le rôle **Service Principal User** sur lui. Par défaut, les administrateurs de l'espace de travail peuvent définir le propriétaire ou **Run as** sur n'importe quel utilisateur ou principal de service de l'espace de travail ; les administrateurs de compte peuvent restreindre ce droit avec le paramètre `RestrictWorkspaceAdmins`. Exécutez les jobs de production sous un principal de service, pour qu'ils ne dépendent pas du compte d'une personne.
 
 ```json
 {
@@ -69,9 +69,9 @@ Ajoutez des déclencheurs dans **Job details > Schedules & Triggers > Add trigge
 | Table update | Des tables sources sont mises à jour | Exécuter quand les données en amont sont prêtes |
 | Continuous | L'exécution précédente se termine (réussite ou échec) | Streaming toujours actif |
 
-**File arrival** : surveille la racine ou un sous-chemin d'un emplacement externe ou d'un volume, de façon récursive, sans caractères génériques. Il recherche de nouveaux fichiers environ chaque minute, sans autre coût que le listage du stockage. Il faut `READ` sur l'emplacement et CAN MANAGE sur le job. Seuls les nouveaux fichiers déclenchent une exécution : remplacer un fichier portant le même nom ne le fait pas. Avec les **événements de fichiers** (file events) activés sur l'emplacement externe (recommandé), il n'y a pas de limite de nombre de fichiers ; sans eux, au plus 50 jobs par espace de travail utilisent un tel déclencheur et le chemin contient au plus 10 000 fichiers. Dans la tâche déclenchée, lisez les fichiers avec Auto Loader et `trigger(availableNow=True)` pour que chaque exécution ne traite que les nouveautés.
+**File arrival** : surveille la racine ou un sous-chemin d'un emplacement externe ou d'un volume, de façon récursive, sans caractères génériques. Il recherche de nouveaux fichiers environ chaque minute, sans autre coût que le listage du stockage. Il faut `READ` sur l'emplacement et CAN MANAGE sur le job. Seuls les nouveaux fichiers déclenchent une exécution : remplacer un fichier portant le même nom ne le fait pas. Avec les **événements de fichiers** (file events) activés sur l'emplacement externe (recommandé ; les activer exige d'être propriétaire de l'emplacement ou d'avoir `MANAGE` sur lui), il n'y a pas de limite de nombre de fichiers ; sans eux, au plus 50 jobs par espace de travail utilisent un tel déclencheur et le chemin contient au plus 10 000 fichiers. Dans la tâche déclenchée, lisez les fichiers avec Auto Loader, `cloudFiles.useManagedFileEvents` défini sur `true` et `trigger(availableNow=True)`, pour que chaque exécution ne traite que les nouveautés.
 
-**Table update** : surveille jusqu'à 10 tables (tables managées Delta ou Iceberg, tables externes Delta, vues matérialisées, tables de diffusion en continu, vues sur des tables prises en charge) et démarre quand **une** ou **toutes** sont mises à jour. L'identité **Run as** doit avoir `SELECT` sur chaque table, ainsi que `USE CATALOG` et `USE SCHEMA` ; sinon, l'évaluation du déclencheur échoue. `{{job.trigger.table_update.updated_tables}}` liste les tables mises à jour.
+**Table update** : surveille jusqu'à 10 tables (tables managées Delta ou Iceberg, tables externes Delta, vues matérialisées, tables de diffusion en continu, vues ou vues de métriques sur des tables prises en charge, objets OpenSharing, tables système ; les tables sources d'une vue comptent dans les 10) et démarre quand **une** ou **toutes** sont mises à jour. L'identité **Run as** doit avoir `SELECT` sur chaque table, ainsi que `USE CATALOG` et `USE SCHEMA` ; sinon, l'évaluation du déclencheur échoue. Pour les tables situées dans des emplacements sans événements de fichiers, au plus 1 000 jobs peuvent avoir un déclencheur Table update. `{{job.trigger.table_update.updated_tables}}` liste les tables mises à jour.
 
 Les déclencheurs File arrival et Table update ont deux paramètres facultatifs :
 
@@ -80,7 +80,7 @@ Les déclencheurs File arrival et Table update ont deux paramètres facultatifs 
 | Minimum time between triggers in seconds | Temps de récupération : au plus une exécution par intervalle après la fin d'une exécution | `900` : exécuter au plus toutes les 15 minutes |
 | Wait after last change in seconds | Anti-rebond : attendre après la dernière arrivée ou mise à jour ; chaque nouvelle remet le minuteur à zéro | `60` : laisser un lot de fichiers finir d'arriver |
 
-**Continuous** : une exécution toujours active ; une nouvelle exécution démarre moins de 60 secondes après la fin de la précédente. Il ne peut pas être combiné avec d'autres déclencheurs, et les dépendances de tâches avec `Run if` ainsi que les stratégies de nouvelles tentatives par tâche ne sont pas disponibles.
+**Continuous** : une exécution toujours active ; une nouvelle exécution démarre moins de 60 secondes après la fin de la précédente. Il ne peut pas être combiné avec d'autres déclencheurs, et les dépendances de tâches avec `Run if` ainsi que les stratégies de nouvelles tentatives par tâche ne sont pas disponibles. Si le job exécute un pipeline, une **Maintenance window** (fenêtre de maintenance, sous **Advanced**) facultative détermine quand sont appliquées les mises à jour qui redémarrent le pipeline. Sur le calcul serverless, `Trigger.ProcessingTime` et `Trigger.Continuous` ne sont pas pris en charge : utilisez un déclencheur borné comme `AvailableNow`, et le planificateur redémarre la tâche quand elle se termine.
 
 Limites : jusqu'à 12 000 déclencheurs actifs par espace de travail (les déclencheurs suspendus ne comptent pas) ; un job peut avoir jusqu'à cinq déclencheurs pendant la bêta Multiple Triggers, chacun suspendu ou repris indépendamment. Dans l'API Jobs 2.1 et versions ultérieures, les déclencheurs vont dans le tableau `triggers` ; ne le mélangez pas avec les anciens champs `schedule`, `trigger` ou `continuous`.
 
@@ -137,7 +137,8 @@ Les notifications se définissent au niveau du **job** (Job details) ou de la **
 | Success | Une exécution se termine, y compris à l'état `Succeeded with failures` |
 | Failure | Une exécution échoue |
 | Duration warning | Une exécution dépasse le seuil de durée **Warning**, qui doit être défini au préalable |
-| Streaming backlog | Le backlog moyen sur 10 minutes dépasse le seuil (puis au plus toutes les 30 minutes) ; pas pour les tâches de pipeline |
+| Streaming backlog (préversion publique) | Le backlog moyen sur 10 minutes dépasse le seuil (puis au plus toutes les 30 minutes) ; pas pour les tâches de pipeline |
+| Maintenance start, Maintenance complete | Un job continu doté d'une fenêtre de maintenance configurée commence ou termine une maintenance |
 
 | Destination | Remarques |
 | --- | --- |
@@ -157,7 +158,7 @@ Options et comportements :
 <!-- section: automatic-restarts | objectives: 4.2.5 -->
 ## Configurer des redémarrages automatiques
 
-**Nouvelles tentatives de tâche** : dans les paramètres de la tâche, cliquez sur **Add** à côté de **Retries** pour définir combien de fois et à quelle fréquence une tâche en échec est relancée. L'intervalle se mesure entre le début de l'exécution en échec et la tentative suivante. **Retry on timeout** décide si une tentative qui a dépassé son délai est relancée ; quand le délai d'expiration et les nouvelles tentatives sont tous deux définis, le délai s'applique à chaque tentative.
+**Nouvelles tentatives de tâche** : dans les paramètres de la tâche, cliquez sur **Add** à côté de **Retries** pour définir combien de fois et à quelle fréquence une tâche en échec est relancée. L'intervalle se mesure entre le début de l'exécution en échec et la tentative suivante. `retry_on_timeout` (false par défaut) décide si une tentative qui a dépassé son délai est relancée ; quand le délai d'expiration et les nouvelles tentatives sont tous deux définis, le délai s'applique à chaque tentative.
 
 | Configuration | Comportement de nouvelle tentative par défaut |
 | --- | --- |
@@ -166,7 +167,7 @@ Options et comportements :
 | Job continu | Interruption exponentielle (exponential backoff) pour tout le job, sans limite du nombre de tentatives |
 | Mise à jour de pipeline depuis un job, l'API ou en mode continu | Nouvelle tentative automatique et redémarrage du cluster pour les erreurs récupérables |
 
-**Jobs continus** : les stratégies de nouvelles tentatives par tâche ne sont pas utilisables. Avec **Task retry mode** On failure (la valeur par défaut), une tâche en échec est relancée avec des délais croissants jusqu'à un maximum (trois pour un job à une seule tâche), puis l'exécution est annulée et une nouvelle démarre. Après des échecs répétés, tout le job redémarre avec une période de nouvelle tentative croissante, plafonnée par le système ; l'interruption se réinitialise après une exécution réussie. Vous pouvez redémarrer un job en interruption depuis l'interface ou avec `run-now`. Databricks recommande un job continu plutôt que l'ancien modèle de nouvelles tentatives illimitées avec une seule exécution simultanée.
+**Jobs continus** : les stratégies de nouvelles tentatives par tâche ne sont pas utilisables. Avec **Task retry mode** On failure (la valeur par défaut), une tâche en échec est relancée avec des délais croissants jusqu'à un maximum (trois pour un job à une seule tâche), puis l'exécution est annulée et une nouvelle démarre. Après des échecs répétés, tout le job redémarre avec une période de nouvelle tentative croissante, plafonnée par le système ; l'interruption se réinitialise après une exécution réussie. Pour redémarrer un job en interruption, cliquez sur **Restart run** (cela annule l'exécution active, réinitialise la période de nouvelle tentative et démarre une nouvelle exécution) ou envoyez une requête `run-now` avec l'ID du job. Databricks recommande un job continu plutôt que l'ancien modèle de nouvelles tentatives illimitées avec une seule exécution simultanée.
 
 **Tâches de streaming** : un flux Auto Loader en mode `addNewColumns` s'arrête volontairement quand le schéma change ; une stratégie de nouvelles tentatives sur la tâche (ou un job continu) le redémarre avec le nouveau schéma.
 
@@ -189,5 +190,5 @@ Options et comportements :
 - Max concurrent runs vaut 1 par défaut ; les exécutions en trop sont ignorées ou mises en file d'attente (jusqu'à 48 heures).
 - Déclencheurs : manuel, planifié, arrivée de fichiers, mise à jour de table, continu ; les paramètres de temps de récupération et d'anti-rebond absorbent les rafales.
 - Les planifications Advanced utilisent le cron Quartz avec un fuseau horaire ; 10 secondes minimum entre exécutions ; UTC évite les surprises de l'heure d'été.
-- Notifications : start, success, failure, duration warning, streaming backlog ; les destinations système viennent d'un administrateur, trois par type d'événement.
+- Notifications : start, success, failure, duration warning, streaming backlog (préversion publique), maintenance start et complete ; les destinations système viennent d'un administrateur, trois par type d'événement.
 - Les nouvelles tentatives sont désactivées par défaut, sauf l'auto-optimisation serverless ; les jobs continus utilisent une interruption exponentielle sans limite ; les pipelines relancent flux et mises à jour dans les exécutions de production.

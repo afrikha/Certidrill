@@ -1,0 +1,492 @@
+chapter: 21-cosmos-db
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ai200-qz-21-01
+    objective: "2.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso stores the FAQ entries of a multi-tenant assistant in an Azure Cosmos DB for NoSQL container named **faq**, partitioned on `/tenantId`. No unique key policy is defined. For every tenant, the onboarding code calls `create_item()` with an item whose `id` is `welcome`.
+
+        What is the result?
+      fr: |
+        Contoso stocke les entrées de FAQ d'un assistant multilocataire dans un conteneur Azure Cosmos DB for NoSQL nommé **faq**, partitionné sur `/tenantId`. Aucune stratégie de clé unique n'est définie. Pour chaque locataire, le code d'intégration appelle `create_item()` avec un élément dont l'`id` est `welcome`.
+
+        Quel est le résultat ?
+    body:
+      options:
+        - { id: a, text: { en: "The second call fails, because an `id` must be unique across the whole container.", fr: "Le deuxième appel échoue, car un `id` doit être unique dans tout le conteneur." } }
+        - { id: b, text: { en: "Each tenant gets its own item, because an `id` must be unique only within a logical partition.", fr: "Chaque locataire obtient son propre élément, car un `id` ne doit être unique qu'au sein d'une partition logique." } }
+        - { id: c, text: { en: "Each call replaces the previous item, because the service keeps one item for each `id` value.", fr: "Chaque appel remplace l'élément précédent, car le service conserve un seul élément par valeur d'`id`." } }
+        - { id: d, text: { en: "The calls succeed only after you add a unique key policy that includes the `/id` path.", fr: "Les appels ne réussissent qu'après l'ajout d'une stratégie de clé unique qui inclut le chemin `/id`." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          An item ID is unique within its logical partition, and the combination of the partition key value and the `id` identifies the item. The items of different tenants have different `tenantId` values, so every `create_item()` call succeeds. A point read then needs both values: `read_item(item="welcome", partition_key=<tenant>)`.
+        fr: |
+          L'ID d'un élément est unique au sein de sa partition logique, et la combinaison de la valeur de clé de partition et de l'`id` identifie l'élément. Les éléments des différents locataires ont des valeurs `tenantId` différentes : chaque appel à `create_item()` réussit donc. Une lecture ponctuelle exige ensuite les deux valeurs : `read_item(item="welcome", partition_key=<tenant>)`.
+      options:
+        a: { en: "The `id` is unique across the container only when the partition key is `/id` itself; here it is `/tenantId`.", fr: "L'`id` n'est unique dans tout le conteneur que si la clé de partition est `/id` elle-même ; ici, c'est `/tenantId`." }
+        c: { en: "`create_item()` never replaces an item: it fails when the same `id` exists in the same partition, and items of other partitions are untouched.", fr: "`create_item()` ne remplace jamais un élément : il échoue quand le même `id` existe dans la même partition, et les éléments des autres partitions ne sont pas touchés." }
+        d: { en: "A unique key policy adds a uniqueness constraint within each logical partition; it isn't needed for items that differ by partition key.", fr: "Une stratégie de clé unique ajoute une contrainte d'unicité dans chaque partition logique ; elle n'est pas nécessaire pour des éléments dont la clé de partition diffère." }
+    references:
+      - title: Partitioning and horizontal scaling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning
+
+  # ------------------------------------------------------------------ 2
+  - id: ai200-qz-21-02
+    objective: "2.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A developer creates a container in Azure Cosmos DB for NoSQL with `create_container()` and doesn't pass any `indexing_policy` argument.
+
+        Which properties of the items are indexed?
+      fr: |
+        Un développeur crée un conteneur dans Azure Cosmos DB for NoSQL avec `create_container()` sans passer d'argument `indexing_policy`.
+
+        Quelles propriétés des éléments sont indexées ?
+    body:
+      options:
+        - { id: a, text: { en: "Only the `id` and the partition key, until you add included paths", fr: "Seulement l'`id` et la clé de partition, jusqu'à l'ajout de chemins inclus" } }
+        - { id: b, text: { en: "Only the properties of the first item, which define the schema", fr: "Seulement les propriétés du premier élément, qui définissent le schéma" } }
+        - { id: c, text: { en: "Every property of every item, with range indexes for strings and numbers", fr: "Chaque propriété de chaque élément, avec des index de plage pour les chaînes et les nombres" } }
+        - { id: d, text: { en: "Only the properties that queries filter on, detected after the first queries", fr: "Seulement les propriétés filtrées par les requêtes, détectées après les premières requêtes" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The default indexing policy of a new container indexes every property of every item and enforces range indexes for any string or number, in `consistent` mode. That is why excluding paths that are never filtered or sorted on is the first lever to reduce the RU charge of writes.
+        fr: |
+          La stratégie d'indexation par défaut d'un nouveau conteneur indexe chaque propriété de chaque élément et applique des index de plage à toute chaîne et à tout nombre, en mode `consistent`. C'est pourquoi exclure les chemins jamais filtrés ni triés est le premier levier pour réduire les RU des écritures.
+      options:
+        a: { en: "This describes an exclude-everything policy that you write yourself; the default policy includes `/*`.", fr: "Cela décrit une stratégie qui exclut tout, que vous écrivez vous-même ; la stratégie par défaut inclut `/*`." }
+        b: { en: "Cosmos DB is schema-agnostic: no item defines a schema, and properties added later are indexed too.", fr: "Cosmos DB est indépendant du schéma : aucun élément ne définit de schéma, et les propriétés ajoutées plus tard sont aussi indexées." }
+        d: { en: "The index doesn't adapt to the queries that run; index metrics can suggest indexes, but you change the policy yourself.", fr: "L'index ne s'adapte pas aux requêtes exécutées ; les métriques d'index peuvent suggérer des index, mais c'est vous qui modifiez la stratégie." }
+    references:
+      - title: Indexing policies - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/index-policy
+
+  # ------------------------------------------------------------------ 3
+  - id: ai200-qz-21-03
+    objective: "2.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam stores each product manual as one item in an Azure Cosmos DB for NoSQL container that has dedicated throughput. Each item has a `chunks` array; every element of the array holds a `text` property and an `embedding` property with 1,536 numbers.
+
+        The RAG application must retrieve the five chunks that are most similar to a question by using `VectorDistance` and a vector index. What should you do?
+      fr: |
+        Fabrikam stocke chaque manuel de produit sous la forme d'un élément dans un conteneur Azure Cosmos DB for NoSQL qui dispose d'un débit dédié. Chaque élément a un tableau `chunks` ; chaque élément du tableau contient une propriété `text` et une propriété `embedding` de 1 536 nombres.
+
+        L'application RAG doit récupérer les cinq segments les plus similaires à une question à l'aide de `VectorDistance` et d'un index vectoriel. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Keep one item per manual, and declare `/chunks/[]/embedding` in the vector embedding policy and in a `diskANN` vector index.", fr: "Conserver un élément par manuel, puis déclarer `/chunks/[]/embedding` dans la stratégie d'incorporation vectorielle et dans un index vectoriel `diskANN`." } }
+        - { id: b, text: { en: "Store each chunk as its own item with a top-level `embedding` property, and add `/embedding` to a composite index.", fr: "Stocker chaque segment comme un élément distinct avec une propriété `embedding` de premier niveau, puis ajouter `/embedding` à un index composite." } }
+        - { id: c, text: { en: "Keep one item per manual, and store the average of its chunk vectors in a top-level `embedding` property declared in the policy.", fr: "Conserver un élément par manuel, puis stocker la moyenne des vecteurs de ses segments dans une propriété `embedding` de premier niveau déclarée dans la stratégie." } }
+        - { id: d, text: { en: "Store each chunk as its own item with a top-level `embedding` property, and declare `/embedding` in the vector embedding policy.", fr: "Stocker chaque segment comme un élément distinct avec une propriété `embedding` de premier niveau, puis déclarer `/embedding` dans la stratégie d'incorporation vectorielle." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Vector paths nested inside arrays and wildcard characters aren't supported in the vector embedding policy or the vector index. Storing one chunk per item gives every vector its own top-level path, which the policy and a vector index can declare, and `SELECT TOP 5 ... ORDER BY VectorDistance(...)` then returns individual chunks.
+        fr: |
+          Les chemins vectoriels imbriqués dans des tableaux et les caractères génériques ne sont pas pris en charge dans la stratégie d'incorporation vectorielle ni dans l'index vectoriel. Stocker un segment par élément donne à chaque vecteur son propre chemin de premier niveau, que la stratégie et un index vectoriel peuvent déclarer ; `SELECT TOP 5 ... ORDER BY VectorDistance(...)` renvoie alors des segments individuels.
+      options:
+        a: { en: "`[]` is a wildcard and the path is inside an array: neither is supported in a vector policy or a vector index.", fr: "`[]` est un caractère générique et le chemin se trouve dans un tableau : aucun des deux n'est pris en charge dans une stratégie ou un index vectoriel." }
+        b: { en: "Composite indexes serve multi-property sorts and filters on scalar values; a vector search needs the vector embedding policy and a vector index.", fr: "Les index composites servent les tris multipropriétés et les filtres sur des valeurs scalaires ; une recherche vectorielle exige la stratégie d'incorporation vectorielle et un index vectoriel." }
+        c: { en: "One averaged vector per manual can only rank whole manuals; the application must return the most similar chunks.", fr: "Un seul vecteur moyen par manuel ne peut classer que des manuels entiers ; l'application doit renvoyer les segments les plus similaires." }
+    references:
+      - title: Integrated Vector Store - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search
+
+  # ------------------------------------------------------------------ 4
+  - id: ai200-qz-21-04
+    objective: "2.1.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has a Python function app that uses the Azure Cosmos DB trigger on the **tickets** container. For each document, the function calls an embedding API that takes about half a second. The trigger settings use their `function.json` names.
+
+        During the day, each invocation receives a few documents. After a nightly bulk import of 40,000 tickets, some invocations receive several thousand documents and exceed the function timeout.
+
+        You need each invocation to receive a bounded number of documents, without delaying the processing of daytime changes. Which trigger setting should you configure?
+      fr: |
+        Litware dispose d'une application de fonction Python qui utilise le déclencheur Azure Cosmos DB sur le conteneur **tickets**. Pour chaque document, la fonction appelle une API d'incorporation qui prend environ une demi-seconde. Les paramètres du déclencheur utilisent leurs noms `function.json`.
+
+        Pendant la journée, chaque appel reçoit quelques documents. Après une importation en bloc nocturne de 40 000 tickets, certains appels reçoivent plusieurs milliers de documents et dépassent le délai d'expiration de la fonction.
+
+        Vous devez faire en sorte que chaque appel reçoive un nombre limité de documents, sans retarder le traitement des modifications de la journée. Quel paramètre du déclencheur devez-vous configurer ?
+    body:
+      options:
+        - { id: a, text: "`maxItemsPerInvocation`" }
+        - { id: b, text: "`feedPollDelay`" }
+        - { id: c, text: "`startFromTime`" }
+        - { id: d, text: "`leaseContainerPrefix`" }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          `maxItemsPerInvocation` sets the maximum number of items received per function call, so a large backlog is split into many small invocations that each finish within the timeout. Daytime changes keep flowing at the same pace, because the polling behavior doesn't change.
+        fr: |
+          `maxItemsPerInvocation` définit le nombre maximal d'éléments reçus par appel de fonction : un gros arriéré est donc découpé en de nombreux petits appels qui se terminent chacun dans le délai imparti. Les modifications de la journée continuent d'arriver au même rythme, car le comportement d'interrogation ne change pas.
+      options:
+        b: { en: "`feedPollDelay` is the wait between polls once the changes are drained (5 seconds by default); it doesn't limit the size of a batch, and raising it delays daytime changes.", fr: "`feedPollDelay` est l'attente entre deux interrogations une fois les modifications épuisées (5 secondes par défaut) ; il ne limite pas la taille d'un lot, et l'augmenter retarde les modifications de la journée." }
+        c: { en: "`startFromTime` only sets the initial point of the trigger before leases exist; it has no effect on the size of later batches.", fr: "`startFromTime` ne fixe que le point de départ initial du déclencheur avant la création des baux ; il n'a aucun effet sur la taille des lots suivants." }
+        d: { en: "`leaseContainerPrefix` lets several functions share one lease container; it doesn't change how many documents an invocation receives.", fr: "`leaseContainerPrefix` permet à plusieurs fonctions de partager un conteneur de baux ; il ne change pas le nombre de documents reçus par appel." }
+    references:
+      - title: Azure Cosmos DB trigger for Functions 2.x and higher
+        url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-cosmosdb-v2-trigger
+
+  # ------------------------------------------------------------------ 5
+  - id: ai200-qz-21-05
+    objective: "2.1.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind Traders has an Azure Cosmos DB for NoSQL account that contains two databases: **ragdb** and **billing**. Key-based authentication is disabled on the account. A container app connects with `DefaultAzureCredential` by using its managed identity.
+
+        The app must read the items of every container in ragdb, including the containers that the team adds every month, without any change to role assignments. The app must not access billing. The solution must follow the principle of least privilege.
+
+        What should you do?
+      fr: |
+        Northwind Traders dispose d'un compte Azure Cosmos DB for NoSQL qui contient deux bases de données : **ragdb** et **billing**. L'authentification par clé est désactivée sur le compte. Une application conteneur se connecte avec `DefaultAzureCredential` à l'aide de son identité managée.
+
+        L'application doit lire les éléments de chaque conteneur de ragdb, y compris les conteneurs que l'équipe ajoute chaque mois, sans aucune modification des attributions de rôles. L'application ne doit pas accéder à billing. La solution doit respecter le principe du moindre privilège.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Assign Cosmos DB Built-in Data Reader to the identity with the scope `/`.", fr: "Attribuer Cosmos DB Built-in Data Reader à l'identité avec l'étendue `/`." } }
+        - { id: b, text: { en: "Assign Cosmos DB Built-in Data Contributor to the identity with the scope `/dbs/ragdb`.", fr: "Attribuer Cosmos DB Built-in Data Contributor à l'identité avec l'étendue `/dbs/ragdb`." } }
+        - { id: c, text: { en: "Assign Cosmos DB Built-in Data Reader to the identity with the scope `/dbs/ragdb`.", fr: "Attribuer Cosmos DB Built-in Data Reader à l'identité avec l'étendue `/dbs/ragdb`." } }
+        - { id: d, text: { en: "Assign the Reader role to the identity on the account in **Access control (IAM)**.", fr: "Attribuer le rôle Reader à l'identité sur le compte dans **Contrôle d'accès (IAM)**." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Cosmos DB data plane roles are assigned at the account (`/`), database (`/dbs/<database>`) or container (`/dbs/<database>/colls/<container>`) scope. A database scope covers every container of ragdb, including containers created later, and nothing in billing. Built-in Data Reader grants reads only, which is all the app needs.
+        fr: |
+          Les rôles de plan de données Cosmos DB s'attribuent à l'étendue du compte (`/`), d'une base de données (`/dbs/<database>`) ou d'un conteneur (`/dbs/<database>/colls/<container>`). Une étendue de base de données couvre chaque conteneur de ragdb, y compris ceux créés plus tard, et rien dans billing. Built-in Data Reader n'accorde que la lecture, ce dont l'application a seulement besoin.
+      options:
+        a: { en: "The `/` scope covers the whole account, so the app could also read the billing database.", fr: "L'étendue `/` couvre tout le compte : l'application pourrait donc lire aussi la base de données billing." }
+        b: { en: "Data Contributor also allows writes and deletes, which breaks least privilege for an app that only reads.", fr: "Data Contributor autorise aussi les écritures et les suppressions, ce qui enfreint le moindre privilège pour une application qui ne fait que lire." }
+        d: { en: "Reader is an Azure RBAC control plane role; it grants no data operation, so `read_item()` returns 403 Forbidden.", fr: "Reader est un rôle Azure RBAC du plan de contrôle ; il n'accorde aucune opération sur les données : `read_item()` renvoie donc 403 Forbidden." }
+    references:
+      - title: Connect using role-based access control and Microsoft Entra ID - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/security/how-to-grant-data-plane-role-based-access
+
+  # ------------------------------------------------------------------ 6
+  - id: ai200-qz-21-06
+    objective: "2.1.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum has an Azure Cosmos DB for NoSQL account with a single write region. The account was created for a telemetry dashboard, and its default consistency level is **Eventual**. The dashboard, written in Python, must keep reading with Eventual consistency.
+
+        You are adding a chat feature, also written in Python, that stores its messages in the same account. After a user posts a message, the same client instance reads the conversation, and the new message must always be returned.
+
+        You need to meet both requirements. The solution must minimize the RU charge of reads. What should you do?
+      fr: |
+        Adatum dispose d'un compte Azure Cosmos DB for NoSQL avec une seule région d'écriture. Le compte a été créé pour un tableau de bord de télémétrie, et son niveau de cohérence par défaut est **Eventual**. Le tableau de bord, écrit en Python, doit continuer à lire en cohérence Eventual.
+
+        Vous ajoutez une fonctionnalité de conversation, également écrite en Python, qui stocke ses messages dans le même compte. Après la publication d'un message par un utilisateur, la même instance de client lit la conversation, et le nouveau message doit toujours être renvoyé.
+
+        Vous devez répondre aux deux exigences. La solution doit réduire au minimum les RU consommées par les lectures. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Keep the Eventual default, and create the chat client with `consistency_level=\"Session\"`.", fr: "Conserver la valeur par défaut Eventual et créer le client de conversation avec `consistency_level=\"Session\"`." } }
+        - { id: b, text: { en: "Change the default to Strong, and create the dashboard client with `consistency_level=\"Eventual\"`.", fr: "Passer la valeur par défaut à Strong et créer le client du tableau de bord avec `consistency_level=\"Eventual\"`." } }
+        - { id: c, text: { en: "Change the default to Consistent prefix, and create the dashboard client with `consistency_level=\"Eventual\"`.", fr: "Passer la valeur par défaut à Consistent prefix et créer le client du tableau de bord avec `consistency_level=\"Eventual\"`." } }
+        - { id: d, text: { en: "Change the default to Session, and create the dashboard client with `consistency_level=\"Eventual\"`.", fr: "Passer la valeur par défaut à Session et créer le client du tableau de bord avec `consistency_level=\"Eventual\"`." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          With the client-level `consistency_level` override, consistency can only be relaxed; moving to a stronger level requires changing the account default. Session guarantees read-your-writes within a client session and reads a single replica, so it costs no more than Eventual. The dashboard client then relaxes its own reads back to Eventual.
+        fr: |
+          Avec le remplacement `consistency_level` au niveau du client, la cohérence ne peut qu'être assouplie ; passer à un niveau plus fort exige de modifier la valeur par défaut du compte. Session garantit la lecture de ses propres écritures dans une session cliente et lit un seul réplica : elle ne coûte pas plus qu'Eventual. Le client du tableau de bord assouplit ensuite ses propres lectures en Eventual.
+      options:
+        a: { en: "A client override can't be stronger than the account default; the Python SDK has no setting that raises Eventual to Session for one client.", fr: "Un remplacement côté client ne peut pas être plus fort que la valeur par défaut du compte ; le SDK Python n'a aucun paramètre qui élève Eventual à Session pour un client." }
+        b: { en: "Strong meets the chat requirement, but its reads use two replicas and cost twice the RUs of Session reads.", fr: "Strong répond à l'exigence de la conversation, mais ses lectures utilisent deux réplicas et coûtent deux fois plus de RU que les lectures Session." }
+        c: { en: "Consistent prefix only keeps the order of writes; single-document writes are seen with eventual consistency, so read-your-writes isn't guaranteed.", fr: "Consistent prefix conserve seulement l'ordre des écritures ; les écritures d'un seul document sont vues en cohérence éventuelle : la lecture de ses propres écritures n'est donc pas garantie." }
+    references:
+      - title: Manage Consistency - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-manage-consistency
+      - title: Consistency level choices - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/consistency-levels
+
+  # ------------------------------------------------------------------ 7
+  - id: ai200-qz-21-07
+    objective: "2.1.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Wingtip Toys has a conversation-history API that runs on several replicas in Azure Container Apps, without session affinity. Replicas can restart at any time and must not keep state between requests. The API uses the synchronous `azure-cosmos` client and runs this query for a conversation:
+
+        ```python
+        items = container.query_items(
+            query="SELECT * FROM c WHERE c.conversationId = @id ORDER BY c._ts DESC",
+            parameters=[{"name": "@id", "value": conv_id}],
+            partition_key=conv_id,
+            max_item_count=20)
+        ```
+
+        The first request returns the 20 newest messages. When the user selects **Load more**, the next request, which can reach any replica, must return the next 20 messages. No message of the earlier pages may be read again from the container.
+
+        What should you do?
+      fr: |
+        Wingtip Toys dispose d'une API d'historique des conversations qui s'exécute sur plusieurs réplicas dans Azure Container Apps, sans affinité de session. Les réplicas peuvent redémarrer à tout moment et ne doivent conserver aucun état entre les requêtes. L'API utilise le client `azure-cosmos` synchrone et exécute cette requête pour une conversation :
+
+        ```python
+        items = container.query_items(
+            query="SELECT * FROM c WHERE c.conversationId = @id ORDER BY c._ts DESC",
+            parameters=[{"name": "@id", "value": conv_id}],
+            partition_key=conv_id,
+            max_item_count=20)
+        ```
+
+        La première requête renvoie les 20 messages les plus récents. Quand l'utilisateur sélectionne **Load more**, la requête suivante, qui peut atteindre n'importe quel réplica, doit renvoyer les 20 messages suivants. Aucun message des pages précédentes ne doit être relu dans le conteneur.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Keep `items` in a dictionary in process memory, keyed by conversation, and read the next page from it on the next request.", fr: "Conserver `items` dans un dictionnaire en mémoire du processus, indexé par conversation, puis y lire la page suivante à la requête suivante." } }
+        - { id: b, text: { en: "Call `items.by_page(token)`, return the `continuation_token` of the page iterator to the client, and receive it back as `token`.", fr: "Appeler `items.by_page(token)`, renvoyer au client le `continuation_token` de l'itérateur de pages, puis le recevoir en retour comme `token`." } }
+        - { id: c, text: { en: "Pass `continuation_token_limit=20` to `query_items()`, so that each new request returns the next 20 messages of the conversation.", fr: "Passer `continuation_token_limit=20` à `query_items()`, afin que chaque nouvelle requête renvoie les 20 messages suivants de la conversation." } }
+        - { id: d, text: { en: "Run the query again for each request, and skip in Python code the messages of the pages that the client already received.", fr: "Exécuter de nouveau la requête à chaque requête, puis ignorer dans le code Python les messages des pages que le client a déjà reçues." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Cosmos DB query execution is stateless on the server side and can be resumed at any time with a continuation token. `by_page(continuation_token)` starts returning results from the point that the token marks, so any replica can serve the next page from the token sent by the client, without keeping state and without reading the earlier pages again.
+        fr: |
+          L'exécution des requêtes Cosmos DB est sans état côté serveur et peut reprendre à tout moment avec un jeton de continuation. `by_page(continuation_token)` commence à renvoyer les résultats à partir du point que marque le jeton : n'importe quel réplica peut donc servir la page suivante à partir du jeton envoyé par le client, sans conserver d'état et sans relire les pages précédentes.
+      options:
+        a: { en: "In-memory state is lost when a replica restarts, and without session affinity the next request can reach a replica that doesn't hold the iterator.", fr: "L'état en mémoire est perdu au redémarrage d'un réplica, et sans affinité de session la requête suivante peut atteindre un réplica qui ne détient pas l'itérateur." }
+        c: { en: "`continuation_token_limit` limits the size in KB of the continuation token; it doesn't select a page of results.", fr: "`continuation_token_limit` limite la taille en Ko du jeton de continuation ; il ne sélectionne pas une page de résultats." }
+        d: { en: "Rerunning the query reads every earlier page again from the container, so the RU charge grows with each page.", fr: "Réexécuter la requête relit chaque page précédente dans le conteneur : les RU consommées augmentent donc à chaque page." }
+    references:
+      - title: Pagination - Query Language for Cosmos DB (in Azure and Fabric)
+        url: https://learn.microsoft.com/en-us/cosmos-db/query/pagination
+      - title: azure.core.paging.ItemPaged class
+        url: https://learn.microsoft.com/en-us/python/api/azure-core/azure.core.paging.itempaged?view=azure-python
+
+  # ------------------------------------------------------------------ 8
+  - id: ai200-qz-21-08
+    objective: "2.1.2"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Tailspin Toys has a shopping assistant that queries an Azure Cosmos DB for NoSQL container named **products**, partitioned on `/storeId`. Every query is scoped to one store with `partition_key`. The indexing policy includes `/*` and defines one composite index:
+
+        ```json
+        "compositeIndexes": [
+          [
+            { "path": "/category", "order": "ascending" },
+            { "path": "/price", "order": "ascending" }
+          ]
+        ]
+        ```
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin Toys dispose d'un assistant d'achat qui interroge un conteneur Azure Cosmos DB for NoSQL nommé **products**, partitionné sur `/storeId`. Chaque requête est limitée à un magasin avec `partition_key`. La stratégie d'indexation inclut `/*` et définit un index composite :
+
+        ```json
+        "compositeIndexes": [
+          [
+            { "path": "/category", "order": "ascending" },
+            { "path": "/price", "order": "ascending" }
+          ]
+        ]
+        ```
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "The query `SELECT * FROM c ORDER BY c.category DESC, c.price DESC` can be served by the composite index.", fr: "La requête `SELECT * FROM c ORDER BY c.category DESC, c.price DESC` peut être servie par l'index composite." }
+        - id: s2
+          text: { en: "The query `SELECT * FROM c ORDER BY c.category ASC, c.price DESC` can be served by the composite index.", fr: "La requête `SELECT * FROM c ORDER BY c.category ASC, c.price DESC` peut être servie par l'index composite." }
+        - id: s3
+          text: { en: "The query `SELECT * FROM c WHERE c.category = @cat AND c.rating > @min` can use the composite index to lower its RU charge.", fr: "La requête `SELECT * FROM c WHERE c.category = @cat AND c.rating > @min` peut utiliser l'index composite pour réduire sa consommation de RU." }
+    answer:
+      values: { s1: true, s2: false, s3: false }
+    explanation:
+      correct:
+        en: |
+          A composite index serves an `ORDER BY` whose paths are in the same sequence and whose directions either all match or are all reversed: `(category ASC, price ASC)` serves `category DESC, price DESC`. Mixed directions need their own composite index. For filters, the properties of the query must match those of the composite index; `price` isn't in the filter of the third query, so that index isn't used.
+        fr: |
+          Un index composite sert un `ORDER BY` dont les chemins sont dans le même ordre et dont les sens sont soit tous identiques, soit tous inversés : `(category ASC, price ASC)` sert `category DESC, price DESC`. Des sens mélangés exigent leur propre index composite. Pour les filtres, les propriétés de la requête doivent correspondre à celles de l'index composite ; `price` ne figure pas dans le filtre de la troisième requête, cet index n'est donc pas utilisé.
+      options:
+        s2: { en: "Only one direction is reversed; a multi-property ORDER BY with ASC then DESC needs a composite index defined as (category ASC, price DESC) or (category DESC, price ASC).", fr: "Un seul sens est inversé ; un ORDER BY multipropriété avec ASC puis DESC exige un index composite défini comme (category ASC, price DESC) ou (category DESC, price ASC)." }
+        s3: { en: "A composite index isn't used when one of its properties isn't filtered in the query; an index on (category ASC, rating ASC) would optimize this filter.", fr: "Un index composite n'est pas utilisé quand l'une de ses propriétés n'est pas filtrée dans la requête ; un index sur (category ASC, rating ASC) optimiserait ce filtre." }
+    references:
+      - title: Indexing policies - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/index-policy
+
+  # ------------------------------------------------------------------ 9
+  - id: ai200-qz-21-09
+    objective: "2.1.4"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Woodgrove Bank runs a .NET service that uses the change feed processor to copy the changed documents of an Azure Cosmos DB for NoSQL container to a search index used by a compliance assistant. The service runs on eight pods in Azure Kubernetes Service (AKS).
+
+        You observe the following:
+
+        - Only four of the eight pods ever run the delegate.
+        - After a node upgrade restarted several pods, some updates made before the restart never reached the search index. The delegate logged no exception.
+
+        Which two issues could cause these symptoms?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank exécute un service .NET qui utilise le processeur de flux de modification pour copier les documents modifiés d'un conteneur Azure Cosmos DB for NoSQL vers un index de recherche utilisé par un assistant de conformité. Le service s'exécute sur huit pods dans Azure Kubernetes Service (AKS).
+
+        Vous observez ce qui suit :
+
+        - Seuls quatre des huit pods exécutent le délégué.
+        - Après une mise à niveau de nœud qui a redémarré plusieurs pods, certaines mises à jour faites avant le redémarrage ne sont jamais arrivées dans l'index de recherche. Le délégué n'a journalisé aucune exception.
+
+        Quels sont les deux problèmes qui pourraient provoquer ces symptômes ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "The lease container holds four leases, which is fewer than the number of pods.",fr: "Le conteneur de baux contient quatre baux, soit moins que le nombre de pods." } }
+        - { id: b, text: { en: "Each pod is configured with a different instance name with `WithInstanceName`.", fr: "Chaque pod est configuré avec un nom d'instance différent avec `WithInstanceName`." } }
+        - { id: c, text: { en: "The delegate returns before the asynchronous calls to the search index complete.", fr: "Le délégué se termine avant la fin des appels asynchrones à l'index de recherche." } }
+        - { id: d, text: { en: "The change feed in latest version mode reports inserts only, not updates.", fr: "Le flux de modification en mode dernière version ne signale que les insertions, pas les mises à jour." } }
+        - { id: e, text: { en: "The lease container is shared with a processor that has a different name.", fr: "Le conteneur de baux est partagé avec un processeur qui a un nom différent." } }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          A lease is owned by one instance at a time, so with four leases at most four pods process changes and the others stay idle. When the delegate doesn't await its asynchronous work, the processor can checkpoint the lease before that work completes; if the pod then stops, those changes are never delivered again, and no exception is raised in the delegate.
+        fr: |
+          Un bail appartient à une seule instance à la fois : avec quatre baux, au plus quatre pods traitent les modifications et les autres restent inactifs. Quand le délégué n'attend pas son travail asynchrone, le processeur peut enregistrer le bail avant la fin de ce travail ; si le pod s'arrête ensuite, ces modifications ne sont plus jamais livrées, et aucune exception n'est levée dans le délégué.
+      options:
+        b: { en: "A unique instance name per pod is required for the pods to share the leases; it isn't a cause of these symptoms.", fr: "Un nom d'instance unique par pod est obligatoire pour que les pods se partagent les baux ; ce n'est pas une cause de ces symptômes." }
+        d: { en: "Latest version mode reports inserts and updates; only deletes are missing from it.", fr: "Le mode dernière version signale les insertions et les mises à jour ; seules les suppressions en sont absentes." }
+        e: { en: "A lease container can be shared: each processor name keeps an independent state in it.", fr: "Un conteneur de baux peut être partagé : chaque nom de processeur y conserve un état indépendant." }
+    references:
+      - title: Change Feed Processor - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/change-feed-processor
+
+  # ------------------------------------------------------------------ 10
+  - id: ai200-qz-21-10
+    objective: "2.1.3"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso is building a visual shopping assistant on an Azure Cosmos DB for NoSQL container named **products**, partitioned on `/categoryId`, with dedicated throughput. Each item stores two embeddings:
+
+        - `textVector`: 3,072 dimensions. Text searches run across the whole catalog of about 2 million products and must have the lowest latency and RU charge at that scale. Approximate results are acceptable.
+        - `imageVector`: 256 dimensions. Image searches are always scoped with `partition_key` to one category, which holds at most 3,000 products, and must return exact results.
+
+        Inserts must consume as few RUs as possible. All the other properties must stay filterable, including properties added later, without changing the indexing policy.
+
+        How should you complete the code? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso crée un assistant d'achat visuel sur un conteneur Azure Cosmos DB for NoSQL nommé **products**, partitionné sur `/categoryId`, avec un débit dédié. Chaque élément stocke deux incorporations :
+
+        - `textVector` : 3 072 dimensions. Les recherches textuelles portent sur tout le catalogue d'environ 2 millions de produits et doivent avoir la latence et la consommation de RU les plus faibles à cette échelle. Des résultats approximatifs sont acceptables.
+        - `imageVector` : 256 dimensions. Les recherches d'images sont toujours limitées avec `partition_key` à une catégorie, qui contient au plus 3 000 produits, et doivent renvoyer des résultats exacts.
+
+        Les insertions doivent consommer le moins de RU possible. Toutes les autres propriétés doivent rester filtrables, y compris les propriétés ajoutées plus tard, sans modifier la stratégie d'indexation.
+
+        Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: python
+      template: |
+        vector_embedding_policy = {
+            "vectorEmbeddings": [
+                {"path": "/textVector", "dataType": "float32",
+                 "distanceFunction": "cosine", "dimensions": 3072},
+                {"path": "/imageVector", "dataType": "float32",
+                 "distanceFunction": "cosine", "dimensions": 256}
+            ]
+        }
+        indexing_policy = {
+            "includedPaths": [{"path": "/*"}],
+            "excludedPaths": [{"path": "/\"_etag\"/?"}, [[excluded]]],
+            "vectorIndexes": [
+                {"path": "/textVector", "type": "[[textidx]]"},
+                {"path": "/imageVector", "type": "[[imageidx]]"}
+            ]
+        }
+        container = database.create_container(
+            id="products", partition_key=PartitionKey(path="/categoryId"),
+            indexing_policy=indexing_policy,
+            vector_embedding_policy=vector_embedding_policy)
+      slots:
+        - id: excluded
+          options:
+            - { id: star, text: '{"path": "/textVector/*"}, {"path": "/imageVector/*"}' }
+            - { id: scalar, text: '{"path": "/textVector/?"}, {"path": "/imageVector/?"}' }
+            - { id: root, text: '{"path": "/*"}' }
+            - { id: category, text: '{"path": "/categoryId/?"}' }
+        - id: textidx
+          options:
+            - { id: flat, text: flat }
+            - { id: qflat, text: quantizedFlat }
+            - { id: diskann, text: diskANN }
+        - id: imageidx
+          options:
+            - { id: flat, text: flat }
+            - { id: qflat, text: quantizedFlat }
+            - { id: diskann, text: diskANN }
+    answer:
+      values: { excluded: star, textidx: diskann, imageidx: flat }
+    explanation:
+      correct:
+        en: |
+          Excluding `/textVector/*` and `/imageVector/*` keeps the thousands of vector numbers out of the range index, which lowers the RU charge of inserts, while `/*` keeps every other property indexed. `diskANN` supports up to 4,096 dimensions and is the most performant index beyond about 50,000 vectors in the search scope. `flat` is a brute-force index with 100 % recall, limited to 505 dimensions, which fits 256-dimension vectors searched within one category.
+        fr: |
+          Exclure `/textVector/*` et `/imageVector/*` retire les milliers de nombres des vecteurs de l'index de plage, ce qui réduit les RU des insertions, tandis que `/*` garde toutes les autres propriétés indexées. `diskANN` prend en charge jusqu'à 4 096 dimensions et est l'index le plus performant au-delà d'environ 50 000 vecteurs dans le périmètre de la recherche. `flat` est un index par force brute avec un rappel de 100 %, limité à 505 dimensions, ce qui convient à des vecteurs de 256 dimensions recherchés dans une seule catégorie.
+      options:
+        scalar: { en: "`/?` matches only a scalar value; the elements of the vector arrays would stay in the range index.", fr: "`/?` ne correspond qu'à une valeur scalaire ; les éléments des tableaux de vecteurs resteraient dans l'index de plage." }
+        root: { en: "Excluding `/*` overrides the inclusion of the root and stops indexing every other property, including the ones added later.", fr: "Exclure `/*` annule l'inclusion de la racine et cesse d'indexer toutes les autres propriétés, y compris celles ajoutées plus tard." }
+        category: { en: "Excluding the partition key doesn't lower the cost of the vectors and would make filters on categoryId scan.", fr: "Exclure la clé de partition ne réduit pas le coût des vecteurs et ferait analyser complètement les filtres sur categoryId." }
+        qflat: { en: "quantizedFlat compresses the vectors, so it isn't exact for images, and it is recommended only up to about 50,000 vectors in the search scope, far below 2 million.", fr: "quantizedFlat compresse les vecteurs : il n'est donc pas exact pour les images, et il n'est recommandé que jusqu'à environ 50 000 vecteurs dans le périmètre de la recherche, bien moins que 2 millions." }
+        diskann: { en: "diskANN returns approximate results, which the image search can't accept.", fr: "diskANN renvoie des résultats approximatifs, ce que la recherche d'images ne peut pas accepter." }
+        flat: { en: "flat supports at most 505 dimensions, so it can't index the 3,072-dimension text vectors.", fr: "flat prend en charge au plus 505 dimensions : il ne peut donc pas indexer les vecteurs de texte de 3 072 dimensions." }
+    references:
+      - title: Integrated Vector Store - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search
+      - title: Index and Query Vector Data in Python - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-python-vector-index-query

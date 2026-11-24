@@ -8,7 +8,7 @@ Un **administrateur de base de données** gère les bases de données : la conce
 - Maintient les bases de données **disponibles**, avec des **performances** constantes, et les optimise.
 - Définit et met en œuvre les stratégies, les outils et les processus de **sauvegarde et de récupération**, pour que les données puissent être restaurées après un sinistre ou une erreur humaine.
 - Gère la **sécurité des données** dans la base de données : accorde des privilèges sur les données, accorde ou refuse l'accès aux utilisateurs.
-- Sur Azure, provisionne et gère des services de base de données comme Azure SQL, Azure Database pour MySQL et Azure Database pour PostgreSQL.
+- Sur Azure, provisionne et gère des services de base de données comme Azure SQL, Azure Database pour MySQL et Azure Database pour PostgreSQL. Azure Cosmos DB est parfois géré par un administrateur, mais souvent par les développeurs de l'application.
 
 Les instructions SQL `GRANT`, `DENY` et `REVOKE`, qui contrôlent les autorisations, font partie du quotidien de l'administrateur.
 
@@ -24,7 +24,7 @@ Un **ingénieur de données** gère l'infrastructure et les processus qui **int�
 - Identifie les règles de **gouvernance des données** et veille à ce que la **confidentialité des données** soit préservée dans le cloud et entre les magasins de données locaux et cloud.
 - Est responsable de la gestion et de la surveillance des **pipelines de données**, pour que les chargements de données se déroulent comme prévu.
 
-Services types de l'ingénieur de données : Azure Data Factory (définir et planifier des pipelines qui transfèrent et transforment les données), Microsoft Fabric, Azure Databricks, Azure Stream Analytics (traiter des flux de données en temps réel), le Stockage Azure (héberger des lacs de données) et Microsoft Purview (gouvernance et traçabilité des données).
+Services types de l'ingénieur de données : Azure Data Factory (définir et planifier des pipelines qui transfèrent et transforment les données ; sa version intégrée à Fabric, Fabric Data Factory, est recommandée quand tout le travail sur les données se fait dans Fabric), Microsoft Fabric, Azure Databricks, Azure Stream Analytics (traiter des flux de données en temps réel), le Stockage Azure (héberger des lacs de données) et Microsoft Purview (gouvernance et traçabilité des données).
 
 <!-- section: data-analyst | objectives: 1.4.3 -->
 ## Les analystes de données

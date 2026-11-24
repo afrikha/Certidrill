@@ -29,11 +29,13 @@ Design choices to make before deploying:
 | Network | Public access, private endpoints, and for agents a virtual network: your own subnet delegated to `Microsoft.App/environments`, or a managed virtual network | Isolation |
 | Encryption | Microsoft-managed keys (default) or customer-managed keys in Key Vault | Compliance |
 
-For a standard agent setup, the Cosmos DB account needs a total throughput of at least 3,000 RU/s; each container needs 1,000 RU/s, and insufficient capacity makes provisioning fail. The person who creates it needs Foundry Account Owner at subscription scope, plus the right to assign roles on Cosmos DB, Search and Storage (Owner or Role Based Access Control Administrator). Keep the Azure OpenAI resource, the Foundry resource and the project in the same region. The resources used by a project for agent state, files and vectors can't be changed on an existing project: you delete and recreate the project.
+For a standard agent setup, the Cosmos DB account needs a total throughput of at least 3,000 RU/s; the setup creates three to five containers per project, each needing 1,000 RU/s (two projects with Responses API agents need 10,000 RU/s), and insufficient capacity makes provisioning fail. The person who creates it needs Foundry Account Owner at subscription scope, plus the right to assign roles on Cosmos DB, Search and Storage (Owner or Role Based Access Control Administrator). Keep the Azure OpenAI resource, the Foundry resource and the project in the same region. The resources used by a project for agent state, files and vectors can't be changed on an existing project: you delete and recreate the project.
+
+Your own Key Vault is connected through a Key Vault connection: one per Foundry resource, created first, while the resource and its projects have no other connection. The Foundry resource's managed identity needs at least **Key Vault Secrets Officer** on the vault, and existing secrets aren't migrated: you recreate the connections.
 
 For customer-managed keys, the key vault must be in the same region as the Foundry resource, with soft delete and purge protection enabled, and the managed identity needs key permissions such as **Key Vault Crypto User**.
 
-> **Exam trap.** A deployment with private endpoints that blocks all public access can't be configured through the portal: use the SDK, the CLI or infrastructure as code. And private endpoints on the Foundry resource don't cover the connected resources: storage, Key Vault and Azure AI Search each need their own network settings.
+> **Exam trap.** Outbound virtual network injection can't be added to an existing Foundry resource, and its outbound settings can't be updated: you redeploy the resource. And private endpoints on the Foundry resource don't cover the connected resources: storage, Key Vault and Azure AI Search each need their own network settings.
 
 <!-- section: deployment-options | objectives: 1.2.2 -->
 ## Choosing deployment options
@@ -154,7 +156,7 @@ A Foundry solution moves through environments like any application: infrastructu
 | Evaluate | Run the agent on a test dataset and score it with evaluators; compare with the baseline version | `microsoft/ai-agent-evals` GitHub Action (preview), Azure DevOps extension |
 | Gate and promote | Promote only if scores meet thresholds; then publish in the next environment | Pipeline approvals, environments |
 
-Pipelines authenticate with **Microsoft Entra ID and workload identity federation** (OpenID Connect): the `azure/login` action exchanges a GitHub token for an Entra token, so no secret is stored. Give the pipeline identity the least privilege it needs: **Foundry User** on the project to create agent versions and run evaluations, and Contributor on a dedicated resource group only if the pipeline also provisions resources, never on the subscription.
+Pipelines authenticate with **Microsoft Entra ID and workload identity federation** (OpenID Connect): the `azure/login` action exchanges a GitHub token for an Entra token, so no secret is stored. Give the pipeline identity the least privilege it needs: **Foundry User** on the project to create agent versions and run evaluations, and Contributor on a dedicated resource group only if the pipeline also provisions resources, never on the subscription. Contributor can deploy models but can't assign roles or publish agents; publishing needs at least Foundry Project Manager on the Foundry resource.
 
 ```yaml
 permissions:

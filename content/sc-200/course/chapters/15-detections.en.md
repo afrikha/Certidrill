@@ -7,7 +7,7 @@ A custom detection rule runs an advanced hunting query on a schedule; each match
 
 Two entry points: run a query in **Hunting > Advanced hunting** and select **Create detection rule** (validates the results first), or select **+ Create detection rule** on the custom detection rules list. The wizard: alert details, enrichment (entities, custom details), actions, scope, review.
 
-**Permissions**: for Defender XDR data, **Security settings (manage)** in unified RBAC, or the Microsoft Entra Security Administrator role (Security Operator works only if RBAC is off in Defender for Endpoint). For Sentinel data, **Microsoft Sentinel Contributor** on the workspace. The user also needs permissions on every device of the rule's scope.
+**Permissions**: for Defender XDR data, **Security settings (manage)** in unified RBAC, or the Microsoft Entra Security Administrator role (Security Operator works only if RBAC is off in Defender for Endpoint; with RBAC on, it also needs the **Manage security settings** permission). Permissions are checked per data source: with manage permissions for Defender for Office 365 only, you can use the `Email*` tables but not the `Identity*` tables. For Sentinel data, **Microsoft Sentinel Contributor** on the workspace. The user also needs permissions on every device of the rule's scope.
 
 **Query requirements**:
 
@@ -30,9 +30,9 @@ DeviceProcessEvents
 | Every 3 hours | 12 hours |
 | Every 12 hours | 48 hours |
 | Every 24 hours | 30 days |
-| Custom, every 5 minutes to 14 days (Sentinel data only) | Customizable, up to 30 days |
+| Custom, every 5 minutes to 14 days (Sentinel data only) | Customizable, up to 30 days depending on the frequency; under 48 hours when the rule runs more often than hourly |
 
-A new rule first runs against the past 30 days, then at its frequency. **Continuous** requires a query on one supported table (such as `DeviceProcessEvents`, `EmailEvents`, `IdentityLogonEvents`, `SigninLogs`, `SecurityEvent`), no `join`, `union` or `externaldata`, and no comment lines.
+A new rule first runs against the past 30 days, then at its frequency. **Continuous** requires a query on one supported table (such as `DeviceProcessEvents`, `EmailEvents`, `IdentityLogonEvents`, `SigninLogs`, `SecurityEvent`), no `join`, `union` or `externaldata`, and no comment lines. Only generally available columns can be used, `EmailEvents` is supported except its `LatestDeliveryLocation` and `LatestDeliveryAction` columns, and a `matches regex` pattern must be written as an encoded string literal. Custom detections evaluate `ingestion_time()`, so late events older than the lookback can still be included.
 
 Alert details: unique detection name and alert title, severity, category, MITRE techniques, description and recommended actions; dynamic values with `{{ColumnName}}` (up to three columns per field); up to 20 custom details.
 
@@ -41,8 +41,9 @@ Alert details: unique detection name and alert title, severity, category, MITRE 
 | Target | Actions | Required column |
 | --- | --- | --- |
 | Device | Isolate device, Collect investigation package, Run antivirus scan, Initiate investigation, Restrict app execution | `DeviceId` |
-| File | Allow/Block, Quarantine file | `SHA1` or `SHA256` |
-| User | Mark user as compromised, Disable user, Reset user authentication | `AccountObjectId` or `AccountSid` |
+| File | Allow/Block (needs Remediate permission for files), Quarantine file | `SHA1` or `SHA256` (or `InitiatingProcessSHA1`, `InitiatingProcessSHA256` for quarantine) |
+| User | Mark user as compromised | `AccountObjectId`, `InitiatingProcessAccountObjectId` or `RecipientObjectId` |
+| User | Disable user, Reset user authentication | A SID column (`AccountSid`, `InitiatingProcessAccountSid`, `RequestAccountSid`, `OnPremSid`); Microsoft Entra identities also need `AccountObjectId` |
 | Email | Move to mailbox folder (Junk, Inbox, Deleted items), Delete email (soft or hard) | `NetworkMessageId` and `RecipientEmailAddress` |
 
 **Scope**: all devices or specific device groups; it affects only rules on device data.
@@ -61,7 +62,7 @@ Alert details: unique detection name and alert title, severity, category, MITRE 
 | Modify query | Opens the query in Advanced hunting |
 | Turn off / Turn on | Stops or resumes the rule; history is kept |
 | Delete | Turns off the rule and permanently removes it |
-| Include or exclude from correlation | Controls whether its alerts are correlated into incidents (included by default) |
+| Include or exclude from correlation | Controls whether its alerts are correlated into incidents (included by default); public preview for custom detections, available for analytics rules |
 
 The rule details page shows **Triggered alerts** (set status and classification, link to an incident, rerun the query) and **Triggered actions**. Changes apply at the next scheduled run. Rules that meet the Continuous requirements can be moved with **Migrate now**. Rules can also be managed as code with the Microsoft Security Bicep extension (preview).
 
@@ -76,7 +77,7 @@ The rule details page shows **Triggered alerts** (set status and classification,
 | --- | --- | --- |
 | Scheduled | KQL query run every 5 minutes to 14 days on a lookback of 5 minutes to 14 days | Fully |
 | Near-real-time (NRT) | Runs every minute on events ingested during the previous minute | Mostly, with limits |
-| Microsoft Defender Threat Intelligence Analytics | Matches Microsoft indicators (domain, IPv4, URL) with CEF, DNS, Syslog and other logs | No (read only) |
+| Microsoft Defender Threat Intelligence Analytics | Matches Microsoft domain and IPv4 indicators (and URL indicators in CEF `RequestURL`) with CEF, DNS, Syslog and other logs | No (read only) |
 | ML Behavior Analytics (preview) | Detects anomalous SSH and RDP sign-ins | No |
 | Anomaly | Machine learning baselines; writes to `Anomalies`, no alerts | Duplicate and tune |
 | Microsoft security (incident creation) | Creates incidents from Microsoft product alerts | Not supported in the Defender portal |
@@ -169,7 +170,7 @@ Anomalies
 | project TimeGenerated, RuleName, RuleStatus, Score, AnomalyReasons
 ```
 
-`Score` ranges from 0 to 1: higher means a larger deviation from the baseline. The DGA anomaly detections on DNS domains were discontinued on March 8, 2026.
+`RuleStatus` tells whether the anomaly came from the Production or the Flighting version of the rule. The DGA anomaly detections on DNS domains were discontinued on March 8, 2026.
 
 > **Exam trap.** Anomalies never create incidents on their own. To be alerted, write a scheduled rule that queries `Anomalies`, possibly combined with another signal.
 

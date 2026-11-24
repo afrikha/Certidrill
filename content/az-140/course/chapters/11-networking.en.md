@@ -93,7 +93,7 @@ RDP Shortpath adds a UDP transport between client and session host, using the Un
 
 Rules to know:
 
-- In the host pool, each option is on the **Networking > RDP Shortpath** page and defaults to **Enabled**. UDP is enabled in Windows by default on hosts and clients.
+- In the host pool, each option is on the **Networking > RDP Shortpath** page and is set to **Default**, which means enabled. UDP is enabled in Windows by default on hosts and clients.
 - If the host pool setting and the session host setting conflict, the **more restrictive** wins.
 - The managed listener needs the policy **Enable RDP Shortpath for managed networks** (Administrative templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Azure Virtual Desktop), the inbound port allowed in Windows Firewall and NSGs, and a restart.
 - When managed and public paths are both possible, the first connection established wins; the managed path usually does.

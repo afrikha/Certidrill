@@ -27,7 +27,7 @@ Rules that can be added when access is restricted:
 
 | Rule | Allows | Details |
 | --- | --- | --- |
-| Virtual network rule | A **subnet** of a virtual network | The subnet needs the `Microsoft.Storage` **service endpoint** (same region as the account, or its paired region) or `Microsoft.Storage.Global` (any region). The portal enables it for you; CLI and PowerShell need a separate step. No extra cost |
+| Virtual network rule | A **subnet** of a virtual network | The subnet needs the `Microsoft.Storage` **service endpoint** (accounts in the same region as the virtual network) or `Microsoft.Storage.Global` (any region). The portal enables it for you; CLI and PowerShell need a separate step. No extra cost |
 | IP network rule | A **public** IPv4 address or CIDR range | For on-premises or internet clients. Private ranges (10.x, 172.16.x, 192.168.x) are refused. `/31` and `/32` aren't accepted: enter single addresses. **No effect on clients in the same Azure region as the account**: use a virtual network rule for them |
 | Resource instance rule | A specific Azure resource instance (for example one Azure Data Factory) | Access still depends on the role given to its managed identity |
 | Exception: trusted Azure services | A list of Microsoft services running outside your network (Azure Backup, Azure Site Recovery, Event Grid...) | Doesn't cover your own virtual machines |
@@ -150,7 +150,7 @@ Access is then checked at two levels, and **the most restrictive wins**:
 
 | Level | Mechanism | Values |
 | --- | --- | --- |
-| Share | Azure RBAC role on the share or the account | Storage File Data SMB Share **Reader** (read), **Contributor** (read, write, delete), **Elevated Contributor** (also modify ACLs) |
+| Share | Azure RBAC role on the share or the account | Storage File Data SMB Share **Reader** (read), **Contributor** (read, write, delete), **Elevated Contributor** (also modify ACLs). Special cases: Storage File Data Privileged Reader / Privileged Contributor (override existing ACLs), Storage File Data SMB Admin (admin access equivalent to the account key), Storage File Data SMB Take Ownership (take ownership of a file or directory) |
 | Directory and file | Windows ACLs (NTFS permissions) | Set with File Explorer, `icacls` or `Set-Acl` after mounting the share |
 
 A **default share-level permission** can replace individual role assignments: it applies to all authenticated identities, and it is the only way to serve identities that aren't synchronized to Microsoft Entra ID. Without any share-level permission, access is denied whatever the NTFS permissions.

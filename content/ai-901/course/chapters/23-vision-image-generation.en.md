@@ -10,6 +10,8 @@ A **multimodal model** understands more than one type of data at the same time. 
 - extract meaning from charts, diagrams, screenshots, documents and photos;
 - follow a text instruction about the image, such as "list the visible defects in three bullet points".
 
+GPT-4.1 and GPT-4.1-mini are deprecated: only subscriptions that have already deployed them can create new deployments, and they retire on April 14, 2027.
+
 To test this in the Foundry portal:
 
 1. Deploy a vision-enabled model from the model catalog.
@@ -33,11 +35,15 @@ Image-generation models do the reverse of image analysis: they produce an image 
 
 | Model | Use |
 | --- | --- |
-| **GPT-Image-1.5** | The most advanced of the family: high-fidelity creation and precise editing, for branding, marketing and design |
-| **GPT-Image-1** | General-purpose generation: text-to-image, variations and editing |
+| **GPT-Image-2.5** (Sunburst, Flare) | Generally available. Sunburst is the most capable, for generation and precise editing; Flare is the fastest, optimized for speed and cost |
+| **GPT-Image-2** | Generally available. High-resolution generation, improved editing, face preservation; higher latency and cost |
+| **GPT-Image-1.5** | High-fidelity creation and precise editing, for branding, marketing and design |
+| **GPT-Image-1** | General-purpose generation: text-to-image, variations and editing. Preview, with a retirement date of October 28, 2026 |
 | **GPT-Image-1-Mini** | Lighter and cheaper: experiments, internal tools, high volume |
 | **FLUX** (Black Forest Labs) | A partner family for photorealistic and stylistically flexible images |
-| **Sora** | Video generation from text, and from an image as a starting point |
+| **Sora** | Video generation from text, and from an image as a starting point. Sora 2, the model listed in the catalog, is in preview |
+
+The GPT-Image-1 models (1, 1.5 and Mini) are available in limited access: you apply for access before you deploy them. DALL-E 3 was retired on March 4, 2026.
 
 To generate an image in the portal, deploy an image-generation model: in the model catalog, filter the inference tasks on **Text to image**. The image playground opens; describe the image you want, with its subject, style and colors, for example "A modern flat illustration of a robot holding a potted plant, pastel colors". A precise description gives a result closer to the intent.
 
@@ -101,7 +107,7 @@ with open("output.png", "wb") as f:
 
 Base64 encoding turns binary data, such as an image, into text that can travel inside JSON. That is why a local image is base64-encoded before it is sent, and why a generated image must be decoded before it is written to a file.
 
-An image can also be generated through the Responses API: the request adds the tool `{"type": "image_generation"}`, and the base64 image comes back in an output item of type `image_generation_call`.
+An image can also be generated through the Responses API: the request adds the tool `{"type": "image_generation"}`, and the base64 image comes back in an output item of type `image_generation_call`. There, `model` is a compatible chat or reasoning deployment, and the image-generation deployment is named in the `x-ms-oai-image-generation-deployment` header.
 
 > **Exam tip.** In both snippets, `model` is the name you gave the deployment, not the name of the model in the catalog. A deployment of GPT-4.1-mini named `my-vision-deployment` is called with `model="my-vision-deployment"`.
 
@@ -109,7 +115,7 @@ An image can also be generated through the Responses API: the request adds the t
 ## Key points
 
 - Image in, text out: a vision-enabled multimodal model; the prompt combines text and one or more images.
-- Text in, image out: an image-generation model (GPT-Image family, FLUX); text in, video out: Sora, as an asynchronous job.
+- Text in, image out: an image-generation model (GPT-Image family, FLUX); text in, video out: Sora (preview), as an asynchronous job.
 - Portal: upload an image in the model playground to analyze it; use the image playground to generate.
 - Analysis code: `responses.create` with `input_text` and `input_image`; result in `output_text`.
 - Generation code: `images.generate` with `prompt`; result in base64, decoded and saved to a file.

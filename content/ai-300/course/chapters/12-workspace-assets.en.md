@@ -147,7 +147,7 @@ Rules that decide answers:
 - Reference a registered environment with `azureml:<name>:<version>` or `azureml:<name>@latest`.
 - Archiving a version doesn't delete its cached image in the container registry. A new version created under an archived name is archived too.
 - The image build uses a Microsoft Entra token to the workspace registry that lasts 60 to 90 minutes: a longer build fails.
-- When the workspace and its container registry are behind private endpoints, registry tasks can't build images: set `image_build_compute` on the workspace to a compute cluster.
+- By default, images are built on serverless compute, which works only when the workspace's dependent resources (storage account, container registry) have no network restriction. Behind private endpoints, set `image_build_compute` on the workspace to a CPU compute cluster in the same virtual network; a cluster without public IP addresses needs a user-defined route to reach the internet (package repositories, Microsoft Container Registry).
 
 > **Exam trap.** "The package is installed in the Docker base image, but the job raises `ModuleNotFoundError`" points to a conda specification on top of the image: add the package to `conda_file`, or use an image-only or Dockerfile environment.
 
@@ -271,7 +271,7 @@ az ml registry create --file registry.yml --resource-group rg-ml-shared
 | --- | --- |
 | Regions | The primary `location` is also listed in `replication_locations`. The primary region can't change; other regions can be updated |
 | Workspaces | A workspace can use the registry only if its region is one of the registry's regions |
-| Name | 2 to 32 characters, can't be changed |
+| Name | 2 to 32 characters (letters, digits, `_` and `-`, starting with a letter or digit), unique in the Microsoft Entra tenant, can't be changed |
 | Resources created | One storage account per region and one container registry replicated to every region |
 | Image pull | The registry's managed identity has AcrPull on its container registry; workspace computes receive a scoped token, not direct access |
 

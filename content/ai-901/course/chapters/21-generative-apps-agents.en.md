@@ -28,7 +28,7 @@ What makes prompts effective:
 
 A **Foundry resource** is the Azure resource that hosts models and services. A **Foundry project** is a workspace inside it, where you deploy models and build agents. One resource can hold many projects.
 
-1. Sign in to the Foundry portal at `https://ai.azure.com` and create a project. You name the Foundry resource and choose the subscription, the resource group and the region.
+1. Sign in to the Foundry portal at `https://ai.azure.com` with the **New Foundry** toggle on. Select the current project name, then **Create new project**, and enter a project name. The portal creates the Foundry resource for you; **Advanced options** let you choose the resource group and the location. The first project of a resource is its default project.
 2. On the **Discover** page, open the model catalog (**Models**), select a model and read its page.
 3. Select **Deploy**. With the default settings the deployment takes the name of the model.
 4. The model playground opens. Write the system prompt in **Instructions**, type user prompts in the chat pane, and adjust parameters such as temperature and max output tokens.
@@ -99,7 +99,7 @@ The saved agent keeps its model, instructions and tools together, so every appli
 <!-- section: agent-client | objectives: 2.1.5 -->
 ## A lightweight client for an agent
 
-The client connects to the project with the same `AIProjectClient`, retrieves the agent by its name and references it in the request. The sample code is available in the code view of the agent playground.
+The client connects to the project with the same `AIProjectClient`, retrieves the agent by its name and references it in the request. The sample code is available in the code view of the agent playground. The code below follows the Learn training module.
 
 ```text
 agent = project.agents.get(agent_name="support-agent")
@@ -114,11 +114,13 @@ print(response.output_text)
 
 | | Chat client | Agent client |
 | --- | --- | --- |
-| Targets | A model deployment: `model="..."` | An agent: `extra_body` with an `agent_reference` |
+| Targets | A model deployment: `model="..."` | An agent: `extra_body` with an `agent_reference`, or a client bound to the agent |
 | Instructions | Sent by the client in the request | Stored in the agent |
 | Tools and knowledge | None unless the client adds them | Those configured in the agent |
 
-> **Exam tip.** In a code question, look for what the request names. A `model` argument with a deployment name is a chat client. An agent name and `agent_reference` is an agent client; it doesn't repeat the system prompt, because the agent already holds it.
+The current SDK documentation (`azure-ai-projects` 2.3.0 or later) also binds the client to the agent: `project.get_openai_client(agent_name="support-agent")` returns a client whose `responses.create(input=...)` calls go to that agent, with no `model` and no `extra_body`.
+
+> **Exam tip.** In a code question, look for what the request names. A `model` argument with a deployment name is a chat client. An agent name, in an `agent_reference` or in `get_openai_client(agent_name=...)`, is an agent client; it doesn't repeat the system prompt, because the agent already holds it.
 
 <!-- section: key-points -->
 ## Key points
@@ -127,4 +129,4 @@ print(response.output_text)
 - Portal path: create a project, pick a model in the catalog, **Deploy**, test in the playground, view the code.
 - Chat client: `AIProjectClient` with the project endpoint, `get_openai_client()`, `responses.create(model=..., input=...)`, `output_text`.
 - Agent: model, instructions and tools; knowledge grounds the answers. **Save as agent**, then test in the agent playground.
-- Agent client: `agents.get(agent_name=...)`, then `responses.create` with an `agent_reference`.
+- Agent client: `agents.get(agent_name=...)`, then `responses.create` with an `agent_reference`; or `get_openai_client(agent_name=...)`, then `responses.create(input=...)`.

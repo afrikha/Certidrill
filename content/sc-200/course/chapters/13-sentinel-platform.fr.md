@@ -9,7 +9,7 @@ Les autorisations du SIEM Sentinel sont des rôles Azure RBAC. Attribuez-les **a
 | --- | --- |
 | Microsoft Sentinel Reader | Consulter les données, incidents, classeurs, recommandations et autres ressources Sentinel |
 | Microsoft Sentinel Responder | Reader + gérer les incidents (attribuer, changer le statut et la gravité, commenter) |
-| Microsoft Sentinel Contributor | Responder + créer et modifier les règles d'analyse, classeurs et autres ressources, installer et mettre à jour les solutions du hub de contenu |
+| Microsoft Sentinel Contributor | Responder + créer et modifier les règles d'analytique, classeurs et autres ressources, installer et mettre à jour les solutions du hub de contenu |
 | Microsoft Sentinel Playbook Operator | Lister, consulter et exécuter manuellement les playbooks |
 | Microsoft Sentinel Automation Contributor | Permet à Microsoft Sentinel d'ajouter des playbooks aux règles d'automatisation ; pas pour les comptes d'utilisateurs |
 
@@ -21,8 +21,8 @@ Les tâches qui demandent un autre rôle :
 | Créer ou supprimer des classeurs avec Reader ou Responder | Ajouter **Workbook Contributor** |
 | Utilisateur invité qui doit attribuer des incidents | Microsoft Sentinel Responder + **Directory Reader** (rôle Microsoft Entra) |
 | Connecter une source de données | Autorisation d'écriture sur l'espace de travail, plus ce qu'exige le connecteur |
-| Accorder à Sentinel une autorisation sur un groupe de ressources de playbooks | Owner sur ce groupe de ressources |
-| Limiter une équipe à certaines tables ou ressources | RBAC au niveau des tables ou RBAC dans le contexte de la ressource |
+| Accorder à Sentinel une autorisation sur un groupe de ressources de playbooks | Owner ou User Access Administrator sur ce groupe de ressources |
+| Limiter une équipe à certaines tables ou ressources | RBAC au niveau des tables ou RBAC dans le contexte de la ressource ; pour les nouvelles configurations, Azure Monitor recommande le RBAC granulaire (**Log Analytics Data Reader** avec des conditions d'attribution de rôle), qui couvre aussi l'accès au niveau des lignes |
 
 Les attributions recommandées par Microsoft : les analystes reçoivent Responder (plus Playbook Operator), les ingénieurs Contributor (plus Logic App Contributor), un principal de service d'automatisation Contributor. Owner, Contributor et Reader sur le groupe de ressources donnent aussi accès à Sentinel, de façon bien trop large. Les attributions sont cumulatives.
 
@@ -33,7 +33,7 @@ Les **autorisations du data lake** sont des rôles Microsoft Entra ou du RBAC un
 | Lire le data lake de tous les espaces de travail | Global Reader, Security Reader, Security Operator, Security Administrator (ou Global Administrator) |
 | Lire un autre espace de travail dans le lac | Un rôle Azure sur cet espace, par exemple Log Analytics Reader ou Microsoft Sentinel Reader |
 | Écrire avec des tâches KQL ou des notebooks, gérer les tâches du data lake | Security Operator ou Security Administrator (ou Global Administrator) |
-| Modifier les paramètres des tables dans le portail Defender | **Data (manage)** en RBAC unifié (Data operations), ou Log Analytics Contributor sur l'espace de travail |
+| Modifier les paramètres des tables dans le portail Defender | **Data (manage)** en RBAC unifié (Data operations), ou Log Analytics Contributor sur l'espace de travail ; depuis **Table insights**, Microsoft Sentinel Contributor plus Log Analytics Contributor |
 
 > **Piège d'examen.** Responder peut gérer un incident mais pas y exécuter un playbook : ajoutez **Playbook Operator**. Contributor peut attacher un playbook à une règle mais pas modifier l'application logique : il faut **Logic App Contributor**.
 
@@ -44,7 +44,7 @@ Chaque table appartient à un niveau qui détermine ce que vous pouvez faire de 
 
 | Niveau | Usage | Rétention |
 | --- | --- | --- |
-| **Analytics** | Règles d'analyse, détections personnalisées, repérage avancé, classeurs, playbooks, requêtes rapides | Rétention Analytics de 30 jours à 2 ans ; **90 jours gratuits** pour les tables des solutions Sentinel ; rétention totale jusqu'à 12 ans |
+| **Analytics** | Règles d'analytique, détections personnalisées, repérage avancé, classeurs, playbooks, requêtes rapides | Rétention Analytics de 30 jours à 2 ans ; **90 jours gratuits** pour les tables des solutions Sentinel ; rétention totale jusqu'à 12 ans |
 | **Data Lake** | Stockage à bas coût de données volumineuses ou secondaires ; tâches KQL, notebooks, tâches planifiées, règles de synthèse | De 30 jours à 12 ans |
 | **XDR par défaut** | Tables du repérage avancé de Defender XDR, incluses dans la licence Defender | 30 jours ; non ingérées dans l'espace de travail sauf si vous prolongez la rétention |
 
@@ -57,7 +57,7 @@ Pour les modifier : **Microsoft Sentinel > Configuration > Tables** (ou **Data &
 | Réduire la rétention Analytics | Immédiat ; les données plus anciennes restent dans le lac jusqu'à la fin de la rétention totale |
 | Réduire la rétention totale | La suppression attend 30 jours, ce qui permet de revenir en arrière |
 | Augmenter la rétention totale | S'applique aux données déjà ingérées et pas encore supprimées |
-| Passer une table d'Analytics à Data Lake | Arrête les alertes, le repérage avancé, les règles d'analyse et les détections personnalisées sur cette table |
+| Passer une table d'Analytics à Data Lake | Arrête les alertes, le repérage avancé, les règles d'analytique et les détections personnalisées sur cette table |
 
 Les **tables Defender XDR** (`DeviceProcessEvents`, `EmailEvents`, `IdentityLogonEvents`...) conservent 30 jours dans le repérage avancé. Pour les garder plus longtemps, fixez leur rétention Analytics ou totale au-delà de 30 jours dans le portail Defender : elles sont alors ingérées dans l'espace de travail Sentinel (l'ingestion est facturée, le stockage est gratuit jusqu'à 90 jours). Choisissez le **niveau Data Lake** pour les conserver à bas coût par conformité : elles restent 30 jours dans le repérage avancé sans surcoût et vont dans le lac pour le reste. Ramener les deux valeurs à 30 jours arrête l'ingestion.
 
@@ -76,7 +76,7 @@ Usage
 | order by IngestedGB desc
 ```
 
-> **Piège d'examen.** Porter la rétention Analytics à deux ans est la réponse coûteuse à « conserver par conformité ». Quand les données sont rarement interrogées, gardez une rétention Analytics courte et allongez la rétention **totale**, ou utilisez le niveau Data Lake. Et des données présentes uniquement dans le lac ne peuvent pas alimenter les règles d'analyse : une tâche KQL doit d'abord promouvoir les résultats dans une table Analytics.
+> **Piège d'examen.** Porter la rétention Analytics à deux ans est la réponse coûteuse à « conserver par conformité ». Quand les données sont rarement interrogées, gardez une rétention Analytics courte et allongez la rétention **totale**, ou utilisez le niveau Data Lake. Et des données présentes uniquement dans le lac ne peuvent pas alimenter les règles d'analytique : une tâche KQL doit d'abord promouvoir les résultats dans une table Analytics.
 
 <!-- section: workbooks | objectives: 1.2.3 -->
 ## Les classeurs Microsoft Sentinel
@@ -113,7 +113,7 @@ L'**optimisation SOC** (portail Defender, **Optimisation SOC**) fournit des reco
 
 | Type | Observation | Action suggérée |
 | --- | --- | --- |
-| Valeur des données | Une table facturable n'est utilisée par aucune règle d'analyse depuis 30 jours, ou pas utilisée du tout, ou seulement par Azure Monitor | Activer des modèles de règles qui l'utilisent, ou la passer à un plan moins cher, arrêter son ingestion ou la déplacer vers un espace de travail hors sécurité |
+| Valeur des données | Une table facturable n'est utilisée par aucune règle d'analytique depuis 30 jours, ou pas utilisée du tout, ou seulement par Azure Monitor | Activer des modèles de règles qui l'utilisent, ou la passer à un plan moins cher, arrêter son ingestion ou la déplacer vers un espace de travail hors sécurité |
 | Valeur des données, colonnes inutilisées (préversion) | La colonne `ConditionalAccessPolicies` des tables de connexion n'est pas utilisée | Arrêter l'ingestion de la colonne |
 | Couverture basée sur les menaces | Des données ou des détections manquent pour un type d'attaque | Activer des modèles de règles, connecter des sources de données ou installer une solution (**Accéder au hub de contenu**) |
 | Étiquetage MITRE ATT&CK par IA (préversion) | Détections sans étiquettes MITRE | Appliquer les tactiques et techniques suggérées à une règle ou à toutes |

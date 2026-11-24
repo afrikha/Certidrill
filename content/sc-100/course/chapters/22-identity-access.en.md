@@ -20,7 +20,7 @@ Agents don't use passwords, MFA or passkeys. They access resources in three ways
 | Delegated (on-behalf-of) | Rights of the signed-in user, limited to what the user delegates | The **user** |
 | As an agent user | Rights of the agent's user account | The **agent user**, selected under *Agents*, not under *Users* |
 
-**Conditional Access for agents** evaluates policy when Microsoft Entra issues or refreshes a token. Policies can block access, block agents identified as high risk, require a compliant device for agent users, or target every agent with a given custom security attribute. Policies are per token subject: an agent that uses two patterns needs two policies. Limits: policies targeting agent identities don't cover the agent user; agent users can't be included or excluded by group; and an agent that authenticates with an **API key** bypasses Microsoft Entra entirely.
+**Conditional Access for agents** evaluates policy when Microsoft Entra issues or refreshes a token. Policies can block access, block agents identified as high risk, require a compliant device for agent users that run on managed endpoints such as Windows 365 Cloud PCs for Agents (the *Agent execution environments* condition is in preview), or target every agent with a given custom security attribute. Policies are per token subject: an agent that uses two patterns needs two policies. Limits: policies scoped through the *Users* assignment, even to all users, don't apply to agent users; policies targeting agent identities don't cover the agent user; agent users can't be included or excluded by group; and an agent that authenticates with an **API key** bypasses Microsoft Entra entirely.
 
 Licensing for Conditional Access for agents: Microsoft 365 E7, or Microsoft Agent 365 plus at least Microsoft Entra ID P1 or Microsoft 365 E3.
 
@@ -83,7 +83,7 @@ Multicloud: keep **Microsoft Entra ID as the single identity provider** and fede
 | Users of your own tenants must reach each other's resources without invitations | **Cross-tenant synchronization** | One-way sync in a multitenant organization |
 | Prove a claim (employment, diploma) without calling the issuer | **Microsoft Entra Verified ID** | Verifiable credentials and decentralized identifiers |
 
-**Cross-tenant access settings** define inbound and outbound rules for B2B collaboration and B2B direct connect, by default or per organization, and can **trust MFA and device claims** (compliant, Microsoft Entra hybrid joined) from the partner's tenant, so partners aren't asked to register MFA twice. Azure AD B2C is no longer sold to new customers since May 1, 2025: new customer-facing apps use an external tenant.
+**Cross-tenant access settings** define inbound and outbound rules for B2B collaboration and B2B direct connect, by default or per organization (organizational settings take precedence over default settings), and can **trust MFA and device claims** (compliant, Microsoft Entra hybrid joined) from the partner's tenant, so partners aren't asked to register MFA twice. B2B direct connect with a Conditional Access policy that requires MFA works only if the trust settings accept the partner's MFA claims. **Tenant restrictions** are independent: inbound, outbound and trust settings don't affect them. Azure AD B2C is no longer sold to new customers since May 1, 2025: new customer-facing apps use an external tenant.
 
 **Decentralized identity** (Verified ID) has three roles: the **issuer** signs a verifiable credential with its decentralized identifier (DID); the **holder** keeps it in a wallet (Microsoft Authenticator) and decides when to present it; the **verifier** checks the signature against issuers it trusts, without contacting the issuer. Microsoft supports the `did:web` trust method. Typical uses: onboarding with identity proofing, proof of employment to partners.
 
@@ -92,7 +92,7 @@ Multicloud: keep **Microsoft Entra ID as the single identity provider** and fede
 
 **Conditional Access** is the Zero Trust policy engine: signals (user, group, role, agent or workload identity, app, device state, location, client app, risk) lead to a decision (block, grant with controls such as MFA, an **authentication strength**, a compliant device, terms of use) and session controls (sign-in frequency, app control). It requires Microsoft Entra ID P1.
 
-**Risk scoring** comes from **Microsoft Entra ID Protection** (P2): **sign-in risk** (this authentication is probably not from the owner) and **user risk** (the account is probably compromised, for example leaked credentials), each low, medium or high. Typical policies: medium or high sign-in risk requires MFA; high user risk requires a secure password change. **Workload identity** risk policies need Workload ID Premium.
+**Risk scoring** comes from **Microsoft Entra ID Protection** (P2): **sign-in risk** (this authentication is probably not from the owner) and **user risk** (the account is probably compromised, for example leaked credentials), each low, medium or high. Typical policies: medium or high sign-in risk requires MFA; high user risk requires a secure password change. **Workload identity** risk policies need Workload ID Premium (without it, detections still appear with limited details); managed identities are out of scope.
 
 **Continuous access evaluation (CAE)** lets Exchange Online, SharePoint Online, Teams and Microsoft Graph reject a token before it expires:
 
@@ -146,7 +146,7 @@ AD DS remains the root of trust of hybrid organizations: a compromised domain co
 | Privileged accounts | Few members in Enterprise Admins, Domain Admins, Schema Admins; Protected Users group for admins; "account is sensitive and cannot be delegated" |
 | Local administrator passwords | Windows LAPS on every member server and workstation |
 | Service accounts | Group managed service accounts (gMSA) instead of user accounts with static passwords |
-| Legacy protocols | Remove SMBv1, restrict NTLM, require LDAP signing and channel binding, AES for Kerberos |
+| Legacy protocols | Remove SMBv1, restrict NTLM, AES for Kerberos; require LDAP signing (integrity and authenticity, against man-in-the-middle and replay, but no confidentiality) and LDAP channel binding (binds authentication to the TLS session, against credential relay; applies only to SASL binds over TLS) |
 | Domain controllers | Isolated, minimal roles, patched first, backed up offline |
 | Hybrid servers | Microsoft Entra Connect and AD FS servers, AD CS certificate authorities are treated as tier 0 |
 | Monitoring | Microsoft Defender for Identity sensors, identity security posture assessments in Microsoft Secure Score |

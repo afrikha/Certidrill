@@ -36,7 +36,7 @@ sudo mount -t cifs //stor1.file.core.windows.net/share1 /mnt/share1 \
 ```
 
 - Si le port 445 est bloqué, le montage par internet échoue. Depuis le réseau local, utilisez un VPN ou ExpressRoute avec un point de terminaison privé.
-- **Azure File Sync** synchronise des serveurs de fichiers Windows avec un partage de fichiers Azure : un *service de synchronisation de stockage* contient des *groupes de synchronisation* ; chaque groupe a un seul **point de terminaison cloud** (le partage) et un ou plusieurs **points de terminaison de serveur** (des dossiers sur des serveurs inscrits, équipés de l'agent). La **hiérarchisation cloud** (cloud tiering) ne garde sur le serveur que les fichiers utilisés récemment.
+- **Azure File Sync** synchronise des serveurs de fichiers Windows avec un partage de fichiers Azure : un *service de synchronisation de stockage* contient des *groupes de synchronisation* ; chaque groupe a un seul **point de terminaison cloud** (le partage) et un ou plusieurs **points de terminaison de serveur** (des dossiers sur des serveurs inscrits, équipés de l'agent). Un serveur ne s'inscrit qu'auprès d'**un seul** service de synchronisation de stockage ; un groupe de synchronisation accepte un seul point de terminaison de serveur par serveur inscrit, et un partage de fichiers ne peut appartenir qu'à un seul groupe de synchronisation. Un serveur peut avoir des points de terminaison dans plusieurs groupes de synchronisation de son service. La **hiérarchisation cloud** (cloud tiering) ne garde sur le serveur que les fichiers utilisés récemment.
 
 ```bash
 az storage share-rm create -g RG1 --storage-account stor1 --name share1 \
@@ -88,8 +88,8 @@ Les niveaux d'objets blob échangent prix du stockage contre prix de l'accès :
 | **Archive** | Le plus bas | Le plus élevé | 180 jours | **Hors connexion** |
 
 - Un objet blob déplacé ou supprimé avant la durée minimale entraîne des **frais de suppression anticipée** pour les jours restants (supprimé après 20 jours au niveau froid (Cold) : 70 jours facturés).
-- Le **niveau d'accès par défaut** d'un compte peut être Hot, Cool ou Cold ; les objets blob sans niveau explicite en héritent. **Archive** se règle **objet blob par objet blob**, jamais comme niveau par défaut du compte.
-- Les niveaux s'appliquent aux **objets blob de blocs** des comptes à usage général v2 standard (et des comptes de stockage Blob). Les comptes Premium n'ont pas de niveaux.
+- Le **niveau d'accès par défaut** d'un compte peut être Hot, Cool ou Cold ; les objets blob sans niveau explicite en héritent (le portail affiche par exemple **Hot (inferred)**). Changer le niveau par défaut change le niveau de tous les objets blob dont le niveau est hérité ; ceux dont le niveau a été défini explicitement ne bougent pas. **Archive** se règle **objet blob par objet blob**, jamais comme niveau par défaut du compte.
+- Les niveaux s'appliquent aux **objets blob de blocs** des comptes à usage général v2 standard (et des comptes de stockage Blob). Les comptes Premium n'ont pas de niveaux : les données d'un compte d'objets blob de blocs Premium ne peuvent pas changer de niveau par Set Blob Tier ni par la gestion du cycle de vie. Pour les passer à un niveau plus froid, copiez-les vers un compte standard (Put Block From URL, ou AzCopy).
 - L'archive exige une redondance LRS, GRS ou RA-GRS.
 
 Un objet blob archivé ne peut être ni lu ni modifié ; seules ses métadonnées et ses propriétés sont visibles. Pour le lire, il faut le **réhydrater** :
@@ -118,7 +118,7 @@ az storage blob set-tier --account-name stor1 --container-name logs --name app.l
 
 - Sous Windows, les instantanés d'un partage SMB monté apparaissent dans l'onglet **Versions précédentes** des fichiers et dossiers : les utilisateurs restaurent eux-mêmes leurs fichiers.
 - Un partage qui a des instantanés ne peut être supprimé que si ses instantanés le sont aussi. Supprimer le partage supprime ses instantanés (ils reviennent si l'on annule la suppression du partage supprimé de façon réversible).
-- La suppression réversible ne protège pas les fichiers individuels : utilisez les instantanés ou Sauvegarde Azure pour les partages de fichiers, qui planifie les instantanés et gère leur rétention.
+- La suppression réversible ne protège pas les fichiers individuels : utilisez les instantanés ou Sauvegarde Azure pour les partages de fichiers, qui planifie les instantanés et gère leur rétention. Configurer Sauvegarde Azure active aussi la suppression réversible des partages sur le compte de stockage, avec 14 jours de rétention. Sauvegarde Azure pour les partages NFS n'est pas en disponibilité générale (la sauvegarde par instantanés est en préversion privée).
 - Un partage supprimé de façon réversible est facturé au tarif des instantanés jusqu'à sa suppression définitive, à la fin de la période de rétention.
 
 ```bash
@@ -173,28 +173,29 @@ Règles à retenir :
 - L'action de suppression d'une stratégie respecte la suppression réversible : les objets blob supprimés restent récupérables pendant la période de rétention.
 
 <!-- section: versioning-data-protection | objectives: 2.3.6 -->
-## Versioning des objets blob et protection des données
+## Contrôle de version des objets blob et protection des données
 
 | Fonctionnalité | Ce qu'elle fait | Portée |
 | --- | --- | --- |
-| **Versioning des objets blob** | Chaque écrasement ou suppression conserve l'état précédent sous forme de **version** immuable, avec un ID de version | Compte |
+| **Contrôle de version des objets blob** | Chaque écrasement ou suppression conserve l'état précédent sous forme de **version** immuable, avec un ID de version | Compte |
 | **Suppression réversible des objets blob** | Un objet blob, une version ou un instantané supprimé reste récupérable pendant 1 à 365 jours | Compte |
 | **Suppression réversible de conteneur** | Un conteneur supprimé reste récupérable, avec son contenu, pendant 1 à 365 jours | Compte |
 | **Instantané d'objet blob** | Copie en lecture seule prise manuellement à un instant donné | Objet blob |
 | **Flux de modification** (change feed) | Journal ordonné de tous les changements apportés aux objets blob | Compte |
 | **Restauration à un instant dans le passé** | Ramène les objets blob de blocs de conteneurs à un état antérieur | Compte |
 
-Le versioning en pratique :
+Le contrôle de version en pratique :
 
-- La dernière écriture est la **version actuelle** ; les plus anciennes sont des **versions précédentes**. Supprimer un objet blob retire la version actuelle et garde les précédentes.
+- La dernière écriture est la **version actuelle** ; les plus anciennes sont des **versions précédentes**. Supprimer un objet blob sans ID de version transforme la version actuelle en version précédente : il ne reste aucune version actuelle, et les versions précédentes existantes sont conservées.
+- Si la suppression réversible des objets blob est aussi activée, cette suppression ne supprime rien de façon réversible : la nouvelle version précédente n'est pas soumise à la rétention de la suppression réversible. Supprimer une version précédente **par son ID de version** la supprime de façon réversible. *Undelete Blob* restaure toutes les versions supprimées de façon réversible de l'objet blob, mais n'en promeut aucune en version actuelle.
 - Pour restaurer, **copiez une version précédente sur l'objet blob de base**, ou faites-en la version actuelle dans le portail.
-- Les versions sont facturées pour les données qu'elles contiennent : associez le versioning à une règle de cycle de vie qui supprime les anciennes versions.
-- Le versioning ne protège pas contre la suppression du conteneur ni du compte : ajoutez la suppression réversible de conteneur et un verrou `CanNotDelete`.
-- Le versioning n'existe pas sur les comptes à espace de noms hiérarchique.
+- Les versions sont facturées pour les données qu'elles contiennent : associez le contrôle de version à une règle de cycle de vie qui supprime les anciennes versions.
+- Le contrôle de version ne protège pas contre la suppression du conteneur ni du compte : ajoutez la suppression réversible de conteneur et un verrou `CanNotDelete`.
+- Le contrôle de version n'existe pas sur les comptes à espace de noms hiérarchique.
 
-La restauration à un instant dans le passé exige **le versioning, la suppression réversible des objets blob et le flux de modification** ; sa rétention doit être inférieure d'au moins un jour à celle de la suppression réversible. Elle porte sur les objets blob de blocs des comptes à usage général v2 standard et ne restaure pas les conteneurs supprimés.
+La restauration à un instant dans le passé exige **le contrôle de version, la suppression réversible des objets blob et le flux de modification** ; sa rétention doit être inférieure d'au moins un jour à celle de la suppression réversible. Elle porte sur les objets blob de blocs des comptes à usage général v2 standard et ne restaure pas les conteneurs supprimés.
 
-Socle recommandé par Microsoft pour un compte qui contient des objets blob importants : un verrou `CanNotDelete` sur le compte, la suppression réversible de conteneur, la suppression réversible des objets blob et le versioning.
+Socle recommandé par Microsoft pour un compte qui contient des objets blob importants : un verrou `CanNotDelete` sur le compte, la suppression réversible de conteneur, la suppression réversible des objets blob et le contrôle de version.
 
 ```bash
 az storage account blob-service-properties update -g RG1 -n stor1 \
@@ -210,4 +211,4 @@ az storage account blob-service-properties update -g RG1 -n stor1 \
 - Hot, Cool (30 jours), Cold (90 jours), Archive (180 jours, hors connexion, par objet blob, pas avec ZRS). Réhydratation : jusqu'à 15 heures, ou priorité haute.
 - Azure Files : 200 instantanés par partage, visibles dans Versions précédentes ; la suppression réversible protège les partages, de 1 à 365 jours.
 - Règles de cycle de vie : `prefixMatch` commence par le nom du conteneur ; les conditions de dernier accès exigent le suivi des accès ; effet sous 24 heures.
-- Le versioning garde les versions précédentes ; la restauration à un instant dans le passé exige versioning, suppression réversible et flux de modification.
+- Le contrôle de version garde les versions précédentes ; la restauration à un instant dans le passé exige contrôle de version, suppression réversible et flux de modification.

@@ -31,7 +31,7 @@ Some services require a **dedicated subnet**, sometimes with an imposed name:
 
 Private IP addresses come from the subnet, **dynamic** (default: the next free address, kept as long as the interface exists) or **static** (you choose it). Virtual machines use Azure-provided DNS by default; custom DNS servers set on the virtual network apply after the machines restart.
 
-**Outbound internet access.** Historically a machine without public IP had implicit "default outbound access". For virtual networks created after March 31, 2026, subnets are **private by default**: outbound access must be explicit, through a **NAT gateway** (recommended), a load balancer outbound rule, a public IP on the machine, or a firewall.
+**Outbound internet access.** Historically a machine without public IP had implicit "default outbound access". With the API versions released after March 31, 2026, the subnets of **new** virtual networks are **private by default** (the portal already creates private subnets; existing virtual networks don't change): outbound access must be explicit, through a **NAT gateway** (recommended), a load balancer outbound rule, a public IP on the machine, or a firewall.
 
 ```bash
 az network vnet create -g RG1 -n VNet1 --address-prefixes 10.20.0.0/16 \
@@ -74,14 +74,14 @@ az network vnet peering create -g RG1 -n Spoke1-to-Hub --vnet-name Spoke1 \
 
 A public IP address is a resource that you associate with a network interface, a load balancer, a VPN gateway, an application gateway, a NAT gateway, Azure Bastion or Azure Firewall.
 
-| Property | Standard SKU (the only current SKU) |
+| Property | Standard SKU |
 | --- | --- |
 | Allocation | **Static** always: assigned at creation, kept until the resource is deleted |
 | Security | **Closed to inbound traffic by default**: an NSG must explicitly allow it |
-| Availability zones | **Zone-redundant** (zones 1, 2, 3), **zonal** (one zone) or no zone. Can't be changed after creation |
+| Availability zones | **Zone-redundant** (zones 1, 2, 3; regions with three zones) or **zonal** (one zone). Non-zonal only in regions without availability zones. Can't be changed after creation |
 | Tier | Regional, or Global for cross-region load balancers |
 
-The Basic SKU, which allowed dynamic allocation, was retired on September 30, 2025.
+The Basic SKU, which allowed dynamic allocation, was retired on September 30, 2025. A **Standard v2** SKU also exists: always zone-redundant, and for now usable only with the Standard v2 NAT gateway, with no other resource.
 
 - A **DNS name label** gives the address the name `<label>.<region>.cloudapp.azure.com`.
 - A **public IP prefix** reserves a contiguous range of static addresses (for example /28 = 16 addresses, all usable) from which you create public IPs; useful for firewall allow lists.

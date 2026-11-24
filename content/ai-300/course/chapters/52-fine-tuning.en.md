@@ -3,13 +3,13 @@ Fine-tuning changes a model's weights by training it further on task-specific ex
 <!-- section: fine-tuning-methods | objectives: 5.2.1 -->
 ## Designing and implementing fine-tuning methods
 
-Foundry offers **Managed Training** (you submit data and settings, Foundry runs the job; recommended to start) and **Programmed Training** (preview, by approval: you write the Python training loop and control losses, rewards and checkpoints). Managed Training has three methods:
+Foundry offers **Managed Training** (you submit data and settings, Foundry runs the job; recommended to start) and **Programmed Training** (preview, by approval: you write the Python training loop and control losses, rewards and checkpoints). Managed Training has three methods, and a model supported for one method isn't automatically supported for another:
 
 | Method | Training signal | Choose it when | Examples of supported models |
 | --- | --- | --- | --- |
-| **SFT** (supervised fine-tuning) | Prompts with the desired responses | You can demonstrate the expected behavior: format, style, domain answers, tool calls | `gpt-4o-mini`, `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano` |
+| **SFT** (supervised fine-tuning) | Prompts with the desired responses | You can demonstrate the expected behavior: format, style, domain answers, tool calls | `gpt-4o-mini`, `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, and open models such as `Llama-3.3-70B-Instruct`, `Qwen3-32B`, `gpt-oss-20b`, `Ministral-3B` |
 | **DPO** (direct preference optimization) | A preferred and a rejected response to the same input | Quality is a matter of preference: tone, completeness, helpfulness | `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano` |
-| **RFT** (reinforcement fine-tuning) | Prompts plus a **grader** that scores generated responses | Several good answers exist and you can score them reliably (reasoning tasks) | `o4-mini` (`gpt-5` by invitation) |
+| **RFT** (reinforcement fine-tuning) | Prompts plus a **grader** that scores generated responses | Several good answers exist and you can score them reliably (reasoning tasks) | `o4-mini` (`gpt-5` by invitation); several open models in preview |
 
 SFT training data is JSON Lines in the Chat Completions `messages` format; DPO lines have `input`, `preferred_output` and `non_preferred_output`:
 
@@ -23,7 +23,7 @@ RFT records end with a `user` message and carry the fields the grader reads (for
 | Grader | Use |
 | --- | --- |
 | `string_check` | Exact labels or substrings (`eq`, `ne`, `like`, `ilike`) |
-| `text_similarity` | Similarity to a reference (`fuzzy_match`, `bleu`, `rouge_l`...) |
+| `text_similarity` | Similarity to a reference (`fuzzy_match`, `bleu`, `gleu`, `meteor`, `rouge_1` to `rouge_5`, `rouge_l`); `cosine` is for evaluations, not RFT |
 | `score_model` | A grading model applies a rubric within a `range` |
 | `python` | A `grade(sample, item)` function returns a score; runs without network access |
 | `multi` | Combines child graders with a `calculate_output` formula |
@@ -124,9 +124,9 @@ During training, a job reports metrics per step and may return a CSV results fil
 
 | Pattern | Meaning | Action |
 | --- | --- | --- |
-| Training loss falls, validation loss rises | Overfitting | Pick an earlier checkpoint, fewer epochs, smaller learning rate, more diverse data |
-| Both losses stay high | Not learning the task | Check data quality and consistency, more examples |
-| Reward rises, held-out quality doesn't | **Reward hacking**: the model exploits the grader | Test the grader on correct, wrong and adversarial answers; combine graders |
+| Training loss falls, validation loss rises | Overfitting | Inspect the failing validation examples; pick an earlier checkpoint, fewer epochs, smaller learning rate, more diverse data |
+| Both losses stay high | Not learning the task | Check the data: accurate, consistent and representative examples, no missing scenarios or duplicates |
+| Reward rises, held-out quality doesn't | **Reward hacking**: the model exploits the grader | Test the grader on correct, incorrect, malformed and adversarial answers, and check that superficial answers can't score high; combine graders |
 | Combined reward high, one criterion poor | A `multi` grader hides a weak component | Read per-grader scores |
 
 **Checkpoints** appear as training progresses. Don't assume the latest is the best: compare candidates on held-out tasks, never on training loss alone. Then evaluate the chosen model against the **baseline** (the base model with your best prompt) using the same dataset and evaluators, and compare the runs. A fine-tuned model that doesn't beat the baseline isn't worth its hosting cost.
@@ -138,10 +138,10 @@ Training cost:
 | Method | Billing |
 | --- | --- |
 | SFT | Training tokens x epochs x price per token |
-| DPO | Training tokens |
+| DPO | Training tokens x epochs x price per token |
 | RFT | Training hours plus grader inference tokens (if a model grader is used) |
 
-Not billed: queue time, failed jobs, jobs canceled before training starts, data safety checks. An RFT job has a **spending limit**: when reached, training pauses and creates a deployable checkpoint; resuming continues without another limit. To reduce cost: short first runs, fewer validation samples, the smallest adequate grader, Global training when residency isn't required, early cancellation of runs that don't improve the target metric, and budget alerts in Cost Management. The `FineTunedTrainingHours` metric tracks training hours.
+Not billed: queue time, failed jobs, jobs canceled before training starts, data safety checks, and RFT work lost because of a service error. A run canceled after it starts is charged for the work completed up to the cancellation, and RFT grader tokens are billed separately at data zone rates once training completes. An RFT job has a **spending limit**: when reached, training pauses and creates a deployable checkpoint; resuming continues without another limit. To reduce cost: short first runs, fewer validation samples, the smallest adequate grader, Global training when residency isn't required, early cancellation of runs that don't improve the target metric, and budget alerts in Cost Management. The `FineTunedTrainingHours` metric tracks training hours.
 
 > **Exam trap.** A lower training loss isn't proof of a better model. The exam's right answer for "which checkpoint should you deploy" is the one that scores best on the **validation or held-out evaluation**, which is often not the final one.
 
@@ -152,7 +152,7 @@ Not billed: queue time, failed jobs, jobs canceled before training starts, data 
 2. **Train** with the right method and training type; choose a `suffix` that identifies the version.
 3. **Select a checkpoint** on validation results.
 4. **Evaluate** on a **Developer** deployment: test in the Playground (select the fine-tuned deployment, not the base model) and run cloud evaluations against the baseline.
-5. **Deploy to production** on a serverless Standard, Global Standard or provisioned deployment, within quota.
+5. **Deploy to production** on a serverless Standard, Data Zone Standard, Global Standard or provisioned deployment, within quota.
 6. **Monitor** metrics and continuous evaluation; **iterate** (for example DPO on top of the SFT model) and **retire**: delete deployments you no longer need.
 
 | Deployment type | Billing | Use |
@@ -161,7 +161,7 @@ Not billed: queue time, failed jobs, jobs canceled before training starts, data 
 | Standard | Tokens plus an **hourly hosting fee** | Regional production with residency |
 | Global Standard | Tokens plus hourly hosting fee | Production on global capacity (weights may be stored outside your geography) |
 | Provisioned Throughput | PTU-hours, no per-token charge | High, steady volume |
-| Global Provisioned | PTU-hours | Imported custom models |
+| Data Zone Standard | Per-token billing | Inference within a data zone (US only) |
 
 | Deployment option | Status | Notes |
 | --- | --- | --- |
@@ -184,5 +184,5 @@ For a new version, deploy it as a separate deployment, move traffic to it from t
 - Foundry User trains, Foundry Owner deploys; DPO after SFT uses the fine-tuned model identifier.
 - Synthetic data (preview): Simple Q&A or Tool use, one file under 20 MB, 50 to 1,000 samples, optional 80/20 split, JSONL output; review and mix with real data.
 - Overfitting = training loss down, validation loss up: earlier checkpoint, fewer epochs; beware reward hacking in RFT.
-- SFT bills tokens x epochs; RFT bills hours plus grader tokens, with a spending limit that pauses the job.
+- SFT and DPO bill tokens x epochs (a canceled run pays for the work done); RFT bills hours plus grader tokens, with a spending limit that pauses the job.
 - Developer deployment: 24 hours, no hosting fee; production deployments bill hosting per hour until deleted.

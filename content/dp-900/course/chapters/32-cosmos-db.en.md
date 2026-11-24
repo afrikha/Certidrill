@@ -87,6 +87,8 @@ Azure Cosmos DB exposes several APIs that are compatible with the wire protocol 
 
 > **Exam trap.** "Table" exists twice. Azure Table storage is a service of a storage account; Azure Cosmos DB for Table offers the same model with global distribution and an index on all properties.
 
+To migrate an existing MongoDB application, or to use the full set of MongoDB Query Language features, Microsoft recommends **Azure DocumentDB**, a separate service compatible with the MongoDB wire protocol.
+
 Azure Cosmos DB for PostgreSQL is a separate, relational offering on a retirement path; it is not one of the five NoSQL APIs.
 
 <!-- section: key-points -->

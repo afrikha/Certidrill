@@ -121,7 +121,7 @@ Update-AzTag -ResourceId <id> -Tag @{ CostCenter = "1234" } -Operation Merge
 - Entre abonnements, les deux doivent appartenir au **même locataire Microsoft Entra**, la destination doit avoir inscrit le fournisseur de ressources, et une ressource doit être déplacée **avec ses ressources dépendantes** (une machine virtuelle avec ses disques et son interface réseau), depuis un seul groupe de ressources.
 - Tous les types de ressources ne sont pas déplaçables ; vérifiez avant.
 - Autorisations requises : l'action `moveResources` sur le groupe de ressources source et l'écriture sur la destination.
-- Les attributions de rôles faites directement sur la ressource ne suivent pas. Un verrou sur la source ou la destination bloque le déplacement.
+- Les attributions de rôles faites directement sur la ressource ne suivent pas. Un verrou **en lecture seule** sur le groupe de ressources ou l'abonnement source ou de destination bloque le déplacement.
 
 ```bash
 az resource move --destination-group RG2 --ids <resource id 1> <resource id 2>

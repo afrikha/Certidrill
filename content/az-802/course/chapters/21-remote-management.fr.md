@@ -34,7 +34,7 @@ Les rôles RBAC intégrés sont fournis sous forme d'un **point de terminaison J
 <!-- section: wac-azure-portal | objectives: 2.1.1 -->
 ## Windows Admin Center dans le portail Azure
 
-WAC s'ouvre aussi depuis le portail Azure, sur la page de ressource d'une **machine virtuelle Azure** ou d'un **serveur activé pour Azure Arc** (Paramètres > Windows Admin Center). Il s'installe sous forme de l'extension de machine virtuelle `AdminCenter` (éditeur `Microsoft.AdminCenter`), sur **chaque** machine, sans coût.
+WAC s'ouvre aussi depuis le portail Azure, sur la page de ressource d'une **machine virtuelle Azure** ou d'un **serveur activé pour Azure Arc** (Paramètres > Windows Admin Center). Il s'installe sous forme de l'extension de machine virtuelle `AdminCenter` (éditeur `Microsoft.AdminCenter`), sur **chaque** machine. L'extension est sans coût, mais sur un serveur activé pour Azure Arc, Windows Admin Center dans Azure est un avantage de Windows Server Management enabled by Azure Arc : il n'est disponible qu'avec une attestation Software Assurance ou le paiement à l'utilisation (pay-as-you-go) de Windows Server.
 
 | | Machine virtuelle Azure | Serveur activé pour Arc |
 | --- | --- | --- |
@@ -76,10 +76,11 @@ Le problème du **double saut** : depuis ServerA, vous ouvrez une session sur Se
 | Option | Informations d'identification stockées sur ServerB | Points principaux |
 | --- | --- | --- |
 | CredSSP | **Oui** (exposées si ServerB est compromis) | `Enable-WSManCredSSP -Role Client -DelegateComputer ServerB` sur A, `-Role Server` sur B. Ne fonctionne pas pour les membres de Protected Users. Seulement dans des cas de très grande confiance |
-| Délégation Kerberos non contrainte | Non | Déconseillée : aucun contrôle de la destination des informations d'identification |
-| Délégation Kerberos contrainte | Non | Définie sur l'objet AD de ServerB, demande des droits Domain Admins, un seul domaine |
-| **Délégation Kerberos contrainte basée sur les ressources** | Non | Définie sur **ServerC** avec `Set-ADComputer`, sans droits Domain Admins, fonctionne entre domaines et forêts, Windows Server 2012 ou ultérieur |
+| Délégation Kerberos non contrainte | Non | Déconseillée : aucun contrôle de la destination des informations d'identification. Ne prend pas en charge le second saut pour WinRM |
+| Délégation Kerberos contrainte | Non | Définie sur l'objet AD de ServerB, demande des droits Domain Admins, un seul domaine. Ne prend pas en charge le second saut pour WinRM |
+| **Délégation Kerberos contrainte basée sur les ressources** | Non | Définie sur **ServerC** avec `Set-ADComputer`, sans droits Domain Admins, fonctionne entre domaines et forêts, Windows Server 2012 ou ultérieur. Ne prend pas en charge le second saut pour WinRM |
 | Point de terminaison JEA sur ServerB | Non | La session s'exécute sous un compte virtuel ou un gMSA qui a l'accès nécessaire |
+| Configuration de session avec un compte RunAs sur ServerB | Non | À configurer sur chaque serveur intermédiaire ; un compte RunAs de domaine impose de gérer son mot de passe |
 | Informations d'identification explicites dans le script (`$Using:cred`) | Non | Aucune configuration serveur, code peu pratique |
 
 ```powershell
@@ -91,7 +92,7 @@ Set-ADComputer -Identity ServerC -PrincipalsAllowedToDelegateToAccount $ServerB
 Invoke-Command -ComputerName ServerB -ScriptBlock { klist purge -li 0x3e7 }
 ```
 
-> **Piège d'examen.** La délégation contrainte basée sur les ressources se configure sur la **ressource** (ServerC, le dernier saut), en listant l'ordinateur qui délègue (ServerB). La délégation contrainte classique se configure sur ServerB. Aucune des deux ne stocke d'informations d'identification, contrairement à CredSSP.
+> **Piège d'examen.** La délégation contrainte basée sur les ressources se configure sur la **ressource** (ServerC, le dernier saut), en listant l'ordinateur qui délègue (ServerB). La délégation contrainte classique se configure sur ServerB. Aucune des deux ne stocke d'informations d'identification, contrairement à CredSSP. Aucune des options de délégation Kerberos ne prend en charge le second saut pour WinRM, c'est-à-dire une session distante imbriquée de ServerB vers ServerC.
 
 <!-- section: jea | objectives: 2.1.2 -->
 ## Just Enough Administration (JEA)
@@ -187,7 +188,7 @@ Protéger les informations d'identification des administrateurs sur la cible :
 | Mode Administration restreinte (Restricted Admin) | `mstsc /restrictedAdmin` | Les informations d'identification ne sont pas envoyées au serveur ; l'utilisateur doit être dans le groupe **Administrators** de la cible ; l'accès réseau depuis la session utilise l'**identité du serveur** (pas d'authentification unique, pas de RDP multisaut) |
 | Remote Credential Guard | `mstsc /remoteGuard` | Les informations d'identification restent sur le client ; l'accès réseau depuis la session se fait **en tant qu'utilisateur** (authentification unique, RDP multisaut) ; **Kerberos uniquement** (pas de repli NTLM), cible jointe à AD DS ; pas via RD Gateway ni RD Connection Broker |
 
-Les deux modes demandent que la stratégie *Remote host allows delegation of nonexportable credentials* soit activée sur la cible. Sur les clients, la stratégie *Restrict delegation of credentials to remote servers* (Modèles d'administration > Système > Délégation d'informations d'identification) peut exiger Restricted Admin, exiger Remote Credential Guard, ou exiger l'un des deux (Remote Credential Guard d'abord).
+Les deux modes demandent que la stratégie *Remote host allows delegation of nonexportable credentials* soit activée sur la cible. Sur les clients, la stratégie *Restrict delegation of credentials to remote servers* (Modèles d'administration > Système > Délégation d'informations d'identification) peut exiger Restricted Admin, exiger Remote Credential Guard, ou exiger l'un des deux (*Restrict credential delegation* : Remote Credential Guard d'abord, Restricted Admin s'il ne peut pas être utilisé). Avec *Restrict credential delegation*, le commutateur `/restrictedAdmin` est ignoré et Remote Credential Guard est utilisé. Pour les connexions du support technique à des clients peut-être compromis, Microsoft recommande le mode Restricted Admin, pas Remote Credential Guard.
 
 > **Conseil d'examen.** « Les administrateurs doivent atteindre des partages de fichiers depuis la session RDP sans que leurs informations d'identification soient stockées sur le serveur » signifie Remote Credential Guard. Le mode Administration restreinte évite aussi de stocker les informations d'identification, mais la session accède au réseau en tant que serveur, pas en tant qu'utilisateur.
 
@@ -198,7 +199,7 @@ Pour les machines virtuelles Azure, évitez tout port RDP public : Azure Bastion
 
 - Passerelle WAC : pas sur un contrôleur de domaine ; utilisateurs ou administrateurs de la passerelle ; les droits sur la cible viennent d'informations d'identification d'administrateur ou des rôles RBAC de WAC (JEA).
 - WAC dans le portail Azure : extension `AdminCenter` ; une machine virtuelle Azure demande un chemin vers le port 6516, Arc n'a besoin d'aucun port entrant ; connexion avec Reader + Windows Admin Center Administrator Login.
-- WinRM 5985/5986 ; double saut : préférez la délégation contrainte basée sur les ressources (définie sur le dernier serveur) ou JEA ; CredSSP stocke les informations d'identification.
+- WinRM 5985/5986 ; double saut : préférez la délégation contrainte basée sur les ressources (définie sur le dernier serveur, pas pour un saut WinRM imbriqué) ou JEA ; CredSSP stocke les informations d'identification.
 - JEA : `.psrc` (quoi) dans le dossier `RoleCapabilities` d'un module + `.pssc` (qui, sous quelle identité) inscrit comme point de terminaison ; gMSA pour l'accès réseau.
 - OpenSSH : installé par défaut sur Windows Server 2025 ; clés des administrateurs dans `administrators_authorized_keys`.
 - RDP : désactivé par défaut, NLA activée, groupe Remote Desktop Users ; Remote Credential Guard garde les informations d'identification sur le client et agit en tant qu'utilisateur.

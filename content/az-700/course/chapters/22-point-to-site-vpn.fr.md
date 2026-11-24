@@ -7,7 +7,7 @@ Le P2S demande une passerelle de réseau virtuel de type **Vpn** avec un type de
 
 | SKU | Connexions SSTP | Connexions IKEv2/OpenVPN | Débit agrégé | Remarques |
 | --- | --- | --- | --- | --- |
-| Basic | 128 | IKEv2 uniquement, OpenVPN non pris en charge | 100 Mbit/s | Pas de RADIUS, pas d'IPv6, pas de BGP, non redondante interzone ; créée avec PowerShell ou Azure CLI uniquement ; dev-test |
+| Basic | 128 | IKEv2 uniquement, OpenVPN non pris en charge | 100 Mbit/s | Pas de RADIUS, pas d'IPv6, pas de BGP, non redondante interzone ; créée avec PowerShell ou Azure CLI uniquement ; dev-test. Depuis novembre 2025, les nouvelles passerelles Basic utilisent IKEv2 par défaut ; la limite SSTP concerne les passerelles existantes en SSTP seul |
 | VpnGw1AZ | 128 | 250 | 650 Mbit/s | Generation1 |
 | VpnGw2AZ | 128 | 500 | 1 Gbit/s (Generation1), 1,25 Gbit/s (Generation2) | |
 | VpnGw3AZ | 128 | 1 000 | 1,25 Gbit/s (Generation1), 2,5 Gbit/s (Generation2) | |
@@ -64,7 +64,7 @@ Set-AzVirtualNetworkGateway -VirtualNetworkGateway $gw `
 
 **Authentification par certificat.** Chargez la clé publique du certificat racine (fichier `.cer` X.509 encodé en Base-64, collé sur une seule ligne continue) sur la page Configuration de point à site ; jusqu'à 20 certificats racines approuvés. Chaque client possède un certificat client généré à partir de cette racine, avec sa clé privée, dans `Current User\Personal`. Pour bloquer un appareil, ajoutez l'**empreinte numérique** (thumbprint) de son certificat client à la liste des certificats révoqués. Supprimer un certificat racine bloque tous les certificats clients qu'il a signés.
 
-Plusieurs types d'authentification peuvent être sélectionnés sur une passerelle. Un client a alors besoin d'un type d'authentification pris en charge par l'un des types de tunnel configurés : avec « IKEv2 et OpenVPN » et « Microsoft Entra ID et RADIUS », les clients Entra ID n'utilisent qu'OpenVPN.
+Plusieurs types d'authentification peuvent être sélectionnés sur une passerelle. Un client a alors besoin d'un type d'authentification pris en charge par l'un des types de tunnel configurés : avec « IKEv2 et OpenVPN » et « Microsoft Entra ID et RADIUS », les clients Entra ID n'utilisent qu'OpenVPN. Toutes les combinaisons ne sont pas proposées : OpenVPN seul accepte n'importe quel sous-ensemble des trois types ; « IKEv2 et OpenVPN » accepte RADIUS, certificat, Entra ID + RADIUS ou Entra ID + certificat (pas RADIUS + certificat) ; SSTP, IKEv2 et « IKEv2 et SSTP » acceptent RADIUS ou certificat.
 
 > **Piège d'examen.** Révoquer un certificat client se fait avec son empreinte numérique sur la passerelle, sans toucher au certificat racine. Supprimer le certificat racine déconnecte tous les clients qui en sont issus.
 
@@ -77,7 +77,7 @@ Exigences :
 
 - Toute référence SKU de passerelle sauf Basic.
 - La passerelle doit joindre le serveur RADIUS. Le serveur est soit dans le réseau virtuel, soit en local derrière une connexion **VPN de site à site**. Une connexion ExpressRoute ne peut pas servir à joindre un serveur RADIUS local.
-- La passerelle reçoit l'adresse IP du serveur et le **secret partagé**, qui doit correspondre au secret déclaré sur le serveur RADIUS, où la passerelle est enregistrée comme client RADIUS.
+- La passerelle reçoit l'adresse IP du serveur et le **secret partagé**, qui doit correspondre au secret déclaré sur le serveur RADIUS, où la passerelle est enregistrée comme client RADIUS : lors de l'ajout de ce client, spécifiez le GatewaySubnet du réseau virtuel.
 - Deux serveurs RADIUS peuvent être configurés pour la haute disponibilité, chacun avec un score.
 - Avec IKEv2, seule l'authentification basée sur EAP est prise en charge.
 
@@ -131,7 +131,7 @@ Ordre des opérations pour l'authentification par certificat : générer les cer
 
 Le package est un instantané de la configuration de la passerelle. **Générez-le et redistribuez-le après toute modification** de la configuration P2S, comme le type de tunnel ou le type d'authentification. Les clients Windows reçoivent aussi leurs routes du profil : après un changement de topologie tel qu'un nouveau peering de réseaux virtuels, téléchargez de nouveau le package pour que les clients obtiennent les nouvelles routes.
 
-> **Conseil d'examen.** « Les utilisateurs se connectent mais n'atteignent pas le réseau virtuel nouvellement appairé » a pour réponse « télécharger et réinstaller le package de configuration du client VPN ».
+> **Conseil d'examen.** « Les utilisateurs se connectent mais n'atteignent pas le réseau virtuel nouvellement relié par peering » a pour réponse « télécharger et réinstaller le package de configuration du client VPN ».
 
 <!-- section: troubleshooting | objectives: 2.2.7 -->
 ## Diagnostiquer les problèmes côté client et d'authentification
@@ -139,11 +139,11 @@ Le package est un instantané de la configuration de la passerelle. **Générez-
 | Symptôme | Cause | Correction |
 | --- | --- | --- |
 | « A certificate could not be found that can be used with this Extensible Authentication Protocol » (erreur 798) | Le certificat client est absent de `Current User\Personal` | Installer le certificat client avec sa clé privée |
-| « The message received was unexpected or badly formatted » (0x80090326) | La clé publique du certificat racine n'est pas chargée ou est endommagée, ou une route définie par l'utilisateur avec une route par défaut est appliquée à `GatewaySubnet` | Charger de nouveau le certificat racine ; retirer la route |
+| « The message received was unexpected or badly formatted » (0x80090326) | La clé publique du certificat racine n'est pas chargée ou est endommagée, ou un itinéraire défini par l'utilisateur avec une route par défaut est appliqué à `GatewaySubnet` | Charger de nouveau le certificat racine ; retirer l'itinéraire |
 | « A certificate chain processed but terminated in a root certificate which is not trusted » | Certificats absents des magasins de racines de confiance | Réinstaller les certificats racines du client et de la passerelle |
 | « File download error. Target URI is not specified » | Mauvais type de passerelle | Utiliser le type de passerelle VPN avec le type de VPN RouteBased |
 | Erreur 812, connexion empêchée par une stratégie du serveur RAS/VPN | Serveur RADIUS mal configuré ou injoignable depuis la passerelle | Vérifier les paramètres RADIUS et la route vers le serveur |
-| « The network connection between your computer and the VPN server could not be established » avec IKEv2 | UDP 500 et 4500 bloqués, ou mise à jour de fragmentation IKE absente sur d'anciennes versions de Windows | Ouvrir les ports ou utiliser OpenVPN |
+| « The network connection between your computer and the VPN server could not be established » avec IKEv2 | La version de Windows ne prend pas en charge la fragmentation IKE (la cause donnée par Learn). IKEv2 a aussi besoin des ports UDP 500 et 4500, qu'un pare-feu peut bloquer | Installer la mise à jour de Windows et définir la valeur de registre `DisableCertReqPayload` à 1 ; pour des ports bloqués, les ouvrir ou utiliser OpenVPN |
 | Connecté, mais ressources Azure injoignables après l'ajout d'un peering | Le client n'a pas les nouvelles routes | Télécharger de nouveau le package client |
 | « Your authentication with Microsoft Entra has expired » | Jeton d'actualisation expiré ou révoqué | Se reconnecter pour déclencher une connexion interactive ; consulter les journaux de connexion Entra |
 

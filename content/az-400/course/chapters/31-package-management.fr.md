@@ -14,11 +14,11 @@ Une stratégie de gestion des packages répond à trois questions : où vivent l
 
 | Exigence | Réponse |
 | --- | --- |
-| Code et CI déjà dans GitHub, publier une bibliothèque npm ou une image de conteneur | GitHub Packages (Container registry pour les images) |
+| Code et CI déjà dans GitHub, publier une bibliothèque npm ou une image conteneur | GitHub Packages (Container registry pour les images) |
 | Mettre en cache les packages publics et garder des builds fonctionnels quand nuget.org est indisponible | Un flux Azure Artifacts avec des sources en amont |
 | Publier un dossier de binaires (outils, modèle de ML) avec une version, sans en faire un package NuGet ou npm | **Universal Packages** d'Azure Artifacts |
 | Les consommateurs ne doivent voir que des versions testées | Les vues d'Azure Artifacts (promotion vers `@Release`) |
-| Stocker les images de conteneur à déployer dans Azure | Azure Container Registry, ou le Container registry de GitHub |
+| Stocker les images conteneur à déployer dans Azure | Azure Container Registry, ou le Container registry de GitHub |
 
 ```yaml
 # GitHub Actions: publish a NuGet package to GitHub Packages
@@ -61,7 +61,7 @@ Les **vues** publient des sous-ensembles d'un flux selon la qualité. Les packag
 | Feed Publisher (Contributor) | Aussi publier, promouvoir, déprécier, retirer de la liste (unlist), retirer (yank) |
 | Feed Owner | Aussi supprimer, gérer les sources en amont, les autorisations et les paramètres |
 
-Un pipeline publie avec l'identité de son job : donnez **Feed Publisher (Contributor)** à `<Project> Build Service (<organization>)` (autorisation de job limitée au projet) ou à `Project Collection Build Service (<organization>)`.
+Un pipeline publie avec l'identité de son job : donnez **Feed Publisher (Contributor)** à `<Project> Build Service (<organization>)` (autorisation de job limitée au projet) ou à `Project Collection Build Service (<organization>)` ; la page sur les autorisations des flux conseille d'attribuer le rôle aux deux. Une identité Build Service de niveau projet qui utilise un flux d'un autre projet a aussi besoin au minimum de l'autorisation **Edit project-level information** dans ce projet.
 
 ```yaml
 steps:
@@ -70,7 +70,7 @@ steps:
   - script: dotnet nuget push $(Build.ArtifactStagingDirectory)/*.nupkg --source https://pkgs.dev.azure.com/contoso/Platform/_packaging/contoso-core/nuget/v3/index.json --api-key az
 ```
 
-Les versions de packages sont **immuables** : une fois `2.1.0` publié, ce numéro de version est réservé pour toujours, même après suppression (les packages supprimés restent 30 jours dans la Corbeille). On ne peut pas non plus publier une version qui existe déjà dans une source en amont activée. Les **stratégies de rétention** suppriment les anciennes versions quand le nombre maximal de versions par package est atteint et que la version n'a pas été téléchargée depuis le nombre de jours configuré.
+Les versions de packages sont **immuables** : une fois `2.1.0` publié, ce numéro de version est réservé pour toujours, même après suppression (les packages supprimés restent 30 jours dans la Corbeille). On ne peut pas non plus publier une version qui existe déjà dans une source en amont activée. Les **stratégies de rétention** suppriment les anciennes versions quand le nombre maximal de versions par package est atteint et que la version n'a pas été téléchargée depuis le nombre de jours configuré. Les versions promues dans une vue sont exemptées des stratégies de rétention : promouvoir une version est le moyen de la conserver indéfiniment.
 
 > **Piège d'examen.** « Les développeurs ne doivent recevoir que les packages qui ont passé les tests d'intégration » correspond à une **vue** (promotion vers `@Release`, les consommateurs utilisent `feed@Release`), pas à un second flux où l'on copie les packages. « Un pipeline reçoit une erreur 403 en publiant » correspond au rôle **Feed Publisher (Contributor)** manquant pour l'identité Build Service.
 
@@ -129,9 +129,9 @@ Autres sources de version : une balise Git (`v2.5.0`), un fichier de version dan
 | Fichiers transmis entre jobs et phases | **Artefacts de pipeline** : mots clés `publish` / `download`, `PublishPipelineArtifact@1`, `DownloadPipelineArtifact@2` (recommandés plutôt que les anciens artefacts de build) | `actions/upload-artifact@v7`, `actions/download-artifact@v8` ; les artefacts sont immuables, `overwrite: true` en remplace un avec un nouvel ID |
 | Rétention | Suit la rétention des exécutions ; supprimer une exécution supprime ses artefacts ; les baux de rétention conservent des exécutions | 90 jours par défaut ; `retention-days` jusqu'à la limite du dépôt (1 à 90 en public, jusqu'à 400 en privé) |
 | Binaires réutilisables au-delà d'une exécution | Universal Packages (SemVer, minuscules, sans métadonnées `+`) ou un flux NuGet/npm | GitHub Packages |
-| Images de conteneur | Étiqueter avec le numéro de build ou le SHA du commit, déployer par digest ; ne pas dépendre de `latest` | Idem, dans le Container registry ou Azure Container Registry |
+| Images conteneur | Baliser avec le numéro de build ou le SHA du commit, déployer par digest ; ne pas dépendre de `latest` | Idem, dans le Container registry ou Azure Container Registry |
 
-> **Conseil d'examen.** « Déployer exactement ce qui a été testé » signifie un seul artefact produit par la phase de build et téléchargé par chaque phase de déploiement, avec une version unique (numéro de build, SemVer ou digest). Reconstruire à chaque phase, ou déployer l'étiquette `latest`, casse cette traçabilité.
+> **Conseil d'examen.** « Déployer exactement ce qui a été testé » signifie un seul artefact produit par la phase de build et téléchargé par chaque phase de déploiement, avec une version unique (numéro de build, SemVer ou digest). Reconstruire à chaque phase, ou déployer la balise `latest`, casse cette traçabilité.
 
 <!-- section: key-points -->
 ## Points clés

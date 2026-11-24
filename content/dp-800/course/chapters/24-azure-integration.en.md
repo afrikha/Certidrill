@@ -107,9 +107,9 @@ A client picks one of its roles with the `X-MS-API-ROLE` header; without it, an 
 | `actions` | `create`, `read`, `update`, `delete`, `execute` (stored procedures), `*` (CRUD for tables and views, `execute` for procedures) |
 | `fields.include` / `fields.exclude` | Column-level restriction per action |
 | `policy.database` | OData-style predicate with `@item.<field>` and `@claims.<claim>`, added to the query. Supported for `read`, `update` and `delete`; not for `create` or `execute` |
-| `cache` | `enabled`, `ttl-seconds` (default: the runtime value), `level` `L1` (in memory) or `L1L2` (memory plus a distributed Redis cache configured in `runtime.cache.level-2`) |
+| `cache` | `enabled`, `ttl-seconds` (default: the runtime value), `level` `L1` (in memory) or `L1L2` (default: memory plus a distributed Redis cache configured in `runtime.cache.level-2`). Applies to REST endpoints only, not GraphQL |
 
-> **Exam trap.** Entity caching works only when `runtime.cache.enabled` is `true` (default `false`); otherwise the entity's `cache` block has no effect. The runtime default TTL is 5 seconds.
+> **Exam trap.** Entity caching works only when `runtime.cache.enabled` is `true` (default `false`); otherwise the entity's `cache` block has no effect. The runtime default TTL is 5 seconds. Enabling `set-session-context` disables response caching for that data source.
 
 **Pagination** is configured in `runtime.pagination`: `default-page-size` (default 100), `max-page-size` (default 100,000) and `next-link-relative`. Requests ask for more with `$first` (REST) or `first` (GraphQL), `-1` meaning the maximum page size, and continue with the cursor returned in `nextLink` (REST) or `endCursor` / `hasNextPage` (GraphQL).
 
@@ -335,7 +335,7 @@ The **Azure Functions SQL trigger** creates a leases table in the `az_func` sche
 
 - `dab init` creates (and overwrites) `dab-config.json`; `dab add` / `dab update` manage entities; secrets through `@env()` or `@akv()`, ideally a managed identity.
 - Permissions: role + actions + optional fields and database policy (`@item`, `@claims`); `execute` for procedures.
-- Cache needs `runtime.cache.enabled`; pagination defaults 100 / 100,000; `$filter`, `$orderby`, `$select`, `$first`, `$after` in REST, `filter`, `orderBy`, `first`, `after` in GraphQL.
+- Cache needs `runtime.cache.enabled`, applies to REST only and is off with `set-session-context`; pagination defaults 100 / 100,000; `$filter`, `$orderby`, `$select`, `$first`, `$after` in REST, `filter`, `orderBy`, `first`, `after` in GraphQL.
 - Views need a declared key; procedures default to `POST` and a GraphQL mutation; relationships are GraphQL only.
 - Deploy the `data-api-builder` container to Container Apps, App Service, Container Instances or AKS in `production` mode.
 - Telemetry: Application Insights for API and SQL dependency timing; diagnostic settings send database logs to Log Analytics, Event Hubs or Storage.

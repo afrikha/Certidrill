@@ -91,7 +91,7 @@ Chaque catégorie exige un `title` et des `labels` ; `"*"` attrape toutes les pu
 
 Azure DevOps n'a pas de générateur de notes de publication intégré : une étape de pipeline construit les notes à partir des éléments de travail et des commits de l'exécution (via l'API REST ou l'historique Git) et les publie comme artefact de pipeline, page de wiki ou release GitHub.
 
-La **documentation d'API** est générée à partir du code, pas écrite à la main : le build produit une description OpenAPI de l'API, versionnée avec la mise en production et publiée sur un site de documentation ou importée dans le portail des développeurs d'Azure API Management. Dans ASP.NET Core, le package `Microsoft.AspNetCore.OpenApi` génère le document à l'exécution (`AddOpenApi`, `MapOpenApi`), et `Microsoft.Extensions.ApiDescription.Server` le génère au moment du build (propriété `OpenApiGenerateDocumentsOnBuild`), ce qui convient à un pipeline. Une interface interactive exige un package tiers.
+La **documentation d'API** est générée à partir du code, pas écrite à la main : le build produit une description OpenAPI de l'API, versionnée avec la mise en production et publiée sur un site de documentation ou importée dans le portail des développeurs d'Azure API Management. Dans ASP.NET Core, le package `Microsoft.AspNetCore.OpenApi` génère le document à l'exécution (`AddOpenApi`, `MapOpenApi`), et `Microsoft.Extensions.ApiDescription.Server` le génère au moment du build dès que le package est installé (dossier de sortie défini par la propriété `OpenApiDocumentsDirectory`), ce qui convient à un pipeline. Une interface interactive comme Swagger UI ou Scalar n'est pas incluse et doit être ajoutée séparément.
 
 <!-- section: docs-from-git | objectives: 1.3.3 -->
 ## Automatiser la documentation à partir de l'historique Git
@@ -131,7 +131,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
@@ -156,7 +156,7 @@ Les **webhooks GitHub** envoient une requête HTTP POST à une URL de charge uti
 | Lire `X-GitHub-Event` et le champ `action` de la charge utile | Identifier ce qui s'est passé avant de traiter |
 | Utiliser `X-GitHub-Delivery` pour détecter les doublons, relivrer les livraisons en échec après une panne | Traitement idempotent, aucun événement perdu |
 
-Les **crochets de service (service hooks) Azure DevOps** exécutent une action dans un autre service quand un événement se produit dans un projet (code poussé, pull request mise à jour, build terminé, déploiement de mise en production terminé, élément de travail créé ou mis à jour). Configurez-les dans **Project settings > Service hooks > Create subscription** : choisissez le service, l'événement et ses filtres, l'action, puis **Test**. Gérer les abonnements exige les autorisations **Edit subscriptions** et **View subscriptions**, que seuls les Project Administrators possèdent par défaut.
+Les **crochets de service (service hooks) Azure DevOps** exécutent une action dans un autre service quand un événement se produit dans un projet (code poussé, pull request mise à jour, build terminé, déploiement de mise en production terminé, élément de travail créé ou mis à jour). Configurez-les dans **Project settings > Service hooks > Create subscription** : choisissez le service, l'événement et ses filtres, l'action, puis **Test**. Gérer les abonnements exige les autorisations **Edit subscriptions** et **View subscriptions**, que seuls les Project Administrators possèdent par défaut (la page Web Hooks admet aussi les Project Collection Administrators). Un abonnement créé pour une ressource à laquelle son créateur n'a pas accès n'est jamais déclenché.
 
 | Consommateur | Action |
 | --- | --- |
@@ -199,7 +199,9 @@ L'intégration passe par l'**application Azure Boards pour GitHub**. Prérequis 
 | --- | --- |
 | GitHub.com | Connexion avec le compte GitHub (recommandée) ou un jeton d'accès personnel |
 | GitHub Enterprise Server | OAuth (préféré, exige une application OAuth inscrite), un jeton d'accès personnel ou des informations d'identification ; le serveur doit être accessible depuis internet ; une organisation GitHub par connexion |
-| Connexion par jeton d'accès personnel | Les fonctionnalités qui exigent la connexion par GitHub App ne sont pas disponibles |
+| Connexion par jeton d'accès personnel | Pas de vérifications d'état de pull request ni d'intégration de GitHub Copilot : les deux exigent la connexion par GitHub App |
+| Dépôt déjà connecté avec un autre type d'authentification, comme OAuth | Retirez-le de cette connexion avant de le reconnecter par la GitHub App |
+| Les mentions `AB#` ne lient pas les éléments de travail d'un chemin de zone | Définissez **View work items in this node** et **Edit work items in this node** sur Allow pour l'identité Azure Boards sur ce chemin de zone |
 | Dépôts d'une autre organisation GitHub | Ajoutez une autre connexion |
 | Azure DevOps Server | Se connecte uniquement à GitHub Enterprise Server |
 | Processus XML hébergé | Mettez à jour les types d'éléments de travail pour afficher la section Development et les types de liens GitHub |
@@ -232,7 +234,7 @@ Filtres GitHub :
 
 Les commits sont notifiés pour la branche par défaut, sauf si vous ajoutez un filtre de branche (`commits:main`, `commits:feature/*`, `commits:*`) ; un seul filtre d'étiquette obligatoire est autorisé par dépôt ; sans filtre, les notifications de workflow couvrent les exécutions déclenchées par des pull requests qui ciblent la branche par défaut.
 
-Les applications Azure DevOps fonctionnent uniquement avec Azure DevOps Services et exigent que la stratégie **Third-party application access via OAuth** soit autorisée dans l'organisation. Un canal est lié à un seul projet Azure Boards à la fois ; créer des abonnements aux éléments de travail exige d'être Project Administrator ou Team Administrator, et quand un canal a des abonnements, seuls les Project Administrators peuvent le délier. Les notifications vont dans les canaux, pas dans les conversations.
+Les applications Azure DevOps fonctionnent uniquement avec Azure DevOps Services et exigent que la stratégie **Third-party application access via OAuth** soit autorisée dans l'organisation. Un canal est lié à un seul projet Azure Boards à la fois ; créer des abonnements aux éléments de travail exige d'être Project Administrator ou Team Administrator, les Team Administrators ne peuvent ni supprimer ni modifier les abonnements créés par les Project Administrators, et quand un canal a des abonnements, seuls les Project Administrators peuvent le délier. Les notifications vont dans les canaux, pas dans les conversations.
 
 > **Piège d'examen.** Les connecteurs Office 365 dans Teams sont mis hors service. Pour les nouvelles intégrations, utilisez l'application Azure Boards, Azure Pipelines ou Azure Repos, l'onglet Azure DevOps (un tableau de bord ou un tableau dans un canal) ou l'application **Workflows** (Power Automate), pas un connecteur de webhook entrant.
 

@@ -87,7 +87,7 @@ Installing a solution adds **templates**, not active content. You still have to 
 | Workbook template | **View template**, then **Save** to create an instance |
 | Hunting query | **Run query**, or clone it to customize |
 | Parser | Added automatically as a workspace function |
-| Playbook template | **Create playbook** |
+| Playbook template (preview) | **Create playbook** |
 
 > **Exam trap.** To use one item of a solution, you must install the entire solution. Updating a solution updates its templates: rules you already created from an older template stay unchanged until you edit them.
 
@@ -100,7 +100,7 @@ The support box of each item shows who supports it: Microsoft or the partner tha
 
 | Automation rule element | Values |
 | --- | --- |
-| Trigger | **When incident is created**, **When incident is updated**, **When alert is created** (alerts of Scheduled and NRT rules) |
+| Trigger | **When incident is created**, **When incident is updated**, **When alert is created** (alerts of Scheduled, NRT and Microsoft security analytics rules; in the Defender portal, not for alerts created by Defender XDR) |
 | Conditions | Incident properties with operators such as equals, contains, starts with; on update: changed, changed from, changed to, added; **Updated by**. The alert trigger accepts only the analytics rules as condition |
 | Actions | Run playbook, change status (closing reason and comment), change severity, assign owner, add tags, add task |
 | Order | Rules run sequentially by their **order** number; actions run in the listed order. Created-trigger rules run before updated-trigger rules |
@@ -144,7 +144,7 @@ Each table has two settings: **analytics retention** and **total retention**. Th
 | Auxiliary (data lake) plan | Queryable for the whole total retention; only total retention is configurable |
 | Lowering analytics retention | Immediate; the rest of the total retention becomes long-term retention |
 | Lowering total retention | Data is deleted after a 30-day delay, so the change can be reverted |
-| Data lake onboarding | Analytics-tier data is also available in the data lake from then on, without extra charge |
+| Data lake onboarding | Analytics-tier data is mirrored to the data lake for the same retention period; keeping it in the lake beyond the analytics retention is billed as data lake storage |
 | Data only in the lake | No analytics rules, hunting queries, workbooks or playbooks on it; KQL jobs can promote it to the analytics tier |
 | Long-term data of an Analytics table | Search job (results in a `_SRCH` table) or restore (`_RST` table) |
 
@@ -154,6 +154,8 @@ az monitor log-analytics workspace table update \
   --resource-group rg-sentinel --workspace-name law-contoso-sec \
   --name SecurityEvent --retention-time 180 --total-retention-time 730
 ```
+
+In Azure CLI, `--total-retention-time` goes up to 2,556 days (seven years); for up to 12 years, use the portal, the REST API or PowerShell (`Update-AzOperationalInsightsTable`).
 
 > **Exam trap.** Increasing analytics retention to keep logs for audit is the expensive answer. When the requirement is "keep for seven years at the lowest cost, query occasionally", keep a short analytics retention and set a long total retention.
 

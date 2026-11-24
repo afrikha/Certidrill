@@ -7,7 +7,7 @@ The unified audit log records user and admin activities across Exchange Online, 
 
 | | Audit (Standard) | Audit (Premium) |
 | --- | --- | --- |
-| Default retention | 180 days | 1 year for Microsoft Entra ID, Exchange, OneDrive and SharePoint; 180 days for the other services |
+| Default retention | 180 days | 1 year for Microsoft Entra ID, Exchange, OneDrive and SharePoint, for users with an E5 license or the Microsoft Purview Suite or E5 eDiscovery and Audit add-on (non-E5 and guest users: 180 days); 180 days for the other services |
 | Audit log retention policies | Not available | Up to 1 year, or up to 10 years with the 10-Year Audit Log Retention add-on license |
 | Export from a search | 50,000 rows | 1,000,000 rows |
 | Office 365 Management Activity API | Baseline bandwidth | About twice the bandwidth |
@@ -50,7 +50,7 @@ Activities an analyst typically looks for after an account compromise:
 | Did the attacker create a forwarding or deletion rule? | `New-InboxRule`, `Set-InboxRule`, `UpdateInboxRules` |
 | Which messages did the attacker read? | `MailItemsAccessed` |
 | Which files were taken? | `FileAccessed`, `FileDownloaded`, `FileSyncDownloadedFull` |
-| Did the attacker grant access? | `Add member to role.`, `Consent to application.` (Microsoft Entra ID), `Add-MailboxPermission` |
+| Did the attacker grant access? | `Add member to role.`, `Add delegation entry.` (Microsoft Entra ID), `Add-MailboxPermission` |
 
 For bulk or continuous export to a SIEM, use the **Office 365 Management Activity API** rather than scripts around the cmdlet. In the Defender portal, the `CloudAppEvents` advanced hunting table also exposes Microsoft 365 activities when the Microsoft 365 app connector of Defender for Cloud Apps is connected.
 
@@ -96,12 +96,12 @@ Get-ComplianceSearchAction
 | Point | Value |
 | --- | --- |
 | Items removed per mailbox per run (PowerShell) | 10 |
-| Items removed per location per run (Microsoft Graph, Premium cases) | 100 |
+| Items removed per location per run (Microsoft Graph `purgeData`, mailboxes and Teams messages) | 100 |
 | Mailboxes in a search used for a purge | 50,000 at most |
 | Locations | Mailboxes and public folders only; a search that includes SharePoint or OneDrive sites fails at the purge step |
 | `SoftDelete` | Items go to Recoverable Items (Deletions): the user can recover them during the deleted item retention period |
 | `HardDelete` | Items go to the Purges folder: the user can't recover them |
-| Mailboxes on hold | Items are kept until the hold ends |
+| Mailboxes on hold | Under Litigation Hold or In-Place Hold, only 10 items are removed from the user's view, and they aren't permanently deleted; deleted items are kept until the hold expires or is removed |
 
 > **Exam trap.** A user with eDiscovery Manager can find the phishing message but gets the error that the `Purge` parameter can't be found: the **Search And Purge** role is missing. And with Microsoft Defender for Office 365 Plan 2, Microsoft recommends remediating malicious email from Defender for Office 365 (Explorer) rather than search and purge.
 

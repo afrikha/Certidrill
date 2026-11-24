@@ -162,7 +162,7 @@ SQL Server on Azure VMs checklist:
 <!-- section: resource-governor | objectives: 3.3.6 -->
 ## Resource Governor
 
-Resource Governor limits the CPU, memory and physical read I/O that a workload can use. It exists in SQL Server (Enterprise and Developer editions; also Standard starting with SQL Server 2025) and Azure SQL Managed Instance; it can't be configured in Azure SQL Database.
+Resource Governor limits the CPU, memory and physical I/O (reads and writes, in IOPS per volume) that a workload can use. It exists in SQL Server (Enterprise and Developer editions; also Standard starting with SQL Server 2025) and Azure SQL Managed Instance; it can't be configured in Azure SQL Database.
 
 | Component | Role |
 | --- | --- |
@@ -244,10 +244,10 @@ SELECT * FROM sys.dm_operation_status WHERE major_resource_id = 'SalesDB';
 | --- | --- |
 | Duration | Constant (minutes) when the storage stays in place; about 1 minute per GB when data must be copied (to Premium, Business Critical or Hyperscale) |
 | Max size | Not raised by a tier upgrade unless you set it; a downgrade needs used space below the target's limit |
-| Geo-replication | Upgrade the secondaries first; downgrade the primary first |
+| Geo-replication | Upgrade the secondaries first; downgrade the primary first: required when the edition (service tier) changes, general guidance for best performance within the same tier |
 | Hyperscale | Scaling between Hyperscale sizes is constant time; going back to General Purpose is limited to supported scenarios |
 | Serverless | General Purpose and Hyperscale, vCore only; set min and max vCores and the auto-pause delay (General Purpose 15 minutes to 7 days, default 60, -1 disables; Hyperscale auto-pause is preview) |
-| Monitoring, cancel | `sys.dm_operation_status`, `az sql db op list` / `cancel`, `Get-AzSqlDatabaseActivity` / `Stop-AzSqlDatabaseActivity` |
+| Monitoring, cancel | `sys.dm_operation_status` (in `master`, server-level principal, about 1 hour kept; the Activity Log keeps 90 days), `az sql db op list` / `cancel`, `Get-AzSqlDatabaseActivity` / `Stop-AzSqlDatabaseActivity` |
 
 Other levers: elastic pools for many databases with complementary peaks, read scale-out (`ApplicationIntent=ReadOnly`) to offload reporting on Premium, Business Critical and Hyperscale.
 
@@ -278,7 +278,7 @@ Intelligent query processing (IQP) features improve plans without code changes. 
 | Compilation cost of forced plans | Optimized plan forcing | Any (SQL Server 2022+) |
 | Optional parameters (`@p IS NULL OR col = @p`) | Optional parameter plan optimization | 170 (SQL Server 2025) |
 
-On Azure SQL Managed Instance, the newest features (DOP feedback, optimized plan forcing, OPPO) require the SQL Server 2025 or Always-up-to-date update policy. Disable one feature without changing the level with its database-scoped configuration (for example `BATCH_MODE_ON_ROWSTORE = OFF`, `TSQL_SCALAR_UDF_INLINING = OFF`).
+On Azure SQL Managed Instance, the newest features (DOP feedback, optimized plan forcing, OPPO) require the SQL Server 2025 or Always-up-to-date update policy. Disable one feature without changing the level with its database-scoped configuration (for example `BATCH_MODE_ON_ROWSTORE = OFF`, or `TSQL_SCALAR_UDF_INLINING = OFF` on SQL Server 2019 and later; in Azure SQL Database, Learn marks `TSQL_SCALAR_UDF_INLINING` as preview).
 
 > **Exam tip.** "Improve performance without changing code, after migrating from an old SQL Server version" usually means raising the compatibility level (with Query Store capturing a baseline first so regressions can be reverted).
 

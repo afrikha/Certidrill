@@ -3,7 +3,7 @@ Le cycle de vie de développement des analyses couvre la façon dont les éléme
 <!-- section: git-integration | objectives: 1.2.1 -->
 ## Le contrôle de version avec l'intégration Git
 
-L'intégration Git connecte **un espace de travail** à **une branche et un dossier** d'un référentiel **Azure DevOps, GitHub ou GitHub Enterprise** (cloud uniquement). Tous les éléments de l'espace de travail sont versionnés ensemble, et les dossiers de l'espace de travail correspondent aux dossiers Git. Git stocke les **définitions des éléments, jamais les données**.
+L'intégration Git connecte **un espace de travail** à **une branche et un dossier** d'un référentiel **Azure DevOps, GitHub ou GitHub Enterprise** (cloud uniquement). Tous les éléments de l'espace de travail sont versionnés ensemble, et les dossiers de l'espace de travail correspondent aux dossiers Git. Git stocke les **définitions des éléments, jamais les données**. La prise en charge dépend du type d'élément : les lakehouses, entrepôts, notebooks, pipelines et Dataflow Gen2 sont pris en charge, alors que les éléments Power BI **Report**, **Semantic model** et **Paginated report** sont toujours indiqués en préversion.
 
 Prérequis et autorisations :
 
@@ -49,7 +49,7 @@ Sales/
 
 - Le `.gitignore` n'est créé que s'il n'en existe pas déjà un. Le cache local garde les données hors du référentiel : **un projet stocke des définitions, pas des données**.
 - Les métadonnées du modèle peuvent être modifiées hors de Desktop (TMDL dans Visual Studio Code, ou outils externes connectés à Desktop) ; Desktop détecte les modifications externes et propose de les appliquer. Les fichiers non documentés comme `report.json` ou `diagramLayout.json` ne doivent pas être modifiés à la main.
-- Déployez un projet avec l'intégration Git de Fabric (validez le dossier dans la branche d'un espace de travail connecté), les API REST Fabric, ou **Publier** dans Desktop, qui charge aussi le cache.
+- Déployez un projet avec l'intégration Git de Fabric (validez le dossier dans la branche d'un espace de travail connecté ; les éléments Report et Semantic model y sont en préversion), les API REST Fabric, ou **Publier** dans Desktop, qui charge aussi le cache.
 - Convertissez un .pbix en .pbip et inversement uniquement par **Enregistrer sous** dans Desktop.
 - Limitations : pas d'étiquettes de confidentialité dans un projet, pas d'enregistrement direct dans OneDrive ou SharePoint, chemin racine court (260 caractères sous Windows).
 
@@ -64,7 +64,7 @@ Un pipeline de déploiement compte **de 2 à 10 étapes** (trois par défaut : D
 | --- | --- |
 | Métadonnées et définitions des éléments, pages de rapport, métadonnées du modèle, relations entre éléments | Les **données** : actualisez les modèles sémantiques après un déploiement vers une étape vide |
 | Sources de données et paramètres (puis modifiés par les règles) | Autorisations et paramètres de l'espace de travail ; contenu des applications |
-| Étiquettes de confidentialité, seulement pour les nouveaux éléments ou quand l'étiquette source est protégée et pas celle de la cible | Attributions de rôles du modèle sémantique, planification d'actualisation, informations d'identification des sources, approbation |
+| Étiquettes de confidentialité, seulement pour les nouveaux éléments ou quand l'étiquette source est protégée et pas celle de la cible | Attributions de rôles du modèle sémantique, planification d'actualisation, informations d'identification des sources, paramètres de mise en cache des requêtes, approbation |
 
 Les **règles de déploiement** changent des valeurs dans l'étape **cible**, pour que le test et la production utilisent leurs propres sources :
 
@@ -78,7 +78,7 @@ Les **règles de déploiement** changent des valeurs dans l'étape **cible**, po
 - Une règle de source de données ne peut basculer que vers une source **du même type**.
 - Pour les modèles Direct Lake sur SQL, utilisez des règles de source de données ; pour les modèles **Direct Lake sur OneLake**, des paramètres M et des **règles de paramètre**.
 
-La **liaison automatique** (autobinding) garde les dépendances dans l'étape : un rapport déployé en Test se lie à la copie Test de son modèle sémantique. Si la dépendance n'existe pas dans la cible, le déploiement échoue ; utilisez **Sélectionner les éléments associés** pour la déployer aussi.
+La **liaison automatique** (autobinding) garde les dépendances dans l'étape : un rapport déployé en Test se lie à la copie Test de son modèle sémantique. Si la dépendance n'existe pas dans la cible, le déploiement échoue ; utilisez **Sélectionner les éléments associés** pour la déployer aussi. La liaison automatique n'est pas prise en charge pour Dataflow Gen2. Le premier déploiement d'un élément Power BI échoue aussi si l'étape cible contient déjà un élément de même nom et de même type.
 
 Autorisations :
 
@@ -86,7 +86,8 @@ Autorisations :
 | --- | --- |
 | Créer un pipeline | Licence Pro, PPU ou Premium ; vous devenez Admin du pipeline |
 | Affecter un espace de travail à une étape | Admin du pipeline et Admin de l'espace de travail |
-| Déployer vers l'étape suivante | Admin du pipeline et Contributor sur les deux espaces de travail |
+| Déployer vers une étape vide | Admin du pipeline et Contributor sur l'espace de travail source |
+| Déployer vers l'étape suivante | Admin du pipeline et Contributor sur les deux espaces de travail (et propriétaire de l'élément pour les flux de données) |
 | Créer une règle de déploiement | Admin du pipeline, Contributor ou plus sur la cible, propriétaire de l'élément |
 | Voir l'historique des déploiements | Admin du pipeline |
 
@@ -134,9 +135,9 @@ Copiez l'adresse depuis **Paramètres de l'espace de travail > Premium > Connexi
 - Le paramètre de locataire **Allow XMLA endpoints and Analyze in Excel with on-premises semantic models** doit aussi être activé (il l'est par défaut).
 - **Contributor ou plus** dans l'espace de travail agit comme administrateur de base de données par XMLA ; l'autorisation **Build** donne l'accès en lecture (comme lecteur de base de données, filtré par la RLS).
 - Outils : Tabular Editor et ALM Toolkit (écrire les métadonnées, comparer et déployer), SSMS (scripts TMSL, actualisation de partitions), Visual Studio avec les projets Analysis Services, PowerShell `Invoke-ASCmd`, DAX Studio (lecture).
-- Les actualisations par XMLA ne sont pas limitées aux 48 actualisations planifiées par jour et peuvent cibler une seule partition, comme les partitions d'actualisation incrémentielle.
+- Les actualisations par XMLA ne sont pas limitées aux 48 actualisations planifiées par jour et peuvent cibler une seule partition, comme les partitions d'actualisation incrémentielle. Elles n'actualisent pas les caches de vignettes, qui s'actualisent quand un utilisateur ouvre le rapport.
 - Les informations d'identification des sources ne peuvent pas être définies par XMLA : définissez-les dans les paramètres du modèle sémantique.
-- Microsoft recommande le **format de stockage de modèle sémantique volumineux** pour les modèles écrits par XMLA.
+- Microsoft recommande le **format de stockage de modèle sémantique volumineux** pour les modèles écrits par XMLA. Les opérations d'écriture sur un modèle créé dans Power BI Desktop exigent les **métadonnées améliorées**.
 
 > **Piège d'examen.** Après une écriture par XMLA, un modèle sémantique créé dans Power BI Desktop **ne peut plus être téléchargé en .pbix**. Gardez le .pbix source ou, mieux, un .pbip dans Git.
 
@@ -149,7 +150,7 @@ Copiez l'adresse depuis **Paramètres de l'espace de travail > Premium > Connexi
 | Fichier de source de données (.pbids) | Une connexion en JSON : protocole, adresse, mode facultatif | **Fichier > Options et paramètres > Paramètres de la source de données > Exporter PBIDS**, ou à la main | Donner aux auteurs de rapports une connexion prête ; Desktop ouvre le Navigateur pour choisir les tables |
 | Modèle sémantique partagé | Un modèle publié réutilisé par de nombreux rapports | Publier une fois, accorder **Build** | Un modèle gouverné, de nombreux rapports légers |
 
-Un fichier .pbids contient **exactement une** source de données et **ni informations d'identification, ni tables, ni requête** ; si `mode` est absent, l'utilisateur choisit Import ou DirectQuery :
+Un fichier .pbids contient **exactement une** source de données et **ni informations d'identification, ni tables, ni requête** ; si `mode` est absent, l'utilisateur choisit Import ou DirectQuery. Pour SQL Server (`tds`), `database` est facultatif : un fichier peut désigner un serveur sans nommer de base de données :
 
 ```json
 {
@@ -177,7 +178,7 @@ Un fichier .pbids contient **exactement une** source de données et **ni informa
 <!-- section: key-points -->
 ## Points clés
 
-- Intégration Git : l'Admin de l'espace de travail connecte ; une branche et un dossier ; définitions uniquement ; valider, mettre à jour, créer une branche vers, demandes de tirage.
+- Intégration Git : l'Admin de l'espace de travail connecte ; une branche et un dossier ; définitions uniquement ; éléments Report et Semantic model encore en préversion ; valider, mettre à jour, créer une branche vers, demandes de tirage.
 - .pbip = fichiers texte pour Git ; .pbit = modèle sans données ; .pbids = une connexion sans informations d'identification.
 - Pipelines de déploiement : 2 à 10 étapes, métadonnées uniquement, règles dans l'étape cible par le propriétaire de l'élément, liaison automatique dans l'étape, Admin du pipeline plus Contributor sur les deux espaces de travail pour déployer.
 - L'analyse d'impact demande l'autorisation d'écriture ; Tous les éléments en aval et Notifier les contacts répondent à « qui casse et qui prévenir ».

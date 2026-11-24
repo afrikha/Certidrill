@@ -89,8 +89,9 @@ A **directory** is a structured repository of information about the objects of a
 | --- | --- | --- |
 | Designed for | On-premises networks | The internet and the cloud; identity as a service |
 | Authentication | Kerberos and NTLM | Modern protocols: OpenID Connect, OAuth 2.0, SAML |
-| Device management | Group Policy on domain-joined Windows devices | Works across platforms and device types |
+| Device management | Group Policy on domain-joined Windows devices; users and computers organized in organizational units (OUs) | Works across platforms and device types |
 | Cloud and SaaS applications | Not natively: needs synchronization or federation | Native |
+| Remote access | Users away from the corporate network need a VPN to authenticate | No VPN or on-premises infrastructure needed |
 
 > **Exam trap.** Microsoft Entra ID isn't AD DS hosted in the cloud: it has no domain controllers, no Group Policy and no organizational units. Organizations that run AD DS connect it to Microsoft Entra ID: that is hybrid identity.
 

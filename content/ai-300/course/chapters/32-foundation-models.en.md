@@ -29,6 +29,8 @@ Microsoft Foundry offers these deployment options:
 | Global Batch / Data Zone Batch | `GlobalBatch` / `DataZoneBatch` | Global / data zone | 50 % less than Global Standard, 24-hour target |
 | Developer | `DeveloperTier` | Any Azure region | Per token; fine-tuned model evaluation only, no SLA, deleted after 24 hours |
 
+Global Standard also supports request-level processing tiers (`service_tier`): **Flex processing** for lower-cost, delay-tolerant requests and **Priority processing** for faster responses, billed pay-as-you-go; Data Zone Standard (US) supports Priority processing.
+
 **Managed compute in a Foundry project** (preview, no SLA, not recommended for production) uses the SKU `GlobalManagedCompute`, a deployment template and an accelerator type (for example `H100_80GB`). You scale by changing the number of model instances (`sku.capacity`), not the node size. Provisioning takes about 10 to 15 minutes; billing stops when you delete the deployment. Creating, updating or deleting these deployments requires Cognitive Services Contributor, Foundry Account Owner or Foundry Owner; calling them with Microsoft Entra ID requires Foundry User. The endpoint is the resource's OpenAI-compatible endpoint (`https://<account>.services.ai.azure.com/openai/v1/`) and the `model` field is the deployment name.
 
 **Hub-based projects (Foundry classic)** expose the same two ideas through Azure Machine Learning:
@@ -92,7 +94,7 @@ The **model leaderboards** (preview) in the Foundry portal compare text models (
 | Mixed workload, mix of easy and hard prompts | Model router |
 | Retrieval quality for RAG | An embedding model chosen on the embedding leaderboard, then tested on your corpus |
 
-**Model router** is a deployable model that routes each prompt to the most suitable underlying model. Routing modes: **Balanced** (default; cheapest model within a small quality band of the best), **Quality** (highest quality, cost ignored) and **Cost** (larger quality band for more savings). A **model subset** limits which models it may use and acts as the fallback set (choose at least two). It deploys with Global Standard or Data Zone Standard; its effective context window is that of the smallest model in the subset, and it doesn't process audio.
+**Model router** is a deployable model that routes each prompt to the most suitable underlying model. Routing modes: **Balanced** (default; cheapest model within a small quality band of the best), **Quality** (highest quality, cost ignored) and **Cost** (larger quality band for more savings). A **model subset** limits which models it may use; if the selected model returns a retryable error, the router fails over to the next-best model automatically. It deploys with Global Standard or Data Zone Standard; its effective context window is that of the smallest model in the subset; it accepts text and images but routes on the text only, and it doesn't accept audio. Version `2025-11-18` is generally available and the default; the preview versions `2025-08-07` and `2025-05-19` retire on January 27, 2027. Billing is a routing fee per million input tokens plus the usage of the selected model (only the fee when your own PTU deployment serves the request).
 
 > **Exam trap.** A model at the top of a public leaderboard isn't automatically the right answer. When the stem asks how to confirm that a cheaper model is good enough for your application, the answer is an evaluation on your own dataset, not a benchmark score.
 
@@ -106,12 +108,12 @@ Model lifecycle stages:
 | Stage | Meaning |
 | --- | --- |
 | Preview | Retirement date "not sooner than" about 90 days after launch; deployments are force-upgraded or retired |
-| Generally available | Retirement date set about 18 months out |
+| Generally available | Deprecated (existing customers only) 12 months after launch, retired at 18 months; Anthropic, DeepSeek, Fireworks and Mistral AI models follow a 12-month GA lifecycle |
 | Legacy (optional) | Newer models exist; plan migration |
 | Deprecated | Existing customers keep their deployments; new customers can't deploy |
 | Retired | Removed; every inference request returns `410 Gone` |
 
-Notices go to subscription owners with active deployments at least **60 days** before retirement for GA models and **30 days** for preview models, by email and Azure Service Health. Retirement dates can't be extended.
+Notices go to subscription owners with active deployments at least **60 days** before retirement for GA models and **30 days** for preview models, by email and Azure Service Health. GA retirement dates can't be extended; a preview "not sooner than" date can be extended until a replacement is available.
 
 The `versionUpgradeOption` of a Standard-type deployment decides what happens:
 
@@ -121,7 +123,7 @@ The `versionUpgradeOption` of a Standard-type deployment decides what happens:
 | `OnceCurrentVersionExpired` | Stays pinned; upgrades to the current default at retirement. `null` behaves the same |
 | `NoAutoUpgrade` | Never upgrades; the deployment **stops working** at retirement |
 
-Automatic upgrades apply only to Standard deployment types. **Provisioned deployments are never auto-upgraded**: migrate them either **in place** (same deployment name and size, new model version; traffic moves over 20 to 30 minutes, state "updating") or with a **multi-deployment** migration (create a new provisioned deployment, move traffic, check that the old one receives no requests for 5 to 10 minutes, delete it). Migrations happen only between deployments of the same deployment type. The Azure CLI can read `versionUpgradeOption` but can't set it: use Bicep or ARM templates, REST or Azure PowerShell.
+Automatic upgrades apply only to Standard deployment types. **Provisioned deployments are never auto-upgraded**: migrate them either **in place** (same deployment name and size, new model version or model family; traffic moves over 20 to 30 minutes, state "updating"; a version change works in the Foundry portal, REST or the Azure CLI, a model family change only with REST or the Azure CLI) or with a **multi-deployment** migration (create a new provisioned deployment, move traffic, check that the old one receives no requests for 5 to 10 minutes, delete it). Migrations happen only between deployments of the same deployment type. The Azure CLI can read `versionUpgradeOption` but can't set it: use Bicep or ARM templates, REST or Azure PowerShell.
 
 A safe production rollout of a new model version:
 
@@ -153,7 +155,7 @@ A **provisioned throughput unit (PTU)** is a fixed amount of model processing ca
 | Azure Reservations | 1-month or 1-year commitment for a discounted hourly rate, per deployment type; don't guarantee capacity: create the deployment first, then buy the reservation |
 | Scaling | Change the PTU count at any time; scaling down releases capacity that may not be available again, so don't scale up and down with traffic |
 
-Each model has a minimum and an increment. For Global and Data Zone provisioned deployments of current models, the minimum is 15 PTUs in increments of 5; Regional provisioned minimums are higher (25 or 50 depending on the model, in matching increments).
+Each model has a minimum and an increment. For Global and Data Zone provisioned deployments of current models, the minimum is 15 PTUs in increments of 5. Regional provisioned minimums are usually higher (25 or 50 depending on the model, in matching increments), but some recent models (gpt-5.6 family, gpt-6-sol, gpt-6-luna) are 15 / 5 in Regional too: read the model's row in the sizing table.
 
 **Sizing.** The capacity calculator in the Foundry portal computes PTUs from peak requests per minute, average input and output tokens and the cache rate:
 
@@ -171,9 +173,11 @@ PTUs            = normalized TPM / input TPM per PTU, rounded up to the incremen
 | gpt-5 | 4,750 | 8 |
 | gpt-5-mini | 23,750 | 8 |
 
+This formula deducts cached tokens entirely, which holds for models before GPT-6 Astra. For GPT-6 Astra and later models, cached reads and cache writes consume capacity at model-specific weights in a normalized-token calculation.
+
 Example: gpt-4.1, 600 requests per minute at peak, 1,000 input and 200 output tokens per request, no cache. Normalized TPM = 600,000 + 4 x 120,000 = 1,080,000, so 360 PTUs, a valid Global Provisioned size (multiple of 5); a Regional deployment rounds up to its larger increment.
 
-**Utilization.** Watch the **Provisioned-managed utilization V2** metric in Azure Monitor. At 100 % utilization the deployment returns **HTTP 429** immediately, with `retry-after` and `retry-after-ms` headers: it's a traffic-management signal, not a service error. Options: retry after the indicated delay (the OpenAI SDKs retry twice by default), send the request to another deployment, or configure **spillover**, which routes requests that would be rejected to a standard deployment in the same Foundry resource, for every request of the deployment or per request with the `x-ms-spillover-deployment` header. Spillover is supported for Azure OpenAI models, not for models from other providers.
+**Utilization.** Watch the **Provisioned-managed utilization V2** metric in Azure Monitor. At 100 % utilization the deployment returns **HTTP 429** immediately, with `retry-after` and `retry-after-ms` headers: it's a traffic-management signal, not a service error. Options: retry after the indicated delay (the OpenAI SDKs retry twice by default), send the request to another deployment, or configure **spillover**, which routes requests that the provisioned deployment answers with a non-200 response (429 at full utilization, 400 for a context length it doesn't support, 500 or 503) to a standard deployment of the same model and version in the same Foundry resource, for every request of the deployment (`spilloverDeploymentName`) or per request with the `x-ms-spillover-deployment` header. When both are set, the deployment property wins. Spilled requests are billed at the standard deployment's token rates and appear on it with `IsSpillover = True` in the Azure OpenAI Requests metric. Spillover is supported for Azure OpenAI models, not for models from other providers.
 
 ```bash
 az cognitiveservices account deployment create \

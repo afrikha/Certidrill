@@ -1,0 +1,521 @@
+chapter: 23-model-deployment
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ai300-qz-23-01
+    objective: "2.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso has a batch endpoint named **sales-batch** in an Azure Machine Learning workspace. The endpoint has three model deployments. A scheduled script runs `az ml batch-endpoint invoke --name sales-batch` with an input folder, without the `--deployment-name` parameter.
+
+        Which deployment scores the data?
+      fr: |
+        Contoso dispose d'un point de terminaison par lots nommé **sales-batch** dans un espace de travail Azure Machine Learning. Le point de terminaison comporte trois déploiements de modèle. Un script planifié exécute `az ml batch-endpoint invoke --name sales-batch` avec un dossier d'entrée, sans le paramètre `--deployment-name`.
+
+        Quel déploiement effectue le scoring des données ?
+    body:
+      options:
+        - { id: a, text: { en: "The deployment that was created most recently", fr: "Le déploiement créé le plus récemment" } }
+        - { id: b, text: { en: "The deployment that has the highest traffic percentage", fr: "Le déploiement qui a le pourcentage de trafic le plus élevé" } }
+        - { id: c, text: { en: "The deployment that is set as the default of the endpoint", fr: "Le déploiement défini comme déploiement par défaut du point de terminaison" } }
+        - { id: d, text: { en: "All three deployments, each scoring part of the input files", fr: "Les trois déploiements, chacun traitant une partie des fichiers d'entrée" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          One deployment of a batch endpoint is the default deployment, and it performs the scoring when the endpoint is invoked without a deployment name. You set it with `--set-default` when you create a deployment, or later with `--set defaults.deployment_name=<name>` on the endpoint.
+        fr: |
+          L'un des déploiements d'un point de terminaison par lots est le déploiement par défaut, et c'est lui qui effectue le scoring quand le point de terminaison est appelé sans nom de déploiement. Vous le définissez avec `--set-default` à la création d'un déploiement, ou plus tard avec `--set defaults.deployment_name=<name>` sur le point de terminaison.
+      options:
+        a: { en: "Creating a deployment doesn't make it the default unless you pass `--set-default`.", fr: "Créer un déploiement n'en fait pas le déploiement par défaut, sauf si vous passez `--set-default`." }
+        b: { en: "Traffic percentages are a feature of online endpoints; a batch endpoint routes each invocation to a single deployment.", fr: "Les pourcentages de trafic sont une fonctionnalité des points de terminaison en ligne ; un point de terminaison par lots dirige chaque appel vers un seul déploiement." }
+        d: { en: "An invocation creates one job for one deployment; the work is distributed across the nodes of that deployment's cluster, not across deployments.", fr: "Un appel crée un seul travail pour un seul déploiement ; le travail est réparti entre les nœuds du cluster de ce déploiement, pas entre les déploiements." }
+    references:
+      - title: Deploy models for scoring in batch endpoints
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-use-batch-model-deployments
+
+  # ------------------------------------------------------------------ 2
+  - id: ai300-qz-23-02
+    objective: "2.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are reviewing the YAML file of a model deployment for a batch endpoint in Azure Machine Learning. Its `settings` section contains `mini_batch_size: 10`.
+
+        What does this setting control?
+      fr: |
+        Vous examinez le fichier YAML d'un déploiement de modèle pour un point de terminaison par lots dans Azure Machine Learning. Sa section `settings` contient `mini_batch_size: 10`.
+
+        Que contrôle ce paramètre ?
+    body:
+      options:
+        - { id: a, text: { en: "The number of input files passed to each `run()` call of the scoring script", fr: "Le nombre de fichiers d'entrée passés à chaque appel `run()` du script de scoring" } }
+        - { id: b, text: { en: "The number of rows of a file passed to each `run()` call of the scoring script", fr: "Le nombre de lignes d'un fichier passées à chaque appel `run()` du script de scoring" } }
+        - { id: c, text: { en: "The number of scoring processes that run in parallel on each node", fr: "Le nombre de processus de scoring exécutés en parallèle sur chaque nœud" } }
+        - { id: d, text: { en: "The number of failed files tolerated before the job is stopped", fr: "Le nombre de fichiers en échec tolérés avant l'arrêt du travail" } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Batch deployments distribute the work at file level: `mini_batch_size` is the number of files that the scoring script processes in one `run()` call. You can also override it for a single job with `--mini-batch-size` when you invoke the endpoint.
+        fr: |
+          Les déploiements par lots répartissent le travail au niveau des fichiers : `mini_batch_size` est le nombre de fichiers que le script de scoring traite en un appel `run()`. Vous pouvez aussi le remplacer pour un seul travail avec `--mini-batch-size` lors de l'appel du point de terminaison.
+      options:
+        b: { en: "The mini-batch is counted in files, not in rows; the script decides how it reads the rows of each file.", fr: "Le mini-lot se compte en fichiers, pas en lignes ; le script décide comment il lit les lignes de chaque fichier." }
+        c: { en: "Parallel scoring processes per node are set by `max_concurrency_per_instance`.", fr: "Les processus de scoring parallèles par nœud se définissent avec `max_concurrency_per_instance`." }
+        d: { en: "The number of tolerated file failures is `error_threshold`.", fr: "Le nombre d'échecs de fichiers tolérés est `error_threshold`." }
+    references:
+      - title: Deploy models for scoring in batch endpoints
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-use-batch-model-deployments
+
+  # ------------------------------------------------------------------ 3
+  - id: ai300-qz-23-03
+    objective: "2.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam deploys a custom demand model to a managed online endpoint. The deployment uses `request_timeout_ms: 30000`, and every request takes about 25 seconds. The CPU of the instances is almost idle between requests. The scoring script is the following:
+
+        ```python
+        import os, json, joblib
+
+        def init():
+            global model_dir
+            model_dir = os.getenv("AZUREML_MODEL_DIR")
+
+        def run(raw_data):
+            model = joblib.load(os.path.join(model_dir, "model/demand.pkl"))
+            data = json.loads(raw_data)["data"]
+            return model.predict(data).tolist()
+        ```
+
+        You need to reduce the response time of each request. What should you do?
+      fr: |
+        Fabrikam déploie un modèle de demande personnalisé sur un point de terminaison en ligne managé. Le déploiement utilise `request_timeout_ms: 30000`, et chaque requête prend environ 25 secondes. Le processeur des instances est presque inactif entre les requêtes. Le script de scoring est le suivant :
+
+        ```python
+        import os, json, joblib
+
+        def init():
+            global model_dir
+            model_dir = os.getenv("AZUREML_MODEL_DIR")
+
+        def run(raw_data):
+            model = joblib.load(os.path.join(model_dir, "model/demand.pkl"))
+            data = json.loads(raw_data)["data"]
+            return model.predict(data).tolist()
+        ```
+
+        Vous devez réduire le temps de réponse de chaque requête. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Raise `request_timeout_ms` to 60000 so that slow requests have more time to complete.", fr: "Porter `request_timeout_ms` à 60000 pour que les requêtes lentes aient plus de temps pour se terminer." } }
+        - { id: b, text: { en: "Load the model into a global variable in `init()`, and use that variable in `run()`.", fr: "Charger le modèle dans une variable globale dans `init()`, et utiliser cette variable dans `run()`." } }
+        - { id: c, text: { en: "Raise `max_concurrent_requests_per_instance` so that each instance processes more requests at once.", fr: "Augmenter `max_concurrent_requests_per_instance` pour que chaque instance traite plus de requêtes à la fois." } }
+        - { id: d, text: { en: "Raise `instance_count` so that the requests are spread across more instances.", fr: "Augmenter `instance_count` pour que les requêtes soient réparties sur plus d'instances." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `init()` runs once, when the container starts or the deployment is updated, and is the place to load and cache the model; `run()` runs on every request. This script deserializes the model file in `run()`, so every request pays the loading time. Loading it once in `init()` leaves only the prediction in each request.
+        fr: |
+          `init()` s'exécute une seule fois, quand le conteneur démarre ou que le déploiement est mis à jour, et c'est là qu'il faut charger et mettre en cache le modèle ; `run()` s'exécute à chaque requête. Ce script désérialise le fichier du modèle dans `run()` : chaque requête paie donc le temps de chargement. Le charger une seule fois dans `init()` ne laisse que la prédiction dans chaque requête.
+      options:
+        a: { en: "A longer timeout only delays HTTP 408 errors; each request still reloads the model.", fr: "Un délai d'expiration plus long ne fait que retarder les erreurs HTTP 408 ; chaque requête recharge toujours le modèle." }
+        c: { en: "More concurrent requests per instance raise throughput, but each request still takes as long.", fr: "Plus de requêtes simultanées par instance augmentent le débit, mais chaque requête dure toujours aussi longtemps." }
+        d: { en: "More instances share the load without shortening a request: each instance reloads the model for every request.", fr: "Plus d'instances se partagent la charge sans raccourcir une requête : chaque instance recharge le modèle à chaque requête." }
+    references:
+      - title: Online endpoints for real-time inference
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints-online
+
+  # ------------------------------------------------------------------ 4
+  - id: ai300-qz-23-04
+    objective: "2.3.3"
+    difficulty: 2
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Northwind Traders has a batch endpoint named **churn-batch**. Its default deployment, **churn-batch-v4**, runs every night from a scheduled script that invokes the endpoint without a deployment name. You created a deployment named **churn-batch-v5** for a new model version, without setting it as the default.
+
+        You need to:
+
+        1. score a sample folder with churn-batch-v5, without changing the deployment used by the nightly script;
+        2. after validation, make the nightly script use churn-batch-v5, without changing the script.
+
+        How should you complete the commands? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind Traders dispose d'un point de terminaison par lots nommé **churn-batch**. Son déploiement par défaut, **churn-batch-v4**, s'exécute chaque nuit depuis un script planifié qui appelle le point de terminaison sans nom de déploiement. Vous avez créé un déploiement nommé **churn-batch-v5** pour une nouvelle version du modèle, sans le définir comme déploiement par défaut.
+
+        Vous devez :
+
+        1. scorer un dossier d'exemple avec churn-batch-v5, sans changer le déploiement utilisé par le script de nuit ;
+        2. après validation, faire utiliser churn-batch-v5 par le script de nuit, sans modifier le script.
+
+        Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: bash
+      template:
+        en: |
+          # 1. Test the new deployment
+          az ml batch-endpoint invoke --name churn-batch [[s1]] \
+            --input azureml://datastores/workspaceblobstore/paths/churn/sample/ \
+            --input-type uri_folder
+
+          # 2. Switch the nightly scoring to the new deployment
+          az ml batch-endpoint update --name churn-batch --set [[s2]]
+        fr: |
+          # 1. Tester le nouveau déploiement
+          az ml batch-endpoint invoke --name churn-batch [[s1]] \
+            --input azureml://datastores/workspaceblobstore/paths/churn/sample/ \
+            --input-type uri_folder
+
+          # 2. Basculer le scoring de nuit vers le nouveau déploiement
+          az ml batch-endpoint update --name churn-batch --set [[s2]]
+      slots:
+        - id: s1
+          options:
+            - { id: s1a, text: "--deployment-name churn-batch-v5" }
+            - { id: s1b, text: "--set defaults.deployment_name=churn-batch-v5" }
+            - { id: s1c, text: "--set-default churn-batch-v5" }
+        - id: s2
+          options:
+            - { id: s2a, text: "traffic.churn-batch-v5=100" }
+            - { id: s2b, text: "defaults.deployment_name=churn-batch-v5" }
+            - { id: s2c, text: "mirror_traffic.churn-batch-v5=100" }
+    answer:
+      values: { s1: s1a, s2: s2b }
+    explanation:
+      correct:
+        en: |
+          `--deployment-name` runs a job on a deployment that isn't the default, without updating the default deployment of the endpoint. Updating `defaults.deployment_name` then changes the model that serves the endpoint without changing the contract of the callers, and setting it back to churn-batch-v4 is the rollback.
+        fr: |
+          `--deployment-name` exécute un travail sur un déploiement qui n'est pas celui par défaut, sans modifier le déploiement par défaut du point de terminaison. Mettre ensuite à jour `defaults.deployment_name` change le modèle qui sert le point de terminaison sans changer le contrat des appelants, et revenir à churn-batch-v4 constitue la restauration.
+      options:
+        s1b: { en: "Changing the default on the invoke command would switch the nightly scoring before validation.", fr: "Changer le déploiement par défaut dans la commande d'appel basculerait le scoring de nuit avant la validation." }
+        s1c: { en: "`--set-default` is a parameter of `az ml batch-deployment create`, not of the invoke command.", fr: "`--set-default` est un paramètre de `az ml batch-deployment create`, pas de la commande d'appel." }
+        s2a: { en: "Traffic percentages exist only on online endpoints.", fr: "Les pourcentages de trafic n'existent que sur les points de terminaison en ligne." }
+        s2c: { en: "Mirrored traffic is a feature of managed online endpoints, not of batch endpoints.", fr: "Le trafic en miroir est une fonctionnalité des points de terminaison en ligne managés, pas des points de terminaison par lots." }
+    references:
+      - title: Deploy models for scoring in batch endpoints
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-use-batch-model-deployments
+
+  # ------------------------------------------------------------------ 5
+  - id: ai300-qz-23-05
+    objective: "2.3.1"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Wingtip Toys serves an insurance quote model through a managed online endpoint named **ep-quotes**, created with `auth_mode: key`. Its only deployment, **blue**, receives all the traffic. Partner applications call it heavily during business hours and rarely at night, and the security team plans to move the partners away from keys later this year.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Wingtip Toys sert un modèle de devis d'assurance par un point de terminaison en ligne managé nommé **ep-quotes**, créé avec `auth_mode: key`. Son seul déploiement, **blue**, reçoit tout le trafic. Des applications partenaires l'appellent beaucoup pendant les heures ouvrables et rarement la nuit, et l'équipe de sécurité prévoit de faire abandonner les clés aux partenaires plus tard dans l'année.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "The primary key of ep-quotes expires after a few hours, and clients must request a new one with `az ml online-endpoint get-credentials`.", fr: "La clé primaire d'ep-quotes expire au bout de quelques heures, et les clients doivent en demander une nouvelle avec `az ml online-endpoint get-credentials`." }
+        - id: s2
+          text: { en: "The autoscale settings of blue can combine a schedule-based rule for business hours with a rule based on CPU utilization.", fr: "Les paramètres de mise à l'échelle automatique de blue peuvent combiner une règle planifiée pour les heures ouvrables et une règle basée sur l'utilisation du processeur." }
+        - id: s3
+          text: { en: "You can switch ep-quotes to Microsoft Entra token authentication by updating its `auth_mode` to `aad_token`, without creating a new endpoint.", fr: "Vous pouvez faire passer ep-quotes à l'authentification par jeton Microsoft Entra en mettant à jour son `auth_mode` sur `aad_token`, sans créer de nouveau point de terminaison." }
+    answer:
+      values: { s1: false, s2: true, s3: true }
+    explanation:
+      correct:
+        en: |
+          Endpoint keys don't expire: you rotate them yourself with the regenerate operation, while `aml_token` and `aad_token` credentials are short-lived. Managed online endpoints use Azure Monitor autoscale, with metric-based rules, schedule-based rules, or both. The `auth_mode` of an existing endpoint can be updated, for example with `az ml online-endpoint update --set auth_mode=aad_token`.
+        fr: |
+          Les clés de point de terminaison n'expirent pas : vous les faites tourner vous-même avec l'opération de régénération, tandis que les informations d'identification `aml_token` et `aad_token` ont une durée de vie courte. Les points de terminaison en ligne managés utilisent la mise à l'échelle automatique d'Azure Monitor, avec des règles basées sur des métriques, des règles planifiées, ou les deux. Le `auth_mode` d'un point de terminaison existant peut être mis à jour, par exemple avec `az ml online-endpoint update --set auth_mode=aad_token`.
+      options:
+        s1: { en: "Keys have no expiry; only Azure Machine Learning and Microsoft Entra tokens must be refreshed.", fr: "Les clés n'ont pas d'expiration ; seuls les jetons Azure Machine Learning et Microsoft Entra doivent être renouvelés." }
+    references:
+      - title: Authenticate clients for online endpoints
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-authenticate-online-endpoint
+      - title: Online endpoints for real-time inference
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints-online
+
+  # ------------------------------------------------------------------ 6
+  - id: ai300-qz-23-06
+    objective: "2.3.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Woodgrove Bank has an Azure Machine Learning workspace named **mlw-risk**. The platform team operates an Azure Kubernetes Service (AKS) cluster attached to mlw-risk. Company policy requires every production inference workload to run on this cluster.
+
+        You are deploying a credit model for a web application that needs a prediction for each request in real time. The security team requires that the credential presented by the application on each scoring request expire automatically after a short time, and that the application obtain a fresh credential by itself before expiry.
+
+        What should you do?
+      fr: |
+        Woodgrove Bank dispose d'un espace de travail Azure Machine Learning nommé **mlw-risk**. L'équipe plateforme exploite un cluster Azure Kubernetes Service (AKS) attaché à mlw-risk. La stratégie de l'entreprise exige que toute charge de travail d'inférence de production s'exécute sur ce cluster.
+
+        Vous déployez un modèle de crédit pour une application web qui a besoin d'une prédiction pour chaque requête en temps réel. L'équipe de sécurité exige que les informations d'identification présentées par l'application à chaque requête de scoring expirent automatiquement après une courte durée, et que l'application obtienne elle-même de nouvelles informations d'identification avant l'expiration.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Create a Kubernetes online endpoint with `auth_mode: aad_token`, and grant the app's identity a role that includes `score/action`.", fr: "Créer un point de terminaison en ligne Kubernetes avec `auth_mode: aad_token`, et attribuer à l'identité de l'application un rôle qui inclut `score/action`." } }
+        - { id: b, text: { en: "Create a Kubernetes online endpoint with `auth_mode: aml_token`, and have the app request a new token before `refreshAfterTimeUtc`.", fr: "Créer un point de terminaison en ligne Kubernetes avec `auth_mode: aml_token`, et faire demander par l'application un nouveau jeton avant `refreshAfterTimeUtc`." } }
+        - { id: c, text: { en: "Create a Kubernetes online endpoint with `auth_mode: key`, and regenerate the key daily, with the app reading the current key from a vault.", fr: "Créer un point de terminaison en ligne Kubernetes avec `auth_mode: key`, et régénérer la clé chaque jour, l'application lisant la clé actuelle dans un coffre." } }
+        - { id: d, text: { en: "Create a managed online endpoint with `auth_mode: aad_token`, and grant the app's identity a role that includes `score/action`.", fr: "Créer un point de terminaison en ligne managé avec `auth_mode: aad_token`, et attribuer à l'identité de l'application un rôle qui inclut `score/action`." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The policy imposes a Kubernetes online endpoint, which supports only `key` and `aml_token` authentication. An Azure Machine Learning token is short-lived and carries a `refreshAfterTimeUtc` time after which the client requests a new one, for example with `get-credentials` or the equivalent REST call, by using an identity that is allowed to get tokens.
+        fr: |
+          La stratégie impose un point de terminaison en ligne Kubernetes, qui ne prend en charge que l'authentification `key` et `aml_token`. Un jeton Azure Machine Learning a une durée de vie courte et porte une heure `refreshAfterTimeUtc` après laquelle le client en demande un nouveau, par exemple avec `get-credentials` ou l'appel REST équivalent, en utilisant une identité autorisée à obtenir des jetons.
+      options:
+        a: { en: "Microsoft Entra token authentication (`aad_token`) is supported only on managed online endpoints, not on Kubernetes online endpoints.", fr: "L'authentification par jeton Microsoft Entra (`aad_token`) n'est prise en charge que sur les points de terminaison en ligne managés, pas sur les points de terminaison en ligne Kubernetes." }
+        c: { en: "Endpoint keys never expire by themselves; a key stays valid until someone regenerates it, so the credential doesn't expire automatically.", fr: "Les clés de point de terminaison n'expirent jamais d'elles-mêmes ; une clé reste valide jusqu'à ce que quelqu'un la régénère : les informations d'identification n'expirent donc pas automatiquement." }
+        d: { en: "A managed online endpoint doesn't run on the team's AKS cluster, which the policy requires for production inference.", fr: "Un point de terminaison en ligne managé ne s'exécute pas sur le cluster AKS de l'équipe, ce que la stratégie exige pour l'inférence de production." }
+    references:
+      - title: Authentication and authorization for online endpoints
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints-online-auth
+      - title: Authenticate clients for online endpoints
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-authenticate-online-endpoint
+
+  # ------------------------------------------------------------------ 7
+  - id: ai300-qz-23-07
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys deploys a large custom vision model to a managed online deployment named **green**. The deployment YAML file sets only `model`, `code_configuration`, `environment`, `instance_type` and `instance_count`. The deployment fails with **ResourceNotReady**.
+
+        The logs of the storage-initializer container show that the model and the code were downloaded successfully. The inference server logs show that `init()` finishes loading the model after about seven minutes, with no error, and that the container is restarted before that point.
+
+        You need the deployment to succeed. The VM size of green must not change. What should you do?
+      fr: |
+        Tailspin Toys déploie un grand modèle de vision personnalisé sur un déploiement en ligne managé nommé **green**. Le fichier YAML du déploiement ne définit que `model`, `code_configuration`, `environment`, `instance_type` et `instance_count`. Le déploiement échoue avec **ResourceNotReady**.
+
+        Les journaux du conteneur storage-initializer montrent que le modèle et le code ont été téléchargés avec succès. Les journaux du serveur d'inférence montrent que `init()` termine le chargement du modèle après environ sept minutes, sans erreur, et que le conteneur est redémarré avant ce moment.
+
+        Le déploiement doit réussir. La taille de machine virtuelle de green ne doit pas changer. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Set `request_timeout_ms` to 180000 in the `request_settings` of green.", fr: "Définir `request_timeout_ms` sur 180000 dans les `request_settings` de green." } }
+        - { id: b, text: { en: "Run `az ml workspace sync-keys`, and then update green.", fr: "Exécuter `az ml workspace sync-keys`, puis mettre à jour green." } }
+        - { id: c, text: { en: "Set `instance_count` to 3 so that one instance can start while the others load.", fr: "Définir `instance_count` sur 3 pour qu'une instance puisse démarrer pendant que les autres chargent." } }
+        - { id: d, text: { en: "Set `initial_delay` of the liveness and readiness probes beyond the loading time.", fr: "Définir `initial_delay` des sondes liveness et readiness au-delà du temps de chargement." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          With the default probe settings (initial delay 10 s, period 10 s, failure threshold 30), the probes give up after about five minutes, before `init()` completes, so the container is restarted and the deployment ends in ResourceNotReady. When initialization is slow, Learn recommends adjusting the probe settings or using a larger SKU; the SKU must stay, so you raise the initial delay of the probes.
+        fr: |
+          Avec les paramètres de sonde par défaut (délai initial de 10 s, période de 10 s, seuil d'échec de 30), les sondes abandonnent au bout d'environ cinq minutes, avant la fin de `init()` : le conteneur est redémarré et le déploiement se termine en ResourceNotReady. Quand l'initialisation est lente, Learn recommande d'ajuster les paramètres des sondes ou d'utiliser une référence SKU plus grande ; la référence SKU doit rester la même, vous augmentez donc le délai initial des sondes.
+      options:
+        a: { en: "`request_timeout_ms` applies to scoring requests once the deployment is running; it doesn't affect container startup.", fr: "`request_timeout_ms` s'applique aux requêtes de scoring une fois le déploiement en service ; il n'a pas d'effet sur le démarrage du conteneur." }
+        b: { en: "`sync-keys` fixes container registry authorization failures during image builds (ImageBuildFailure), not a slow `init()`.", fr: "`sync-keys` corrige les échecs d'autorisation du registre de conteneurs pendant la création d'image (ImageBuildFailure), pas un `init()` lent." }
+        c: { en: "Every instance loads the model in `init()` and is probed the same way, so all of them would be restarted.", fr: "Chaque instance charge le modèle dans `init()` et est sondée de la même façon : toutes seraient redémarrées." }
+    references:
+      - title: Troubleshoot online endpoint deployment and scoring
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints
+      - title: CLI (v2) managed online deployment YAML schema
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-deployment-managed-online
+
+  # ------------------------------------------------------------------ 8
+  - id: ai300-qz-23-08
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Litware has a managed online endpoint named **ep-claims** with one deployment named **blue**: `instance_count: 2` and `max_concurrent_requests_per_instance: 1`. At peak times, up to 12 requests are in flight at the same time, and some clients receive HTTP 429 responses for too many pending requests. Each request takes about one second, and the CPU utilization of the instances stays below 25 %. The scoring script is thread-safe, and the subscription has enough quota for eight instances of the VM size.
+
+        You need to stop the 429 responses at the current peak load. Which two actions can you perform? Each correct answer presents a complete solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware dispose d'un point de terminaison en ligne managé nommé **ep-claims** avec un seul déploiement nommé **blue** : `instance_count: 2` et `max_concurrent_requests_per_instance: 1`. Aux heures de pointe, jusqu'à 12 requêtes sont en cours en même temps, et certains clients reçoivent des réponses HTTP 429 pour un trop grand nombre de requêtes en attente. Chaque requête prend environ une seconde, et l'utilisation du processeur des instances reste sous 25 %. Le script de scoring est thread-safe, et l'abonnement dispose d'un quota suffisant pour huit instances de cette taille de machine virtuelle.
+
+        Vous devez faire cesser les réponses 429 à la charge de pointe actuelle. Quelles sont les deux actions que vous pouvez effectuer ? Chaque bonne réponse constitue une solution complète.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Set `request_timeout_ms` of blue to 30000 so that pending requests can wait longer.", fr: "Définir `request_timeout_ms` de blue sur 30000 pour que les requêtes en attente puissent attendre plus longtemps." } }
+        - { id: b, text: { en: "Set `instance_count` of blue to 6.", fr: "Définir `instance_count` de blue sur 6." } }
+        - { id: c, text: { en: "Set `max_concurrent_requests_per_instance` of blue to 3, and the `WORKER_COUNT` environment variable to 3.", fr: "Définir `max_concurrent_requests_per_instance` de blue sur 3, et la variable d'environnement `WORKER_COUNT` sur 3." } }
+        - { id: d, text: { en: "Create a deployment named green with two instances, and mirror 50 % of the traffic to it.", fr: "Créer un déploiement nommé green avec deux instances, et y mettre en miroir 50 % du trafic." } }
+        - { id: e, text: { en: "Set `max_queue_wait_ms` of blue to 2000 so that requests can stay longer in the queue.", fr: "Définir `max_queue_wait_ms` de blue sur 2000 pour que les requêtes puissent rester plus longtemps dans la file." } }
+    answer: { optionIds: [b, c] }
+    explanation:
+      correct:
+        en: |
+          A managed online deployment processes at most `2 × max_concurrent_requests_per_instance × instance_count` requests in parallel and rejects the others with 429: here 2 × 1 × 2 = 4, below the peak of 12. Six instances give 2 × 1 × 6 = 12, and three concurrent requests per instance give 2 × 3 × 2 = 12; the second option needs the inference server to run as many workers, which `WORKER_COUNT` sets, and the idle CPU and thread-safe script allow it.
+        fr: |
+          Un déploiement en ligne managé traite au plus `2 × max_concurrent_requests_per_instance × instance_count` requêtes en parallèle et rejette les autres avec un 429 : ici 2 × 1 × 2 = 4, sous la pointe de 12. Six instances donnent 2 × 1 × 6 = 12, et trois requêtes simultanées par instance donnent 2 × 3 × 2 = 12 ; la seconde option exige que le serveur d'inférence exécute autant de workers, ce que définit `WORKER_COUNT`, et le processeur peu chargé ainsi que le script thread-safe le permettent.
+      options:
+        a: { en: "The timeout decides when a running request returns 408; it doesn't raise the number of requests accepted in parallel.", fr: "Le délai d'expiration détermine quand une requête en cours renvoie un 408 ; il n'augmente pas le nombre de requêtes acceptées en parallèle." }
+        d: { en: "Mirrored copies are processed in addition to the live requests, and clients are still answered by blue only, so blue's limit doesn't change.", fr: "Les copies en miroir sont traitées en plus des requêtes réelles, et les clients reçoivent toujours les réponses de blue seul : la limite de blue ne change pas." }
+        e: { en: "`max_queue_wait_ms` is deprecated, and the limit on parallel requests depends only on concurrency and instance count.", fr: "`max_queue_wait_ms` est déprécié, et la limite de requêtes parallèles ne dépend que de la simultanéité et du nombre d'instances." }
+    references:
+      - title: Troubleshoot online endpoint deployment and scoring
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints
+      - title: CLI (v2) managed online deployment YAML schema
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/reference-yaml-deployment-managed-online
+
+  # ------------------------------------------------------------------ 9
+  - id: ai300-qz-23-09
+    objective: "2.3.1"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Proseware has a batch endpoint named **claims-batch** and a registered `custom_model` named **claims-ner** that extracts entities from scanned claim documents. You are writing the YAML file of a new deployment. The scoring script `batch_driver.py` writes one JSON result file per input document directly to the job's output folder.
+
+        The deployment must meet the following requirements:
+
+        - The platform must not merge the results of the `run()` calls into a single file.
+        - A `run()` call that processes a mini-batch can take up to eight minutes and must not be interrupted.
+        - The job must stop as soon as one input file fails to score.
+
+        How should you complete the YAML file? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Proseware dispose d'un point de terminaison par lots nommé **claims-batch** et d'un `custom_model` inscrit nommé **claims-ner** qui extrait des entités de déclarations de sinistres numérisées. Vous rédigez le fichier YAML d'un nouveau déploiement. Le script de scoring `batch_driver.py` écrit un fichier de résultat JSON par document d'entrée directement dans le dossier de sortie du travail.
+
+        Le déploiement doit répondre aux exigences suivantes :
+
+        - La plateforme ne doit pas fusionner les résultats des appels `run()` dans un fichier unique.
+        - Un appel `run()` qui traite un mini-lot peut durer jusqu'à huit minutes et ne doit pas être interrompu.
+        - Le travail doit s'arrêter dès qu'un fichier d'entrée échoue au scoring.
+
+        Comment devez-vous compléter le fichier YAML ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: yaml
+      template: |
+        $schema: https://azuremlschemas.azureedge.net/latest/modelBatchDeployment.schema.json
+        name: claims-ner-v2
+        endpoint_name: claims-batch
+        type: model
+        model: azureml:claims-ner:2
+        code_configuration:
+          code: ./batch-code
+          scoring_script: batch_driver.py
+        environment: azureml:claims-ner-env:3
+        compute: azureml:cpu-batch
+        resources:
+          instance_count: 4
+        settings:
+          mini_batch_size: 5
+          output_action: [[act]]
+          retry_settings:
+            max_retries: 2
+            [[rkey]]: 600
+          error_threshold: [[thr]]
+      slots:
+        - id: act
+          options:
+            - { id: append, text: append_row }
+            - { id: summary, text: summary_only }
+        - id: rkey
+          options:
+            - { id: timeout, text: timeout }
+            - { id: reqtimeout, text: request_timeout_ms }
+            - { id: queuewait, text: max_queue_wait_ms }
+        - id: thr
+          options:
+            - { id: neg, text: "-1" }
+            - { id: zero, text: "0" }
+            - { id: one, text: "1" }
+            - { id: five, text: "5" }
+    answer:
+      values: { act: summary, rkey: timeout, thr: zero }
+    explanation:
+      correct:
+        en: |
+          `summary_only` doesn't merge the outputs of the `run()` calls and only tracks errors against `error_threshold`, so the scoring script writes its own files. `retry_settings.timeout` is the time in seconds allowed for one `run()` call on a mini-batch; its default of 30 seconds would cut an eight-minute call. `error_threshold: 0` makes the job strict: it fails after any file failure, while -1 allows any number of failures.
+        fr: |
+          `summary_only` ne fusionne pas les sorties des appels `run()` et compte seulement les erreurs par rapport à `error_threshold` : le script de scoring écrit donc ses propres fichiers. `retry_settings.timeout` est la durée en secondes accordée à un appel `run()` sur un mini-lot ; sa valeur par défaut de 30 secondes couperait un appel de huit minutes. `error_threshold: 0` rend le travail strict : il échoue après tout échec de fichier, alors que -1 autorise n'importe quel nombre d'échecs.
+      options:
+        append: { en: "`append_row` merges all the results returned by `run()` into one file named `output_file_name`.", fr: "`append_row` fusionne tous les résultats renvoyés par `run()` dans un fichier nommé `output_file_name`." }
+        reqtimeout: { en: "`request_timeout_ms` is a request setting of online deployments, not a batch retry setting.", fr: "`request_timeout_ms` est un paramètre de requête des déploiements en ligne, pas un paramètre de nouvelle tentative de lot." }
+        neg: { en: "-1 ignores every failed file, so the job would never stop because of a failure.", fr: "-1 ignore tous les fichiers en échec : le travail ne s'arrêterait jamais à cause d'un échec." }
+        one: { en: "1 tolerates one failed file; the job would stop only at the second failure.", fr: "1 tolère un fichier en échec ; le travail ne s'arrêterait qu'au deuxième échec." }
+    references:
+      - title: Deploy models for scoring in batch endpoints
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-use-batch-model-deployments
+
+  # ------------------------------------------------------------------ 10
+  - id: ai300-qz-23-10
+    objective: "2.3.3"
+    difficulty: 3
+    status: draft
+    type: hotarea
+    stem:
+      en: |
+        Contoso has a managed online endpoint named **ep-pricing** with three deployments: **blue** runs the production model, **green** runs a new model version, and **gold** runs an experimental model. You prepared the following candidate traffic configurations for the endpoint and plan to apply them with `az ml online-endpoint update`, using the `--traffic` and `--mirror-traffic` parameters.
+
+        Answer each prompt by selecting the appropriate configuration in the table.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso dispose d'un point de terminaison en ligne managé nommé **ep-pricing** avec trois déploiements : **blue** exécute le modèle de production, **green** une nouvelle version du modèle et **gold** un modèle expérimental. Vous avez préparé les configurations de trafic candidates suivantes pour le point de terminaison, et vous prévoyez de les appliquer avec `az ml online-endpoint update`, avec les paramètres `--traffic` et `--mirror-traffic`.
+
+        Répondez à chaque consigne en sélectionnant la configuration appropriée du tableau.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      prompts:
+        - id: p1
+          text: { en: "The configuration that the endpoint accepts and that makes green process copies of production requests while no client receives green's predictions", fr: "La configuration que le point de terminaison accepte et qui fait traiter par green des copies des requêtes de production sans qu'aucun client ne reçoive les prédictions de green" }
+        - id: p2
+          text: { en: "The configuration that the endpoint accepts and in which some clients receive green's predictions", fr: "La configuration que le point de terminaison accepte et dans laquelle certains clients reçoivent les prédictions de green" }
+      grid:
+        header: [{ en: "Configuration", fr: "Configuration" }, { en: "Live traffic (--traffic)", fr: "Trafic réel (--traffic)" }, { en: "Mirrored traffic (--mirror-traffic)", fr: "Trafic en miroir (--mirror-traffic)" }]
+        rows:
+          - [{ text: C1, area: c1 }, { text: "blue=100" }, { text: "green=60" }]
+          - [{ text: C2, area: c2 }, { text: "blue=90 green=10" }, { text: "green=10" }]
+          - [{ text: C3, area: c3 }, { text: "blue=100" }, { text: "green=30 gold=20" }]
+          - [{ text: C4, area: c4 }, { text: "blue=100" }, { text: "green=40" }]
+          - [{ text: C5, area: c5 }, { text: "blue=80 green=10" }, { text: { en: "(none)", fr: "(aucun)" } }]
+          - [{ text: C6, area: c6 }, { text: "blue=85 green=15" }, { text: { en: "(none)", fr: "(aucun)" } }]
+    answer:
+      values: { p1: c4, p2: c6 }
+    explanation:
+      correct:
+        en: |
+          Live traffic percentages must add up to 100 (or 0 to disable traffic), at most 50 % of the traffic can be mirrored, only one deployment can receive mirrored traffic, and a deployment receives either live or mirrored traffic, not both. C4 mirrors 40 % to green while clients get blue's answers only. C6 is a valid canary split that sends 15 % of the live requests to green.
+        fr: |
+          Les pourcentages de trafic réel doivent totaliser 100 (ou 0 pour désactiver le trafic), 50 % du trafic au maximum peuvent être mis en miroir, un seul déploiement peut recevoir du trafic en miroir, et un déploiement reçoit soit du trafic réel, soit du trafic en miroir, pas les deux. C4 met en miroir 40 % vers green pendant que les clients ne reçoivent que les réponses de blue. C6 est une répartition canari valide qui envoie 15 % des requêtes réelles à green.
+      options:
+        c1: { en: "60 % exceeds the maximum of 50 % that can be mirrored.", fr: "60 % dépasse le maximum de 50 % pouvant être mis en miroir." }
+        c2: { en: "green would receive both live and mirrored traffic, which isn't allowed.", fr: "green recevrait à la fois du trafic réel et du trafic en miroir, ce qui n'est pas autorisé." }
+        c3: { en: "Traffic can be mirrored to only one deployment of an endpoint.", fr: "Le trafic ne peut être mis en miroir que vers un seul déploiement d'un point de terminaison." }
+        c5: { en: "The live percentages add up to 90, not 100.", fr: "Les pourcentages de trafic réel totalisent 90, et non 100." }
+    references:
+      - title: Perform safe rollout of new deployments for real-time inference
+        url: https://learn.microsoft.com/en-us/azure/machine-learning/how-to-safely-rollout-online-endpoints

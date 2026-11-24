@@ -30,7 +30,7 @@ Using these features requires a Microsoft Entra ID Governance or Microsoft Entra
 | Element | Options |
 | --- | --- |
 | What is reviewed | Group memberships (including guests), access to applications, Microsoft Entra roles and Azure resource roles, access package assignments |
-| Who reviews | The users themselves (self-review), group owners, or designated reviewers |
+| Who reviews | The users themselves (self-review), group owners, the users' managers, or specified reviewers |
 | How often | On a recurring schedule: weekly, monthly, quarterly or annually |
 | Help for reviewers | Recommendations to approve or deny, based for example on sign-in activity |
 | At the end | Results applied manually or automatically: access that wasn't approved is removed |
@@ -57,7 +57,7 @@ A review can have up to three stages, with different reviewers at each stage. Re
 | **Eligible** | The user must **activate** the role to use it, for a limited duration, possibly with multifactor authentication, a justification or an approval |
 | **Active** | The user holds the role without any action |
 
-PIM manages **Microsoft Entra roles**, **Azure roles** and, with PIM for Groups, just-in-time membership or ownership of a group. It can also run access reviews of those roles, and it prevents the removal of the last active Global Administrator role assignment.
+PIM manages **Microsoft Entra roles**, **Azure roles** and, with PIM for Groups, just-in-time membership or ownership of a group. It can also run access reviews of those roles, and it prevents the removal of the last active Global Administrator and Privileged Role Administrator role assignments.
 
 > **Exam trap.** PIM doesn't detect attacks and doesn't decide who should have a role: it limits when and for how long a privileged role is usable. "An administrator must request the role and gets it for two hours after approval" is PIM.
 
@@ -75,9 +75,9 @@ PIM manages **Microsoft Entra roles**, **Azure roles** and, with PIM for Groups,
 | --- | --- |
 | Detect | Risk detections calculated at sign-in or afterward; they also cover workload identities |
 | Investigate | Three reports: **risk detections**, **risky sign-ins**, **risky users** |
-| Remediate | **Risk-based Conditional Access** policies require multifactor authentication or a secure password change, depending on the risk; when the user completes it, the risk is remediated automatically. Otherwise an administrator dismisses the risk, confirms the sign-in safe or confirms the compromise |
+| Remediate | **Risk-based Conditional Access** policies require multifactor authentication for a risky sign-in, and, for a risky user, a secure password change (**Require password change**) or the remediation that fits the user's authentication method (**Require risk remediation**); when the user completes it, the risk is remediated automatically. Otherwise an administrator dismisses the risk, confirms the sign-in safe or confirms the compromise |
 
-Risk data can be exported to a security information and event management (SIEM) tool such as Microsoft Sentinel. Risk-based policies and the full reports require Microsoft Entra ID P2.
+Risk policies are created in Conditional Access: the legacy user risk and sign-in risk policies configured in ID Protection itself retire on October 1, 2026. Risk data can be exported to a security information and event management (SIEM) tool such as Microsoft Sentinel. Risk-based policies and the full reports require Microsoft Entra ID P2.
 
 Choosing between the four:
 

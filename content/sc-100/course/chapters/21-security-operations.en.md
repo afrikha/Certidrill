@@ -34,7 +34,7 @@ Design consequences of the unified platform:
 
 A logging design answers four questions: which sources, which destination, how long, and who can read.
 
-**Log Analytics workspaces.** Start with as few workspaces as possible: a single Sentinel workspace makes correlation and hunting simpler. Split only for a clear reason: data residency (keep EU data in an EU region), separate ownership or billing, or a regulatory boundary. Several tenants or customers (an MSSP) are managed with **Azure Lighthouse** and multi-workspace views rather than by copying data.
+**Log Analytics workspaces.** Start with as few workspaces as possible: a single Sentinel workspace makes correlation and hunting simpler. Split only for a clear reason: data residency (keep EU data in an EU region), separate ownership or billing, or a regulatory boundary. Several tenants or customers (an MSSP) are managed in the **Microsoft Defender multitenant portal** rather than by copying data: in the Defender portal, access to Sentinel data uses Microsoft Entra B2B (GDAP isn't supported for Sentinel data), and **Azure Lighthouse** is needed only to run cross-tenant queries, for example with the `workspace()` operator.
 
 **Retention tiers** (Sentinel):
 
@@ -93,21 +93,21 @@ Two automation layers exist, and they complement each other:
 
 | Layer | Mechanism | Typical use |
 | --- | --- | --- |
-| Defender XDR | **Automated investigation and response (AIR)**, governed by the automation level of device groups | Investigate an alert and remediate the evidence (files, processes, mailbox items) |
+| Defender XDR | **Automated investigation and response (AIR)** | Investigate email alerts and queue remediation actions for SOC approval (Defender for Office 365). On devices, since September 1, 2026, AIR no longer runs as a separate investigation: its capabilities run automatically in the Defender antivirus protection stack, and the automation level of device groups decides whether remediation needs approval |
 | Defender XDR | **Automatic attack disruption** | Contain compromised users and devices during ransomware or business email compromise, with high confidence, before the SOC reacts |
 | Sentinel | **Automation rules** | No-code triage: change severity or status, assign an owner, add tags or tasks, run a playbook |
 | Sentinel | **Playbooks** (Azure Logic Apps) | Multi-step responses with connectors: open a ticket in ServiceNow, block an IP on a third-party firewall, disable an account in Okta, notify Teams |
 
-In the Defender portal, alert-trigger automation rules act only on Sentinel alerts unless you use the **Enhanced Alert Trigger**, and the Incident provider condition no longer exists. Incident updates reach Sentinel with a short delay (up to minutes), so an SLA that requires a response in seconds is met by attack disruption or AIR, not by a playbook.
+In the Defender portal, alert-trigger automation rules act only on Sentinel alerts unless you use the **Enhanced Alert Trigger**, and the Incident provider condition no longer exists. Incident updates reach Sentinel with a short delay (up to minutes), so an SLA that requires a response in seconds is met by automatic attack disruption, not by a playbook.
 
-Playbook design: a **managed identity** with only the roles the action needs, connector secrets in Key Vault, and a human approval step for destructive actions on critical assets.
+Playbook design: an identity with only the roles the action needs (a service principal; managed identity authentication of the Microsoft Sentinel connector is still in preview), connector secrets in Key Vault, and a human approval step for destructive actions on critical assets.
 
 | Requirement | Recommendation |
 | --- | --- |
 | Automatically close known false positives from a scanner | Sentinel automation rule |
 | Isolate devices and disable accounts as soon as a ransomware attack is detected | Defender XDR automatic attack disruption |
 | Create a ticket in the ITSM tool for every high-severity incident | Automation rule that runs a playbook |
-| Remediate malicious files on servers with the least effort | AIR with full automation on the device group |
+| Remediate malicious files on servers with the least effort | Full automation level on the device group |
 
 > **Exam trap.** A playbook is the answer only when the action needs a connector or several steps. "Minimize administrative effort" with a simple action (status, owner, severity, tag) means an automation rule.
 
@@ -169,6 +169,6 @@ How to evaluate coverage:
 - Few workspaces; split only for residency, ownership or regulation. Data lake tier for cheap long retention.
 - Purview Audit Standard keeps 180 days; Premium adds 1 year for core services, retention policies, 10 years with the add-on, and `MailItemsAccessed`.
 - Non-Azure servers: Azure Arc + AMA + DCRs. AWS and GCP: Defender for Cloud connectors for posture, Sentinel connectors for logs.
-- Attack disruption and AIR for fast containment; automation rules for no-code triage; playbooks for connectors and multi-step responses.
+- Attack disruption for fast containment; on devices, AIR capabilities run automatically in the antivirus stack since September 1, 2026; automation rules for no-code triage; playbooks for connectors and multi-step responses.
 - Hunts become detections; incident workflows need roles, SLAs, containment owners and lessons learned.
 - MITRE matrices: Enterprise, Mobile, ICS. Sentinel's MITRE page shows active and simulated coverage.

@@ -100,7 +100,7 @@ The service connection or the GitHub `azure/login` step uses workload identity f
 | Need | Tool and behavior |
 | --- | --- |
 | Azure resources match the template, extra resources left alone | ARM or Bicep deployment, **Incremental** mode (default) |
-| Resources not in the template are deleted | **Deployment stack** with `--action-on-unmanage deleteResources` (the recommended way), or **Complete** mode at resource group scope |
+| Resources not in the template are deleted | **Deployment stack** with `--action-on-unmanage deleteResources` (the recommended way), or **Complete** mode at resource group scope (not recommended, and to be gradually deprecated in favor of deployment stacks) |
 | Prevent manual changes or deletion of deployed resources | Deployment stack with deny settings (`denyDelete` or `denyWriteAndDelete`) |
 | OS settings audited or enforced on Azure VMs and Arc-enabled servers | Azure Machine Configuration |
 | Existing PowerShell DSC pull server in Azure Automation | Azure Automation State Configuration, to migrate to Machine Configuration before September 30, 2027 |

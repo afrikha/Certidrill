@@ -9,9 +9,9 @@ Azure SQL Database offers two purchasing models: **vCore** (choose cores, memory
 | --- | --- | --- | --- | --- |
 | General Purpose | Remote (5 to 10 ms latency) | 4 TB | No readable replica | Budget-oriented workloads |
 | Business Critical | Local SSD (1 to 2 ms latency) | 4 TB | Includes a free read-only replica | Low latency, high I/O, fastest failover |
-| Hyperscale | Decoupled, local SSD cache | 128 TB | 0 to 4 high-availability replicas, plus named replicas | Large or fast-growing databases, read scale-out |
+| Hyperscale | Decoupled, local SSD cache (1 to 2 ms latency for the frequently accessed part of the database) | 128 TB | 0 to 4 high-availability replicas, plus named replicas | Large or fast-growing databases, read scale-out |
 
-Compute tiers: **provisioned** (fixed vCores, predictable workloads) or **serverless** (autoscaling, billed per second; General Purpose and Hyperscale; auto-pause only in General Purpose) for intermittent workloads.
+Compute tiers: **provisioned** (fixed vCores, predictable workloads) or **serverless** (autoscaling, billed per second; General Purpose and Hyperscale; auto-pause in General Purpose, in preview in Hyperscale) for intermittent workloads.
 
 Database-level settings and their Azure SQL Database defaults:
 
@@ -35,7 +35,7 @@ ALTER DATABASE CURRENT SET AUTOMATIC_TUNING (FORCE_LAST_GOOD_PLAN = ON, CREATE_I
 
 Automatic tuning validates each change (30 minutes to 72 hours) and reverts it if performance gets worse; it never drops unique indexes.
 
-> **Exam tip.** "Consistently under 2 ms of storage latency" = Business Critical. "Database will exceed 4 TB" = Hyperscale. "Used a few hours a day, minimize cost" = serverless General Purpose with auto-pause. "Offload reporting at no extra cost" = the read-only replica of Business Critical (`ApplicationIntent=ReadOnly`).
+> **Exam tip.** "Consistently under 2 ms of storage latency" for all the data = Business Critical (Hyperscale gives 1 to 2 ms only for the frequently accessed part). "Database will exceed 4 TB" = Hyperscale. "Used a few hours a day, minimize cost" = serverless General Purpose with auto-pause. "Offload reporting at no extra cost" = the read-only replica of Business Critical (`ApplicationIntent=ReadOnly`).
 
 <!-- section: isolation-concurrency | objectives: 2.2.2 -->
 ## Transaction isolation levels and concurrency controls
@@ -50,7 +50,7 @@ Automatic tuning validates each change (30 minutes to 72 hours) and reverts it i
 | SERIALIZABLE | No | No | No | Yes (range locks) |
 
 - **RCSI** (default in Azure SQL Database): each **statement** reads the last committed version as of its start, from the row versions kept by ADR in the database.
-- **SNAPSHOT**: each **transaction** reads a consistent version as of its start. It needs `ALLOW_SNAPSHOT_ISOLATION ON` and `SET TRANSACTION ISOLATION LEVEL SNAPSHOT`. If two transactions update the same row, the second fails with update conflict error **3960** instead of overwriting.
+- **SNAPSHOT**: each **transaction** reads a consistent version as of its start. It needs `ALLOW_SNAPSHOT_ISOLATION ON` (the default in Azure SQL Database; `OFF` by default in SQL Server and Azure SQL Managed Instance, where `ALTER DATABASE ... SET ALLOW_SNAPSHOT_ISOLATION ON` is required) and `SET TRANSACTION ISOLATION LEVEL SNAPSHOT`. If two transactions update the same row, the second fails with update conflict error **3960** instead of overwriting.
 - **SERIALIZABLE**: prevents phantoms with range locks; lowest concurrency, more deadlocks.
 
 **Optimized locking**, always on in Azure SQL Database, holds one lock on the transaction ID instead of row and key locks (**TID locking**), and with RCSI evaluates the predicate on the latest committed version before locking only the qualifying rows (**lock after qualification**). Result: fewer locks, almost no lock escalation, less blocking.
@@ -199,7 +199,7 @@ END CATCH;
 ## Key points
 
 - Business Critical for low latency and a free readable replica, Hyperscale beyond 4 TB, serverless for intermittent use.
-- Azure SQL Database defaults: MAXDOP 8, compatibility level 170, RCSI on, ADR on, optimized locking on, Query Store on, `FORCE_LAST_GOOD_PLAN` on.
+- Azure SQL Database defaults: MAXDOP 8, compatibility level 170, RCSI on, `ALLOW_SNAPSHOT_ISOLATION` on, ADR on, optimized locking on, Query Store on, `FORCE_LAST_GOOD_PLAN` on.
 - RCSI = statement-level consistency, SNAPSHOT = transaction-level (error 3960 on update conflict), SERIALIZABLE = no phantoms. Lost updates need atomic updates, `UPDLOCK` or rowversion checks.
 - Actual plans reveal estimate errors; Key Lookup = add `INCLUDE`; implicit conversion = fix data types.
 - Query Store: regressed queries, plan forcing, hints without code change; Query Performance Insight = portal view of Query Store for Azure SQL Database.

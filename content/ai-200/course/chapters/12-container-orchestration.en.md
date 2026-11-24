@@ -29,7 +29,7 @@ az containerapp create --resource-group rg-rag --name ca-rag-api \
 | Option | Rule |
 | --- | --- |
 | `--registry-identity system` | Pulls from ACR with the app's managed identity (AcrPull); no registry password |
-| `--secrets name=value` | Secret stored in the app; secret names are limited to 20 characters |
+| `--secrets name=value` | Secret stored in the app |
 | `--secrets name=keyvaultref:<uri>,identityref:<id>` | Secret read from Key Vault by a managed identity (`system` or a user-assigned resource ID) holding **Key Vault Secrets User** |
 | `--env-vars NAME=secretref:<secret>` | Environment variable whose value comes from a secret |
 | `--ingress external` / `internal` | Reachable through the environment's inbound IP / only from apps of the same environment |
@@ -52,7 +52,7 @@ Secrets can also be mounted as files: a volume of type `Secret` writes one file 
 | --- | --- | --- |
 | Single (default) | The new revision receives all traffic once it is ready, then the old one is deprovisioned; if the update fails, traffic stays on the old revision | Plain rolling update without downtime |
 | Multiple | Several active revisions; traffic split by weight; you choose when to deactivate | Blue-green, canary, A/B testing of a new model or prompt |
-| Labels (preview) | Named labels (dev, staging, prod) moved between revisions | Stable URLs per stage, simple rollback |
+| Deployment labels (preview) | Named labels (dev, staging, prod) moved between revisions | Stable URLs per stage, simple rollback |
 
 In single mode, the old revision stays active until the new one is provisioned, has scaled to the previous replica count and has passed its startup and readiness probes.
 
@@ -69,7 +69,7 @@ az containerapp revision deactivate --resource-group rg-rag --name ca-rag-api \
 az containerapp revision list --resource-group rg-rag --name ca-rag-api --output table
 ```
 
-A label gets its own URL that stays the same when the label moves to another revision, so testers can reach the new revision with 0 % of the production traffic. Inactive revisions aren't billed; by default up to 100 inactive revisions are kept and the oldest are purged beyond that.
+A label gets its own URL that stays the same when the label moves to another revision, so testers can reach the new revision with 0 % of the production traffic. Inactive revisions aren't billed; by default up to 100 inactive revisions are kept and the oldest are purged beyond that (changing this limit with `--max-inactive-revisions` is in preview).
 
 > **Exam trap.** Traffic weights need **multiple** revision mode. In single mode, `ingress traffic set` can't keep 90 % on the old revision: the new revision takes everything as soon as it is ready.
 
@@ -81,7 +81,7 @@ Each revision scales between `minReplicas` (default 0, maximum 1,000) and `maxRe
 | Rule | Metric | Property / CLI flag |
 | --- | --- | --- |
 | HTTP | Concurrent HTTP requests per replica, measured over 15 seconds | `concurrentRequests` (default 10) / `--scale-rule-http-concurrency` |
-| TCP | Concurrent TCP connections | `concurrentConnections` (default 10) / `--scale-rule-tcp-concurrency` |
+| TCP | Concurrent TCP connections; not configurable in the portal | `concurrentConnections` (default 10) / `--scale-rule-tcp-concurrency` |
 | Custom | Any ScaledObject-based KEDA scaler: Azure Service Bus, Event Hubs, Storage queues, Kafka, Redis, CPU, memory... | `custom.type`, `custom.metadata`, `custom.auth` or `custom.identity` |
 
 A custom rule is the KEDA trigger copied into the app: `type` and `metadata` keep the KEDA names, and each `secretTargetRef` of the KEDA `TriggerAuthentication` becomes an `auth` entry pointing to an app secret.
@@ -128,6 +128,7 @@ az containerapp update --resource-group rg-rag --name ca-embed-worker \
 | Cool down period before going from 1 replica to 0 | 300 seconds |
 | Scale down stabilization window | 300 seconds; scale up: none |
 | Scale up steps | 1, 4, 8, 16, 32... up to `maxReplicas` |
+| Scale down step | 100 % of the replicas that must shut down, in one step |
 | Target | `desiredReplicas = ceil(metric / target)`: 200 messages with `messageCount` 20 = 10 replicas |
 | Several rules | Scaling starts as soon as any rule's condition is met |
 

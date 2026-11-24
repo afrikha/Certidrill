@@ -30,7 +30,7 @@ Les **révisions d'accès** permettent à une organisation de vérifier réguli�
 | Élément | Options |
 | --- | --- |
 | Ce qui est révisé | Les appartenances aux groupes (invités compris), l'accès aux applications, les rôles Microsoft Entra et les rôles de ressources Azure, les attributions de packages d'accès |
-| Qui révise | Les utilisateurs eux-mêmes (autorévision), les propriétaires de groupes, ou des réviseurs désignés |
+| Qui révise | Les utilisateurs eux-mêmes (autorévision), les propriétaires de groupes, les responsables des utilisateurs, ou des réviseurs spécifiés |
 | À quelle fréquence | De façon récurrente : chaque semaine, mois, trimestre ou année |
 | Aide aux réviseurs | Des recommandations d'approbation ou de refus, fondées par exemple sur l'activité de connexion |
 | À la fin | Résultats appliqués manuellement ou automatiquement : l'accès non approuvé est retiré |
@@ -57,7 +57,7 @@ Une révision peut comporter jusqu'à trois étapes, avec des réviseurs différ
 | **Éligible** | L'utilisateur doit **activer** le rôle pour s'en servir, pour une durée limitée, éventuellement avec l'authentification multifacteur, une justification ou une approbation |
 | **Active** | L'utilisateur détient le rôle sans aucune action |
 
-PIM gère les **rôles Microsoft Entra**, les **rôles Azure** et, avec PIM pour les groupes, l'appartenance ou la propriété juste-à-temps d'un groupe. Il peut aussi mener des révisions d'accès de ces rôles, et il empêche la suppression de la dernière attribution active du rôle Global Administrator.
+PIM gère les **rôles Microsoft Entra**, les **rôles Azure** et, avec PIM pour les groupes, l'appartenance ou la propriété juste-à-temps d'un groupe. Il peut aussi mener des révisions d'accès de ces rôles, et il empêche la suppression des dernières attributions actives des rôles Global Administrator et Privileged Role Administrator.
 
 > **Piège d'examen.** PIM ne détecte pas les attaques et ne décide pas qui doit avoir un rôle : il limite quand et pendant combien de temps un rôle privilégié est utilisable. « Un administrateur doit demander le rôle et l'obtient pour deux heures après approbation » désigne PIM.
 
@@ -75,9 +75,9 @@ PIM gère les **rôles Microsoft Entra**, les **rôles Azure** et, avec PIM pour
 | --- | --- |
 | Détecter | Des détections de risque calculées à la connexion ou après coup ; elles couvrent aussi les identités de charge de travail |
 | Examiner | Trois rapports : **détections de risque**, **connexions à risque**, **utilisateurs à risque** |
-| Corriger | Des stratégies d'**accès conditionnel basées sur les risques** exigent l'authentification multifacteur ou un changement de mot de passe sécurisé, selon le risque ; quand l'utilisateur s'y conforme, le risque est corrigé automatiquement. Sinon, un administrateur rejette le risque, confirme que la connexion est sûre ou confirme la compromission |
+| Corriger | Des stratégies d'**accès conditionnel basées sur les risques** exigent l'authentification multifacteur pour une connexion à risque et, pour un utilisateur à risque, un changement de mot de passe sécurisé (**Require password change**) ou la correction adaptée à sa méthode d'authentification (**Require risk remediation**) ; quand l'utilisateur s'y conforme, le risque est corrigé automatiquement. Sinon, un administrateur rejette le risque, confirme que la connexion est sûre ou confirme la compromission |
 
-Les données de risque peuvent être exportées vers un outil de gestion des informations et des événements de sécurité (SIEM) comme Microsoft Sentinel. Les stratégies basées sur les risques et les rapports complets demandent Microsoft Entra ID P2.
+Les stratégies de risque se créent dans l'accès conditionnel : les anciennes stratégies de risque utilisateur et de risque de connexion configurées dans Protection Microsoft Entra ID elle-même sont mises hors service le 1er octobre 2026. Les données de risque peuvent être exportées vers un outil de gestion des informations et des événements de sécurité (SIEM) comme Microsoft Sentinel. Les stratégies basées sur les risques et les rapports complets demandent Microsoft Entra ID P2.
 
 Choisir entre les quatre :
 

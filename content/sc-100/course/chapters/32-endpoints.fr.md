@@ -42,7 +42,7 @@ Pour les clients, Microsoft Intune gère la **configuration et la conformité**,
 | Bloquer les applications inconnues | App Control for Business |
 | Protéger les identifiants contre le vol | Credential Guard, Windows Hello Entreprise |
 | Chiffrer les appareils perdus | BitLocker (Windows), FileVault (macOS), chiffrement de l'appareil exigé par la stratégie de conformité |
-| Empêcher les utilisateurs de désactiver la protection | Protection contre les falsifications |
+| Empêcher les utilisateurs de désactiver la protection | Protection contre les falsifications (Windows ; macOS en mode Block ; sur Linux, elle est en préversion et en mode Audit uniquement : elle signale les modifications sans les bloquer) |
 
 Principes de renforcement à énoncer : retirer les droits d'administrateur local aux utilisateurs, maintenir à jour le système d'exploitation et les applications (Windows Update for Business via Intune), activer la protection réseau et le filtrage du contenu web, et utiliser les bases de référence de sécurité comme configuration de départ.
 
@@ -122,7 +122,7 @@ Règles à retenir :
 <!-- section: windows-laps | objectives: 3.2.6 -->
 ## Évaluer Windows LAPS
 
-**Windows LAPS** (solution de mot de passe d'administrateur local Windows) est intégré à Windows 11 23H2 et versions ultérieures et à Windows Server 2025, et a été ajouté à Windows 10, Windows 11 21H2 et 22H2, Windows Server 2019 et 2022 par la mise à jour du 11 avril 2023. Il fait tourner le mot de passe d'un compte d'administrateur local par appareil et le sauvegarde, ce qui neutralise le pass-the-hash et le mouvement latéral avec un mot de passe local partagé.
+**Windows LAPS** (solution de mot de passe d'administrateur local Windows) est intégré à Windows 11 23H2 et versions ultérieures et à Windows Server 2025, et a été ajouté à Windows 10, Windows 11 21H2 et 22H2, Windows Server 2019 et 2022 par la mise à jour du 11 avril 2023. Windows 10 a atteint la fin du support le 14 octobre 2025 : Windows LAPS ne reste disponible que sur les appareils Windows 10 qui reçoivent encore des mises à jour, par exemple par les mises à jour de sécurité étendues (ESU), et les nouveaux déploiements utilisent Windows 11 ou une version prise en charge de Windows Server. Il fait tourner le mot de passe d'un compte d'administrateur local par appareil et le sauvegarde, ce qui neutralise le pass-the-hash et le mouvement latéral avec un mot de passe local partagé.
 
 | État de jonction de l'appareil | Annuaire de sauvegarde |
 | --- | --- |
@@ -144,7 +144,7 @@ Critères d'évaluation :
 | Faire tourner le mot de passe après usage | Actions post-authentification : réinitialiser le mot de passe, déconnecter ou redémarrer après un délai de grâce |
 | Déploiement de la stratégie | Stratégie Windows LAPS d'Intune (joint à Entra ou hybride), stratégie de groupe (AD et hybride) |
 
-Migration : l'**ancien Microsoft LAPS** est déprécié à partir de Windows 11 23H2, qui bloque son installation. Le mode d'émulation permet à Windows LAPS de respecter les anciennes stratégies pendant la transition, mais il stocke les mots de passe en clair dans AD, sans chiffrement ni historique : considérez-le comme temporaire.
+Migration : l'**ancien Microsoft LAPS** est déprécié à partir de Windows 11 23H2, et les versions plus récentes du système d'exploitation bloquent l'installation de son package MSI. Le mode d'émulation permet à Windows LAPS de respecter les anciennes stratégies pendant la transition, mais il stocke les mots de passe en clair dans AD, sans chiffrement ni historique : considérez-le comme temporaire.
 
 > **Piège d'examen.** Si un appareil est supprimé de Microsoft Entra ID, son mot de passe LAPS est perdu avec lui. Et l'accès conditionnel peut cibler les rôles intégrés qui récupèrent les mots de passe, mais pas les rôles limités à une unité administrative ni les rôles personnalisés.
 

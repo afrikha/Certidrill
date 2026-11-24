@@ -82,7 +82,7 @@ ADD FILTER PREDICATE Security.fn_region(Region) ON dbo.FactSales
 WITH (STATE = ON);
 ```
 
-- Une stratégie de sécurité peut porter des prédicats pour plusieurs tables ; chaque table a besoin de son propre `ADD FILTER PREDICATE`.
+- Une stratégie de sécurité peut porter des prédicats pour plusieurs tables ; chaque table a besoin de son propre `ADD FILTER PREDICATE`. Ajouter un second prédicat de filtre à une table qui en a déjà un échoue, même si le prédicat existant est désactivé.
 - Pour modifier la fonction, supprimez ou modifiez d'abord la stratégie, car la fonction est liée au schéma (schema-bound).
 - Les utilisateurs vérifient leurs propres droits avec `sys.fn_my_permissions`.
 

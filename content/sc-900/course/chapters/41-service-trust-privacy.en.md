@@ -14,14 +14,15 @@ What you find there:
 | Category | Content |
 | --- | --- |
 | **Certifications, Regulations, and Standards** | Security implementation and design information that shows how Microsoft cloud services meet standards and regulations: ISO/IEC, SOC, GDPR, FedRAMP, PCI DSS and others |
-| **Reports, Whitepapers, and Artifacts** | General documents: business continuity and disaster recovery, penetration test and security assessment reports by third parties, privacy and data protection, FAQ and whitepapers |
+| **Reports, Whitepapers, and Artifacts** | General documents: AI resources (compliance, security and privacy of AI solutions such as Microsoft Copilot), business continuity and disaster recovery, penetration test and security assessment reports by third parties, privacy and data protection, FAQ and whitepapers |
 | **Industry and Regional Resources** | Documents by industry (financial services, healthcare and life sciences, media and entertainment, United States government) and by region |
 | **Resources for your Organization** | Documents that apply to your organization, restricted by tenant according to its subscription and permissions |
 
-Two practical points:
+Practical points:
 
 - **Access**: the site is public, but some resources require you to sign in with your Microsoft cloud services account (a Microsoft Entra organization account) and to accept the Microsoft non-disclosure agreement for compliance materials.
 - **My Library**: you save documents in one place with **Save to library**, and **Notification Settings** sends an email when a saved document is updated.
+- **All Documents** lists every available document, with a filter by cloud service; **My Download History** shows the documents downloaded in the last 18 months.
 
 | Requirement | Answer |
 | --- | --- |
@@ -46,8 +47,8 @@ Microsoft's approach to privacy rests on a commitment to give you control over t
 
 Details worth knowing:
 
-- Subcontractors that need access to your data can perform only the functions they were engaged for, and are bound by the same contractual privacy commitments.
-- If a government or a law enforcement agency requests your data, Microsoft does not disclose it except as you direct or where the law requires it, and notifies you when it is legally permitted.
+- Under **You control your data**: subcontractors that need access to your data can perform only the functions they were engaged for, and are bound by the same contractual privacy commitments; authorized subprocessors are audited in advance.
+- If a government or a law enforcement agency requests your data, Microsoft does not disclose it except as you direct or where the law requires it, and, where legally permitted, promptly notifies you, provides a copy of the request and directs the requesting party to you.
 
 > **Exam tip.** Statements such as "Microsoft uses customer data for advertising" or "Microsoft gives governments direct access to customer data" are always false. "The customer owns and controls its data" is always true.
 

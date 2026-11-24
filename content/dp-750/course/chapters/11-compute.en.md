@@ -48,7 +48,7 @@ SQL warehouse types:
 
 Choose serverless for the best startup and rapid autoscaling when queries queue. Choose pro when serverless isn't available in the region or when the warehouse must reach databases through your own network (federation, hybrid). In the UI the default type is serverless where it is supported; the SQL warehouses API defaults to classic unless you set `enable_serverless_compute` to `true` with `warehouse_type` set to `pro`.
 
-> **Exam trap.** Materialized views, Lakehouse Federation queries and Genie Agents need a **pro or serverless** SQL warehouse. A classic warehouse is the distractor.
+> **Exam trap.** Materialized views, Lakehouse Federation queries and Genie Agents need a **pro or serverless** SQL warehouse (standalone materialized views can also be created and refreshed from a notebook on serverless compute). A classic warehouse is the distractor.
 
 <!-- section: access-modes | objectives: 1.1.1 -->
 ## Access modes: standard and dedicated
@@ -67,7 +67,7 @@ Access mode is **Auto** by default: it resolves to Standard, unless you select a
 | --- | --- |
 | Several analysts share one cluster, Unity Catalog isolation | Standard access mode ("shared compute" in the study guide) |
 | R notebooks, or Databricks Runtime ML with Unity Catalog data | Dedicated access mode |
-| A team shares a cluster that needs dedicated-only features | Dedicated access mode assigned to a group |
+| A team shares a cluster that needs dedicated-only features | Dedicated access mode assigned to a group (Public Preview) |
 | No cluster to manage, Python and SQL only | Serverless compute |
 
 <!-- section: performance-settings | objectives: 1.1.2 -->
@@ -91,7 +91,7 @@ For streaming workloads, Databricks recommends Lakeflow Spark Declarative Pipeli
 
 **Automatic termination** stops all-purpose compute after an inactivity period between 10 and 10,000 minutes; clear the checkbox or set `0` to opt out. Compute is inactive when every command, Spark job, Structured Streaming query and JDBC call has finished. A terminated cluster keeps its configuration for 30 days, after which it is deleted unless an admin **pins** it (up to 100 pinned). Editing a running compute (other than size and permissions) requires a restart.
 
-**Instance pools** keep idle VMs ready: clusters attached to the pool start and autoscale faster, and released instances return to the pool. Azure Databricks charges no DBUs for idle pool instances, but Azure VM costs apply. Creating a pool requires the **Allow pool creation** entitlement (workspace admins by default). Driver and workers can use the same or different pools (`driver_instance_pool_id`, `instance_pool_id`). With autoscaling, the cluster minimum should not exceed the pool's minimum idle instances, and a maximum above the pool capacity makes cluster creation fail. If the workload supports serverless, Databricks recommends serverless instead of pools.
+**Instance pools** keep idle VMs ready: clusters attached to the pool start and autoscale faster, and released instances return to the pool. Azure Databricks charges no DBUs for idle pool instances, but Azure VM costs apply. Creating a pool requires the **Allow pool creation** entitlement (workspace admins by default). Driver and workers can use the same or different pools (`driver_instance_pool_id`, `instance_pool_id`). With autoscaling, the cluster minimum should not exceed the pool's minimum idle instances (otherwise startup is no faster than without a pool), and a maximum above the pool capacity makes cluster creation fail. If the workload supports serverless, Databricks recommends serverless instead of pools.
 
 ```json
 {

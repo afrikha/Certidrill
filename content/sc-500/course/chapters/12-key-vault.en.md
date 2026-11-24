@@ -5,8 +5,8 @@ Azure Key Vault keeps secrets, encryption keys and certificates out of code and 
 
 | Option | Choose it when |
 | --- | --- |
-| Key vault, **Standard** tier | Secrets, certificates and software-protected keys (FIPS 140 Level 1 validated software) |
-| Key vault, **Premium** tier | Keys must be **HSM-protected** (RSA-HSM, EC-HSM), generated and kept in FIPS 140-3 Level 3 validated HSMs; they never leave the HSM boundary |
+| Key vault, **Standard** tier | Secrets, certificates and software-protected keys (FIPS 140-2 Level 1) |
+| Key vault, **Premium** tier | Keys must be **HSM-protected** (RSA-HSM, EC-HSM), generated and kept in HSMs; they never leave the HSM boundary. HSM Platform 2 (FIPS 140-3 Level 3) protects all new keys and key versions; older HSM Platform 1 keys are FIPS 140-2 Level 2 |
 | **Managed HSM** | A separate resource type: a single-tenant HSM pool for keys only, with its own local role-based access control |
 
 Design rules: one vault **per application, per environment** (development, preproduction, production) and per region. A vault shared by several teams exposes every secret to whoever administers it.
@@ -35,7 +35,7 @@ az keyvault create --name kv-orders-prod-weu --resource-group rg-orders-prod \
 | Diagnostic settings | Send the **AuditEvent** logs to a Log Analytics workspace, a storage account or an event hub to see who accessed what |
 | Events | Event Grid events such as `Microsoft.KeyVault.SecretNearExpiry` or `Microsoft.KeyVault.CertificateNearExpiry` trigger rotation workflows |
 
-Recovery: in the portal, **Key vaults > Manage deleted vaults** (or **Manage deleted** on the Secrets, Keys or Certificates page) offers **Recover** or **Purge**. Recovering a vault requires Key Vault Contributor; purging requires the **Key Vault Purge Operator** role or subscription Owner. A recovered vault doesn't get back its role assignments or Event Grid subscriptions.
+Recovery: in the portal, **Key vaults > Manage deleted vaults** (or **Manage deleted** on the Secrets, Keys or Certificates page) offers **Recover** or **Purge**. Recovering a vault requires the permission to create a key vault in the resource group (Key Vault Contributor, for example); purging requires the **Key Vault Purge Operator** role or subscription Owner. A recovered vault doesn't get back its role assignments or Event Grid subscriptions.
 
 ```bash
 az keyvault update --name kv-orders-prod-weu --enable-purge-protection true
@@ -85,7 +85,7 @@ Data plane roles (Azure RBAC permission model):
 | Exception: **Allow trusted Microsoft services to bypass this firewall** | Listed trusted services (for example Azure Backup, Azure Disk Encryption, Resource Manager template deployment) still reach the vault, even with public access disabled. Services not on the list, such as Azure DevOps, are blocked |
 
 - Limits: 200 virtual network rules and 1,000 IPv4 rules. No IPv6, no private RFC 1918 ranges in IP rules.
-- Changes take up to 15 minutes.
+- Enabling the `Microsoft.KeyVault` service endpoint on a subnet can take up to 15 minutes to take effect.
 - Firewall rules restrict the **data plane** only. The portal is a data plane client: an administrator outside the allowed networks opens the vault but can't list its secrets.
 - A **private endpoint** gives the vault a private IP in your virtual network, with the zone `privatelink.vaultcore.azure.net`. The public name still resolves; disabling public access is what blocks the internet.
 - A **network security perimeter** in Enforced mode overrides `publicNetworkAccess` and also blocks trusted services unless a perimeter rule admits them; Transition mode only logs.
@@ -143,7 +143,7 @@ Secrets left in plaintext (connection strings, SSH private keys, storage SAS tok
 
 - No agent, no network connectivity and no performance impact: the scanner reads snapshots through cloud APIs.
 - Findings appear in the **asset inventory**, as recommendations under the **Remediate vulnerabilities** control (*Machines should have secrets findings resolved*; *EC2 instances should have secrets findings resolved*; *VM instances should have secrets findings resolved*), in **cloud security explorer** queries (for example "VM with plaintext secret that can authenticate to a storage account") and in **attack paths** from an exposed VM to a storage account or SQL server.
-- Viewing findings requires Security Reader, Security Admin, Reader, Contributor or Owner.
+- Using secrets scanning requires Security Reader, Security Admin, Reader, Contributor or Owner.
 
 Remediation: remove the secret from the machine or template, store it in Key Vault, give the workload a managed identity, rotate the exposed credential, and prefer short-lived credentials (a short SAS rather than a storage connection string).
 
@@ -159,7 +159,7 @@ An alert identifies the object ID, and the user principal name or the IP address
 Response, in order:
 
 1. Identify the source; don't dismiss an alert just because you recognize the user or the application.
-2. Contain: for an unrecognized source, enable the Key Vault firewall and allow only trusted networks; for an unauthorized application or user, remove its role assignment or access policy.
+2. Contain: for an unrecognized source, enable the Key Vault firewall and allow only trusted networks; for an unauthorized application or suspicious user, remove the principal from the vault's access policies or restrict its operations (in a vault that uses Azure RBAC, remove its role assignment); if the source holds a Microsoft Entra role, have an administrator reduce or revoke it.
 3. Measure the impact from the accessed secrets and timestamps, and the diagnostic logs.
 4. Rotate the affected secrets, keys and certificates, and disable or delete the compromised versions.
 

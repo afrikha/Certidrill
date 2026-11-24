@@ -99,6 +99,8 @@ Custom domains require the **Shared** tier or higher (TLS on them requires Basic
 | Root (apex) domain `contoso.com` | **A** record `@` to the app's inbound IP address (a CNAME isn't allowed at the apex) | **TXT** `asuid` = custom domain verification ID |
 | Wildcard `*.contoso.com` | CNAME `*` to `<app>.azurewebsites.net` | TXT `asuid` |
 
+Learn says the TXT `asuid` record isn't absolutely required, but highly recommended: it proves ownership and prevents subdomain takeover by another App Service app, so always create it. A wildcard `*` doesn't validate subdomains that already have their own CNAME record: you might need a TXT record for each of them.
+
 Steps: get the app's **custom domain verification ID** and IP address (Custom domains page); create the DNS records at your DNS provider; add the custom domain in the app and validate; add a certificate and binding.
 
 To migrate a live site **without downtime**, create only the TXT `asuid` record first, add and secure the domain in App Service, and switch the CNAME or A record last.
@@ -110,13 +112,13 @@ To migrate a live site **without downtime**, create only the TXT `asuid` record 
 | --- | --- | --- |
 | Tiers | Basic, Standard, Premium, Isolated | Same |
 | Configuration | None: enabled by default | A **storage account and container** that you provide, on demand or on a schedule |
-| Frequency and retention | Hourly; restore points kept up to 30 days | Your schedule; kept indefinitely or per your retention setting |
-| Size | Up to 30 GB | Up to 10 GB, including databases |
-| Linked databases | No | Yes (connection strings of supported databases) |
+| Frequency and retention | Hourly, not configurable; kept 30 days (every hourly backup for days 1-3, then every third, then every sixth from day 15) | Every 2 hours at most, up to 12 backups a day (manual and scheduled); retention 0-30 days or indefinite (on-demand backups are kept indefinitely) |
+| Size | Up to 30 GB | Up to 10 GB, of which at most 4 GB can be a linked database |
+| Linked databases | No | Being retired: no longer offered in new backup configurations (removed for MySQL and PostgreSQL in November 2025, for Azure SQL and SQL Server in April 2026); existing ones stop on 3/31/2028 |
 | Partial backup | No | Yes: exclusions listed in `_backup.filter` in `%HOME%\site\wwwroot` |
 | Download | No | Yes: ZIP file plus XML manifest in the container |
 
-A backup contains the app configuration, its file content and optionally linked databases. You **restore** to the same app (overwrite), to a deployment slot or to a new app. If the storage account is behind a firewall, enable backup and restore over the virtual network integration.
+A backup contains the app configuration and its file content. Linked databases are being retired from custom backups: use the native backup of each database service instead. You **restore** to the same app (overwrite), to a deployment slot or to a new app. If the storage account is behind a firewall, enable backup and restore over the virtual network integration.
 
 <!-- section: app-service-networking | objectives: 3.4.7 -->
 ## Networking settings
@@ -171,6 +173,6 @@ az webapp deployment slot swap -g RG1 -n app-contoso-web --slot staging --target
 - Scale up = bigger instances; scale out = more instances; autoscale from Standard.
 - Subdomain: CNAME plus TXT `asuid.<sub>`. Apex: A record plus TXT `asuid`.
 - Managed certificate: free, auto-renewed, no wildcard, not exportable.
-- Automatic backups need no configuration; custom backups need a storage account and allow databases and partial backups.
+- Automatic backups need no configuration; custom backups need a storage account and allow partial backups; linked databases are no longer offered for new backups (use the database's own backup).
 - Virtual network integration is outbound; private endpoint and access restrictions are inbound.
 - Slot settings stay with the slot; swap again to roll back.

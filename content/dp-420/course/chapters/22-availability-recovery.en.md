@@ -77,7 +77,8 @@ Rules the exam checks:
 
 - The restore timestamp is UTC, precise to the second, inside the retention window and after the resource was created. Use the **latest restorable timestamp** of the resource in the region to restore a live account to its most recent consistent state.
 - Without `--disable-ttl True`, the restored container keeps its TTL and expired items can be deleted right after the restore.
-- In a shared throughput database, you restore the whole database, not a subset of its containers. To restore a deleted container whose database was also deleted, restore the database first.
+- In a shared throughput database, you restore the whole database, not a subset of its containers. To restore a deleted container whose database was also deleted, restore the database first: restoring a deleted database also restores its child containers.
+- A same-account restore succeeds only if the resource existed in the account's **current write region** at the restore time. It can't run while an account-level operation (add or remove region, failover) is in progress, and it fails if another restore of the same resource is already running.
 - **Not restored**: firewall, virtual network, private endpoint and data plane RBAC settings, role assignments, the source account's other regions, stored procedures, triggers and UDFs (periodic restores also lose account keys, materialized views and TTL-expired items). Reconfigure them after the restore. A restore might not restore the throughput valid at the restore point.
 - A restored account is reachable from public networks unless you pass `--public-network-access Disabled`.
 - At most three restore operations can be active on the same account.

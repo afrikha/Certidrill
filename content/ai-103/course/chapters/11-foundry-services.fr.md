@@ -8,13 +8,15 @@ Le catalogue Foundry Models liste des modèles de Microsoft, d'OpenAI et d'autre
 | Catégorie de modèle | Point fort | Tâches typiques | Exemples sur Learn |
 | --- | --- | --- | --- |
 | Grand modèle de langage (LLM) | Connaissances étendues, instructions complexes, contexte long | Assistants conversationnels, résumé, extraction par invite libre, agents | `gpt-4.1`, famille GPT-5 |
-| Modèle de raisonnement | Planifie et vérifie avant de répondre ; plus lent et plus de jetons par réponse | Problèmes en plusieurs étapes, mathématiques, code, planification complexe | Série o (`o3`, `o4-mini`), famille GPT-5 |
+| Modèle de raisonnement | Planifie et vérifie avant de répondre ; plus lent et plus de jetons par réponse | Problèmes en plusieurs étapes, mathématiques, code, planification complexe | Familles GPT-5 et GPT-6 |
 | Petit modèle de langage (SLM) | Faible latence, faible coût, peut s'exécuter là où les ressources sont limitées | Classification, routage, extraction courte, tâches simples à fort volume | Variantes `-mini` et `-nano`, famille Phi |
 | Modèle multimodal | Texte plus image (et pour certains, audio) en entrée | Décrire une image, répondre sur un graphique, lire une capture d'écran | `gpt-4.1`, `gpt-4o` |
-| Modèle audio et temps réel | Parole en entrée et en sortie avec une faible latence | Assistants vocaux, centres d'appels | `gpt-realtime`, `gpt-audio` |
+| Modèle audio et temps réel | Parole en entrée et en sortie avec une faible latence | Assistants vocaux, centres d'appels | `gpt-realtime`, `gpt-audio`, `gpt-live-transcribe` |
 | Modèle de code | Génération et modification de code via l'API Responses | Agents de codage, revue de code | Modèles Codex |
 | Modèle d'embedding | Transforme le texte en vecteurs ; ne génère pas de texte | Recherche vectorielle, RAG, similarité, regroupement | `text-embedding-3-small`, `text-embedding-3-large` |
-| Génération d'images et de vidéos | Crée des médias à partir d'une invite et de médias de référence | Visuels marketing, vidéos produit | `gpt-image-1`, `sora-2` (préversion) |
+| Génération d'images et de vidéos | Crée des médias à partir d'une invite et de médias de référence | Visuels marketing, vidéos produit | `gpt-image-1.5`, `gpt-image-2`, `sora-2` (préversion) |
+
+Le calendrier de mise hors service des modèles fixe au 19 novembre 2026 la mise hors service de `o3`, `o4-mini`, `o3-mini` et `o1`, remplacés par des modèles GPT-5.6.
 
 **Foundry Tools** (anciennement Azure AI services) regroupe des services spécialisés : Azure Speech, Azure Language, Azure Translator, Azure Vision, Azure Content Understanding, Azure Document Intelligence et Azure Content Safety. Ils renvoient un résultat prévisible et structuré pour une tâche, sans invite à rédiger.
 
@@ -95,8 +97,10 @@ Choisissez ensuite le modèle de récupération :
 
 | Modèle | Fonctionnement | À choisir quand |
 | --- | --- | --- |
-| RAG classique | Votre code envoie une requête et passe les résultats au LLM | Fonctionnalités en disponibilité générale uniquement ; simplicité et rapidité ; code d'orchestration existant ; contrôle fin de la requête |
-| Récupération agentique (base de connaissances) | Un LLM planifie plusieurs sous-requêtes, les exécute en parallèle et renvoie des résultats structurés avec citations | Le client est un agent ou un chatbot ; questions complexes ou conversationnelles ; pertinence maximale |
+| RAG classique | Votre code envoie une requête et passe les résultats au LLM | Pas besoin de l'orchestration d'une base de connaissances ; simplicité et rapidité ; code d'orchestration existant ; contrôle fin du pipeline de requête |
+| Récupération agentique (base de connaissances) | Un LLM planifie plusieurs sous-requêtes, les exécute en parallèle et renvoie des résultats structurés avec citations | Le client est un agent ou un chatbot ; questions complexes ou conversationnelles ; pertinence maximale ; nouvelles implémentations RAG |
+
+Learn recommande de commencer les nouvelles implémentations RAG par la récupération agentique. Sa planification et sa synthèse des réponses sont en disponibilité générale dans l'API REST `2026-10-01` ; d'autres fonctionnalités restent en préversion.
 
 Choisissez enfin comment le contenu entre dans l'index :
 
@@ -105,7 +109,7 @@ Choisissez enfin comment le contenu entre dans l'index :
 | Indexeur (extraction) | Le contenu se trouve dans une source de données Azure prise en charge (Stockage Blob, bases de données, SharePoint et d'autres) ; indexation planifiée et incrémentielle |
 | API push | Le contenu est prétraité ailleurs ou vient d'une source non prise en charge |
 | Ensemble de compétences (skillset) | Segmenter, vectoriser, exécuter l'OCR, analyser ou verbaliser des images pendant l'indexation |
-| Vectorisation intégrée | Embeddings créés pendant l'indexation (Azure OpenAI, Azure Vision ou un vectoriseur personnalisé) et au moment de la requête |
+| Vectorisation intégrée | Embeddings créés pendant l'indexation et au moment de la requête (Azure OpenAI ou un vectoriseur Custom Web API ; les options multimodale Azure Vision et catalogue de modèles Foundry sont en préversion) |
 | Segmentation (chunking) | Documents volumineux : les découper pour que chaque partie puisse être trouvée seule |
 
 > **Piège d'examen.** Si l'énoncé dit que le modèle « invente des réponses » ou « ne connaît pas nos produits », la solution est la récupération (ancrage), pas la baisse de la température. S'il dit que les utilisateurs cherchent avec des références exactes de pièces et aussi avec des questions en langage naturel, la recherche vectorielle seule ne suffit pas : choisissez l'hybride.
@@ -132,12 +136,12 @@ Les **outils d'action** permettent à l'agent de faire quelque chose :
 | Appel de fonction (function calling) | L'agent doit appeler votre code ; le modèle renvoie le nom de la fonction et ses arguments, votre application l'exécute et renvoie le résultat |
 | OpenAPI | Appeler une API REST existante décrite par une spécification OpenAPI |
 | MCP | Appeler des outils exposés par un serveur Model Context Protocol distant |
-| Azure Functions | Exécuter du code serverless comme outil |
+| Azure Functions | Exécuter du code serverless comme outil, par des files d'attente Stockage ; configuration standard de l'agent uniquement |
 | Interpréteur de code | Exécuter du Python dans un bac à sable : calculs, graphiques, traitement de fichiers |
 | Automatisation du navigateur, utilisation de l'ordinateur | Manipuler des pages web ou une interface d'ordinateur |
 | Agent à agent (A2A) | Déléguer une tâche à un autre agent |
 
-Une **boîte à outils** (toolbox) définit une fois un ensemble d'outils choisis et l'expose par un point de terminaison unique compatible MCP, partagé par plusieurs agents, avec authentification et gestion de versions centralisées. L'appel de fonction s'exécute côté client et ne peut pas faire partie d'une boîte à outils.
+Une **boîte à outils** (toolbox) définit une fois un ensemble d'outils choisis et l'expose par un point de terminaison unique compatible MCP, partagé par plusieurs agents, avec authentification et gestion de versions centralisées. Sept outils ne peuvent pas faire partie d'une boîte à outils : l'appel de fonction (il s'exécute côté client), Grounding with Bing, l'utilisation de l'ordinateur, la génération d'images, SharePoint, l'agent de données Fabric et Azure Functions.
 
 La **mémoire** conserve le contexte :
 

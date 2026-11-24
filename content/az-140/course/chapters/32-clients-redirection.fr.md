@@ -19,16 +19,19 @@ Les fonctionnalités diffèrent selon la plateforme. Celles qui décident des r�
 
 | Fonctionnalité | Windows | macOS | iOS/iPadOS | Android/Chrome OS | Navigateur web |
 | --- | --- | --- | --- | --- | --- |
-| Plusieurs moniteurs | Oui | Oui | Non | Non | Non |
+| Plusieurs moniteurs | Oui | Oui | Non | ChromeOS uniquement | Non |
 | Redirection multimédia (lecture vidéo et appels) | Oui | Non | Non | Non | Non |
 | Optimisation multimédia de Teams (WebRTC) | Oui | Oui | Oui | Oui | Non |
 | Redirection USB et des ports série | Oui | Non | Non | Non | Non |
-| Redirection d'imprimantes | Oui | Oui | Non | Non | Oui |
-| Redirection de scanners | Oui | Non | Non | Non | Non |
-| RDP Shortpath (réseaux managés et publics) | Oui | Oui | Oui | Oui | Non |
-| RDP Multipath | Oui | Non | Non | Non | Non |
+| Redirection d'imprimantes | Oui | Oui (pilote Publisher Imagesetter uniquement) | Non | Non | Oui |
+| Redirection de scanners (TWAIN, préversion) | Oui | Non | Non | Non | Non |
+| RDP Shortpath pour les réseaux managés | Oui | Oui | Oui | Oui | Non |
+| RDP Shortpath pour les réseaux publics (STUN/TURN) | Oui | Application bêta uniquement | Non | Oui | Non |
+| RDP Multipath | Oui | Application bêta uniquement | Non | Non | Non |
 | Private Link | Oui | Oui | Oui | Oui | Non |
 | Lecteurs | Oui | Oui | Oui | Oui | Chargement et téléchargement uniquement |
+
+Encore en préversion sur certaines plateformes : la redirection de caméras dans un navigateur web, la redirection de carte à puce sur iOS/iPadOS (YubiKey uniquement) et la redirection WebAuthn sur macOS, iOS/iPadOS et Android. « Application bêta uniquement » désigne la version bêta de Windows App pour macOS, pas l'application publiée.
 
 > **Piège d'examen.** Une exigence de lecture vidéo redirigée, d'un périphérique USB ou d'un port COM impose Windows App sur **Windows**. Le navigateur web n'a ni RDP Shortpath ni Private Link, et il ne fait que charger et télécharger des fichiers au lieu de rediriger les lecteurs.
 
@@ -81,7 +84,7 @@ La redirection se contrôle à trois endroits, et **le paramètre le plus restri
 | Pool d'hôtes | Propriétés RDP (portail : pool d'hôtes > **Propriétés RDP**, onglets Informations de connexion, Comportement de session, Redirection de périphérique, Paramètres d'affichage, Avancé) | `redirectclipboard:i:1` |
 | Appareil local | Registre `HKLM\Software\Microsoft\Terminal Server Client` (`DisableClipboardRedirection`, `DisablePrinterRedirection` = 1), ou protection des applications Intune sur iOS/iPadOS, Android et Edge | Bloque un appareil pendant que les autres gardent la redirection |
 
-Microsoft recommande d'autoriser la redirection sur les hôtes de session, puis de la contrôler avec les propriétés RDP du pool d'hôtes. La redirection du Presse-papiers et des imprimantes est désactivée dans les propriétés RDP des **pools d'hôtes nouvellement créés**.
+Microsoft recommande d'autoriser la redirection sur les hôtes de session, puis de la contrôler avec les propriétés RDP du pool d'hôtes. La redirection du Presse-papiers, des imprimantes et des lecteurs est désactivée dans les propriétés RDP des **pools d'hôtes nouvellement créés**.
 
 | Redirection | Propriété RDP | Valeurs |
 | --- | --- | --- |
@@ -171,9 +174,9 @@ Universal Print sur les hôtes multisession (Windows 11 Entreprise multisession 
 ## Points clés
 
 - Windows App est le client partout ; le client MSI et le client web ne sont plus pris en charge dans le cloud public depuis le 27 mars 2026.
-- Seul Windows App sur Windows offre la redirection multimédia, la redirection USB et des ports COM et RDP Multipath ; le navigateur n'a ni RDP Shortpath ni Private Link.
+- Seul Windows App sur Windows offre la redirection multimédia, la redirection USB et des ports COM et RDP Multipath (sur macOS, seulement dans l'application bêta) ; iOS/iPadOS n'a RDP Shortpath que pour les réseaux managés ; le navigateur n'a ni RDP Shortpath ni Private Link.
 - Les installations depuis le Store se mettent à jour par le Store ; les installations MSIX se contrôlent avec `DisableAutomaticUpdates`.
-- Redirection = stratégie de l'hôte de session + propriété RDP du pool d'hôtes + appareil local : le plus restrictif l'emporte ; les nouveaux pools d'hôtes désactivent la redirection du Presse-papiers et des imprimantes.
+- Redirection = stratégie de l'hôte de session + propriété RDP du pool d'hôtes + appareil local : le plus restrictif l'emporte ; les nouveaux pools d'hôtes désactivent la redirection du Presse-papiers, des imprimantes et des lecteurs.
 - La redirection USB de bas niveau opaque exige le pilote dans la session ; la redirection de haut niveau l'exige localement.
 - MMR = un MSI sur les hôtes de session + une extension de navigateur, clients Windows uniquement.
 - La redirection d'imprimantes utilise Remote Desktop Easy Print ; Universal Print est l'alternative cloud, avec des imprimantes par utilisateur sur Windows 11 multisession.

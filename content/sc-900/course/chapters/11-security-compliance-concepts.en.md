@@ -19,6 +19,8 @@ Whatever the model, these responsibilities **always stay with you**:
 - your **endpoints**: the laptops, phones and tablets that connect to the service;
 - your **configuration choices** inside the service.
 
+The model extends to AI services: the provider secures the infrastructure, the AI model hosting environment and platform safety controls such as content filtering; you remain responsible for the data the AI can reach, who may use it, how it is configured, AI-specific risks such as prompt injection, and user training.
+
 > **Exam trap.** Moving to SaaS never transfers responsibility for your data or your accounts. The physical datacenter, physical network and physical hosts are always the provider's in the cloud.
 
 <!-- section: defense-in-depth | objectives: 1.1.2 -->
@@ -32,8 +34,8 @@ Whatever the model, these responsibilities **always stay with you**:
 | Identity and access | Multifactor authentication, role-based access control, Conditional Access |
 | Perimeter | DDoS protection, perimeter firewalls |
 | Network | Segmentation, network security groups |
-| Compute | Patching, closing unused ports, restricting administrative access |
-| Application | Secure development, input validation against SQL injection and cross-site scripting |
+| Compute | Patching, closing unused ports, restricting administrative access, monitoring for unusual behavior |
+| Application | Secure development, input validation against SQL injection and cross-site scripting, application-level authentication and authorization |
 | Data | Access control, encryption, classification; the innermost layer |
 
 Security controls serve three goals, the **CIA** triad:
@@ -41,7 +43,7 @@ Security controls serve three goals, the **CIA** triad:
 | Goal | Meaning | Typical control |
 | --- | --- | --- |
 | **Confidentiality** | Only authorized people can read the information | Encryption, access control |
-| **Integrity** | Data stays accurate and unmodified, except by authorized changes | Hashing, digital signatures |
+| **Integrity** | Data stays accurate and unmodified, except by authorized changes | Hashing, digital signatures, audit logs |
 | **Availability** | Data and systems are accessible when authorized users need them | Redundancy, DDoS protection |
 
 <!-- section: zero-trust | objectives: 1.1.3 -->
@@ -85,7 +87,9 @@ Zero Trust is applied across six pillars, tied together by a seventh:
 | **In transit** | Moving over a network | TLS, as in HTTPS; VPN |
 | **In use** | Being processed in memory | Confidential computing, in secure enclaves |
 
-**Hashing** converts any input into a fixed-length value, the hash. It is **one-way** (the input can't be recovered), **deterministic** (the same input always gives the same hash) and uses **no key**. It serves to verify, not to hide: comparing hashes shows whether a file was modified, and systems store the hash of a password instead of the password. A **salt**, a random value added to each password before hashing, makes two identical passwords produce different hashes and defeats precomputed tables.
+Encryption is only as strong as the protection of its keys. **Key management** keeps keys separate from the data they protect, stores them in hardware security modules (HSMs) or a managed service such as Azure Key Vault, rotates them regularly and restricts who can use them.
+
+**Hashing** converts any input into a fixed-length value, the hash. It is **one-way** (the input can't be recovered), **deterministic** (the same input always gives the same hash) and uses **no key**. It serves to verify, not to hide: comparing hashes shows whether a file was modified, and systems store the hash of a password instead of the password. A **salt**, a random value added to each password before hashing, makes two identical passwords produce different hashes and defeats precomputed tables (rainbow tables).
 
 A **digital signature** combines both ideas: it proves who sent the data (authenticity) and that it wasn't modified (integrity).
 
@@ -99,6 +103,8 @@ A **digital signature** combines both ideas: it proves who sent the data (authen
 | **Governance** | The rules, practices and processes an organization uses to direct and control its activities |
 | **Risk management** | Identifying, assessing and responding to threats or events that can affect the organization's objectives or its customers' trust |
 | **Compliance** | Adhering to the laws, regulations, standards and policies that apply to the organization |
+
+Risk management doesn't aim to eliminate every risk. It identifies risks, assesses each one by impact and likelihood, responds to it, then monitors it. The four responses: **accept** a low-impact risk, **mitigate** it with controls, **transfer** it (for example through insurance), or **avoid** it by changing the process that creates it. Frameworks such as ISO 27001, SOC 2 and HIPAA set the requirements to comply with.
 
 Three notions about data come with compliance:
 
@@ -118,4 +124,4 @@ Security and compliance aren't synonyms: security covers everything that protect
 - Zero Trust: verify explicitly, use least privilege access, assume breach.
 - Symmetric encryption: one key. Asymmetric: public and private key. Data at rest, in transit, in use.
 - Hashing: one-way, deterministic, no key; used for integrity and password storage, strengthened by a salt.
-- Governance directs, risk management anticipates, compliance follows the rules. Residency: where data is stored. Sovereignty: whose laws apply. Privacy: how personal data is handled.
+- Governance directs, risk management anticipates (identify, assess, respond, monitor; accept, mitigate, transfer or avoid), compliance follows the rules. Residency: where data is stored. Sovereignty: whose laws apply. Privacy: how personal data is handled.

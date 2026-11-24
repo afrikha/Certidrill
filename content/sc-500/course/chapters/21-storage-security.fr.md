@@ -8,7 +8,7 @@ La plupart des paramètres se trouvent dans la page **Paramètres > Configuratio
 | Paramètre (portail) | Propriété | Valeur sécurisée | Effet et détails |
 | --- | --- | --- | --- |
 | Transfert sécurisé requis (Secure transfer required) | `supportsHttpsTrafficOnly` | Activé | Les requêtes en HTTP échouent |
-| Version TLS minimale | `minimumTlsVersion` | `TLS1_2` | Les requêtes avec un TLS plus ancien échouent avec 400 (Bad Request). Le portail définit 1.2 pour les nouveaux comptes ; avec la CLI, PowerShell ou un modèle, la propriété n'est pas définie par défaut, ce qui accepte TLS 1.0 et supérieur. TLS 1.3 ne peut pas être imposé comme minimum |
+| Version TLS minimale | `minimumTlsVersion` | `TLS1_2` | Les requêtes avec un TLS plus ancien échouent avec 400 (Bad Request). Le Stockage Azure prend en charge TLS 1.2 et 1.3 : depuis le 3 février 2026, TLS 1.0 et 1.1 ne sont plus pris en charge, pour les comptes nouveaux et existants. Le portail définit 1.2 pour les nouveaux comptes ; avec la CLI, PowerShell ou un modèle, la propriété n'est pas définie tant que vous ne la configurez pas. TLS 1.2 est le minimum recommandé ; TLS 1.3 ne peut pas être imposé comme minimum |
 | Autoriser l'accès anonyme aux objets blob (Allow Blob anonymous access) | `allowBlobPublicAccess` | Désactivé | Prime sur le niveau d'accès de chaque conteneur. Jusqu'à 30 secondes de propagation |
 | Autoriser l'accès par clé de compte de stockage (Allow storage account key access) | `allowSharedKeyAccess` | Désactivé | Les requêtes signées avec une clé de compte, y compris les SAS de service et les SAS de compte, échouent avec 403. Non défini (null) signifie autorisé |
 | Utiliser par défaut l'autorisation Microsoft Entra dans le portail Azure | `defaultToOAuthAuthentication` | Activé | Le portail utilise l'identité Entra de l'utilisateur au lieu de la clé pour parcourir les données ; l'utilisateur peut toujours basculer |
@@ -37,7 +37,7 @@ Le **chiffrement au repos** est toujours actif (AES-256, clés gérées par Micr
 | Révocation | Désactiver la clé : lectures et écritures échouent avec 403 pour tous |
 | Couverture | Stockage Blob Azure et Azure Files toujours ; Queue et Table seulement si choisi à la création du compte |
 
-Les paramètres de protection des données complètent le renforcement : **suppression réversible** des objets blob et des conteneurs, contrôle de version des objets blob, **stockage immuable** (WORM : rétention limitée dans le temps de 1 à 146 000 jours, ou conservation légale avec étiquettes), un **verrou de ressource** `CanNotDelete` sur le compte (il protège le compte et sa configuration, pas les données qu'il contient) et **Interdire la réplication d'objets entre locataires**.
+Les paramètres de protection des données complètent le renforcement : **suppression réversible** des objets blob et des conteneurs, contrôle de version des objets blob, **stockage immuable** (WORM : rétention limitée dans le temps de 1 à 146 000 jours, ou conservation légale avec étiquettes), un **verrou de ressource** `CanNotDelete` sur le compte (il protège le compte et sa configuration, pas les données qu'il contient) et **Interdire la réplication d'objets entre locataires** (déjà le comportement par défaut des comptes créés après le 15 décembre 2023 ; sur les comptes plus anciens, la propriété est null, ce qui autorise la réplication entre locataires).
 
 > **Piège d'examen.** Une stratégie de rétention limitée dans le temps verrouillée peut être prolongée, jamais raccourcie ni supprimée (cinq prolongations au plus pour une stratégie au niveau du conteneur). N'utilisez une stratégie déverrouillée que pour des tests courts.
 
@@ -50,7 +50,7 @@ La page **Mise en réseau** du compte règle l'accès au réseau public :
 | --- | --- |
 | Activé à partir de tous les réseaux | Par défaut : tout réseau atteint le point de terminaison public (l'autorisation s'applique toujours) |
 | Activé à partir des réseaux sélectionnés | Seuls les réseaux virtuels, plages IP et instances de ressources listés passent ; tout le reste est refusé |
-| Désactivé | Le point de terminaison public rejette tout le trafic ; seuls les points de terminaison privés fonctionnent |
+| Désactivé | Le point de terminaison public rejette tout le trafic ; seuls les points de terminaison privés fonctionnent (les exceptions déjà configurées restent en vigueur, voir ci-dessous) |
 | Sécurisé par périmètre (Secured by perimeter) | L'accès est régi par un périmètre de sécurité réseau |
 
 Avec les réseaux sélectionnés, quatre types de règles autorisent le trafic :
@@ -79,6 +79,7 @@ Comportements qui décident des réponses :
 - Un sous-réseau doté d'un point de terminaison de service atteint le compte avec son adresse source **privée** : une règle IP pour l'adresse IP publique du réseau virtuel n'a donc aucun effet.
 - Pour des clients locaux via le peering Microsoft d'ExpressRoute, les règles IP listent les adresses publiques NAT utilisées pour ce peering.
 - Supprimer un sous-réseau supprime sa règle ; un nouveau sous-réseau du même nom doit être ajouté à nouveau.
+- Passer l'accès réseau public à **Désactivé** après *Activé à partir des réseaux sélectionnés* conserve les instances de ressources et les exceptions déjà configurées, services approuvés compris : ces services peuvent encore atteindre le compte, car l'accès des services approuvés est prioritaire.
 - Les modifications qui lèvent des restrictions peuvent mettre jusqu'à une minute à s'appliquer.
 - Un **point de terminaison privé** donne au compte une adresse IP privée par sous-ressource (`blob`, `file`, `dfs`...) avec la zone `privatelink.blob.core.windows.net` ; il continue de fonctionner quand l'accès au réseau public est désactivé.
 
@@ -92,7 +93,7 @@ Defender for Storage est un plan de Defender for Cloud, **sans agent**, qui prot
 | Composant | Rôle | Remarques |
 | --- | --- | --- |
 | Surveillance de l'activité | Analyse la télémétrie du plan de données et du plan de contrôle et génère des alertes sur les accès inhabituels ou potentiellement malveillants, comme une extraction suspecte de données | Toujours active avec le plan ; inutile d'activer les journaux de ressources ; aucun impact sur les performances |
-| Analyse des programmes malveillants | Analyse les objets blob avec Microsoft Defender Antivirus **au chargement** (on-upload) ou **à la demande** (compte, conteneur, objet blob unique ou préfixe de chemin) | Plafond par défaut de **10 000 Go par compte et par mois**, ajustable ; jusqu'à 50 Go par objet blob ; l'analyse au chargement n'est pas prise en charge pour Azure Files, les objets blob de pages ni les objets blob d'ajout |
+| Analyse des programmes malveillants | Analyse les objets blob avec Microsoft Defender Antivirus **au chargement** (on-upload) ou **à la demande** (compte, conteneur, objet blob unique ou préfixe de chemin) | Plafond par défaut de **10 000 Go par compte et par mois**, ajustable ; jusqu'à 50 Go par objet blob ; l'analyse au chargement n'est pas prise en charge pour Azure Files, les objets blob de pages ni les objets blob d'ajout ; les comptes v1 hérités, les objets blob chargés en NFS 3.0 et les objets blob chiffrés côté client ne sont pas analysés (les objets blob chiffrés par CMK le sont) |
 | Détection des menaces sur les données sensibles | Repère les données sensibles par échantillonnage intelligent (types d'informations sensibles de Microsoft Purview) pour aider à prioriser les alertes sur les comptes qui en contiennent | Sans coût supplémentaire ; peut être désactivée |
 
 Activez le plan au niveau de l'**abonnement** (recommandé : les comptes existants et nouveaux sont couverts, et vous pouvez exclure des comptes) dans **Defender for Cloud > Paramètres d'environnement > abonnement > Plans Defender > Stockage**, puis utilisez **Paramètres** pour activer ou désactiver l'analyse des programmes malveillants et la détection des menaces sur les données sensibles et régler le plafond. Un compte de stockage peut **remplacer** (override) les paramètres de l'abonnement par sa propre configuration. À grande échelle, utilisez la définition Azure Policy intégrée, qui couvre aussi les futurs abonnements d'un groupe d'administration ; Bicep, ARM, Terraform, PowerShell et l'API REST conviennent aussi.
@@ -111,7 +112,7 @@ Les résultats de l'analyse des programmes malveillants vont vers :
 
 Activer l'analyse des programmes malveillants crée une rubrique système Event Grid dans le groupe de ressources du compte et une ressource `StorageDataScanner` ; quand le pare-feu utilise les réseaux sélectionnés, ce scanner est ajouté à la liste des **instances de ressources** pour que l'analyse continue de fonctionner.
 
-> **Piège d'examen.** L'analyse des programmes malveillants s'arrête pour le reste du mois quand le plafond est atteint (alertes à 75 % et 100 %). Si les chargements dépassent 10 000 Go par mois sur un compte, relevez le plafond au niveau de l'abonnement ou du compte.
+> **Piège d'examen.** L'analyse des programmes malveillants s'arrête pour le reste du mois quand le plafond est atteint (alertes à 75 % et 100 % ; écart possible de 20 Go ; remise à zéro à minuit UTC à la fin du mois). Un plafond défini au niveau de l'abonnement est attribué à chaque compte. Si les chargements dépassent 10 000 Go par mois sur un compte, relevez le plafond au niveau de l'abonnement ou du compte.
 
 <!-- section: storage-access | objectives: 2.1.4 -->
 ## Gérer l'accès au stockage

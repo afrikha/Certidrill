@@ -1,0 +1,534 @@
+chapter: 32-optimize-semantic-models
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp600-qz-32-01
+    objective: "3.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a semantic model that contains a DirectQuery table named **Telemetry** and two Import aggregation tables mapped to it in **Manage aggregations**: **AggByDay**, which groups Telemetry by day, site and device type, and **AggByMonth**, which groups it by month and site.
+
+        Queries that group by month and site must use AggByMonth, and the other queries must try AggByDay before Telemetry. What should you do?
+      fr: |
+        Vous disposez d'un modèle sémantique qui contient une table DirectQuery nommée **Telemetry** et deux tables d'agrégation Import mappées à celle-ci dans **Gérer les agrégations** : **AggByDay**, qui regroupe Telemetry par jour, site et type d'appareil, et **AggByMonth**, qui la regroupe par mois et par site.
+
+        Les requêtes qui regroupent par mois et par site doivent utiliser AggByMonth, et les autres requêtes doivent essayer AggByDay avant Telemetry. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Select AggByDay as the detail table of AggByMonth in Manage aggregations.", fr: "Sélectionner AggByDay comme table de détails d'AggByMonth dans Gérer les agrégations." } }
+        - { id: b, text: { en: "Change the storage mode of AggByMonth from Import to Dual.", fr: "Changer le mode de stockage d'AggByMonth d'Import à Double (Dual)." } }
+        - { id: c, text: { en: "Give AggByMonth a higher Precedence value than AggByDay.", fr: "Donner à AggByMonth une valeur de Priorité supérieure à celle d'AggByDay." } }
+        - { id: d, text: { en: "Hide AggByDay in Report view so that only AggByMonth is visible.", fr: "Masquer AggByDay dans la vue Rapport pour que seule AggByMonth soit visible." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Precedence lets one subquery consider several aggregation tables: the table with the higher value is tried first. With AggByMonth above AggByDay, month-and-site queries use AggByMonth, finer queries fall to AggByDay, and only detail queries reach the DirectQuery table.
+        fr: |
+          La priorité (precedence) permet à une sous-requête d'envisager plusieurs tables d'agrégation : la table qui a la valeur la plus élevée est essayée en premier. Avec AggByMonth au-dessus d'AggByDay, les requêtes par mois et par site utilisent AggByMonth, les requêtes plus fines passent à AggByDay, et seules les requêtes de détail atteignent la table DirectQuery.
+      options:
+        a: { en: "Chained aggregations aren't allowed: the detail table of AggByMonth must be Telemetry, not another aggregation table.", fr: "Les agrégations chaînées ne sont pas autorisées : la table de détails d'AggByMonth doit être Telemetry, pas une autre table d'agrégation." }
+        b: { en: "The storage mode doesn't set the order in which aggregation tables are tried; Precedence does.", fr: "Le mode de stockage ne fixe pas l'ordre dans lequel les tables d'agrégation sont essayées ; c'est la priorité qui le fait." }
+        d: { en: "Aggregation tables are hidden anyway, and users query Telemetry; visibility doesn't decide which aggregation answers.", fr: "Les tables d'agrégation sont de toute façon masquées et les utilisateurs interrogent Telemetry ; la visibilité ne décide pas quelle agrégation répond." }
+    references:
+      - title: User-defined aggregations
+        url: https://learn.microsoft.com/en-us/power-bi/transform-model/aggregations-advanced
+
+  # ------------------------------------------------------------------ 2
+  - id: dp600-qz-32-02
+    objective: "3.2.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a Direct Lake on OneLake semantic model named **SalesDL** that uses a Delta table named **fact_sales** of two billion rows. A pipeline appends new rows every hour, and **Keep your Direct Lake data up to date** is turned on.
+
+        A developer who usually builds Import models proposes an incremental refresh policy on fact_sales, so that each refresh doesn't reload two billion rows. What should you tell the developer?
+      fr: |
+        Vous disposez d'un modèle sémantique Direct Lake sur OneLake nommé **SalesDL** qui utilise une table Delta nommée **fact_sales** de deux milliards de lignes. Un pipeline ajoute de nouvelles lignes toutes les heures, et **Keep your Direct Lake data up to date** est activé.
+
+        Un développeur qui crée habituellement des modèles Import propose une stratégie d'actualisation incrémentielle sur fact_sales, pour que chaque actualisation ne recharge pas deux milliards de lignes. Que devez-vous dire au développeur ?
+    body:
+      options:
+        - { id: a, text: { en: "Define the policy with RangeStart and RangeEnd parameters on the fact_sales table of SalesDL.", fr: "Définir la stratégie avec les paramètres RangeStart et RangeEnd sur la table fact_sales de SalesDL." } }
+        - { id: b, text: { en: "No policy is needed: a refresh only updates references to the latest Delta files.", fr: "Aucune stratégie n'est nécessaire : une actualisation met seulement à jour les références vers les derniers fichiers Delta." } }
+        - { id: c, text: { en: "Create one model partition per month on fact_sales by using the XMLA endpoint.", fr: "Créer une partition de modèle par mois sur fact_sales à l'aide du point de terminaison XMLA." } }
+        - { id: d, text: { en: "Convert fact_sales into a hybrid table so that only the newest rows are reloaded.", fr: "Convertir fact_sales en table hybride pour que seules les lignes les plus récentes soient rechargées." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A Direct Lake refresh is framing: it reads the Delta log and updates the model's references to the latest Parquet files, usually in seconds, without copying the data. Columns are then loaded into memory when queries need them, so there is nothing to reload incrementally.
+        fr: |
+          Une actualisation Direct Lake est un cadrage : elle lit le journal Delta et met à jour les références du modèle vers les derniers fichiers Parquet, en général en quelques secondes, sans copier les données. Les colonnes sont ensuite chargées en mémoire quand les requêtes en ont besoin : il n'y a rien à recharger de façon incrémentielle.
+      options:
+        a: { en: "Incremental refresh partitions Import (or hybrid) tables; a Direct Lake table doesn't use a refresh policy.", fr: "L'actualisation incrémentielle partitionne des tables Import (ou hybrides) ; une table Direct Lake n'utilise pas de stratégie d'actualisation." }
+        c: { en: "Direct Lake models don't support model table partitions; partitioning is done at the Delta table level.", fr: "Les modèles Direct Lake ne prennent pas en charge les partitions de table de modèle ; le partitionnement se fait au niveau de la table Delta." }
+        d: { en: "Hybrid tables aren't supported in Direct Lake models, whichever Direct Lake option is used.", fr: "Les tables hybrides ne sont pas prises en charge dans les modèles Direct Lake, quelle que soit l'option Direct Lake." }
+    references:
+      - title: Direct Lake overview
+        url: https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-overview
+      - title: How Direct Lake works
+        url: https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-how-it-works
+
+  # ------------------------------------------------------------------ 3
+  - id: dp600-qz-32-03
+    objective: "3.2.5"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You configure incremental refresh for a table named **FactOrders** in Power BI Desktop. The query of FactOrders is the following:
+
+        ```text
+        let
+            Source = Sql.Database("adatum-sql.database.windows.net", "SalesDb"),
+            Orders = Source{[Schema = "dbo", Item = "FactOrders"]}[Data],
+            AddedChannel = Table.AddColumn(Orders, "Channel", each fnChannel([StoreCode])),
+            Filtered = Table.SelectRows(AddedChannel, each [OrderDate] >= RangeStart and [OrderDate] < RangeEnd)
+        in
+            Filtered
+        ```
+
+        In Power Query Editor, **View Native Query** is unavailable for the AddedChannel and Filtered steps. After publishing, every partition refresh reads the whole source table. You need each partition to retrieve only its own rows from the source. What should you do?
+      fr: |
+        Vous configurez l'actualisation incrémentielle d'une table nommée **FactOrders** dans Power BI Desktop. La requête de FactOrders est la suivante :
+
+        ```text
+        let
+            Source = Sql.Database("adatum-sql.database.windows.net", "SalesDb"),
+            Orders = Source{[Schema = "dbo", Item = "FactOrders"]}[Data],
+            AddedChannel = Table.AddColumn(Orders, "Channel", each fnChannel([StoreCode])),
+            Filtered = Table.SelectRows(AddedChannel, each [OrderDate] >= RangeStart and [OrderDate] < RangeEnd)
+        in
+            Filtered
+        ```
+
+        Dans l'Éditeur Power Query, **View Native Query** n'est pas disponible pour les étapes AddedChannel et Filtered. Après la publication, chaque actualisation de partition lit toute la table source. Vous devez faire en sorte que chaque partition ne récupère que ses propres lignes depuis la source. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Change the type of the RangeStart and RangeEnd parameters from Date/Time to Date.", fr: "Changer le type des paramètres RangeStart et RangeEnd de Date/Heure à Date." } }
+        - { id: b, text: { en: "Turn on Detect data changes in the policy and select the OrderDate column.", fr: "Activer Detect data changes dans la stratégie et sélectionner la colonne OrderDate." } }
+        - { id: c, text: { en: "Add a CommandTimeout option to Sql.Database so that refreshes can run longer.", fr: "Ajouter une option CommandTimeout à Sql.Database pour que les actualisations puissent durer plus longtemps." } }
+        - { id: d, text: { en: "Move the Filtered step so that it runs directly after the Orders step.", fr: "Déplacer l'étape Filtered pour qu'elle s'exécute juste après l'étape Orders." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The RangeStart and RangeEnd filter must fold into the source query; otherwise the mashup engine retrieves every row and filters locally for each partition. AddedChannel calls a custom function that can't fold, so every later step runs in Power Query. Filtering directly after the navigation step lets the filter fold into the SQL query, and adding the column afterwards doesn't change the result.
+        fr: |
+          Le filtre RangeStart et RangeEnd doit être replié dans la requête source ; sinon le moteur mashup récupère toutes les lignes et filtre localement pour chaque partition. AddedChannel appelle une fonction personnalisée qui ne peut pas être repliée : toutes les étapes suivantes s'exécutent dans Power Query. Filtrer juste après l'étape de navigation permet de replier le filtre dans la requête SQL, et ajouter la colonne ensuite ne change pas le résultat.
+      options:
+        a: { en: "RangeStart and RangeEnd must be Date/Time parameters; changing their type breaks the policy and doesn't make the filter fold.", fr: "RangeStart et RangeEnd doivent être des paramètres Date/Heure ; changer leur type casse la stratégie et ne rend pas le filtre repliable." }
+        b: { en: "Detect data changes needs an audit column, not the partitioning column, and it doesn't make the filter fold.", fr: "Detect data changes exige une colonne d'audit, pas la colonne de partitionnement, et ne rend pas le filtre repliable." }
+        c: { en: "A longer timeout lets slow refreshes finish, but each partition still reads the whole table.", fr: "Un délai d'expiration plus long laisse finir des actualisations lentes, mais chaque partition lit toujours toute la table." }
+    references:
+      - title: Configure incremental refresh and real-time data for Power BI semantic models
+        url: https://learn.microsoft.com/en-us/power-bi/connect-data/incremental-refresh-overview
+      - title: Overview of query evaluation and query folding in Power Query
+        url: https://learn.microsoft.com/en-us/power-query/query-folding-basics
+
+  # ------------------------------------------------------------------ 4
+  - id: dp600-qz-32-04
+    objective: "3.2.2"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        You are optimizing the measures of a semantic model named **RetailModel**. Several measures use FILTER over a whole table as a filter argument of CALCULATE. To improve performance, you plan to replace each of them with a Boolean filter expression whenever DAX allows it.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous optimisez les mesures d'un modèle sémantique nommé **RetailModel**. Plusieurs mesures utilisent FILTER sur une table entière comme argument de filtre de CALCULATE. Pour améliorer les performances, vous prévoyez de remplacer chacune d'elles par une expression de filtre booléenne chaque fois que DAX le permet.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: "`'Product'[Color] = \"Red\" && 'Product'[Size] = \"L\"` can be passed to CALCULATE as one Boolean filter argument."
+            fr: "`'Product'[Color] = \"Red\" && 'Product'[Size] = \"L\"` peut être passé à CALCULATE comme un seul argument de filtre booléen."
+        - id: s2
+          text:
+            en: "`'Product'[Color] = \"Red\" && 'Store'[Region] = \"West\"` can be passed to CALCULATE as one Boolean filter argument."
+            fr: "`'Product'[Color] = \"Red\" && 'Store'[Region] = \"West\"` peut être passé à CALCULATE comme un seul argument de filtre booléen."
+        - id: s3
+          text:
+            en: "`'Date'[Date] = MAX ( 'Date'[Date] )` can be passed to CALCULATE as one Boolean filter argument."
+            fr: "`'Date'[Date] = MAX ( 'Date'[Date] )` peut être passé à CALCULATE comme un seul argument de filtre booléen."
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          A Boolean filter expression can reference several columns as long as they belong to a single table, so the Color and Size condition is valid. It can't combine columns of two tables: write two separate Boolean arguments instead, one per table. It can contain an aggregation function that returns a scalar, such as MAX, but it can't reference a measure or a nested CALCULATE.
+        fr: |
+          Une expression de filtre booléenne peut référencer plusieurs colonnes tant qu'elles appartiennent à une seule table : la condition sur Color et Size est valide. Elle ne peut pas combiner des colonnes de deux tables : écrivez plutôt deux arguments booléens distincts, un par table. Elle peut contenir une fonction d'agrégation qui renvoie un scalaire, comme MAX, mais ne peut référencer ni une mesure ni un CALCULATE imbriqué.
+      options:
+        s2: { en: "Product and Store are two tables: split the condition into two Boolean filter arguments, which CALCULATE combines with a logical AND.", fr: "Product et Store sont deux tables : séparez la condition en deux arguments de filtre booléens, que CALCULATE combine par un ET logique." }
+    references:
+      - title: CALCULATE function (DAX)
+        url: https://learn.microsoft.com/en-us/dax/calculate-function-dax
+      - title: Avoid using FILTER as a filter argument in DAX
+        url: https://learn.microsoft.com/en-us/dax/best-practices/dax-avoid-avoid-filter-as-filter-argument
+
+  # ------------------------------------------------------------------ 5
+  - id: dp600-qz-32-05
+    objective: "3.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a warehouse named **Warehouse1** that contains T-SQL views with business logic owned by another team. The views can't be materialized. You created a Direct Lake on SQL analytics endpoint semantic model named **Model1** on Warehouse1 so that Model1 can use the views.
+
+        The report authors need a date table with one row per day for time intelligence. Warehouse1 has no date table. What should you do?
+      fr: |
+        Vous disposez d'un entrepôt nommé **Warehouse1** qui contient des vues T-SQL avec une logique métier gérée par une autre équipe. Les vues ne peuvent pas être matérialisées. Vous avez créé un modèle sémantique Direct Lake sur le point de terminaison d'analytique SQL nommé **Model1** sur Warehouse1 pour que Model1 puisse utiliser les vues.
+
+        Les auteurs de rapports ont besoin d'une table de dates avec une ligne par jour pour les calculs Time Intelligence. Warehouse1 n'a pas de table de dates. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Add a calculated table defined with CALENDAR to Model1, and mark it as a date table.", fr: "Ajouter à Model1 une table calculée définie avec CALENDAR, puis la marquer comme table de dates." } }
+        - { id: b, text: { en: "Create a date table in Warehouse1, add it to Model1, and mark it as a date table.", fr: "Créer une table de dates dans Warehouse1, l'ajouter à Model1, puis la marquer comme table de dates." } }
+        - { id: c, text: { en: "Turn on Auto date/time for Model1, and use the date hierarchies that it creates.", fr: "Activer Date/heure automatique pour Model1, puis utiliser les hiérarchies de dates qu'elle crée." } }
+        - { id: d, text: { en: "Re-create Model1 as a Direct Lake on OneLake model, and add a calculated date table.", fr: "Recréer Model1 en modèle Direct Lake sur OneLake, puis ajouter une table de dates calculée." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Direct Lake on SQL analytics endpoint models don't support calculated tables, except the ones that calculation groups, what-if parameters and field parameters create implicitly. A date table created in Warehouse1 is a Delta table, so Model1 can load it in Direct Lake mode next to the views.
+        fr: |
+          Les modèles Direct Lake sur le point de terminaison d'analytique SQL ne prennent pas en charge les tables calculées, sauf celles que créent implicitement les groupes de calcul, les paramètres de simulation et les paramètres de champ. Une table de dates créée dans Warehouse1 est une table Delta : Model1 peut la charger en mode Direct Lake à côté des vues.
+      options:
+        a: { en: "A DAX calculated table such as CALENDAR isn't supported in a Direct Lake on SQL analytics endpoint model.", fr: "Une table calculée DAX comme CALENDAR n'est pas prise en charge dans un modèle Direct Lake sur le point de terminaison d'analytique SQL." }
+        c: { en: "Auto date/time is supported by Direct Lake on OneLake only, not by Direct Lake on SQL analytics endpoint.", fr: "Date/heure automatique n'est prise en charge que par Direct Lake sur OneLake, pas par Direct Lake sur le point de terminaison d'analytique SQL." }
+        d: { en: "Direct Lake on OneLake can't use non-materialized SQL views, and its calculated tables are in preview.", fr: "Direct Lake sur OneLake ne peut pas utiliser de vues SQL non matérialisées, et ses tables calculées sont en préversion." }
+    references:
+      - title: Direct Lake overview
+        url: https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-overview
+
+  # ------------------------------------------------------------------ 6
+  - id: dp600-qz-32-06
+    objective: "3.2.1"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Fabrikam has an Azure SQL database that contains a sales table of three billion rows. You are designing a semantic model in Power BI Desktop that contains the following tables:
+
+        - **Sales**, a DirectQuery table on the sales table
+        - **SalesAgg**, an Import table that summarizes the sales by DateKey and ProductKey, mapped to Sales in **Manage aggregations**
+        - **Date** and **Product**, dimension tables related to both Sales and SalesAgg
+
+        You have the following requirements:
+
+        - Every relationship must be a regular relationship, so that relationship-based aggregation hits are possible.
+        - A role must limit the category managers to the rows of their product categories, and their queries must still be answered by SalesAgg when possible.
+        - You must be able to confirm whether a query was answered by SalesAgg.
+
+        How should you complete the design? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam dispose d'une base de données Azure SQL qui contient une table de ventes de trois milliards de lignes. Vous concevez dans Power BI Desktop un modèle sémantique qui contient les tables suivantes :
+
+        - **Sales**, une table DirectQuery sur la table des ventes
+        - **SalesAgg**, une table Import qui résume les ventes par DateKey et ProductKey, mappée à Sales dans **Gérer les agrégations**
+        - **Date** et **Product**, des tables de dimension reliées à la fois à Sales et à SalesAgg
+
+        Vous avez les exigences suivantes :
+
+        - Chaque relation doit être une relation régulière, pour que les correspondances d'agrégation basées sur les relations soient possibles.
+        - Un rôle doit limiter les responsables de catégorie aux lignes de leurs catégories de produits, et leurs requêtes doivent toujours être servies par SalesAgg quand c'est possible.
+        - Vous devez pouvoir vérifier si une requête a été servie par SalesAgg.
+
+        Comment devez-vous compléter la conception ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: text
+      template:
+        en: |
+          - Storage mode of Date and Product: [[dim]]
+          - Table filtered by the role: [[rls]]
+          - Tool to confirm the aggregation hits: [[tool]]
+        fr: |
+          - Mode de stockage de Date et Product : [[dim]]
+          - Table filtrée par le rôle : [[rls]]
+          - Outil pour vérifier les correspondances d'agrégation : [[tool]]
+      slots:
+        - id: dim
+          options:
+            - { id: import, text: Import }
+            - { id: dq, text: DirectQuery }
+            - { id: dual, text: { en: "Dual", fr: "Double (Dual)" } }
+        - id: rls
+          options:
+            - { id: sales, text: Sales }
+            - { id: agg, text: SalesAgg }
+            - { id: product, text: Product }
+        - id: tool
+          options:
+            - { id: profiler, text: { en: "SQL Server Profiler, Aggregate Table Rewrite Query event", fr: "SQL Server Profiler, événement Aggregate Table Rewrite Query" } }
+            - { id: display, text: { en: "Performance analyzer, Visual display duration", fr: "Analyseur de performances, durée Affichage visuel" } }
+            - { id: native, text: { en: "Power Query Editor, View Native Query", fr: "Éditeur Power Query, View Native Query" } }
+    answer:
+      values: { dim: dual, rls: product, tool: profiler }
+    explanation:
+      correct:
+        en: |
+          A relationship is regular when the one side is DirectQuery or Dual for a DirectQuery many side, and Import or Dual for an Import many side, so only Dual dimensions keep both Sales and SalesAgg relationships regular. RLS must filter both the aggregation and the detail table: filtering Product, which is related to both, keeps aggregation hits, while a filter on Sales alone loses them and a filter on SalesAgg alone isn't allowed. SQL Server Profiler shows whether each subquery used the aggregation in the Aggregate Table Rewrite Query event.
+        fr: |
+          Une relation est régulière quand le côté « un » est DirectQuery ou Double pour un côté « plusieurs » DirectQuery, et Import ou Double pour un côté « plusieurs » Import : seules des dimensions en mode Double gardent régulières les relations de Sales et de SalesAgg. La sécurité au niveau des lignes doit filtrer à la fois la table d'agrégation et la table de détails : filtrer Product, reliée aux deux, conserve les correspondances, alors qu'un filtre sur Sales seule les perd et qu'un filtre sur SalesAgg seule n'est pas autorisé. SQL Server Profiler montre si chaque sous-requête a utilisé l'agrégation dans l'événement Aggregate Table Rewrite Query.
+      options:
+        import: { en: "Import dimensions make the relationships from the DirectQuery Sales table cross-source and limited.", fr: "Des dimensions Import rendent les relations de la table DirectQuery Sales inter-sources et limitées." }
+        dq: { en: "DirectQuery dimensions make the relationships from the Import SalesAgg table limited.", fr: "Des dimensions DirectQuery rendent limitées les relations de la table Import SalesAgg." }
+        sales: { en: "A role that filters only the detail table works, but its users' queries no longer hit the aggregation.", fr: "Un rôle qui ne filtre que la table de détails fonctionne, mais les requêtes de ses utilisateurs n'atteignent plus l'agrégation." }
+        agg: { en: "An RLS expression that filters only the aggregation table and not the detail table isn't allowed.", fr: "Une expression de sécurité au niveau des lignes qui filtre seulement la table d'agrégation, et pas la table de détails, n'est pas autorisée." }
+    references:
+      - title: User-defined aggregations
+        url: https://learn.microsoft.com/en-us/power-bi/transform-model/aggregations-advanced
+
+  # ------------------------------------------------------------------ 7
+  - id: dp600-qz-32-07
+    objective: "3.2.3"
+    difficulty: 3
+    status: draft
+    type: ordering
+    stem:
+      en: |
+        Contoso has a Fabric workspace on an F16 capacity. The workspace contains a lakehouse named **Lakehouse1** and a Direct Lake on SQL analytics endpoint semantic model named **OpsModel** that uses the default Direct Lake behavior. **Keep your Direct Lake data up to date** is turned off, because a nightly pipeline loads Lakehouse1 and then refreshes OpsModel.
+
+        Since many small loads were added to the **readings** Delta table, the visuals that use it are slow, and Performance analyzer shows Direct query durations. You suspect that the table exceeds a Direct Lake guardrail.
+
+        Before you change anything, you need to confirm the fallback reason of each table. You then need to fix the cause without changing the capacity, and make the fix visible to users before the next pipeline run. Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+      fr: |
+        Contoso dispose d'un espace de travail Fabric sur une capacité F16. L'espace de travail contient un lakehouse nommé **Lakehouse1** et un modèle sémantique Direct Lake sur le point de terminaison d'analytique SQL nommé **OpsModel** qui utilise le comportement Direct Lake par défaut. **Keep your Direct Lake data up to date** est désactivé, car un pipeline nocturne charge Lakehouse1 puis actualise OpsModel.
+
+        Depuis que de nombreux petits chargements ont été ajoutés à la table Delta **readings**, les visuels qui l'utilisent sont lents, et l'Analyseur de performances affiche des durées Direct query. Vous soupçonnez que la table dépasse un garde-fou Direct Lake.
+
+        Avant de modifier quoi que ce soit, vous devez confirmer la raison de basculement de chaque table. Vous devez ensuite corriger la cause sans changer de capacité et rendre la correction visible aux utilisateurs avant la prochaine exécution du pipeline. Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+    body:
+      count: 3
+      actions:
+        - id: traits
+          text:
+            en: "Run `EVALUATE TABLETRAITS()` against OpsModel and review the DirectLakeFallbackInfo column."
+            fr: "Exécuter `EVALUATE TABLETRAITS()` sur OpsModel et examiner la colonne DirectLakeFallbackInfo."
+        - id: optimize
+          text:
+            en: "Run OPTIMIZE and then VACUUM on the readings Delta table."
+            fr: "Exécuter OPTIMIZE puis VACUUM sur la table Delta readings."
+        - id: refresh
+          text:
+            en: "Run an on-demand refresh of OpsModel."
+            fr: "Lancer une actualisation à la demande d'OpsModel."
+        - id: dqonly
+          text:
+            en: "Set the **Direct Lake behavior** property of OpsModel to DirectQueryOnly."
+            fr: "Définir la propriété **Direct Lake behavior** d'OpsModel sur DirectQueryOnly."
+        - id: profiler
+          text:
+            en: "Run a SQL Server Profiler trace on OpsModel and review the DirectQuery events."
+            fr: "Exécuter une trace SQL Server Profiler sur OpsModel et examiner les événements DirectQuery."
+        - id: f64
+          text:
+            en: "Assign the workspace to an F64 capacity to raise the guardrails."
+            fr: "Attribuer l'espace de travail à une capacité F64 pour relever les garde-fous."
+    answer:
+      sequence: [ traits, optimize, refresh ]
+    explanation:
+      correct:
+        en: |
+          TABLETRAITS returns the fallback reason of each table in DirectLakeFallbackInfo, None meaning Direct Lake. OPTIMIZE compacts the many small Parquet files and row groups below the F16 guardrails. Because automatic updates are off, OpsModel stays framed on the old version of the table until a refresh runs, so the on-demand refresh is what makes the compacted table visible.
+        fr: |
+          TABLETRAITS renvoie la raison de basculement de chaque table dans DirectLakeFallbackInfo, None signifiant Direct Lake. OPTIMIZE compacte les nombreux petits fichiers Parquet et groupes de lignes sous les garde-fous de la F16. Comme les mises à jour automatiques sont désactivées, OpsModel reste cadré sur l'ancienne version de la table jusqu'à une actualisation : c'est l'actualisation à la demande qui rend la table compactée visible.
+      options:
+        dqonly: { en: "DirectQueryOnly forces every query to DirectQuery: it measures fallback performance but fixes nothing.", fr: "DirectQueryOnly force toutes les requêtes en DirectQuery : il mesure les performances en basculement mais ne corrige rien." }
+        profiler: { en: "A trace shows that queries run in DirectQuery, but not the reason of each table.", fr: "Une trace montre que les requêtes s'exécutent en DirectQuery, mais pas la raison pour chaque table." }
+        f64: { en: "A larger SKU raises the guardrails but changes the capacity, which the requirements exclude.", fr: "Une référence SKU plus grande relève les garde-fous mais change la capacité, ce que les exigences excluent." }
+    references:
+      - title: How Direct Lake works
+        url: https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-how-it-works
+      - title: Direct Lake overview
+        url: https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-overview
+
+  # ------------------------------------------------------------------ 8
+  - id: dp600-qz-32-08
+    objective: "3.2.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind has a semantic model named **FinanceModel** in a workspace on an F64 capacity. The XMLA endpoint is enabled for read-write. The **FactLedger** table has an incremental refresh policy that archives six years of data, with one partition per complete year, and incrementally refreshes the last month. FactLedger has a LastModified column that the source updates when a row changes. A scheduled refresh runs every night.
+
+        The accounting team restated the entries of 2023 in the source system. You need FinanceModel to show the restated 2023 figures tomorrow. The solution must not reload the other partitions or change the policy. What should you do?
+      fr: |
+        Northwind dispose d'un modèle sémantique nommé **FinanceModel** dans un espace de travail sur une capacité F64. Le point de terminaison XMLA est activé en lecture-écriture. La table **FactLedger** a une stratégie d'actualisation incrémentielle qui archive six ans de données, avec une partition par année complète, et actualise de façon incrémentielle le dernier mois. FactLedger a une colonne LastModified que la source met à jour quand une ligne change. Une actualisation planifiée s'exécute chaque nuit.
+
+        L'équipe comptable a retraité les écritures de 2023 dans le système source. Vous devez faire en sorte que FinanceModel affiche demain les chiffres retraités de 2023. La solution ne doit ni recharger les autres partitions, ni modifier la stratégie. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Run an on-demand refresh of FinanceModel in the Power BI service tonight.", fr: "Lancer ce soir une actualisation à la demande de FinanceModel dans le service Power BI." } }
+        - { id: b, text: { en: "Turn on Detect data changes with the LastModified column, and wait for the scheduled refresh.", fr: "Activer Detect data changes avec la colonne LastModified, puis attendre l'actualisation planifiée." } }
+        - { id: c, text: { en: "Connect to FinanceModel with SSMS through the XMLA endpoint, and refresh the 2023 partition.", fr: "Se connecter à FinanceModel avec SSMS via le point de terminaison XMLA, puis actualiser la partition 2023." } }
+        - { id: d, text: { en: "In Power BI Desktop, extend the refresh period to three years, and republish FinanceModel.", fr: "Dans Power BI Desktop, étendre la période d'actualisation à trois ans, puis republier FinanceModel." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A refresh under the policy reloads only the partitions of the refresh period, so the 2023 partition is never refreshed again on its own. Through the read-write XMLA endpoint, SSMS can refresh one specific historical partition to apply a back-dated update, without touching the other partitions or the policy.
+        fr: |
+          Une actualisation soumise à la stratégie ne recharge que les partitions de la période d'actualisation : la partition 2023 n'est plus jamais actualisée d'elle-même. Via le point de terminaison XMLA en lecture-écriture, SSMS peut actualiser une partition historique précise pour appliquer une mise à jour rétroactive, sans toucher aux autres partitions ni à la stratégie.
+      options:
+        a: { en: "An on-demand refresh applies the policy too: it reloads the last month only, not 2023.", fr: "Une actualisation à la demande applique aussi la stratégie : elle ne recharge que le dernier mois, pas 2023." }
+        b: { en: "Detect data changes is evaluated only for the periods of the incremental refresh range, which excludes 2023, and adding it changes the policy.", fr: "Detect data changes n'est évalué que pour les périodes de la plage d'actualisation incrémentielle, qui exclut 2023, et l'ajouter modifie la stratégie." }
+        d: { en: "This changes the policy, and republishing from Power BI Desktop removes the existing partitions and their data.", fr: "Cela modifie la stratégie, et republier depuis Power BI Desktop supprime les partitions existantes et leurs données." }
+    references:
+      - title: Advanced incremental refresh and real-time data with the XMLA endpoint
+        url: https://learn.microsoft.com/en-us/power-bi/connect-data/incremental-refresh-xmla
+      - title: Configure incremental refresh and real-time data for Power BI semantic models
+        url: https://learn.microsoft.com/en-us/power-bi/connect-data/incremental-refresh-overview
+
+  # ------------------------------------------------------------------ 9
+  - id: dp600-qz-32-09
+    objective: "3.2.4"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Litware has a Fabric workspace that contains a lakehouse named **Lakehouse1**, with an Orders table, and a warehouse named **Warehouse1**, with the Customer and Product tables. You are creating a semantic model named **SalesModel** for the sales representatives. You have the following requirements:
+
+        - SalesModel must use the tables of both items in Direct Lake mode, without shortcuts or copies.
+        - A role defined in SalesModel must limit each representative to the rows of their region.
+        - The representatives must not be able to query Lakehouse1 or Warehouse1 directly.
+
+        You create SalesModel as a Direct Lake on OneLake model. For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware dispose d'un espace de travail Fabric qui contient un lakehouse nommé **Lakehouse1**, avec une table Orders, et un entrepôt nommé **Warehouse1**, avec les tables Customer et Product. Vous créez un modèle sémantique nommé **SalesModel** pour les commerciaux. Vous avez les exigences suivantes :
+
+        - SalesModel doit utiliser les tables des deux éléments en mode Direct Lake, sans raccourcis ni copies.
+        - Un rôle défini dans SalesModel doit limiter chaque commercial aux lignes de sa région.
+        - Les commerciaux ne doivent pas pouvoir interroger directement Lakehouse1 ou Warehouse1.
+
+        Vous créez SalesModel comme modèle Direct Lake sur OneLake. Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: "With the default single sign-on (SSO) connection, each representative needs Read on Lakehouse1 and either ReadAll or a OneLake security role to view the reports."
+            fr: "Avec la connexion par défaut à authentification unique (SSO), chaque commercial a besoin de Read sur Lakehouse1 et soit de ReadAll, soit d'un rôle de sécurité OneLake pour afficher les rapports."
+        - id: s2
+          text:
+            en: "With a fixed identity cloud connection and SSO disabled, the representatives need no permission on Lakehouse1 or Warehouse1 to view the reports."
+            fr: "Avec une connexion cloud à identité fixe et SSO désactivé, les commerciaux n'ont besoin d'aucune autorisation sur Lakehouse1 ou Warehouse1 pour afficher les rapports."
+        - id: s3
+          text:
+            en: "With a fixed identity cloud connection and SSO disabled, a OneLake security role of Lakehouse1 that limits each representative to their region also filters the Orders rows that they see in the reports."
+            fr: "Avec une connexion cloud à identité fixe et SSO désactivé, un rôle de sécurité OneLake de Lakehouse1 qui limite chaque commercial à sa région filtre aussi les lignes Orders qu'il voit dans les rapports."
+    answer:
+      values: { s1: true, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          With SSO, Direct Lake on OneLake checks that the user can read the files in OneLake: Read on the item plus ReadAll or a OneLake security role, which would let the representatives reach the data outside the model and bypass its role. With a fixed identity and SSO disabled, only the fixed identity needs access to the items, so the representatives get only Read on the model and its reports, as the requirements expect. The fixed identity's permissions then decide what Direct Lake reads, so a OneLake security role of a representative doesn't filter the report; the role defined in SalesModel does.
+        fr: |
+          Avec SSO, Direct Lake sur OneLake vérifie que l'utilisateur peut lire les fichiers dans OneLake : Read sur l'élément plus ReadAll ou un rôle de sécurité OneLake, ce qui permettrait aux commerciaux d'atteindre les données hors du modèle et de contourner son rôle. Avec une identité fixe et SSO désactivé, seule l'identité fixe a besoin d'accéder aux éléments : les commerciaux reçoivent seulement Read sur le modèle et ses rapports, comme le veulent les exigences. Les autorisations de l'identité fixe décident alors de ce que Direct Lake lit : un rôle de sécurité OneLake d'un commercial ne filtre pas le rapport ; c'est le rôle défini dans SalesModel qui le fait.
+      options:
+        s3: { en: "With a fixed identity and SSO disabled, OneLake permissions are evaluated for the fixed identity, not for the representative who opens the report.", fr: "Avec une identité fixe et SSO désactivé, les autorisations OneLake sont évaluées pour l'identité fixe, pas pour le commercial qui ouvre le rapport." }
+    references:
+      - title: Integrate Direct Lake security
+        url: https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-security-integration
+      - title: Direct Lake overview
+        url: https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-overview
+
+  # ------------------------------------------------------------------ 10
+  - id: dp600-qz-32-10
+    objective: "3.2.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Tailspin Toys has a semantic model that contains a **Customer** table of 250,000 rows and a **Sales** table of 600 million rows, related one-to-many on CustomerKey. The [Sales] measure is `SUM ( Sales[Amount] )`, and the [Target] measure returns the sales target of the customers in the filter context.
+
+        A matrix shows a measure named Customers Above Target by store and by month. It's defined as `SUMX ( Customer, IF ( [Sales] > [Target], 1, 0 ) )`. The matrix is slow and lists every store and month, with 0 in the cells that have no qualifying customer.
+
+        You need to rewrite the measure. It must count the customers of the filter context whose sales exceed their target, leave the cells without such a customer empty, and use the most efficient DAX. How should you complete the DAX expression? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin Toys dispose d'un modèle sémantique qui contient une table **Customer** de 250 000 lignes et une table **Sales** de 600 millions de lignes, reliées en un-à-plusieurs sur CustomerKey. La mesure [Sales] vaut `SUM ( Sales[Amount] )`, et la mesure [Target] renvoie l'objectif de ventes des clients du contexte de filtre.
+
+        Une matrice affiche une mesure nommée Customers Above Target par magasin et par mois. Elle est définie par `SUMX ( Customer, IF ( [Sales] > [Target], 1, 0 ) )`. La matrice est lente et liste chaque magasin et chaque mois, avec 0 dans les cellules qui n'ont aucun client qualifié.
+
+        Vous devez réécrire la mesure. Elle doit compter les clients du contexte de filtre dont les ventes dépassent leur objectif, laisser vides les cellules sans client de ce type et utiliser le DAX le plus efficace. Comment devez-vous compléter l'expression DAX ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: text
+      template: |
+        Customers Above Target =
+        VAR _Customers =
+            FILTER (
+                [[tbl]],
+                [[cond]]
+            )
+        RETURN
+            [[ret]]
+      slots:
+        - id: tbl
+          options:
+            - { id: values, text: "VALUES ( Customer[CustomerKey] )" }
+            - { id: customer, text: "Customer" }
+            - { id: sales, text: "Sales" }
+        - id: cond
+          options:
+            - { id: measures, text: "[Sales] > [Target]" }
+            - { id: sum, text: "SUM ( Sales[Amount] ) > [Target]" }
+            - { id: column, text: "Sales[Amount] > [Target]" }
+        - id: ret
+          options:
+            - { id: countrows, text: "COUNTROWS ( _Customers )" }
+            - { id: plus0, text: "COUNTROWS ( _Customers ) + 0" }
+            - { id: isempty, text: "IF ( ISEMPTY ( _Customers ), 0, COUNTROWS ( _Customers ) )" }
+            - { id: count, text: "COUNT ( Customer[CustomerKey] )" }
+    answer:
+      values: { tbl: values, cond: measures, ret: countrows }
+    explanation:
+      correct:
+        en: |
+          The condition compares two measures, so it needs FILTER, and iterating VALUES of the key column is cheaper than iterating the whole Customer table while returning the same customers. Measure references trigger context transition, so [Sales] and [Target] are evaluated for each customer within the store and month of the cell. COUNTROWS returns BLANK for an empty table, so the cells without a qualifying customer stay empty and the matrix no longer lists every combination.
+        fr: |
+          La condition compare deux mesures : elle exige FILTER, et itérer VALUES de la colonne clé coûte moins cher qu'itérer toute la table Customer tout en renvoyant les mêmes clients. Les références de mesures déclenchent la transition de contexte : [Sales] et [Target] sont évaluées pour chaque client dans le magasin et le mois de la cellule. COUNTROWS renvoie BLANK pour une table vide : les cellules sans client qualifié restent vides et la matrice ne liste plus toutes les combinaisons.
+      options:
+        customer: { en: "Customer returns the same count, but FILTER then iterates whole rows of the table instead of one column.", fr: "Customer renvoie le même nombre, mais FILTER itère alors des lignes entières de la table au lieu d'une seule colonne." }
+        sales: { en: "Iterating Sales evaluates the measures for each of 600 million order lines and counts lines, not customers.", fr: "Itérer Sales évalue les mesures pour chacune des 600 millions de lignes de commande et compte des lignes, pas des clients." }
+        sum: { en: "SUM without CALCULATE causes no context transition: it returns the sales of the whole cell for every customer.", fr: "SUM sans CALCULATE ne provoque pas de transition de contexte : il renvoie les ventes de toute la cellule pour chaque client." }
+        column: { en: "There is no row context on Sales inside an iteration over customers, so Sales[Amount] can't be referenced.", fr: "Il n'y a pas de contexte de ligne sur Sales dans une itération sur les clients : Sales[Amount] ne peut pas être référencé." }
+        plus0: { en: "Adding 0 turns blanks into zeros, so the matrix again lists every store and month.", fr: "Ajouter 0 transforme les vides en zéros : la matrice liste de nouveau chaque magasin et chaque mois." }
+        isempty: { en: "Returning 0 for empty cells has the same effect as converting blanks to zeros.", fr: "Renvoyer 0 pour les cellules vides a le même effet que convertir les vides en zéros." }
+        count: { en: "COUNT ignores the _Customers variable and counts every customer of the filter context.", fr: "COUNT ignore la variable _Customers et compte tous les clients du contexte de filtre." }
+    references:
+      - title: Avoid using FILTER as a filter argument in DAX
+        url: https://learn.microsoft.com/en-us/dax/best-practices/dax-avoid-avoid-filter-as-filter-argument
+      - title: COUNTROWS function (DAX)
+        url: https://learn.microsoft.com/en-us/dax/countrows-function-dax

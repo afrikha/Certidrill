@@ -30,7 +30,7 @@ Partition key: match the dominant query.
 
 Because short-term and long-term memory are read differently (by thread versus by user), a common design uses two containers: `turns` partitioned by tenant then thread, and `memories` partitioned by tenant then user.
 
-Indexing: `quantizedFlat` for tens of thousands of memory vectors, `diskANN` for hundreds of thousands to billions, with `vectorIndexShardKey` set to the partition key or its first level for multitenant isolation; a full-text index on the content for lexical recall ("refund policy", an order number). The embedding path must be declared in the container's vector policy.
+Indexing: `quantizedFlat` for tens of thousands of memory vectors, `diskANN` for hundreds of thousands to billions, with `vectorIndexShardKey` set to the partition key or its first level for multitenant isolation; a full-text index on the content for lexical recall ("refund policy", an order number). The embedding path must be declared in the container's vector policy. Vector search on a container with a hierarchical partition key, such as `["/tenantId", "/threadId"]`, needs the account to be configured by the Azure Cosmos DB team first (contact on the vector search page).
 
 Retention and privacy:
 

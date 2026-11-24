@@ -193,11 +193,13 @@ GROUP BY DATE(order_ts);
 
 `STREAM` gives streaming semantics: the source must be append-only, otherwise use the `skipChangeCommits` option. The materialized view reads `orders_silver` without `STREAM`, as a batch.
 
+Unity Catalog pipelines that use the default publishing mode also accept `CREATE VIEW`: the view is created in the pipeline's target catalog and schema, but it accepts no expectations, can't contain a streaming query and can't be a streaming source. A `CREATE TEMPORARY VIEW` is private to the pipeline and isn't added to the catalog.
+
 Settings and run behavior:
 
 | Setting | Values |
 | --- | --- |
-| Pipeline mode | **Triggered** (default): processes the available data, then stops. **Continuous**: processes data as it arrives on an always-running cluster |
+| Pipeline mode | **Triggered** (default): processes the available data, then stops. **Continuous**: processes data as it arrives on an always-running cluster. For new continuous pipelines, Databricks recommends a **continuous job** with the mode left at Triggered (built-in Continuous is discouraged); a job that runs the pipeline always overrides this setting |
 | Run as | Identity that runs the pipeline and owns its tables; a service principal is recommended |
 | Configuration / parameters | Spark settings and key-value parameters referenced by the source code |
 | Classic compute (if not serverless) | Policy, enhanced autoscaling, min and max workers, Photon |
@@ -215,4 +217,4 @@ A manual **Run now** from the editor reuses the cluster and disables retries, fo
 - Pass values with task values (`{{tasks.<task>.values.<key>}}`) and job parameters; If/else `==` compares strings.
 - Handle errors visibly: re-raise, idempotent writes for retries, timeouts per retry.
 - `dbutils.notebook.run` returns the string from `dbutils.notebook.exit` and raises on failure; `%run` inlines code.
-- Pipelines: streaming tables for append-only sources, materialized views for joins and aggregates; triggered by default, serverless by default.
+- Pipelines: streaming tables for append-only sources, materialized views for joins and aggregates; triggered by default, serverless by default; continuous processing through a continuous job.

@@ -23,7 +23,7 @@ VACUUM dbo.sales RETAIN 168 HOURS                   -- remove unreferenced files
 | Optimisation rapide (fast optimize) | Ignore les lots peu susceptibles d'atteindre la taille cible | Se définit avec `spark.microsoft.delta.optimize.fast.enabled` |
 | `VACUUM` | Supprime les fichiers qui ne sont plus référencés et plus anciens que la rétention | 7 jours ; une rétention plus courte échoue sauf si `spark.databricks.delta.retentionDurationCheck.enabled` vaut `false` |
 
-V-Order se définit à trois niveaux : la session (`spark.sql.parquet.vorder.default`), la table (`TBLPROPERTIES("delta.parquet.vorder.enabled" = "true")`) et une écriture (`.option("parquet.vorder.enabled", "true")`). Les paramètres de session et d'écriture l'emportent sur la propriété de table. Modifier la propriété n'affecte que les écritures futures : les fichiers existants gardent leur disposition jusqu'à leur réécriture, par exemple par `OPTIMIZE ... VORDER`.
+V-Order se définit à trois niveaux : la session (`spark.sql.parquet.vorder.default`), la table (`TBLPROPERTIES("delta.parquet.vorder.enabled" = "true")`) et une écriture (`.option("parquet.vorder.enabled", "true")`). Les paramètres de session et d'écriture l'emportent sur la propriété de table, et une session réglée sur `true` applique V-Order à toutes les écritures, même celle dont l'option `parquet.vorder.enabled` vaut `false`. Modifier la propriété n'affecte que les écritures futures : les fichiers existants gardent leur disposition jusqu'à leur réécriture, par exemple par `OPTIMIZE ... VORDER`.
 
 Les **profils de ressources** définissent ces options ensemble (`spark.fabric.resourceProfile`, dans un environnement ou avec `spark.conf.set` à l'exécution ; l'exécution l'emporte) :
 
@@ -34,7 +34,7 @@ Les **profils de ressources** définissent ces options ensemble (`spark.fabric.r
 | `readHeavyForSpark` | Lectures Spark fréquentes | Écriture optimisée activée (lots de 128 Mo) |
 | `custom` | Vos propres paramètres | Définis par l'utilisateur |
 
-Sans code, l'explorateur du lakehouse propose **Maintenance** sur une table : **Optimize** (avec **Apply V-order**), **Vacuum** (seuil de rétention, 7 jours par défaut) et **Merge deletion vectors**, exécutés comme une tâche visible dans le hub de surveillance. Un pipeline peut lancer la même tâche avec l'activité Lakehouse Maintenance (préversion). La maintenance ne s'applique qu'aux tables Delta.
+Sans code, l'explorateur du lakehouse lance la maintenance d'une table : vous activez (**On**) le compactage (`OPTIMIZE`, avec la case **Apply V-order**), `VACUUM` (rétention de 7 jours par défaut) et la fusion des vecteurs de suppression, puis sélectionnez **Run now** ; la tâche apparaît dans les notifications et dans le hub de surveillance. Un pipeline peut lancer la même tâche avec l'activité Lakehouse Maintenance (préversion). La maintenance ne s'applique qu'aux tables Delta.
 
 **Partitionnement.** Ne partitionnez que les grandes tables, sur une colonne à faible cardinalité (année, date) qui produit des partitions d'environ 1 Go ou plus ; une colonne à forte cardinalité crée une partition par valeur et beaucoup de petits fichiers.
 
@@ -121,7 +121,7 @@ Une source Azure Event Hubs de moins de quatre partitions est limitée par ses p
 | Stratégie de mise à jour | Transforme les données une seule fois à l'ingestion (analyse JSON, conversion du temps Unix) au lieu de chaque requête | `.alter table ... policy update` |
 | Vue matérialisée | Précalcule une agrégation, tenue à jour à l'arrivée des données | `.create materialized-view` |
 
-La période de mise en cache doit être inférieure ou égale à la période de rétention. Un temps de traitement par lots trop court augmente le coût et peut même ajouter de la latence sur les tables chargées.
+Les deux stratégies sont indépendantes : la rétention fixe la durée pendant laquelle les données restent interrogeables, la mise en cache la part qui reste dans le cache chaud (gardez la période chaude dans la rétention). Par défaut, la stratégie de mise en cache effective est `null` : toutes les données sont chaudes. Un temps de traitement par lots trop court augmente le coût et peut même ajouter de la latence sur les tables chargées.
 
 ```kusto
 // Keep only the latest reading per device, maintained at ingestion
@@ -148,7 +148,7 @@ Une vue matérialisée se termine par un seul `summarize` (les agrégations pris
 | Pool de démarrage plus bibliothèques | Ajouter 30 secondes à 5 minutes | Préférer un environnement dont les bibliothèques sont publiées une fois |
 | Mode haute concurrence | Réutilise une session en cours | Plusieurs notebooks partagent une session Spark |
 
-Tailles de nœuds : Small 4 vCores et 32 Go, Medium 8 et 64 Go, Large 16 et 128 Go, X-Large 32 et 256 Go, XX-Large 64 et 512 Go. La mise à l'échelle automatique fixe un minimum et un maximum de nœuds ; l'**allocation dynamique** ajoute et libère des exécuteurs selon les besoins du travail. Une capacité donne 2 VCores Spark par unité de capacité, avec une rafale de 3x : une F64 permet 384 VCores au total.
+Tailles de nœuds : Small 4 vCores et 32 Go, Medium 8 et 64 Go, Large 16 et 128 Go, X-Large 32 et 256 Go, XX-Large 64 et 512 Go. La mise à l'échelle automatique fixe un minimum et un maximum de nœuds ; l'**allocation dynamique** ajoute et libère des exécuteurs selon les besoins du travail. Une capacité donne 2 VCores Spark par unité de capacité, avec une rafale de 3x : une F64 permet 384 VCores au total (une F2 monte à 20 VCores, et une capacité d'évaluation n'a pas de rafale).
 
 **Moteur d'exécution natif.** Un moteur vectorisé (Velox et Apache Gluten) exécute les opérateurs Spark pris en charge hors de la JVM, sans modification du code, sur les runtimes 1.3 et 2.0. Il accélère Parquet, Delta et CSV ; les opérations non prises en charge (JSON, XML, Structured Streaming) basculent automatiquement sur le moteur habituel. Activez-le dans l'environnement (**Spark compute** > **Acceleration** > **Enable native execution engine**) ou par session :
 

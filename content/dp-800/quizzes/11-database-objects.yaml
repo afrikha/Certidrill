@@ -1,0 +1,549 @@
+chapter: 11-database-objects
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp800-qz-11-01
+    objective: "1.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso is creating a table named **Sales.Invoice** in an Azure SQL database. The clustered primary key is a uniqueidentifier column named **InvoiceID**, and the database must generate its value when a row is inserted.
+
+        You need to minimize page splits and fragmentation in the clustered index. What should you use for InvoiceID?
+      fr: |
+        Contoso crée une table nommée **Sales.Invoice** dans une base de données Azure SQL. La clé primaire cluster est une colonne uniqueidentifier nommée **InvoiceID**, et la base de données doit générer sa valeur lors de l'insertion d'une ligne.
+
+        Vous devez réduire au minimum les fractionnements de pages et la fragmentation de l'index cluster. Que devez-vous utiliser pour InvoiceID ?
+    body:
+      options:
+        - { id: a, text: { en: "A DEFAULT constraint that calls NEWID()", fr: "Une contrainte DEFAULT qui appelle NEWID()" } }
+        - { id: b, text: { en: "A DEFAULT constraint that calls NEWSEQUENTIALID()", fr: "Une contrainte DEFAULT qui appelle NEWSEQUENTIALID()" } }
+        - { id: c, text: { en: "The ROWGUIDCOL property, without a DEFAULT constraint", fr: "La propriété ROWGUIDCOL, sans contrainte DEFAULT" } }
+        - { id: d, text: { en: "A DEFAULT constraint that calls NEXT VALUE FOR a sequence", fr: "Une contrainte DEFAULT qui appelle NEXT VALUE FOR sur une séquence" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          NEWSEQUENTIALID() generates GUIDs that increase on the server, so new rows are added at the end of the clustered index instead of at random positions. This reduces page splits and random I/O at the leaf level. It can be used only in a DEFAULT constraint of a uniqueidentifier column.
+        fr: |
+          NEWSEQUENTIALID() génère des GUID croissants sur le serveur : les nouvelles lignes s'ajoutent à la fin de l'index cluster au lieu d'être placées à des positions aléatoires. Cela réduit les fractionnements de pages et les E/S aléatoires au niveau feuille. La fonction n'est utilisable que dans une contrainte DEFAULT d'une colonne uniqueidentifier.
+      options:
+        a: { en: "NEWID() returns random GUIDs: each insert lands at a random place in the clustered index and causes page splits.", fr: "NEWID() retourne des GUID aléatoires : chaque insertion arrive à un endroit aléatoire de l'index cluster et provoque des fractionnements de pages." }
+        c: { en: "ROWGUIDCOL only marks the column as the row GUID column; it doesn't generate any value, so inserts without a value would fail on the NOT NULL key.", fr: "ROWGUIDCOL marque seulement la colonne comme colonne GUID de ligne ; elle ne génère aucune valeur, et les insertions sans valeur échoueraient sur la clé NOT NULL." }
+        d: { en: "A sequence returns integer or decimal (scale 0) values, not uniqueidentifier values.", fr: "Une séquence retourne des valeurs entières ou décimales (échelle 0), pas des valeurs uniqueidentifier." }
+    references:
+      - title: NEWSEQUENTIALID (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/newsequentialid-transact-sql
+      - title: CREATE TABLE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-table-transact-sql
+
+  # ------------------------------------------------------------------ 2
+  - id: dp800-qz-11-02
+    objective: "1.1.5"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind has a sequence created by the following statement.
+
+        ```sql
+        CREATE SEQUENCE Sales.OrderNumber
+            AS int
+            START WITH 100000
+            INCREMENT BY 1
+            MINVALUE 100000
+            NO MAXVALUE;
+        ```
+
+        After a data migration, the next order number returned by the sequence must be 500000. Which statement should you run?
+      fr: |
+        Northwind dispose d'une séquence créée par l'instruction suivante.
+
+        ```sql
+        CREATE SEQUENCE Sales.OrderNumber
+            AS int
+            START WITH 100000
+            INCREMENT BY 1
+            MINVALUE 100000
+            NO MAXVALUE;
+        ```
+
+        Après une migration de données, le prochain numéro de commande retourné par la séquence doit être 500000. Quelle instruction devez-vous exécuter ?
+    body:
+      options:
+        - { id: a, text: "ALTER SEQUENCE Sales.OrderNumber START WITH 500000;" }
+        - { id: b, text: "DBCC CHECKIDENT ('Sales.OrderNumber', RESEED, 500000);" }
+        - { id: c, text: "ALTER SEQUENCE Sales.OrderNumber RESTART WITH 500000;" }
+        - { id: d, text: "EXECUTE sys.sp_sequence_get_range @sequence_name = N'Sales.OrderNumber', @range_size = 400000;" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          ALTER SEQUENCE ... RESTART WITH sets the next value that the sequence returns. The value must lie between the minimum and the maximum of the sequence, which is the case for 500000 here.
+        fr: |
+          ALTER SEQUENCE ... RESTART WITH définit la prochaine valeur retournée par la séquence. La valeur doit se situer entre le minimum et le maximum de la séquence, ce qui est le cas de 500000 ici.
+      options:
+        a: { en: "START WITH is a CREATE SEQUENCE option; ALTER SEQUENCE repositions a sequence only with RESTART.", fr: "START WITH est une option de CREATE SEQUENCE ; ALTER SEQUENCE ne repositionne une séquence qu'avec RESTART." }
+        b: { en: "DBCC CHECKIDENT reseeds the IDENTITY property of a table; it doesn't apply to a sequence object.", fr: "DBCC CHECKIDENT réinitialise la propriété IDENTITY d'une table ; il ne s'applique pas à un objet séquence." }
+        d: { en: "sp_sequence_get_range reserves a block of values for the caller; the next value then depends on the current value, and the reserved numbers are skipped instead of being set precisely.", fr: "sp_sequence_get_range réserve un bloc de valeurs pour l'appelant ; la valeur suivante dépend alors de la valeur actuelle, et les numéros réservés sont sautés au lieu d'être fixés précisément." }
+    references:
+      - title: ALTER SEQUENCE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-sequence-transact-sql
+
+  # ------------------------------------------------------------------ 3
+  - id: dp800-qz-11-03
+    objective: "1.1.4"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Fabrikam has a table named **Sales.Shipment** with the columns **OrderDate** (date NOT NULL) and **ShipDate** (date NULL). ShipDate stays NULL until the order ships. You plan to add the following constraint.
+
+        ```sql
+        ALTER TABLE Sales.Shipment
+            ADD CONSTRAINT CK_Shipment_Dates CHECK (ShipDate >= OrderDate);
+        ```
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam dispose d'une table nommée **Sales.Shipment** avec les colonnes **OrderDate** (date NOT NULL) et **ShipDate** (date NULL). ShipDate reste NULL jusqu'à l'expédition de la commande. Vous prévoyez d'ajouter la contrainte suivante.
+
+        ```sql
+        ALTER TABLE Sales.Shipment
+            ADD CONSTRAINT CK_Shipment_Dates CHECK (ShipDate >= OrderDate);
+        ```
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: The same rule could be declared as a column-level CHECK constraint in the definition of the ShipDate column.
+            fr: La même règle pourrait être déclarée comme contrainte CHECK au niveau de la colonne, dans la définition de la colonne ShipDate.
+        - id: s2
+          text:
+            en: After the constraint is added, an UPDATE that sets the OrderDate of a shipped order to a date after its ShipDate fails.
+            fr: Une fois la contrainte ajoutée, une instruction UPDATE qui donne à OrderDate d'une commande expédiée une date postérieure à son ShipDate échoue.
+        - id: s3
+          text:
+            en: You can add DEFAULT (OrderDate) to the ShipDate column so that a row inserted without a ship date takes the order date.
+            fr: Vous pouvez ajouter DEFAULT (OrderDate) à la colonne ShipDate pour qu'une ligne insérée sans date d'expédition prenne la date de commande.
+    answer:
+      values: { s1: false, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          A rule that compares two columns is a table-level CHECK constraint: a column-level CHECK can reference only its own column. The constraint is checked on every INSERT and UPDATE of the row, whichever of the two columns changes, so the UPDATE fails. A DEFAULT can be a constant, a scalar function or NULL, but it can't reference another column.
+        fr: |
+          Une règle qui compare deux colonnes est une contrainte CHECK au niveau de la table : une contrainte CHECK au niveau d'une colonne ne peut référencer que sa propre colonne. La contrainte est vérifiée à chaque INSERT et UPDATE de la ligne, quelle que soit la colonne modifiée : l'instruction UPDATE échoue donc. Un DEFAULT peut être une constante, une fonction scalaire ou NULL, mais il ne peut pas référencer une autre colonne.
+      options:
+        s1: { en: "A column-level CHECK constraint on ShipDate can't reference OrderDate; the comparison must be a table-level constraint.", fr: "Une contrainte CHECK au niveau de la colonne ShipDate ne peut pas référencer OrderDate ; la comparaison doit être une contrainte au niveau de la table." }
+        s3: { en: "Column names aren't allowed in a DEFAULT definition; only a constant, a scalar function or NULL can be used.", fr: "Les noms de colonnes ne sont pas autorisés dans une définition DEFAULT ; seuls une constante, une fonction scalaire ou NULL peuvent être utilisés." }
+    references:
+      - title: CREATE TABLE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-table-transact-sql
+
+  # ------------------------------------------------------------------ 4
+  - id: dp800-qz-11-04
+    objective: "1.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum has a SQL Server 2025 database. The **Sales.CustomerProfile** table has a clustered primary key and a json column named **Profile**. The following index already exists.
+
+        ```sql
+        CREATE JSON INDEX JX_Profile
+            ON Sales.CustomerProfile (Profile)
+            FOR ('$.tier');
+        ```
+
+        A new query filters on `JSON_VALUE(Profile, '$.address.city')`. You need a JSON index to serve the filters on both `$.tier` and `$.address.city`.
+
+        What should you do?
+      fr: |
+        Adatum dispose d'une base de données SQL Server 2025. La table **Sales.CustomerProfile** a une clé primaire cluster et une colonne json nommée **Profile**. L'index suivant existe déjà.
+
+        ```sql
+        CREATE JSON INDEX JX_Profile
+            ON Sales.CustomerProfile (Profile)
+            FOR ('$.tier');
+        ```
+
+        Une nouvelle requête filtre sur `JSON_VALUE(Profile, '$.address.city')`. Vous avez besoin d'un index JSON qui serve les filtres sur `$.tier` et sur `$.address.city`.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Create a second JSON index on Profile for the path '$.address.city'.", fr: "Créer un second index JSON sur Profile pour le chemin '$.address.city'." } }
+        - { id: b, text: { en: "Rebuild JX_Profile by running ALTER INDEX ... REBUILD.", fr: "Reconstruire JX_Profile en exécutant ALTER INDEX ... REBUILD." } }
+        - { id: c, text: { en: "Create a nonclustered index that has Profile as its key column.", fr: "Créer un index non cluster dont Profile est la colonne clé." } }
+        - { id: d, text: { en: "Drop JX_Profile and create it again for the paths '$.tier' and '$.address.city'.", fr: "Supprimer JX_Profile et le recréer pour les chemins '$.tier' et '$.address.city'." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Only one JSON index can be created on a json column, and changing the paths of a JSON index requires creating it again. The two paths don't overlap ('$.tier' and '$.address.city' have no parent-child relationship), so one index can list both.
+        fr: |
+          Un seul index JSON peut être créé sur une colonne json, et modifier les chemins d'un index JSON exige de le recréer. Les deux chemins ne se chevauchent pas ('$.tier' et '$.address.city' n'ont aucune relation parent-enfant) : un seul index peut donc les lister tous les deux.
+      options:
+        a: { en: "A second JSON index on the same json column isn't supported: the statement fails.", fr: "Un second index JSON sur la même colonne json n'est pas pris en charge : l'instruction échoue." }
+        b: { en: "A rebuild keeps the paths of the index definition; it can't add '$.address.city'.", fr: "Une reconstruction conserve les chemins de la définition de l'index ; elle ne peut pas ajouter '$.address.city'." }
+        c: { en: "A json column can't be a key column of a regular index; it can only be an included column.", fr: "Une colonne json ne peut pas être une colonne clé d'un index classique ; elle ne peut être qu'une colonne incluse." }
+    references:
+      - title: CREATE JSON INDEX (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-json-index-transact-sql
+
+  # ------------------------------------------------------------------ 5
+  - id: dp800-qz-11-05
+    objective: "1.1.6"
+    difficulty: 2
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        Litware partitions the **Sales.WebOrder** table on a column named **OrderTime** of type datetime2(0) by using the following partition function.
+
+        ```sql
+        CREATE PARTITION FUNCTION PF_OrderYear (datetime2(0))
+        AS RANGE LEFT FOR VALUES ('2025-12-31', '2026-12-31');
+        ```
+
+        A row is inserted with an OrderTime of 2025-12-31 18:30:00.
+
+        In which partition is the row stored?
+      fr: |
+        Litware partitionne la table **Sales.WebOrder** sur une colonne nommée **OrderTime** de type datetime2(0) au moyen de la fonction de partition suivante.
+
+        ```sql
+        CREATE PARTITION FUNCTION PF_OrderYear (datetime2(0))
+        AS RANGE LEFT FOR VALUES ('2025-12-31', '2026-12-31');
+        ```
+
+        Une ligne est insérée avec un OrderTime de 2025-12-31 18:30:00.
+
+        Dans quelle partition la ligne est-elle stockée ?
+    body:
+      options:
+        - { id: a, text: { en: "Partition 1", fr: "Partition 1" } }
+        - { id: b, text: { en: "Partition 2", fr: "Partition 2" } }
+        - { id: c, text: { en: "Partition 3", fr: "Partition 3" } }
+        - { id: d, text: { en: "None: the insert fails because the value matches no partition.", fr: "Aucune : l'insertion échoue, car la valeur ne correspond à aucune partition." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The boundary '2025-12-31' converted to datetime2(0) is 2025-12-31 00:00:00. With RANGE LEFT, partition 1 holds the values up to and including that instant, so 18:30 on the same day goes to partition 2 (up to 2026-12-31 00:00:00). For date-time columns, RANGE RIGHT with the first day of each period as boundary avoids this trap.
+        fr: |
+          La limite '2025-12-31' convertie en datetime2(0) vaut 2025-12-31 00:00:00. Avec RANGE LEFT, la partition 1 contient les valeurs jusqu'à cet instant inclus : 18 h 30 le même jour va donc dans la partition 2 (jusqu'à 2026-12-31 00:00:00). Pour les colonnes de date et d'heure, RANGE RIGHT avec le premier jour de chaque période comme limite évite ce piège.
+      options:
+        a: { en: "Partition 1 ends at 2025-12-31 00:00:00 inclusive; any later time on that day is greater than the boundary.", fr: "La partition 1 se termine à 2025-12-31 00:00:00 inclus ; toute heure plus tardive de ce jour est supérieure à la limite." }
+        c: { en: "Partition 3 holds values greater than 2026-12-31 00:00:00.", fr: "La partition 3 contient les valeurs supérieures à 2026-12-31 00:00:00." }
+        d: { en: "A partition function always covers every value: two boundaries create three partitions, from the lowest to the highest possible value.", fr: "Une fonction de partition couvre toujours toutes les valeurs : deux limites créent trois partitions, de la plus petite à la plus grande valeur possible." }
+    references:
+      - title: CREATE PARTITION FUNCTION (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-partition-function-transact-sql
+
+  # ------------------------------------------------------------------ 6
+  - id: dp800-qz-11-06
+    objective: "1.1.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Wingtip Toys has an Azure SQL database in the Business Critical service tier. You are creating a memory-optimized table named **dbo.PlayerSession** that will hold about 5 million active sessions.
+
+        The table must meet the following requirements:
+
+        - The game servers look up one session by SessionID at a very high rate.
+        - A cleanup job deletes the sessions whose LastSeen value is earlier than a cutoff time.
+        - Sessions must survive a restart or a failover of the database.
+
+        How should you complete the Transact-SQL statement? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Wingtip Toys dispose d'une base de données Azure SQL dans le niveau de service Business Critical. Vous créez une table optimisée en mémoire nommée **dbo.PlayerSession** qui contiendra environ 5 millions de sessions actives.
+
+        La table doit répondre aux exigences suivantes :
+
+        - Les serveurs de jeu recherchent une session par SessionID à un rythme très élevé.
+        - Un travail de nettoyage supprime les sessions dont la valeur LastSeen est antérieure à une heure limite.
+        - Les sessions doivent survivre à un redémarrage ou à un basculement de la base de données.
+
+        Comment devez-vous compléter l'instruction Transact-SQL ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        CREATE TABLE dbo.PlayerSession
+        (
+            SessionID bigint NOT NULL
+                PRIMARY KEY [[pk]],
+            PlayerID  int NOT NULL,
+            LastSeen  datetime2 NOT NULL,
+            INDEX IX_PlayerSession_LastSeen [[ix]]
+        )
+        WITH (MEMORY_OPTIMIZED = ON, DURABILITY = [[dur]]);
+      slots:
+        - id: pk
+          options:
+            - { id: hashbig, text: "NONCLUSTERED HASH WITH (BUCKET_COUNT = 8000000)" }
+            - { id: hashsmall, text: "NONCLUSTERED HASH WITH (BUCKET_COUNT = 50000)" }
+            - { id: clustered, text: "CLUSTERED" }
+        - id: ix
+          options:
+            - { id: nc, text: "NONCLUSTERED (LastSeen)" }
+            - { id: hash, text: "HASH (LastSeen) WITH (BUCKET_COUNT = 8000000)" }
+            - { id: cl, text: "CLUSTERED (LastSeen)" }
+        - id: dur
+          options:
+            - { id: sad, text: "SCHEMA_AND_DATA" }
+            - { id: so, text: "SCHEMA_ONLY" }
+    answer:
+      values: { pk: hashbig, ix: nc, dur: sad }
+    explanation:
+      correct:
+        en: |
+          A hash index is the best fit for point lookups by equality, and its BUCKET_COUNT should be one to two times the number of distinct keys: about 8 million buckets for 5 million sessions. The cleanup job filters on a range of LastSeen values, which only a nonclustered (range) index can serve. SCHEMA_AND_DATA, the default durability, logs the changes so that the rows survive a restart or a failover, and it requires the primary key defined here.
+        fr: |
+          Un index de hachage est le mieux adapté aux recherches ponctuelles par égalité, et son BUCKET_COUNT doit valoir une à deux fois le nombre de clés distinctes : environ 8 millions de compartiments pour 5 millions de sessions. Le travail de nettoyage filtre sur une plage de valeurs LastSeen, que seul un index non cluster (de plage) peut servir. SCHEMA_AND_DATA, la durabilité par défaut, journalise les modifications pour que les lignes survivent à un redémarrage ou à un basculement, et exige la clé primaire définie ici.
+      options:
+        hashsmall: { en: "50,000 buckets for 5 million keys creates long row chains in each bucket and slows every lookup.", fr: "50 000 compartiments pour 5 millions de clés créent de longues chaînes de lignes dans chaque compartiment et ralentissent chaque recherche." }
+        clustered: { en: "A memory-optimized table doesn't support a clustered rowstore primary key; its indexes are hash or nonclustered (or a clustered columnstore index).", fr: "Une table optimisée en mémoire ne prend pas en charge de clé primaire rowstore cluster ; ses index sont de hachage ou non cluster (ou un index columnstore cluster)." }
+        hash: { en: "A hash index serves only equality predicates; it can't seek a range such as LastSeen < @cutoff.", fr: "Un index de hachage ne sert que les prédicats d'égalité ; il ne peut pas rechercher une plage comme LastSeen < @cutoff." }
+        cl: { en: "Memory-optimized tables have no clustered rowstore index: the only index types are hash and nonclustered, plus columnstore.", fr: "Les tables optimisées en mémoire n'ont pas d'index rowstore cluster : les seuls types d'index sont le hachage et le non cluster, plus le columnstore." }
+        so: { en: "With SCHEMA_ONLY, only the table definition survives a restart or failover; the sessions would be lost.", fr: "Avec SCHEMA_ONLY, seule la définition de la table survit à un redémarrage ou à un basculement ; les sessions seraient perdues." }
+    references:
+      - title: Indexes on Memory-Optimized Tables
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/in-memory-oltp/indexes-for-memory-optimized-tables
+      - title: Troubleshooting Hash Indexes for Memory-Optimized Tables
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/in-memory-oltp/hash-indexes-for-memory-optimized-tables
+
+  # ------------------------------------------------------------------ 7
+  - id: dp800-qz-11-07
+    objective: "1.1.2"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Woodgrove Bank has an Azure SQL database that contains a system-versioned temporal table named **HR.Salary** with the history table **HR.SalaryHistory**. Several administrators are members of the db_owner role.
+
+        A new compliance rule requires the bank to prove to external auditors that no current or previous salary version was tampered with, including by members of db_owner.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank dispose d'une base de données Azure SQL qui contient une table temporelle versionnée par le système nommée **HR.Salary**, avec la table d'historique **HR.SalaryHistory**. Plusieurs administrateurs sont membres du rôle db_owner.
+
+        Une nouvelle règle de conformité exige que la banque prouve à des auditeurs externes qu'aucune version actuelle ou antérieure d'un salaire n'a été falsifiée, y compris par des membres de db_owner.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: A member of db_owner can change a row of HR.SalaryHistory after setting SYSTEM_VERSIONING to OFF on HR.Salary.
+            fr: Un membre de db_owner peut modifier une ligne de HR.SalaryHistory après avoir défini SYSTEM_VERSIONING sur OFF pour HR.Salary.
+        - id: s2
+          text:
+            en: You can meet the compliance rule by enabling ledger on the existing HR.Salary table, without creating a new table.
+            fr: Vous pouvez respecter la règle de conformité en activant le registre sur la table HR.Salary existante, sans créer de nouvelle table.
+        - id: s3
+          text:
+            en: In March 2026, a query on HR.Salary with FOR SYSTEM_TIME AS OF '2026-03-02T09:00:00' returns the salaries that were valid at 09:00 Paris time.
+            fr: En mars 2026, une requête sur HR.Salary avec FOR SYSTEM_TIME AS OF '2026-03-02T09:00:00' retourne les salaires valides à 9 h 00, heure de Paris.
+    answer:
+      values: { s1: true, s2: false, s3: false }
+    explanation:
+      correct:
+        en: |
+          A temporal history table can't be modified while system versioning is on, but a user with CONTROL on both tables, such as a db_owner member, can turn versioning off, change the history and turn it back on: temporal tables record history, they don't prove its integrity. Ledger provides that proof, but an existing table can't be converted to a ledger table; you create a new ledger table and migrate the data. Temporal period columns are recorded in UTC, so AS OF '09:00' means 09:00 UTC, which is 10:00 in Paris in early March.
+        fr: |
+          Une table d'historique temporelle ne peut pas être modifiée tant que le versionnage système est actif, mais un utilisateur qui a CONTROL sur les deux tables, comme un membre de db_owner, peut désactiver le versionnage, modifier l'historique puis le réactiver : les tables temporelles enregistrent l'historique, elles ne prouvent pas son intégrité. Le registre apporte cette preuve, mais une table existante ne peut pas être convertie en table de registre ; vous créez une nouvelle table de registre et y migrez les données. Les colonnes de période temporelles sont enregistrées en UTC : AS OF '09:00' signifie donc 9 h 00 UTC, soit 10 h 00 à Paris début mars.
+      options:
+        s2: { en: "Ledger can't be enabled on an existing table: create a new updatable ledger table and migrate the rows into it.", fr: "Le registre ne peut pas être activé sur une table existante : créez une nouvelle table de registre modifiable et migrez-y les lignes." }
+        s3: { en: "The period columns hold UTC values; Paris is UTC+1 in early March, so the query returns the salaries valid at 10:00 Paris time.", fr: "Les colonnes de période contiennent des valeurs UTC ; Paris est à UTC+1 début mars : la requête retourne donc les salaires valides à 10 h 00, heure de Paris." }
+    references:
+      - title: Temporal table security
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/tables/temporal-table-security
+      - title: Ledger considerations and limitations
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/security/ledger/ledger-limits
+
+  # ------------------------------------------------------------------ 8
+  - id: dp800-qz-11-08
+    objective: "1.1.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has a SQL Server 2025 database. The **Ops.DeviceLog** table has a clustered columnstore index named **CCI_DeviceLog**. IoT gateways insert about 200 rows per statement around the clock, and a nightly job deletes the rows older than 90 days.
+
+        sys.dm_db_column_store_row_group_physical_stats shows many delta rowgroups in the OPEN and CLOSED states, and compressed rowgroups in which about 25 percent of the rows are marked as deleted.
+
+        You need to move all the rows into compressed rowgroups and remove the deleted rows. The table must remain available for queries and inserts during the operation, and the operation must use as few resources as possible.
+
+        Which statement should you run?
+      fr: |
+        Litware dispose d'une base de données SQL Server 2025. La table **Ops.DeviceLog** a un index columnstore cluster nommé **CCI_DeviceLog**. Des passerelles IoT insèrent environ 200 lignes par instruction en continu, et un travail nocturne supprime les lignes de plus de 90 jours.
+
+        sys.dm_db_column_store_row_group_physical_stats montre de nombreux groupes de lignes delta dans les états OPEN et CLOSED, ainsi que des groupes de lignes compressés dans lesquels environ 25 % des lignes sont marquées comme supprimées.
+
+        Vous devez déplacer toutes les lignes dans des groupes de lignes compressés et éliminer les lignes supprimées. La table doit rester disponible pour les requêtes et les insertions pendant l'opération, et l'opération doit utiliser le moins de ressources possible.
+
+        Quelle instruction devez-vous exécuter ?
+    body:
+      options:
+        - { id: a, text: "ALTER INDEX CCI_DeviceLog ON Ops.DeviceLog REORGANIZE;" }
+        - { id: b, text: "ALTER INDEX CCI_DeviceLog ON Ops.DeviceLog REBUILD;" }
+        - { id: c, text: "ALTER INDEX CCI_DeviceLog ON Ops.DeviceLog REORGANIZE WITH (COMPRESS_ALL_ROW_GROUPS = ON);" }
+        - { id: d, text: "ALTER INDEX CCI_DeviceLog ON Ops.DeviceLog REBUILD WITH (DATA_COMPRESSION = COLUMNSTORE_ARCHIVE);" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          REORGANIZE is an online operation that compresses CLOSED delta rowgroups, merges small rowgroups and removes the deleted rows of rowgroups that have enough of them. COMPRESS_ALL_ROW_GROUPS = ON also forces the OPEN delta rowgroups into the columnstore, which a plain REORGANIZE leaves as they are. A rebuild would also do the work, but it re-creates the whole index and uses far more resources.
+        fr: |
+          REORGANIZE est une opération en ligne qui compresse les groupes de lignes delta CLOSED, fusionne les petits groupes de lignes et élimine les lignes supprimées des groupes de lignes qui en contiennent suffisamment. COMPRESS_ALL_ROW_GROUPS = ON force en plus les groupes de lignes delta OPEN dans le columnstore, alors qu'un REORGANIZE simple les laisse en l'état. Une reconstruction ferait aussi le travail, mais elle recrée tout l'index et consomme bien plus de ressources.
+      options:
+        a: { en: "Without COMPRESS_ALL_ROW_GROUPS, REORGANIZE compresses only the CLOSED delta rowgroups: the rows of the OPEN delta rowgroups stay in rowstore format.", fr: "Sans COMPRESS_ALL_ROW_GROUPS, REORGANIZE ne compresse que les groupes de lignes delta CLOSED : les lignes des groupes de lignes delta OPEN restent au format rowstore." }
+        b: { en: "A rebuild runs offline by default and re-creates the whole index from all its rows: it doesn't keep the table available and uses the most resources.", fr: "Une reconstruction s'exécute hors connexion par défaut et recrée tout l'index à partir de toutes ses lignes : elle ne laisse pas la table disponible et consomme le plus de ressources." }
+        d: { en: "Archive compression reduces storage further at the cost of CPU on every query, and the offline rebuild also blocks the table.", fr: "La compression d'archive réduit encore le stockage au prix de processeur à chaque requête, et la reconstruction hors connexion bloque aussi la table." }
+    references:
+      - title: Optimize index maintenance to improve query performance and reduce resource consumption
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/indexes/reorganize-and-rebuild-indexes
+
+  # ------------------------------------------------------------------ 9
+  - id: dp800-qz-11-09
+    objective: "1.1.6"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Contoso has a SQL Server 2025 database. The **Sales.Orders** table is partitioned by year on OrderDate by the RANGE RIGHT partition function **PF_OrderYear** and the partition scheme **PS_OrderYear**, which maps each year to its own filegroup. All the indexes of Sales.Orders are created on PS_OrderYear (OrderDate). Partition 2 holds the 2024 orders and is stored on the filegroup **FG2024**.
+
+        An administrator prepared an archive table named **Sales.Orders_2024** with the following characteristics:
+
+        - It isn't partitioned and is stored on the filegroup **FG_Archive**.
+        - It has the same columns, data types and clustered primary key as Sales.Orders.
+        - It has no CHECK constraint.
+        - It still contains 1,200 rows loaded during a test.
+
+        The following statement fails.
+
+        ```sql
+        ALTER TABLE Sales.Orders SWITCH PARTITION 2 TO Sales.Orders_2024;
+        ```
+
+        Which two characteristics cause the failure?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso dispose d'une base de données SQL Server 2025. La table **Sales.Orders** est partitionnée par année sur OrderDate par la fonction de partition RANGE RIGHT **PF_OrderYear** et le schéma de partition **PS_OrderYear**, qui mappe chaque année sur son propre groupe de fichiers. Tous les index de Sales.Orders sont créés sur PS_OrderYear (OrderDate). La partition 2 contient les commandes de 2024 et est stockée sur le groupe de fichiers **FG2024**.
+
+        Un administrateur a préparé une table d'archive nommée **Sales.Orders_2024** avec les caractéristiques suivantes :
+
+        - Elle n'est pas partitionnée et est stockée sur le groupe de fichiers **FG_Archive**.
+        - Elle a les mêmes colonnes, les mêmes types de données et la même clé primaire cluster que Sales.Orders.
+        - Elle n'a aucune contrainte CHECK.
+        - Elle contient encore 1 200 lignes chargées lors d'un test.
+
+        L'instruction suivante échoue.
+
+        ```sql
+        ALTER TABLE Sales.Orders SWITCH PARTITION 2 TO Sales.Orders_2024;
+        ```
+
+        Quelles sont les deux caractéristiques qui provoquent l'échec ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Sales.Orders_2024 isn't partitioned.", fr: "Sales.Orders_2024 n'est pas partitionnée." } }
+        - { id: b, text: { en: "Sales.Orders_2024 is stored on FG_Archive.", fr: "Sales.Orders_2024 est stockée sur FG_Archive." } }
+        - { id: c, text: { en: "Sales.Orders_2024 has no CHECK constraint on OrderDate.", fr: "Sales.Orders_2024 n'a aucune contrainte CHECK sur OrderDate." } }
+        - { id: d, text: { en: "Sales.Orders_2024 contains rows.", fr: "Sales.Orders_2024 contient des lignes." } }
+        - { id: e, text: { en: "PF_OrderYear is a RANGE RIGHT function.", fr: "PF_OrderYear est une fonction RANGE RIGHT." } }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          When one partition is switched out to form a table, the target table must already exist and must be empty, and the source partition and the target table, with their corresponding indexes, must be on the same filegroup. Sales.Orders_2024 must therefore be emptied and stored on FG2024 before the metadata-only switch can run.
+        fr: |
+          Quand une partition est basculée pour former une table, la table cible doit déjà exister et être vide, et la partition source et la table cible, avec leurs index correspondants, doivent se trouver sur le même groupe de fichiers. Sales.Orders_2024 doit donc être vidée et stockée sur FG2024 avant que le basculement, une opération de métadonnées, puisse s'exécuter.
+      options:
+        a: { en: "Switching a partition out to a nonpartitioned table is the standard archiving pattern; the target doesn't need to be partitioned.", fr: "Basculer une partition vers une table non partitionnée est le modèle d'archivage classique ; la cible n'a pas besoin d'être partitionnée." }
+        c: { en: "The target has no constraint that the 2024 rows could violate; a CHECK constraint on the range matters when a table is switched into a partition.", fr: "La cible n'a aucune contrainte que les lignes de 2024 pourraient violer ; une contrainte CHECK sur la plage compte quand une table est basculée dans une partition." }
+        e: { en: "The boundary side decides which partition holds a boundary value; it doesn't prevent switching a partition out.", fr: "Le côté des limites détermine quelle partition contient une valeur limite ; il n'empêche pas de basculer une partition vers l'extérieur." }
+    references:
+      - title: ALTER TABLE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql
+
+  # ------------------------------------------------------------------ 10
+  - id: dp800-qz-11-10
+    objective: "1.1.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has an Azure SQL database that contains the node tables **Graph.Person**, **Graph.Company** and **Graph.Product**. You are creating an edge table named **Graph.Bought** that records purchases. Recommendation queries traverse the edges with `MATCH(Buyer-(Bought)->Item)`.
+
+        The edge table must meet the following requirements:
+
+        - A Bought edge can connect a person to a product or a company to a product. Any other combination must be rejected.
+        - When a person, a company or a product is deleted, its Bought edges must be deleted automatically.
+
+        Which constraint definition should you add to Graph.Bought?
+      fr: |
+        Fabrikam dispose d'une base de données Azure SQL qui contient les tables de nœuds **Graph.Person**, **Graph.Company** et **Graph.Product**. Vous créez une table d'arêtes nommée **Graph.Bought** qui enregistre les achats. Les requêtes de recommandation parcourent les arêtes avec `MATCH(Buyer-(Bought)->Item)`.
+
+        La table d'arêtes doit répondre aux exigences suivantes :
+
+        - Une arête Bought peut relier une personne à un produit ou une entreprise à un produit. Toute autre combinaison doit être rejetée.
+        - Quand une personne, une entreprise ou un produit est supprimé, ses arêtes Bought doivent être supprimées automatiquement.
+
+        Quelle définition de contrainte devez-vous ajouter à Graph.Bought ?
+    body:
+      options:
+        - id: a
+          text: "CONSTRAINT EC_Bought CONNECTION (Graph.Person TO Graph.Product, Graph.Company TO Graph.Product) ON DELETE CASCADE"
+        - id: b
+          text: "CONSTRAINT EC_Bought_Person CONNECTION (Graph.Person TO Graph.Product) ON DELETE CASCADE, CONSTRAINT EC_Bought_Company CONNECTION (Graph.Company TO Graph.Product) ON DELETE CASCADE"
+        - id: c
+          text: "CONSTRAINT EC_Bought CONNECTION (Graph.Person TO Graph.Product, Graph.Company TO Graph.Product) ON DELETE NO ACTION"
+        - id: d
+          text: "CONSTRAINT EC_Bought CONNECTION (Graph.Product TO Graph.Person, Graph.Product TO Graph.Company) ON DELETE CASCADE"
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          The pairs listed in one edge constraint are combined with OR: an edge is valid if it matches any of them, so one constraint with both pairs accepts person-to-product and company-to-product edges and rejects the rest. ON DELETE CASCADE deletes the edges of a node when the node is deleted.
+        fr: |
+          Les paires listées dans une même contrainte d'arête sont combinées par OU : une arête est valide si elle correspond à l'une d'elles. Une seule contrainte avec les deux paires accepte donc les arêtes personne-produit et entreprise-produit et rejette les autres. ON DELETE CASCADE supprime les arêtes d'un nœud quand ce nœud est supprimé.
+      options:
+        b: { en: "Separate edge constraints are combined with AND: every edge must satisfy both, so a person-to-product edge violates EC_Bought_Company and every insert fails.", fr: "Des contraintes d'arête distinctes sont combinées par ET : chaque arête doit les respecter toutes les deux ; une arête personne-produit viole donc EC_Bought_Company et toute insertion échoue." }
+        c: { en: "With NO ACTION, deleting a node that still has Bought edges fails instead of deleting the edges.", fr: "Avec NO ACTION, la suppression d'un nœud qui a encore des arêtes Bought échoue au lieu de supprimer les arêtes." }
+        d: { en: "The pairs are reversed: they accept product-to-person edges and reject the person-to-product edges that the queries traverse.", fr: "Les paires sont inversées : elles acceptent les arêtes produit-personne et rejettent les arêtes personne-produit que les requêtes parcourent." }
+    references:
+      - title: Edge constraints
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/tables/graph-edge-constraints

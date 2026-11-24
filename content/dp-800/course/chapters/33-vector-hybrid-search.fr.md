@@ -26,7 +26,7 @@ Choisir la métrique :
 
 La métrique de la requête doit être égale à celle de l'index. Quand `VECTOR_SEARCH` demande `METRIC = 'euclidean'` sur une colonne indexée avec `cosine`, l'index n'est pas utilisé : le moteur lève un avertissement et exécute une analyse kNN exacte.
 
-> **Piège d'examen.** Pour interroger la même colonne avec deux métriques en ANN, il faut deux index vectoriels. Changer seulement l'argument `METRIC` de la requête transforme silencieusement la recherche en analyse complète.
+> **Piège d'examen.** Changer seulement l'argument `METRIC` de la requête ne change pas l'index : sans index de cette métrique sur la colonne, la recherche devient une analyse kNN exacte, signalée seulement par un avertissement.
 
 Versions d'index et métadonnées :
 

@@ -10,7 +10,7 @@ Content Understanding is a Foundry service: it needs a Foundry resource. An anal
 | Content extraction | OCR, selection marks, barcodes, formulas, layout (paragraphs, tables, figures, sections, reading order); transcription for audio and video | `enableOcr`, `enableLayout`, `enableFormula`, `enableBarcode` (all `true` by default) |
 | Segmentation and classification | Splits a file into logical sections and classifies each one, optionally routing it to another analyzer | `contentCategories`, `enableSegment` |
 | Field extraction | Fills the fields of a schema, using a generative model | `fieldSchema`, `models` |
-| Confidence and grounding | A score from 0 to 1 and the source location (page, bounding box) for each field value | `estimateFieldSourceAndConfidence` |
+| Confidence and grounding | A score from 0 to 1 and the source location (page, bounding box) for each field value; document analyzers, all field methods | `estimateFieldSourceAndConfidence`, or `estimateSourceAndConfidence` on a field (overrides the analyzer setting) |
 
 Field extraction has three methods:
 
@@ -26,11 +26,12 @@ Prebuilt analyzers cover the common cases:
 | --- | --- | --- |
 | `prebuilt-read` | Words, paragraphs, formulas, barcodes (OCR) | No |
 | `prebuilt-layout` | Text plus tables, figures, sections, hyperlinks | No |
+| `prebuilt-digitalParse` | Content of digital files read from their internal structure (not for scanned files: use `prebuilt-read` or `prebuilt-layout`) | No |
 | `prebuilt-invoice`, `prebuilt-receipt`, `prebuilt-contract`, `prebuilt-idDocument`... | Domain fields without writing a schema | Yes |
 | `prebuilt-documentSearch`, `prebuilt-imageSearch`, `prebuilt-audioSearch`, `prebuilt-videoSearch` | Markdown and descriptions for RAG | Yes |
 | `prebuilt-document`, `prebuilt-image`, `prebuilt-audio`, `prebuilt-video` | Base analyzers to derive custom analyzers from | Through the custom analyzer |
 
-The service needs a chat completion model and an embedding model deployed in the Foundry resource. Prebuilt analyzers refer to them through aliases (`prebuilt-analyzer-completion`, `prebuilt-analyzer-completion-mini`, `prebuilt-analyzer-embedding`) mapped to your deployments as resource defaults, or per request with `modelDeployments`. You pay Content Understanding meters plus the tokens of the connected deployments, and the guardrails of those deployments apply.
+The service needs a chat completion model and an embedding model deployed in the Foundry resource. Prebuilt analyzers refer to them through aliases (`prebuilt-analyzer-completion`, `prebuilt-analyzer-completion-mini` for the `prebuilt-*Search` analyzers, `prebuilt-analyzer-embedding`) mapped to your deployments as resource defaults, or per request with `modelDeployments`. You pay Content Understanding meters plus the tokens of the connected deployments, and the guardrails of those deployments apply. Built-in roles: Cognitive Service Content Understanding Owner, Contributor and Reader.
 
 | Requirement | Choose |
 | --- | --- |
@@ -126,7 +127,7 @@ POST {endpoint}/contentunderstanding/analyzers/fabrikamClaimAnalyzer:analyze?api
 GET  the Operation-Location URL until the status is Succeeded
 ```
 
-The analysis is asynchronous. The result has a `contents` list whose entries carry `markdown` and `fields`; with confidence estimation, each field also carries its confidence and source. In Python, `ContentUnderstandingClient.begin_analyze(analyzer_id=..., inputs=[...])` returns a poller, and `poller.result()` returns that result.
+The analysis is asynchronous. The result has a `contents` list whose entries carry `markdown` and `fields`; with confidence estimation, each field also carries its confidence and source. In Python, `ContentUnderstandingClient.begin_analyze(analyzer_id=..., inputs=[...])` returns a poller, and `poller.result()` returns that result. Asynchronous analysis of a PDF or TIFF file accepts up to 2,000 pages by default.
 
 Choose the output to fit the consumer:
 
@@ -152,9 +153,9 @@ A classifier analyzer lists categories, each with a description and optionally t
 }
 ```
 
-Include an `other` category: without it, every page is forced into one of your categories. A category without `analyzerId` is classified but not analyzed. Classification works per page (the smallest unit), with up to 200 categories, and no training data.
+Include an `other` category: without it, every page is forced into one of your categories. A category without `analyzerId` is classified but not analyzed. Classification works per page (the smallest unit), with up to 200 categories, and no training data. A video analyzer accepts only one `contentCategories` entry: for video, categories drive segmentation.
 
-> **Exam trap.** `models` takes model names or aliases mapped to deployments, not your deployment name, and `extract` fields need source and confidence estimation. A question that sets `"method": "extract"` for a value that isn't written in the document (a summary, a risk level) has the wrong method: use `generate` or `classify`.
+> **Exam trap.** `models` takes model names or aliases mapped to deployments, not your deployment name, and `extract` fields need source and confidence estimation. `extract` is supported only by document analyzers: an audio, video or image analyzer uses `generate` or `classify`. Confidence and source aren't limited to `extract`: document analyzers return them for `generate` and `classify` fields too. A question that sets `"method": "extract"` for a value that isn't written in the document (a summary, a risk level) has the wrong method: use `generate` or `classify`.
 
 <!-- section: key-points -->
 ## Key points
@@ -163,5 +164,5 @@ Include an `other` category: without it, every page is forced into one of your c
 - `prebuilt-read` and `prebuilt-layout` need no generative model; field extraction and RAG analyzers use completion and embedding deployments mapped through aliases.
 - `prebuilt-documentSearch` gives RAG-ready Markdown with figure descriptions, summary and chunks.
 - Custom analyzer: `baseAnalyzerId`, `config`, `fieldSchema` with `type`, `method` (`extract`, `generate`, `classify`) and `description`, `models`.
-- `estimateFieldSourceAndConfidence` adds confidence and source location per value: the basis for human review and citations.
+- `estimateFieldSourceAndConfidence` adds confidence and source location per value, for every field method of a document analyzer: the basis for human review and citations. `extract` is for document analyzers only.
 - Analysis is asynchronous: poll `Operation-Location`, or `begin_analyze` then `poller.result()`.

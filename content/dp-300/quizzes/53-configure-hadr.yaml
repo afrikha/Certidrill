@@ -1,0 +1,493 @@
+chapter: 53-configure-hadr
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp300-qz-53-01
+    objective: "5.3.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are deploying an Always On availability group on two Azure virtual machines named **SQLVM1** and **SQLVM2**. Both run SQL Server 2022 on Windows Server 2022, in two availability zones. Each virtual machine stores the databases on its own data disks: no storage is shared between the nodes.
+
+        You need to configure the quorum witness of the Windows Server failover cluster by following Microsoft's recommendations. Which witness should you use?
+      fr: |
+        Vous déployez un groupe de disponibilité Always On sur deux machines virtuelles Azure nommées **SQLVM1** et **SQLVM2**. Les deux exécutent SQL Server 2022 sur Windows Server 2022, dans deux zones de disponibilité. Chaque machine virtuelle stocke les bases de données sur ses propres disques de données : aucun stockage n'est partagé entre les nœuds.
+
+        Vous devez configurer le témoin de quorum du cluster de basculement Windows Server en suivant les recommandations de Microsoft. Quel témoin devez-vous utiliser ?
+    body:
+      options:
+        - { id: a, text: { en: "A disk witness on an additional Azure shared disk", fr: "Un témoin de disque sur un disque partagé Azure supplémentaire" } }
+        - { id: b, text: { en: "A cloud witness in an Azure Storage account", fr: "Un témoin cloud dans un compte Stockage Azure" } }
+        - { id: c, text: { en: "A file share witness on a third virtual machine", fr: "Un témoin de partage de fichiers sur une troisième machine virtuelle" } }
+        - { id: d, text: { en: "No witness, because each node already has one vote", fr: "Aucun témoin, car chaque nœud dispose déjà d'un vote" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A cloud witness (Windows Server 2016 or later) is the recommended quorum witness whenever the cluster doesn't rely on shared storage, and it suits nodes spread across availability zones. An availability group keeps a copy of the databases on each replica, so there is no shared disk that would make a disk witness the better choice.
+        fr: |
+          Un témoin cloud (Windows Server 2016 ou ultérieur) est le témoin de quorum recommandé dès que le cluster ne repose pas sur un stockage partagé, et il convient à des nœuds répartis entre zones de disponibilité. Un groupe de disponibilité conserve une copie des bases sur chaque réplica : il n'y a pas de disque partagé qui rendrait un témoin de disque préférable.
+      options:
+        a: { en: "A disk witness is preferred for clusters that already use shared disks, such as an FCI; adding a shared disk only for the witness isn't the recommendation for an availability group.", fr: "Un témoin de disque est préférable pour les clusters qui utilisent déjà des disques partagés, comme une FCI ; ajouter un disque partagé uniquement pour le témoin n'est pas la recommandation pour un groupe de disponibilité." }
+        c: { en: "A file share witness is the fallback when neither a cloud witness nor a disk witness is possible, and the third virtual machine adds administration.", fr: "Un témoin de partage de fichiers est la solution de repli quand ni le témoin cloud ni le témoin de disque ne sont possibles, et la troisième machine virtuelle ajoute de l'administration." }
+        d: { en: "A two-node cluster has an even number of votes; it needs a witness for a third vote to keep quorum when one node fails.", fr: "Un cluster à deux nœuds a un nombre pair de votes ; il a besoin d'un témoin comme troisième vote pour garder le quorum quand un nœud tombe en panne." }
+    references:
+      - title: HADR configuration best practices - SQL Server on Azure VMs
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/hadr-cluster-best-practices
+
+  # ------------------------------------------------------------------ 2
+  - id: dp300-qz-53-02
+    objective: "5.3.4"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso runs a SQL Server 2022 instance on an Azure virtual machine. The instance hosts 30 databases and many instance-level objects, such as logins, SQL Server Agent jobs and linked servers, that the team changes every week.
+
+        You need to protect the instance against the failure of a virtual machine in the same region. After a failover, every instance-level object must be available without any process that synchronizes it.
+
+        What should you deploy?
+      fr: |
+        Contoso exécute une instance SQL Server 2022 sur une machine virtuelle Azure. L'instance héberge 30 bases de données et de nombreux objets de niveau instance, comme des connexions, des travaux SQL Server Agent et des serveurs liés, que l'équipe modifie chaque semaine.
+
+        Vous devez protéger l'instance contre la panne d'une machine virtuelle dans la même région. Après un basculement, chaque objet de niveau instance doit être disponible sans aucun processus qui le synchronise.
+
+        Que devez-vous déployer ?
+    body:
+      options:
+        - { id: a, text: { en: "An availability group with two synchronous-commit replicas", fr: "Un groupe de disponibilité avec deux réplicas à validation synchrone" } }
+        - { id: b, text: { en: "Log shipping to a second virtual machine, with a monitor server", fr: "La copie des journaux de transaction vers une deuxième machine virtuelle, avec un serveur moniteur" } }
+        - { id: c, text: { en: "A failover cluster instance on two virtual machines with shared storage", fr: "Une instance de cluster de basculement sur deux machines virtuelles avec un stockage partagé" } }
+        - { id: d, text: { en: "Active geo-replication of the databases to a second virtual machine", fr: "La géoréplication active des bases vers une deuxième machine virtuelle" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A failover cluster instance (FCI) protects the whole SQL Server instance: one instance runs on one node at a time over shared storage, so logins, jobs, linked servers and all databases move together during a failover. Nothing has to be synchronized because there is a single copy of the instance and its data.
+        fr: |
+          Une instance de cluster de basculement (FCI) protège toute l'instance SQL Server : une seule instance s'exécute sur un nœud à la fois sur un stockage partagé ; les connexions, les travaux, les serveurs liés et toutes les bases basculent donc ensemble. Rien n'est à synchroniser, car il n'existe qu'une seule copie de l'instance et de ses données.
+      options:
+        a: { en: "An availability group protects databases; logins, jobs and linked servers must be re-created and kept in sync on every replica.", fr: "Un groupe de disponibilité protège des bases ; les connexions, les travaux et les serveurs liés doivent être recréés et synchronisés sur chaque réplica." }
+        b: { en: "Log shipping works per database, its failover is manual, and the instance-level objects of the secondary must be maintained separately.", fr: "La copie des journaux de transaction fonctionne par base, son basculement est manuel, et les objets de niveau instance du secondaire doivent être tenus à jour séparément." }
+        d: { en: "Active geo-replication is a feature of Azure SQL Database only; it doesn't replicate SQL Server instances on virtual machines.", fr: "La géoréplication active est une fonctionnalité d'Azure SQL Database uniquement ; elle ne réplique pas des instances SQL Server sur des machines virtuelles." }
+    references:
+      - title: Failover cluster instances with SQL Server on Azure Virtual Machines
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/failover-cluster-instance-overview
+
+  # ------------------------------------------------------------------ 3
+  - id: dp300-qz-53-03
+    objective: "5.3.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has an Azure SQL database named **Billing** on a logical server in France Central. Billing is a single database that uses the General Purpose service tier with provisioned compute, standard-series (Gen5) hardware and 8 vCores. Fabrikam owns no SQL Server licenses with Software Assurance.
+
+        You plan to add a geo-secondary of Billing on a logical server in France South by using active geo-replication. The geo-secondary will be used only for disaster recovery and will never run read workloads. After a failover, it must handle the full production workload without any scaling operation.
+
+        You need to minimize the cost of the geo-secondary. What should you do?
+      fr: |
+        Fabrikam dispose d'une base de données Azure SQL nommée **Billing** sur un serveur logique en France Central. Billing est une base de données unique qui utilise le niveau de service General Purpose avec le calcul provisionné, le matériel de série standard (Gen5) et 8 vCores. Fabrikam ne possède aucune licence SQL Server avec Software Assurance.
+
+        Vous prévoyez d'ajouter un géosecondaire de Billing sur un serveur logique en France South avec la géoréplication active. Le géosecondaire servira uniquement à la récupération d'urgence et n'exécutera jamais de charges de travail en lecture. Après un basculement, il doit absorber toute la charge de production sans aucune opération de mise à l'échelle.
+
+        Vous devez réduire au minimum le coût du géosecondaire. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Create the geo-secondary in General Purpose with 8 vCores, and apply Azure Hybrid Benefit to it.", fr: "Créer le géosecondaire en General Purpose avec 8 vCores, et lui appliquer Azure Hybrid Benefit." } }
+        - { id: b, text: { en: "Create the geo-secondary in General Purpose with 2 vCores, and scale it up after a failover.", fr: "Créer le géosecondaire en General Purpose avec 2 vCores, et augmenter sa taille après un basculement." } }
+        - { id: c, text: { en: "Create the geo-secondary in the Standard service tier of the DTU purchasing model.", fr: "Créer le géosecondaire dans le niveau de service Standard du modèle d'achat DTU." } }
+        - { id: d, text: { en: "Create the geo-secondary in General Purpose with 8 vCores, and set its replica type to Standby replica.", fr: "Créer le géosecondaire en General Purpose avec 8 vCores, et définir son type de réplica sur Standby replica." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A geo-secondary used only for disaster recovery, with no read or write workload, can be designated as a license-free standby replica: Microsoft doesn't charge the SQL Server license for its vCores, and you pay only compute and storage. It's available for provisioned General Purpose and Business Critical databases on standard-series hardware, and the secondary keeps the 8 vCores it needs after a failover.
+        fr: |
+          Un géosecondaire utilisé uniquement pour la récupération d'urgence, sans charge de travail en lecture ni en écriture, peut être désigné comme réplica de secours (standby) sans licence : Microsoft ne facture pas la licence SQL Server de ses vCores, et vous ne payez que le calcul et le stockage. Il est disponible pour les bases General Purpose et Business Critical en calcul provisionné sur le matériel de série standard, et le secondaire garde les 8 vCores dont il a besoin après un basculement.
+      options:
+        a: { en: "Azure Hybrid Benefit requires SQL Server licenses with Software Assurance, which Fabrikam doesn't own.", fr: "Azure Hybrid Benefit exige des licences SQL Server avec Software Assurance, que Fabrikam ne possède pas." }
+        b: { en: "A smaller secondary can't absorb the production workload after a failover without scaling, and it can lag behind the primary.", fr: "Un secondaire plus petit ne peut pas absorber la charge de production après un basculement sans mise à l'échelle, et il peut prendre du retard sur le primaire." }
+        c: { en: "The geo-secondary must use the same service tier as the primary, so it can't move to a DTU tier.", fr: "Le géosecondaire doit utiliser le même niveau de service que le primaire : il ne peut pas passer à un niveau DTU." }
+    references:
+      - title: Configure license-free standby replica - Azure SQL Database
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/standby-replica-how-to-configure
+      - title: Active Geo-Replication - Azure SQL Database
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/active-geo-replication-overview
+
+  # ------------------------------------------------------------------ 4
+  - id: dp300-qz-53-04
+    objective: "5.3.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Wingtip Toys has a failover group named **fog-sales** in Azure SQL Database. **srv-sales-weu** is the primary server and **srv-sales-neu** is the secondary server. A reporting application connects to `fog-sales.secondary.database.windows.net` so that its queries run on the geo-secondary.
+
+        During an outage of srv-sales-neu, the reporting application couldn't connect until the secondary server recovered. From now on, the reporting queries must run on the primary server whenever the secondary server is unavailable. The connection string of the reporting application must not change.
+
+        What should you do?
+      fr: |
+        Wingtip Toys dispose d'un groupe de basculement nommé **fog-sales** dans Azure SQL Database. **srv-sales-weu** est le serveur primaire et **srv-sales-neu** le serveur secondaire. Une application de reporting se connecte à `fog-sales.secondary.database.windows.net` afin que ses requêtes s'exécutent sur le géosecondaire.
+
+        Pendant une panne de srv-sales-neu, l'application de reporting n'a pas pu se connecter avant le rétablissement du serveur secondaire. Désormais, les requêtes de reporting doivent s'exécuter sur le serveur primaire chaque fois que le serveur secondaire est indisponible. La chaîne de connexion de l'application de reporting ne doit pas changer.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Run Set-AzSqlDatabaseFailoverGroup for srv-sales-weu with -FailoverPolicy Automatic.", fr: "Exécuter Set-AzSqlDatabaseFailoverGroup pour srv-sales-weu avec -FailoverPolicy Automatic." } }
+        - { id: b, text: { en: "Run Set-AzSqlDatabaseFailoverGroup for srv-sales-weu with -AllowReadOnlyFailoverToPrimary Enabled.", fr: "Exécuter Set-AzSqlDatabaseFailoverGroup pour srv-sales-weu avec -AllowReadOnlyFailoverToPrimary Enabled." } }
+        - { id: c, text: { en: "Run Switch-AzSqlDatabaseFailoverGroup for srv-sales-neu each time srv-sales-neu becomes unavailable.", fr: "Exécuter Switch-AzSqlDatabaseFailoverGroup pour srv-sales-neu chaque fois que srv-sales-neu devient indisponible." } }
+        - { id: d, text: { en: "Add ApplicationIntent=ReadOnly to the connection settings of the reporting application.", fr: "Ajouter ApplicationIntent=ReadOnly aux paramètres de connexion de l'application de reporting." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Failover of the read-only listener is disabled by default, to protect the primary's performance: read-only sessions then wait for the secondary to recover. Setting AllowReadOnlyFailoverToPrimary to Enabled on the failover group, run against its primary server, makes an outage of the secondary redirect the read-only listener to the primary, with the same connection string.
+        fr: |
+          Le basculement de l'écouteur en lecture seule est désactivé par défaut, pour protéger les performances du primaire : les sessions en lecture seule attendent alors le rétablissement du secondaire. Définir AllowReadOnlyFailoverToPrimary sur Enabled pour le groupe de basculement, en ciblant son serveur primaire, fait qu'une panne du secondaire redirige l'écouteur en lecture seule vers le primaire, avec la même chaîne de connexion.
+      options:
+        a: { en: "The failover policy governs what happens when the primary server fails; it doesn't redirect the read-only listener during an outage of the secondary.", fr: "La stratégie de basculement régit ce qui se passe quand le serveur primaire tombe en panne ; elle ne redirige pas l'écouteur en lecture seule pendant une panne du secondaire." }
+        c: { en: "Switch-AzSqlDatabaseFailoverGroup makes the target server the new primary; an unavailable secondary can't take that role, and the step would be manual.", fr: "Switch-AzSqlDatabaseFailoverGroup fait du serveur cible le nouveau primaire ; un secondaire indisponible ne peut pas prendre ce rôle, et l'opération serait manuelle." }
+        d: { en: "The read-only listener already targets the secondary; adding a read intent changes the connection settings without redirecting the listener when the secondary is down.", fr: "L'écouteur en lecture seule cible déjà le secondaire ; ajouter une intention de lecture modifie les paramètres de connexion sans rediriger l'écouteur quand le secondaire est en panne." }
+    references:
+      - title: Failover Groups Overview & Best Practices - Azure SQL Database
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/failover-group-sql-db
+      - title: Set-AzSqlDatabaseFailoverGroup (Az.Sql)
+        url: https://learn.microsoft.com/en-us/powershell/module/az.sql/set-azsqldatabasefailovergroup
+
+  # ------------------------------------------------------------------ 5
+  - id: dp300-qz-53-05
+    objective: "5.3.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have an Always On availability group named **AG1** on two Azure virtual machines named **SQLVM1** and **SQLVM2**. AG1 was created by using the New Availability Group Wizard in SSMS. Last night at 02:14, AG1 failed over automatically from SQLVM1 to SQLVM2.
+
+        You need to find out, from data that SQL Server has already captured, when each replica changed role and whether the lease between AG1 and the cluster expired before the failover.
+
+        What should you review?
+      fr: |
+        Vous disposez d'un groupe de disponibilité Always On nommé **AG1** sur deux machines virtuelles Azure nommées **SQLVM1** et **SQLVM2**. AG1 a été créé avec l'Assistant Nouveau groupe de disponibilité de SSMS. La nuit dernière à 02:14, AG1 a basculé automatiquement de SQLVM1 vers SQLVM2.
+
+        Vous devez déterminer, à partir des données que SQL Server a déjà capturées, quand chaque réplica a changé de rôle et si le bail entre AG1 et le cluster a expiré avant le basculement.
+
+        Que devez-vous examiner ?
+    body:
+      options:
+        - { id: a, text: { en: "The rows returned by sys.dm_hadr_database_replica_states on SQLVM2", fr: "Les lignes renvoyées par sys.dm_hadr_database_replica_states sur SQLVM2" } }
+        - { id: b, text: { en: "The Azure Monitor activity log entries of SQLVM1 and SQLVM2", fr: "Les entrées du journal d'activité Azure Monitor de SQLVM1 et SQLVM2" } }
+        - { id: c, text: { en: "The AlwaysOn_health Extended Events files on SQLVM1 and SQLVM2", fr: "Les fichiers d'événements étendus AlwaysOn_health sur SQLVM1 et SQLVM2" } }
+        - { id: d, text: { en: "The Transaction Log Shipping Status report run on SQLVM2", fr: "Le rapport État de la copie des journaux de transaction exécuté sur SQLVM2" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The AlwaysOn_health Extended Events session is created with the availability group and started on every replica by the wizard. It writes to event files and records, among others, replica role changes (availability_replica_state_change) and lease expirations (availability_group_lease_expired), which is exactly the history needed to explain an automatic failover.
+        fr: |
+          La session d'événements étendus AlwaysOn_health est créée avec le groupe de disponibilité et démarrée sur chaque réplica par l'assistant. Elle écrit dans des fichiers d'événements et enregistre notamment les changements de rôle des réplicas (availability_replica_state_change) et les expirations du bail (availability_group_lease_expired) : c'est exactement l'historique nécessaire pour expliquer un basculement automatique.
+      options:
+        a: { en: "This DMV shows the current synchronization state and queues of each database replica; it keeps no history of past role changes or lease events.", fr: "Cette DMV montre l'état de synchronisation et les files d'attente actuels de chaque réplica de base ; elle ne conserve aucun historique des changements de rôle ou des événements de bail passés." }
+        b: { en: "The activity log records Azure control plane operations on the virtual machines, not what happens inside SQL Server or the cluster.", fr: "Le journal d'activité enregistre les opérations du plan de contrôle Azure sur les machines virtuelles, pas ce qui se passe dans SQL Server ou dans le cluster." }
+        d: { en: "This report shows the backup, copy and restore status of log shipping configurations, not availability group failovers.", fr: "Ce rapport montre l'état des sauvegardes, copies et restaurations des configurations de copie des journaux de transaction, pas les basculements de groupes de disponibilité." }
+    references:
+      - title: Configure Extended Events for Availability Groups - SQL Server Always On
+        url: https://learn.microsoft.com/en-us/sql/database-engine/availability-groups/windows/always-on-extended-events
+
+  # ------------------------------------------------------------------ 6
+  - id: dp300-qz-53-06
+    objective: "5.3.1"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Woodgrove Bank has an Azure SQL database named **Rates** on a logical server in West Europe. Rates uses the Business Critical service tier with 8 vCores.
+
+        Branch applications in six other Azure regions must query Rates locally, each from a readable copy in its own region. You plan to build the six copies by using active geo-replication, on one logical server per region.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank dispose d'une base de données Azure SQL nommée **Rates** sur un serveur logique en West Europe. Rates utilise le niveau de service Business Critical avec 8 vCores.
+
+        Des applications d'agence dans six autres régions Azure doivent interroger Rates localement, chacune à partir d'une copie lisible dans sa propre région. Vous prévoyez de créer les six copies avec la géoréplication active, sur un serveur logique par région.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "All six copies can be geo-secondaries that replicate directly from Rates.", fr: "Les six copies peuvent toutes être des géosecondaires qui répliquent directement à partir de Rates." } }
+        - { id: s2, text: { en: "Two of the copies can be created as geo-secondaries of existing geo-secondaries by using Azure PowerShell.", fr: "Deux des copies peuvent être créées comme géosecondaires de géosecondaires existants avec Azure PowerShell." } }
+        - { id: s3, text: { en: "To reduce cost, a copy that replicates from another geo-secondary can use the General Purpose service tier.", fr: "Pour réduire les coûts, une copie qui réplique à partir d'un autre géosecondaire peut utiliser le niveau de service General Purpose." } }
+    answer:
+      values: { s1: false, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          A primary database supports up to four geo-secondaries, so six direct copies aren't possible (No). The remaining copies can be secondaries of a secondary (chaining), which is supported only programmatically, for example with Azure PowerShell, and not from the portal (Yes). Every geo-secondary must use the same service tier as the database it replicates from, so a chained copy of a Business Critical secondary is also Business Critical (No).
+        fr: |
+          Une base primaire prend en charge jusqu'à quatre géosecondaires : six copies directes sont donc impossibles (Non). Les copies restantes peuvent être des secondaires d'un secondaire (chaînage), pris en charge uniquement par programmation, par exemple avec Azure PowerShell, et non depuis le portail (Oui). Chaque géosecondaire doit utiliser le même niveau de service que la base dont il réplique : une copie chaînée d'un secondaire Business Critical est donc aussi en Business Critical (Non).
+      options:
+        s1: { en: "The limit is four geo-secondaries per primary; more regions require chaining.", fr: "La limite est de quatre géosecondaires par primaire ; davantage de régions exige le chaînage." }
+        s3: { en: "The same-service-tier rule applies to every geo-secondary, chained or not.", fr: "La règle du même niveau de service s'applique à chaque géosecondaire, chaîné ou non." }
+    references:
+      - title: Active Geo-Replication - Azure SQL Database
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/active-geo-replication-overview
+
+  # ------------------------------------------------------------------ 7
+  - id: dp300-qz-53-07
+    objective: "5.3.7"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys has an Always On availability group named **AG1** on two Azure virtual machines, **SQLVM1** and **SQLVM2**, that run Windows Server 2022. The replicas use synchronous commit with automatic failover. The cluster and AG1 already use the relaxed monitoring values recommended for Azure.
+
+        During a maintenance window, AG1 failed over automatically from SQLVM1 to SQLVM2, and then back to SQLVM1. Forty minutes later, the SQL Server service on SQLVM1 stopped responding, but AG1 didn't fail over and remained in a failed state on SQLVM1. The cluster log contains the following entry:
+
+        `Not failing over group AG1, failoverCount 3, computedFailoverThreshold 2`
+
+        You need to ensure that AG1 fails over automatically if a similar sequence of failures happens again. What should you do?
+      fr: |
+        Tailspin Toys dispose d'un groupe de disponibilité Always On nommé **AG1** sur deux machines virtuelles Azure, **SQLVM1** et **SQLVM2**, qui exécutent Windows Server 2022. Les réplicas utilisent la validation synchrone avec basculement automatique. Le cluster et AG1 utilisent déjà les valeurs de surveillance assouplie recommandées pour Azure.
+
+        Pendant une fenêtre de maintenance, AG1 a basculé automatiquement de SQLVM1 vers SQLVM2, puis de nouveau vers SQLVM1. Quarante minutes plus tard, le service SQL Server de SQLVM1 a cessé de répondre, mais AG1 n'a pas basculé et est resté en échec sur SQLVM1. Le journal du cluster contient l'entrée suivante :
+
+        `Not failing over group AG1, failoverCount 3, computedFailoverThreshold 2`
+
+        Vous devez faire en sorte qu'AG1 bascule automatiquement si une suite de pannes similaire se reproduit. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Lower the FAILURE_CONDITION_LEVEL of AG1 so that fewer health conditions are treated as failures.", fr: "Abaisser le FAILURE_CONDITION_LEVEL d'AG1 afin que moins de conditions d'intégrité soient traitées comme des échecs." } }
+        - { id: b, text: { en: "Increase the lease timeout of AG1 to 80 seconds so that lease expirations stop causing failovers.", fr: "Porter le délai de bail d'AG1 à 80 secondes afin que les expirations du bail ne provoquent plus de basculements." } }
+        - { id: c, text: { en: "Set SameSubnetThreshold and CrossSubnetThreshold of the cluster to 60 heartbeats instead of 40.", fr: "Définir SameSubnetThreshold et CrossSubnetThreshold du cluster à 60 pulsations au lieu de 40." } }
+        - { id: d, text: { en: "Increase Maximum failures in the specified period on the Failover tab of the AG1 clustered role.", fr: "Augmenter Maximum failures in the specified period dans l'onglet Failover du rôle en cluster AG1." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The cluster stops moving a clustered role after a set number of failures in the specified period, to avoid endless movement between nodes; the default is 2. The log entry shows a third failure (failoverCount 3) above the threshold of 2, so the cluster refused the failover. Raising Maximum failures in the specified period on the role's Failover tab, in Failover Cluster Manager, lets the next failover happen.
+        fr: |
+          Le cluster cesse de déplacer un rôle en cluster après un certain nombre d'échecs dans la période spécifiée, pour éviter des déplacements sans fin entre les nœuds ; la valeur par défaut est 2. L'entrée du journal montre un troisième échec (failoverCount 3) au-dessus du seuil de 2 : le cluster a donc refusé le basculement. Augmenter Maximum failures in the specified period dans l'onglet Failover du rôle, dans le Gestionnaire du cluster de basculement, permet au basculement suivant de se produire.
+      options:
+        a: { en: "A lower failure condition level reduces the conditions that trigger a failover; it doesn't lift the limit that blocked this one.", fr: "Un niveau de condition d'échec plus bas réduit les conditions qui déclenchent un basculement ; il ne lève pas la limite qui a bloqué celui-ci." }
+        b: { en: "A longer lease timeout only reduces false failovers caused by short stalls; the failover here was refused because of the failure count.", fr: "Un délai de bail plus long réduit seulement les faux basculements dus à de courts blocages ; ici, le basculement a été refusé à cause du nombre d'échecs." }
+        c: { en: "Higher heartbeat thresholds make node eviction less likely; they don't change how many failovers the cluster allows in a period.", fr: "Des seuils de pulsation plus élevés rendent l'exclusion des nœuds moins probable ; ils ne changent pas le nombre de basculements que le cluster autorise sur une période." }
+    references:
+      - title: HADR configuration best practices - SQL Server on Azure VMs
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/hadr-cluster-best-practices
+
+  # ------------------------------------------------------------------ 8
+  - id: dp300-qz-53-08
+    objective: "5.3.5"
+    difficulty: 3
+    status: draft
+    type: ordering
+    stem:
+      en: |
+        Litware configured log shipping for a database named **Claims** from **SQL1** to **SQL2**, two SQL Server 2022 instances on Azure virtual machines. The secondary database uses No recovery mode. The backup job on SQL1 writes the log backups to a share on a file server named **FS1**. The copy job on SQL2 runs every 30 minutes, and the restore job delays each restore by 60 minutes.
+
+        SQL1 suddenly fails and can't be started again. FS1 is still available and holds log backups that haven't been copied to SQL2. SQL2 also holds copied log backups that haven't been restored.
+
+        You need to make Claims available on SQL2 with the least possible data loss.
+
+        Which four actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+      fr: |
+        Litware a configuré la copie des journaux de transaction pour une base de données nommée **Claims**, de **SQL1** vers **SQL2**, deux instances SQL Server 2022 sur des machines virtuelles Azure. La base secondaire utilise le mode No recovery. Le travail de sauvegarde de SQL1 écrit les sauvegardes du journal dans un partage d'un serveur de fichiers nommé **FS1**. Le travail de copie de SQL2 s'exécute toutes les 30 minutes, et le travail de restauration retarde chaque restauration de 60 minutes.
+
+        SQL1 tombe soudain en panne et ne peut plus être redémarré. FS1 est toujours disponible et contient des sauvegardes du journal qui n'ont pas été copiées sur SQL2. SQL2 contient aussi des sauvegardes du journal copiées mais pas encore restaurées.
+
+        Vous devez rendre Claims disponible sur SQL2 avec le moins de perte de données possible.
+
+        Quelles sont les quatre actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+    body:
+      count: 4
+      actions:
+        - { id: tail, text: { en: "On SQL1, back up the tail of the log of Claims WITH NORECOVERY.", fr: "Sur SQL1, sauvegarder la fin du journal de Claims WITH NORECOVERY." } }
+        - { id: copy, text: { en: "Copy the log backups that are on FS1 but not yet on SQL2 to the copy destination folder of SQL2.", fr: "Copier dans le dossier de destination de la copie de SQL2 les sauvegardes du journal présentes sur FS1 mais pas encore sur SQL2." } }
+        - { id: full, text: { en: "On SQL2, restore the latest full backup of Claims WITH NORECOVERY.", fr: "Sur SQL2, restaurer la dernière sauvegarde complète de Claims WITH NORECOVERY." } }
+        - { id: apply, text: { en: "On SQL2, restore every log backup not yet restored, in sequence, WITH NORECOVERY.", fr: "Sur SQL2, restaurer dans l'ordre chaque sauvegarde du journal pas encore restaurée, WITH NORECOVERY." } }
+        - { id: last, text: { en: "On SQL2, restore only the most recent log backup WITH RECOVERY.", fr: "Sur SQL2, restaurer uniquement la sauvegarde du journal la plus récente WITH RECOVERY." } }
+        - { id: recover, text: { en: "On SQL2, run RESTORE DATABASE Claims WITH RECOVERY.", fr: "Sur SQL2, exécuter RESTORE DATABASE Claims WITH RECOVERY." } }
+        - { id: redirect, text: { en: "Redirect the applications to SQL2.", fr: "Rediriger les applications vers SQL2." } }
+    answer:
+      sequence: [ copy, apply, recover, redirect ]
+    explanation:
+      correct:
+        en: |
+          To lose as little as possible, the secondary must first receive every log backup that still exists: copy the uncopied files from the backup share, then apply all the unapplied log backups in sequence, without recovery, regardless of the restore delay. RESTORE DATABASE ... WITH RECOVERY then brings Claims online, and because log shipping has no listener, the applications are redirected to SQL2 last.
+        fr: |
+          Pour perdre le moins possible, le secondaire doit d'abord recevoir toutes les sauvegardes du journal qui existent encore : copier les fichiers non copiés depuis le partage de sauvegarde, puis appliquer dans l'ordre toutes les sauvegardes du journal non appliquées, sans récupération, quel que soit le délai de restauration. RESTORE DATABASE ... WITH RECOVERY met ensuite Claims en ligne et, comme la copie des journaux de transaction n'a pas d'écouteur, les applications sont redirigées vers SQL2 en dernier.
+      options:
+        tail: { en: "A tail-log backup needs the original primary; SQL1 can't be started, so this step is impossible here.", fr: "Une sauvegarde de la fin du journal exige le primaire d'origine ; SQL1 ne peut pas démarrer, cette étape est donc impossible ici." }
+        full: { en: "Restoring a full backup restarts the restore sequence and discards the log already applied; the secondary is already initialized.", fr: "Restaurer une sauvegarde complète relance la séquence de restauration et ignore le journal déjà appliqué ; le secondaire est déjà initialisé." }
+        last: { en: "Log backups must be restored in sequence; skipping the earlier unrestored backups breaks the log chain.", fr: "Les sauvegardes du journal doivent être restaurées dans l'ordre ; sauter les sauvegardes antérieures non restaurées rompt la chaîne de journaux." }
+    references:
+      - title: Fail over to a log shipping secondary - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/database-engine/log-shipping/fail-over-to-a-log-shipping-secondary-sql-server
+
+  # ------------------------------------------------------------------ 9
+  - id: dp300-qz-53-09
+    objective: "5.3.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Northwind Traders has a SQL Server 2022 Enterprise instance, with the latest cumulative update, on an Azure virtual machine named **SQLVM1**. SQLVM1 is a stand-alone server that isn't a node of any failover cluster, and the instance still uses its installation defaults. A database named **Orders** on SQLVM1 uses the SIMPLE recovery model and has never been backed up.
+
+        You plan to replicate Orders to an Azure SQL managed instance named **MI1** by using the Managed Instance link, with SQLVM1 as the initial primary. You will create the link by using the wizard in SSMS. The following configuration is already in place:
+
+        - The virtual network of SQLVM1 is peered with the virtual network of MI1, and every network security group and firewall allows TCP ports 5022 and 11000-11999 between them.
+        - A database master key and a database mirroring endpoint secured by a certificate exist on SQLVM1.
+
+        Which two actions should you perform before you run the wizard? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind Traders dispose d'une instance SQL Server 2022 Enterprise, avec la dernière mise à jour cumulative, sur une machine virtuelle Azure nommée **SQLVM1**. SQLVM1 est un serveur autonome qui n'est le nœud d'aucun cluster de basculement, et l'instance utilise toujours ses paramètres d'installation par défaut. Une base de données nommée **Orders** sur SQLVM1 utilise le mode de récupération SIMPLE et n'a jamais été sauvegardée.
+
+        Vous prévoyez de répliquer Orders vers une instance managée Azure SQL nommée **MI1** avec le lien Managed Instance, SQLVM1 étant le primaire initial. Vous créerez le lien avec l'assistant de SSMS. La configuration suivante est déjà en place :
+
+        - Le réseau virtuel de SQLVM1 est relié par peering au réseau virtuel de MI1, et chaque groupe de sécurité réseau et chaque pare-feu autorise les ports TCP 5022 et 11000-11999 entre eux.
+        - Une clé principale de base de données et un point de terminaison de mise en miroir de bases de données sécurisé par un certificat existent sur SQLVM1.
+
+        Quelles sont les deux actions à effectuer avant de lancer l'assistant ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Install the Failover Clustering feature, and create a single-node Windows Server failover cluster that contains SQLVM1.", fr: "Installer la fonctionnalité Clustering de basculement, et créer un cluster de basculement Windows Server à un seul nœud qui contient SQLVM1." } }
+        - { id: b, text: { en: "Enable Always On availability groups in SQL Server Configuration Manager, and then restart the SQL Server service.", fr: "Activer Groupes de disponibilité Always On dans le Gestionnaire de configuration SQL Server, puis redémarrer le service SQL Server." } }
+        - { id: c, text: { en: "Create an availability group listener for Orders, with a static IP address in the subnet of SQLVM1.", fr: "Créer un écouteur de groupe de disponibilité pour Orders, avec une adresse IP statique dans le sous-réseau de SQLVM1." } }
+        - { id: d, text: { en: "Enable the public endpoint of MI1, and allow inbound TCP port 3342 in the network security group of MI1.", fr: "Activer le point de terminaison public de MI1, et autoriser le port TCP 3342 en entrée dans le groupe de sécurité réseau de MI1." } }
+        - { id: e, text: { en: "Switch Orders to the FULL recovery model, and then take a full backup of Orders that isn't copy-only.", fr: "Passer Orders en mode de récupération FULL, puis effectuer une sauvegarde complète de Orders qui n'est pas en copie seule." } }
+    answer:
+      optionIds: [ b, e ]
+    explanation:
+      correct:
+        en: |
+          The link is a distributed availability group, so the Always On availability groups feature must be enabled on SQL Server; it's disabled after installation and takes effect after a service restart. When SQL Server is the initial primary, each database must use the full recovery model and have at least one full backup that starts the backup chain. From SQL Server 2017, no Windows Server failover cluster is required for the link.
+        fr: |
+          Le lien est un groupe de disponibilité distribué : la fonctionnalité Groupes de disponibilité Always On doit donc être activée sur SQL Server ; elle est désactivée après l'installation et prend effet après un redémarrage du service. Quand SQL Server est le primaire initial, chaque base doit utiliser le mode de récupération complet et disposer d'au moins une sauvegarde complète qui démarre la chaîne de sauvegarde. À partir de SQL Server 2017, aucun cluster de basculement Windows Server n'est nécessaire pour le lien.
+      options:
+        a: { en: "A failover cluster is needed only by SQL Server 2016 for the link; SQL Server 2022 can enable the availability groups feature on a stand-alone server.", fr: "Un cluster de basculement n'est nécessaire au lien qu'avec SQL Server 2016 ; SQL Server 2022 peut activer la fonctionnalité de groupes de disponibilité sur un serveur autonome." }
+        c: { en: "The link replicates through the database mirroring endpoints; applications don't use a listener, so none is required.", fr: "Le lien réplique par les points de terminaison de mise en miroir de bases de données ; les applications n'utilisent pas d'écouteur, aucun n'est donc nécessaire." }
+        d: { en: "The link uses private connectivity on ports 5022 and 11000-11999, which is already in place; the public endpoint isn't used.", fr: "Le lien utilise une connectivité privée sur les ports 5022 et 11000-11999, déjà en place ; le point de terminaison public n'est pas utilisé." }
+    references:
+      - title: Prepare Environment for Link - Azure SQL Managed Instance
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-preparation
+      - title: Configure link with SSMS - Azure SQL Managed Instance
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/managed-instance-link-configure-how-to-ssms
+
+  # ------------------------------------------------------------------ 10
+  - id: dp300-qz-53-10
+    objective: "5.3.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Adatum has an Always On availability group named **AG1** for a database named **Payments**. The replicas run SQL Server 2022 on Azure virtual machines that run Windows Server 2022 and belong to one Windows Server failover cluster:
+
+        - **SQLVM1**: West Europe, subnet 10.10.1.0/24, primary replica, synchronous commit
+        - **SQLVM2**: West Europe, subnet 10.10.2.0/24, secondary replica, synchronous commit
+        - **SQLVM3**: North Europe, subnet 10.20.1.0/24, secondary replica, asynchronous commit
+
+        The database mirroring endpoints use TCP port 5022. The addresses 10.10.1.50, 10.10.2.50 and 10.20.1.50 are reserved for a listener as secondary IP addresses of the virtual machines.
+
+        You need to create a listener named **ag1-lst** that meets the following requirements:
+
+        - After a failover to any replica, applications reach Payments through ag1-lst on the default SQL Server port.
+        - No Azure Load Balancer is used.
+        - Applications reconnect as fast as possible after a failover.
+
+        How should you complete the Transact-SQL statement and the connection string? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum dispose d'un groupe de disponibilité Always On nommé **AG1** pour une base de données nommée **Payments**. Les réplicas exécutent SQL Server 2022 sur des machines virtuelles Azure qui exécutent Windows Server 2022 et appartiennent à un même cluster de basculement Windows Server :
+
+        - **SQLVM1** : West Europe, sous-réseau 10.10.1.0/24, réplica primaire, validation synchrone
+        - **SQLVM2** : West Europe, sous-réseau 10.10.2.0/24, réplica secondaire, validation synchrone
+        - **SQLVM3** : North Europe, sous-réseau 10.20.1.0/24, réplica secondaire, validation asynchrone
+
+        Les points de terminaison de mise en miroir de bases de données utilisent le port TCP 5022. Les adresses 10.10.1.50, 10.10.2.50 et 10.20.1.50 sont réservées à un écouteur comme adresses IP secondaires des machines virtuelles.
+
+        Vous devez créer un écouteur nommé **ag1-lst** qui satisfait les exigences suivantes :
+
+        - Après un basculement vers n'importe quel réplica, les applications atteignent Payments par ag1-lst sur le port SQL Server par défaut.
+        - Aucun Azure Load Balancer n'est utilisé.
+        - Les applications se reconnectent le plus vite possible après un basculement.
+
+        Comment devez-vous compléter l'instruction Transact-SQL et la chaîne de connexion ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        -- Run on: [[where]]
+        ALTER AVAILABILITY GROUP [AG1]
+        ADD LISTENER N'ag1-lst' (
+          [[ip]],
+          PORT = [[port]]);
+
+        -- Application connection string
+        Server=tcp:ag1-lst;Database=Payments;Encrypt=True;[[conn]];
+      slots:
+        - id: where
+          options:
+            - { id: w1, text: SQLVM1 }
+            - { id: w2, text: SQLVM2 }
+            - { id: w3, text: SQLVM3 }
+            - { id: wall, text: { en: "Each replica", fr: "Chaque réplica" } }
+        - id: ip
+          options:
+            - { id: ip2, text: "WITH IP ((N'10.10.1.50', N'255.255.255.0'), (N'10.10.2.50', N'255.255.255.0'))" }
+            - { id: ip3, text: "WITH IP ((N'10.10.1.50', N'255.255.255.0'), (N'10.10.2.50', N'255.255.255.0'), (N'10.20.1.50', N'255.255.255.0'))" }
+            - { id: ipsame, text: "WITH IP ((N'10.10.1.50', N'255.255.255.0'), (N'10.10.1.51', N'255.255.255.0'), (N'10.10.1.52', N'255.255.255.0'))" }
+            - { id: dhcp, text: "WITH DHCP ON (N'10.10.1.0', N'255.255.255.0')" }
+        - id: port
+          options:
+            - { id: p1433, text: "1433" }
+            - { id: p5022, text: "5022" }
+            - { id: p59999, text: "59999" }
+        - id: conn
+          options:
+            - { id: intent, text: "ApplicationIntent=ReadOnly" }
+            - { id: partner, text: "Failover Partner=SQLVM2" }
+            - { id: msf, text: "MultiSubnetFailover=True" }
+    answer:
+      values: { where: w1, ip: ip3, port: p1433, conn: msf }
+    explanation:
+      correct:
+        en: |
+          ADD LISTENER is supported only on the primary replica, SQLVM1. A listener that spans several subnets needs one static IP address in each subnet that hosts a replica, so the three reserved addresses are required for the listener to come online after a failover to SQLVM3; a multi-subnet listener needs no load balancer. The default port 1433 is the client port, and MultiSubnetFailover=True makes the client try all the listener addresses in parallel, which gives the fastest reconnection.
+        fr: |
+          ADD LISTENER n'est pris en charge que sur le réplica primaire, SQLVM1. Un écouteur qui couvre plusieurs sous-réseaux a besoin d'une adresse IP statique dans chaque sous-réseau qui héberge un réplica : les trois adresses réservées sont donc nécessaires pour que l'écouteur passe en ligne après un basculement vers SQLVM3 ; un écouteur multisous-réseau ne nécessite pas d'équilibreur de charge. Le port par défaut 1433 est le port des clients, et MultiSubnetFailover=True fait essayer au client toutes les adresses de l'écouteur en parallèle, ce qui donne la reconnexion la plus rapide.
+      options:
+        wall: { en: "The listener is a cluster resource of the availability group; you create it once, from the primary replica.", fr: "L'écouteur est une ressource de cluster du groupe de disponibilité ; vous le créez une seule fois, depuis le réplica primaire." }
+        ip2: { en: "Without an address in 10.20.1.0/24, the listener can't come online when SQLVM3 becomes the primary.", fr: "Sans adresse dans 10.20.1.0/24, l'écouteur ne peut pas passer en ligne quand SQLVM3 devient le primaire." }
+        ipsame: { en: "A multi-subnet listener needs one address per subnet that hosts a replica, not several addresses in the subnet of SQLVM1.", fr: "Un écouteur multisous-réseau a besoin d'une adresse par sous-réseau qui héberge un réplica, pas de plusieurs adresses dans le sous-réseau de SQLVM1." }
+        dhcp: { en: "DHCP is limited to a single subnet used by every replica and isn't recommended in production.", fr: "DHCP est limité à un seul sous-réseau utilisé par tous les réplicas et n'est pas recommandé en production." }
+        p5022: { en: "5022 is the port of the database mirroring endpoints, used between replicas, not by client connections.", fr: "5022 est le port des points de terminaison de mise en miroir de bases de données, utilisé entre les réplicas, pas par les connexions clientes." }
+        p59999: { en: "59999 is a typical health probe port of a load balancer, which this design doesn't use.", fr: "59999 est un port de sonde d'intégrité typique d'un équilibreur de charge, que cette conception n'utilise pas." }
+        partner: { en: "Failover Partner is the database mirroring syntax for one partner server; it doesn't use the listener addresses.", fr: "Failover Partner est la syntaxe de la mise en miroir de bases de données pour un serveur partenaire ; elle n'utilise pas les adresses de l'écouteur." }
+        intent: { en: "ApplicationIntent=ReadOnly requests read-only routing; it doesn't speed up reconnection to the primary.", fr: "ApplicationIntent=ReadOnly demande le routage en lecture seule ; il n'accélère pas la reconnexion au primaire." }
+    references:
+      - title: ALTER AVAILABILITY GROUP (Transact-SQL) - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-availability-group-transact-sql
+      - title: Connect to an availability group listener - SQL Server Always On
+        url: https://learn.microsoft.com/en-us/sql/database-engine/availability-groups/windows/listeners-client-connectivity-application-failover

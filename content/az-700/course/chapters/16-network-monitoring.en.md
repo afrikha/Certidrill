@@ -29,7 +29,7 @@ az network watcher flow-log create --location westeurope --resource-group RG1 --
 
 **Connection monitor** continuously tests reachability and latency (checks failed %, round-trip time) from sources to destinations:
 
-- Sources: Azure VMs and scale sets with the **Network Watcher extension** (installed for you by the portal), and on-premises machines enabled with **Azure Arc** plus the **Azure Monitor Agent**. The Log Analytics agent is no longer supported.
+- Sources: Azure VMs and scale sets with the **Network Watcher extension** (installed for you by the portal), and on-premises machines enabled with **Azure Arc** plus the **Azure Monitor Agent**. The portal enables the monitoring extensions, but you enable the Arc agent on each on-premises host yourself, and the **Network Performance Monitoring** solution must be enabled in the Log Analytics workspace (**+ Enable Non-Azure**). The Log Analytics agent is no longer supported.
 - Destinations: VMs, URLs, FQDNs, IP addresses, Microsoft 365 URLs; no agent needed.
 - Structure: a regional connection monitor contains **test groups**; each test group has sources, destinations and **test configurations** (TCP, HTTP or ICMP, port, frequency, thresholds). Every source × destination × configuration is one test.
 - Limits per region and subscription: 100 connection monitors; per monitor: 20 test groups, 100 sources and destinations, 20 test configurations.
@@ -62,7 +62,7 @@ az network watcher troubleshooting start --resource-group RG1 --resource VNet1to
 Details that decide answers:
 
 - **Packet capture** needs the `AzureNetworkWatcherExtension` VM extension. Output to the VM's disk or a storage blob; filters by IP, port and protocol; default time limit 18,000 seconds (5 hours); **continuous** capture uses a ring buffer of files for up to seven days. Up to 10,000 sessions per region and subscription.
-- **VPN troubleshoot** supports route-based VPN gateways and IPsec or VNet-to-VNet connections, not ExpressRoute, policy-based gateways or point-to-site connections. It writes logs to a storage account and returns fault types such as `Authentication` (preshared key mismatch), `PeerReachability` and `IkePolicyMismatch`. One operation at a time per subscription.
+- **VPN troubleshoot** supports route-based VPN gateways and IPsec or VNet-to-VNet connections, not ExpressRoute, policy-based gateways or point-to-site connections. It writes logs to a storage account and returns fault types such as `Authentication` (preshared key mismatch), `PeerReachability` and `IkePolicyMismatch`. One operation at a time per subscription. With Azure CLI, the gateway and the storage account must be in the same resource group; otherwise use PowerShell or the portal.
 - **Connection troubleshoot** runs from a VM, scale set, Azure Bastion host or application gateway v2; its agentless mode (preview) doesn't need the extension.
 - Every tool needs a Network Watcher instance in the region of the resource.
 
@@ -97,7 +97,7 @@ Every Azure public IP address gets **DDoS infrastructure protection** at no cost
 | DDoS Rapid Response, cost protection, WAF discount | Yes | No |
 | Basic public IP | Protected | Not supported |
 
-Common to both: always-on monitoring, three auto-tuned mitigation policies per public IP (TCP SYN, TCP, UDP), metrics, alerts, mitigation reports and flow logs. A public IP attached to a NAT gateway can't be protected.
+Common to both: always-on monitoring, three auto-tuned mitigation policies per public IP (TCP SYN, TCP, UDP), metrics, alerts, mitigation reports and flow logs. A DDoS Protection custom policy (preview) can set fixed detection thresholds per protocol on Standard Load Balancer frontend IP addresses. A public IP attached to a NAT gateway can't be protected; DDoS Protection for the public IPs of a StandardV2 NAT gateway is in preview.
 
 ```bash
 az network ddos-protection create --resource-group RG1 --name ddos-plan-contoso
@@ -114,7 +114,7 @@ Monitoring is done on the **public IP address** resource:
 | Metrics **Inbound packets dropped DDoS**, **Inbound packets forwarded DDoS**, **Inbound packets DDoS** | Scrubbed, forwarded and total traffic during mitigation |
 | Log `DDoSProtectionNotifications` | Start and end of mitigation |
 | Log `DDoSMitigationFlowLogs` | Dropped and forwarded flows during an attack, for Microsoft Sentinel or a SIEM |
-| Log `DDoSMitigationReports` | Attack reports in five-minute increments; this category is being retired in favor of the flow logs |
+| Log `DDoSMitigationReports` | Attack reports in five-minute increments; retiring: Learn gives mid-August 2026 for the end of this category and September 2026 for the old pipeline (approximate dates), so rebuild these reports from `DDoSMitigationFlowLogs`, whose column names also change |
 
 Logs require a **diagnostic setting** on the public IP address. Telemetry and alerts exist only while a public IP is protected.
 
@@ -131,6 +131,7 @@ How the classic secure score (Azure portal) moves:
 - A control gives all its points only when **every** recommendation in it is remediated on every resource. **Potential score increase** shows the gain.
 - Recommendations marked **Preview** don't count until they're generally available.
 - Scores are recalculated about every eight hours.
+- Across several subscriptions, the overall score is a weighted sum, not an average of the per-subscription percentages. The Microsoft Defender portal shows a different model, the risk-based **Cloud Secure Score**; the classic score stays in the Azure portal (**Recommendations** > **Switch to classic view**).
 
 | Network control (max score) | Remediation that earns its points |
 | --- | --- |
@@ -175,7 +176,7 @@ Working through a path in the Azure portal: **Defender for Cloud** > **Attack pa
 
 Cloud security explorer runs graph queries over the same cloud security graph to find resources proactively, before an attack path exists: inventory, internet exposure, permissions, lateral movement, across Azure, AWS and GCP.
 
-- Requires **Defender CSPM** (and agentless scanning); same roles as attack path analysis. Configuration data is refreshed daily.
+- Requires **Defender CSPM** (and agentless scanning); with only Defender for Servers Plan 2 you can query keys and secrets, not use the full explorer. Same roles as attack path analysis. Configuration data is refreshed daily.
 - **Defender for Cloud** > **Cloud Security Explorer**: select a resource type, select **+** to add conditions and sub-filters (for example on internet exposure or connections to other resources), then **Search**.
 - **Query templates** at the bottom of the page give ready-made questions; open one, adjust it, run it.
 - **Share query link** copies the query; **Download CSV report** exports the results.

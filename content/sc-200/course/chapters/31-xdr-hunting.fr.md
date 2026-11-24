@@ -29,12 +29,12 @@ Chaque charge de travail Defender alimente ses propres tables. Choisissez la tab
 | Activités dans Office 365 et d'autres applications cloud (Defender for Cloud Apps) | `CloudAppEvents` |
 | Requêtes vers Microsoft Graph | `GraphAPIAuditEvents` |
 | Alertes de tous les produits Defender, et leurs entités | `AlertInfo`, `AlertEvidence` |
-| Actions de l'interruption automatique des attaques | `DisruptionAndResponseEvents` |
+| Événements de l'interruption automatique des attaques (préversion) | `DisruptionAndResponseEvents` |
 | Graphe d'Exposure Management (ressources et leurs relations) | `ExposureGraphNodes`, `ExposureGraphEdges` |
 
 Règles qui décident des réponses :
 
-- Le repérage avancé couvre **30 jours** de données Defender. Dès qu'un espace de travail Microsoft Sentinel est connecté au portail Defender, ses tables (`SecurityEvent`, `SigninLogs`, `CommonSecurityLog`, tables personnalisées...) s'interrogent dans le même éditeur, pendant la rétention du niveau Analytics de chaque table. Les données présentes uniquement dans le **data lake** ne sont pas disponibles dans le repérage avancé : utilisez l'exploration du data lake.
+- Le repérage avancé couvre **30 jours** de données Defender (jusqu'à 90 jours de données prises en charge avec une licence ISOC (Integrated Security Operations Center) éligible). Dès qu'un espace de travail Microsoft Sentinel est connecté au portail Defender, ses tables (`SecurityEvent`, `SigninLogs`, `CommonSecurityLog`, tables personnalisées...) s'interrogent dans le même éditeur, pendant la rétention du niveau Analytics de chaque table. Les données présentes uniquement dans le **data lake** ne sont pas disponibles dans le repérage avancé : utilisez l'exploration du data lake.
 - Les tables Defender se filtrent sur `Timestamp` ; les tables Sentinel sur `TimeGenerated`. Toutes les données sont en UTC.
 - Les tables d'entités (`DeviceInfo`, `IdentityInfo`...) sont actualisées toutes les heures avec le dernier enregistrement complet de chaque entité.
 
@@ -117,12 +117,13 @@ Ouvrez **Investigation & response > Hunting > Advanced hunting** dans le portail
 - Le volet du schéma liste les tables et leurs colonnes ; les requêtes s'enregistrent sous **My queries** ou **Shared queries** pour le locataire, et les exemples de requêtes servent de point de départ.
 - Une requête utilisée régulièrement devient une **règle de détection personnalisée** (**Create detection rule** depuis l'éditeur), qui l'exécute selon une planification et déclenche des alertes.
 - Depuis un incident, **Go hunt** ouvre une requête prédéfinie sur une entité ; **Link to incident** rattache des résultats sélectionnés à un incident.
+- Avec les données Microsoft Sentinel, le mode guidé et **Take actions** ne prennent en charge que les données Defender XDR, et les signets ne sont pas pris en charge dans le repérage avancé (utilisez **Link to incident**).
 
 Quotas, appliqués séparément aux requêtes manuelles et aux détections personnalisées :
 
 | Quota | Limite |
 | --- | --- |
-| Plage de temps | 30 jours de données Defender ; tables Sentinel selon leur rétention Analytics |
+| Plage de temps | 30 jours de données Defender (90 jours de données prises en charge avec une licence ISOC éligible) ; tables Sentinel selon leur rétention Analytics |
 | Lignes renvoyées | 100 000 |
 | Durée | 10 minutes |
 | Taille des résultats | 64 Mo (au-delà, les résultats sont tronqués) |
@@ -172,7 +173,7 @@ Consulter les rapports, les incidents et les ressources touchées exige **Securi
 <!-- section: hunting-graphs | objectives: 3.1.5 -->
 ## Créer des graphes de chasse et le rayon d'impact
 
-Un **graphe de chasse** représente un scénario de chasse sous forme de nœuds (appareils, comptes, adresses IP, ressources cloud) et d'arêtes (relations), pour trouver des chemins d'attaque et des points de passage obligés que les tables masquent. Prérequis : l'intégration au **data lake Microsoft Sentinel** (le graphe est provisionné avec lui), au moins un **accès en lecture seule à Microsoft Security Exposure Management** et les autorisations du repérage avancé.
+Un **graphe de chasse** représente un scénario de chasse sous forme de nœuds (appareils, comptes, adresses IP, ressources cloud) et d'arêtes (relations), pour trouver des chemins d'attaque et des points de passage obligés que les tables masquent. Prérequis : l'intégration au **data lake Microsoft Sentinel** (le graphe est provisionné avec lui ; Learn réserve la fonctionnalité aux clients intégrés avant le 23 septembre 2026), au moins un **accès en lecture seule à Microsoft Security Exposure Management** et les autorisations du repérage avancé.
 
 Pour en créer un :
 
@@ -191,7 +192,7 @@ Pour en créer un :
 
 Filtres : **Show only the shortest paths** ; nœud source (critique, vulnérable, exposé à Internet) ; nœud cible (contient des données sensibles, vulnérable) ; type d'arête (member of, has permissions to, can authenticate as, has credentials of...) ; direction de l'arête.
 
-Le **rayon d'impact** répond à « si cette entité est compromise, que peut atteindre l'attaquant ? ». Dans le graphe d'un incident, sélectionnez un nœud puis **View blast radius** : le graphe ajoute les chemins de propagation possibles de ce nœud vers des cibles critiques, jusqu'à **sept sauts**. Il montre des chemins **possibles**, pas une activité confirmée de l'attaquant. Il exige la même intégration au data lake et l'autorisation de lecture d'Exposure Management.
+Le **rayon d'impact** répond à « si cette entité est compromise, que peut atteindre l'attaquant ? ». Dans le graphe d'un incident, sélectionnez un nœud puis **View blast radius** : le graphe ajoute les chemins de propagation possibles de ce nœud vers des cibles critiques, jusqu'à **sept sauts**. Il montre des chemins **possibles**, pas une activité confirmée de l'attaquant. Il exige la même intégration au data lake (avant le 23 septembre 2026) et l'autorisation Exposure management (read).
 
 > **Piège d'examen.** Le graphe de l'incident montre ce qui s'est passé (les alertes et leurs entités) ; le rayon d'impact ajoute ce qui pourrait se passer ensuite. « Montrer quels serveurs critiques un compte compromis pourrait atteindre » correspond au rayon d'impact, pas à l'histoire de l'alerte ni à une requête KQL sur `DeviceLogonEvents`.
 
@@ -220,7 +221,7 @@ ExposureGraphEdges
 | summarize by IncomingNodeLabels
 ```
 
-Les clients d'IA atteignent le même graphe par les outils de graphe du serveur MCP Sentinel (`find_blastradius`, `find_walkable_paths`, `find_exposure_perimeter`).
+Les clients d'IA atteignent le même graphe par les outils de graphe du serveur MCP Sentinel (`find_blastradius`, `find_walkable_paths`, `find_exposure_perimeter`), qui sont en préversion.
 
 > **Piège d'examen.** `ExposureGraphNodes` et `ExposureGraphEdges` sont des tables de repérage avancé qui décrivent des ressources et des autorisations, pas une activité : « quelles identités peuvent accéder à ce coffre de clés » est une question de graphe, « qui a accédé au coffre de clés hier » relève d'une table d'activité.
 
@@ -228,8 +229,8 @@ Les clients d'IA atteignent le même graphe par les outils de graphe du serveur 
 ## Points clés
 
 - Choisir la table d'après la source : `Device*` (Defender for Endpoint), `Email*` et `UrlClickEvents` (Defender for Office 365), `Identity*` (Defender for Identity), `EntraIdSignInEvents`, `CloudAppEvents`, `Alert*`.
-- Repérage avancé : 30 jours de données Defender, tables Sentinel du niveau Analytics dans le même éditeur, pas les données présentes uniquement dans le lake ; 100 000 lignes, 10 minutes, 64 Mo.
+- Repérage avancé : 30 jours de données Defender (90 avec une licence ISOC éligible), tables Sentinel du niveau Analytics dans le même éditeur, pas les données présentes uniquement dans le lake ; 100 000 lignes, 10 minutes, 64 Mo.
 - KQL : `has` (terme) ou `contains` (sous-chaîne) ; jointure par défaut `innerunique` ; `leftanti` pour « sans correspondance » ; `arg_max` pour la dernière ligne.
 - Les actions depuis les résultats exigent les colonnes d'identification (`DeviceId`, `SHA1`, `NetworkMessageId`...).
 - Analytique des menaces : related incidents = attaqué maintenant ; endpoints exposure = vulnérable ; recommended actions = atténuations Secure Score.
-- Graphe de chasse et rayon d'impact : intégration au data lake plus lecture d'Exposure Management ; le rayon d'impact montre des chemins possibles jusqu'à sept sauts.
+- Graphe de chasse et rayon d'impact : intégration au data lake (avant le 23 septembre 2026) plus lecture d'Exposure Management ; le rayon d'impact montre des chemins possibles jusqu'à sept sauts.

@@ -13,15 +13,15 @@ A container packages an application with its dependencies and shares the kernel 
 <!-- section: acr | objectives: 3.3.1 -->
 ## Azure Container Registry
 
-A registry has a globally unique name (5 to 50 alphanumeric characters) and a login server `<name>.azurecr.io`. Images are addressed as `<name>.azurecr.io/<repository>:<tag>`.
+A registry has a globally unique name: 5 to 50 **lowercase** alphanumeric characters, no dashes. Its login server depends on the **domain name label (DNL) scope** chosen at creation, which can't be changed later: `<name>-<hash>.azurecr.io` with DNL protection (Tenant Reuse, Subscription Reuse, Resource Group Reuse, No Reuse), which prevents subdomain takeover, or `<name>.azurecr.io` with **Unsecure**. Images are addressed as `<login server>/<repository>:<tag>`; the examples below use a registry without a DNL hash.
 
 | Tier | Features |
 | --- | --- |
 | Basic | Entry level: same core features, least storage and throughput |
 | Standard | More storage and throughput; fits most production needs |
-| **Premium** | Highest limits, plus **geo-replication**, **private endpoints** (Private Link), zone redundancy, content trust, retention policy for untagged manifests |
+| **Premium** | Highest limits, plus **geo-replication**, **private endpoints** (Private Link), customer-managed keys, retention policy for untagged manifests |
 
-The tier can be changed at any time.
+The tier can be changed at any time (geo-replications must be deleted before moving down from Premium). **Zone redundancy** isn't a Premium feature: it is enabled by default in every tier, in the regions that support availability zones. Docker Content Trust (Premium) is being retired: it can't be enabled on a new registry since May 31, 2026 and is removed on March 31, 2028 (Microsoft points to the Notary Project instead).
 
 **Authentication:**
 

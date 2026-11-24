@@ -173,6 +173,7 @@ Tenant root group
 ```
 
 - Les attributions (rôles et stratégies) à un groupe d'administration s'appliquent à tout abonnement déplacé dessous plus tard.
+- Déplacer un abonnement exige l'autorisation d'écriture sur le groupe d'administration parent actuel et sur le parent cible, sauf si l'un d'eux est le groupe d'administration racine. Un rôle Owner hérité du groupe d'administration actuel ne permet de déplacer l'abonnement que vers un groupe d'administration où vous êtes aussi Owner ; une attribution Owner directe sur l'abonnement n'exige que Contributor sur la cible. Un déplacement peut mettre jusqu'à 30 minutes à apparaître.
 - Production et hors production dans des abonnements distincts gardent séparés leurs quotas, budgets et autorisations, et une erreur hors production ne peut pas toucher la production.
 - Utilisez efficacement les abonnements existants, planifiez tôt la croissance et démarrez les nouveaux environnements avec un petit nombre d'abonnements.
 
@@ -186,7 +187,7 @@ Le scénario SAP du Cloud Adoption Framework s'appuie sur une **zone d'atterriss
 | Composant | Contenu |
 | --- | --- |
 | Zone d'atterrissage de plateforme | Abonnements d'identité, de gestion (Log Analytics, supervision) et de connectivité ; le hub avec ExpressRoute, un VPN site à site en secours d'ExpressRoute, le pare-feu et le DNS |
-| Zones d'atterrissage d'application SAP | Abonnements SAP de production et hors production ; un réseau virtuel spoke par zone de charge de travail (production, QA, développement, bac à sable) appairé au hub |
+| Zones d'atterrissage d'application SAP | Abonnements SAP de production et hors production ; un réseau virtuel spoke par zone de charge de travail (production, QA, développement, bac à sable) relié par peering au hub |
 | Topologie | Hub-and-spoke, ou Azure Virtual WAN avec les réseaux virtuels SAP comme spokes du hub virtuel |
 | Déploiement des systèmes SAP | SAP Deployment Automation Framework (Terraform pour l'infrastructure, Ansible pour la configuration de l'OS et de SAP), ou le Centre Azure pour les solutions SAP (déploiement S/4HANA guidé, inscription de systèmes existants, démarrage et arrêt) |
 
@@ -209,4 +210,4 @@ Les règles réseau que la zone d'atterrissage doit respecter :
 - Stratégies avec `deny` pour les SKU, régions et étiquettes autorisés au groupe d'administration SAP ; `deployIfNotExists` et `modify` exigent une identité managée et une correction.
 - SAP sous Windows rejoint Active Directory Domain Services ; SAP GUI utilise SNC avec Kerberos, Fiori utilise SAML avec Microsoft Entra ID, les appelants OData utilisent OAuth ou la propagation du principal.
 - SAP SaaS : Microsoft Entra ID authentifie, IAS fait office de proxy, BTP autorise via des role collections associées à des groupes ; approvisionnement vers IAS depuis Microsoft Entra ID, depuis SuccessFactors vers Microsoft Entra ID.
-- Zones d'atterrissage : la plateforme d'abord, puis les abonnements SAP de production et hors production avec des spokes appairés au hub ; un système SAP par réseau virtuel.
+- Zones d'atterrissage : la plateforme d'abord, puis les abonnements SAP de production et hors production avec des spokes reliés par peering au hub ; un système SAP par réseau virtuel.

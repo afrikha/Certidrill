@@ -61,7 +61,7 @@ az cosmosdb sql role definition create -a cosmos-litware -g rg-litware --body '{
 }'
 ```
 
-Un compte dont l'accès réseau public est désactivé derrière un point de terminaison privé peut être mis en miroir : ajoutez la fonctionnalité `EnableFabricNetworkAclBypass`, autorisez l'espace de travail Fabric avec `--network-acl-bypass-resource-ids` (contournement de l'ACL réseau), créez une passerelle de données de réseau virtuel et une connexion OAuth 2.0, puis créez la base de données mise en miroir avec l'API REST Fabric. L'espace de travail doit être dans la région du compte. La réplication continue transite par le réseau Microsoft, pas par le point de terminaison privé.
+Un compte dont l'accès réseau public est désactivé derrière un point de terminaison privé peut être mis en miroir : ajoutez la fonctionnalité `EnableFabricNetworkAclBypass`, autorisez l'espace de travail Fabric avec `--network-acl-bypass-resource-ids` (contournement de l'ACL réseau), créez une passerelle de données de réseau virtuel et une connexion OAuth 2.0, puis créez la base de données mise en miroir avec l'API REST Fabric. L'espace de travail doit être dans la région du compte, le fournisseur de ressources `Microsoft.PowerPlatform` doit être inscrit sur l'abonnement (la passerelle l'utilise pour se lier au réseau virtuel), et le sous-réseau de la passerelle doit être un sous-réseau dédié `/27` ou plus grand, délégué à `Microsoft.PowerPlatform/vnetaccesslinks`. La réplication continue transite par le réseau Microsoft, pas par le point de terminaison privé.
 
 Coût : le calcul de réplication est gratuit, le stockage du miroir dans OneLake est gratuit jusqu'à une limite liée à la taille de la capacité, les requêtes consomment la capacité Fabric, et une capacité dans une autre région que le compte ajoute des frais de sortie et de la latence.
 
@@ -80,9 +80,9 @@ Coût : le calcul de réplication est gratuit, le stockage du miroir dans OneLak
 | Failed (Échec) | Erreur fatale, intervention requise |
 | Paused (Suspendu) | Base de données uniquement : la capacité Fabric a été suspendue puis reprise |
 
-La liste des tables affiche **Rows replicated** (Lignes répliquées : cumul des insertions, mises à jour et suppressions appliquées) et **Last completed** (Dernier terminé : dernière actualisation depuis la source). L'état est aussi disponible par l'API REST de mise en miroir.
+La liste des tables affiche **Rows replicated** (Lignes répliquées : cumul des insertions, mises à jour et suppressions appliquées) et **Last completed** (Dernier terminé : dernière actualisation depuis la source). L'état est aussi disponible par l'API REST ou le SDK de mise en miroir de Fabric.
 
-Pour l'historique et les alertes, activez la **surveillance de l'espace de travail** : les journaux d'exécution arrivent dans la table `MirroredDatabaseTableExecution` de la base de données KQL de surveillance, avec `OperationName` (`AddTable`, `Snapshotting`, `Replicating`, `StartReseeding`, `FailTable`...), `SourceTableName`, `ProcessedRows`, `ProcessedBytes`, `ReplicatorBatchLatency` (secondes), `ErrorType` (`UserError` ou `SystemError`) et `ErrorMessage`.
+Pour l'historique et les alertes, activez la **surveillance de l'espace de travail** : les journaux d'opérations des bases de données en miroir (préversion) arrivent dans la table `MirroredDatabaseTableExecution` de la base de données KQL de surveillance, avec `OperationName` (`AddTable`, `Snapshotting`, `Replicating`, `StartReseeding`, `FailTable`...), `SourceTableName`, `ProcessedRows`, `ProcessedBytes`, `ReplicatorBatchLatency` (secondes), `ErrorType` (`UserError` ou `SystemError`) et `ErrorMessage`.
 
 ```kusto
 MirroredDatabaseTableExecution
@@ -109,7 +109,7 @@ Actions de gestion :
 | Conteneur supprimé puis recréé avec le même nom | La table ne contient plus que les données du nouveau conteneur |
 | Base de données source supprimée | La réplication échoue ; les données OneLake restent jusqu'à la suppression du miroir |
 
-> **Conseil d'examen.** Pour vérifier que le miroir est à jour, comparez **Last completed** et **Rows replicated** avec la source en direct (vue **Source database** en lecture seule), et examinez `ReplicatorBatchLatency` dans les journaux de surveillance de l'espace de travail.
+> **Conseil d'examen.** Pour vérifier que le miroir est à jour, comparez **Last completed** et **Rows replicated** avec la source en direct (vue **Source database** en lecture seule), et examinez `ReplicatorBatchLatency` dans les journaux de surveillance de l'espace de travail (préversion).
 
 <!-- section: query-tsql | objectives: 3.3.3 -->
 ## Interroger le JSON en miroir avec T-SQL
@@ -252,6 +252,6 @@ Autres paramètres : les écritures en bloc sont activées par défaut (`spark.c
 - Cosmos DB dans Fabric : même moteur, autoscale uniquement, facturé en CU, Microsoft Entra ID uniquement, mode passerelle, une seule région, toujours mis en miroir dans OneLake.
 - Azure Cosmos DB : écritures multirégions, débit serverless ou manuel, points de terminaison privés, clés gérées par le client ; mettez-le en miroir pour l'analytique.
 - La mise en miroir exige l'API for NoSQL, la sauvegarde continue et l'absence d'écritures multirégions ; l'authentification utilise une clé en lecture-écriture ou Entra avec `readMetadata` + `readAnalytics` ; la réplication ne consomme aucune RU.
-- Surveillez avec les états de réplication et `MirroredDatabaseTableExecution`. Un redémarrage réamorce tout.
+- Surveillez avec les états de réplication (portail ou API REST) et, en préversion, `MirroredDatabaseTableExecution`. Un redémarrage réamorce tout.
 - T-SQL sur le point de terminaison d'analytique SQL en lecture seule, JSON imbriqué développé avec `OPENJSON`.
 - Spark lit le miroir par un raccourci de lakehouse ; le connecteur `cosmos.oltp` réécrit les résultats (RU, stratégie d'écriture, contrôle du débit).

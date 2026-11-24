@@ -5,85 +5,85 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    Adatum Corporation has an Azure AI Search service that hosts a Foundry IQ knowledge base named hr-kb. You are writing the Python code that connects a prompt agent in a Foundry project to hr-kb.
+    Adatum Corporation has a Foundry IQ knowledge base named hr-kb on an Azure AI Search service. hr-kb has one search index knowledge source named hr-policies-ks and no chat model, so it uses minimal retrieval reasoning effort.
 
-    The project connection must authenticate with the project's managed identity. The agent must retrieve from hr-kb without waiting for a user approval on each call. The `project` variable is an authenticated `AIProjectClient`.
+    An Azure Functions app answers HR tickets. One step of its workflow must retrieve grounding content from hr-kb by using the GA REST API version 2026-10-01, then add that content to the prompt of a chat model. The function authenticates with its managed identity, and `question` contains the text of the ticket.
 
-    How should you complete the code? Select the appropriate options in the answer area.
+    How should you complete the code? To answer, select the appropriate options in the answer area.
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Adatum Corporation dispose d'un service Azure AI Search qui héberge une base de connaissances Foundry IQ nommée hr-kb. Vous écrivez le code Python qui connecte un agent d'invite d'un projet Foundry à hr-kb.
+    Adatum Corporation dispose d'une base de connaissances Foundry IQ nommée hr-kb sur un service Azure AI Search. hr-kb a une source de connaissances d'index de recherche nommée hr-policies-ks et aucun modèle de conversation : elle utilise l'effort de raisonnement de récupération minimal.
 
-    La connexion du projet doit s'authentifier avec l'identité managée du projet. L'agent doit effectuer la récupération dans hr-kb sans attendre l'approbation d'un utilisateur à chaque appel. La variable `project` est un `AIProjectClient` authentifié.
+    Une application Azure Functions répond aux tickets RH. Une étape de son flux de travail doit récupérer du contenu d'ancrage dans hr-kb à l'aide de la version GA 2026-10-01 de l'API REST, puis ajouter ce contenu à l'invite d'un modèle de conversation. La fonction s'authentifie avec son identité managée, et `question` contient le texte du ticket.
 
-    Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+    Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
 
     Remarque : chaque sélection correcte vaut un point.
 body:
   layout: code
   language: python
   template: |
-    mcp_endpoint = f"{search_endpoint}/knowledgebases/hr-kb/mcp?api-version=2026-08-01-preview"
-
-    # Body of the PUT request that creates the project connection "hr-kb-connection"
-    connection_body = {
-        "name": "hr-kb-connection",
-        "type": "Microsoft.MachineLearningServices/workspaces/connections",
-        "properties": {
-            "authType": "ProjectManagedIdentity",
-            "category": [[category]],
-            "target": mcp_endpoint,
-            "isSharedToAll": True,
-            "audience": "https://search.azure.com/",
-            "metadata": {"ApiType": "Azure"},
-        },
-    }
-
-    kb_tool = MCPTool(
-        server_label="hr-knowledge",
-        server_url=[[url]],
-        require_approval="never",
-        allowed_tools=[ [[tool]] ],
-        project_connection_id="hr-kb-connection",
+    kb_client = [[client]](
+        endpoint=search_endpoint,
+        credential=DefaultAzureCredential(),
+        api_version="2026-10-01",
+        knowledge_base_name="hr-kb",
     )
 
-    agent = project.agents.create_version(
-        agent_name="hr-agent",
-        definition=PromptAgentDefinition(
-            model="gpt-4.1-mini",
-            instructions="Answer only from the knowledge base and cite the retrieved sources.",
-            tools=[kb_tool],
-        ),
+    request = KnowledgeBaseRetrievalRequest(
+        [[input]],
+        retrieval_reasoning_effort=KnowledgeRetrievalMinimalReasoningEffort(),
+        output_mode="extractiveData",
+        knowledge_source_params=[
+            SearchIndexKnowledgeSourceParams(knowledge_source_name="hr-policies-ks")
+        ],
+    )
+    result = kb_client.retrieve(request)
+
+    grounding = "\n".join(
+        content.text for message in result.[[field]] for content in message.content
     )
   slots:
-    - id: category
+    - id: client
       options:
-        - { id: remote, text: '"RemoteTool"' }
-        - { id: search, text: '"CognitiveSearch"' }
-        - { id: aoai, text: '"AzureOpenAI"' }
-    - id: url
+        - { id: search, text: SearchClient }
+        - { id: kbclient, text: KnowledgeBaseRetrievalClient }
+        - { id: indexclient, text: SearchIndexClient }
+    - id: input
       options:
-        - { id: search, text: search_endpoint }
-        - { id: mcp, text: mcp_endpoint }
-        - { id: project, text: project_endpoint }
-    - id: tool
+        - { id: messages, text: 'messages=[KnowledgeBaseMessage(role="user", content=[KnowledgeBaseMessageTextContent(text=question)])]' }
+        - { id: vector, text: 'vector_queries=[VectorizableTextQuery(text=question, fields="contentVector")]' }
+        - { id: intents, text: 'intents=[KnowledgeRetrievalSemanticIntent(search=question)]' }
+    - id: field
       options:
-        - { id: filesearch, text: '"file_search"' }
-        - { id: aisearch, text: '"azure_ai_search"' }
-        - { id: retrieve, text: '"knowledge_base_retrieve"' }
+        - { id: references, text: references }
+        - { id: activity, text: activity }
+        - { id: response, text: response }
 answer:
-  values: { category: remote, url: mcp, tool: retrieve }
+  values: { client: kbclient, input: intents, field: response }
 explanation:
   correct:
     en: |
-      An agent reaches a Foundry IQ knowledge base through the Model Context Protocol: the project connection uses the RemoteTool category and targets the knowledge base's MCP endpoint, with ProjectManagedIdentity authentication. The MCPTool points to the same MCP endpoint, and knowledge_base_retrieve is the only knowledge base MCP tool that Foundry Agent Service supports.
+      `KnowledgeBaseRetrievalClient` calls the retrieve action of a knowledge base, here with the 2026-10-01 GA API. Minimal retrieval runs without a chat model and rejects `messages`, so the request passes the question as a semantic intent. The grounding content is in `response`: chat-style messages whose text content holds the retrieved documents, each with a reference ID for citations.
     fr: |
-      Un agent atteint une base de connaissances Foundry IQ via le protocole MCP (Model Context Protocol) : la connexion du projet utilise la catégorie RemoteTool et cible le point de terminaison MCP de la base de connaissances, avec l'authentification ProjectManagedIdentity. Le MCPTool pointe vers ce même point de terminaison MCP, et knowledge_base_retrieve est le seul outil MCP de base de connaissances que Foundry Agent Service prend en charge.
+      `KnowledgeBaseRetrievalClient` appelle l'action retrieve d'une base de connaissances, ici avec l'API GA 2026-10-01. La récupération minimale s'exécute sans modèle de conversation et rejette `messages` : la requête transmet donc la question comme intention sémantique. Le contenu d'ancrage se trouve dans `response` : des messages de type conversation dont le contenu texte contient les documents récupérés, chacun avec un ID de référence pour les citations.
   options:
-    category: { en: "CognitiveSearch is the connection category used by the Azure AI Search tool for an index, and AzureOpenAI is for model resources; neither targets an MCP endpoint.", fr: "CognitiveSearch est la catégorie de connexion utilisée par l'outil Azure AI Search pour un index, et AzureOpenAI concerne les ressources de modèles ; aucune ne cible un point de terminaison MCP." }
-    url: { en: "The MCP server is the knowledge base endpoint, not the root of the search service or the Foundry project endpoint.", fr: "Le serveur MCP est le point de terminaison de la base de connaissances, pas la racine du service de recherche ni le point de terminaison du projet Foundry." }
-    tool: { en: "file_search and azure_ai_search aren't tools exposed by the knowledge base MCP server.", fr: "file_search et azure_ai_search ne sont pas des outils exposés par le serveur MCP de la base de connaissances." }
+    client:
+      en: |
+        `SearchClient` queries one index directly, without the knowledge base, and `SearchIndexClient` manages indexes; neither has a retrieve action for hr-kb.
+      fr: |
+        `SearchClient` interroge directement un index, sans la base de connaissances, et `SearchIndexClient` gère les index ; aucun des deux n'a d'action retrieve pour hr-kb.
+    input:
+      en: |
+        Messages require low or medium reasoning effort with a chat model; minimal retrieval rejects them. `vector_queries` is a parameter of `SearchClient.search`, not of a knowledge base retrieval request.
+      fr: |
+        Les messages exigent un effort de raisonnement faible ou moyen avec un modèle de conversation ; la récupération minimale les rejette. `vector_queries` est un paramètre de `SearchClient.search`, pas d'une requête de récupération d'une base de connaissances.
+    field:
+      en: |
+        `references` lists the source documents (document key, source data, citation URL) and `activity` holds the diagnostics of each step; neither is the grounding text to add to the prompt.
+      fr: |
+        `references` liste les documents sources (clé de document, données sources, URL de citation) et `activity` contient les diagnostics de chaque étape ; aucun des deux n'est le texte d'ancrage à ajouter à l'invite.
 references:
-  - title: Connect Agents to Foundry IQ Knowledge Bases
-    url: https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/foundry-iq-connect
+  - title: Query Knowledge Base via API or MCP
+    url: https://learn.microsoft.com/en-us/azure/search/agentic-retrieval-how-to-retrieve

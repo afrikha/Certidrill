@@ -20,8 +20,8 @@ DevOps security in Defender for Cloud:
 | Capability | Foundational CSPM | Defender CSPM |
 | --- | --- | --- |
 | Inventory of DevOps resources, recommendations for DevOps environment misconfigurations | Yes | Yes |
-| Recommendations for code vulnerabilities, IaC misconfigurations, exposed secrets, open-source vulnerabilities | Yes (needs a scanner: GitHub Advanced Security, Microsoft Security DevOps or agentless code scanning) | Yes |
-| Pull request annotations (Azure DevOps), SBOM queries, code to cloud mapping | No | Yes |
+| Recommendations for code vulnerabilities, IaC misconfigurations, exposed secrets, open-source vulnerabilities | Yes (needs a scanner: GitHub Advanced Security, Microsoft Security DevOps or agentless code scanning, in preview; GitLab needs GitLab Ultimate) | Yes |
+| Pull request annotations (Azure DevOps), SBOM queries (Azure DevOps and GitHub, after an agentless code scan), code to cloud mapping | No | Yes |
 | Attack path analysis and cloud security explorer including DevOps context | No | Yes |
 
 > **Exam trap.** Connecting GitHub to Defender for Cloud doesn't scan anything by itself: secret and dependency findings come from GitHub Advanced Security, and pull request annotations and attack paths require Defender CSPM.
@@ -116,7 +116,7 @@ Protecting workload identities (Microsoft Entra Workload ID):
 
 | Control | Fact |
 | --- | --- |
-| Conditional Access for workload identities | **Workload Identities Premium** license; **single-tenant service principals** only (not managed identities, not multitenant apps); conditions: location and service principal risk; grant: **Block** only |
+| Conditional Access for workload identities | **Workload Identities Premium** license; **single-tenant service principals** only (not managed identities, not multitenant apps); conditions: location and service principal risk; grant: **Block** only; service principals selected directly in the policy (a policy assigned to a group that contains them isn't enforced), target **All resources** |
 | ID Protection for workload identities | Detects risks such as leaked credentials |
 | Access reviews | Review service principals assigned to privileged directory roles; the way to govern managed identities |
 
@@ -141,6 +141,8 @@ Protecting workload identities (Microsoft Entra Workload ID):
 
 Object-level authorization stays the back end's job: the gateway can't know whether user A may read order 42.
 
+To serve internal and external consumers from one instance and expose only a subset of APIs to the internet, deploy API Management in an **internal virtual network** behind **Application Gateway WAF_v2**: internal clients reach it directly, external clients only through the WAF.
+
 **Defender for APIs** is a separate Defender for Cloud plan for **APIs published in Azure API Management**: inventory, findings on external, unauthenticated or inactive APIs (no traffic in 30 days), classification of APIs that handle sensitive data, and run-time detection of threats including the OWASP API Top 10. With Defender CSPM, its data appears in cloud security explorer.
 
 > **Exam trap.** Defender for APIs detects and recommends; it doesn't enforce. Throttling, token validation and schema validation are API Management policies.
@@ -153,15 +155,15 @@ Azure WAF protects HTTP and HTTPS applications against common exploits (SQL inje
 | Platform | Choose it when | WAF features |
 | --- | --- | --- |
 | Azure Front Door **Premium** | Global users, multiregion origins, block attacks at the edge | Managed Default Rule Set, Bot Manager, custom and rate limit rules, geo-filtering |
-| Azure Front Door **Standard** | Global delivery with only custom rules | Custom rules only |
+| Azure Front Door **Standard** | Global delivery with only custom rules | Custom rules only, which include rate limit and geo-filtering rules |
 | Application Gateway **WAF_v2** | Regional or internal applications, per-site or per-URI policies in a virtual network | Managed rule sets, Bot Manager, custom and rate limit rules |
-| Application Gateway for Containers | Kubernetes ingress | WAF policy |
+| Application Gateway for Containers | Kubernetes ingress | WAF policy attached to Gateway API resources: Default Rule Set 2.1 only (no CRS), Bot Manager |
 
 Design rules:
 
 - Layer Front Door at the edge and Application Gateway in the region when both global protection and private, path-specific policies are needed; lock the origin so it accepts traffic only from Front Door.
 - Deploy in **Detection** mode, tune false positives with exclusions, then switch to **Prevention**.
-- Application Gateway v1 retired on April 28, 2026: designs use WAF_v2. Front Door (classic) retires on March 31, 2027.
+- Application Gateway v1 retired on April 28, 2026: designs use WAF_v2. Front Door (classic) retires on March 31, 2027: the migration to Standard or Premium has no downtime, a classic WAF policy with managed rules moves the profile to Premium (no downgrade afterward), and the endpoint cutover must be complete by March 31, 2028.
 - WAF covers layer 7 only: Azure DDoS Protection handles volumetric attacks, Azure Firewall and NSGs filter other protocols.
 - Send WAF logs to Log Analytics and Microsoft Sentinel; Defender for Cloud recommends WAF for internet-facing apps.
 

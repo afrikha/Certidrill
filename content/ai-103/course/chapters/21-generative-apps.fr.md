@@ -75,6 +75,8 @@ Options d'implémentation :
 | Outil de recherche de fichiers (file search) sur un agent | Fichiers chargés ; le service les découpe (800 jetons, chevauchement de 400), crée les embeddings et les indexe pour vous |
 | Base de connaissances Foundry IQ | Plusieurs sources (Stockage Blob, SharePoint, OneLake, web) partagées par de nombreux agents ; la récupération agentique décompose la question en sous-requêtes, reclasse et renvoie des citations, avec les autorisations appliquées au moment de la requête |
 
+Pour les nouvelles implémentations RAG, Learn recommande désormais de commencer par la récupération agentique (une base de connaissances Foundry IQ) ; le RAG classique dans votre propre code reste le choix quand vous conservez un code d'orchestration existant ou avez besoin d'un contrôle fin du pipeline de requête.
+
 Un appel RAG minimal au niveau de l'application, avec recherche hybride et classement sémantique :
 
 ```text
@@ -140,7 +142,7 @@ L'évaluation compare un modèle ou une application à un jeu de données de tes
 | Cohérence stricte oui/non avec le contexte, sans déploiement juge | Groundedness Pro (préversion) |
 | La réponse traite-t-elle la question ? | Relevance |
 | La récupération a-t-elle renvoyé des blocs utiles ? | Retrieval ; Document Retrieval si vous disposez de jugements de pertinence étiquetés |
-| La réponse couvre-t-elle tout le contenu de la réponse attendue ? | Response Completeness (rappel par rapport à la vérité terrain) |
+| La réponse couvre-t-elle tout le contenu de la réponse attendue ? | Response Completeness (préversion ; rappel par rapport à la vérité terrain) |
 | Des réponses lisibles et logiques | Fluency, Coherence |
 | Proximité avec une réponse de référence | Similarity, F1 Score, BLEU, ROUGE, METEOR, GLEU |
 | Contenu nuisible, vulnérabilité aux jailbreaks | Évaluateurs de risque et de sécurité |
@@ -178,7 +180,7 @@ Comparez les exécutions de deux versions sur le même jeu de données avant d'e
 | --- | --- |
 | `azure-ai-projects` (2.x), `AIProjectClient` | Opérations du projet : agents, connexions, télémétrie, règles d'évaluation |
 | `project.get_openai_client()` | Un client compatible OpenAI pour les réponses, les conversations, les fichiers, les magasins de vecteurs et les évaluations |
-| `openai` | Le client OpenAI que renvoie le client de projet, ou utilisé directement sur `https://<resource>.openai.azure.com/openai/v1/` |
+| `openai` | Le client OpenAI que renvoie le client de projet, ou utilisé directement sur `https://<resource>.openai.azure.com/openai/v1/`, indispensable pour les embeddings : le point de terminaison du projet n'achemine pas actuellement les requêtes d'embedding |
 | `azure-identity` | `DefaultAzureCredential` pour l'authentification sans clé |
 | Microsoft Agent Framework | Orchestration multi-agent et workflows ; son client Foundry cible le point de terminaison Responses du projet |
 | SDK Foundry Tools | Speech, Language, Translator, Vision, Content Safety, Document Intelligence, Azure AI Search, chacun avec son propre point de terminaison |
@@ -205,7 +207,7 @@ https://<resource-name>.services.ai.azure.com/api/projects/<project-name>
 | --- | --- |
 | `https://<resource>.services.ai.azure.com/api/projects/<project>` | `AIProjectClient` : agents, connexions, évaluations, modèles via l'API Responses |
 | `https://<resource>.openai.azure.com/openai/v1/` | Le client `openai` directement ; le seul qui accepte aussi une clé API |
-| `https://<resource>.cognitiveservices.azure.com/` | SDK Foundry Tools |
+| `https://<resource>.cognitiveservices.azure.com/` | La plupart des SDK Foundry Tools ; Text Translation utilise `https://api.cognitive.microsofttranslator.com/` et Speech des points de terminaison régionaux |
 
 L'authentification est **sans clé par défaut** : `DefaultAzureCredential` utilise la session `az login` du développeur en local et l'identité managée de l'application App Service, Container Apps ou Functions dans Azure. Avec le client `openai` utilisé directement, passez un fournisseur de jetons pour l'étendue `https://ai.azure.com/.default` :
 
@@ -219,11 +221,12 @@ client = OpenAI(base_url="https://contoso-ai.openai.azure.com/openai/v1/", api_k
 
 | Rôle (RBAC Foundry) | Accorde |
 | --- | --- |
-| Foundry User (anciennement Azure AI User) | Créer et appeler des agents et des modèles dans le projet : développement quotidien et identités des applications |
-| Foundry Project Manager | Gérer le projet et ses connexions |
+| Foundry Agent Consumer | Appeler uniquement les points de terminaison d'agents : le rôle au privilège minimal pour les applications et les utilisateurs qui ne font qu'interagir avec des agents |
+| Foundry User (anciennement Azure AI User) | Créer et appeler des agents et des modèles dans le projet : développement quotidien et identités des applications qui appellent des modèles via le projet |
+| Foundry Project Manager | Gérer des projets, y développer, publier des agents et attribuer le rôle Foundry User |
 | Foundry Account Owner | Créer des projets et des ressources au niveau du compte |
 
-Étapes pour une application de production : activer une identité managée sur le service d'hébergement, lui attribuer **Foundry User** sur le projet, stocker le point de terminaison dans la configuration (par exemple une variable d'environnement) et créer le client avec `DefaultAzureCredential`. Attribuez les rôles à l'étendue la plus restreinte.
+Étapes pour une application de production : activer une identité managée sur le service d'hébergement, lui attribuer **Foundry User** sur le projet (Foundry Agent Consumer si l'application ne fait qu'appeler des agents), stocker le point de terminaison dans la configuration (par exemple une variable d'environnement) et créer le client avec `DefaultAzureCredential`. Attribuez les rôles à l'étendue la plus restreinte.
 
 > **Piège d'examen.** Une clé API ne fonctionne que sur le point de terminaison `/openai/v1` et ne fournit aucune identité à auditer. « Aucun secret dans le code ni dans la configuration » signifie une identité managée avec le rôle Foundry User, pas une clé stockée dans un paramètre d'application.
 
@@ -235,6 +238,6 @@ client = OpenAI(base_url="https://contoso-ai.openai.azure.com/openai/v1/", api_k
 - RAG : récupérer, augmenter, générer avec citations. Hybride plus classement sémantique est la meilleure récupération générale ; le RAG ajoute des connaissances, l'affinage modifie le comportement.
 - Appel de fonction : votre code exécute la fonction et renvoie `function_call_output` avec le même `call_id`.
 - Agent Framework pour les workflows en code ; le concepteur Foundry workflows est retiré le 1er décembre 2026.
-- Fabrications : Groundedness. Pertinence : Relevance. Contenu manquant : Response Completeness. Scores de 1 à 5, seuil 3.
+- Fabrications : Groundedness. Pertinence : Relevance. Contenu manquant : Response Completeness (préversion). Scores de 1 à 5, seuil 3.
 - Les connexions contiennent les informations d'identification ; `project.connections.get(name).id` alimente les outils.
 - Sans clé : identité managée plus Foundry User sur le projet ; les clés uniquement sur `/openai/v1`.

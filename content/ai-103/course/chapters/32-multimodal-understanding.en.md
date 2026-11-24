@@ -3,7 +3,7 @@ Two Foundry building blocks understand images and video. A **multimodal model** 
 <!-- section: visual-context | objectives: 3.2.1 -->
 ## Analyzing visual context with multimodal models
 
-Vision-enabled models include the GPT-4.1 series, the GPT-5 series, the o-series reasoning models and GPT-4o. A text-only deployment, or an embedding model, can't read an image whatever the prompt says.
+Vision-enabled models include the GPT-4.1 series, the GPT-5 series, the o-series reasoning models, GPT-4.5 and the GPT-4o series. A text-only deployment, or an embedding model, can't read an image whatever the prompt says.
 
 With the Responses API, an image is a content part of type `input_image` next to an `input_text` part:
 
@@ -41,7 +41,7 @@ The `detail` setting trades accuracy for tokens and latency:
 | `low` | A low-resolution 512 x 512 version: fastest, fewest tokens, may miss small details |
 | `high` | The low-resolution view plus detailed 512 x 512 segments: small text and fine details, more tokens |
 
-Supported formats are JPEG, PNG, WEBP and GIF (first frame only). Image URLs must be **publicly accessible**: a URL behind a private endpoint, a virtual network restriction or a firewall isn't read, even on a storage account in the same or a peered network. Set `max_output_tokens` (Responses) or `max_tokens` / `max_completion_tokens` (Chat Completions) high enough: a `finish_reason` of `length` means the answer was cut.
+With Chat Completions, supported formats are JPEG, PNG, WEBP and GIF (first frame only), up to 20 MB per image and 10 images per call; the Responses API accepts non-animated GIFs and up to 50 images per request, the whole request under 512 MB. Image URLs must be **publicly accessible**: a URL behind a private endpoint, a virtual network restriction or a firewall isn't read, even on a storage account in the same or a peered network. Set `max_output_tokens` (Responses) or `max_tokens` / `max_completion_tokens` (Chat Completions) high enough: a `finish_reason` of `length` means the answer was cut.
 
 > **Exam trap.** A storage account that allows only private access can't serve its images to the model by URL. Read the blob in the application and send it as a **base64 data URL**.
 
@@ -151,7 +151,7 @@ Content Understanding is a Foundry Tool of the Foundry resource. The current GA 
 | --- | --- |
 | `analyzerId` | The name used in calls (letters, numbers, dots, underscores) |
 | `description` | Context the model uses during field extraction |
-| `baseAnalyzerId` | `prebuilt-image`, `prebuilt-video`, `prebuilt-audio` or `prebuilt-document` |
+| `baseAnalyzerId` | `prebuilt-image`, `prebuilt-video`, `prebuilt-audio` or `prebuilt-document`: custom analyzers can derive only from these four base analyzers |
 | `fieldSchema` | Fields with `type` (`string`, `number`, `boolean`, `date`, `object`, `array`), `description` and `method` |
 | `models` | Catalog model names (for example `gpt-5.2`), not deployment names |
 
@@ -216,15 +216,15 @@ Limits to keep in mind: about **one frame per second** is sampled, frames are re
 <!-- section: cu-pipelines | objectives: 3.2.7 -->
 ## Single-task and pro-mode pipelines
 
-**Single-task** pipelines are what most analyzers do: one analyzer, one input file, one pass of content extraction then field extraction (`extract`, `classify`, `generate`). A prebuilt analyzer (`prebuilt-read`, `prebuilt-layout`, `prebuilt-imageSearch`) or a custom analyzer each performs one task. Pipelines are composed by **routing**: `contentCategories` classifies a file or its segments and sends each category to the analyzer named in its `analyzerId`, in a single run.
+**Single-task** pipelines are what most analyzers do: one analyzer, one input file, one pass of content extraction then field extraction (`extract`, `classify`, `generate`). A prebuilt analyzer (`prebuilt-read`, `prebuilt-layout`, `prebuilt-imageSearch`) or a custom analyzer each performs one task. Pipelines are composed by **routing**: `contentCategories` classifies a file or its segments and sends each category to the analyzer named in its `analyzerId`, in a single run. Only document and video analyzers support `contentCategories` (and `enableSegment`); an image analyzer doesn't.
 
-**Pro mode** was introduced with the preview API `2025-05-01-preview`. The default mode of every analyzer is **standard**. Pro mode adds **reasoning**, **several input documents** in one analysis, and an **external knowledge base** (reference data) for linking, enrichment and validation. It targets tasks that used to need custom code or a human: aggregating a schema across files, validating results across documents, using reference data to produce the output. Pro mode is limited to **documents**.
+**Pro mode** was introduced, in preview, with the API `2025-05-01-preview`; the release notes of the GA API `2025-11-01` don't list it. The default mode of every analyzer is **standard**. Pro mode adds **reasoning**, **several input documents** in one analysis, and an **external knowledge base** (reference data) for linking, enrichment and validation. It targets tasks that used to need custom code or a human: aggregating a schema across files, validating results across documents, using reference data to produce the output. Pro mode is limited to **documents**.
 
 | Requirement | Pipeline |
 | --- | --- |
 | Fields from each photo or each video segment | Single task (standard) |
 | Mixed files routed to the right analyzer | Classification with `contentCategories` |
-| Cross-check an invoice against a purchase order and a supplier list | Pro mode (documents) |
+| Cross-check an invoice against a purchase order and a supplier list | Pro mode (documents, `2025-05-01-preview`) |
 | Multistep calculation or validation inside one document | Agentic mode (preview) |
 
 In the current preview API (`2026-06-01-preview`), multistep reasoning over a document is called **agentic mode**: set `config.workflow` to `"agentic"` on a document analyzer (one input file per request for now); `"default"`, or no `workflow`, lets the service pick a standard workflow. The Foundry (classic) experience that created standard and pro mode tasks is retired.
@@ -258,4 +258,4 @@ Write component fields precisely: "Is the motor's safety cover present? Present,
 - Grounded visual answers: restrict to the image, return evidence, allow "can't determine".
 - Analyzer = `baseAnalyzerId` + `config` + `fieldSchema` + `models`; methods `generate`, `classify`, `extract` (documents only).
 - Video: WEBVTT transcript, key frames, shots; `enableSegment` + one `contentCategories`; about 1 frame per second.
-- Pro mode: reasoning, several documents, reference data, documents only; agentic mode in the current preview.
+- Pro mode (preview, `2025-05-01-preview`): reasoning, several documents, reference data, documents only; agentic mode in the current preview. `contentCategories`: document and video analyzers only.

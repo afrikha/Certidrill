@@ -33,7 +33,7 @@ Sentinel works across multicloud and multiplatform environments, at cloud scale.
 Detection relies on several mechanisms:
 
 - **Rule-based detection**: analytics rules, with templates written by Microsoft security experts.
-- **Machine learning**: behavioral baselines flag deviations, and the **Fusion** engine correlates low-severity signals from several sources into one high-confidence incident, which reveals multistage attacks.
+- **Machine learning**: behavioral baselines flag deviations, and the **Fusion** engine correlates low-severity signals from several sources into one high-confidence incident, which reveals multistage attacks. In a workspace onboarded to the Microsoft Defender portal, Fusion is disabled and the Microsoft Defender XDR correlation engine does this work.
 - **Threat intelligence matching**: the data is compared with feeds of known malicious IP addresses, domains and URLs.
 - **MITRE ATT&CK coverage**: a view of the attacker techniques that your rules cover, and of the gaps.
 
@@ -72,7 +72,7 @@ Incidents are investigated in the **Microsoft Defender portal**, in a single que
 
 - SIEM: collect, correlate and analyze data from everywhere, raise alerts and incidents. SOAR: orchestrate tools and automate the response with playbooks.
 - Microsoft Sentinel is a cloud-native SIEM and SOAR.
-- Four stages: collect (data connectors), detect (analytics rules, Fusion, threat intelligence), investigate (incidents, hunting), respond (automation rules, playbooks).
+- Four stages: collect (data connectors), detect (analytics rules, Fusion or, in the Defender portal, the Defender XDR correlation engine, threat intelligence), investigate (incidents, hunting), respond (automation rules, playbooks).
 - Playbooks are built on Azure Logic Apps; automation rules decide when they run.
 - Workbooks visualize, content hub deploys solutions, watchlists bring your own reference data.
 - Sentinel is used in the Microsoft Defender portal; support in the Azure portal ends after March 31, 2027.

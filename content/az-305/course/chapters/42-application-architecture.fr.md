@@ -7,7 +7,7 @@ Un **message** transporte des données que l'expéditeur s'attend à voir trait�
 
 | Exigence | Files d'attente de stockage | Service Bus |
 | --- | --- | --- |
-| File d'attente de plus de 80 Go | Oui, jusqu'à la capacité du compte de stockage | Non : de 1 à 80 Go par file d'attente |
+| File d'attente de plus de 80 Go | Oui, jusqu'à la capacité du compte de stockage | Non : de 1 à 5 Go en Basic et Standard (80 Go avec le partitionnement), 80 Go en Premium |
 | Taille des messages | 64 Ko | 256 Ko en Standard, jusqu'à 100 Mo en Premium |
 | Ordre premier entré, premier sorti garanti | Non | Oui, avec les sessions |
 | Détection des doublons, transactions, file d'attente de lettres mortes automatique | Non | Oui |
@@ -80,7 +80,7 @@ Le niveau découle des exigences de réseau et de géographie :
 
 Les niveaux v2 se déploient en quelques minutes et ont tous un SLA, mais ils n'offrent ni le déploiement multirégion ni la passerelle auto-hébergée. La **passerelle auto-hébergée** est un conteneur qui s'exécute près des API et reste géré depuis l'instance Azure : c'est la réponse à « un seul plan de gestion pour des API hébergées localement et dans plusieurs clouds ».
 
-Pour exposer un système ancien dépourvu d'API, placez API Management devant un workflow Logic Apps ou une fonction. Pour l'intégration avec des partenaires, Logic Apps fournit les connecteurs et API Management le point de terminaison sécurisé et documenté.
+Pour exposer un système ancien dépourvu d'API, placez API Management devant un workflow Logic Apps ou une fonction ; l'importation automatisée d'une application logique en tant qu'API prend en charge les ressources Logic App (Consumption), pas les espaces de travail. Pour l'intégration avec des partenaires, Logic Apps fournit les connecteurs et API Management le point de terminaison sécurisé et documenté.
 
 > **Piège d'examen.** Une passerelle d'application ou Front Door protège et équilibre le trafic HTTP ; aucun des deux ne publie de portail des développeurs, n'émet de clés d'abonnement ni n'applique de quotas par consommateur. Ces exigences désignent API Management.
 
@@ -107,7 +107,7 @@ Avec le modèle **cache-aside**, l'application lit d'abord le cache, charge depu
 | Compute Optimized | Le plus de vCPU par Go : débit le plus élevé |
 | Flash Optimized | Garde les données les moins utilisées sur un stockage NVMe : très grands jeux de données à moindre coût |
 
-Activez la haute disponibilité en production : l'instance a alors au moins deux nœuds, répartis entre les zones là où la région en a. La géoréplication active relie des instances de plusieurs régions qui acceptent toutes les écritures, avec résolution automatique des conflits ; elle n'est pas disponible en Flash Optimized. La persistance des données écrit des instantanés sur disque pour une récupération plus rapide ; ce n'est pas une sauvegarde. Authentifiez-vous avec Microsoft Entra ID et connectez-vous par un point de terminaison privé.
+Activez la haute disponibilité en production : l'instance a alors au moins deux nœuds, répartis entre les zones là où la région en a. La géoréplication active relie des instances de plusieurs régions qui acceptent toutes les écritures ; des types de données répliqués sans conflit (CRDT) fusionnent les écritures avec une cohérence éventuelle et sans SLA sur le délai de synchronisation. Elle n'est pas disponible en Flash Optimized ni dans les références SKU Balanced B0 et B1. La persistance des données écrit des instantanés sur disque pour une récupération plus rapide ; ce n'est pas une sauvegarde. Authentifiez-vous avec Microsoft Entra ID et connectez-vous par un point de terminaison privé.
 
 Azure Cache pour Redis est en cours de mise hors service : les niveaux Enterprise le 31 mars 2027, les niveaux Basic, Standard et Premium le 30 septembre 2028. Les nouvelles conceptions utilisent Azure Managed Redis.
 
@@ -124,13 +124,13 @@ Front Door ne met en cache que les réponses aux requêtes GET, par emplacement 
 | Secrets, clés et certificats | Azure Key Vault |
 | Paramètres d'une seule application web, injectés comme variables d'environnement, éventuellement propres à un emplacement de déploiement | Paramètres d'application App Service |
 
-**Azure App Configuration** stocke des paires clé-valeur de façon centralisée. Les étiquettes portent une valeur différente par environnement ou par version ; les indicateurs de fonctionnalités activent une fonctionnalité pour certains utilisateurs sans déploiement ; les applications actualisent leurs paramètres dynamiquement ; une relecture à un instant donné montre les valeurs à une date antérieure. App Configuration et Key Vault s'utilisent ensemble : une paire clé-valeur contient une **référence Key Vault**, et l'application résout le secret depuis le coffre avec son identité managée. L'accès au magasin lui-même utilise aussi Microsoft Entra ID et les identités managées, sans chaîne de connexion dans le code.
+**Azure App Configuration** stocke des paires clé-valeur de façon centralisée. Les étiquettes portent une valeur différente par environnement ou par version ; les indicateurs de fonctionnalités activent une fonctionnalité pour certains utilisateurs sans déploiement ; les applications actualisent leurs paramètres dynamiquement ; une relecture à un instant donné montre les valeurs à une date antérieure (historique des révisions conservé 7 jours en Free et Developer, 30 jours en Standard et Premium). App Configuration et Key Vault s'utilisent ensemble : une paire clé-valeur contient une **référence Key Vault**, et l'application résout le secret depuis le coffre avec son identité managée. L'accès au magasin lui-même utilise aussi Microsoft Entra ID et les identités managées, sans chaîne de connexion dans le code.
 
 | Niveau | SLA | Remarques |
 | --- | --- | --- |
 | Free | Aucun | 10 Mo, 1 000 requêtes par jour |
 | Developer | Aucun | Ajoute les points de terminaison privés |
-| Standard | 99,9 %, 99,95 % avec la géoréplication | Ajoute la géoréplication, la suppression réversible, les clés gérées par le client |
+| Standard | 99,9 %, 99,95 % avec la géoréplication | Ajoute la géoréplication, la suppression réversible (toujours active, impossible à désactiver), les clés gérées par le client |
 | Premium | 99,9 %, 99,99 % avec la géoréplication | Aucun quota de requêtes |
 
 > **Piège d'examen.** Ne stockez pas une chaîne de connexion ou un mot de passe dans App Configuration au motif qu'il chiffre les données : la conception recommandée garde le secret dans Key Vault et une référence dans App Configuration.

@@ -35,7 +35,7 @@ Partez d'**un seul espace de travail** et n'en ajoutez que pour une raison énon
 | Rétention différente pour la même table selon les ressources | Des espaces de travail séparés, car la rétention se règle par table |
 | Données opérationnelles et données de sécurité (Microsoft Sentinel) | Les réunir pour une visibilité croisée et pour atteindre un niveau d'engagement ; les séparer quand l'équipe de sécurité l'exige ou quand la tarification Sentinel appliquée aux données opérationnelles coûte plus cher |
 | Microsoft Sentinel et Microsoft Defender pour le cloud | Le même espace de travail |
-| Les données critiques doivent survivre à une panne régionale | Les ingérer dans des espaces de travail de régions différentes |
+| Les données critiques doivent survivre à une panne régionale | Les ingérer dans des espaces de travail de régions différentes, ou activer la réplication de l'espace de travail : une fonctionnalité payante qui ne copie que les données ingérées après son activation vers une région secondaire du même groupe de régions, avec un basculement que vous déclenchez vous-même ; les données des tables Auxiliary, de VM insights et de Container insights ne sont pas répliquées |
 
 **Contrôle d'accès.** Le mode d'accès par défaut, *Utiliser les autorisations de ressource ou d'espace de travail*, permet à un utilisateur qui peut lire une ressource d'interroger les journaux de cette ressource sans aucune autorisation sur l'espace de travail (accès en contexte de ressource). Un utilisateur qui a accès à l'espace de travail lui-même voit toutes ses données, sauf si l'accès au niveau des tables le restreint.
 
@@ -56,7 +56,7 @@ Les **plans de table** arbitrent entre coût et fonctionnalités, table par tabl
 <!-- section: routing | objectives: 1.1.2 -->
 ## Acheminer les journaux
 
-Les **paramètres de diagnostic** acheminent les journaux de ressources et les métriques de plateforme d'une ressource, le journal d'activité d'un abonnement ou d'un groupe d'administration, et les journaux Microsoft Entra (configurés dans Microsoft Entra ID). Il existe quatre destinations :
+Les **paramètres de diagnostic** acheminent les journaux de ressources et les métriques de plateforme d'une ressource, le journal d'activité d'un abonnement ou d'un groupe d'administration (un paramètre sur un groupe d'administration ne capture pas tous les événements des abonnements : conservez un paramètre sur chaque abonnement pour une couverture complète), et les journaux Microsoft Entra (configurés dans Microsoft Entra ID). Il existe quatre destinations :
 
 | Destination | À recommander pour | Contrainte |
 | --- | --- | --- |
@@ -89,7 +89,7 @@ Une **règle d'exportation de données** envoie en continu les nouveaux enregist
 | Les agents et les requêtes ne doivent pas utiliser de points de terminaison publics | Étendue de liaison privée Azure Monitor (AMPLS) avec un point de terminaison privé |
 | Un fournisseur de services doit travailler sur les journaux de locataires clients | Des espaces de travail dans chaque locataire, délégués via Azure Lighthouse |
 
-Une **AMPLS** regroupe des espaces de travail, des ressources Application Insights et des points de terminaison de collecte de données derrière un seul point de terminaison privé. Son mode d'accès *Privé uniquement* bloque l'accès aux ressources Azure Monitor extérieures à l'étendue, ce qui empêche l'exfiltration de données ; le mode *Ouvert* les autorise encore. Utilisez une seule AMPLS pour tous les réseaux qui partagent le même DNS.
+Une **AMPLS** regroupe des espaces de travail, des ressources Application Insights et des points de terminaison de collecte de données derrière un seul point de terminaison privé. Son mode d'accès *Privé uniquement* bloque l'accès aux ressources Azure Monitor extérieures à l'étendue, ce qui empêche l'exfiltration de données ; le mode *Ouvert* les autorise encore. L'ingestion Log Analytics utilise des points de terminaison propres à chaque ressource et ne suit pas les modes d'accès : pour empêcher les agents d'envoyer des journaux vers des espaces de travail extérieurs à l'AMPLS, le pare-feu réseau doit aussi bloquer le trafic vers les points de terminaison publics. Utilisez une seule AMPLS pour tous les réseaux qui partagent le même DNS.
 
 > **Piège d'examen.** La contrainte de région s'applique aux comptes de stockage et aux hubs d'événements, pas aux espaces de travail. Une ressource régionale située en Europe Ouest peut envoyer ses journaux à un espace de travail de n'importe quelle région, mais un hub d'événements ou un compte de stockage utilisé comme destination doit se trouver en Europe Ouest.
 
@@ -117,7 +117,7 @@ Azure Monitor possède deux familles de données. Les **métriques** sont numér
 <!-- section: alerts-visualization | objectives: 1.1.3 -->
 ## Alertes et visualisation
 
-Une **règle d'alerte** détecte une condition ; un **groupe d'actions** indique qui est notifié (e-mail, SMS, notification push, appel vocal) et ce qui s'exécute (runbook Automation, fonction, application logique, webhook, hub d'événements, connecteur ITSM) ; une **règle de traitement des alertes** modifie les alertes déclenchées, par exemple pour supprimer les notifications pendant une fenêtre de maintenance.
+Une **règle d'alerte** détecte une condition ; un **groupe d'actions** indique qui est notifié (e-mail, SMS, notification push, appel vocal) et ce qui s'exécute (runbook Automation, fonction, application logique, webhook, hub d'événements, connecteur ITSM) ; une **règle de traitement des alertes** modifie les alertes déclenchées sans modifier les règles d'alerte : elle supprime leurs notifications, par exemple pendant une fenêtre de maintenance, ou leur applique des groupes d'actions. Son étendue reste dans un seul abonnement, elle n'affecte pas les alertes Service Health, et une modification peut prendre jusqu'à 30 minutes pour s'appliquer.
 
 | Type d'alerte | Signal | À recommander quand |
 | --- | --- | --- |

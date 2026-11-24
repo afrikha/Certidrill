@@ -91,7 +91,7 @@ Each category needs a `title` and `labels`; `"*"` catches every pull request tha
 
 Azure DevOps has no built-in release notes generator: a pipeline step builds the notes from the work items and commits of the run (through the REST API or the Git history) and publishes them as a pipeline artifact, a wiki page or a GitHub release.
 
-**API documentation** is generated from the code, not written by hand: the build produces an OpenAPI description of the API, which is versioned with the release and published to a documentation site or imported into the Azure API Management developer portal. In ASP.NET Core, the `Microsoft.AspNetCore.OpenApi` package generates the document at run time (`AddOpenApi`, `MapOpenApi`), and `Microsoft.Extensions.ApiDescription.Server` generates it at build time (property `OpenApiGenerateDocumentsOnBuild`), which suits a pipeline. An interactive UI requires a third-party package.
+**API documentation** is generated from the code, not written by hand: the build produces an OpenAPI description of the API, which is versioned with the release and published to a documentation site or imported into the Azure API Management developer portal. In ASP.NET Core, the `Microsoft.AspNetCore.OpenApi` package generates the document at run time (`AddOpenApi`, `MapOpenApi`), and `Microsoft.Extensions.ApiDescription.Server` generates it at build time as soon as the package is installed (output folder set with the `OpenApiDocumentsDirectory` property), which suits a pipeline. An interactive UI such as Swagger UI or Scalar isn't included and must be added separately.
 
 <!-- section: docs-from-git | objectives: 1.3.3 -->
 ## Automating documentation from Git history
@@ -131,7 +131,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
@@ -156,7 +156,7 @@ jobs:
 | Read `X-GitHub-Event` and the payload's `action` | Identify what happened before processing |
 | Use `X-GitHub-Delivery` to detect duplicates, redeliver failed deliveries after an outage | Idempotent processing, no lost events |
 
-**Azure DevOps service hooks** run an action in another service when an event happens in a project (code pushed, pull request updated, build completed, release deployment completed, work item created or updated). Configure them in **Project settings > Service hooks > Create subscription**: choose the service, the event and its filters, the action, then **Test**. Managing subscriptions requires the **Edit subscriptions** and **View subscriptions** permissions, which only Project Administrators have by default.
+**Azure DevOps service hooks** run an action in another service when an event happens in a project (code pushed, pull request updated, build completed, release deployment completed, work item created or updated). Configure them in **Project settings > Service hooks > Create subscription**: choose the service, the event and its filters, the action, then **Test**. Managing subscriptions requires the **Edit subscriptions** and **View subscriptions** permissions, which only Project Administrators have by default (the Web Hooks page also accepts Project Collection Administrators). A subscription set up for a resource that its creator isn't allowed to access is never triggered.
 
 | Consumer | Action |
 | --- | --- |
@@ -199,7 +199,9 @@ The integration is the **Azure Boards app for GitHub**. Prerequisites: in Azure 
 | --- | --- |
 | GitHub.com | Sign in with the GitHub account (recommended) or a personal access token |
 | GitHub Enterprise Server | OAuth (preferred, needs a registered OAuth app), a personal access token or credentials; the server must be reachable from the internet; one GitHub organization per connection |
-| Personal access token connection | Features that need the GitHub App connection aren't available |
+| Personal access token connection | No pull request status checks and no GitHub Copilot integration: both need the GitHub App connection |
+| Repository already connected with another authentication type, such as OAuth | Remove it from that connection before reconnecting it through the GitHub App |
+| `AB#` mentions don't link the work items of one area path | Set **View work items in this node** and **Edit work items in this node** to Allow for the Azure Boards identity on that area path |
 | Repositories of another GitHub organization | Add another connection |
 | Azure DevOps Server | Connects to GitHub Enterprise Server only |
 | Hosted XML process | Update the work item types to show the Development section and GitHub link types |
@@ -232,7 +234,7 @@ GitHub filters:
 
 Commits notify for the default branch unless you add a branch filter (`commits:main`, `commits:feature/*`, `commits:*`); only one required label filter is allowed per repository; workflow notifications without filters cover runs triggered by pull requests that target the default branch.
 
-Azure DevOps apps work with Azure DevOps Services only and need **Third-party application access via OAuth** allowed in the organization policies. A channel links to one Azure Boards project at a time; creating work item subscriptions requires Project Administrators or Team Administrators, and when a channel has subscriptions only Project Administrators can unlink it. Notifications go to channels, not to chats.
+Azure DevOps apps work with Azure DevOps Services only and need **Third-party application access via OAuth** allowed in the organization policies. A channel links to one Azure Boards project at a time; creating work item subscriptions requires Project Administrators or Team Administrators, Team Administrators can't remove or modify the subscriptions that Project Administrators created, and when a channel has subscriptions only Project Administrators can unlink it. Notifications go to channels, not to chats.
 
 > **Exam trap.** Office 365 connectors in Teams are retired. For new integrations, use the Azure Boards, Azure Pipelines or Azure Repos app, the Azure DevOps tab (a dashboard or board in a channel) or the **Workflows** app (Power Automate), not an incoming webhook connector.
 

@@ -10,7 +10,7 @@ A branching strategy decides where work happens, how it reaches the main branch 
 | Release branch | A branch such as `release/20` is cut from `main` near a milestone, stabilized, and kept as long as that version is supported | Several versions supported in parallel, mobile or packaged software, scheduled releases |
 | Git Flow (not named in the guide, frequent distractor) | Long-lived `develop` and `main`, plus feature, release and hotfix branches | Strictly versioned products; heavy for continuous delivery |
 
-Microsoft's guidance for Azure Repos combines the first three: feature branches for **all** new features and bug fixes, merged into `main` only through pull requests, a `main` branch that always builds and passes tests, and release branches cut from `main` when a release approaches. A release branch is **never merged back** into `main` with a pull request. Fixes land in `main` first and are **cherry-picked** to the release branch (or the reverse), so that only the chosen commits move. Lock a release branch when that version is no longer supported.
+Microsoft's guidance for Azure Repos combines the first three: feature branches for **all** new features and bug fixes, merged into `main` only through pull requests, a `main` branch that always builds and passes tests, and release branches cut from `main` when a release approaches. A release branch is **never merged back** into `main` with a pull request. Fixes land in `main` first and are **cherry-picked** to the release branch (or the reverse), so that only the chosen commits move. Lock a release branch when that version is no longer supported. Environment branches (`deploy/performance-test`) are treated like release branches, except with continuous deployment, where Azure Pipelines promotes builds of `main` to the deployment targets.
 
 Naming conventions keep branches organized and allow permissions per folder: `feature/<name>`, `bugfix/<description>`, `hotfix/<description>`, `users/<alias>/<description>`, `release/<version>`.
 
@@ -53,7 +53,7 @@ Branch policies are set per branch in **Repos > Branches > More options > Branch
 | Status checks | A status posted by an external service through the pull request Status API (`genre/name`), Required or Optional, optionally applied only after the first status is posted |
 | Automatically included reviewers | Users or groups added to the pull request, Optional or Required, with a **path filter** (`/src/Payments/*;!/src/Payments/Tests/*`) |
 
-Two reviewer details decide many questions: with a **group** as required reviewer, one member's approval satisfies it; and segregation of duties ("the developer who pushed last can't approve") is **Prohibit the most recent pusher**, not the requestor option. A user can set **auto-complete** so the pull request completes as soon as all policies pass.
+Two reviewer details decide many questions: when groups are required reviewers, at least one member of each group must approve (if only one group is required, the minimum number of its members set in the policy must approve); and segregation of duties ("the developer who pushed last can't approve") is **Prohibit the most recent pusher**, not the requestor option. A user can set **auto-complete** so the pull request completes as soon as all policies pass.
 
 ```bash
 az repos policy approver-count create --repository-id <repo-id> \
@@ -93,7 +93,7 @@ A **branch protection rule** targets a branch name pattern (`main`, `release/*`)
 | Require status checks to pass before merging | Named checks (job names of workflows, or statuses from apps) must succeed. **Require branches to be up to date before merging** = strict mode |
 | Require conversation resolution before merging | All review comments resolved |
 | Require deployments to succeed before merging | A deployment to a chosen environment (for example, staging) must succeed first |
-| Require merge queue | Pull requests are merged in order, each tested against the latest target branch plus the pull requests ahead of it |
+| Require merge queue | Pull requests are merged in order, each tested against the latest target branch plus the pull requests ahead of it. Public repositories owned by an organization, and private ones on GitHub Enterprise Cloud |
 
 Code owners come from a `CODEOWNERS` file in `.github/`, the root or `docs/` (searched in that order) on the **base branch** of the pull request. Owners are requested automatically; the **last matching pattern wins**; users and teams need write access.
 
@@ -128,7 +128,7 @@ jobs:
 | Only one rule applies to a branch | Several rulesets apply together and **aggregate**: the most restrictive version of each rule wins; they also layer with branch protection rules |
 | Delete to disable | Enforcement status **Active** or **Disabled**, plus **Evaluate** (report only, GitHub Enterprise) |
 | Visible to admins | Anyone with read access sees the active rulesets |
-| Per repository | Also at organization level, targeting many repositories; up to 75 rulesets per repository |
+| Per repository | Also at organization level (GitHub Team and Enterprise plans), targeting many repositories; up to 75 rulesets per repository |
 | Bypass by admins unless blocked | Explicit **bypass list** (roles, teams, GitHub Apps) |
 
 > **Exam tip.** "Apply the same protection to all repositories of the organization" or "see which pushes would violate a rule before enforcing it" points to rulesets (organization ruleset, Evaluate mode), not to branch protection rules copied in each repository.
@@ -152,9 +152,9 @@ Who can push or merge:
 | Requirement | Azure Repos | GitHub |
 | --- | --- | --- |
 | Nobody pushes directly to `main` | Any required branch policy | Require a pull request before merging |
-| Only the release team can update `release/*` | Branch security: deny **Contribute** to others on the branch folder | **Restrict who can push to matching branches** (organization repositories), or a ruleset **Restrict updates** with a bypass list |
+| Only the release team can update `release/*` | Branch security: deny **Contribute** to others on the branch folder | **Restrict who can push to matching branches** (organization repositories; admins can still push unless bypassing is blocked), or a ruleset **Restrict updates** with a bypass list |
 | Make a branch read-only | **Lock** the branch | **Lock branch** |
-| Allow history rewriting | **Force push** permission (also deletes branches and tags) | **Allow force pushes** (everyone with write access, or specific people) |
+| Allow history rewriting | **Force push** permission (also required to delete branches and tags; a branch creator gets it on that branch) | **Allow force pushes** (everyone with write access, or specific people) |
 | Emergency merge without satisfying the rules | **Bypass policies when completing pull requests** | Admins bypass by default; enable **Do not allow bypassing the above settings** to include them, or use the ruleset bypass list |
 | Push past the rules | **Bypass policies when pushing** | Bypass list, or allow force pushes |
 | Only signed commits | (not a branch policy) | **Require signed commits** |

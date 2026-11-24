@@ -223,11 +223,12 @@ In PySpark, `df.groupBy("region", "year").pivot("quarter", [1, 2, 3, 4]).sum("am
 | Add new rows to existing ones | `INSERT INTO t SELECT ...` | `df.write.mode("append").saveAsTable("t")` |
 | Replace the whole content | `INSERT OVERWRITE t SELECT ...` or `CREATE OR REPLACE TABLE ... AS` | `df.write.mode("overwrite").saveAsTable("t")` |
 | Replace only a slice (one day, one region) | `INSERT INTO t REPLACE WHERE order_day = '2026-11-01' SELECT ...` | `.mode("overwrite").option("replaceWhere", "order_day = '2026-11-01'")` |
-| Replace the rows whose key values appear in the new data | `INSERT INTO t REPLACE USING (country) SELECT ...` | |
+| Replace the rows whose key values appear in the new data | `INSERT INTO t REPLACE USING (country) SELECT ...` (Databricks Runtime 16.3 and above) | `.mode("overwrite").option("replaceUsing", "country")` (Databricks Runtime 18.2 and above) |
+| Replace the rows that match a condition, for example a null-safe key | `INSERT INTO t AS t REPLACE ON (s.k <=> t.k) (SELECT ...) AS s` (Databricks Runtime 17.1 and above) | `.option("targetAlias", "t").option("replaceOn", "s.k <=> t.k")` (Databricks Runtime 18.2 and above) |
 | Insert by column name rather than position | `INSERT INTO t BY NAME SELECT ...` | `saveAsTable` in append mode matches by name |
 | Update existing rows and insert new ones (upsert), delete | `MERGE INTO` | `DeltaTable.merge` |
 
-`REPLACE WHERE` fails and writes nothing if a returned row falls outside the predicate. `REPLACE USING` treats null keys as unequal, so rows with a null key aren't removed.
+`REPLACE WHERE` fails and writes nothing if a returned row falls outside the predicate (on classic compute, `spark.databricks.delta.replaceWhere.constraintCheck.enabled = false` overwrites the range and inserts the other rows instead). `REPLACE USING` treats null keys as unequal, so rows with a null key aren't removed; `REPLACE ON` with `<=>` matches them. In Databricks Runtime 16.3 to 17.1, `REPLACE USING` only overwrites whole partitions and must name every partition column. With an empty source, `REPLACE USING` and `REPLACE ON` delete nothing, while `REPLACE WHERE` might delete rows.
 
 ```text
 MERGE INTO contoso.silver.customers AS t

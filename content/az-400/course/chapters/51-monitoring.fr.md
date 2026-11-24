@@ -9,12 +9,13 @@ Azure Monitor stocke des **métriques** (métriques de plateforme, collectées g
 | --- | --- |
 | Arrêter un déploiement tant que l'application n'est pas saine | Vérification **Query Azure Monitor alerts** sur l'environnement ou la connexion de service : réussit seulement si aucune règle d'alerte n'est active lors de l'évaluation, réévaluée à intervalle jusqu'à un délai d'expiration |
 | Créer un élément de travail ou une issue quand la production déclenche une alerte | Groupe d'actions avec une application logique ou une fonction qui appelle l'API REST d'Azure Boards ou de GitHub |
-| Lancer un workflow de correction depuis une alerte | Webhook de groupe d'actions qui appelle un événement `repository_dispatch` GitHub ou l'API d'exécution de pipelines Azure DevOps |
-| Conserver le journal d'audit Azure DevOps au-delà de 90 jours et l'interroger | **Diffusion en continu de l'audit** vers les journaux Azure Monitor (aussi Splunk, Event Grid) |
+| Lancer un workflow de correction depuis une alerte | Groupe d'actions avec une application logique ou une fonction qui appelle l'API `repository_dispatch` de GitHub ou l'API d'exécution de pipelines Azure DevOps (une action webhook ne publie que la charge utile de l'alerte, avec au mieux des informations d'identification dans l'URI) |
+| Conserver au-delà de 90 jours le journal d'activité Azure des déploiements de pipelines et l'interroger | Paramètre de diagnostic qui envoie le journal d'activité vers un espace de travail Log Analytics (table `AzureActivity`) |
+| Conserver le journal d'audit Azure DevOps au-delà de 90 jours et l'interroger | **Diffusion en continu de l'audit** vers les journaux Azure Monitor (aussi Splunk, Event Grid) ; l'audit est en préversion publique |
 | Analyser les événements d'audit de GitHub Enterprise dans Azure | Diffusion en continu du journal d'audit de l'entreprise vers Azure Event Hubs ou Stockage Blob Azure |
 | Versionner le monitoring avec l'application | Règles d'alerte, groupes d'actions, DCR et classeurs en Bicep, déployés par le pipeline |
 
-La **diffusion en continu de l'audit** exige une organisation adossée à Microsoft Entra ID, l'audit activé (désactivé par défaut) et l'appartenance à Project Collection Administrators ou les autorisations **Manage audit streams** et **View audit log**. Pour les journaux Azure Monitor, saisissez l'ID de ressource de l'espace de travail et l'ID de locataire, puis connectez-vous à Azure. Les événements arrivent dans la table `AzureDevOpsAuditing`, par lots toutes les demi-heures au plus ; un flux désactivé rattrape au maximum les sept jours précédents. Deux flux sont autorisés par type de cible.
+La **diffusion en continu de l'audit** (l'audit d'Azure DevOps est encore en préversion publique) exige une organisation adossée à Microsoft Entra ID, l'audit activé (désactivé par défaut) et l'appartenance à Project Collection Administrators ou les autorisations **Manage audit streams** et **View audit log**. Pour les journaux Azure Monitor, saisissez l'ID de ressource de l'espace de travail et l'ID de locataire, puis connectez-vous à Azure avec une identité qui a accès à l'espace de travail. L'espace de travail conserve les données 30 jours par défaut : prolongez sa rétention pour aller au-delà. Les événements arrivent dans la table `AzureDevOpsAuditing`, par lots toutes les demi-heures au plus ; un flux désactivé rattrape au maximum les sept jours précédents. Deux flux sont autorisés par type de cible.
 
 ```kusto
 AzureDevOpsAuditing
@@ -24,20 +25,20 @@ AzureDevOpsAuditing
 | order by Changes desc
 ```
 
-> **Piège d'examen.** Azure DevOps conserve au maximum 90 jours de données d'audit. « Conserver les événements d'audit deux ans et les corréler avec l'activité Azure » exige un flux vers un espace de travail Log Analytics (avec une rétention plus longue), pas un export depuis le portail.
+> **Piège d'examen.** Azure DevOps conserve au maximum 90 jours de données d'audit (l'audit est en préversion publique). « Conserver les événements d'audit deux ans et les corréler avec l'activité Azure » exige un flux vers un espace de travail Log Analytics (avec une rétention plus longue), pas un export depuis le portail.
 
 <!-- section: telemetry-collection | objectives: 5.1.2 -->
 ## Collecter la télémétrie avec les insights d'Azure Monitor
 
 | Insight | Supervise | Collecte | Les données vont dans |
 | --- | --- | --- | --- |
-| Application Insights | Requêtes, dépendances, exceptions, traces, vues de pages, disponibilité | Instrumentation automatique sur les plateformes prises en charge, ou distribution OpenTelemetry dans le code | Ressource basée sur un espace de travail Log Analytics |
-| VM Insights | Performances invitées (processeur, mémoire, disque, réseau) des VM, groupes identiques, serveurs Arc | Agent Azure Monitor + DCR (les serveurs Arc exigent d'abord l'agent Connected Machine) | Métriques OpenTelemetry vers un espace de travail Azure Monitor (recommandé pour les nouveaux déploiements) ou métriques basées sur les journaux vers Log Analytics |
+| Application Insights | Requêtes, dépendances, exceptions, traces, vues de pages, disponibilité | Instrumentation automatique sur les plateformes prises en charge (App Service, Functions, AKS...), ou distribution OpenTelemetry dans le code | Ressource basée sur un espace de travail Log Analytics |
+| VM Insights | Performances invitées (processeur, mémoire, disque, réseau) des VM, groupes identiques, serveurs Arc | Agent Azure Monitor + DCR (les serveurs Arc exigent d'abord l'agent Connected Machine) | Métriques OpenTelemetry vers un espace de travail Azure Monitor (recommandé pour les nouveaux déploiements ; machines virtuelles individuelles et serveurs Arc uniquement) ou métriques basées sur les journaux vers Log Analytics (aussi les groupes identiques) |
 | Container Insights | Nœuds, pods, conteneurs et journaux de conteneurs AKS | Module complémentaire de supervision (agent Azure Monitor conteneurisé : `ama-logs`, `ama-metrics`) | Journaux vers Log Analytics (`ContainerLogV2`, `KubePodInventory`), métriques Prometheus vers un espace de travail Azure Monitor |
 | Storage Insights | Capacité, disponibilité, transactions, latence des comptes de stockage | Métriques de plateforme, rien à installer | Métriques ; les journaux de ressources exigent un paramètre de diagnostic |
 | Network Insights | Topologie, intégrité et connectivité des ressources réseau | Métriques de plateforme, Network Watcher, journaux de flux | Métriques, Log Analytics pour l'analytique du trafic |
 
-**Application Insights.** Créez une ressource basée sur un espace de travail et donnez à l'application sa **chaîne de connexion** (`APPLICATIONINSIGHTS_CONNECTION_STRING`) ; la chaîne de connexion remplace la clé d'instrumentation. Pour l'instrumentation dans le code, Microsoft recommande la distribution OpenTelemetry (Microsoft OpenTelemetry Distro pour .NET, Node.js et Python ; Azure Monitor OpenTelemetry Distro pour Java). Fonctionnalités : Live Metrics, cartographie d'application, tests de disponibilité, vues Échecs et Performances, recherche de transactions et analyse de l'utilisation (utilisateurs, sessions, événements, entonnoirs, flux, cohortes).
+**Application Insights.** Créez une ressource basée sur un espace de travail et donnez à l'application sa **chaîne de connexion** (`APPLICATIONINSIGHTS_CONNECTION_STRING`) ; la chaîne de connexion remplace la clé d'instrumentation. Pour l'instrumentation dans le code, Microsoft recommande la distribution OpenTelemetry (Microsoft OpenTelemetry Distro pour .NET, Node.js et Python ; Azure Monitor OpenTelemetry Distro pour Java). L'instrumentation automatique des conteneurs Windows sur App Service et de .NET et Python sur AKS est en préversion publique, et l'instrumentation automatique des conteneurs ne prend en charge que les applications à un seul conteneur. Fonctionnalités : Live Metrics, cartographie d'application, tests de disponibilité, vues Échecs et Performances, recherche de transactions et analyse de l'utilisation (utilisateurs, sessions, événements, entonnoirs, flux, cohortes).
 
 ```bicep
 resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
@@ -75,7 +76,7 @@ az aks update --enable-azure-monitor-metrics --name aks-contoso \
   --resource-group rg-aks
 ```
 
-Les journaux du plan de contrôle (`kube-audit`, `kube-apiserver`) exigent un paramètre de diagnostic sur le cluster. Azure Managed Grafana se lie à l'espace de travail Azure Monitor pour les tableaux de bord Prometheus.
+Les journaux du plan de contrôle (`kube-audit`, `kube-audit-admin`, `kube-apiserver`) exigent un paramètre de diagnostic sur le cluster. Pour réduire le coût, préférez `kube-audit-admin` (qui exclut les événements get et list) à `kube-audit`, et le mode spécifique à la ressource (tables `AKSAudit`, `AKSAuditAdmin`, `AKSControlPlane`) à la table `AzureDiagnostics`. Azure Managed Grafana se lie à l'espace de travail Azure Monitor pour les tableaux de bord Prometheus.
 
 | Exigence | Réponse |
 | --- | --- |
@@ -141,7 +142,7 @@ notify:
 
 **Azure Pipelines.**
 
-- **Notifications** : **Paramètres du projet > Notifications > Nouvel abonnement**, catégorie Build ou Release, modèle comme **Build completes** avec un filtre sur l'état, remis à une équipe, à un rôle de l'équipe ou à une adresse e-mail personnalisée. Les utilisateurs gèrent leurs abonnements personnels dans **Paramètres utilisateur > Notifications**. Les Project Administrators gèrent les abonnements du projet, les administrateurs d'équipe ceux de l'équipe ; il n'existe pas d'abonnement à l'échelle de l'organisation.
+- **Notifications** : **Paramètres du projet > Notifications > Nouvel abonnement**, catégorie Build ou Release, modèle comme **Build completes** avec un filtre sur l'état, remis à une équipe, à un rôle de l'équipe ou à une adresse e-mail personnalisée. Les utilisateurs gèrent leurs abonnements personnels dans **Paramètres utilisateur > Notifications**. Les Project Administrators gèrent les abonnements du projet, les administrateurs d'équipe ceux de l'équipe, et les Project Collection Administrators les paramètres globaux, notamment l'activation ou la désactivation des abonnements par défaut de l'organisation. Azure DevOps n'a pas de notification envoyée à tous les utilisateurs de l'organisation.
 - **Hooks de service** : **Paramètres du projet > Hooks de service** envoie des événements (build terminé, changement d'état d'exécution, déploiement de mise en production terminé, approbation en attente) vers Slack, Microsoft Teams, des webhooks, Azure Service Bus, des files d'attente Stockage Azure et d'autres.
 - L'application Azure Pipelines pour Microsoft Teams ou Slack abonne un canal à un pipeline.
 - Dans le pipeline : un job ou une étape avec `condition: failed()`.
@@ -166,13 +167,13 @@ notify:
 | Ouvrir automatiquement une issue quand le déploiement en production échoue | Job avec `if: failure()` et `issues: write` |
 | Alerter quand l'application se dégrade après un déploiement | Règle d'alerte Azure Monitor avec un groupe d'actions, et la vérification Query Azure Monitor alerts |
 
-> **Piège d'examen.** Les abonnements aux notifications d'Azure DevOps envoient des e-mails ; pour atteindre un outil de messagerie ou un système externe, utilisez un hook de service ou l'application de messagerie. Et Skip initiator est activé par défaut : la personne qui a lancé l'exécution n'est pas avertie par un abonnement d'équipe.
+> **Piège d'examen.** Les abonnements aux notifications d'Azure DevOps envoient des e-mails ; pour atteindre un outil de messagerie ou un système externe, utilisez un hook de service ou l'application de messagerie. Et avec l'option de remise **Members of team by role**, **Skip initiator** est activé par défaut : la personne qui a lancé l'activité n'est pas avertie.
 
 <!-- section: key-points -->
 ## Points clés
 
 - Journaux dans Log Analytics, métriques Prometheus et OpenTelemetry dans un espace de travail Azure Monitor ; paramètres de diagnostic pour les journaux de ressources, agent Azure Monitor avec DCR pour les invités.
-- Intégrations DevOps : vérification Query Azure Monitor alerts, groupes d'actions qui appellent des applications logiques ou des webhooks, diffusion de l'audit vers `AzureDevOpsAuditing`.
+- Intégrations DevOps : vérification Query Azure Monitor alerts, groupes d'actions qui appellent des applications logiques ou des webhooks, paramètres de diagnostic du journal d'activité, diffusion de l'audit (préversion) vers `AzureDevOpsAuditing`.
 - Application Insights : basé sur un espace de travail, chaîne de connexion, distribution OpenTelemetry. VM Insights : agent + DCR. Container Insights : module complémentaire de supervision plus Prometheus managé.
 - GitHub : Insights du dépôt, métriques d'utilisation et de performances d'Actions dans l'organisation, graphiques actuels et historiques des Projects configurés avec Layout, X-axis, Group by et Y-axis.
 - Alertes : paramètres de notification GitHub, applications de messagerie et `if: failure()` ; abonnements Azure DevOps, hooks de service et `condition: failed()`.

@@ -15,7 +15,7 @@ Scénarios types :
 <!-- section: paas | objectives: 1.3.2 -->
 ## Platform as a service (PaaS)
 
-PaaS est le juste milieu. Le fournisseur entretient l'infrastructure physique **et** les systèmes d'exploitation, les intergiciels, les outils de développement et les services de décisionnel. **Vous apportez l'application et ses données**, sans vous soucier des licences ni des correctifs de la plateforme.
+PaaS est le juste milieu. Le fournisseur entretient l'infrastructure physique **et** les systèmes d'exploitation, les intergiciels, les outils de développement et les services de décisionnel. **Vous apportez l'application et ses données**, et vous gérez les contrôles d'accès, sans vous soucier des licences ni des correctifs de la plateforme. Selon la configuration du service, certains paramètres de réseau et de sécurité de l'application sont partagés.
 
 Exemples Azure : Azure App Service, Azure SQL Database, Azure Functions, Azure Container Apps.
 

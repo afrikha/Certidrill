@@ -22,7 +22,7 @@ TDE encrypts the database files, the transaction log and the **backups** at the 
 | Protector | Service-managed certificate or customer-managed key, set on the **server** (or per database for SQL Database) | Service-managed or customer-managed key, set on the instance | Certificate in `master`, or an asymmetric key through EKM (Azure Key Vault connector) |
 | Turn on or off | Portal, PowerShell, CLI | T-SQL `ALTER DATABASE ... SET ENCRYPTION` | T-SQL |
 
-Service-managed TDE uses a certificate unique to the server, rotated by Microsoft. **Customer-managed TDE (BYOK)** stores an RSA or RSA-HSM key (2,048 or 3,072 bits) in Azure Key Vault or Azure Key Vault Managed HSM:
+Service-managed TDE uses a certificate unique to the server, rotated by Microsoft. **Customer-managed TDE (BYOK)** uses a key in Azure Key Vault or Azure Key Vault Managed HSM: an RSA or RSA-HSM key of 2,048 or 3,072 bits (the only type for SQL Managed Instance) or, for Azure SQL Database only, a symmetric AES key of 128, 192 or 256 bits in Key Vault Premium or Managed HSM (AES-256 is recommended for new protectors):
 
 1. The key vault must have **soft delete and purge protection** enabled, otherwise the setup fails.
 2. The server or instance needs a system-assigned or user-assigned **managed identity** with **Key Vault Crypto Service Encryption User** (Azure RBAC model) or the get, wrapKey and unwrapKey key permissions (access policy model).
@@ -37,7 +37,7 @@ az sql server tde-key set --resource-group RG1 --server sql-contoso \
   --kid https://kv-contoso.vault.azure.net/keys/tde-key/0123456789abcdef0123456789abcdef
 ```
 
-If the server loses access to the key (permission revoked, key deleted), the database becomes **Inaccessible** after about 30 minutes and refuses connections. Restored within 30 minutes, it heals automatically; later, it must be revalidated manually. Keep old key versions: old backups still need them. With geo-replication, both servers must reach the primary's key material before the link or failover group is created.
+If the server loses access to the key (permission revoked, key deleted), the database starts refusing connections and becomes **Inaccessible** in up to 10 minutes (30 minutes after a Key Vault 4XX error; an intermittent network 5XX error gets a 24-hour buffer and heals on its own). Restored within 30 minutes, it heals automatically. Later, fix the cause, then on the **Transparent data encryption** page select **Retry existing key** and **Validate key**: this needs the original key (a new key version doesn't help), and some settings can be lost (failover group, tags, elastic pool configuration, read scale, auto-pause, point-in-time restore history, long-term retention policies). Keep old key versions: old backups still need them. With geo-replication or a failover group, both servers need permissions on every key vault that holds a required key; if the servers use different keys, add both keys to both servers before you create the link or the failover group.
 
 SQL Server on a VM, the classic procedure:
 
@@ -164,7 +164,7 @@ CREATE TABLE HR.Employee (
 );
 ```
 
-Limits to know: string columns with deterministic encryption need a `_BIN2` collation; no comparison with literals (use parameters); not supported for `xml`, `rowversion`, `sql_variant`, spatial types or identity columns; no default or check constraints, full-text indexes or replication on encrypted columns. Always On availability groups are supported. In Azure SQL Database, grant `VIEW ANY COLUMN MASTER KEY DEFINITION` and `VIEW ANY COLUMN ENCRYPTION KEY DEFINITION` explicitly to users who query encrypted columns.
+Limits to know: string columns with deterministic encryption need a `_BIN2` collation; no comparison with literals (use parameters); not supported for `xml`, `timestamp`, `rowversion`, `image`, `ntext`, `text`, `sql_variant`, `hierarchyid`, `vector`, spatial types, identity, computed, sparse or partitioning columns, or columns masked by dynamic data masking; no default or check constraints, full-text indexes or replication on encrypted columns; no `FOR XML` or `FOR JSON`, table-valued parameters or distributed queries on them. Always On availability groups are supported. In Azure SQL Database, grant `VIEW ANY COLUMN MASTER KEY DEFINITION` and `VIEW ANY COLUMN ENCRYPTION KEY DEFINITION` explicitly to users who query encrypted columns.
 
 > **Exam trap.** "The database administrators must not be able to read credit card numbers" eliminates TDE, dynamic data masking and column-level encryption: only Always Encrypted keeps the keys away from the server, provided the DBAs have no access to the column master key.
 
@@ -237,9 +237,9 @@ Private endpoint rules:
 - Clients keep using `sql-contoso.database.windows.net`: the name resolves to the private IP through DNS. Connecting to the IP or to the `privatelink` name directly fails.
 - A private endpoint doesn't block public access by itself: select **Deny public network access**. Once denied, public connections fail with error 47073, and firewall rules can't be edited (error 42101).
 - The SQL admin approves or rejects pending connections under Security > Networking > **Private access**.
-- With the **Redirect** connection policy (recommended for latency), clients need ports 1433 to 65535; Proxy uses 1433 only.
+- With the **Redirect** connection policy (recommended for latency), traffic through a private endpoint needs ports 1433 to 65535, inbound to the endpoint's virtual network and outbound from the client's. Only ODBC, OLE DB, .NET SqlClient and JDBC 9.4 or later drivers are redirected; other drivers are proxied. Proxy uses 1433 only, and existing private endpoints on the **Default** policy use Proxy.
 
-Other network settings of the logical server (Security > Networking > Connectivity): **minimum TLS version** (1.2 is the lowest still available; older clients fail with error 47072) and the connection policy.
+Other network settings of the logical server (Security > Networking > Connectivity): **minimum TLS version** (1.2 is the lowest still available; older clients fail with error 47072; the default accepts TLS 1.2 and later, and once you enforce a version you can't revert to the default) and the connection policy.
 
 SQL Managed Instance endpoints:
 

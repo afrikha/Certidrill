@@ -26,7 +26,7 @@ Permissions on a job (each includes the ones below it):
 | CAN MANAGE RUN | Trigger and cancel runs |
 | CAN VIEW | View run results, details, history and status |
 
-Runs started with **Run now** use the permissions of the **Run as** identity, not those of the user who clicked. Changing **Run as** requires CAN MANAGE or IS OWNER, and you can choose a service principal only if you have the **Service Principal User** role on it. Run production jobs as a service principal, so that they don't depend on a person's account.
+Runs started with **Run now** use the permissions of the **Run as** identity, not those of the user who clicked. Changing **Run as** requires CAN MANAGE or IS OWNER, and you can choose a service principal only if you have the **Service Principal User** role on it. By default, workspace admins can set the owner or **Run as** to any user or service principal of the workspace; account admins can restrict this with the `RestrictWorkspaceAdmins` setting. Run production jobs as a service principal, so that they don't depend on a person's account.
 
 ```json
 {
@@ -69,9 +69,9 @@ Add triggers in **Job details > Schedules & Triggers > Add trigger**.
 | Table update | Source tables are updated | Run when upstream data is ready |
 | Continuous | The previous run ends (completes or fails) | Always-on streaming |
 
-**File arrival**: monitors the root or a subpath of an external location or a volume, recursively, without wildcards. It checks for new files about every minute, at no cost beyond listing the storage. You need `READ` on the location and CAN MANAGE on the job. Only new files trigger a run: overwriting a file with the same name doesn't. With **file events** enabled on the external location (recommended), there's no file count limit; without them, at most 50 jobs per workspace use such a trigger and the path holds at most 10,000 files. In the triggered task, read the files with Auto Loader and `trigger(availableNow=True)` so each run processes only what is new.
+**File arrival**: monitors the root or a subpath of an external location or a volume, recursively, without wildcards. It checks for new files about every minute, at no cost beyond listing the storage. You need `READ` on the location and CAN MANAGE on the job. Only new files trigger a run: overwriting a file with the same name doesn't. With **file events** enabled on the external location (recommended; enabling them requires owning the location or `MANAGE` on it), there's no file count limit; without them, at most 50 jobs per workspace use such a trigger and the path holds at most 10,000 files. In the triggered task, read the files with Auto Loader, `cloudFiles.useManagedFileEvents` set to `true` and `trigger(availableNow=True)`, so each run processes only what is new.
 
-**Table update**: watches up to 10 tables (Delta or Iceberg managed tables, Delta external tables, materialized views, streaming tables, views on supported tables) and starts when **any** or **all** of them are updated. The **Run as** identity needs `SELECT` on each table plus `USE CATALOG` and `USE SCHEMA`; without it the trigger fails to evaluate. `{{job.trigger.table_update.updated_tables}}` lists the updated tables.
+**Table update**: watches up to 10 tables (Delta or Iceberg managed tables, Delta external tables, materialized views, streaming tables, views or metric views on supported tables, OpenSharing objects, system tables; the source tables of a view count toward the 10) and starts when **any** or **all** of them are updated. The **Run as** identity needs `SELECT` on each table plus `USE CATALOG` and `USE SCHEMA`; without it the trigger fails to evaluate. For tables in locations without file events, at most 1,000 jobs can have a table update trigger. `{{job.trigger.table_update.updated_tables}}` lists the updated tables.
 
 Both file arrival and table update triggers have two optional settings:
 
@@ -80,7 +80,7 @@ Both file arrival and table update triggers have two optional settings:
 | Minimum time between triggers in seconds | Cooldown: at most one run per interval after a run completes | `900`: run at most every 15 minutes |
 | Wait after last change in seconds | Debounce: wait after the last arrival or update; each new one resets the timer | `60`: let a batch of files finish arriving |
 
-**Continuous**: one run always active; a new run starts less than 60 seconds after the previous one ends. It can't be combined with other triggers, and task dependencies with `Run if` and per-task retry policies aren't available.
+**Continuous**: one run always active; a new run starts less than 60 seconds after the previous one ends. It can't be combined with other triggers, and task dependencies with `Run if` and per-task retry policies aren't available. If the job runs a pipeline, an optional **Maintenance window** (under **Advanced**) controls when updates that restart the pipeline are applied. On serverless compute, `Trigger.ProcessingTime` and `Trigger.Continuous` aren't supported: use a bounded trigger such as `AvailableNow`, and the scheduler restarts the task when it completes.
 
 Limits: up to 12,000 active triggers per workspace (paused triggers don't count); a job can have up to five triggers during the Multiple Triggers Beta, each paused or resumed independently. In the Jobs API 2.1 and later, triggers go in the `triggers` array; don't mix it with the legacy `schedule`, `trigger` or `continuous` fields.
 
@@ -137,7 +137,8 @@ Notifications are set at the **job** level (Job details) or the **task** level, 
 | Success | A run completes, including in the `Succeeded with failures` state |
 | Failure | A run fails |
 | Duration warning | A run exceeds the **Warning** duration threshold, which must be set first |
-| Streaming backlog | The average backlog over 10 minutes exceeds the threshold (then at most every 30 minutes); not for pipeline tasks |
+| Streaming backlog (Public Preview) | The average backlog over 10 minutes exceeds the threshold (then at most every 30 minutes); not for pipeline tasks |
+| Maintenance start, Maintenance complete | A continuous job with a configured maintenance window starts or completes maintenance |
 
 | Destination | Notes |
 | --- | --- |
@@ -157,7 +158,7 @@ Options and behaviors:
 <!-- section: automatic-restarts | objectives: 4.2.5 -->
 ## Configuring automatic restarts
 
-**Task retries**: in the task settings, click **Add** next to **Retries** to set how many times and how often a failed task is retried. The interval is measured from the start of the failed run to the next attempt. **Retry on timeout** decides whether a timed-out attempt is retried; when timeout and retries are both set, the timeout applies to each attempt.
+**Task retries**: in the task settings, click **Add** next to **Retries** to set how many times and how often a failed task is retried. The interval is measured from the start of the failed run to the next attempt. `retry_on_timeout` (false by default) decides whether a timed-out attempt is retried; when timeout and retries are both set, the timeout applies to each attempt.
 
 | Configuration | Default retry behavior |
 | --- | --- |
@@ -166,7 +167,7 @@ Options and behaviors:
 | Continuous job | Exponential backoff for the whole job, no limit on the number of retries |
 | Pipeline update from a job, the API or continuous mode | Automatic retry and cluster restart for recoverable errors |
 
-**Continuous jobs**: per-task retry policies can't be used. With **Task retry mode** On failure (the default), a failed task is retried with increasing delays up to a maximum (three for a single-task job), then the run is canceled and a new one starts. After repeated failures the whole job restarts with an increasing retry period, capped by the system; the backoff resets after a successful run. You can restart a job in backoff from the UI or with `run-now`. Databricks recommends a continuous job rather than the old pattern of unlimited retries and one concurrent run.
+**Continuous jobs**: per-task retry policies can't be used. With **Task retry mode** On failure (the default), a failed task is retried with increasing delays up to a maximum (three for a single-task job), then the run is canceled and a new one starts. After repeated failures the whole job restarts with an increasing retry period, capped by the system; the backoff resets after a successful run. To restart a job in backoff, click **Restart run** (it cancels the active run, resets the retry period and starts a new run) or send a `run-now` request with the job ID. Databricks recommends a continuous job rather than the old pattern of unlimited retries and one concurrent run.
 
 **Streaming tasks**: an Auto Loader stream in `addNewColumns` mode stops on purpose when the schema changes; a retry policy on the task (or a continuous job) restarts it with the new schema.
 
@@ -189,5 +190,5 @@ Options and behaviors:
 - Max concurrent runs defaults to 1; excess runs are skipped or queued (up to 48 hours).
 - Triggers: manual, scheduled, file arrival, table update, continuous; cooldown and debounce settings tame bursts.
 - Advanced schedules use Quartz cron with a time zone; minimum 10 seconds between runs; UTC avoids daylight saving surprises.
-- Notifications: start, success, failure, duration warning, streaming backlog; system destinations come from an admin, three per event type.
+- Notifications: start, success, failure, duration warning, streaming backlog (Public Preview), maintenance start and complete; system destinations come from an admin, three per event type.
 - Retries are off by default except serverless auto-optimization; continuous jobs back off exponentially without limit; pipelines retry flows and updates in production runs.

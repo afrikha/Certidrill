@@ -5,56 +5,60 @@ difficulty: 2
 status: draft
 stem:
   en: |
-    Contoso, Ltd. has a Microsoft Foundry resource named **foundry-prod** in the subscription **Sub1**. You plan to add an AI Gateway to foundry-prod by selecting **Use existing**. The subscriptions contain the API Management instances shown in the following table.
+    Contoso, Ltd. has a Microsoft Foundry resource named **foundry-prod**. An Azure API Management instance named **apim-c** publishes the model deployments and the MCP tools of foundry-prod, and applies an `llm-token-limit` policy to all its APIs. A resource-scope Gateway connection to apim-c exists in foundry-prod.
 
-    | Instance | Subscription | Tier | Your role on the instance |
-    | --- | --- | --- | --- |
-    | apim-a | Sub1 | Premium | API Management Service Contributor |
-    | apim-b | Sub2 | Standard v2 | API Management Service Contributor |
-    | apim-c | Sub1 | Standard v2 | API Management Service Contributor |
-    | apim-d | Sub1 | Premium v2 | Reader |
+    The following workloads call the models or the tools.
 
-    Which instance appears in the **Use existing** list?
+    | Workload | Type | How it's configured |
+    | --- | --- | --- |
+    | App1 | Container app | Sends requests to the runtime endpoint of apim-c |
+    | Agent1 | Agent in Foundry Agent Service | Uses the connected model of the apim-c connection |
+    | Agent2 | Agent in Foundry Agent Service | Uses the connected model, and an MCP tool registered with the URL of the tool's backend |
+    | App2 | Function app | Sends requests to the runtime endpoint of apim-c through a private endpoint |
+
+    Which workload has requests that the token limits and the gateway logs of apim-c don't cover?
   fr: |
-    Contoso, Ltd. dispose d'une ressource Microsoft Foundry nommée **foundry-prod** dans l'abonnement **Sub1**. Vous prévoyez d'ajouter une passerelle AI Gateway à foundry-prod en sélectionnant **Use existing**. Les abonnements contiennent les instances Gestion des API présentées dans le tableau suivant.
+    Contoso, Ltd. dispose d'une ressource Microsoft Foundry nommée **foundry-prod**. Une instance Gestion des API Azure nommée **apim-c** publie les déploiements de modèles et les outils MCP de foundry-prod, et applique une stratégie `llm-token-limit` à toutes ses API. Une connexion Gateway à l'étendue de la ressource vers apim-c existe dans foundry-prod.
 
-    | Instance | Abonnement | Niveau | Votre rôle sur l'instance |
-    | --- | --- | --- | --- |
-    | apim-a | Sub1 | Premium | API Management Service Contributor |
-    | apim-b | Sub2 | Standard v2 | API Management Service Contributor |
-    | apim-c | Sub1 | Standard v2 | API Management Service Contributor |
-    | apim-d | Sub1 | Premium v2 | Reader |
+    Les charges de travail suivantes appellent les modèles ou les outils.
 
-    Quelle instance apparaît dans la liste **Use existing** ?
+    | Charge de travail | Type | Configuration |
+    | --- | --- | --- |
+    | App1 | Application de conteneur | Envoie ses requêtes au point de terminaison d'exécution d'apim-c |
+    | Agent1 | Agent dans Foundry Agent Service | Utilise le modèle connecté de la connexion apim-c |
+    | Agent2 | Agent dans Foundry Agent Service | Utilise le modèle connecté, et un outil MCP inscrit avec l'URL du back-end de l'outil |
+    | App2 | Application de fonction | Envoie ses requêtes au point de terminaison d'exécution d'apim-c via un point de terminaison privé |
+
+    Quelle charge de travail a des requêtes que les limites de jetons et les journaux de passerelle d'apim-c ne couvrent pas ?
 body:
   options:
-    - { id: a, text: apim-a }
-    - { id: b, text: apim-b }
-    - { id: c, text: apim-c }
-    - { id: d, text: apim-d }
+    - { id: a, text: App1 }
+    - { id: b, text: Agent1 }
+    - { id: c, text: Agent2 }
+    - { id: d, text: App2 }
 answer: { optionId: c }
 explanation:
   correct:
     en: |
-      The Use existing list only shows API Management instances that are in the same Microsoft Entra tenant and the same subscription as the Foundry resource, that use a v2 tier, and on which you have at least API Management Service Contributor. apim-c is the only instance that meets every condition.
+      The gateway enforces its policies only on traffic sent to its endpoint. An MCP tool registered with the direct backend URL is called without going through apim-c, so those tool calls bypass the gateway's policies and produce no gateway telemetry. The tool must be registered with its gateway-routed MCP endpoint.
     fr: |
-      La liste Use existing n'affiche que les instances Gestion des API situées dans le même locataire Microsoft Entra et le même abonnement que la ressource Foundry, qui utilisent un niveau v2 et sur lesquelles vous disposez au moins du rôle API Management Service Contributor. apim-c est la seule instance qui remplit toutes les conditions.
+      La passerelle n'applique ses stratégies qu'au trafic envoyé à son point de terminaison. Un outil MCP inscrit avec l'URL directe de son back-end est appelé sans passer par apim-c : ces appels d'outil contournent les stratégies de la passerelle et ne produisent aucune télémétrie de passerelle. L'outil doit être inscrit avec son point de terminaison MCP routé par la passerelle.
   options:
     a:
       en: |
-        apim-a uses the classic Premium tier, not a v2 tier.
+        App1 uses the gateway runtime endpoint, so its requests go through apim-c and its policies.
       fr: |
-        apim-a utilise le niveau Premium classique, pas un niveau v2.
+        App1 utilise le point de terminaison d'exécution de la passerelle : ses requêtes passent par apim-c et ses stratégies.
     b:
       en: |
-        apim-b is in another subscription than foundry-prod.
+        An agent that uses the connected model calls the model through the gateway connection, not through a raw backend endpoint.
       fr: |
-        apim-b se trouve dans un autre abonnement que foundry-prod.
+        Un agent qui utilise le modèle connecté appelle le modèle via la connexion de passerelle, et non via un point de terminaison de back-end direct.
     d:
       en: |
-        You only have the Reader role on apim-d; at least API Management Service Contributor (or Owner) is required.
+        A private endpoint only changes the network path to apim-c; the requests still reach the gateway endpoint and its policies apply.
       fr: |
-        Vous n'avez que le rôle Reader sur apim-d ; il faut au moins API Management Service Contributor (ou Owner).
+        Un point de terminaison privé ne change que le chemin réseau vers apim-c ; les requêtes atteignent toujours le point de terminaison de la passerelle et ses stratégies s'appliquent.
 references:
-  - title: Configure AI Gateway in your Foundry resources
-    url: https://learn.microsoft.com/en-us/azure/foundry/configuration/enable-ai-api-management-gateway-portal
+  - title: Configure Azure AI Gateway in your Foundry resources
+    url: https://learn.microsoft.com/en-us/azure/ai-foundry/configuration/enable-ai-api-management-gateway-portal

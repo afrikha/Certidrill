@@ -52,7 +52,7 @@ La méthodologie Migrate de la phase Adopt compte cinq étapes : planifier la mi
 | Paramètre | Effet |
 | --- | --- |
 | Dimensionnement basé sur les performances | Dimensionne la cible d'après l'utilisation collectée du processeur, de la mémoire et des disques : évite de payer pour des serveurs surdimensionnés |
-| Dimensionnement en l'état local | Conserve l'allocation actuelle : à utiliser quand aucun historique de performances n'existe |
+| Dimensionnement en l'état local (As-is on-premises) | Conserve l'allocation actuelle : à utiliser quand aucun historique de performances n'existe ; les applications web sont toujours évaluées ainsi, car l'appliance ne collecte aucune donnée de performances pour elles |
 | Utilisation en centile | Le centile des échantillons retenu, le 95e par exemple pour ignorer les valeurs aberrantes |
 | Facteur de confort | Un multiplicateur qui ajoute une marge pour les pics saisonniers ou la croissance : 2,0 double la taille calculée |
 
@@ -104,7 +104,7 @@ Choisissez ensuite l'outil, d'après l'interruption acceptée. Une migration **h
 
 | Outil | Cibles | Usage |
 | --- | --- | --- |
-| Azure Database Migration Service | SQL Database (hors connexion) ; SQL Managed Instance et SQL Server sur machines virtuelles Azure (en ligne ou hors connexion) | Service managé pour les migrations à grande échelle, piloté depuis le portail, PowerShell ou Azure CLI |
+| Azure Database Migration Service | SQL Database (hors connexion) ; SQL Managed Instance et SQL Server sur machines virtuelles Azure (en ligne ou hors connexion) | Service managé pour les migrations à grande échelle, piloté depuis le portail, PowerShell ou Azure CLI ; il ne migre ni les connexions (logins) ni les bases de données chiffrées par TDE |
 | Lien Managed Instance | SQL Managed Instance, depuis SQL Server 2016 ou ultérieur | Réplication en quasi-temps réel par un groupe de disponibilité distribué : la migration en ligne avec le moins d'interruption ; l'instance est lisible pendant la migration |
 | Log Replay Service | SQL Managed Instance | Restaure les sauvegardes complètes, différentielles et de journaux depuis le Stockage Blob jusqu'à la bascule |
 | Sauvegarde et restauration natives depuis le Stockage Blob | SQL Managed Instance, SQL Server sur machines virtuelles Azure | Le plus simple quand une fenêtre d'interruption est acceptée |
@@ -135,7 +135,7 @@ La méthode découle du volume de données, de la bande passante disponible et d
 
 Data Box Heavy a été mis hors service ; plusieurs appareils Data Box peuvent être commandés pour des volumes supérieurs. Les données d'un Data Box sont chiffrées en AES 256 bits, et l'appareil est effacé après le chargement.
 
-**Azure Storage Mover** est un service de migration entièrement managé : une ressource dans Azure suit les projets, et un agent déployé près de la source copie les fichiers directement vers des conteneurs d'objets blob ou des partages de fichiers Azure en préservant l'arborescence, les horodatages et les autorisations. Il se combine avec Data Box : l'appareil transporte l'essentiel hors connexion, puis Storage Mover ne charge que les modifications faites depuis.
+**Azure Storage Mover** est un service de migration entièrement managé : une ressource dans Azure suit les projets. Dans une migration avec agent, un agent déployé près de la source copie les fichiers directement vers des conteneurs d'objets blob ou des partages de fichiers Azure en préservant l'arborescence, les horodatages et les autorisations. Les migrations sans agent n'ont besoin d'aucun agent : depuis des partages SMB (connectivité privée vers le partage, informations d'identification dans Azure Key Vault), depuis des partages NFS (préversion) et depuis des sources cloud comme AWS S3. Il se combine avec Data Box : l'appareil transporte l'essentiel hors connexion, puis Storage Mover ne charge que les modifications faites depuis.
 
 **Azure File Sync** synchronise des serveurs de fichiers Windows avec des partages de fichiers Azure. Utilisé comme outil de migration, il charge en arrière-plan pendant que les utilisateurs continuent de travailler ; avec la hiérarchisation cloud, seuls les fichiers souvent utilisés restent sur le serveur. Pour une cible uniquement cloud, Robocopy vers un partage de fichiers Azure monté et Storage Mover préservent toute la fidélité des fichiers ; AzCopy et l'Explorateur Stockage Azure peuvent perdre des autorisations sur Azure Files.
 

@@ -30,7 +30,7 @@ CustomerID,FirstName,City
 </Customers>
 ```
 
-Avro, Parquet and Delta Lake are **optimized file formats**: they can't be read in a text editor, but they compress well and are fast to process. ORC (Optimized Row Columnar) is another columnar format that you may meet among the answer choices.
+Avro, Parquet and Delta Lake are **optimized file formats**: they can't be read in a text editor, but they compress well and are fast to process.
 
 > **Exam trap.** Parquet is **columnar**, Avro is **row-based**. "Read only a few columns of a very large file" points to Parquet; "a JSON header followed by binary records" points to Avro.
 
@@ -71,7 +71,7 @@ A **file store** keeps files on a local disk, on a network share or in the cloud
 | Scalable, cost-effective storage of binary files and other unstructured data | **Azure Blob Storage** (blob containers of a storage account) |
 | Network file shares like those of a corporate network | **Azure Files** |
 | Key-value storage for applications that read and write values quickly | **Azure Table storage** |
-| Data lake: files organized in folders for large-scale analytics | **Azure Data Lake Storage Gen2** (Blob Storage with a hierarchical namespace) |
+| Data lake: files organized in folders for large-scale analytics | **Azure Data Lake Storage** (Blob Storage with a hierarchical namespace) |
 | One analytics platform delivered as software as a service (SaaS), with a shared data lake (OneLake) | **Microsoft Fabric** |
 
 Blob containers, file shares and tables are three services of the same **Azure Storage** account.

@@ -160,14 +160,14 @@ SELECT m.match_value
 FROM REGEXP_MATCHES('Ticket #A-102 replaces #A-099', '#([A-Z]-\d+)') AS m;
 ```
 
-Flags: `i` case-insensitive, `c` case-sensitive (default), `m` multi-line `^` and `$`, `s` lets `.` match a newline; when flags conflict, the last one wins. Inputs up to 2 MB, patterns up to 8,000 bytes. The two table-valued functions need compatibility level 170 unless the `ALLOW_BUILTIN_TVF_IN_ALL_COMPAT_LEVELS` database-scoped configuration is on. Regular expressions ignore collation rules, and `REGEXP_LIKE` can use an index seek only when the pattern starts with `^`.
+Flags: `i` case-insensitive, `c` case-sensitive (default), `m` multi-line `^` and `$`, `s` lets `.` match a newline; when flags conflict, the last one wins. Inputs up to 2 MB, patterns up to 8,000 bytes. The two table-valued functions need compatibility level 170 unless the `ALLOW_BUILTIN_TVF_IN_ALL_COMPAT_LEVELS` database-scoped configuration is on (in preview, Azure SQL Database and SQL database in Fabric only). Regular expressions ignore collation rules, and `REGEXP_LIKE` can use an index seek only when the pattern starts with `^`.
 
 > **Exam trap.** "`REGEXP_LIKE` isn't recognized" on Azure SQL Database means a compatibility level below 170. The other scalar `REGEXP_*` functions work at any level, so they aren't proof that the level is high enough.
 
 <!-- section: fuzzy-matching | objectives: 1.3.5 -->
 ## Fuzzy string matching
 
-Fuzzy functions find near-duplicates and typos that `LIKE` and regular expressions miss: "Contoso Ltd" against "Contosso Ltd.", "Colour" against "Color". They are in **preview**; in SQL Server 2025 they require `ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON`.
+Fuzzy functions find near-duplicates and typos that `LIKE` and regular expressions miss: "Contoso Ltd" against "Contosso Ltd.", "Colour" against "Color". They run on SQL Server 2025, Azure SQL Database, Azure SQL Managed Instance (SQL Server 2025 or Always-up-to-date update policy) and SQL database in Fabric. They are **generally available from SQL Server 2025 CU11**; on earlier SQL Server 2025 builds they are in preview and, if they aren't enabled by default, need `ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON`.
 
 | Function | Returns | Meaning |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ Fuzzy functions find near-duplicates and typos that `LIKE` and regular expressio
 | `JARO_WINKLER_SIMILARITY(a, b)` | 0 to 100 | Higher = closer |
 
 ```text
-ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;
+ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;   -- only on SQL Server 2025 builds before CU11
 
 SELECT s.SupplierID, s.SupplierName, c.CandidateName,
        EDIT_DISTANCE_SIMILARITY(s.SupplierName, c.CandidateName) AS Similarity
@@ -187,7 +187,7 @@ JOIN Staging.SupplierCandidate AS c
 WHERE EDIT_DISTANCE(s.SupplierName, c.CandidateName, 3) <= 2;
 ```
 
-Arguments can't be `varchar(max)` or `nvarchar(max)`; NULL input returns NULL; non-binary `SQL_*` collations aren't supported (apply a Windows or binary collation with `COLLATE`). Every comparison is computed row by row, so reduce the candidate pairs first. Choose edit distance for typos in codes and short strings, Jaro-Winkler for names where the beginning matters most.
+Arguments can't be `varchar(max)` or `nvarchar(max)`; NULL input returns NULL; non-binary `SQL_*` collations aren't supported (apply a Windows or binary collation with `COLLATE`). Every comparison is computed row by row, so reduce the candidate pairs first; with a `max` argument, `EDIT_DISTANCE` can stop once the distance exceeds it. Choose edit distance for typos in codes and short strings, Jaro-Winkler for names where the beginning matters most.
 
 > **Exam trap.** Distance and similarity go in opposite directions: filter `EDIT_DISTANCE(...) <= 2` but `EDIT_DISTANCE_SIMILARITY(...) >= 80`. A query that keeps rows with a high distance returns the least similar strings.
 
@@ -315,7 +315,7 @@ END;
 - Window functions: `ROWS` for running totals, full frame for `LAST_VALUE`, filter results through a CTE; `RANK` leaves gaps, `DENSE_RANK` doesn't.
 - JSON: `JSON_OBJECT` defaults to `NULL ON NULL`, `JSON_ARRAY` and `JSON_ARRAYAGG` to `ABSENT ON NULL`; `JSON_VALUE` for scalars, `JSON_QUERY` for fragments, `OPENJSON ... WITH` to shred, `JSON_CONTAINS` to search.
 - `REGEXP_*`: SQL Server 2025 and Azure SQL only; `REGEXP_LIKE` and the table-valued functions need compatibility level 170; occurrence `0` replaces all.
-- Fuzzy matching is in preview (`PREVIEW_FEATURES = ON` in SQL Server 2025); distance down, similarity up; no `max` types.
+- Fuzzy matching is GA from SQL Server 2025 CU11 (preview with `PREVIEW_FEATURES = ON` on earlier builds); distance down, similarity up; no `max` types.
 - `MATCH` needs explicit arrows, `AND` only, distinct edge aliases; `SHORTEST_PATH` with `FOR PATH` and `WITHIN GROUP (GRAPH PATH)`.
 - Prefer `NOT EXISTS` to `NOT IN` with nullable columns; `CROSS APPLY` with `TOP` for top n per group.
 - `SET XACT_ABORT ON`, `TRY...CATCH`, rollback when `XACT_STATE() <> 0`, then `THROW;`.

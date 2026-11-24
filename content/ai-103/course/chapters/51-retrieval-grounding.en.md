@@ -1,4 +1,4 @@
-Grounding an agent means giving it the right passages of your own content at answer time. In Foundry, the retrieval engine is Azure AI Search: an indexer pulls content, a skillset enriches and chunks it, an index stores text and vectors, and a query (keyword, vector, hybrid, semantic) returns the passages. The exam asks you to choose the retrieval method, put the ingestion steps in order, pick the skill for a content type and connect the index to an agent or a workflow.
+Grounding an agent means giving it the right passages of your own content at answer time. In Foundry, the retrieval engine is Azure AI Search: an indexer pulls content, a skillset enriches and chunks it, an index stores text and vectors, and a query (keyword, vector, hybrid, semantic) returns the passages. The exam asks you to choose the retrieval method, put the ingestion steps in order, pick the skill for a content type and connect the index to an agent or a workflow. Learn now titles the service **Foundry IQ (Azure AI Search)**; the SDK classes and the URLs keep the Azure AI Search names.
 
 <!-- section: ingest-index | objectives: 5.1.1 -->
 ## Ingesting and indexing content
@@ -33,7 +33,7 @@ Content types and how they become searchable:
 | --- | --- |
 | Digital PDFs, Office files, HTML | Document cracking extracts the text; split it into chunks; embed each chunk |
 | Scanned PDFs, photos of forms | Extract images during cracking, then OCR or the Document Layout skill |
-| Images without much text | Image Analysis captions and tags, or multimodal embeddings of the image itself |
+| Images without much text | Image Analysis captions and tags, or multimodal embeddings of the image itself (preview skills) |
 | Audio and video | Transcribe and describe first (Content Understanding `prebuilt-audioSearch`, `prebuilt-videoSearch`, or Azure Speech), then index the text |
 
 In the Azure portal, the **Import data** wizard creates the data source, skillset, index and indexer in one pass, including chunking and vectorization.
@@ -57,7 +57,7 @@ Vector search settings live in the index:
 | Algorithm | `hnsw` (approximate nearest neighbors, fast, the usual choice) or `exhaustiveKnn` (scans every vector: exact, slow, for small sets or to measure recall) |
 | Metric | `cosine` (the default and the one Azure OpenAI embeddings expect), `euclidean`, `dotProduct` |
 | Vectorizer | Converts the query text to a vector at query time with the same model used at indexing (Azure OpenAI, Azure Vision, custom Web API) |
-| Compression | Scalar or binary quantization to reduce vector storage |
+| Compression | Scalar or binary quantization to reduce the vector index size (memory and disk); HNSW only in the stable API |
 
 A hybrid query with semantic ranking:
 
@@ -96,7 +96,7 @@ A skill takes inputs from the enriched document tree (`/document/content`, `/doc
 | Put OCR text back at its place in the document text | **Text Merge** skill |
 | Cut long text into chunks, with overlap | **Text Split** skill (`textSplitMode: pages`, `maximumPageLength`, `pageOverlapLength`) |
 | Embed text chunks | **Azure OpenAI Embedding** skill |
-| Embed images and text in one vector space | **Azure AI Vision multimodal embeddings** skill |
+| Embed images and text in one vector space | **Azure Vision multimodal embeddings** skill (preview) |
 | Language, entities, key phrases, PII, translation | Language skills (language detection, entity recognition, key phrase extraction, PII detection, text translation) |
 | Logic no built-in skill provides | **Custom Web API** skill: an HTTPS endpoint, often an Azure Function |
 
@@ -112,7 +112,7 @@ A custom Web API skill receives and returns a batch of records, matched by `reco
 
 The response contains the same `recordId` values, each with `data` (the outputs declared in the skill) and optional `errors` and `warnings`.
 
-The Document Layout skill reads the file itself (`/document/file_data`, which the indexer provides when `allowSkillsetToReadFileData` is true), returns `markdown_document` sections down to `markdownHeaderDepth` (`h1` to `h6`), or text chunks with `outputFormat: text`. Beyond 20 documents per indexer per day, built-in skills such as OCR, Image Analysis and Document Layout need a billable Foundry resource attached to the skillset; the Azure OpenAI Embedding skill calls your embedding deployment.
+The Document Layout skill reads the file itself (`/document/file_data`, which the indexer provides when `allowSkillsetToReadFileData` is true), returns `markdown_document` sections down to `markdownHeaderDepth` (`h1` to `h6`), or text chunks with `outputFormat: text`. Beyond 20 documents per indexer per day, built-in skills such as OCR, Image Analysis and Document Layout need a billable Foundry resource attached to the skillset; the Azure OpenAI Embedding skill calls your embedding deployment. Utility skills that don't call Foundry Tools (Conditional, Document Extraction, Shaper, Text Merge, Text Split) aren't billable.
 
 > **Exam tip.** "Extract only the text" from scanned pages: OCR plus Text Merge. "Keep headings and tables so chunks follow the document's sections": Document Layout. "Our own classification service must tag each chunk": custom Web API skill.
 
@@ -126,6 +126,8 @@ Order of operations for a pull pipeline:
 3. Create the **skillset**: OCR or Document Layout, Text Merge, Text Split, Azure OpenAI Embedding, and **index projections** that write one search document per chunk.
 4. Create the **indexer**, linking data source, skillset and index, with the image settings when OCR is needed.
 5. Run it, then check the execution history for errors and warnings.
+
+A later run uses change detection: unchanged blobs aren't processed again, so a run alone doesn't apply a new skill or field to them. **Reset** the indexer (a full reindex of every document), then run it. Reset Skills, Reset Documents and Resync are preview APIs.
 
 OCR works only on images the indexer extracts. For scanned PDFs, the indexer configuration must ask for them:
 
@@ -164,8 +166,8 @@ Keyless access along the flow:
 | --- | --- |
 | An agent grounds answers on an existing Azure AI Search index, with citations | The **Azure AI Search tool** of Foundry Agent Service, through a project connection to the search service |
 | An agent answers from a few files uploaded by users, no index to manage | The **file search** tool (a managed vector store) |
-| Several sources, complex questions split into subqueries, one retrieval layer reused by many agents | A **Foundry IQ knowledge base** (agentic retrieval in Azure AI Search), exposed to agents as a knowledge tool |
-| A deterministic workflow or app step, full control of the query and the prompt | Your code calls Azure AI Search (`SearchClient`), then passes the passages to the model |
+| Several sources, complex questions split into subqueries, one retrieval layer reused by many agents | A **Foundry IQ knowledge base** (agentic retrieval in Azure AI Search), exposed to agents as an MCP tool. The `RemoteTool` project connection and the knowledge base MCP endpoint are preview |
+| A deterministic workflow or app step, full control of the query and the prompt | Your code calls Azure AI Search (`SearchClient`), or the retrieve API of a knowledge base (GA in `2026-10-01`), then passes the passages to the model |
 
 The Azure AI Search tool targets **one index** through a project connection:
 
@@ -193,7 +195,7 @@ agent = project.agents.create_version(
 | Number of results (`top_k`) | 5 |
 | Filter | Optional, applied to every query the agent sends to the index |
 
-The index needs a retrievable text field with the content to cite, and a source URL field (optionally a title) so citations can link to documents. Citations appear only if the instructions ask for them; in a streamed response they arrive as `url_citation` annotations. On a private virtual network, the tool must use keyless authentication.
+The index must be configured for vector search: searchable and retrievable `Edm.String` fields, searchable vector fields, a retrievable text field with the content to cite, and a retrievable source URL field (optionally a title) so citations can link to documents. Citations appear only if the instructions ask for them; in a streamed response they arrive as `url_citation` annotations. On a private virtual network, the tool must use keyless authentication. Learn suggests adding the tool through a **toolbox**, attached to agents as an MCP tool, to reuse it and manage its credentials in one place.
 
 The code path keeps the grounding explicit:
 
@@ -224,4 +226,5 @@ sources = "\n".join(f"[{r['title']}] {r['chunk']}" for r in results)
 - `kind: text` vector queries need a vectorizer with the indexing model; HNSW for speed, exhaustive KNN for exact results.
 - Scanned documents: `imageAction: generateNormalizedImages`, OCR, Text Merge, Text Split, embedding, index projections.
 - Document Layout for structure-aware Markdown chunks; custom Web API skill for your own logic.
-- Agents ground through the Azure AI Search tool, file search or a Foundry IQ knowledge base; workflows query `SearchClient` themselves.
+- Agents ground through the Azure AI Search tool, file search or a Foundry IQ knowledge base (agent connection in preview); workflows query `SearchClient` or the knowledge base retrieve API themselves.
+- After a skillset or index change, reset the indexer before running it: unchanged documents aren't reprocessed otherwise.

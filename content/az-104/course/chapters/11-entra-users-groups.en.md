@@ -29,7 +29,8 @@ Least-privilege Microsoft Entra roles to know:
 | Create and manage groups, their members and owners | Groups Administrator |
 | Only invite guests | Guest Inviter |
 | Reset passwords of non-administrators and some limited administrators | Helpdesk Administrator |
-| Assign licenses | License Administrator |
+| Assign licenses to users | License Administrator |
+| Assign licenses to groups (group-based licensing) | User Administrator |
 | Assign Microsoft Entra roles, create role-assignable groups | Privileged Role Administrator |
 
 > **Exam trap.** Global Administrator has no access to Azure resources by default. It can **elevate** its access (Microsoft Entra ID > Properties > *Access management for Azure resources*), which assigns User Access Administrator at the root scope. Remove this access after use.
@@ -163,7 +164,7 @@ SSPR lets users reset a forgotten password or unlock their account without the h
 | Page | Settings |
 | --- | --- |
 | Properties | SSPR enabled for **None**, **Selected** (one security group; nested groups are supported) or **All** |
-| Authentication methods | Number of methods required to reset: **1 or 2**; methods available: Microsoft Authenticator, OATH tokens, email, mobile phone (SMS or call), office phone, security questions |
+| Authentication methods | Number of methods required to reset: **1 or 2**; security questions. Since September 30, 2025, the other methods (Microsoft Authenticator, OATH tokens, email, SMS or voice call...) can't be managed here: enable them for SSPR in the **Authentication methods policy** |
 | Registration | Require users to register at sign-in; number of days before users reconfirm their information (0 to 730; 0 = never) |
 | Notifications | Notify users on password resets; notify all admins when another admin resets their password |
 | Customization | Custom help desk link or email |

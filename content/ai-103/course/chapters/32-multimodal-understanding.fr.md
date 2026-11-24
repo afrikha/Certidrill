@@ -3,7 +3,7 @@ Deux briques de Foundry comprennent les images et la vidéo. Un **modèle multim
 <!-- section: visual-context | objectives: 3.2.1 -->
 ## Analyser le contexte visuel avec des modèles multimodaux
 
-Les modèles compatibles avec la vision comprennent la série GPT-4.1, la série GPT-5, les modèles de raisonnement de la série o et GPT-4o. Un déploiement limité au texte, ou un modèle d'embedding, ne peut pas lire une image, quoi que dise l'invite.
+Les modèles compatibles avec la vision comprennent la série GPT-4.1, la série GPT-5, les modèles de raisonnement de la série o, GPT-4.5 et la série GPT-4o. Un déploiement limité au texte, ou un modèle d'embedding, ne peut pas lire une image, quoi que dise l'invite.
 
 Avec l'API Responses, une image est une partie de contenu de type `input_image` à côté d'une partie `input_text` :
 
@@ -41,7 +41,7 @@ Le réglage `detail` arbitre entre précision d'une part, jetons et latence d'au
 | `low` | Une version basse résolution de 512 x 512 : le plus rapide, le moins de jetons, peut manquer les petits détails |
 | `high` | La vue basse résolution plus des segments détaillés de 512 x 512 : petit texte et détails fins, plus de jetons |
 
-Les formats pris en charge sont JPEG, PNG, WEBP et GIF (première image seulement). Les URL d'images doivent être **accessibles publiquement** : une URL derrière un point de terminaison privé, une restriction de réseau virtuel ou un pare-feu n'est pas lue, même sur un compte de stockage du même réseau ou d'un réseau appairé. Réglez `max_output_tokens` (Responses) ou `max_tokens` / `max_completion_tokens` (Chat Completions) assez haut : un `finish_reason` à `length` signifie que la réponse a été coupée.
+Avec Chat Completions, les formats pris en charge sont JPEG, PNG, WEBP et GIF (première image seulement), jusqu'à 20 Mo par image et 10 images par appel ; l'API Responses accepte les GIF non animés et jusqu'à 50 images par requête, la requête entière restant sous 512 Mo. Les URL d'images doivent être **accessibles publiquement** : une URL derrière un point de terminaison privé, une restriction de réseau virtuel ou un pare-feu n'est pas lue, même sur un compte de stockage du même réseau virtuel ou d'un réseau virtuel connecté par peering. Réglez `max_output_tokens` (Responses) ou `max_tokens` / `max_completion_tokens` (Chat Completions) assez haut : un `finish_reason` à `length` signifie que la réponse a été coupée.
 
 > **Piège d'examen.** Un compte de stockage qui n'autorise que l'accès privé ne peut pas fournir ses images au modèle par URL. Lisez l'objet blob dans l'application et envoyez-le sous forme d'**URL de données base64**.
 
@@ -151,7 +151,7 @@ Content Understanding est un Foundry Tool de la ressource Foundry. L'API GA actu
 | --- | --- |
 | `analyzerId` | Le nom utilisé dans les appels (lettres, chiffres, points, traits de soulignement) |
 | `description` | Contexte que le modèle utilise pendant l'extraction des champs |
-| `baseAnalyzerId` | `prebuilt-image`, `prebuilt-video`, `prebuilt-audio` ou `prebuilt-document` |
+| `baseAnalyzerId` | `prebuilt-image`, `prebuilt-video`, `prebuilt-audio` ou `prebuilt-document` : un analyseur personnalisé ne peut dériver que de ces quatre analyseurs de base |
 | `fieldSchema` | Champs avec `type` (`string`, `number`, `boolean`, `date`, `object`, `array`), `description` et `method` |
 | `models` | Noms de modèles du catalogue (par exemple `gpt-5.2`), pas des noms de déploiements |
 
@@ -216,15 +216,15 @@ Limites à retenir : environ **une image par seconde** est échantillonnée, les
 <!-- section: cu-pipelines | objectives: 3.2.7 -->
 ## Pipelines à tâche unique et en mode pro
 
-Les pipelines **à tâche unique** sont ce que font la plupart des analyseurs : un analyseur, un fichier d'entrée, un passage d'extraction de contenu puis d'extraction de champs (`extract`, `classify`, `generate`). Un analyseur prédéfini (`prebuilt-read`, `prebuilt-layout`, `prebuilt-imageSearch`) ou un analyseur personnalisé effectue chacun une tâche. Les pipelines se composent par **routage** : `contentCategories` classe un fichier ou ses segments et envoie chaque catégorie à l'analyseur nommé dans son `analyzerId`, en une seule exécution.
+Les pipelines **à tâche unique** sont ce que font la plupart des analyseurs : un analyseur, un fichier d'entrée, un passage d'extraction de contenu puis d'extraction de champs (`extract`, `classify`, `generate`). Un analyseur prédéfini (`prebuilt-read`, `prebuilt-layout`, `prebuilt-imageSearch`) ou un analyseur personnalisé effectue chacun une tâche. Les pipelines se composent par **routage** : `contentCategories` classe un fichier ou ses segments et envoie chaque catégorie à l'analyseur nommé dans son `analyzerId`, en une seule exécution. Seuls les analyseurs de documents et de vidéos prennent en charge `contentCategories` (et `enableSegment`) ; un analyseur d'images, non.
 
-Le **mode pro** est apparu avec l'API en préversion `2025-05-01-preview`. Le mode par défaut de tout analyseur est **standard**. Le mode pro ajoute le **raisonnement**, **plusieurs documents d'entrée** dans une même analyse, et une **base de connaissances externe** (données de référence) pour la liaison, l'enrichissement et la validation. Il vise des tâches qui demandaient auparavant du code personnalisé ou un humain : agréger un schéma sur plusieurs fichiers, valider des résultats d'un document à l'autre, utiliser des données de référence pour produire la sortie. Le mode pro est limité aux **documents**.
+Le **mode pro** est apparu, en préversion, avec l'API `2025-05-01-preview` ; les notes de publication de l'API en disponibilité générale `2025-11-01` ne le mentionnent pas. Le mode par défaut de tout analyseur est **standard**. Le mode pro ajoute le **raisonnement**, **plusieurs documents d'entrée** dans une même analyse, et une **base de connaissances externe** (données de référence) pour la liaison, l'enrichissement et la validation. Il vise des tâches qui demandaient auparavant du code personnalisé ou un humain : agréger un schéma sur plusieurs fichiers, valider des résultats d'un document à l'autre, utiliser des données de référence pour produire la sortie. Le mode pro est limité aux **documents**.
 
 | Exigence | Pipeline |
 | --- | --- |
 | Des champs pour chaque photo ou chaque segment vidéo | Tâche unique (standard) |
 | Des fichiers variés routés vers le bon analyseur | Classification avec `contentCategories` |
-| Rapprocher une facture d'un bon de commande et d'une liste de fournisseurs | Mode pro (documents) |
+| Rapprocher une facture d'un bon de commande et d'une liste de fournisseurs | Mode pro (documents, `2025-05-01-preview`) |
 | Un calcul en plusieurs étapes ou une validation dans un seul document | Mode agentique (préversion) |
 
 Dans l'API en préversion actuelle (`2026-06-01-preview`), le raisonnement en plusieurs étapes sur un document s'appelle le **mode agentique** : réglez `config.workflow` sur `"agentic"` pour un analyseur de documents (un fichier d'entrée par requête pour l'instant) ; `"default"`, ou l'absence de `workflow`, laisse le service choisir un flux standard. L'expérience Foundry (classique) qui créait les tâches en mode standard et en mode pro est mise hors service.
@@ -258,4 +258,4 @@ Rédigez précisément les champs de composants : « Is the motor's safety cover
 - Réponses visuelles ancrées : se limiter à l'image, renvoyer les preuves, autoriser « impossible à déterminer ».
 - Analyseur = `baseAnalyzerId` + `config` + `fieldSchema` + `models` ; méthodes `generate`, `classify`, `extract` (documents uniquement).
 - Vidéo : transcription WEBVTT, images clés, plans ; `enableSegment` + un seul `contentCategories` ; environ 1 image par seconde.
-- Mode pro : raisonnement, plusieurs documents, données de référence, documents uniquement ; mode agentique dans la préversion actuelle.
+- Mode pro (préversion, `2025-05-01-preview`) : raisonnement, plusieurs documents, données de référence, documents uniquement ; mode agentique dans la préversion actuelle. `contentCategories` : analyseurs de documents et de vidéos uniquement.

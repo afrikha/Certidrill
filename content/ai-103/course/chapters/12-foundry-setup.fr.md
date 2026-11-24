@@ -29,11 +29,13 @@ Les choix de conception à faire avant de déployer :
 | Réseau | Accès public, points de terminaison privés, et pour les agents un réseau virtuel : votre propre sous-réseau délégué à `Microsoft.App/environments`, ou un réseau virtuel managé | Isolation |
 | Chiffrement | Clés managées par Microsoft (par défaut) ou clés gérées par le client dans Key Vault | Conformité |
 
-Pour une configuration standard des agents, le compte Cosmos DB doit offrir un débit total d'au moins 3 000 RU/s ; chaque conteneur demande 1 000 RU/s, et une capacité insuffisante fait échouer le provisionnement. La personne qui la crée a besoin du rôle Foundry Account Owner à l'étendue de l'abonnement, plus du droit d'attribuer des rôles sur Cosmos DB, Search et Storage (Owner ou Role Based Access Control Administrator). Gardez la ressource Azure OpenAI, la ressource Foundry et le projet dans la même région. Les ressources qu'un projet utilise pour l'état des agents, les fichiers et les vecteurs ne peuvent pas être changées sur un projet existant : il faut supprimer et recréer le projet.
+Pour une configuration standard des agents, le compte Cosmos DB doit offrir un débit total d'au moins 3 000 RU/s ; la configuration crée trois à cinq conteneurs par projet, chacun demandant 1 000 RU/s (deux projets avec des agents de l'API Responses demandent 10 000 RU/s), et une capacité insuffisante fait échouer le provisionnement. La personne qui la crée a besoin du rôle Foundry Account Owner à l'étendue de l'abonnement, plus du droit d'attribuer des rôles sur Cosmos DB, Search et Storage (Owner ou Role Based Access Control Administrator). Gardez la ressource Azure OpenAI, la ressource Foundry et le projet dans la même région. Les ressources qu'un projet utilise pour l'état des agents, les fichiers et les vecteurs ne peuvent pas être changées sur un projet existant : il faut supprimer et recréer le projet.
+
+Votre propre Key Vault est relié par une connexion Key Vault : une seule par ressource Foundry, créée en premier, quand la ressource et ses projets n'ont encore aucune autre connexion. L'identité managée de la ressource Foundry doit disposer au minimum du rôle **Key Vault Secrets Officer** sur le coffre, et les secrets existants ne sont pas migrés : vous recréez les connexions.
 
 Pour les clés gérées par le client, le coffre de clés doit être dans la même région que la ressource Foundry, avec la suppression réversible et la protection contre le vidage activées, et l'identité managée doit disposer des autorisations sur les clés, par exemple le rôle **Key Vault Crypto User**.
 
-> **Piège d'examen.** Un déploiement avec des points de terminaison privés qui bloque tout accès public ne se configure pas depuis le portail : utilisez le SDK, l'interface CLI ou l'infrastructure en tant que code. Et les points de terminaison privés de la ressource Foundry ne couvrent pas les ressources connectées : le stockage, Key Vault et Azure AI Search ont chacun besoin de leurs propres paramètres réseau.
+> **Piège d'examen.** L'injection de réseau virtuel sortante ne peut pas être ajoutée à une ressource Foundry existante, et ses paramètres sortants ne peuvent pas être modifiés : vous redéployez la ressource. Et les points de terminaison privés de la ressource Foundry ne couvrent pas les ressources connectées : le stockage, Key Vault et Azure AI Search ont chacun besoin de leurs propres paramètres réseau.
 
 <!-- section: deployment-options | objectives: 1.2.2 -->
 ## Choisir les options de déploiement
@@ -150,11 +152,11 @@ Une solution Foundry traverse les environnements comme n'importe quelle applicat
 | Étape | Ce qu'elle fait | Outils |
 | --- | --- | --- |
 | Provisionner | Créer la ressource Foundry, les projets, les déploiements de modèles, les connexions, les attributions de rôles | Bicep, ARM, Terraform, Azure CLI, `azd` |
-| Construire | Créer la nouvelle version de l'agent à partir de la définition du dépôt | SDK Foundry dans un script |
+| Construire | Créer la nouvelle version de l'agent à partir de la définition du référentiel | SDK Foundry dans un script |
 | Évaluer | Exécuter l'agent sur un jeu de données de test et le noter avec des évaluateurs ; comparer avec la version de référence | Action GitHub `microsoft/ai-agent-evals` (préversion), extension Azure DevOps |
 | Contrôler et promouvoir | Promouvoir seulement si les scores atteignent les seuils ; publier ensuite dans l'environnement suivant | Approbations du pipeline, environnements |
 
-Les pipelines s'authentifient avec **Microsoft Entra ID et la fédération d'identité de charge de travail** (OpenID Connect) : l'action `azure/login` échange un jeton GitHub contre un jeton Entra, si bien qu'aucun secret n'est stocké. Donnez à l'identité du pipeline le privilège minimal nécessaire : **Foundry User** sur le projet pour créer des versions d'agents et exécuter des évaluations, et Contributor sur un groupe de ressources dédié uniquement si le pipeline provisionne aussi des ressources, jamais sur l'abonnement.
+Les pipelines s'authentifient avec **Microsoft Entra ID et la fédération d'identité de charge de travail** (OpenID Connect) : l'action `azure/login` échange un jeton GitHub contre un jeton Entra, si bien qu'aucun secret n'est stocké. Donnez à l'identité du pipeline le privilège minimal nécessaire : **Foundry User** sur le projet pour créer des versions d'agents et exécuter des évaluations, et Contributor sur un groupe de ressources dédié uniquement si le pipeline provisionne aussi des ressources, jamais sur l'abonnement. Contributor peut déployer des modèles mais ne peut ni attribuer des rôles ni publier des agents ; la publication demande au moins Foundry Project Manager sur la ressource Foundry.
 
 ```yaml
 permissions:
@@ -188,7 +190,7 @@ jobs:
 
 Le résumé de l'exécution affiche le score de chaque métrique avec des intervalles de confiance et, quand plusieurs versions sont évaluées, une comparaison statistique qui indique si une différence est significative. Les évaluations consomment des jetons de modèle : exécutez-les sur les demandes de tirage ou avant une promotion plutôt qu'à chaque commit.
 
-> **Piège d'examen.** `permissions: id-token: write` est ce qui permet au workflow de demander le jeton OIDC. Sans lui, `azure/login` avec des informations d'identification fédérées échoue. Stocker un secret client ou une clé API dans le dépôt n'est jamais la réponse attendue.
+> **Piège d'examen.** `permissions: id-token: write` est ce qui permet au workflow de demander le jeton OIDC. Sans lui, `azure/login` avec des informations d'identification fédérées échoue. Stocker un secret client ou une clé API dans le référentiel n'est jamais la réponse attendue.
 
 <!-- section: key-points -->
 ## Points clés

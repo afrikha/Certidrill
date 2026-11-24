@@ -16,7 +16,7 @@ Some data must be analyzed as it arrives: sensor readings, clicks, payments, log
 
 Latency is the time between the arrival of the data and the availability of the result. Batch processing handles large volumes at a convenient time, for example overnight, but all the input must be ready before the job starts and one error can stop the whole batch.
 
-Most large-scale solutions **combine both**: stream processing feeds real-time dashboards and also writes its results to a data store, where they join batch-processed data for historical analysis. Streaming technology can also simply capture the data for later batch processing.
+Most large-scale solutions **combine both**: stream processing feeds real-time dashboards and also writes its results to a data store, where they join batch-processed data for historical analysis. A common pattern for this combination is the **lambda architecture**. Streaming technology can also simply capture the data for later batch processing.
 
 > **Exam trap.** Data that arrives continuously isn't necessarily processed as a stream. If the sales of the day are loaded and analyzed every night, it is batch processing: what decides is when the data is processed, on arrival or grouped, later.
 
@@ -24,13 +24,13 @@ Most large-scale solutions **combine both**: stream processing feeds real-time d
 ## Elements of a stream processing solution
 
 1. An **event** generates data: a sensor signal, a social media post, a log entry.
-2. The data is captured in a **streaming source**. In robust solutions it is a queue, which keeps events in order.
+2. The data is captured in a **streaming source**. In more advanced solutions it is a queue, which makes sure that events are processed in order and that each one is processed only once.
 3. A **perpetual query** runs on the incoming events: it selects, projects and aggregates values over time periods called **windows** (the number of readings per minute).
 4. The results are written to an output, called a **sink**: a file, a database table, a real-time dashboard or another queue.
 
 | Stage | Services |
 | --- | --- |
-| **Sources** | **Azure Event Hubs**: ingestion of high volumes of events. **Azure IoT Hub**: similar, optimized for Internet of Things (IoT) devices. **Apache Kafka**: open-source ingestion solution, often used with Spark. **Azure Data Lake Storage Gen2**: usually for batch, also usable as a streaming source |
+| **Sources** | **Azure Event Hubs**: ingestion of high volumes of events; events within a partition are delivered in order, with at-least-once delivery. **Azure IoT Hub**: similar, optimized for Internet of Things (IoT) devices. **Apache Kafka**: open-source ingestion solution, often used with Spark. **Azure Data Lake Storage Gen2**: usually for batch, also usable as a streaming source |
 | **Sinks** | Azure Event Hubs, to queue the results for further processing. Azure Data Lake Storage Gen2, OneLake or Azure Blob storage, to keep them as files. Azure SQL Database, Azure Databricks or Microsoft Fabric, to keep them in tables. **Power BI**, to show them in real time |
 
 <!-- section: real-time-services | objectives: 4.2.2 -->

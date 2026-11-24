@@ -70,7 +70,7 @@ Until then, the zone answers only queries sent directly to its name servers. A *
 
 | Need | Design |
 | --- | --- |
-| The zone apex (`contoso.com`) must point to a Traffic Manager profile, an Azure Front Door endpoint or a CDN endpoint | An **alias record set** at the apex; a CNAME can't exist at the apex |
+| The zone apex (`contoso.com`) must point to a Traffic Manager profile, an Azure Front Door endpoint or a CDN endpoint | An **alias record set** at the apex; a CNAME can't exist at the apex. For a new Traffic Manager configuration, Learn recommends Traffic Manager Linked Records, which also work at the apex; alias records to a profile remain supported for backward compatibility |
 | A record must follow the address of an Azure public IP resource and never dangle | An alias A or AAAA record set that targets the Standard public IP address: it is updated when the address changes and becomes empty when the resource is deleted |
 | Different answers for internal and internet clients | Split-horizon: a public zone and a private zone with the same name |
 | Protection against forged answers | DNSSEC signing of the public zone, then a DS record in the parent zone through the registrar |
@@ -96,7 +96,7 @@ A private DNS zone is a global resource: it belongs to no virtual network and no
 | Private zones for which a virtual network is a registration network | 1 |
 | Record sets per private zone | 25,000 |
 
-Autoregistration covers only virtual machines, only A records, and only the primary network interface. The record is created when the virtual machine starts and removed when it is deallocated or deleted. Other resources, such as internal load balancers, need manual records. Disabling autoregistration on a link immediately deletes the records it had registered.
+Autoregistration covers only virtual machines, only A records, and only the primary network interface. The record is created when the virtual machine starts and removed when it is stopped (deallocated) or deleted. A manual record with the same name overwrites the autoregistered one; if you delete the manual record, autoregistration creates the record again. Other resources, such as internal load balancers, need manual records. Disabling autoregistration on a link immediately deletes the records it had registered.
 
 Design rules:
 
@@ -161,7 +161,7 @@ DNS Private Resolver replaces DNS forwarder virtual machines. It is created in o
 | --- | --- | --- |
 | Inbound endpoint | A private IP address (static or dynamic) that receives queries from on-premises or other networks and resolves them with Azure DNS, including the private zones linked to the resolver's virtual network | Its own subnet, /28 to /24, delegated to `Microsoft.Network/dnsResolvers`; up to 5 per resolver |
 | Outbound endpoint | The exit through which forwarded queries leave toward other DNS servers | Its own delegated subnet; up to 5 per resolver |
-| DNS forwarding ruleset | Up to 1,000 rules: a domain name ending with a dot, and up to 6 target servers (IP address and port) | Attached to at most 2 outbound endpoints of one resolver; linked to up to 500 virtual networks of the same region; one ruleset per virtual network |
+| DNS forwarding ruleset | Up to 1,000 rules: a domain name ending with a dot, and up to 6 target servers (IP address and port) | Attached to at most 2 outbound endpoints of one resolver, and an outbound endpoint serves at most 2 rulesets; linked to up to 500 virtual networks of the same region; one ruleset per virtual network |
 
 ```text
 On-premises client -> on-premises DNS, conditional forwarder for corp.contoso.com
@@ -171,7 +171,7 @@ Azure VM (default DNS) -> ruleset linked to its VNet, rule "onprem.contoso.com."
                        -> outbound endpoint -> on-premises DNS 192.168.1.10:53
 ```
 
-Both directions need connectivity between the sites (VPN or ExpressRoute). Rules are matched by the **longest suffix**; the rule `.` is a wildcard, and its target must then resolve public names too. 168.63.129.16 can't be a target.
+Both directions need connectivity between the sites (VPN or ExpressRoute). Rules are matched by the **longest suffix**; the rule `.` is a wildcard, and its target must then resolve public names too. 168.63.129.16 can't be a target, and the inbound endpoint must not be the target for zones that aren't linked to the resolver's virtual network. Other limits: 15 resolvers per subscription and 10,000 queries per second per endpoint; a ruleset can't be linked across tenants, and virtual networks with encryption enabled don't support the resolver.
 
 ```powershell
 New-AzDnsResolver -Name dnspr-hub -ResourceGroupName RG1 -Location westeurope `

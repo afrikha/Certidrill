@@ -1,0 +1,521 @@
+chapter: 24-azure-integration
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp800-qz-24-01
+    objective: "2.4.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso exposes the tables of an Azure SQL database through Data API builder (DAB). A team is building an AI agent that must discover the exposed entities at run time and call their read operations as tools, without custom client code for each entity.
+
+        Which DAB endpoint should the agent use?
+      fr: |
+        Contoso expose les tables d'une base de données Azure SQL avec Data API builder (DAB). Une équipe développe un agent IA qui doit découvrir les entités exposées au moment de l'exécution et appeler leurs opérations de lecture sous forme d'outils, sans code client spécifique à chaque entité.
+
+        Quel point de terminaison DAB l'agent doit-il utiliser ?
+    body:
+      options:
+        - { id: a, text: { en: "The REST endpoint, on the /api path", fr: "Le point de terminaison REST, sur le chemin /api" } }
+        - { id: b, text: { en: "The GraphQL endpoint, on the /graphql path", fr: "Le point de terminaison GraphQL, sur le chemin /graphql" } }
+        - { id: c, text: { en: "The MCP endpoint, on the /mcp path", fr: "Le point de terminaison MCP, sur le chemin /mcp" } }
+        - { id: d, text: { en: "The health endpoint, on the root path", fr: "Le point de terminaison d'intégrité, sur le chemin racine" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The Model Context Protocol (MCP) endpoint exposes the DAB entities to AI agents as tools: the agent lists the entities that its role can access with describe_entities, then calls tools such as read_records. REST and GraphQL serve applications that already know the routes or the schema they call.
+        fr: |
+          Le point de terminaison Model Context Protocol (MCP) expose les entités DAB aux agents IA sous forme d'outils : l'agent liste les entités auxquelles son rôle a accès avec describe_entities, puis appelle des outils comme read_records. REST et GraphQL servent des applications qui connaissent déjà les routes ou le schéma qu'elles appellent.
+      options:
+        a: { en: "REST suits simple CRUD calls from applications that know each route; it doesn't present the entities as tools that an agent discovers.", fr: "REST convient aux appels CRUD simples d'applications qui connaissent chaque route ; il ne présente pas les entités comme des outils qu'un agent découvre." }
+        b: { en: "GraphQL lets a client choose fields and follow relationships, but it doesn't present the operations as agent tools.", fr: "GraphQL permet à un client de choisir les champs et de suivre les relations, mais il ne présente pas les opérations comme des outils d'agent." }
+        d: { en: "The health endpoint returns the state of the engine and its checks; it exposes no data operation.", fr: "Le point de terminaison d'intégrité retourne l'état du moteur et de ses vérifications ; il n'expose aucune opération sur les données." }
+    references:
+      - title: SQL MCP Server overview - SQL MCP Server
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/mcp/overview
+      - title: Configuration schema - Runtime section - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/configuration/runtime
+
+  # ------------------------------------------------------------------ 2
+  - id: dp800-qz-24-02
+    objective: "2.4.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam hosts Data API builder (DAB) in an Azure App Service web app. App Service authentication (Easy Auth) is enabled with Microsoft Entra ID: it signs the users in and passes their identity to DAB in the `X-MS-CLIENT-PRINCIPAL` header. The browser application doesn't send any bearer token to DAB.
+
+        You need DAB to use this identity to apply the role permissions of the entities.
+
+        Which value should you set for `runtime.host.authentication.provider`?
+      fr: |
+        Fabrikam héberge Data API builder (DAB) dans une application web Azure App Service. L'authentification App Service (Easy Auth) est activée avec Microsoft Entra ID : elle connecte les utilisateurs et transmet leur identité à DAB dans l'en-tête `X-MS-CLIENT-PRINCIPAL`. L'application de navigateur n'envoie aucun jeton du porteur à DAB.
+
+        Vous devez faire en sorte que DAB utilise cette identité pour appliquer les autorisations par rôle des entités.
+
+        Quelle valeur devez-vous définir pour `runtime.host.authentication.provider` ?
+    body:
+      options:
+        - { id: a, text: EntraId }
+        - { id: b, text: Custom }
+        - { id: c, text: AppService }
+        - { id: d, text: Unauthenticated }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The AppService provider trusts the identity headers that App Service authentication injects, such as `X-MS-CLIENT-PRINCIPAL`. DAB reads the user's roles from that header and evaluates the entity permissions, without validating a JWT itself.
+        fr: |
+          Le fournisseur AppService approuve les en-têtes d'identité qu'injecte l'authentification App Service, comme `X-MS-CLIENT-PRINCIPAL`. DAB lit les rôles de l'utilisateur dans cet en-tête et évalue les autorisations des entités, sans valider lui-même de JWT.
+      options:
+        a: { en: "EntraId validates a Microsoft Entra bearer token sent in the Authorization header; the browser sends no token to DAB here.", fr: "EntraId valide un jeton du porteur Microsoft Entra envoyé dans l'en-tête Authorization ; ici, le navigateur n'envoie aucun jeton à DAB." }
+        b: { en: "Custom validates JWTs from another identity provider in the Authorization header; it doesn't read the Easy Auth header.", fr: "Custom valide des JWT d'un autre fournisseur d'identité dans l'en-tête Authorization ; il ne lit pas l'en-tête Easy Auth." }
+        d: { en: "Unauthenticated runs every request as anonymous, so the user's roles are never applied.", fr: "Unauthenticated exécute chaque requête en tant qu'anonymous : les rôles de l'utilisateur ne sont jamais appliqués." }
+    references:
+      - title: Configuration schema - Runtime section - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/configuration/runtime
+
+  # ------------------------------------------------------------------ 3
+  - id: dp800-qz-24-03
+    objective: "2.4.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware runs Data API builder (DAB) 2.0 with the EntraId authentication provider. The Product entity has the following permissions, and no other role is configured on it.
+
+        ```json
+        "permissions": [
+          { "role": "anonymous", "actions": [ "read" ] },
+          { "role": "authenticated", "actions": [ "read", "update" ] }
+        ]
+        ```
+
+        An auditor signs in with a token whose `roles` claim contains **auditor**, and the client sends the header `X-MS-API-ROLE: auditor`.
+
+        What can the auditor do on the Product entity?
+      fr: |
+        Litware exécute Data API builder (DAB) 2.0 avec le fournisseur d'authentification EntraId. L'entité Product a les autorisations suivantes, et aucun autre rôle n'y est configuré.
+
+        ```json
+        "permissions": [
+          { "role": "anonymous", "actions": [ "read" ] },
+          { "role": "authenticated", "actions": [ "read", "update" ] }
+        ]
+        ```
+
+        Un auditeur se connecte avec un jeton dont la revendication `roles` contient **auditor**, et le client envoie l'en-tête `X-MS-API-ROLE: auditor`.
+
+        Que peut faire l'auditeur sur l'entité Product ?
+    body:
+      options:
+        - { id: a, text: { en: "Nothing: the request is rejected because auditor isn't configured on the entity", fr: "Rien : la requête est rejetée, car auditor n'est pas configuré sur l'entité" } }
+        - { id: b, text: { en: "Read products only, with the permissions of the anonymous role", fr: "Seulement lire les produits, avec les autorisations du rôle anonymous" } }
+        - { id: c, text: { en: "Read and update products, with the permissions of the authenticated role", fr: "Lire et mettre à jour les produits, avec les autorisations du rôle authenticated" } }
+        - { id: d, text: { en: "Create, read, update and delete products, because a named role gets every action", fr: "Créer, lire, mettre à jour et supprimer des produits, car un rôle nommé obtient toutes les actions" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          In DAB 2.0, permissions are inherited along the chain named role, then authenticated, then anonymous. auditor isn't configured on Product, so it inherits from authenticated, which is configured: the auditor can read and update products. The token contains the role sent in X-MS-API-ROLE, so the request isn't rejected.
+        fr: |
+          Dans DAB 2.0, les autorisations s'héritent selon la chaîne rôle nommé, puis authenticated, puis anonymous. auditor n'est pas configuré sur Product : il hérite donc d'authenticated, qui est configuré, et l'auditeur peut lire et mettre à jour les produits. Le jeton contient le rôle envoyé dans X-MS-API-ROLE : la requête n'est donc pas rejetée.
+      options:
+        a: { en: "A request is rejected when the token doesn't contain the role in X-MS-API-ROLE; here it does, and the unconfigured role inherits permissions.", fr: "Une requête est rejetée quand le jeton ne contient pas le rôle de X-MS-API-ROLE ; ici il le contient, et le rôle non configuré hérite des autorisations." }
+        b: { en: "A named role inherits from anonymous only when authenticated isn't configured; authenticated is configured on Product.", fr: "Un rôle nommé n'hérite d'anonymous que si authenticated n'est pas configuré ; authenticated est configuré sur Product." }
+        d: { en: "Inheritance never adds actions: the auditor receives the actions of authenticated, which don't include create or delete.", fr: "L'héritage n'ajoute jamais d'actions : l'auditeur reçoit les actions d'authenticated, qui n'incluent ni create ni delete." }
+    references:
+      - title: What's new in Data API builder version 2.0 - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/whats-new/version-2-0
+      - title: Authorization overview - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/authorization
+
+  # ------------------------------------------------------------------ 4
+  - id: dp800-qz-24-04
+    objective: "2.4.5"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Wingtip deploys Data API builder (DAB) to Azure Container Apps from a pipeline that bakes dab-config.json into a custom image. Last week, a deployment shipped a configuration whose entity pointed to a view that had been renamed in the database, and the API failed at startup in production.
+
+        You need a pipeline step that fails before the image is built when the configuration file is invalid, when its permissions are invalid, or when an entity doesn't match the objects of the test database. The step must not start the DAB runtime.
+
+        Which command should the step run?
+      fr: |
+        Wingtip déploie Data API builder (DAB) dans Azure Container Apps à partir d'un pipeline qui intègre dab-config.json dans une image personnalisée. La semaine dernière, un déploiement a livré une configuration dont une entité pointait vers une vue renommée dans la base, et l'API a échoué au démarrage en production.
+
+        Vous avez besoin d'une étape de pipeline qui échoue avant la création de l'image quand le fichier de configuration n'est pas valide, quand ses autorisations ne sont pas valides ou quand une entité ne correspond pas aux objets de la base de test. L'étape ne doit pas démarrer le runtime DAB.
+
+        Quelle commande l'étape doit-elle exécuter ?
+    body:
+      options:
+        - { id: a, text: "`dab validate --config dab-config.json`" }
+        - { id: b, text: "`dab start --config dab-config.json`" }
+        - { id: c, text: "`dab export --graphql -o ./schema`" }
+        - { id: d, text: "`dab configure --show-effective-permissions`" }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          dab validate checks the configuration without starting the runtime, in stages: the JSON schema, the configuration properties, the permissions, the database connection, then the entity metadata against the database (source objects, keys, relationships). A failing stage returns a nonzero exit code, which fails the pipeline step.
+        fr: |
+          dab validate vérifie la configuration sans démarrer le runtime, par étapes : le schéma JSON, les propriétés de configuration, les autorisations, la connexion à la base, puis les métadonnées des entités par rapport à la base (objets sources, clés, relations). Une étape en échec retourne un code de sortie non nul, qui fait échouer l'étape du pipeline.
+      options:
+        b: { en: "dab start runs the engine and keeps listening for requests: it starts the runtime, which the step must not do.", fr: "dab start exécute le moteur et reste à l'écoute des requêtes : il démarre le runtime, ce que l'étape ne doit pas faire." }
+        c: { en: "dab export starts a temporary runtime to write the GraphQL schema to a file; it starts the runtime and isn't a validation step.", fr: "dab export démarre un runtime temporaire pour écrire le schéma GraphQL dans un fichier ; il démarre le runtime et n'est pas une étape de validation." }
+        d: { en: "This option displays the permissions after inheritance; it doesn't check the entities against the database.", fr: "Cette option affiche les autorisations après héritage ; elle ne vérifie pas les entités par rapport à la base." }
+    references:
+      - title: Validate configuration with the DAB CLI - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/command-line/dab-validate
+
+  # ------------------------------------------------------------------ 5
+  - id: dp800-qz-24-05
+    objective: "2.4.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum runs Data API builder (DAB) in Azure Kubernetes Service (AKS). The operations team collects the traces and metrics of every service with an OpenTelemetry collector that runs in the cluster and listens on `http://otel-collector:4317`. The collector forwards the data to a third-party observability platform.
+
+        You need DAB to send its traces and metrics to this collector.
+
+        What should you configure?
+      fr: |
+        Adatum exécute Data API builder (DAB) dans Azure Kubernetes Service (AKS). L'équipe d'exploitation collecte les traces et les métriques de chaque service avec un collecteur OpenTelemetry qui s'exécute dans le cluster et écoute sur `http://otel-collector:4317`. Le collecteur transfère les données vers une plateforme d'observabilité tierce.
+
+        Vous devez faire en sorte que DAB envoie ses traces et ses métriques à ce collecteur.
+
+        Que devez-vous configurer ?
+    body:
+      options:
+        - { id: a, text: { en: "runtime.telemetry.application-insights, with the connection string of the collector", fr: "runtime.telemetry.application-insights, avec la chaîne de connexion du collecteur" } }
+        - { id: b, text: { en: "runtime.telemetry.open-telemetry, with the endpoint of the collector and the grpc protocol", fr: "runtime.telemetry.open-telemetry, avec le point de terminaison du collecteur et le protocole grpc" } }
+        - { id: c, text: { en: "runtime.telemetry.azure-log-analytics, with a data collection rule and endpoint", fr: "runtime.telemetry.azure-log-analytics, avec une règle et un point de terminaison de collecte de données" } }
+        - { id: d, text: { en: "A diagnostic setting on the Azure SQL database that streams to an event hub", fr: "Un paramètre de diagnostic sur la base de données Azure SQL qui diffuse vers un hub d'événements" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The open-telemetry sink of runtime.telemetry exports DAB traces and metrics to any OpenTelemetry collector: endpoint is the collector address, and exporter-protocol is grpc (the default, port 4317) or httpprotobuf. service-name identifies DAB in the collected data.
+        fr: |
+          La destination open-telemetry de runtime.telemetry exporte les traces et les métriques de DAB vers n'importe quel collecteur OpenTelemetry : endpoint est l'adresse du collecteur, et exporter-protocol vaut grpc (la valeur par défaut, port 4317) ou httpprotobuf. service-name identifie DAB dans les données collectées.
+      options:
+        a: { en: "The application-insights sink sends telemetry to an Application Insights resource through its connection string, not to an OpenTelemetry collector.", fr: "La destination application-insights envoie la télémétrie à une ressource Application Insights par sa chaîne de connexion, pas à un collecteur OpenTelemetry." }
+        c: { en: "The azure-log-analytics sink writes DAB logs to a custom table of a Log Analytics workspace, not to the team's collector.", fr: "La destination azure-log-analytics écrit les journaux de DAB dans une table personnalisée d'un espace de travail Log Analytics, pas dans le collecteur de l'équipe." }
+        d: { en: "A diagnostic setting streams the database's metrics and resource logs; it doesn't collect DAB traces.", fr: "Un paramètre de diagnostic diffuse les métriques et les journaux de ressources de la base ; il ne collecte pas les traces de DAB." }
+    references:
+      - title: Configuration schema - Runtime section - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/configuration/runtime
+
+  # ------------------------------------------------------------------ 6
+  - id: dp800-qz-24-06
+    objective: "2.4.7"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Northwind has an Azure SQL database that stores orders, customers and sales leads. The audit, integration, logistics and sales teams each need to react to data changes in their own way, and each requirement is met by a separate solution.
+
+        What should you implement for each requirement? To answer, drag the appropriate features to the correct requirements. Each feature may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind dispose d'une base de données Azure SQL qui stocke des commandes, des clients et des prospects commerciaux. Les équipes d'audit, d'intégration, de logistique et commerciale doivent chacune réagir à leur façon aux modifications des données, et chaque exigence est satisfaite par une solution distincte.
+
+        Que devez-vous implémenter pour chaque exigence ? Pour répondre, faites glisser les fonctionnalités appropriées vers les exigences correspondantes. Chaque fonctionnalité peut être utilisée une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: ces, text: { en: "Change event streaming (CES)", fr: "Streaming d'événements de modification (CES)" } }
+        - { id: cdc, text: { en: "Change data capture (CDC)", fr: "Capture des données modifiées (CDC)" } }
+        - { id: ct, text: { en: "Change tracking", fr: "Suivi des modifications" } }
+        - { id: func, text: { en: "Azure Functions with an Azure SQL trigger", fr: "Azure Functions avec un déclencheur Azure SQL" } }
+        - { id: logic, text: { en: "Azure Logic Apps with the SQL Server connector", fr: "Azure Logic Apps avec le connecteur SQL Server" } }
+      targets:
+        - id: audit
+          text: { en: "Auditors query, for any day of the last 30 days, the values of each order before and after every update.", fr: "Les auditeurs interrogent, pour n'importe quel jour des 30 derniers jours, les valeurs de chaque commande avant et après chaque mise à jour." }
+        - id: sync
+          text: { en: "Every 15 minutes, a job finds which customers changed since its last run, then reads their current values, with the lowest overhead.", fr: "Toutes les 15 minutes, un job trouve les clients modifiés depuis sa dernière exécution, puis lit leurs valeurs actuelles, avec la surcharge la plus faible." }
+        - id: code
+          text: { en: "Each changed order runs C# code that calls a carrier API; the processing scales out without servers to manage.", fr: "Chaque commande modifiée exécute du code C# qui appelle l'API d'un transporteur ; le traitement monte en charge sans serveur à gérer." }
+        - id: nocode
+          text: { en: "The sales team builds, in a visual designer and without code, a workflow that posts a Teams message for each new lead.", fr: "L'équipe commerciale crée, dans un concepteur visuel et sans code, un flux de travail qui publie un message Teams pour chaque nouveau prospect." }
+    answer:
+      mapping: { audit: cdc, sync: ct, code: func, nocode: logic }
+    explanation:
+      correct:
+        en: |
+          CDC keeps the before and after values of every change in change tables, queried over a range, which an audit needs. Change tracking records only which rows changed and how, which is enough for a sync job that then reads current values, with less overhead than CDC. The Azure SQL trigger for Functions runs code on batches of changed rows and scales with the Functions app. Logic Apps builds low-code workflows in a designer, with a SQL Server trigger such as When an item is created.
+        fr: |
+          CDC conserve les valeurs avant et après de chaque modification dans des tables de modifications, interrogées sur une plage, ce dont un audit a besoin. Le suivi des modifications enregistre seulement quelles lignes ont changé et comment, ce qui suffit à un job de synchronisation qui lit ensuite les valeurs actuelles, avec moins de surcharge que CDC. Le déclencheur Azure SQL pour Functions exécute du code sur des lots de lignes modifiées et monte en charge avec l'application Functions. Logic Apps crée des flux de travail low-code dans un concepteur, avec un déclencheur SQL Server comme When an item is created.
+      options:
+        ces: { en: "CES pushes change events to Azure Event Hubs, and it is still in preview; none of these requirements needs a push to Event Hubs.", fr: "CES envoie les événements de modification vers Azure Event Hubs, et il est toujours en préversion ; aucune de ces exigences n'a besoin d'un envoi vers Event Hubs." }
+    references:
+      - title: Track Data Changes - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/track-data-changes-sql-server
+      - title: Connect to SQL Databases from Workflows - Azure Logic Apps
+        url: https://learn.microsoft.com/en-us/azure/connectors/connectors-create-api-sqlazure
+
+  # ------------------------------------------------------------------ 7
+  - id: dp800-qz-24-07
+    objective: "2.4.4"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Tailspin runs Data API builder (DAB) with a main configuration file for its sales database and a child configuration file, listed in `data-source-files`, for its purchasing database. The main file contains the following entities.
+
+        ```json
+        "Customer": {
+          "source": { "object": "dbo.Customers", "type": "table" },
+          "relationships": {
+            "orders": { "cardinality": "many", "target.entity": "Order" }
+          },
+          "permissions": [ { "role": "authenticated", "actions": [ "read" ] } ]
+        },
+        "Order": {
+          "source": { "object": "dbo.Orders", "type": "table" },
+          "permissions": [ { "role": "authenticated", "actions": [ "read" ] } ]
+        }
+        ```
+
+        dbo.Orders has the columns OrderID, CustomerID, OrderDate and Total, and a foreign key on CustomerID to dbo.Customers. The child file defines an entity named **Supplier** for the purchasing.Suppliers table.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin exécute Data API builder (DAB) avec un fichier de configuration principal pour sa base de ventes et un fichier de configuration enfant, listé dans `data-source-files`, pour sa base d'achats. Le fichier principal contient les entités suivantes.
+
+        ```json
+        "Customer": {
+          "source": { "object": "dbo.Customers", "type": "table" },
+          "relationships": {
+            "orders": { "cardinality": "many", "target.entity": "Order" }
+          },
+          "permissions": [ { "role": "authenticated", "actions": [ "read" ] } ]
+        },
+        "Order": {
+          "source": { "object": "dbo.Orders", "type": "table" },
+          "permissions": [ { "role": "authenticated", "actions": [ "read" ] } ]
+        }
+        ```
+
+        dbo.Orders a les colonnes OrderID, CustomerID, OrderDate et Total, et une clé étrangère sur CustomerID vers dbo.Customers. Le fichier enfant définit une entité nommée **Supplier** pour la table purchasing.Suppliers.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "A REST GET request on the Customer entity can return each customer with its orders nested in the response.", fr: "Une requête REST GET sur l'entité Customer peut retourner chaque client avec ses commandes imbriquées dans la réponse." }
+        - id: s2
+          text: { en: "A single GraphQL query can return each customer with only the OrderID and OrderDate fields of its orders.", fr: "Une seule requête GraphQL peut retourner chaque client avec uniquement les champs OrderID et OrderDate de ses commandes." }
+        - id: s3
+          text: { en: "You can add a relationship from Order to Supplier in the main file so that a GraphQL query returns the supplier of each order.", fr: "Vous pouvez ajouter une relation d'Order vers Supplier dans le fichier principal pour qu'une requête GraphQL retourne le fournisseur de chaque commande." }
+    answer:
+      values: { s1: false, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          Relationships are a GraphQL feature: REST doesn't support them, so a REST request returns customers without their orders. In GraphQL, the orders relationship (fields inferred from the foreign key) lets one query select the customer fields and, under orders, only the order fields it needs. Relationships require both entities to exist in the same configuration file, so Order can't target Supplier, which is defined in the child file.
+        fr: |
+          Les relations sont une fonctionnalité GraphQL : REST ne les prend pas en charge, et une requête REST retourne donc les clients sans leurs commandes. En GraphQL, la relation orders (champs déduits de la clé étrangère) permet à une seule requête de sélectionner les champs du client et, sous orders, uniquement les champs de commande nécessaires. Les relations exigent que les deux entités se trouvent dans le même fichier de configuration : Order ne peut donc pas cibler Supplier, défini dans le fichier enfant.
+      options:
+        s1: { en: "REST doesn't support relationships; returning customers with their orders in one request requires GraphQL.", fr: "REST ne prend pas en charge les relations ; retourner les clients avec leurs commandes en une seule requête exige GraphQL." }
+        s3: { en: "Both entities of a relationship must be in the same configuration file; Supplier is in the child file.", fr: "Les deux entités d'une relation doivent se trouver dans le même fichier de configuration ; Supplier est dans le fichier enfant." }
+    references:
+      - title: Entity relationships - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/database/relationships
+
+  # ------------------------------------------------------------------ 8
+  - id: dp800-qz-24-08
+    objective: "2.4.4"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso exposes the dbo.Customers table through Data API builder (DAB) as an entity named **Customer**, whose primary key is CustomerID. You are adding the view **dbo.vOrderSummary**, which returns one row per order with the columns OrderID (unique), CustomerID and Total.
+
+        GraphQL clients must query each order summary together with the name of its customer in a single request.
+
+        How should you complete the entity definition? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso expose la table dbo.Customers avec Data API builder (DAB) sous la forme d'une entité nommée **Customer**, dont la clé primaire est CustomerID. Vous ajoutez la vue **dbo.vOrderSummary**, qui retourne une ligne par commande avec les colonnes OrderID (unique), CustomerID et Total.
+
+        Les clients GraphQL doivent interroger chaque récapitulatif de commande avec le nom de son client en une seule requête.
+
+        Comment devez-vous compléter la définition de l'entité ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: json
+      template: |
+        "OrderSummary": {
+          "source": { "object": "dbo.vOrderSummary", "type": "view" },
+          "fields": [ { "name": "OrderID", [[key]] } ],
+          "relationships": {
+            "customer": {
+              "cardinality": "[[card]]",
+              "target.entity": "[[target]]",
+              "source.fields": [ "[[sf]]" ],
+              "target.fields": [ "CustomerID" ]
+            }
+          },
+          "permissions": [ { "role": "authenticated", "actions": [ "read" ] } ]
+        }
+      slots:
+        - id: key
+          options:
+            - { id: pk, text: "\"primary-key\": true" }
+            - { id: alias, text: "\"alias\": \"id\"" }
+            - { id: desc, text: "\"description\": \"key\"" }
+        - id: card
+          options:
+            - { id: one, text: one }
+            - { id: many, text: many }
+        - id: target
+          options:
+            - { id: entity, text: Customer }
+            - { id: table, text: dbo.Customers }
+            - { id: field, text: customer }
+        - id: sf
+          options:
+            - { id: cust, text: CustomerID }
+            - { id: order, text: OrderID }
+            - { id: total, text: Total }
+    answer:
+      values: { key: pk, card: one, target: entity, sf: cust }
+    explanation:
+      correct:
+        en: |
+          DAB can't read a primary key from a view, so the view entity declares it with `"primary-key": true` on OrderID. Each order summary has one customer, so the relationship has the cardinality one, and target.entity names the exposed entity, Customer, not the table. The view has no foreign key from which DAB could infer the fields, so source.fields lists CustomerID of the view, matched with CustomerID of Customer.
+        fr: |
+          DAB ne peut pas lire la clé primaire d'une vue : l'entité de la vue la déclare donc avec `"primary-key": true` sur OrderID. Chaque récapitulatif de commande a un seul client : la relation a donc la cardinalité one, et target.entity nomme l'entité exposée, Customer, pas la table. La vue n'a aucune clé étrangère dont DAB pourrait déduire les champs : source.fields liste donc la colonne CustomerID de la vue, associée à CustomerID de Customer.
+      options:
+        alias: { en: "alias renames the field in the API; it doesn't declare a key.", fr: "alias renomme le champ dans l'API ; il ne déclare pas de clé." }
+        desc: { en: "description documents the field; only primary-key marks it as the key of the view.", fr: "description documente le champ ; seul primary-key le marque comme clé de la vue." }
+        many: { en: "many returns a list of customers for each order summary; an order has a single customer.", fr: "many retourne une liste de clients pour chaque récapitulatif de commande ; une commande a un seul client." }
+        table: { en: "target.entity takes the name of an entity of the configuration, not a database object.", fr: "target.entity prend le nom d'une entité de la configuration, pas un objet de la base." }
+        order: { en: "source.fields must hold the column of the view that matches the target fields, CustomerID.", fr: "source.fields doit contenir la colonne de la vue qui correspond aux champs cibles, CustomerID." }
+    references:
+      - title: Configuration schema - Entities section - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/configuration/entities
+      - title: Entity relationships - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/database/relationships
+
+  # ------------------------------------------------------------------ 9
+  - id: dp800-qz-24-09
+    objective: "2.4.1"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Woodgrove exposes an Azure SQL database through Data API builder (DAB) with the EntraId authentication provider. DAB connects with its managed identity, and the data-source section sets the set-session-context option to false. The configuration contains two entities:
+
+        - **Claim**, for the dbo.Claims table, with the read action for the authenticated role.
+        - **ClaimTotals**, for the stored procedure dbo.usp_GetClaimTotals, which aggregates rows of dbo.Claims, with the execute action for the authenticated role.
+
+        The AdjusterId column of dbo.Claims stores the Microsoft Entra object ID of the adjuster who owns the claim. You need each adjuster to read only their own claims through both entities, on REST and GraphQL. The procedure must not change.
+
+        Which two actions should you perform? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove expose une base de données Azure SQL avec Data API builder (DAB) et le fournisseur d'authentification EntraId. DAB se connecte avec son identité managée, et la section data-source définit l'option set-session-context sur false. La configuration contient deux entités :
+
+        - **Claim**, pour la table dbo.Claims, avec l'action read pour le rôle authenticated.
+        - **ClaimTotals**, pour la procédure stockée dbo.usp_GetClaimTotals, qui agrège des lignes de dbo.Claims, avec l'action execute pour le rôle authenticated.
+
+        La colonne AdjusterId de dbo.Claims stocke l'ID d'objet Microsoft Entra de l'expert qui possède le sinistre. Vous devez faire en sorte que chaque expert ne lise que ses propres sinistres par les deux entités, en REST et en GraphQL. La procédure ne doit pas changer.
+
+        Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      options:
+        - { id: a, text: { en: "Set the set-session-context option of the data-source section to true.", fr: "Définir l'option set-session-context de la section data-source sur true." } }
+        - { id: b, text: { en: "Add the database policy @item.AdjusterId eq @claims.oid to the execute action of ClaimTotals.", fr: "Ajouter la stratégie de base de données @item.AdjusterId eq @claims.oid à l'action execute de ClaimTotals." } }
+        - { id: c, text: { en: "Create a security policy on dbo.Claims whose filter predicate compares AdjusterId with SESSION_CONTEXT(N'oid').", fr: "Créer une stratégie de sécurité sur dbo.Claims dont le prédicat de filtre compare AdjusterId à SESSION_CONTEXT(N'oid')." } }
+        - { id: d, text: { en: "Exclude the AdjusterId field from the read action of Claim for the authenticated role.", fr: "Exclure le champ AdjusterId de l'action read de Claim pour le rôle authenticated." } }
+        - { id: e, text: { en: "Require clients to send the X-MS-API-ROLE header set to authenticated on each request.", fr: "Exiger que les clients envoient l'en-tête X-MS-API-ROLE défini sur authenticated à chaque requête." } }
+      choose: 2
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          With set-session-context set to true, DAB sends the claims of the caller's token, such as oid, to SESSION_CONTEXT before each query. A row-level security filter predicate on dbo.Claims that reads SESSION_CONTEXT(N'oid') then filters every query on the table, including the queries that run inside dbo.usp_GetClaimTotals, so both entities return only the caller's claims without changing the procedure.
+        fr: |
+          Avec set-session-context défini sur true, DAB envoie les revendications du jeton de l'appelant, comme oid, dans SESSION_CONTEXT avant chaque requête. Un prédicat de filtre de sécurité au niveau des lignes sur dbo.Claims qui lit SESSION_CONTEXT(N'oid') filtre alors toutes les requêtes sur la table, y compris celles qui s'exécutent dans dbo.usp_GetClaimTotals : les deux entités ne retournent donc que les sinistres de l'appelant, sans modifier la procédure.
+      options:
+        b: { en: "DAB database policies are supported for read, update and delete, not for create or execute: they can't filter a stored procedure.", fr: "Les stratégies de base de données DAB sont prises en charge pour read, update et delete, pas pour create ni execute : elles ne peuvent pas filtrer une procédure stockée." }
+        d: { en: "Excluding a field hides a column, not rows: every adjuster would still see all the claims.", fr: "Exclure un champ masque une colonne, pas des lignes : chaque expert verrait toujours tous les sinistres." }
+        e: { en: "An authenticated request without the header already uses the authenticated role; the header selects a role, it filters no row.", fr: "Une requête authentifiée sans l'en-tête utilise déjà le rôle authenticated ; l'en-tête sélectionne un rôle, il ne filtre aucune ligne." }
+    references:
+      - title: Implement row-level security with session context - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/row-level-security
+      - title: Authorization overview - Data API builder
+        url: https://learn.microsoft.com/en-us/azure/data-api-builder/concept/security/authorization
+
+  # ------------------------------------------------------------------ 10
+  - id: dp800-qz-24-10
+    objective: "2.4.7"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has an Azure SQL database named **SalesDb**. Change data capture is enabled on SalesDb and on the dbo.Orders table, and an audit process reads the change tables; it must keep working.
+
+        A developer deploys an Azure Functions app that uses an Azure SQL trigger on dbo.Orders. Its managed identity has SELECT and the rights to create and use the az_func schema, but the trigger doesn't start. The app is stopped during a monthly maintenance window that can last up to three days, and no change made during the window may be lost.
+
+        You need the function to process every change of dbo.Orders. The solution must minimize the overhead on SalesDb.
+
+        What should you do?
+      fr: |
+        Fabrikam dispose d'une base de données Azure SQL nommée **SalesDb**. La capture des données modifiées est activée sur SalesDb et sur la table dbo.Orders, et un processus d'audit lit les tables de modifications ; il doit continuer à fonctionner.
+
+        Un développeur déploie une application Azure Functions qui utilise un déclencheur Azure SQL sur dbo.Orders. Son identité managée dispose de SELECT et des droits pour créer et utiliser le schéma az_func, mais le déclencheur ne démarre pas. L'application est arrêtée pendant une fenêtre de maintenance mensuelle qui peut durer jusqu'à trois jours, et aucune modification faite pendant la fenêtre ne doit être perdue.
+
+        Vous devez faire en sorte que la fonction traite chaque modification de dbo.Orders. La solution doit réduire au minimum la surcharge sur SalesDb.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Enable change tracking on SalesDb with CHANGE_RETENTION = 2 DAYS, enable it on dbo.Orders, and grant VIEW CHANGE TRACKING on the table", fr: "Activer le suivi des modifications sur SalesDb avec CHANGE_RETENTION = 2 DAYS, l'activer sur dbo.Orders et accorder VIEW CHANGE TRACKING sur la table" } }
+        - { id: b, text: { en: "Enable change tracking on SalesDb with CHANGE_RETENTION = 4 DAYS, enable it on dbo.Orders, and grant VIEW CHANGE TRACKING on the table", fr: "Activer le suivi des modifications sur SalesDb avec CHANGE_RETENTION = 4 DAYS, l'activer sur dbo.Orders et accorder VIEW CHANGE TRACKING sur la table" } }
+        - { id: c, text: { en: "Disable change data capture on dbo.Orders, enable change tracking with CHANGE_RETENTION = 4 DAYS, and grant VIEW CHANGE TRACKING", fr: "Désactiver la capture des données modifiées sur dbo.Orders, activer le suivi des modifications avec CHANGE_RETENTION = 4 DAYS et accorder VIEW CHANGE TRACKING" } }
+        - { id: d, text: { en: "Grant SELECT on the cdc schema to the managed identity, and increase the CDC cleanup retention to four days", fr: "Accorder SELECT sur le schéma cdc à l'identité managée, puis augmenter la rétention de nettoyage CDC à quatre jours" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The Azure SQL trigger for Functions is built on change tracking, not on change data capture: change tracking must be enabled on the database and on the table, and the identity needs VIEW CHANGE TRACKING on the table. The change retention must exceed the longest time the app is stopped; with four days, the changes made during a three-day window are still available when the function resumes. Change tracking and change data capture can be enabled on the same database, so the audit keeps working.
+        fr: |
+          Le déclencheur Azure SQL pour Functions repose sur le suivi des modifications, pas sur la capture des données modifiées : le suivi des modifications doit être activé sur la base et sur la table, et l'identité a besoin de VIEW CHANGE TRACKING sur la table. La rétention des modifications doit dépasser la plus longue durée d'arrêt de l'application ; avec quatre jours, les modifications faites pendant une fenêtre de trois jours sont encore disponibles à la reprise de la fonction. Le suivi des modifications et la capture des données modifiées peuvent être activés sur la même base : l'audit continue donc de fonctionner.
+      options:
+        a: { en: "With a two-day retention, the changes made at the start of a three-day window are cleaned up before the function resumes.", fr: "Avec une rétention de deux jours, les modifications faites au début d'une fenêtre de trois jours sont nettoyées avant la reprise de la fonction." }
+        c: { en: "Change tracking doesn't require disabling change data capture, and disabling it breaks the audit process.", fr: "Le suivi des modifications n'exige pas de désactiver la capture des données modifiées, et la désactiver casse le processus d'audit." }
+        d: { en: "The trigger never reads the CDC change tables, so permissions and retention on CDC don't make it start.", fr: "Le déclencheur ne lit jamais les tables de modifications CDC : des autorisations et une rétention sur CDC ne le font pas démarrer." }
+    references:
+      - title: Azure SQL trigger for Functions
+        url: https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-azure-sql-trigger
+      - title: Track Data Changes - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/track-changes/track-data-changes-sql-server

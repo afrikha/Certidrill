@@ -37,7 +37,7 @@ Règles de conception :
 - Application Gateway **v1** (Standard et WAF) a été mis hors service le **28 avril 2026** : les nouvelles conceptions utilisent v2, et les stratégies WAF ne peuvent être associées qu'à **WAF_v2**. **Azure Front Door (classique)** est mis hors service le **31 mars 2027**.
 - Une stratégie WAF est une ressource distincte : stratégies **Global WAF (Front Door)** pour Front Door, **Regional WAF (Application Gateway)** pour Application Gateway. Une stratégie d'un type ne peut pas être attachée à l'autre plateforme.
 
-Limites qui orientent une conception sur Application Gateway WAF_v2 avec CRS 3.2 ou DRS : jusqu'à 100 sites (écouteurs), 100 règles personnalisées par stratégie, 200 exclusions, inspection du corps de la requête jusqu'à 2 Mo, chargements de fichiers jusqu'à 4 Go (limite par défaut 100 Mo). Avec CRS 3.1 ou antérieur, la limite du corps de la requête est de 128 Ko et le nombre de sites tombe à 40.
+Limites qui orientent une conception sur Application Gateway WAF_v2 avec CRS 3.2 ou DRS : jusqu'à 100 sites (écouteurs), 100 règles personnalisées par stratégie, 200 exclusions, inspection du corps de la requête jusqu'à 2 Mo, chargements de fichiers jusqu'à 4 Go (limite par défaut 100 Mo). Avec CRS 3.1 ou antérieur, la limite du corps de la requête est de 128 Ko, les chargements de fichiers sont plafonnés à 750 Mo, et le nombre de sites comme celui des exclusions tombe à 40.
 
 > **Conseil d'examen.** « Ensembles de règles managés sur Front Door » signifie **Premium**. Un profil Front Door Standard soumis à une exigence de protection OWASP doit être mis à niveau vers Premium (sur place), ou la protection doit être placée sur Application Gateway.
 
@@ -165,7 +165,7 @@ az network application-gateway http-listener update \
   --name lst-adatum --waf-policy WAFP-Adatum
 ```
 
-**Azure Front Door** (Standard ou Premium) : associez une stratégie au **profil**, à des **domaines** précis ou à des **itinéraires** (routes) précis. Quand plusieurs étendues s'appliquent, l'**itinéraire** l'emporte sur le **domaine**, qui l'emporte sur le **profil**. Un domaine ne peut être associé qu'à une seule stratégie à la fois : retirez-le de l'association existante avant de l'ajouter à une autre stratégie. La stratégie est répliquée dans tous les emplacements de périphérie.
+**Azure Front Door** : associez une stratégie à des **domaines** précis (Standard ou Premium). Les paramètres de stratégie de Premium documentent aussi le **profil** et des **itinéraires** (routes) précis comme étendues : quand plusieurs étendues s'appliquent, l'**itinéraire** l'emporte sur le **domaine**, qui l'emporte sur le **profil**. Un domaine ne peut être associé qu'à une seule stratégie à la fois : retirez-le de l'association existante avant de l'ajouter à une autre stratégie. La stratégie est répliquée dans tous les emplacements de périphérie.
 
 > **Piège d'examen.** Sur Application Gateway, une stratégie par site exige un **écouteur** multisite par site ; une stratégie par URI exige une règle de routage **basée sur le chemin**. Une règle de base sans mappage de chemins d'URL ne peut pas recevoir de stratégie par URI.
 
@@ -177,4 +177,4 @@ az network application-gateway http-listener update \
 - La détection journalise, la prévention agit (403 par défaut) ; les nouvelles stratégies démarrent en détection : ajustez, puis basculez.
 - Application Gateway : DRS 2.2 recommandé, CRS 3.2 et ultérieur utilisent le nouveau moteur (inspection du corps jusqu'à 2 Mo, chargements jusqu'à 4 Go, exclusions par règle, limitation de débit), sans retour arrière.
 - Front Door : `RemoteAddr` est le client d'origine, `SocketAddr` l'IP qui se connecte ; ajoutez `ZZ` aux règles géographiques ; la limitation de débit compte par emplacement de périphérie sur 1 ou 5 minutes.
-- Association : Application Gateway global, par site (écouteur), par URI (règle de chemin), la plus spécifique l'emporte ; Front Door profil, domaine, itinéraire, l'itinéraire l'emporte.
+- Association : Application Gateway global, par site (écouteur), par URI (règle de chemin), la plus spécifique l'emporte ; Front Door domaines, plus profil et itinéraires en Premium, l'itinéraire l'emporte.

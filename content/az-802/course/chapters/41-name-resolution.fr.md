@@ -108,7 +108,7 @@ Add-DnsServerConditionalForwarderZone -Name "fabrikam.com" -MasterServers 192.16
 ```
 
 - Un redirecteur conditionnel stocké dans AD DS est répliqué vers l'étendue choisie ; sans `-ReplicationScope`, il n'existe que sur ce serveur. Créez un redirecteur conditionnel intégré à Active Directory sur un contrôleur de domaine accessible en écriture (pas sur un RODC).
-- Un redirecteur conditionnel ne peut pas exister pour un nom que le serveur héberge déjà comme zone principale, secondaire ou de stub.
+- Un redirecteur conditionnel ne peut pas exister pour un nom que le serveur héberge déjà comme zone principale, secondaire ou de stub. Pour un espace de noms enfant d'une zone que le serveur héberge (par exemple `branch.contoso.com` quand il héberge `contoso.com`), le redirecteur conditionnel est refusé s'il ne se trouve pas au niveau ou en dessous d'une délégation de cette zone : déléguez plutôt la zone enfant.
 - Le réordonnancement dynamique des redirecteurs place les redirecteurs lents en fin de liste et revient à l'ordre configuré environ toutes les 15 minutes.
 
 > **Piège d'examen.** Deux forêts doivent résoudre leurs noms mutuellement avant la création d'une approbation de forêt : un redirecteur conditionnel vers le domaine racine de l'autre forêt de chaque côté, stocké dans AD DS avec l'étendue de la forêt pour que chaque serveur DNS de la forêt en dispose.
@@ -137,6 +137,7 @@ Set-DnsServerForwarder -IPAddress 168.63.129.16
 
 - Un changement des serveurs DNS d'un réseau virtuel s'applique à une machine virtuelle après `ipconfig /renew` ou un redémarrage.
 - Avec des serveurs DNS personnalisés sur le réseau virtuel, les zones privées ne sont résolues que si ces serveurs transfèrent vers 168.63.129.16 depuis un réseau virtuel lié.
+- Quand une passerelle VPN Azure (Azure VPN Gateway) est utilisée avec des serveurs DNS personnalisés sur le réseau virtuel, Learn indique d'ajouter 168.63.129.16 à la liste des serveurs DNS du réseau virtuel pour que le service ne soit pas interrompu.
 
 > **Piège d'examen.** Un serveur DNS local ne peut pas transférer vers 168.63.129.16 : l'adresse ne répond que dans Azure. Transférez vers le point de terminaison entrant de Private Resolver ou vers un serveur DNS dans Azure.
 

@@ -15,7 +15,7 @@ The change feed is **enabled by default** and available in every container of ev
 | Several consumers | Many applications can read the same container's feed at the same time, each in its own mode |
 | Multi-region | Changes made in one region are available in all regions; the feed stays contiguous across a manual failover |
 
-In a multi-region write account each change has two timestamps: `_ts` (written in the local region) and `crts` (conflict resolved or confirmed in the hub region). Change feed items come in `crts` order.
+In a multi-region write account each change has two timestamps: `_ts` (written in the local region) and `crts` (conflict resolved or confirmed in the hub region). Change feed items come in `crts` order. In such an account, latest version mode can drop an incoming change to a document when a more recent change exists in another region; all versions and deletes mode captures every change.
 
 Ways to read the feed in latest version mode:
 
@@ -136,7 +136,7 @@ static async Task HandleChangesAsync(
 
 **Life cycle.** Read the feed; if nothing changed, sleep for the poll interval (`WithPollInterval`); otherwise call the delegate; when the delegate **completes successfully**, write the new checkpoint to the lease; repeat.
 
-**Delivery guarantee: at least once.** If the delegate throws, the batch's thread stops, a new one restarts from the last checkpoint and the same batch is delivered again, until it succeeds. Make the delegate idempotent, and send poison changes to an errored-message store (for example another container) to avoid endless retries. Don't start asynchronous work inside the delegate without awaiting it: the lease could be checkpointed before the work finishes.
+**Delivery guarantee: at least once.** If the delegate throws, the batch's thread stops, a new one restarts from the last checkpoint and the same batch is delivered again, until it succeeds. One exception: if the **first-ever** delegate execution fails, no lease state is saved yet, so the retry uses the initial start configuration, which may or may not include that batch. Make the delegate idempotent, and send poison changes to an errored-message store (for example another container) to avoid endless retries. Don't start asynchronous work inside the delegate without awaiting it: the lease could be checkpointed before the work finishes.
 
 **Start time.** By default the processor starts at the time it is **first** initialized; earlier changes are ignored. `WithStartTime(DateTime)` starts at a given time and `WithStartTime(DateTime.MinValue.ToUniversalTime())` from the beginning. These options apply only when no lease exists: once leases are stored, the processor resumes from them and a new start time has no effect.
 

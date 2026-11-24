@@ -28,7 +28,7 @@ Take this review: "I had a fantastic meal at the diner in Seattle on Saturday. O
 
 Two related techniques come from Azure Language in Foundry Tools: **language detection** returns the language of a text with a confidence score, and **PII detection** finds personal details such as names, phone numbers and addresses, and can redact them.
 
-There are two ways to apply these techniques. A general-purpose model does them all from a prompt and can combine them in one conversation, but its wording can vary from one call to the next. Azure Language uses purpose-built analyzers that return structured, deterministic output, which suits automated pipelines.
+There are two ways to apply these techniques. A general-purpose model does them all from a prompt and can combine them in one conversation, but its wording can vary from one call to the next. Azure Language uses purpose-built analyzers that return structured, deterministic output, which suits automated pipelines. Key phrase extraction, sentiment analysis and summarization retire from Azure Language on March 31, 2029, and Learn directs new projects to Foundry models for them.
 
 <!-- section: speech-capabilities | objectives: 1.3.3 -->
 ## Speech recognition and speech synthesis
@@ -56,9 +56,9 @@ The two families go in opposite directions:
 | Input | An image, usually with a text instruction | A text description, sometimes with an image to edit |
 | Output | Text or structured data about the image | A new image |
 | Capabilities | Describe the content of an image; answer questions about objects, text or scenes; read text in the image; interpret charts, diagrams, screenshots and documents | Text-to-image; image-to-image and editing of an existing image; variations |
-| Models | Multimodal (vision-enabled) models that accept text and images in the same prompt | Image-generation models such as the GPT-Image-1 family or FLUX |
+| Models | Multimodal (vision-enabled) models that accept text and images in the same prompt | Image-generation models such as the GPT-Image-1 family (GPT-Image-1.5, GPT-Image-1-Mini) or FLUX |
 
-Video-generation models (Sora) create short videos from a text prompt, and can take an image as a starting point. Among Foundry Tools, Azure Vision provides prebuilt image analysis, including reading text (OCR) and detecting faces.
+Sora 2, the video-generation model of Foundry, is in preview: it creates short videos from a text prompt and can take an image as a starting point. Among Foundry Tools, Azure Vision provides prebuilt image analysis, reading text (OCR) and face detection. Learn now labels Image Analysis and OCR as legacy, and Image Analysis 4.0 retires on September 25, 2028.
 
 > **Exam trap.** A vision-enabled chat model reads images; it doesn't create them. An image-generation model creates images; it doesn't describe them. "Describe", "identify", "read" point to analysis; "create", "draw", "design" point to generation.
 

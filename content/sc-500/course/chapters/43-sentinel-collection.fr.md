@@ -105,7 +105,7 @@ Get-WinEvent -LogName 'Security' -FilterXPath $XPath -MaxEvents 5
 <!-- section: custom-tables | objectives: 4.2.7 -->
 ## Tables de journaux personnalisées
 
-Quand aucun connecteur ni aucune table intégrée ne convient, créez une **table personnalisée basée sur une DCR** dans l'espace de travail. Dans le portail : espace de travail > **Tables** > **Créer**, saisissez un nom (le portail ajoute le suffixe `_CL`), choisissez le plan (**Analytics**, **Basic** ou **Auxiliary**), sélectionnez ou créez une DCR (et un point de terminaison de collecte de données si nécessaire), chargez un exemple JSON, écrivez éventuellement une transformation, puis **Créer**.
+Quand aucun connecteur ni aucune table intégrée ne convient, créez une **table personnalisée basée sur une DCR** dans l'espace de travail. Dans le portail : espace de travail > **Tables** > **Créer**, saisissez un nom (le portail ajoute le suffixe `_CL`), choisissez le plan (**Analytics** par défaut, **Basic** ou **Auxiliary / Lake**), sélectionnez ou créez une DCR (et un point de terminaison de collecte de données si nécessaire), chargez un exemple JSON, écrivez éventuellement une transformation, puis **Créer**.
 
 | Règle | Détail |
 | --- | --- |
@@ -115,7 +115,7 @@ Quand aucun connecteur ni aucune table intégrée ne convient, créez une **tabl
 | Noms réservés | `id`, `TenantId`, `Type`, `Title`, `UniqueId`, `_ResourceId`, `_SubscriptionId`... |
 | Autorisations | `Microsoft.OperationalInsights/workspaces/*` sur l'espace de travail (Log Analytics Contributor) pour la table ; `Microsoft.Insights/dataCollectionRules/write` (Monitoring Contributor) pour la DCR |
 | Modification du schéma | Mettre à jour chaque DCR qui envoie vers la table ; les DCR ne sont pas mises à jour automatiquement |
-| Plans Basic et Auxiliary | Disponibles uniquement pour les tables personnalisées basées sur une DCR et les tables Azure prises en charge |
+| Plans Basic et Auxiliary / Lake | Disponibles uniquement pour les tables personnalisées basées sur une DCR et les tables Azure prises en charge |
 
 Deux façons d'alimenter une table personnalisée :
 

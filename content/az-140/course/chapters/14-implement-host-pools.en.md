@@ -11,6 +11,7 @@ Prerequisites for the account that deploys:
 | --- | --- |
 | Host pool, workspace, application group | Desktop Virtualization Contributor (resource group or subscription) |
 | Session host virtual machines on Azure | Virtual Machine Contributor |
+| Adding session hosts to an existing host pool in the portal | Desktop Virtualization Host Pool Contributor and Virtual Machine Contributor |
 | Key vault secrets read during deployment | Key Vault Secrets User |
 | Assigning users to the application group | A role with `Microsoft.Authorization/roleAssignments/write`: User Access Administrator or Owner |
 
@@ -23,13 +24,13 @@ The **Basics** tab sets the choices that can't be changed later:
 | Management approach | **Standard** or **Use a session host configuration**. Fixed at creation: a standard host pool can't receive a session host configuration later |
 | Host pool type | Pooled or Personal. A session host configuration supports **pooled only** |
 | Load balancing algorithm (pooled) | Breadth-first or depth-first, plus **Max session limit** |
-| Assignment type (personal) | Automatic or Direct; with Direct, optionally **Assign multiple desktops to a single user** |
+| Assignment type (personal) | Automatic or Direct; with Direct, optionally **Assign multiple desktops to a single user**, which can't be disabled once enabled |
 | Preferred app group type | Desktop or RemoteApp; the portal creates a Desktop application group |
 | Validation environment | Yes or No |
 
 The **Virtual machines** tab (standard management) creates the session hosts at the same time:
 
-- **Name prefix** up to 11 characters; Azure adds a hyphen and a number (`hp01-sh-0`), and the full computer name is limited to 15 characters.
+- **Name prefix** up to 11 characters (10 with a session host configuration); Azure adds a hyphen and a number (`hp01-sh-0`), and the full computer name is limited to 15 characters.
 - **Number of VMs**: up to 400 in one deployment, within your quota. You can add more later.
 - **Security type**: Standard, **Trusted launch** (default) or Confidential virtual machines.
 - **Image**: Azure Marketplace, Azure Compute Gallery or managed image (see the images chapter).
@@ -212,7 +213,7 @@ Update-AzVM -ResourceGroupName rg-avd -VM $vm
 | Per Device | Assigned to a device; suits shift workers sharing computers |
 | Version | The CAL version must be equal to or later than the session host's Windows Server version |
 
-**Per-user access pricing** is for external commercial use only: the subscription is enrolled, each user who connects at least once in the month is charged a flat monthly price (Apps tier or Desktops + apps tier), and it doesn't include Microsoft 365 Apps. Guest (B2B) identities used by your own staff or contractors don't make it applicable; they need an eligible license like internal users.
+**Per-user access pricing** is for external commercial use only: the subscription is enrolled, each user who connects at least once in the month is charged a flat monthly price (Apps tier or Desktops + apps tier), and it doesn't include Microsoft Office. Guest (B2B) identities used by your own staff or contractors don't make it applicable; they need an eligible license like internal users.
 
 > **Exam trap.** Per-user access pricing isn't a way to license guests or contractors, and it never covers Windows Server. Contractors are internal users: give them Microsoft 365 E3 or another eligible license. Windows Server session hosts always need RDS CALs.
 

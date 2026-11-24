@@ -121,7 +121,7 @@ Les paramètres d'application deviennent des variables d'environnement (`os.envi
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Envoie les journaux et les traces à Application Insights |
 | `OPENAI_API_KEY` = `@Microsoft.KeyVault(SecretUri=https://kv-ai.vault.azure.net/secrets/openai-key/)` | Référence Key Vault : l'identité de l'application doit avoir **Key Vault Secrets User** |
 
-L'identité a aussi besoin d'un rôle de données sur chaque cible : Azure Service Bus Data Receiver pour un déclencheur, Data Sender pour une liaison de sortie (Learn propose Data Owner pour une mise à l'échelle précise du déclencheur Service Bus), Storage Blob Data Contributor pour écrire des objets blob. En local, les connexions basées sur l'identité utilisent la connexion du développeur.
+L'identité a aussi besoin d'un rôle de données sur chaque cible : Azure Service Bus Data Receiver pour un déclencheur, Data Sender pour une liaison de sortie (pour une mise à l'échelle précise, le déclencheur Service Bus a besoin d'Azure Service Bus Data Owner ou d'un rôle personnalisé avec `Microsoft.ServiceBus/namespaces/*/read` ; sans lui, l'extension se replie sans erreur sur une estimation par lecture (peek) moins précise), Storage Blob Data Contributor pour écrire des objets blob. En local, les connexions basées sur l'identité utilisent la connexion du développeur.
 
 ```json
 {
@@ -153,7 +153,9 @@ L'identité a aussi besoin d'un rôle de données sur chaque cible : Azure Servi
 | Container Apps | KEDA, jusqu'à zéro | Dépend des déclencheurs | Fonctions en conteneurs à côté d'autres microservices |
 | Consumption (hérité) | Pilotée par les événements, jusqu'à zéro | 5 minutes par défaut, 10 au plus | Applications existantes uniquement ; pas de réseau virtuel |
 
-Particularités de Flex Consumption : mémoire d'instance de 512, 2 048 (valeur par défaut recommandée) ou 4 096 Mo ; les fonctions HTTP, blob et Durable se mettent à l'échelle par groupe, toutes les autres individuellement ; les instances toujours prêtes (0 par défaut) suppriment les démarrages à froid et sont facturées même inactives ; une application par plan ; pas d'emplacements de déploiement ; le déclencheur Blob ne prend en charge que la source Event Grid ; Python 3.10 et versions ultérieures.
+Particularités de Flex Consumption : mémoire d'instance de 512, 2 048 (valeur par défaut recommandée) ou 4 096 Mo ; les fonctions HTTP, blob et Durable se mettent à l'échelle par groupe, toutes les autres individuellement ; les instances toujours prêtes (0 par défaut) suppriment les démarrages à froid et sont facturées même inactives ; une application par plan ; pas d'emplacements de déploiement ; le déclencheur Blob ne prend en charge que la source Event Grid ; Python 3.10 à 3.15. L'initialisation de l'application expire après 30 secondes (non configurable), `WEBSITE_TIME_ZONE` et `TZ` ne sont pas pris en charge, et une application ne peut pas être migrée sur place vers ou depuis Flex Consumption : créez une nouvelle application et redéployez. Dans chaque région, toutes les instances Flex Consumption d'un abonnement partagent un quota par défaut de 250 cœurs (512 000 Mo), instances toujours prêtes comprises.
+
+Le nombre d'instances toujours prêtes se définit par groupe (`http`, `durable`, `blob`) ou par fonction (`function:<FUNCTION_NAME>=n`), à la création avec `--always-ready-instances` ou ensuite avec `az functionapp scale config always-ready set --settings`.
 
 ```bash
 az functionapp create --resource-group rg-ai --name contoso-summarizer \

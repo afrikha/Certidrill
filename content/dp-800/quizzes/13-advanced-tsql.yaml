@@ -1,0 +1,628 @@
+chapter: 13-advanced-tsql
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp800-qz-13-01
+    objective: "1.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You run the following batch in an Azure SQL database.
+
+        ```sql
+        DECLARE @MinTotal decimal(10, 2) = 5000
+        WITH BigCustomers AS
+        (
+            SELECT CustomerID, SUM(Amount) AS Total
+            FROM Sales.Orders
+            GROUP BY CustomerID
+        )
+        SELECT CustomerID, Total
+        FROM BigCustomers
+        WHERE Total >= @MinTotal;
+        ```
+
+        The batch fails with a syntax error near the keyword WITH. What should you do?
+      fr: |
+        Vous exécutez le lot suivant dans une base de données Azure SQL.
+
+        ```sql
+        DECLARE @MinTotal decimal(10, 2) = 5000
+        WITH BigCustomers AS
+        (
+            SELECT CustomerID, SUM(Amount) AS Total
+            FROM Sales.Orders
+            GROUP BY CustomerID
+        )
+        SELECT CustomerID, Total
+        FROM BigCustomers
+        WHERE Total >= @MinTotal;
+        ```
+
+        Le lot échoue avec une erreur de syntaxe près du mot clé WITH. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Add a column list to the CTE: `BigCustomers (CustomerID, Total)`.", fr: "Ajouter une liste de colonnes à la CTE : `BigCustomers (CustomerID, Total)`." } }
+        - { id: b, text: { en: "End the DECLARE statement with a semicolon.", fr: "Terminer l'instruction DECLARE par un point-virgule." } }
+        - { id: c, text: { en: "Move the `WHERE Total >= @MinTotal` filter into the CTE.", fr: "Déplacer le filtre `WHERE Total >= @MinTotal` dans la CTE." } }
+        - { id: d, text: { en: "Add `OPTION (MAXRECURSION 0)` to the outer SELECT statement.", fr: "Ajouter `OPTION (MAXRECURSION 0)` à l'instruction SELECT externe." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          When a CTE is used in a statement that is part of a batch, the statement before it must be followed by a semicolon. Without it, the parser reads WITH as part of the DECLARE statement and raises a syntax error. The CTE itself is valid.
+        fr: |
+          Quand une CTE est utilisée dans une instruction qui fait partie d'un lot, l'instruction qui la précède doit se terminer par un point-virgule. Sans lui, l'analyseur lit WITH comme une partie de l'instruction DECLARE et lève une erreur de syntaxe. La CTE elle-même est valide.
+      options:
+        a: { en: "The column list is optional when every column of the CTE query has a name, as CustomerID and Total do here.", fr: "La liste de colonnes est facultative quand toutes les colonnes de la requête de la CTE ont un nom, comme CustomerID et Total ici." }
+        c: { en: "The outer statement can filter on the CTE columns; moving the filter doesn't change how WITH is parsed.", fr: "L'instruction externe peut filtrer sur les colonnes de la CTE ; déplacer le filtre ne change pas la façon dont WITH est analysé." }
+        d: { en: "MAXRECURSION limits the recursion of a recursive CTE; this CTE isn't recursive and the error is a syntax error.", fr: "MAXRECURSION limite la récursivité d'une CTE récursive ; cette CTE n'est pas récursive et l'erreur est une erreur de syntaxe." }
+    references:
+      - title: WITH common_table_expression (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/queries/with-common-table-expression-transact-sql
+
+  # ------------------------------------------------------------------ 2
+  - id: dp800-qz-13-02
+    objective: "1.3.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A stored procedure in an Azure SQL database reads the order ID of a JSON payload with the following expression.
+
+        ```sql
+        JSON_VALUE(@payload, '$.order.id')
+        ```
+
+        When a payload has no `order.id` property, the expression returns NULL and the procedure inserts a row whose OrderID is NULL. You need the expression to raise an error when the property is missing. What should you do?
+      fr: |
+        Une procédure stockée d'une base de données Azure SQL lit l'ID de commande d'une charge utile JSON avec l'expression suivante.
+
+        ```sql
+        JSON_VALUE(@payload, '$.order.id')
+        ```
+
+        Quand une charge utile n'a pas de propriété `order.id`, l'expression retourne NULL et la procédure insère une ligne dont OrderID est NULL. Vous devez faire en sorte que l'expression lève une erreur quand la propriété est absente. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Replace JSON_VALUE with JSON_QUERY and keep the same path.", fr: "Remplacer JSON_VALUE par JSON_QUERY et conserver le même chemin." } }
+        - { id: b, text: { en: "Write the path as `'lax $.order.id'`.", fr: "Écrire le chemin sous la forme `'lax $.order.id'`." } }
+        - { id: c, text: { en: "Write the path as `'strict $.order.id'`.", fr: "Écrire le chemin sous la forme `'strict $.order.id'`." } }
+        - { id: d, text: { en: "Test the payload with `ISJSON(@payload)` before the INSERT.", fr: "Tester la charge utile avec `ISJSON(@payload)` avant l'INSERT." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          JSON path expressions use lax mode by default: a property that doesn't exist returns NULL. With the `strict` prefix, JSON_VALUE raises an error instead, so the procedure stops before it inserts an incomplete row.
+        fr: |
+          Les expressions de chemin JSON utilisent le mode lax par défaut : une propriété qui n'existe pas retourne NULL. Avec le préfixe `strict`, JSON_VALUE lève une erreur à la place, et la procédure s'arrête avant d'insérer une ligne incomplète.
+      options:
+        a: { en: "JSON_QUERY extracts objects and arrays; in lax mode it also returns NULL for a missing property, and an ID is a scalar.", fr: "JSON_QUERY extrait des objets et des tableaux ; en mode lax, il retourne aussi NULL pour une propriété absente, et un ID est une valeur scalaire." }
+        b: { en: "Lax is already the default mode; writing it explicitly keeps the NULL result.", fr: "Lax est déjà le mode par défaut ; l'écrire explicitement conserve le résultat NULL." }
+        d: { en: "ISJSON checks that the text is valid JSON; a valid document without the property still passes the test.", fr: "ISJSON vérifie que le texte est un JSON valide ; un document valide sans la propriété passe quand même le test." }
+    references:
+      - title: JSON_VALUE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/json-value-transact-sql
+      - title: OPENJSON (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/openjson-transact-sql
+
+  # ------------------------------------------------------------------ 3
+  - id: dp800-qz-13-03
+    objective: "1.3.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Proseware runs a messaging application on Azure SQL Database. Users are stored in a node table named **Chat.Member**. When a member blocks another member, a row is added to an edge table named **Chat.Blocks**, from the member who blocks to the member who is blocked.
+
+        A moderation report must list the members who have blocked each other. Each pair can appear twice, once in each order. The report uses the following query.
+
+        ```sql
+        SELECT m1.Nickname AS MemberA, m2.Nickname AS MemberB
+        FROM Chat.Member AS m1, Chat.Blocks AS b1,
+             Chat.Member AS m2, Chat.Blocks AS b2
+        WHERE <condition>;
+        ```
+
+        Which condition should you use?
+      fr: |
+        Proseware exploite une application de messagerie sur Azure SQL Database. Les utilisateurs sont stockés dans une table de nœuds nommée **Chat.Member**. Quand un membre en bloque un autre, une ligne est ajoutée à une table d'arêtes nommée **Chat.Blocks**, du membre qui bloque vers le membre bloqué.
+
+        Un rapport de modération doit lister les membres qui se sont bloqués mutuellement. Chaque paire peut apparaître deux fois, une fois dans chaque ordre. Le rapport utilise la requête suivante.
+
+        ```sql
+        SELECT m1.Nickname AS MemberA, m2.Nickname AS MemberB
+        FROM Chat.Member AS m1, Chat.Blocks AS b1,
+             Chat.Member AS m2, Chat.Blocks AS b2
+        WHERE <condition>;
+        ```
+
+        Quelle condition devez-vous utiliser ?
+    body:
+      options:
+        - { id: a, text: "`MATCH(m1-(b1)->m2<-(b2)-m1)`" }
+        - { id: b, text: "`MATCH(m1-(b1)->m2-(b1)->m1)`" }
+        - { id: c, text: "`MATCH(m1-(b1)->m2) OR MATCH(m2-(b2)->m1)`" }
+        - { id: d, text: "`MATCH(m1-(b1)->m2-(b2)->m1)`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A node alias can be repeated inside MATCH, so the pattern can end on m1, where it started. The first edge goes from m1 to m2 and the second from m2 back to m1: each member has blocked the other. Each hop uses its own edge alias, b1 and b2.
+        fr: |
+          Un alias de nœud peut être répété dans MATCH : le modèle peut donc se terminer sur m1, là où il a commencé. La première arête va de m1 à m2 et la seconde de m2 vers m1 : chaque membre a bloqué l'autre. Chaque saut utilise son propre alias d'arête, b1 et b2.
+      options:
+        a: { en: "`m2<-(b2)-m1` is an edge from m1 to m2, like b1: the pattern returns one-way blocks.", fr: "`m2<-(b2)-m1` est une arête de m1 vers m2, comme b1 : le modèle retourne des blocages à sens unique." }
+        b: { en: "An edge alias can't be repeated inside MATCH, so the query fails.", fr: "Un alias d'arête ne peut pas être répété dans MATCH : la requête échoue." }
+        c: { en: "MATCH can't be combined with other predicates by OR, and either pattern alone would return one-way blocks.", fr: "MATCH ne peut pas être combiné à d'autres prédicats par OR, et chaque modèle seul retournerait des blocages à sens unique." }
+    references:
+      - title: MATCH (SQL Graph)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/queries/match-sql-graph
+
+  # ------------------------------------------------------------------ 4
+  - id: dp800-qz-13-04
+    objective: "1.3.8"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso centralizes error logging in an Azure SQL database. A stored procedure named **dbo.usp_LogError** has no parameters. It inserts the values of `ERROR_NUMBER()`, `ERROR_MESSAGE()` and `ERROR_PROCEDURE()` into dbo.ErrorLog.
+
+        The CATCH block of a procedure named **Sales.usp_TransferCredit** rolls back the open transaction and then runs `EXECUTE dbo.usp_LogError;`. An UPDATE statement of Sales.usp_TransferCredit fails with a CHECK constraint violation.
+
+        What does dbo.usp_LogError write to dbo.ErrorLog?
+      fr: |
+        Contoso centralise la journalisation des erreurs dans une base de données Azure SQL. Une procédure stockée nommée **dbo.usp_LogError** n'a aucun paramètre. Elle insère les valeurs de `ERROR_NUMBER()`, `ERROR_MESSAGE()` et `ERROR_PROCEDURE()` dans dbo.ErrorLog.
+
+        Le bloc CATCH d'une procédure nommée **Sales.usp_TransferCredit** restaure la transaction ouverte, puis exécute `EXECUTE dbo.usp_LogError;`. Une instruction UPDATE de Sales.usp_TransferCredit échoue sur une violation de contrainte CHECK.
+
+        Qu'est-ce que dbo.usp_LogError écrit dans dbo.ErrorLog ?
+    body:
+      options:
+        - { id: a, text: { en: "NULL in every column, because the error functions return values only in statements written directly in the CATCH block", fr: "NULL dans chaque colonne, car les fonctions d'erreur ne retournent des valeurs que dans les instructions écrites directement dans le bloc CATCH" } }
+        - { id: b, text: { en: "The number and message of the constraint violation, with dbo.usp_LogError as the procedure name", fr: "Le numéro et le message de la violation de contrainte, avec dbo.usp_LogError comme nom de procédure" } }
+        - { id: c, text: { en: "The number, message and procedure name of the constraint violation, with usp_TransferCredit as the procedure", fr: "Le numéro, le message et le nom de procédure de la violation de contrainte, avec usp_TransferCredit comme procédure" } }
+        - { id: d, text: { en: "The number and message of the constraint violation, with NULL as the procedure name, because the call is nested", fr: "Le numéro et le message de la violation de contrainte, avec NULL comme nom de procédure, car l'appel est imbriqué" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The error functions return the error information anywhere within the scope of the CATCH block, including in a stored procedure that the CATCH block executes. ERROR_PROCEDURE() returns the name of the procedure in which the error occurred, here usp_TransferCredit, not the name of the logging procedure.
+        fr: |
+          Les fonctions d'erreur retournent les informations de l'erreur n'importe où dans l'étendue du bloc CATCH, y compris dans une procédure stockée que le bloc CATCH exécute. ERROR_PROCEDURE() retourne le nom de la procédure dans laquelle l'erreur s'est produite, ici usp_TransferCredit, et non le nom de la procédure de journalisation.
+      options:
+        a: { en: "The functions return NULL only outside the scope of a CATCH block; a procedure called from CATCH is inside that scope.", fr: "Les fonctions ne retournent NULL qu'en dehors de l'étendue d'un bloc CATCH ; une procédure appelée depuis CATCH est dans cette étendue." }
+        b: { en: "ERROR_PROCEDURE() names the routine where the error occurred, not the routine that reads the error information.", fr: "ERROR_PROCEDURE() nomme la routine où l'erreur s'est produite, pas celle qui lit les informations de l'erreur." }
+        d: { en: "Calling the logging procedure from CATCH doesn't reset any error function; ERROR_PROCEDURE() still returns usp_TransferCredit.", fr: "Appeler la procédure de journalisation depuis CATCH ne réinitialise aucune fonction d'erreur ; ERROR_PROCEDURE() retourne toujours usp_TransferCredit." }
+    references:
+      - title: TRY...CATCH (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql
+
+  # ------------------------------------------------------------------ 5
+  - id: dp800-qz-13-05
+    objective: "1.3.5"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a SQL Server 2025 database in which the PREVIEW_FEATURES database scoped configuration is set to ON. The table **Purchasing.Supplier** contains 400,000 rows and the table **Staging.SupplierCandidate** contains 300,000 rows. Both tables have a Country column, and their name columns are nvarchar(200) with a Windows collation.
+
+        You run the following query to find candidates that duplicate an existing supplier.
+
+        ```sql
+        SELECT s.SupplierID, c.CandidateID
+        FROM Purchasing.Supplier AS s
+        CROSS JOIN Staging.SupplierCandidate AS c
+        WHERE EDIT_DISTANCE(s.SupplierName, c.CandidateName, 2) <= 2;
+        ```
+
+        The query runs for several hours. A duplicate always has the same Country value as the supplier it duplicates. You need to reduce the run time without missing any duplicate. What should you do?
+      fr: |
+        Vous disposez d'une base de données SQL Server 2025 dans laquelle la configuration délimitée à la base de données PREVIEW_FEATURES a la valeur ON. La table **Purchasing.Supplier** contient 400 000 lignes et la table **Staging.SupplierCandidate** en contient 300 000. Les deux tables ont une colonne Country, et leurs colonnes de nom sont de type nvarchar(200) avec un classement Windows.
+
+        Vous exécutez la requête suivante pour trouver les candidats qui sont des doublons d'un fournisseur existant.
+
+        ```sql
+        SELECT s.SupplierID, c.CandidateID
+        FROM Purchasing.Supplier AS s
+        CROSS JOIN Staging.SupplierCandidate AS c
+        WHERE EDIT_DISTANCE(s.SupplierName, c.CandidateName, 2) <= 2;
+        ```
+
+        La requête s'exécute pendant plusieurs heures. Un doublon a toujours la même valeur Country que le fournisseur dont il est le doublon. Vous devez réduire la durée d'exécution sans manquer aucun doublon. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Create a nonclustered index on the name column of each table.", fr: "Créer un index non cluster sur la colonne de nom de chaque table." } }
+        - { id: b, text: { en: "Replace the predicate with an EDIT_DISTANCE_SIMILARITY threshold.", fr: "Remplacer le prédicat par un seuil EDIT_DISTANCE_SIMILARITY." } }
+        - { id: c, text: { en: "Remove the third argument of the EDIT_DISTANCE function.", fr: "Supprimer le troisième argument de la fonction EDIT_DISTANCE." } }
+        - { id: d, text: { en: "Replace the cross join with a join on the Country columns.", fr: "Remplacer la jointure croisée par une jointure sur les colonnes Country." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          EDIT_DISTANCE is evaluated for every pair of rows that the join produces, and the cross join produces 120 billion pairs. Joining on Country is a cheap predicate that removes every pair that can't be a duplicate before EDIT_DISTANCE runs, so the result is the same with far fewer comparisons.
+        fr: |
+          EDIT_DISTANCE est évalué pour chaque paire de lignes produite par la jointure, et la jointure croisée produit 120 milliards de paires. Joindre sur Country est un prédicat peu coûteux qui élimine toutes les paires qui ne peuvent pas être des doublons avant l'exécution d'EDIT_DISTANCE : le résultat est le même avec beaucoup moins de comparaisons.
+      options:
+        a: { en: "An index can't seek on an edit distance: the function still has to compare every pair.", fr: "Un index ne permet pas de recherche sur une distance d'édition : la fonction doit toujours comparer chaque paire." }
+        b: { en: "The similarity function compares the same number of pairs, and a percentage threshold doesn't keep exactly the same pairs as a distance of 2.", fr: "La fonction de similarité compare le même nombre de paires, et un seuil en pourcentage ne garde pas exactement les mêmes paires qu'une distance de 2." }
+        c: { en: "The maximum distance lets the function stop once the distance exceeds 2; without it, each comparison computes the full distance.", fr: "La distance maximale permet à la fonction de s'arrêter dès que la distance dépasse 2 ; sans elle, chaque comparaison calcule la distance complète." }
+    references:
+      - title: EDIT_DISTANCE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/edit-distance-transact-sql
+
+  # ------------------------------------------------------------------ 6
+  - id: dp800-qz-13-06
+    objective: "1.3.4"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Fabrikam has an Azure SQL database that has a compatibility level of 160. A third-party application requires this level, so it must not change.
+
+        A table named **Ops.IncidentNote** has an nvarchar(4000) column named Body. Body contains several lines separated by line feeds. A line that reports an error starts with the letters ERR, in any case (`ERR`, `Err`, `err`). The same letters can also appear in the middle of a line, and those occurrences must not be counted.
+
+        You need a query that returns, for each note, the number of lines that report an error. How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam dispose d'une base de données Azure SQL dont le niveau de compatibilité est 160. Une application tierce exige ce niveau : il ne doit pas changer.
+
+        Une table nommée **Ops.IncidentNote** contient une colonne nvarchar(4000) nommée Body. Body contient plusieurs lignes séparées par des sauts de ligne. Une ligne qui signale une erreur commence par les lettres ERR, quelle que soit la casse (`ERR`, `Err`, `err`). Les mêmes lettres peuvent aussi apparaître au milieu d'une ligne, et ces occurrences ne doivent pas être comptées.
+
+        Vous avez besoin d'une requête qui retourne, pour chaque note, le nombre de lignes qui signalent une erreur. Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        SELECT NoteID,
+               [[fn]](Body, [[pat]], 1, [[flags]]) AS ErrorLines
+        FROM Ops.IncidentNote;
+      slots:
+        - id: fn
+          options:
+            - { id: count, text: "REGEXP_COUNT" }
+            - { id: instr, text: "REGEXP_INSTR" }
+            - { id: like, text: "REGEXP_LIKE" }
+            - { id: substr, text: "REGEXP_SUBSTR" }
+        - id: pat
+          options:
+            - { id: caret, text: "'^ERR'" }
+            - { id: dollar, text: "'ERR$'" }
+            - { id: newline, text: "'\\nERR'" }
+            - { id: plain, text: "'ERR'" }
+        - id: flags
+          options:
+            - { id: i, text: "'i'" }
+            - { id: im, text: "'im'" }
+            - { id: mic, text: "'mic'" }
+            - { id: is, text: "'is'" }
+    answer:
+      values: { fn: count, pat: caret, flags: im }
+    explanation:
+      correct:
+        en: |
+          REGEXP_COUNT returns the number of matches, and its fourth argument is the flags; unlike REGEXP_LIKE, it works at any compatibility level. The `^` anchor keeps only matches at the start of a line once the `m` flag makes `^` match after each line feed, and `i` makes the match case-insensitive. Together, `'im'` counts every line that starts with ERR in any case.
+        fr: |
+          REGEXP_COUNT retourne le nombre de correspondances, et son quatrième argument est celui des indicateurs ; contrairement à REGEXP_LIKE, il fonctionne à tous les niveaux de compatibilité. L'ancre `^` ne garde que les correspondances en début de ligne dès que l'indicateur `m` fait correspondre `^` après chaque saut de ligne, et `i` rend la correspondance insensible à la casse. Ensemble, `'im'` compte chaque ligne qui commence par ERR, quelle que soit la casse.
+      options:
+        instr: { en: "REGEXP_INSTR returns a position, and its fourth argument is the occurrence, not the flags.", fr: "REGEXP_INSTR retourne une position, et son quatrième argument est l'occurrence, pas les indicateurs." }
+        like: { en: "REGEXP_LIKE returns a Boolean, not a count, and it requires compatibility level 170.", fr: "REGEXP_LIKE retourne un booléen, pas un nombre, et il exige le niveau de compatibilité 170." }
+        substr: { en: "REGEXP_SUBSTR returns the text of a match, and its fourth argument is the occurrence.", fr: "REGEXP_SUBSTR retourne le texte d'une correspondance, et son quatrième argument est l'occurrence." }
+        dollar: { en: "`ERR$` matches ERR at the end of a line, not at its start.", fr: "`ERR$` correspond à ERR en fin de ligne, pas en début de ligne." }
+        newline: { en: "A pattern that requires a line feed before ERR misses an error on the first line of Body.", fr: "Un modèle qui exige un saut de ligne avant ERR manque une erreur sur la première ligne de Body." }
+        plain: { en: "Without an anchor, ERR in the middle of a line is also counted.", fr: "Sans ancre, ERR au milieu d'une ligne est aussi compté." }
+        i: { en: "Without `m`, `^` matches only at the start of the whole text, so only the first line can match.", fr: "Sans `m`, `^` ne correspond qu'au début du texte entier : seule la première ligne peut correspondre." }
+        mic: { en: "When flags conflict, the last one wins: `c` cancels `i` and the match is case-sensitive.", fr: "Quand des indicateurs se contredisent, le dernier l'emporte : `c` annule `i` et la correspondance respecte la casse." }
+        is: { en: "`s` lets `.` match a line feed; it doesn't make `^` match at the start of each line.", fr: "`s` permet à `.` de correspondre à un saut de ligne ; il ne fait pas correspondre `^` au début de chaque ligne." }
+    references:
+      - title: REGEXP_COUNT (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/regexp-count-transact-sql
+
+  # ------------------------------------------------------------------ 7
+  - id: dp800-qz-13-07
+    objective: "1.3.7"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Woodgrove has an Azure SQL database that contains the following tables:
+
+        - **Sales.Customer**: CustomerID (primary key) and FullName.
+        - **Sales.Orders**: OrderID (primary key), CustomerID and OrderDate (date). CustomerID allows NULL values: the anonymous web orders of 2026 have a NULL CustomerID.
+
+        You need a query that returns each customer that placed no order in 2026 exactly once, including the customers that never placed an order. You write the following query.
+
+        ```sql
+        SELECT c.CustomerID, c.FullName
+        FROM Sales.Customer AS c
+        <clause>;
+        ```
+
+        Which two clauses can you use? Each correct answer presents a complete solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove dispose d'une base de données Azure SQL qui contient les tables suivantes :
+
+        - **Sales.Customer** : CustomerID (clé primaire) et FullName.
+        - **Sales.Orders** : OrderID (clé primaire), CustomerID et OrderDate (date). CustomerID accepte les valeurs NULL : les commandes web anonymes de 2026 ont un CustomerID NULL.
+
+        Vous avez besoin d'une requête qui retourne une seule fois chaque client qui n'a passé aucune commande en 2026, y compris les clients qui n'ont jamais passé de commande. Vous écrivez la requête suivante.
+
+        ```sql
+        SELECT c.CustomerID, c.FullName
+        FROM Sales.Customer AS c
+        <clause>;
+        ```
+
+        Quelles sont les deux clauses que vous pouvez utiliser ? Chaque bonne réponse constitue une solution complète.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "`LEFT JOIN Sales.Orders AS o ON o.CustomerID = c.CustomerID WHERE o.OrderDate >= '20260101' AND o.OrderDate < '20270101' AND o.OrderID IS NULL`" }
+        - { id: b, text: "`WHERE NOT EXISTS (SELECT 1 FROM Sales.Orders AS o WHERE o.CustomerID = c.CustomerID AND o.OrderDate >= '20260101' AND o.OrderDate < '20270101')`" }
+        - { id: c, text: "`WHERE c.CustomerID NOT IN (SELECT o.CustomerID FROM Sales.Orders AS o WHERE o.OrderDate >= '20260101' AND o.OrderDate < '20270101')`" }
+        - { id: d, text: "`LEFT JOIN Sales.Orders AS o ON o.CustomerID = c.CustomerID AND o.OrderDate >= '20260101' AND o.OrderDate < '20270101' WHERE o.OrderID IS NULL`" }
+        - { id: e, text: "`WHERE NOT EXISTS (SELECT 1 FROM Sales.Orders AS o WHERE o.OrderDate >= '20260101' AND o.OrderDate < '20270101')`" }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          NOT EXISTS with a predicate that correlates the subquery to c.CustomerID and filters on 2026 is true for every customer without a 2026 order, and the NULL customer IDs never match. The LEFT JOIN works when the date filter is part of the ON condition: customers without a 2026 order keep one row with a NULL OrderID, and the customers that have such orders are removed by `o.OrderID IS NULL`.
+        fr: |
+          NOT EXISTS avec un prédicat qui corrèle la sous-requête à c.CustomerID et filtre sur 2026 est vrai pour chaque client sans commande en 2026, et les ID client NULL ne correspondent jamais. La jointure LEFT JOIN fonctionne quand le filtre de date fait partie de la condition ON : les clients sans commande en 2026 gardent une ligne avec un OrderID NULL, et ceux qui ont de telles commandes sont éliminés par `o.OrderID IS NULL`.
+      options:
+        a: { en: "In the WHERE clause, the date filter rejects the NULL rows that the outer join adds, and it contradicts `o.OrderID IS NULL`: the query returns no rows.", fr: "Dans la clause WHERE, le filtre de date rejette les lignes NULL ajoutées par la jointure externe, et il contredit `o.OrderID IS NULL` : la requête ne retourne aucune ligne." }
+        c: { en: "The anonymous 2026 orders put NULL in the list, so every NOT IN comparison is UNKNOWN and no customer is returned.", fr: "Les commandes anonymes de 2026 placent NULL dans la liste : chaque comparaison NOT IN est UNKNOWN et aucun client n'est retourné." }
+        e: { en: "The subquery isn't correlated: it finds the 2026 orders of any customer, so NOT EXISTS is false for every customer.", fr: "La sous-requête n'est pas corrélée : elle trouve les commandes de 2026 de n'importe quel client, et NOT EXISTS est faux pour chaque client." }
+    references:
+      - title: Subqueries (SQL Server)
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/performance/subqueries
+
+  # ------------------------------------------------------------------ 8
+  - id: dp800-qz-13-08
+    objective: "1.3.8"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        You have an Azure SQL database. The InvoiceID column of the **Billing.InvoiceLine** table has a FOREIGN KEY constraint that references **Billing.Invoice**. Billing.Invoice contains a row for InvoiceID 500 but no row for InvoiceID 777, and Billing.InvoiceLine is empty.
+
+        You run the following batch.
+
+        ```sql
+        SET XACT_ABORT OFF;
+        BEGIN TRY
+            BEGIN TRANSACTION;
+                INSERT INTO Billing.InvoiceLine (InvoiceID, LineNumber) VALUES (500, 1);
+                INSERT INTO Billing.InvoiceLine (InvoiceID, LineNumber) VALUES (777, 2);
+                INSERT INTO Billing.InvoiceLine (InvoiceID, LineNumber) VALUES (500, 3);
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            IF XACT_STATE() = 1 COMMIT TRANSACTION;
+            IF XACT_STATE() = -1 ROLLBACK TRANSACTION;
+        END CATCH;
+        ```
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'une base de données Azure SQL. La colonne InvoiceID de la table **Billing.InvoiceLine** possède une contrainte FOREIGN KEY qui référence **Billing.Invoice**. Billing.Invoice contient une ligne pour InvoiceID 500 mais aucune ligne pour InvoiceID 777, et Billing.InvoiceLine est vide.
+
+        Vous exécutez le lot suivant.
+
+        ```sql
+        SET XACT_ABORT OFF;
+        BEGIN TRY
+            BEGIN TRANSACTION;
+                INSERT INTO Billing.InvoiceLine (InvoiceID, LineNumber) VALUES (500, 1);
+                INSERT INTO Billing.InvoiceLine (InvoiceID, LineNumber) VALUES (777, 2);
+                INSERT INTO Billing.InvoiceLine (InvoiceID, LineNumber) VALUES (500, 3);
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            IF XACT_STATE() = 1 COMMIT TRANSACTION;
+            IF XACT_STATE() = -1 ROLLBACK TRANSACTION;
+        END CATCH;
+        ```
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "In the CATCH block, XACT_STATE() returns -1.", fr: "Dans le bloc CATCH, XACT_STATE() retourne -1." } }
+        - { id: s2, text: { en: "After the batch, Billing.InvoiceLine contains line 1.", fr: "Après le lot, Billing.InvoiceLine contient la ligne 1." } }
+        - { id: s3, text: { en: "After the batch, Billing.InvoiceLine contains line 3.", fr: "Après le lot, Billing.InvoiceLine contient la ligne 3." } }
+    answer:
+      values: { s1: false, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          With SET XACT_ABORT OFF, a foreign key violation rolls back only the failing statement and doesn't doom the transaction, so XACT_STATE() returns 1 and the CATCH block commits line 1. Inside a TRY block, the error transfers control to the CATCH block at once: the third INSERT never runs. Without TRY...CATCH, the batch would have continued and committed lines 1 and 3.
+        fr: |
+          Avec SET XACT_ABORT OFF, une violation de clé étrangère n'annule que l'instruction en échec et ne rend pas la transaction non validable : XACT_STATE() retourne 1 et le bloc CATCH valide la ligne 1. Dans un bloc TRY, l'erreur transfère immédiatement le contrôle au bloc CATCH : le troisième INSERT ne s'exécute jamais. Sans TRY...CATCH, le lot aurait continué et validé les lignes 1 et 3.
+      options:
+        s1: { en: "-1 would be returned with SET XACT_ABORT ON, which makes the transaction uncommittable on this error.", fr: "-1 serait retourné avec SET XACT_ABORT ON, qui rend la transaction non validable sur cette erreur." }
+        s3: { en: "The statements of the TRY block that follow the error are skipped; the CATCH block commits only what ran before it.", fr: "Les instructions du bloc TRY qui suivent l'erreur sont ignorées ; le bloc CATCH ne valide que ce qui s'est exécuté avant elle." }
+    references:
+      - title: XACT_STATE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/xact-state-transact-sql
+      - title: SET XACT_ABORT (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/set-xact-abort-transact-sql
+
+  # ------------------------------------------------------------------ 9
+  - id: dp800-qz-13-09
+    objective: "1.3.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Tailspin has an Azure SQL database that contains a table named **IoT.Reading** with the columns SensorID, ReadingTime (datetime2) and Value (decimal(9, 2)). ReadingTime is unique for each sensor. When a sensor doesn't report, a row is still written, with a NULL Value. A sensor can miss several readings in a row.
+
+        You need a query that returns a column named LastKnownValue that meets the following requirements:
+
+        - When Value isn't NULL, LastKnownValue is the Value of the row.
+        - When Value is NULL, LastKnownValue is the most recent non-NULL Value of the same sensor before the row.
+
+        How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin dispose d'une base de données Azure SQL qui contient une table nommée **IoT.Reading** avec les colonnes SensorID, ReadingTime (datetime2) et Value (decimal(9, 2)). ReadingTime est unique pour chaque capteur. Quand un capteur ne transmet pas de mesure, une ligne est tout de même écrite, avec une valeur Value NULL. Un capteur peut manquer plusieurs mesures d'affilée.
+
+        Vous avez besoin d'une requête qui retourne une colonne nommée LastKnownValue qui répond aux exigences suivantes :
+
+        - Quand Value n'est pas NULL, LastKnownValue est la valeur Value de la ligne.
+        - Quand Value est NULL, LastKnownValue est la dernière valeur Value non NULL du même capteur avant la ligne.
+
+        Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        SELECT SensorID, ReadingTime, Value,
+               [[fn]](Value) [[nulls]]
+                   OVER (PARTITION BY SensorID
+                         ORDER BY ReadingTime
+                         [[frame]]) AS LastKnownValue
+        FROM IoT.Reading;
+      slots:
+        - id: fn
+          options:
+            - { id: first, text: "FIRST_VALUE" }
+            - { id: last, text: "LAST_VALUE" }
+            - { id: max, text: "MAX" }
+        - id: nulls
+          options:
+            - { id: ignore, text: "IGNORE NULLS" }
+            - { id: respect, text: "RESPECT NULLS" }
+        - id: frame
+          options:
+            - { id: one, text: "ROWS BETWEEN 1 PRECEDING AND CURRENT ROW" }
+            - { id: current, text: "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW" }
+            - { id: all, text: "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING" }
+            - { id: after, text: "ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING" }
+    answer:
+      values: { fn: last, nulls: ignore, frame: current }
+    explanation:
+      correct:
+        en: |
+          LAST_VALUE returns the last value of the frame, and IGNORE NULLS skips the NULL values when it looks for it. With a frame that ends at the current row, the result is the Value of the row when it isn't NULL, and otherwise the latest non-NULL Value before it, however many readings are missing.
+        fr: |
+          LAST_VALUE retourne la dernière valeur du cadre, et IGNORE NULLS ignore les valeurs NULL quand il la cherche. Avec un cadre qui se termine à la ligne courante, le résultat est la valeur Value de la ligne quand elle n'est pas NULL, et sinon la dernière valeur non NULL qui la précède, quel que soit le nombre de mesures manquantes.
+      options:
+        first: { en: "FIRST_VALUE with this frame returns the oldest non-NULL value of the sensor on every row.", fr: "FIRST_VALUE avec ce cadre retourne la plus ancienne valeur non NULL du capteur sur chaque ligne." }
+        max: { en: "MAX doesn't accept IGNORE NULLS, and it returns the highest value so far, not the most recent one.", fr: "MAX n'accepte pas IGNORE NULLS, et il retourne la valeur la plus élevée jusque-là, pas la plus récente." }
+        respect: { en: "RESPECT NULLS, the default, returns NULL when the current row has a NULL Value.", fr: "RESPECT NULLS, la valeur par défaut, retourne NULL quand la ligne courante a une valeur Value NULL." }
+        one: { en: "A frame of one preceding row returns NULL after two or more missing readings in a row.", fr: "Un cadre d'une seule ligne précédente retourne NULL après deux mesures manquantes d'affilée ou plus." }
+        all: { en: "A frame that ends at UNBOUNDED FOLLOWING returns the latest non-NULL value of the whole sensor history on every row.", fr: "Un cadre qui se termine à UNBOUNDED FOLLOWING retourne sur chaque ligne la dernière valeur non NULL de tout l'historique du capteur." }
+        after: { en: "This frame looks at the current and later readings, not at the earlier ones.", fr: "Ce cadre examine les mesures courante et suivantes, pas les précédentes." }
+    references:
+      - title: LAST_VALUE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/last-value-transact-sql
+
+  # ------------------------------------------------------------------ 10
+  - id: dp800-qz-13-10
+    objective: "1.3.3"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        An Azure SQL database receives batches of orders as JSON documents such as the following one.
+
+        ```json
+        {"batch":"B-77",
+         "orders":[{"id":1001,"lines":[{"sku":"TX-1","qty":2},{"sku":"TX-9","qty":1}]},
+                   {"id":1002,"lines":[]}]}
+        ```
+
+        You need a query that meets the following requirements:
+
+        - Return one row per order line, with the ID of its order.
+        - Return one row with a NULL Sku and a NULL Qty for each order that has no lines.
+
+        How should you complete the Transact-SQL statement? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Une base de données Azure SQL reçoit des lots de commandes sous forme de documents JSON comme le suivant.
+
+        ```json
+        {"batch":"B-77",
+         "orders":[{"id":1001,"lines":[{"sku":"TX-1","qty":2},{"sku":"TX-9","qty":1}]},
+                   {"id":1002,"lines":[]}]}
+        ```
+
+        Vous avez besoin d'une requête qui répond aux exigences suivantes :
+
+        - Retourner une ligne par ligne de commande, avec l'ID de sa commande.
+        - Retourner une ligne avec un Sku NULL et un Qty NULL pour chaque commande qui n'a aucune ligne.
+
+        Comment devez-vous compléter l'instruction Transact-SQL ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        SELECT o.OrderID, l.Sku, l.Qty
+        FROM OPENJSON(@batch, '$.orders')
+             WITH (OrderID int '$.id',
+                   [[col]]) AS o
+        [[apply]] OPENJSON([[arg]])
+             WITH (Sku varchar(20) '$.sku',
+                   Qty int         '$.qty') AS l;
+      slots:
+        - id: col
+          options:
+            - { id: asjson, text: "Lines nvarchar(max) '$.lines' AS JSON" }
+            - { id: scalar, text: "Lines nvarchar(max) '$.lines'" }
+            - { id: short, text: "Lines nvarchar(4000) '$.lines' AS JSON" }
+        - id: apply
+          options:
+            - { id: cross, text: "CROSS APPLY" }
+            - { id: outer, text: "OUTER APPLY" }
+            - { id: join, text: "CROSS JOIN" }
+        - id: arg
+          options:
+            - { id: lines, text: "o.Lines" }
+            - { id: strict, text: "o.Lines, 'strict $.lines'" }
+            - { id: first, text: "@batch, '$.orders[0].lines'" }
+    answer:
+      values: { col: asjson, apply: outer, arg: lines }
+    explanation:
+      correct:
+        en: |
+          A column that returns a nested array needs AS JSON, which requires the nvarchar(max) type. The second OPENJSON shreds the array held in o.Lines, so it needs no path. OUTER APPLY returns the order row even when the right side returns no rows, as for the empty lines array of order 1002, with NULL in Sku and Qty.
+        fr: |
+          Une colonne qui retourne un tableau imbriqué exige AS JSON, qui impose le type nvarchar(max). Le second OPENJSON décompose le tableau contenu dans o.Lines : il n'a besoin d'aucun chemin. OUTER APPLY retourne la ligne de la commande même quand le côté droit ne retourne aucune ligne, comme pour le tableau lines vide de la commande 1002, avec NULL dans Sku et Qty.
+      options:
+        scalar: { en: "Without AS JSON, the column expects a scalar; in lax mode an array returns NULL, so no line is found.", fr: "Sans AS JSON, la colonne attend une valeur scalaire ; en mode lax, un tableau retourne NULL et aucune ligne n'est trouvée." }
+        short: { en: "AS JSON requires the nvarchar(max) type.", fr: "AS JSON exige le type nvarchar(max)." }
+        cross: { en: "CROSS APPLY removes order 1002, because its lines array returns no rows.", fr: "CROSS APPLY élimine la commande 1002, car son tableau lines ne retourne aucune ligne." }
+        join: { en: "A table expression on the right of CROSS JOIN can't reference o.Lines; only APPLY evaluates it for each row.", fr: "Une expression de table à droite de CROSS JOIN ne peut pas référencer o.Lines ; seul APPLY l'évalue pour chaque ligne." }
+        strict: { en: "o.Lines already contains the array, which has no lines property: in strict mode the missing path raises an error.", fr: "o.Lines contient déjà le tableau, qui n'a pas de propriété lines : en mode strict, le chemin absent lève une erreur." }
+        first: { en: "This path returns the lines of the first order for every order.", fr: "Ce chemin retourne les lignes de la première commande pour chaque commande." }
+    references:
+      - title: OPENJSON (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/openjson-transact-sql

@@ -119,12 +119,12 @@ az keyvault secret set --vault-name kv-contoso-prod --name storageKey \
 
 Deux modèles de rotation :
 
-- **Information d'identification unique** (un mot de passe de base de données) : la fonction génère un nouveau mot de passe, met à jour la base, puis écrit la nouvelle version. Pendant une courte fenêtre, les clients qui détiennent l'ancienne valeur échouent et doivent relire le secret.
+- **Information d'identification unique** (un mot de passe de base de données) : la fonction génère un nouveau mot de passe, l'écrit comme nouvelle version du secret, puis met à jour la base. Entre ces deux étapes, le secret de Key Vault ne permet pas de s'authentifier, et les clients en échec doivent relire le secret ; si une étape échoue, Event Grid réessaie pendant deux heures.
 - **Double information d'identification** (services à deux clés, comme `key1`/`key2` d'un compte de stockage) : chaque nouvelle version stocke l'**autre** clé après l'avoir régénérée. Les clients gardent une clé valide pendant un cycle de rotation complet : aucune interruption.
 
 > **Conseil d'examen.** « Faire tourner un secret automatiquement 30 jours avant son expiration » = une date d'expiration sur le secret + un abonnement Event Grid à `SecretNearExpiry` + une fonction. « Faire tourner une clé tous les 90 jours » = une stratégie de rotation de clé, sans code.
 
-**Suppression réversible et protection contre le vidage.** La suppression réversible est active sur tout nouveau coffre et ne peut pas être désactivée. La rétention va de 7 à 90 jours (90 par défaut) et se définit uniquement à la création. Un secret supprimé peut seulement être listé, récupéré ou vidé ; créer un secret du même nom échoue avec un conflit tant qu'il n'est ni récupéré ni vidé. La **protection contre le vidage** (désactivée par défaut) empêche le vidage avant la fin de la période de rétention. Vider nécessite l'autorisation purge.
+**Suppression réversible et protection contre le vidage.** La suppression réversible est active sur tout nouveau coffre et ne peut pas être désactivée. La rétention va de 7 à 90 jours (90 par défaut) et se définit uniquement à la création. Un secret supprimé peut seulement être listé, récupéré ou vidé ; créer un secret du même nom échoue avec un conflit tant qu'il n'est ni récupéré ni vidé. La **protection contre le vidage** (désactivée par défaut) empêche le vidage avant la fin de la période de rétention ; une fois activée, elle ne peut plus être désactivée. Vider nécessite l'autorisation purge.
 
 <!-- section: app-configuration-store | objectives: 4.1.2 -->
 ## App Configuration : clés-valeurs, étiquettes et niveaux
@@ -140,7 +140,7 @@ az appconfig kv import -n appcs-contoso -s file --path ./settings.json --format 
 az appconfig kv list -n appcs-contoso --key "Rag:*" --label Prod --auth-mode login
 ```
 
-Le CLI utilise `--auth-mode key` par défaut ; `login` utilise votre connexion Microsoft Entra.
+Le CLI utilise `--auth-mode key` par défaut ; `login` utilise votre connexion Microsoft Entra. Sans `--label`, `az appconfig kv list` liste toutes les étiquettes (`--label '\0'` sélectionne l'étiquette nulle), alors que le fournisseur Python sans `selects` ne charge que les clés-valeurs sans étiquette.
 
 | Niveau | Stockage | Quota de requêtes | SLA | Historique des révisions | Géoréplication |
 | --- | --- | --- | --- | --- | --- |

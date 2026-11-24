@@ -51,10 +51,12 @@ Points that decide answers:
 
 - **ReadData and ReadAll are independent.** A user with only ReadData can use the SQL analytics endpoint but not the lakehouse URL or Spark.
 - Lakehouse sharing never grants **write**. Writing requires the Contributor role or higher (or a OneLake security ReadWrite role, see below).
-- For **granular** SQL access, share with no additional permission (Read only), then grant object permissions with T-SQL in the warehouse or SQL analytics endpoint.
+- For **granular** SQL access, share with no additional permission (Read only), then grant object permissions with T-SQL in the warehouse or SQL analytics endpoint. On a lakehouse, this applies to the default delegated identity mode of the SQL analytics endpoint: in **User's identity** mode, table `GRANT`/`REVOKE` are ignored and ReadData gives no SQL data access (see OneLake security below).
 - A report in **Direct Lake** or **DirectQuery** over a warehouse needs the reader to have ReadData or granular SQL permissions; an **Import** report doesn't.
 - A warehouse can't be shared directly with a service principal, and warehouse recipients can't reshare it.
 - Revoking a permission can take up to **two hours** for users who are signed in.
+- A lakehouse can also be shared with **Execute Apache Spark**, which lets the recipient run Spark jobs through the lakehouse Livy endpoint.
+- On a semantic model, **Write** (republish, change the model through XMLA) comes with the Admin, Member and Contributor roles, and can also be added to a user on the model's **Manage permissions** page.
 
 ```text
 -- Warehouse or SQL analytics endpoint: one table, after sharing with Read only
@@ -93,7 +95,7 @@ ADD FILTER PREDICATE Security.fn_region(Region) ON dbo.FactSales
 WITH (STATE = ON);
 ```
 
-- Filtered rows disappear silently from `SELECT`, `UPDATE` and `DELETE`. Each table needs its own policy.
+- Filtered rows disappear silently from `SELECT`, `UPDATE` and `DELETE`. Each table needs its own predicate; one security policy can hold the predicates of several tables.
 - `SCHEMABINDING = ON` is the default; to change the function, drop the policy, alter the function, recreate the policy.
 
 Column-level security grants `SELECT` on the allowed columns only. A `SELECT *` from that user then **fails** with a permission error instead of returning the other columns:
@@ -112,13 +114,13 @@ GRANT SELECT ON dbo.Customers (CustomerID, FirstName, LastName, Email) TO [Sales
 ```
 
 - Roles are **additive**: a user in two roles sees both sets of rows. A Viewer in no role sees no data.
-- Members can be users, security groups, distribution groups and mail-enabled groups, but **not Microsoft 365 groups**, and not service principals.
+- Members can be users, security groups, distribution groups and mail-enabled groups, but **not Microsoft 365 groups**, and not service principals: RLS doesn't apply to an app whose effective identity is a service principal.
 - Viewers with **Build** are still filtered, for example in Analyze in Excel.
 - Test with **Test as role** on the Security page.
 
-**OLS** sets a table or column permission to **None** in a role, in TMDL view or Tabular Editor. The object then doesn't exist for the user: a visual that uses it shows an error. RLS can't hide columns; OLS can't filter rows.
+**OLS** sets a table or column permission to **None** in a role, in TMDL view or Tabular Editor. The object then doesn't exist for the user: a visual that uses it shows an error. RLS can't hide columns; OLS can't filter rows. RLS and OLS can't be combined from **different** roles: a user who is a member of such a combination gets an error at query time.
 
-**OneLake security** (file-level and table-level) creates data access roles on a lakehouse: each role grants **Read** (or **ReadWrite** on lakehouses) to chosen folders, tables or schemas, optionally with row and column rules. Roles are created by users with Write and Reshare, in practice workspace Admins and Members. Access is deny-by-default and roles combine as a union. The **DefaultReader** role automatically includes every user with ReadAll: remove a user from it, or delete it, when you restrict that user with a custom role. The SQL analytics endpoint enforces OneLake security only after an Admin or Member switches it from delegated identity mode to **User's identity** access mode (Security tab).
+**OneLake security** (file-level and table-level) creates data access roles on a lakehouse: each role grants **Read** (or **ReadWrite** on lakehouses) to chosen folders, tables or schemas, optionally with row and column rules. Workspace Admins and Members create and manage the roles. Access is deny-by-default and roles combine as a union. The **DefaultReader** role automatically includes every user with ReadAll: remove a user from it, or delete it, when you restrict that user with a custom role. The SQL analytics endpoint enforces OneLake security only after an Admin or Member switches it from delegated identity mode to **User's identity** access mode (Security tab). In that mode, table access, RLS and CLS come only from the OneLake security roles: T-SQL can't define RLS or CLS, table `GRANT`/`REVOKE` are ignored, and SQL permissions remain only for views, stored procedures and functions. The switch deletes the endpoint's existing SQL roles.
 
 > **Exam trap.** Workspace Admins, Members and Contributors aren't restricted by semantic model RLS, OLS or OneLake security roles. To test or enforce them for a user, give that user the Viewer role or item permissions only.
 
@@ -139,7 +141,7 @@ Sensitivity labels come from **Microsoft Purview Information Protection**. A Fab
 | Downstream inheritance | Labels flow to dependent items: Fabric to Fabric, Fabric to Power BI, Power BI to Power BI, but **not Power BI to Fabric** |
 | Export | Label and protection travel with exports to Excel, PDF, PowerPoint and .pbix; not to .csv or .txt |
 
-> **Exam trap.** A label doesn't hide data inside Fabric from users who already have access; it classifies the item and protects the files exported from it. To restrict who sees rows or tables, use the security features of the previous section.
+> **Exam trap.** A label doesn't hide data inside Fabric from users who already have access, unless it's associated with a Microsoft Purview **protection policy**, which then controls access to the labeled item in the tenant. Otherwise it classifies the item and protects the files exported from it. To restrict who sees rows or tables, use the security features of the previous section.
 
 <!-- section: endorsement | objectives: 1.1.5 -->
 ## Endorsement
@@ -162,8 +164,8 @@ Endorsement marks trustworthy items with a badge that search and lists favor. Ap
 ## Key points
 
 - Workspace role = all items; item permission = one item. Admin alone deletes the workspace and connects Git; Member adds people; Contributor builds; Viewer reads.
-- Sharing grants Read only; data needs ReadData (SQL), ReadAll (Spark and OneLake) or T-SQL grants. Build is for semantic models.
+- Sharing grants Read only; data needs ReadData (SQL, delegated mode), ReadAll (Spark and OneLake) or T-SQL grants; in User's identity mode, OneLake security roles decide SQL table access. Build is for semantic models.
 - SQL RLS and CLS protect SQL queries and make Direct Lake fall back to DirectQuery; semantic model RLS and OLS protect reports; OneLake security protects folders and tables for every engine.
 - RLS, OLS and OneLake roles only restrict Viewers and users with item permissions.
-- Labels classify and protect exports; downstream inheritance doesn't go from Power BI to Fabric.
+- Labels classify and protect exports, and control access only through a Purview protection policy; downstream inheritance doesn't go from Power BI to Fabric.
 - Promoted = any writer; Certified and Master data = admin-authorized reviewers.

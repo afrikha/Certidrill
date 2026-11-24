@@ -34,7 +34,7 @@ for row in results:
 | `read_item(item, partition_key)` | **Point read**: the cheapest way to get one item when `id` and partition key are known |
 | `query_items(query, parameters, partition_key)` | Query scoped to one logical partition. Without `partition_key`, the sync client requires `enable_cross_partition_query=True` (fan-out to all partitions, higher RU and latency); the async client (`azure.cosmos.aio`) runs cross-partition queries by default |
 | `parameters` | List of `{"name": "@x", "value": ...}`: never build the SQL by string concatenation |
-| Response headers | `response.get_response_headers()["x-ms-request-charge"]` gives the RU charge of a point operation |
+| Response headers | `container.client_connection.last_response_headers["x-ms-request-charge"]` gives the RU charge of the last operation |
 
 **Keyless access.** Data operations with Microsoft Entra ID use Cosmos DB's **own data plane roles**, not Azure RBAC roles such as Contributor: **Cosmos DB Built-in Data Reader** and **Cosmos DB Built-in Data Contributor** (ID `00000000-0000-0000-0000-000000000002`). They are assigned with the CLI, PowerShell or Bicep; the portal's Access control (IAM) page doesn't manage them.
 
@@ -123,14 +123,9 @@ The account default applies to every container. With the `consistency_level` ove
 <!-- section: vector-search | objectives: 2.1.3 -->
 ## Storing embeddings and running vector similarity search
 
-**1. Enable vector search on the account** (auto-approved, can take 15 minutes; not supported with shared throughput):
+Vector search is enabled by default: there is no feature to register and no account capability to enable. It isn't supported on accounts with shared throughput. For containers with hierarchical partition keys, Learn asks you to contact the Azure Cosmos DB team so that the account is configured for that partitioning scheme.
 
-```bash
-az cosmosdb update --resource-group rg-rag --name cosmos-rag \
-  --capabilities EnableNoSQLVectorSearch
-```
-
-**2. Create the container with a vector embedding policy and a vector index:**
+**1. Create the container with a vector embedding policy and a vector index:**
 
 ```text
 vector_embedding_policy = {
@@ -169,7 +164,7 @@ container = database.create_container(
 
 > **Exam trap.** The vector embedding policy and the vector indexes can't be edited by a container replace: to change dimensions, distance function or index type, drop the vector policy or index and add it again (or create a new container). Vector search can't be disabled on a container once enabled. An embedding model with 3,072 dimensions can't use `flat`.
 
-**3. Query with `VectorDistance`:**
+**2. Query with `VectorDistance`:**
 
 ```text
 query_vector = embed("How do I rotate the storage key?")   # same model as the stored vectors
@@ -284,5 +279,5 @@ for doc in changes:
 - Keyless access = `DefaultAzureCredential` plus a Cosmos DB data plane role (Built-in Data Reader / Data Contributor) assigned with `az cosmosdb sql role assignment create`, not Azure RBAC Contributor.
 - Exclude unqueried paths to cut write RU; composite indexes for multi-property `ORDER BY` and equality-plus-range filters; the more precise path wins.
 - Session = read-your-writes, default; Strong and Bounded staleness reads cost twice the RU; Strong is impossible with multiple write regions.
-- Vectors: enable `EnableNoSQLVectorSearch`, declare the embedding policy (path, dataType, dimensions, distanceFunction) and a vector index (`flat` up to 505 dimensions, `quantizedFlat`, `diskANN` up to 4,096); query `SELECT TOP N ... ORDER BY VectorDistance(...)`.
+- Vectors: enabled by default, no account capability; declare the embedding policy (path, dataType, dimensions, distanceFunction) and a vector index (`flat` up to 505 dimensions, `quantizedFlat`, `diskANN` up to 4,096); query `SELECT TOP N ... ORDER BY VectorDistance(...)`.
 - Change feed: inserts and updates, no deletes in latest version mode; processor = monitored container + lease container + instances + delegate, at least once; Python uses the Functions trigger or `query_items_change_feed`.

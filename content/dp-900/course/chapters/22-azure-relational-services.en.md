@@ -24,7 +24,7 @@ Azure SQL Database always runs the latest stable version of the database engine;
 | --- | --- | --- |
 | **Single database** | One database with its own resources, which you scale up or down | One application with a predictable load |
 | **Elastic pool** | Several databases share one pool of resources (memory, storage, processing power) | Many databases whose peaks of activity come at different times: the cost is lower than sizing each one for its peak |
-| **Serverless** compute | Compute scales automatically within a range and is billed for what the database uses; the database can pause when it is inactive | Intermittent or unpredictable use |
+| **Serverless** compute | Compute scales automatically within a range and is billed for what the database uses; in the General Purpose service tier, the database can pause when it is inactive | Intermittent or unpredictable use |
 | **Hyperscale** service tier | Very large databases, up to 128 TB, with fast scaling, backup and restore | Databases that outgrow the other tiers |
 
 Built-in capabilities to remember: automated backups with **point-in-time restore**, replication of databases to other regions, an availability SLA that increases with zone redundancy, encryption of data at rest and in motion, auditing, and threat protection with Microsoft Defender for SQL.
@@ -34,7 +34,7 @@ Because it isn't fully compatible with an on-premises SQL Server, features on wh
 <!-- section: managed-instance-and-vms | objectives: 2.2.1 -->
 ## Managed Instance and SQL Server on Azure Virtual Machines
 
-**Azure SQL Managed Instance** is a complete SQL Server instance delivered as a service. You keep instance-level features such as SQL Server Agent, cross-database queries, CLR, Service Broker and Database Mail, while Azure automates backups, software patching and monitoring. The instance is deployed inside your virtual network.
+**Azure SQL Managed Instance** is a complete SQL Server instance delivered as a service. You keep instance-level features such as SQL Server Agent, cross-database queries, CLR, Service Broker and Database Mail, while Azure automates backups, software patching and monitoring. Its update policy sets the engine that it follows (Always-up-to-date, SQL Server 2022 or SQL Server 2025); Azure installs the updates either way. The instance is deployed inside your virtual network.
 
 **SQL Server on Azure Virtual Machines** is the same SQL Server as on-premises, in a virtual machine. You choose the version and edition, you have full administrative rights over the database system and the operating system, and in return you handle updates, configuration, backups and high availability. It suits applications that need operating system features unavailable in PaaS, and hybrid deployments in which part of a system stays on-premises.
 
@@ -74,5 +74,5 @@ Both are **PaaS** services, deployed as a **Flexible Server**: a fully managed s
 - SQL Server on Azure Virtual Machines: IaaS, full compatibility and full control, you manage everything.
 - Azure SQL Managed Instance: PaaS, near-100 % compatibility, instance-level features, the usual choice for migrations.
 - Azure SQL Database: PaaS, fully managed, for new cloud applications; single database, elastic pool, serverless, Hyperscale up to 128 TB.
-- Elastic pool: several databases share resources. Serverless: automatic scaling and pause, billed for use.
+- Elastic pool: several databases share resources. Serverless: automatic scaling, billed for use, automatic pause in the General Purpose tier.
 - Azure Database for MySQL and Azure Database for PostgreSQL: PaaS, Flexible Server, for applications built on those open-source engines.

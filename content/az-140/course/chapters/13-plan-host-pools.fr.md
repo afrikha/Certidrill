@@ -25,9 +25,9 @@ Les règles qui décident des réponses :
 
 - Les métadonnées des pools d'hôtes, des groupes d'applications et des espaces de travail sont stockées dans la zone géographique de la région choisie (étendue de déploiement **géographique**, par défaut), ou dans cette seule région (étendue **régionale**, proposée dans quelques régions). Les hôtes de session peuvent s'exécuter dans n'importe quelle région.
 - Gardez les hôtes de session d'un pool dans une seule région, près des utilisateurs, avec leur réseau virtuel, le stockage des profils et les images. Pour des utilisateurs répartis sur deux régions, créez un pool d'hôtes par région.
-- Microsoft recommande au plus **5 000 machines virtuelles par abonnement et par région** ; au-delà, ajoutez des abonnements en spokes appairés au hub, ou utilisez une autre région.
+- Microsoft recommande au plus **5 000 machines virtuelles par abonnement et par région** ; au-delà, ajoutez des abonnements en spokes connectés au hub par peering, ou utilisez une autre région.
 - Limites du service : 10 000 hôtes de session par pool d'hôtes, 500 RemoteApp par groupe d'applications, 200 attributions de rôles par objet Azure Virtual Desktop.
-- Les préfixes de nom des hôtes de session ne peuvent pas dépasser 11 caractères : Azure ajoute un suffixe et le nom NetBIOS est limité à 15 caractères.
+- Les préfixes de nom des hôtes de session ne peuvent pas dépasser 11 caractères (10 avec une configuration d'hôte de session) : Azure ajoute un suffixe et le nom NetBIOS est limité à 15 caractères.
 - Les étiquettes (centre de coûts, environnement, responsable) alimentent les filtres de Cost Management et l'automatisation.
 
 > **Piège d'examen.** Une question qui demande où attribuer une stratégie ou un rôle « pour tous les abonnements Azure Virtual Desktop, y compris ceux créés plus tard » attend le groupe d'administration, pas chaque abonnement.
@@ -72,7 +72,7 @@ La **tarification de l'accès par utilisateur** est réservée aux usages commer
 - Inscrivez l'abonnement Azure ; les frais apparaissent sur sa facture.
 - Un utilisateur n'est facturé d'un prix mensuel forfaitaire que s'il se connecte au moins une fois dans le mois de facturation : niveau **Apps** s'il n'a utilisé que des RemoteApp, niveau **Desktops + apps** s'il a utilisé un bureau complet.
 - Au plus un frais par utilisateur et par période de facturation, même sur plusieurs abonnements du locataire.
-- Elle couvre les droits d'accès à Azure Virtual Desktop et FSLogix, pas les Microsoft 365 Apps, Microsoft Defender XDR ni l'impression universelle.
+- Elle couvre les droits d'accès à Azure Virtual Desktop et FSLogix, pas Microsoft Office, Microsoft Defender XDR ni l'impression universelle.
 - Un abonnement inscrit facture aussi les utilisateurs qui détiennent déjà une licence éligible : placez les utilisateurs internes dans un abonnement distinct, non inscrit.
 
 Autres règles :
@@ -151,11 +151,12 @@ Règles pour les hôtes multisession :
 
 | Série de machines virtuelles | Rendu | Encodage |
 | --- | --- | --- |
-| NVadsA10 v5, NVv3, NCasT4_v3 | Oui | HEVC/H.265 et AVC/H.264 |
-| NVv4 | Oui | AVC/H.264 uniquement |
+| NVadsA10 v5, NCasT4_v3 | Oui | HEVC/H.265 et AVC/H.264 |
 
+- Les séries NVv3 et NVv4, encore listées sur la page GPU d'Azure Virtual Desktop, avaient une mise hors service prévue le 30 septembre 2026 : ne prévoyez pas de nouveaux hôtes de session sur ces séries.
+- L'encodage HEVC/H.265 exige des hôtes de session Windows 10 ou Windows 11 (pas Windows Server) et le pilote GRID 16.2 ou ultérieur.
 - Évitez NC, NCv2, NCv3, ND et NDv2 : conçues pour le calcul, elles n'accélèrent pas le bureau Windows.
-- Les tailles NVIDIA exigent le pilote **GRID** (l'extension NVIDIA GPU Driver l'installe), pas CUDA ; les tailles AMD exigent le pilote AMD distribué par Azure.
+- Les tailles NVIDIA exigent le pilote **GRID** (l'extension NVIDIA GPU Driver l'installe), pas CUDA. Seuls les pilotes distribués par Azure sont pris en charge.
 - Activez les stratégies **Use hardware graphics adapters for all Remote Desktop Services sessions** et **Configure H.264/AVC hardware encoding for Remote Desktop connections**, puis redémarrez les hôtes.
 
 > **Conseil d'examen.** « Les utilisateurs exécutent une application de CAO et se plaignent d'un affichage saccadé » appelle un hôte GPU de série NV avec le pilote GRID et les stratégies de rendu et d'encodage matériels, pas davantage de vCPU.
@@ -186,7 +187,7 @@ Un pool d'hôtes personnel exige une machine virtuelle par utilisateur, actif ou
 ## Points clés
 
 - Séparez les groupes de ressources par cycle de vie : objets du service, calcul, stockage, réseau ; gouvernance au niveau du groupe d'administration.
-- Jusqu'à 5 000 machines virtuelles par abonnement et par région ; 10 000 hôtes de session par pool d'hôtes ; préfixe de nom d'hôte de 11 caractères au plus.
+- Jusqu'à 5 000 machines virtuelles par abonnement et par région ; 10 000 hôtes de session par pool d'hôtes ; préfixe de nom d'hôte de 11 caractères au plus (10 avec une configuration d'hôte de session).
 - Windows 11 Entreprise multisession pour le regroupé, Windows 11 Entreprise pour le personnel, Windows Server quand une application ou des licences CAL RDS l'exigent.
 - Utilisateurs internes : licences Windows client par utilisateur éligibles, ou CAL RDS pour Windows Server. Utilisateurs externes : tarification de l'accès par utilisateur, Windows client uniquement.
 - Breadth-first répartit, depth-first remplit jusqu'à la limite maximale de sessions ; les pools personnels utilisent l'attribution automatique ou directe.

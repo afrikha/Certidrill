@@ -223,11 +223,12 @@ En PySpark, `df.groupBy("region", "year").pivot("quarter", [1, 2, 3, 4]).sum("am
 | Ajouter de nouvelles lignes aux lignes existantes | `INSERT INTO t SELECT ...` | `df.write.mode("append").saveAsTable("t")` |
 | Remplacer tout le contenu | `INSERT OVERWRITE t SELECT ...` ou `CREATE OR REPLACE TABLE ... AS` | `df.write.mode("overwrite").saveAsTable("t")` |
 | Remplacer seulement une tranche (un jour, une région) | `INSERT INTO t REPLACE WHERE order_day = '2026-11-01' SELECT ...` | `.mode("overwrite").option("replaceWhere", "order_day = '2026-11-01'")` |
-| Remplacer les lignes dont les valeurs de clé figurent dans les nouvelles données | `INSERT INTO t REPLACE USING (country) SELECT ...` | |
+| Remplacer les lignes dont les valeurs de clé figurent dans les nouvelles données | `INSERT INTO t REPLACE USING (country) SELECT ...` (Databricks Runtime 16.3 et versions ultérieures) | `.mode("overwrite").option("replaceUsing", "country")` (Databricks Runtime 18.2 et versions ultérieures) |
+| Remplacer les lignes qui vérifient une condition, par exemple une clé comparée sans tenir compte des null | `INSERT INTO t AS t REPLACE ON (s.k <=> t.k) (SELECT ...) AS s` (Databricks Runtime 17.1 et versions ultérieures) | `.option("targetAlias", "t").option("replaceOn", "s.k <=> t.k")` (Databricks Runtime 18.2 et versions ultérieures) |
 | Insérer par nom de colonne plutôt que par position | `INSERT INTO t BY NAME SELECT ...` | `saveAsTable` en mode append associe par nom |
 | Mettre à jour les lignes existantes et insérer les nouvelles (upsert), supprimer | `MERGE INTO` | `DeltaTable.merge` |
 
-`REPLACE WHERE` échoue et n'écrit rien si une ligne renvoyée sort du prédicat. `REPLACE USING` considère les clés null comme différentes de tout : les lignes à clé null ne sont pas supprimées.
+`REPLACE WHERE` échoue et n'écrit rien si une ligne renvoyée sort du prédicat (sur un calcul classique, `spark.databricks.delta.replaceWhere.constraintCheck.enabled = false` remplace plutôt la plage et insère les autres lignes). `REPLACE USING` considère les clés null comme différentes de tout : les lignes à clé null ne sont pas supprimées ; `REPLACE ON` avec `<=>` les fait correspondre. Dans Databricks Runtime 16.3 à 17.1, `REPLACE USING` ne remplace que des partitions entières et doit nommer toutes les colonnes de partition. Avec une source vide, `REPLACE USING` et `REPLACE ON` ne suppriment rien, alors que `REPLACE WHERE` peut supprimer des lignes.
 
 ```text
 MERGE INTO contoso.silver.customers AS t

@@ -10,7 +10,7 @@ This chapter covers the controls that protect virtual machines and servers where
 | Azure Disk Encryption (ADE) | OS and data disks inside the guest with BitLocker (Windows) or DM-Crypt (Linux) | Azure Key Vault, optional key encryption key (KEK) | Uses VM CPU. **Retires September 15, 2028** |
 | Confidential disk encryption | OS disk, keys bound to the VM's TPM | Platform or customer-managed | Confidential VM sizes only |
 
-> **Exam trap.** After September 15, 2028, ADE-encrypted disks fail to unlock after a reboot. ADE and encryption at host are mutually exclusive: a VM that has **ever** had ADE can't get encryption at host, so migration means new disks.
+> **Exam trap.** After September 15, 2028, ADE-encrypted disks fail to unlock after a reboot. ADE and encryption at host are mutually exclusive: a VM that has **ever** had ADE can't get encryption at host, so migration means new disks. The disks keep a Unified Data Encryption (UDE) flag even after decryption, and snapshots and disk copies made with the Copy option keep it too: create new disks with the Upload method and copy the VHD data with AzCopy.
 
 Encryption at host needs a one-time feature registration per subscription and a supported VM size; an existing VM must be deallocated and reallocated to be encrypted.
 
@@ -144,9 +144,9 @@ Agentless scanning takes a **snapshot of the OS and data disks**, analyzes it ou
 | Trusted launch | **Secure boot** (only signed boot loaders, kernels and drivers start) and **vTPM** (TPM 2.0 for keys and measured boot), optional boot integrity monitoring. **Generation 2** VMs only |
 | Confidential VM | Hardware-based trusted execution environment, confidential disk encryption; confidential sizes |
 
-- Portal, CLI and PowerShell create **Trusted launch** by default; it costs nothing extra. Not supported on some sizes (for example A-family, Dv2, Dv3, M-series) and not with managed images (use Azure Compute Gallery).
+- Portal, CLI and PowerShell create **Trusted launch** by default; it costs nothing extra. ARM, Bicep and Terraform deployments default to it with API version 2025-11-01 or later when the image, disk and size support it, or once `TrustedLaunchByDefaultPreview` is registered on the subscription; otherwise, a template without `securityProfile` creates a VM without Trusted launch. Not supported on some sizes (for example A-family, Dv2, Dv3, M-series) and not with managed images (use Azure Compute Gallery).
 - A Gen1 VM can be upgraded to Gen2 with Trusted launch; Trusted launch can be enabled on an existing Gen2 VM.
-- **Integrity monitoring**: with secure boot and vTPM on, install the **Guest Attestation** extension; Defender for Cloud then validates boot health remotely and raises *VM attestation failure* if the boot chain deviates from the baseline.
+- **Integrity monitoring**: with secure boot and vTPM on, install the **Guest Attestation** extension; Defender for Cloud then validates boot health remotely and raises *VM attestation failure* if the boot chain deviates from the baseline. In the portal, **Configuration** > **Security type** > **Integrity monitoring** installs the extension (Azure CLI at creation: `az vm create --enable-integrity-monitoring`). The extension must reach the Azure Attestation endpoint: allow outbound traffic to the `AzureAttestation` service tag in NSGs and Azure Firewall.
 
 ```json
 "securityProfile": {

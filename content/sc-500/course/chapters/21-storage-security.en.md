@@ -8,7 +8,7 @@ Most settings are on the account's **Settings > Configuration** page and are enf
 | Setting (portal) | Property | Secure value | Effect and details |
 | --- | --- | --- | --- |
 | Secure transfer required | `supportsHttpsTrafficOnly` | Enabled | Requests over HTTP fail |
-| Minimum TLS version | `minimumTlsVersion` | `TLS1_2` | Older TLS requests fail with 400 (Bad Request). The portal sets 1.2 for new accounts; with CLI, PowerShell or a template the property isn't set by default, which accepts TLS 1.0 and later. TLS 1.3 can't be enforced as the minimum |
+| Minimum TLS version | `minimumTlsVersion` | `TLS1_2` | Older TLS requests fail with 400 (Bad Request). Azure Storage supports TLS 1.2 and 1.3: since February 3, 2026, TLS 1.0 and 1.1 are no longer supported, for new and existing accounts. The portal sets 1.2 for new accounts; with CLI, PowerShell or a template the property isn't set until you configure it. TLS 1.2 is the recommended minimum; TLS 1.3 can't be enforced as the minimum |
 | Allow Blob anonymous access | `allowBlobPublicAccess` | Disabled | Overrides the access level of every container. Up to 30 seconds to propagate |
 | Allow storage account key access | `allowSharedKeyAccess` | Disabled | Requests signed with an account key, including service SAS and account SAS, fail with 403. Not set (null) means allowed |
 | Default to Microsoft Entra authorization in the Azure portal | `defaultToOAuthAuthentication` | Enabled | The portal uses the user's Entra identity instead of the key when browsing data; users can still switch |
@@ -37,7 +37,7 @@ Container access levels are **Private** (default), **Blob** (anonymous read of b
 | Revocation | Disable the key: reads and writes fail with 403 for everyone |
 | Coverage | Blob Storage and Azure Files always; Queue and Table only if chosen at account creation |
 
-Data protection settings complete the hardening: blob and container **soft delete**, blob versioning, **immutable storage** (WORM: time-based retention from 1 day to 146,000 days, or legal hold with tags), a `CanNotDelete` **resource lock** on the account (it protects the account and its configuration, not the data inside), and **Disallow cross-tenant object replication**.
+Data protection settings complete the hardening: blob and container **soft delete**, blob versioning, **immutable storage** (WORM: time-based retention from 1 day to 146,000 days, or legal hold with tags), a `CanNotDelete` **resource lock** on the account (it protects the account and its configuration, not the data inside), and **Disallow cross-tenant object replication** (already the default for accounts created after December 15, 2023; on older accounts the property is null, which allows cross-tenant replication).
 
 > **Exam trap.** A locked time-based retention policy can be extended but never shortened or deleted (five extensions at most for a container-level policy). Use an unlocked policy only for short tests.
 
@@ -50,7 +50,7 @@ The account's **Networking** page sets public network access:
 | --- | --- |
 | Enabled from all networks | Default: any network reaches the public endpoint (authorization still applies) |
 | Enabled from selected networks | Only the listed virtual networks, IP ranges and resource instances pass; everything else is denied |
-| Disabled | The public endpoint rejects all traffic; only private endpoints work |
+| Disabled | The public endpoint rejects all traffic; only private endpoints work (exceptions already configured stay in effect, see below) |
 | Secured by perimeter | Access is governed by a network security perimeter |
 
 With selected networks, four kinds of rules allow traffic:
@@ -79,6 +79,7 @@ Behaviors that decide answers:
 - A subnet with a service endpoint reaches the account with its **private** source address, so an IP rule for the virtual network's public IP has no effect.
 - For on-premises clients over ExpressRoute Microsoft peering, the IP rules list the NAT public addresses used for that peering.
 - Deleting a subnet removes its rule; a new subnet with the same name must be added again.
+- Switching public network access to **Disabled** after *Enabled from selected networks* keeps the resource instances and exceptions already configured, trusted services included: those services may still reach the account, because trusted service access takes precedence.
 - Changes that remove restrictions can take up to a minute to apply.
 - A **private endpoint** gives the account a private IP address per sub-resource (`blob`, `file`, `dfs`...) with the zone `privatelink.blob.core.windows.net`; it keeps working when public network access is disabled.
 
@@ -92,7 +93,7 @@ Defender for Storage is a Defender for Cloud plan, **agentless**, that protects 
 | Component | What it does | Notes |
 | --- | --- | --- |
 | Activity monitoring | Analyzes data plane and control plane telemetry and raises alerts on unusual or potentially harmful access, such as suspicious data extraction | Always on with the plan; no need to enable resource logs; no performance impact |
-| Malware scanning | Scans blobs with Microsoft Defender Antivirus **on upload** or **on demand** (account, container, single blob or path prefix) | Default cap **10,000 GB per account per month**, adjustable; up to 50 GB per blob; on-upload scanning isn't supported for Azure Files, page blobs or append blobs |
+| Malware scanning | Scans blobs with Microsoft Defender Antivirus **on upload** or **on demand** (account, container, single blob or path prefix) | Default cap **10,000 GB per account per month**, adjustable; up to 50 GB per blob; on-upload scanning isn't supported for Azure Files, page blobs or append blobs; legacy v1 accounts, blobs uploaded with NFS 3.0 and client-side encrypted blobs aren't scanned (CMK-encrypted blobs are) |
 | Sensitive data threat detection | Finds sensitive data with smart sampling (Microsoft Purview sensitive information types) to help prioritize alerts on the accounts that hold it | No additional cost; can be turned off |
 
 Enable the plan at the **subscription** level (recommended: existing and new accounts are covered, and you can exclude accounts) in **Defender for Cloud > Environment settings > subscription > Defender plans > Storage**, then use **Settings** to turn malware scanning and sensitive data threat detection on or off and set the cap. A storage account can **override** the subscription settings with its own configuration. At scale, use the built-in Azure Policy definition, which also covers future subscriptions of a management group; Bicep, ARM, Terraform, PowerShell and the REST API work too.
@@ -111,7 +112,7 @@ Malware scan results go to:
 
 Enabling malware scanning creates an Event Grid system topic in the account's resource group and a `StorageDataScanner` resource; when the firewall uses selected networks, that scanner is added to the **resource instances** list so scanning keeps working.
 
-> **Exam trap.** Malware scanning stops for the rest of the month once the cap is reached (alerts at 75 % and 100 %). If uploads exceed 10,000 GB a month on one account, raise the cap at the subscription or account level.
+> **Exam trap.** Malware scanning stops for the rest of the month once the cap is reached (alerts at 75 % and 100 %; up to 20 GB deviation; reset at midnight UTC at the end of the month). A cap set at the subscription level is allocated to each account. If uploads exceed 10,000 GB a month on one account, raise the cap at the subscription or account level.
 
 <!-- section: storage-access | objectives: 2.1.4 -->
 ## Managing access to storage

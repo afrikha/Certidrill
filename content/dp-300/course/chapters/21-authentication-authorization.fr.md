@@ -32,7 +32,7 @@ Méthodes d'authentification proposées par les pilotes et les outils :
 | Identité managée (affectée par le système ou par l'utilisateur) | Les applications hébergées dans Azure : basée sur un jeton, **aucun secret à stocker**, le choix recommandé |
 | Principal de service avec une clé secrète client | Les applications hors d'Azure ; déconseillé car le secret est un mot de passe |
 
-L'**authentification Microsoft Entra uniquement** désactive l'authentification SQL (et l'authentification Windows sur une instance managée) pour tout le serveur ou toute l'instance. Les connexions SQL existantes ne sont pas supprimées ; elles ne peuvent simplement plus se connecter. Un administrateur Microsoft Entra doit être défini au préalable, et il ne peut pas être supprimé tant que la fonctionnalité est active.
+L'**authentification Microsoft Entra uniquement** désactive l'authentification SQL pour tout le serveur ou toute l'instance. Les connexions SQL existantes ne sont pas supprimées ; elles ne peuvent simplement plus se connecter. Un administrateur Microsoft Entra doit être défini au préalable, et il ne peut pas être supprimé tant que la fonctionnalité est active.
 
 ```bash
 az sql server ad-only-auth enable --resource-group RG1 --name sql-contoso
@@ -105,11 +105,11 @@ Les rôles au niveau du serveur diffèrent selon l'offre :
 
 | Offre | Rôles serveur |
 | --- | --- |
-| SQL Server (machine virtuelle) et SQL Managed Instance | Rôles serveur fixes classiques : `sysadmin`, `securityadmin`, `serveradmin`, `dbcreator`, `processadmin`... |
+| SQL Server (machine virtuelle) et SQL Managed Instance | Rôles serveur fixes classiques : `sysadmin`, `securityadmin`, `serveradmin`, `dbcreator`, `processadmin`..., plus les rôles `##MS_...##` sur SQL Server 2022 et ultérieur et sur SQL Managed Instance |
 | Azure SQL Database | `##MS_DatabaseConnector##`, `##MS_DatabaseManager##`, `##MS_DefinitionReader##`, `##MS_LoginManager##`, `##MS_SecurityDefinitionReader##`, `##MS_ServerStateManager##`, `##MS_ServerStateReader##` |
 | Azure SQL Database, `master` seulement | Rôles de base de données `dbmanager` (créer des bases) et `loginmanager` (créer des connexions) |
 
-Azure SQL Database n'a pas de `sysadmin` : l'administrateur du serveur et l'administrateur Microsoft Entra sont les seuls administrateurs complets, et eux seuls peuvent ajouter des connexions aux rôles serveur. `##MS_DatabaseManager##` crée des bases ; le créateur devient `dbo` de cette base uniquement.
+Azure SQL Database n'a pas de `sysadmin` : l'administrateur du serveur et l'administrateur Microsoft Entra sont les seuls administrateurs complets, et eux seuls peuvent ajouter des connexions aux rôles serveur. `##MS_DatabaseManager##` crée des bases ; le créateur devient `dbo` de cette base uniquement. Les rôles serveur d'Azure SQL Database ne sont pas pris en charge pour les groupes Microsoft Entra : ajoutez-y des connexions Microsoft Entra individuelles (ou des connexions SQL).
 
 Les neuf rôles de base de données fixes : `db_owner`, `db_securityadmin`, `db_accessadmin`, `db_backupoperator`, `db_ddladmin`, `db_datawriter`, `db_datareader`, `db_denydatawriter`, `db_denydatareader`.
 
@@ -135,7 +135,7 @@ Règles à retenir :
 - Le serveur résout les noms par Microsoft Graph : dans Azure SQL Database, l'identité du serveur peut détenir `User.Read.All`, `GroupMember.Read.All` et `Application.Read.All` ; SQL Managed Instance a besoin de Directory Readers sur son identité.
 - Un nouvel utilisateur reçoit seulement `CONNECT`. Accordez les autorisations à des rôles, et ajoutez les groupes aux rôles.
 - Les membres d'un groupe n'ont pas d'utilisateur implicite : ils n'ont pas de schéma par défaut. Créez l'utilisateur du groupe avec `WITH DEFAULT_SCHEMA = dbo` si les membres créent des objets.
-- `ALTER LOGIN [name] DISABLE` bloque une connexion Microsoft Entra et tous les utilisateurs créés à partir d'elle, mais pas les utilisateurs autonomes, et n'est pas pris en charge pour les groupes.
+- `ALTER LOGIN [name] DISABLE` bloque une connexion Microsoft Entra et tous les utilisateurs créés à partir d'elle, mais pas les utilisateurs autonomes, et n'est pas pris en charge pour les groupes. Pour que le changement s'applique immédiatement, videz les caches avec `DBCC FLUSHAUTHCACHE` et `DBCC FREESYSTEMCACHE('TokenAndPermUserStore')`.
 
 > **Conseil d'examen.** « L'application s'exécute dans Azure App Service et ne doit stocker aucun identifiant » signifie : activer une identité managée sur l'application, puis `CREATE USER [app name] FROM EXTERNAL PROVIDER` et accorder un rôle. Ni connexion SQL ni secret de principal de service.
 

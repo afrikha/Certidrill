@@ -14,7 +14,7 @@ Le **modèle de responsabilité partagée** détermine ce qu'une base de référ
 | Système d'exploitation | Microsoft | Microsoft | Client |
 | Hôtes physiques, réseau, centre de données | Microsoft | Microsoft | Microsoft |
 
-Les **bases de référence de sécurité Azure** appliquent le benchmark de sécurité cloud Microsoft à chaque service Azure. Chaque entrée donne l'ID du contrôle MCSB, la fonctionnalité, si elle est **prise en charge**, si elle est **activée par défaut**, la **responsabilité de configuration** (Client, Microsoft ou Partagée), des conseils de configuration et si Defender for Cloud la surveille. Les contrôles qui ne correspondent pas à un modèle sont marqués non applicables : la gestion de la configuration du système d'exploitation ne s'applique pas à un service PaaS.
+Les **bases de référence de sécurité Azure** appliquent le benchmark de sécurité cloud Microsoft à chaque service Azure. Chaque entrée donne l'ID du contrôle MCSB, la fonctionnalité, si elle est **prise en charge**, si elle est **activée par défaut**, la **responsabilité de configuration** (Client, Microsoft ou Partagée), des conseils de configuration et si Defender for Cloud la surveille. Les contrôles qui ne correspondent pas à un modèle sont marqués non applicables : la gestion de la configuration du système d'exploitation ne s'applique pas à un service PaaS. Des bases de référence comme celle de Key Vault sont basées sur le MCSB v1.0 et renvoient aux recommandations de sécurité propres au service (par exemple Secure your Azure Key Vault) pour les conseils actuels.
 
 D'où vient chaque base de référence et comment elle est appliquée :
 
@@ -76,7 +76,7 @@ La sécurité des conteneurs est une **chaîne d'approvisionnement** : image de 
 | Registre | Azure Container Registry privé ; authentification Microsoft Entra avec les rôles AcrPull et AcrPush ; utilisateur administrateur désactivé ; point de terminaison privé et accès public désactivé (Premium) |
 | Vulnérabilités | Defender for Containers ou Defender CSPM : analyse sans agent des images du registre et des conteneurs en cours d'exécution, réanalysés chaque jour |
 | Intégrité | Signer les images avec le **Notary Project** et vérifier les signatures avant le déploiement |
-| Déploiement | Déploiement contrôlé dans Defender for Containers pour auditer ou bloquer les images qui enfreignent les règles de vulnérabilité |
+| Déploiement | Déploiement contrôlé dans Defender for Containers pour auditer ou bloquer les images qui enfreignent les règles de vulnérabilité ; pris en charge uniquement sur AKS 1.31 ou version ultérieure (Linux, clouds commerciaux) |
 | Exécution | Capteur Defender pour la détection des menaces à l'exécution (mineurs de cryptomonnaie, dérive des binaires) |
 
 Docker Content Trust est déprécié dans Azure Container Registry : depuis le **31 mai 2026**, il ne peut plus être activé sur les registres qui ne l'utilisaient pas, et il est supprimé le **31 mars 2028**. Les nouvelles conceptions spécifient des signatures Notary Project.
@@ -115,8 +115,8 @@ Les services d'IA (Microsoft Foundry, modèles Azure OpenAI, Azure AI Search, Fo
 
 | Domaine | Exigence et solution |
 | --- | --- |
-| Identité | Authentification Microsoft Entra ID avec des identités managées ; **désactiver l'authentification par clé (locale)**, imposée à grande échelle par la stratégie Azure Policy intégrée ; rôles de données comme Foundry User pour les applications, pas Contributor |
-| Réseau | Points de terminaison privés avec l'accès au réseau public désactivé ; points de terminaison privés aussi pour Stockage, Azure Cosmos DB et Azure AI Search connectés ; les agents qui atteignent des ressources privées exigent une injection réseau décidée au déploiement |
+| Identité | Authentification Microsoft Entra ID avec des identités managées ; **désactiver l'authentification par clé (locale)**, imposée à grande échelle par la stratégie Azure Policy intégrée ; rôles de données comme Foundry User pour les applications qui créent avec les déploiements du projet ou les appellent, ou Foundry Agent Consumer, le rôle le moins privilégié pour les principaux qui interagissent seulement avec les points de terminaison des agents ; pas Contributor |
+| Réseau | Points de terminaison privés avec l'accès au réseau public désactivé ; points de terminaison privés aussi pour Stockage, Azure Cosmos DB et Azure AI Search connectés ; les agents qui atteignent des ressources privées exigent l'injection de réseau virtuel ; pour les agents hébergés, elle doit être incluse à la création du compte Foundry, car elle ne peut pas être ajoutée à un compte existant |
 | Données | Clés gérées par le client si nécessaire, étiquettes de confidentialité et DLP sur les données d'ancrage, accès aux index selon le privilège minimum |
 | Contenu et prompts | **Garde-fous** dans Foundry (Azure AI Content Safety) : contenu préjudiciable, attaques par prompt utilisateur (jailbreak), injection de prompt indirecte dans les documents et la sortie des outils, contenu protégé |
 | Passerelle | **AI Gateway** dans Azure API Management : authentification, limites de jetons par projet, journalisation du trafic des modèles |

@@ -42,9 +42,9 @@ La sécurité DevOps connecte des organisations Azure DevOps, des organisations 
 | Fonctionnalité | CSPM de base (Foundational CSPM) | Defender CSPM |
 | --- | --- | --- |
 | Inventaire, recommandations sur les erreurs de configuration DevOps | Oui | Oui |
-| Résultats de code, d'IaC, de secrets et de dépendances (de GHAS, MSDO ou de l'analyse sans agent) | Oui | Oui |
+| Résultats de code, d'IaC, de secrets et de dépendances (de GHAS, MSDO ou de l'analyse du code sans agent, en préversion) | Oui | Oui |
 | Annotations de pull request (Azure DevOps) | Non | Oui |
-| Mappage du code au cloud, analyse des chemins d'attaque, Cloud Security Explorer, requêtes SBOM | Non | Oui |
+| Mappage du code au cloud, analyse des chemins d'attaque, Cloud Security Explorer, requêtes SBOM (les SBOM exigent l'analyse du code sans agent, en préversion) | Non | Oui |
 
 **Microsoft Security DevOps (MSDO)** exécute des analyseurs open source dans le pipeline : Bandit (Python), BinSkim (binaires), Checkov, Terrascan et Template Analyzer (IaC), ESLint (JavaScript), Trivy (conteneurs, IaC). Installez l'extension (Project Collection Administrator) et ajoutez la tâche ; pour que Defender pour le cloud ingère les résultats SARIF, l'artefact doit s'appeler `CodeAnalysisLogs`.
 
@@ -57,7 +57,7 @@ steps:
       break: true
 ```
 
-Sur GitHub, l'équivalent est l'action Microsoft Security DevOps. L'analyseur d'informations d'identification propre à MSDO est déprécié : les secrets viennent de GitHub Advanced Security. **Defender for Cloud CLI** (Defender CSPM) ajoute l'analyse d'images conteneur à n'importe quel système de CI et envoie les résultats dans Cloud Security Explorer.
+Sur GitHub, l'équivalent est l'action Microsoft Security DevOps. L'analyseur d'informations d'identification propre à MSDO est déprécié : les secrets viennent de GitHub Advanced Security. **Defender for Cloud CLI** (Defender CSPM) ajoute l'analyse d'images conteneur à n'importe quel système de CI et envoie les résultats dans Cloud Security Explorer. C'est la voie de migration depuis l'interface CLI de MSDO : son Microsoft Container Security Scanner (adossé à Gestion des vulnérabilités Microsoft Defender) remplace l'analyse d'images par Trivy dans les pipelines, et `--defender-break` renvoie un code de sortie non nul quand des problèmes critiques sont trouvés.
 
 > **Conseil d'examen.** « Afficher les vulnérabilités du code en commentaires des pull requests Azure DevOps » exige Defender CSPM et des annotations de PR configurées ; « remonter d'une image vulnérable à son dépôt » exige le mappage du code au cloud de Defender CSPM. L'inventaire et les recommandations seuls font partie du CSPM de base.
 
@@ -93,12 +93,12 @@ jobs:
       - uses: github/codeql-action/analyze@v4
 ```
 
-**GitHub Advanced Security for Azure DevOps** suit le même découpage : **GitHub Secret Protection for Azure DevOps** et **GitHub Code Security for Azure DevOps**, facturés par committeur actif et activés par dépôt, par projet ou pour l'organisation (avec une option distincte pour les nouveaux dépôts). Le gérer exige Project Collection Administrators ou **Advanced Security: manage settings** ; les Contributors voient les alertes ; les Project Administrators les ferment.
+**GitHub Advanced Security for Azure DevOps** suit le même découpage : **GitHub Secret Protection for Azure DevOps** et **GitHub Code Security for Azure DevOps**, facturés par committeur actif et activés par dépôt, par projet ou pour l'organisation. **Enable all** n'active que les dépôts existants ; une option distincte active automatiquement les nouveaux dépôts (au niveau du projet) ou les nouveaux projets (au niveau de l'organisation). Le gérer exige Project Collection Administrators ou **Advanced Security: manage settings** ; les Contributors voient les alertes ; les Project Administrators les ferment.
 
 - La **protection push** bloque les secrets à confiance élevée dans les pushes depuis la ligne de commande et le web. Contournement avec `skip-secret-scanning:true` dans le message de commit ; une alerte est quand même créée. Activer Secret Protection analyse aussi tout l'historique.
-- La **configuration par défaut de l'analyse du code** s'exécute chaque semaine sur les langages pris en charge ; la **configuration avancée** ajoute des tâches à un pipeline (Init, votre build, Analyze).
+- La **configuration par défaut de l'analyse du code** s'exécute chaque semaine sur les langages pris en charge (C#, C/C++, Java, JavaScript/TypeScript, Python, Ruby, Rust) ; Go et Swift exigent la **configuration avancée**, qui ajoute des tâches à un pipeline (Init, votre build, Analyze).
 - L'**analyse des dépendances** s'exécute dans un pipeline, après la restauration des packages.
-- Les résultats apparaissent dans **Repos > Advanced Security** et en annotations de pull request. Les tâches d'analyse sont des tâches de la Place de marché : **Disable Marketplace tasks** doit être désactivé.
+- Les résultats apparaissent dans **Repos > Advanced Security** et en annotations de pull request ; les vérifications d'état `AdvancedSecurity/AllHighAndCritical` et `AdvancedSecurity/NewHighAndCritical` peuvent bloquer les pull requests sur les résultats de gravité élevée et critique. Les tâches d'analyse sont des tâches de la Place de marché : **Disable Marketplace tasks** doit être désactivé.
 
 ```yaml
 steps:
@@ -120,7 +120,7 @@ steps:
 <!-- section: ghas-defender | objectives: 4.3.4 -->
 ## Intégrer GitHub Advanced Security à Defender pour le cloud
 
-Une fois un connecteur GitHub ou Azure DevOps créé, Defender pour le cloud ingère les résultats de GHAS (les secrets exposés et les vulnérabilités open source exigent GHAS ; les résultats de code viennent de l'analyse du code de GHAS, de MSDO ou de l'analyse sans agent) et les affiche sous forme de recommandations, comme « Azure DevOps repositories should have code scanning findings resolved ».
+Une fois un connecteur GitHub ou Azure DevOps créé, Defender pour le cloud ingère les résultats de GHAS (les secrets exposés et les vulnérabilités open source exigent GHAS ; les résultats de code viennent de l'analyse du code de GHAS, de MSDO ou de l'analyse du code sans agent, en préversion) et les affiche sous forme de recommandations, comme « Azure DevOps repositories should have code scanning findings resolved ».
 
 L'**intégration de GitHub Advanced Security** va plus loin, du code à l'exécution et retour :
 
@@ -129,7 +129,7 @@ L'**intégration de GitHub Advanced Security** va plus loin, du code à l'exécu
 - Dans GitHub, **Security > Campaigns > Create campaign > From code scanning filters** avec le filtre **Runtime Risks** concentre les développeurs sur le code déployé et exposé.
 - Depuis une recommandation Defender, **Take action > Generate GitHub issue** ouvre une issue dans le dépôt d'origine ; l'état se synchronise dans les deux sens.
 
-Prérequis : connecteur GitHub, licence GHAS sur les dépôts, Defender CSPM sur l'abonnement, analyse du code sans agent sur le connecteur, propriétaire de l'organisation GitHub et Security Admin ; clouds commerciaux uniquement. Les résultats peuvent prendre jusqu'à 24 heures.
+Prérequis : connecteur GitHub, licence GHAS sur les dépôts, Defender CSPM sur l'abonnement, propriétaire de l'organisation GitHub et Security Admin ; clouds commerciaux uniquement. Les étapes de déploiement vérifient aussi que l'analyse sans agent (en préversion) est activée sur le connecteur. Les résultats peuvent prendre jusqu'à 24 heures.
 
 > **Conseil d'examen.** « Prioriser les alertes Dependabot et d'analyse du code du code qui s'exécute réellement en production et qui est exposé à Internet » correspond à l'intégration de GHAS avec Defender CSPM, pas à un simple paramètre GitHub.
 
@@ -140,7 +140,7 @@ Analysez les images à trois moments :
 
 | Moment | Outil | Comportement |
 | --- | --- | --- |
-| Build, avant le push | Trivy (catégorie `containers` de MSDO), Defender for Cloud CLI (`defender scan image`, tâche `MicrosoftDefenderCLI@2`) | Faire échouer le pipeline sur les résultats critiques, sortie SARIF |
+| Build, avant le push | Trivy (catégorie `containers` de MSDO), Defender for Cloud CLI (`defender scan image`, tâche `MicrosoftDefenderCLI@2`), dont l'analyseur remplace l'analyse d'images par Trivy | Faire échouer le pipeline (`break` de MSDO, `--defender-break` de l'interface CLI sur les problèmes critiques), sortie SARIF |
 | Registre | Defender pour les conteneurs (Gestion des vulnérabilités Microsoft Defender) | Images nouvelles ou importées analysées en quelques heures ; nouvelle analyse quotidienne des images poussées ou tirées dans les 30 derniers jours |
 | Exécution | Defender pour les conteneurs avec l'accès à l'API Kubernetes ou le capteur Defender | Images en cours d'exécution évaluées même si elles ont été construites il y a longtemps |
 
@@ -223,7 +223,7 @@ Bloquez les nouvelles dépendances vulnérables dès la revue avec l'action de r
 | Ignorer automatiquement les alertes sur les dépendances de développement | Règle de tri automatique |
 | Les mêmes alertes dans Azure Repos | Analyse des dépendances de GHAS for Azure DevOps |
 
-> **Piège d'examen.** `dependabot.yml` configure uniquement les mises à jour de version ; les mises à jour de sécurité s'activent dans les paramètres. Les workflows déclenchés par Dependabot ne reçoivent pas les secrets Actions du dépôt.
+> **Piège d'examen.** `dependabot.yml` configure les mises à jour de version et n'active pas les mises à jour de sécurité : elles s'activent dans les paramètres. Les workflows déclenchés par Dependabot ne reçoivent pas les secrets Actions du dépôt.
 
 <!-- section: key-points -->
 ## Points clés

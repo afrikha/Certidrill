@@ -24,7 +24,7 @@ Two separate decisions: **how the app gets onto the session host**, and **how us
 <!-- section: application-groups | objectives: 3.3.2, 3.3.3 -->
 ## Creating application groups and assigning users
 
-An application group belongs to **one** host pool; a host pool can have **one desktop** application group and any number of RemoteApp application groups. To appear in users' feeds, an application group must be **registered to a workspace**.
+An application group belongs to **one** host pool; a host pool can have **one desktop** application group and any number of RemoteApp application groups. To appear in users' feeds, an application group must be **registered to a workspace**, and it can be registered to only one workspace.
 
 | Rule | Detail |
 | --- | --- |
@@ -98,12 +98,12 @@ App attach mounts application images from an SMB share into the user session at 
 | Item | Detail |
 | --- | --- |
 | Package formats | MSIX and MSIX bundle, Appx and Appx bundle, App-V (`.appv`) |
-| Disk images (MSIX/Appx) | **CimFS** (fastest mount and unmount, less CPU and memory, recommended with Windows 11 hosts), VHDX, VHD (not recommended) |
+| Disk images (MSIX/Appx) | **CimFS** (fastest mount and unmount, less CPU and memory; recommended only if the session hosts run Windows 11), VHDX, VHD (not recommended) |
 | Session hosts | Windows client and supported Windows Server versions, joined to Microsoft Entra ID or AD DS (Microsoft Entra Domain Services isn't supported) |
 | Storage | SMB share in the **same region** as the session hosts; Azure Files recommended, Azure NetApp Files requires AD DS joined hosts; don't share it with FSLogix profiles; exclude images from antivirus |
-| Share permissions | Session host **computer accounts** need read access. Azure Files with AD DS: Storage File Data SMB Share Reader as default share-level permission + NTFS read. Azure Files with Entra joined hosts: **Reader and Data Access** to the Azure Virtual Desktop and Azure Virtual Desktop ARM Provider service principals |
+| Share permissions | Session host **computer accounts** need read access. Azure Files with AD DS: Storage File Data SMB Share Reader as default share-level permission + NTFS read. Azure Files with Entra joined hosts: **Reader and Data Access** to the Azure Virtual Desktop and Azure Virtual Desktop ARM Provider service principals; the storage account must be in the same subscription as the session hosts, and the ARM Provider assignment gives the service access to all the data in it, so store only App attach images there |
 | Certificates | Every MSIX/Appx package is signed: the whole chain must be trusted on the session hosts |
-| Registration | **On-demand** (default, recommended: full registration when the app starts) or **Log on blocking** (register at sign-in, slower sign-in) |
+| Registration | **On-demand** (default, recommended: full registration when the app starts) or **Log on blocking** (shown as **Register at log on** in the portal: full registration at sign-in, slower sign-in) |
 | State | Active or Inactive (inactive packages are ignored at sign-in) |
 | Health | **Health check status on failure** sets the `AppAttachHealthCheck` result (for example NeedsAssistance) when staging fails |
 
@@ -123,6 +123,7 @@ Update-AzWvdAppAttachPackage -Name contoso-crm -ResourceGroupName rg-avd -Locati
 New-AzRoleAssignment -ObjectId <group object ID> -RoleDefinitionName "Desktop Virtualization User" -Scope $pkg.Id
 ```
 
+- Direct user assignments need **hybrid** user accounts (created in AD DS and synchronized to Microsoft Entra ID); groups don't have this requirement.
 - A package assigned to a host pool and to users appears automatically in their **desktop** sessions. For RemoteApp, also add it to a RemoteApp application group (source **App attach**); MSIX apps can't be added to a desktop application group.
 - `-HostPoolReference` **replaces** the list of host pools; an empty array unassigns them all.
 - New version: **side by side** (a new package assigned to the same users) or **in place** (Update the package with the new image; the version must differ; keep the old image until nobody uses it). Users get the new version at next sign-in.

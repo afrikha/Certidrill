@@ -30,7 +30,7 @@ traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
              version-trace id (32 hex)-parent span id (16 hex)-flags (01 = sampled)
 ```
 
-Dans les tables, l'ID de trace devient `OperationId`, l'ID d'étendue `Id` et l'ID de l'étendue parente `ParentId`. Les clients et serveurs HTTP instrumentés injectent et extraient cet en-tête automatiquement ; pour un transport personnalisé, faites-le vous-même (voir plus bas). L'attribut de **ressource** OpenTelemetry `service.name` (préfixé par `service.namespace` s'il est défini) devient le nom du rôle cloud (`AppRoleName`), le nœud de la cartographie d'application ; `service.instance.id` devient `AppRoleInstance`.
+Dans les tables, l'ID de trace devient `OperationId`, l'ID d'étendue `Id` et l'ID de l'étendue parente `ParentId`. Les clients et serveurs HTTP instrumentés injectent et extraient cet en-tête automatiquement ; pour un transport personnalisé, faites-le vous-même (voir plus bas). Les attributs de **ressource** OpenTelemetry `service.namespace` et `service.name` (seulement `service.name` quand aucun espace de noms n'est défini) deviennent le nom du rôle cloud (`AppRoleName`), le nœud de la cartographie d'application ; `service.instance.id` devient `AppRoleInstance`.
 
 <!-- section: otel-python | objectives: 4.2.1 -->
 ## Activer la distribution Azure Monitor OpenTelemetry en Python
@@ -127,7 +127,7 @@ Comment Azure Monitor agrège les instruments de métriques personnalisées :
 | Histogram | Min, Max, Moyenne, Somme et Nombre |
 | Jauge asynchrone | Moyenne |
 
-> **Piège d'examen.** Un compteur ne fait qu'additionner : utilisez-le pour les jetons consommés ou les documents indexés. Pour analyser une distribution (latence p95), utilisez un histogramme. Une valeur qui monte et descend (longueur de file d'attente) est un UpDownCounter ou une jauge asynchrone.
+> **Piège d'examen.** Un compteur ne fait qu'additionner : utilisez-le pour les jetons consommés ou les documents indexés. Un histogramme enregistre une distribution, mais Azure Monitor l'aplatit pour l'instant en Min, Max, Average, Sum et Count (la prise en charge des centiles est en cours) : pour la latence p95, interrogez `percentile(DurationMs, 95)` sur les lignes `AppRequests` ou `AppDependencies`. Une valeur qui monte et descend (longueur de file d'attente) est un UpDownCounter ou une jauge asynchrone.
 
 <!-- section: kql-basics | objectives: 4.2.2 -->
 ## L'essentiel de KQL et les tables de télémétrie

@@ -52,7 +52,7 @@ Les résultats sous la valeur sont exclus même s'il en reste moins de `k`, et l
 
 | Levier | Effet |
 | --- | --- |
-| HNSW (`m`, `efConstruction`, `efSearch`) ou KNN exhaustif | HNSW est approximatif et rapide ; le KNN exhaustif parcourt tous les vecteurs (`"exhaustive": true` par requête). Des valeurs `efSearch` et `efConstruction` plus élevées améliorent le rappel au prix de la latence et du calcul |
+| HNSW (`m`, `efConstruction`, `efSearch`) ou KNN exhaustif | HNSW est approximatif et rapide ; le KNN exhaustif parcourt tous les vecteurs (`"exhaustive": true` par requête). Le réglage de ces paramètres arbitre entre le rappel d'une part, la latence, la mémoire et l'empreinte disque d'autre part (valeurs par défaut `m` 4, `efConstruction` 400, `efSearch` 500) |
 | Métrique de similarité | `cosine` pour les modèles d'incorporation Azure OpenAI |
 | Filtres sur les champs de mots clés ou d'entités | Éliminent les documents non pertinents ; `vectorFilterMode` vaut `preFilter` (par défaut), `postFilter` (peut renvoyer moins de `top` résultats) ou `strictPostFilter` (préversion) |
 | Réécriture de la requête | Corrige les requêtes vagues, les mots clés manquants et les mots superflus |
@@ -68,7 +68,7 @@ Les résultats sous la valeur sont exclus même s'il en reste moins de `k`, et l
 | Le bon document n'est jamais parmi les candidats | `k` plus grand, recherche hybride, réécriture de la requête |
 | Les questions en plusieurs parties n'obtiennent qu'une réponse partielle | Décomposition de la requête |
 
-> **Piège d'examen.** Un `threshold` vectoriel s'applique à une requête purement vectorielle unique. Sur une requête hybride, le `@search.score` fusionné est un score RRF, pas une similarité : un seuil de 0,8 éliminerait tout. Pour écarter les résultats hybrides faibles, reclassez et gardez les N premiers.
+> **Piège d'examen.** Learn ne recommande un seuil minimal que sur une requête purement vectorielle unique. Sur une requête hybride, le `@search.score` fusionné est un score RRF, pas une similarité : un seuil de 0,8 sur ce score fusionné éliminerait tout (un seuil `vectorSimilarity` ne filtre que les résultats vectoriels, avant la fusion). Pour écarter les résultats hybrides faibles, reclassez et gardez les N premiers.
 
 <!-- section: embedding-models | objectives: 5.1.2 -->
 ## Sélectionner et ajuster les modèles d'incorporation
@@ -95,7 +95,7 @@ Le **même modèle d'incorporation** doit incorporer les blocs et les requêtes 
 }
 ```
 
-Sans `apiKey` ni `authIdentity`, la compétence utilise l'identité affectée par le système du service de recherche, qui a besoin de **Cognitive Services OpenAI User** sur la ressource du modèle. La compétence accepte au plus 8 000 jetons de texte (découpez d'abord). L'API d'incorporations accepte jusqu'à 8 192 jetons par entrée, 2 048 entrées par requête et 300 000 jetons par requête au total.
+Sans `apiKey` ni `authIdentity`, la compétence utilise l'identité affectée par le système du service de recherche, qui a besoin de **Cognitive Services OpenAI User** sur la ressource du modèle. La compétence accepte au plus 8 000 jetons de texte (découpez d'abord). Learn recommande pour la compétence un déploiement distinct de celui du vectoriseur de requêtes (même modèle), pour régler chacun et distinguer le trafic de l'indexeur de celui des requêtes. L'API d'incorporations accepte jusqu'à 8 192 jetons par entrée, 2 048 entrées par requête et 300 000 jetons par requête au total.
 
 Démarche de sélection du Centre des architectures Azure :
 
@@ -112,6 +112,8 @@ Pourquoi le vocabulaire compte : un mot absent du vocabulaire du modèle est dé
 | Précision maximale sur du contenu général | `text-embedding-3-large` |
 | Jargon métier que les modèles généralistes ignorent | Un modèle de domaine, sinon un modèle généraliste ajusté |
 | Images ou schémas | Conversion en texte avec Content Understanding, puis incorporation avec un modèle de texte |
+
+**Migrer vers un autre modèle d'incorporation.** Les dimensions d'un champ vectoriel ne peuvent pas changer, et des dimensions égales ne rendent pas deux modèles compatibles. Changer de vectoriseur ou de nom de déploiement ne régénère pas les vecteurs stockés, et les scores vectoriels bruts ne sont pas comparables d'un modèle à l'autre : revoyez les seuils de score. Avec les indexeurs intégrés, reconstruisez un nouvel index à partir des données sources avec un nouvel indexeur ; un second champ vectoriel dans le même index n'est possible qu'avec l'ingestion par envoi (push). `Cohere-embed-v3-english` et `Cohere-embed-v3-multilingual` sont dépréciés depuis le 15 novembre 2026 et mis hors service le 15 février 2027 (remplaçants `Cohere-embed-v5-fast` et `Cohere-embed-v5-pro`).
 
 > **Piège d'examen.** Incorporer les requêtes avec un autre modèle, ou une autre valeur de `dimensions`, que les blocs indexés casse silencieusement la recherche vectorielle. Changer de modèle d'incorporation est un projet de réindexation complète, pas un changement de configuration de la requête.
 
@@ -213,7 +215,7 @@ Un **test A/B** compare une référence et une variante :
 1. Fixez les **critères de décision avant** l'exécution (par exemple un score moyen minimal et un plafond de coût ou de latence), pour que les résultats ne puissent pas être justifiés après coup.
 2. Changez **une seule variable à la fois** (taille de bloc, modèle d'incorporation, poids, reclassement, invite) ; avec plusieurs changements, impossible de savoir lequel a causé la différence.
 3. Exécutez les deux variantes sur le **même jeu de données de test** et les mêmes évaluateurs, en relevant qualité, jetons et latence.
-4. Sélectionnez les deux exécutions dans Foundry et choisissez **Compare**, avec la référence définie : chaque cellule affiche un résultat de **test t** (ImprovedStrong pour p de 0,001 ou moins, ImprovedWeak jusqu'à 0,05, Inconclusive avec trop peu d'exemples ou p de 0,05 et plus), avec la taille d'échantillon et la valeur p au survol. La vue de comparaison n'est pas enregistrée.
+4. Sélectionnez les deux exécutions dans Foundry et choisissez **Compare**, avec la référence définie : chaque cellule affiche un résultat de **test t** (ImprovedStrong pour p de 0,001 ou moins, ImprovedWeak jusqu'à 0,05, dans le sens souhaité ; DegradedStrong et DegradedWeak, mêmes seuils, dans le mauvais sens ; ChangedStrong et ChangedWeak quand le sens souhaité est neutre ; Inconclusive avec trop peu d'exemples ou p de 0,05 et plus), avec la taille d'échantillon et la valeur p au survol. La vue de comparaison n'est pas enregistrée.
 5. Pour un test en ligne, dirigez une part du trafic réel vers la variante (par exemple des backends pondérés dans API Management) et suivez l'évaluation continue, la latence et les métriques de jetons par variante avant un déploiement complet.
 
 > **Conseil d'examen.** « La nouvelle taille de bloc est-elle meilleure, ou est-ce du bruit ? » → comparez les deux exécutions d'évaluation et lisez la signification statistique. « Inconclusive » signifie qu'il faut plus de lignes de test, pas que les variantes sont équivalentes.

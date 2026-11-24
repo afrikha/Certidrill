@@ -17,7 +17,7 @@ Semi-structured data (JSON documents, key-value entities, graphs) goes to Azure 
 
 **Partition key.** A logical partition (one partition key value) holds at most 20 GB; a physical partition provides up to 10,000 request units per second (RU/s) and 50 GB. A good key has a high cardinality, spreads storage and requests evenly and appears as a filter in most queries. It can't be changed in place: the data must be copied to a new container.
 
-**Consistency.** Five levels, set as the account default (Session by default) and only relaxable per request:
+**Consistency.** Five levels, set as the account default (Session by default) and only relaxable per request with the classic override (a preview read strategy of the Java and .NET SDKs, in direct mode, can also strengthen a read):
 
 | Level | Guarantee | Typical use |
 | --- | --- | --- |
@@ -63,7 +63,7 @@ A multi-region account offers 99.999% read and write availability. Any global-di
 
 **Azure Data Lake Storage** isn't a separate service: it is a set of Blob Storage capabilities unlocked by the hierarchical namespace. Renaming or deleting a directory becomes a single atomic operation, access is controlled with Azure RBAC and POSIX ACLs on directories and files, and it is priced at Blob Storage levels.
 
-**Azure Files.** SMB shares exist on SSD (premium) and HDD (standard) media; NFS 4.1 shares exist on SSD only. SMB shares support identity-based access with on-premises Active Directory Domain Services, Microsoft Entra Domain Services or Microsoft Entra Kerberos.
+**Azure Files.** SMB shares exist on SSD (premium) and HDD (standard) media; NFS 4.1 shares are generally available on SSD only (NFS on HDD is in preview, LRS only), and NFS shares never support GRS or GZRS. For new NFS deployments, Learn recommends the `Microsoft.FileShares` resource provider: a standalone file share without a storage account. SMB shares support identity-based access with on-premises Active Directory Domain Services, Microsoft Entra Domain Services or Microsoft Entra Kerberos.
 
 > **Exam trap.** "Linux clients mount the share with NFS" forces a premium file share account (SSD), which has no geo-redundancy: only LRS or ZRS. A copy in another region then has to be designed separately; GRS isn't an option.
 

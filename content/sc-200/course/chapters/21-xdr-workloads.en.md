@@ -30,23 +30,23 @@ EmailEvents
 
 **Automatic attack disruption** steps in when Defender XDR correlates signals from email, identities, endpoints and SaaS apps into a high-confidence attack, such as business email compromise launched from a compromised account. It contains the attacker's assets: disable user (Defender for Identity, on domain controllers with the sensor, and in Microsoft Entra ID for synced or cloud accounts), revoke user session and suspend user in Microsoft Entra ID, contain user and contain device (Defender for Endpoint). The incident carries the **Attack Disruption** tag and a yellow banner, and the graph shows the asset status (account disabled, device contained). Every action is logged in the Action center and can be undone by the SOC.
 
-> **Exam trap.** Attack disruption contains accounts and devices; it doesn't replace email remediation. After the incident, you still remove the phishing messages with Threat Explorer or the AIR actions, and you release a user only after resetting credentials.
+> **Exam trap.** Attack disruption contains accounts and devices; it doesn't replace email remediation. After the incident, you still remove the phishing messages with Threat Explorer or the AIR actions, and you release a contained user or device only after you mitigate the risk and complete the investigation.
 
 <!-- section: purview-alerts | objectives: 2.1.2 -->
 ## Microsoft Purview: data loss prevention and insider risk
 
 **DLP alerts** are generated when a DLP policy rule matches and its incident reports are set to generate alerts. They are investigated in the Defender portal (incidents kept 6 months) or in the Purview DLP Alerts dashboard (30 days). In the incident queue, filter on **Service/detection sources > Microsoft Data Loss Prevention**; the alert shows the policy, the **Sensitive info types** tab and, with permission, the **Source** tab with the file content.
 
-Since early October 2026, a built-in alert tuning rule turns DLP signals into **behaviors** in Defender XDR: they no longer create alerts or appear in the incident queue, but stay in the `BehaviorInfo` and `BehaviorEntities` tables. To see them as alerts again, disable that rule in **Settings > Microsoft Defender XDR > Alert tuning**.
+Since early October 2026, a built-in alert tuning rule turns DLP signals into **behaviors** in Defender XDR: they no longer create alerts or appear in the incident queue, but stay in the `BehaviorInfo` and `BehaviorEntities` tables (both in preview). To see them as alerts again, disable that rule in **Settings > Microsoft Defender XDR > Alert tuning**.
 
 | Permission | Alerts visible |
 | --- | --- |
 | Manage Alerts, View-Only Manage Alerts | DLP and security alerts |
 | Information Protection Analyst, DLP Compliance Management, View-Only DLP Compliance Management | DLP alerts only |
 
-Remediation from the alert: for SharePoint and OneDrive files, apply a retention or sensitivity label, unshare, delete, or download (Data Classification Content Viewer role); for email, download the message. Hunt with `CloudAppEvents`, which holds the Purview audit data (up to 30 days). Administrative unit restrictions carry over: a restricted admin sees only the alerts of their unit.
+Remediation from the alert: for SharePoint and OneDrive files, apply a retention or sensitivity label, unshare, delete, or download (Data Classification Content Viewer role); for email, download the message. Hunt with `CloudAppEvents`, which holds the Purview audit data (up to 30 days) once Microsoft 365 is connected to Defender for Cloud Apps. Administrative unit restrictions carry over: a restricted admin sees only the alerts of their unit.
 
-**Insider risk management** alerts appear in the incident and alert queues (filter **Service source > Microsoft Purview Insider Risk Management**) once **Share user risk details with other security solutions** is turned on in the Insider Risk Management data sharing settings. Alerts of one user are correlated into a single incident. Viewing them requires an Insider Risk Management role group (Insider Risk Management, Analysts, Investigators). Status and classification sync with Purview within 30 minutes: True positive becomes Confirmed; Benign positive and False positive become Dismissed. Hunt in `DataSecurityEvents` and `DataSecurityBehaviors`; continue the case response in the Purview portal.
+**Insider risk management** alerts appear in the incident and alert queues (filter **Service source > Microsoft Purview Insider Risk Management**) once **Share user risk details with other security solutions** is turned on in the Insider Risk Management data sharing settings. Alerts of one user are correlated into a single incident. Viewing them requires an Insider Risk Management role group (Insider Risk Management, Analysts, Investigators). Status and classification sync with Purview within 30 minutes: True positive becomes Confirmed; Benign positive and False positive become Dismissed. Hunt in `DataSecurityEvents` and `DataSecurityBehaviors` (both in preview); continue the case response in the Purview portal.
 
 > **Exam trap.** A DLP alert that "no longer appears in the incident queue" after October 2026 isn't lost: look for the behavior, or disable the built-in tuning rule.
 
@@ -68,9 +68,9 @@ Responding in Defender for Cloud: open the alert, **View full details**, then th
 4. **Trigger automated response**: run a logic app.
 5. **Suppress similar alerts**: create a suppression rule for benign activity.
 
-Set the alert to **Dismissed** when done. Hunting tables: `CloudAuditEvents` (Azure Resource Manager and Kubernetes control plane), `CloudProcessEvents`, `CloudStorageAggregatedEvents`.
+Set the alert to **Dismissed** when done. Hunting tables: `CloudAuditEvents` (Azure Resource Manager and Kubernetes control plane), `CloudProcessEvents` and `CloudStorageAggregatedEvents` (both in preview).
 
-> **Exam tip.** Sentinel workspace with Defender XDR integration and duplicated Defender for Cloud incidents: use the **Tenant-based Microsoft Defender for Cloud** connector, disconnect the subscription-based (legacy) connector, and turn off the rules that create incidents from these alerts.
+> **Exam tip.** Sentinel workspace with Defender XDR integration and duplicated Defender for Cloud incidents: disconnect the **Subscription-based Microsoft Defender for Cloud (Legacy)** connector and turn off the rules that create incidents from these alerts. The **Tenant-based Microsoft Defender for Cloud** connector is in preview, and in the Defender portal it isn't listed, because Defender XDR already ingests these alerts.
 
 <!-- section: defender-cloud-apps | objectives: 2.1.4 -->
 ## Defender for Cloud Apps
@@ -80,7 +80,7 @@ Defender for Cloud Apps detects risky behavior in connected SaaS apps (anomaly d
 | Alert | Typical response when true positive |
 | --- | --- |
 | Impossible travel, Activity from infrequent country | Suspend the user, mark compromised, reset the password; for a corporate VPN false positive, add and tag its IP range |
-| Suspicious inbox forwarding, Suspicious inbox manipulation rule | Suspend the user, reset the password, remove the rule; check Exchange message tracking |
+| Suspicious email forwarding rule created by third-party app (formerly Suspicious inbox forwarding), Suspicious inbox manipulation rule (disabled and migrated to the dynamic model; can be re-enabled in Policy management) | Suspend the user, reset the password, remove the rule; check Exchange message tracking |
 | Unusual file download, share or deletion (by user), Ransomware activity | Suspend the user, mark compromised, reset the password; recover files if needed |
 | Misleading OAuth app name, Unusual ISP for an OAuth app | Review permissions and consenting users, ban the app or revoke its tokens |
 | Activity performed by terminated user | Disable the user and the apps they still access |
@@ -162,7 +162,7 @@ Actions are taken from the identity page or side panel, Advanced hunting or the 
 - Attack disruption contains users and devices automatically; actions are reversible from the Action center.
 - DLP signals became behaviors in October 2026; disable the built-in tuning rule to get alerts back.
 - Insider risk alerts need data sharing turned on and an Insider Risk Management role group.
-- Defender for Cloud alerts: tenant-wide in the Defender portal, Take action tab, tenant-based Sentinel connector against duplicates.
+- Defender for Cloud alerts: tenant-wide in the Defender portal, Take action tab, disconnect the legacy Sentinel connector and turn off incident rules against duplicates.
 - Defender for Cloud Apps: suspend, mark compromised, reset password; governance log for every action.
 - Entra ID Protection: dismiss doesn't change the password; confirm compromised then contain.
 - Defender for Identity: tuning depends on alert format; remediation needs Response (manage) and runs from domain controller sensors.

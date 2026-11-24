@@ -18,7 +18,7 @@ Seuls quatre types de stockage sont certifiés pour `/hana/data` et `/hana/log` 
 | Type | Faits clés |
 | --- | --- |
 | SSD Premium | Performances fixées par le niveau de taille (P10, P15...) ; bursting sur les disques jusqu'à 512 Gio ; mise en cache de l'hôte ; Accélérateur d'écriture sur la famille M |
-| SSD Premium v2 | Taille, IOPS et débit définis indépendamment ; 3 000 IOPS et 125 Mo/s inclus par disque ; ni mise en cache de l'hôte, ni bursting, pas de disque du système d'exploitation ; machines virtuelles zonales dans la plupart des régions ; quatre changements de performances par période de 24 heures |
+| SSD Premium v2 | Taille, IOPS et débit définis indépendamment ; 3 000 IOPS et 125 Mo/s inclus par disque ; ni mise en cache de l'hôte, ni bursting, pas de disque du système d'exploitation ; machines virtuelles zonales dans la plupart des régions (groupes à haute disponibilité uniquement dans quelques régions sans zones de disponibilité, après inscription de la fonctionnalité) ; quatre changements de performances par période de 24 heures |
 | Disque Ultra | Latence la plus faible ; disques de données uniquement, créés vides ; pas de mise en cache ; machine virtuelle seule ou zones de disponibilité, **pas de groupes à haute disponibilité** ; IOPS et débit modifiables sans redémarrage |
 | Azure NetApp Files | Volumes NFS (et SMB) ; moins de 1 ms ; niveaux de service ; instantanés ; réplication entre zones et entre régions |
 | Azure Files (SSD) | Partages NFS v4.1 ou SMB ; LRS ou ZRS ; pour les systèmes de fichiers SAP partagés, jamais pour les fichiers de base de données |
@@ -56,7 +56,7 @@ sudo mkfs.xfs /dev/vg_hana_data_HN1/hana_data
 <!-- section: storage-security | objectives: 2.3.3 -->
 ## Considérations de sécurité du stockage
 
-- **Isolation réseau** : points de terminaison privés pour Azure Files et le Stockage Blob, accès réseau public désactivé ; les volumes Azure NetApp Files ne sont accessibles que depuis le réseau virtuel du sous-réseau délégué et les réseaux appairés.
+- **Isolation réseau** : points de terminaison privés pour Azure Files et le Stockage Blob, accès réseau public désactivé ; les volumes Azure NetApp Files ne sont accessibles que depuis le réseau virtuel du sous-réseau délégué et les réseaux connectés par peering.
 - **L'autorisation NFS repose sur le réseau** : les partages de fichiers Azure NFS n'ont pas d'authentification basée sur l'identité, l'accès est donc limité par point de terminaison privé ou par règles de réseau virtuel. Azure NetApp Files utilise des **stratégies d'exportation** (adresses IP clientes autorisées, lecture-écriture ou lecture seule, accès root).
 - **UID et GID** : les ID de l'utilisateur `<sid>adm` et du groupe `sapsys` doivent être identiques sur chaque machine virtuelle qui monte les volumes NFS, sinon les fichiers apparaissent comme appartenant à `nobody`.
 - **Partages SMB pour Windows** : joignez le compte de stockage à AD DS, donnez aux comptes SAP le rôle **Storage File Data SMB Share Elevated Contributor** et définissez les ACL NTFS (`<sid>adm`, `SAPService<SID>`, `SAP_<SID>_GlobalAdmin`, compte d'ordinateur du cluster) **avant** d'exécuter SAPinst.
@@ -68,8 +68,8 @@ sudo mkfs.xfs /dev/vg_hana_data_HN1/hana_data
 | --- | --- | --- |
 | Sauvegarde Azure pour SAP HANA | Bases HANA, en flux via Backint | Certifié Backint ; RPO minimal de 15 minutes ; exige l'exécution du script de préinscription sur la machine virtuelle HANA |
 | Instantanés d'instance HANA de Sauvegarde Azure | Disques de données HANA, cohérents pour HANA | Sauvegarde et restauration instantanées ; les instantanés restent sur du stockage HDD Standard, pas dans le coffre |
-| Sauvegarde de machine virtuelle Azure | Machine virtuelle entière (serveurs d'applications, services centraux) | Ne sauvegarde pas les disques du système d'exploitation avec Accélérateur d'écriture ni les Disques Ultra |
-| Instantanés incrémentiels de disques managés | Disques individuels | Stockés sur HDD Standard, en ZRS là où il est disponible ; jusqu'à 500 par disque ; les instantanés de SSD Premium v2 et de Disque Ultra ne sont utilisables qu'une fois la copie en arrière-plan terminée |
+| Sauvegarde de machine virtuelle Azure | Machine virtuelle entière (serveurs d'applications, services centraux) | Sauvegarde les disques de données avec Accélérateur d'écriture (pas d'instantané d'un disque du système d'exploitation avec Accélérateur d'écriture) ; Disque Ultra et SSD Premium v2 exigent la stratégie Enhanced ; disques partagés non pris en charge |
+| Instantanés incrémentiels de disques managés | Disques individuels | Stockés sur HDD Standard, en ZRS là où il est disponible ; jusqu'à 500 par disque ; les instantanés de SSD Premium v2 et de Disque Ultra ne sont utilisables qu'une fois la copie en arrière-plan terminée, sauf si l'accès instantané est activé à la création de l'instantané ; au plus trois instantanés en cours par disque |
 | Instantanés Azure NetApp Files | Volumes | Économes en espace ; cohérents avec l'application pour HANA avec **AzAcSnap** (ou SnapCenter) |
 
 Instantané HANA cohérent avec l'application sur Azure NetApp Files :
@@ -152,6 +152,7 @@ Ordre des opérations : arrêtez la base de données qui utilise le disque ; pou
 | Azure Files et Azure NetApp Files | Chiffrés au repos ; clés gérées par le client prises en charge | Chiffrement en transit : chiffrement SMB 3, ou TLS pour NFS via l'assistant de montage AZNFS |
 
 - **ADE sera mis hors service le 15 septembre 2028** : après cette date, les disques chiffrés par ADE ne se déverrouillent plus au redémarrage. Migrez vers le **chiffrement au niveau de l'hôte**, que Microsoft recommande pour les nouvelles machines virtuelles.
+- La migration d'ADE vers le chiffrement au niveau de l'hôte ne se fait pas sur place : elle exige de nouveaux disques et de nouvelles machines virtuelles, et ADE ne peut pas être désactivé sur un disque du système d'exploitation Linux.
 - ADE utilise le processeur de la machine virtuelle et ne fonctionne pas avec les images Linux personnalisées ; SSE et le chiffrement au niveau de l'hôte n'ont aucune de ces limites.
 
 > **Conseil d'examen.** « Chiffrer le disque temporaire et le cache d'une machine virtuelle SAP sans surcharge processeur » désigne le chiffrement au niveau de l'hôte, pas ADE.
@@ -178,8 +179,8 @@ Avec la **QoS manuelle**, le débit est attribué par volume indépendamment de 
 Règles de conception :
 
 - **NFS v4.1 est obligatoire** pour `/hana/data` et `/hana/log` ; v3 n'est autorisé que pour les volumes shared et de sauvegarde.
-- Même région et réseau virtuel identique ou appairé ; sous-réseau délégué (`/25` recommandé).
-- La latence depuis la machine virtuelle de base de données doit rester **inférieure à 1 ms** : placez les volumes dans la **même zone de disponibilité** que la machine virtuelle, ou utilisez le **groupe de volumes d'application pour SAP HANA**, qui place les volumes de données et de journal sur des contrôleurs de stockage différents.
+- Même région et réseau virtuel identique ou connecté par peering ; sous-réseau délégué (`/25` recommandé).
+- La latence depuis la machine virtuelle de base de données doit rester **inférieure à 1 ms** : placez les volumes dans la **même zone de disponibilité** que la machine virtuelle (suffisant dans la plupart des régions), ou utilisez le **groupe de volumes d'application pour SAP HANA**, qui place les volumes de données et de journal sur des contrôleurs de stockage différents. Avec un groupe de placement de proximité, le groupe de volumes d'application exige une demande à Microsoft pour épingler le groupe à haute disponibilité au matériel, ce qui limite les changements ultérieurs de taille et de famille de machine virtuelle : réservez cette méthode aux systèmes qui exigent la latence la plus faible.
 - Une session NFS écrit de 1,2 à 1,4 Go/s ; `nconnect` ajoute des sessions.
 - Les volumes se redimensionnent en ligne, sans démontage ni arrêt de HANA.
 - HANA scale-out avec des **nœuds de secours** exige Azure NetApp Files.
@@ -206,7 +207,7 @@ Azure Files sert les **systèmes de fichiers SAP partagés**, jamais les fichier
 Règles NFS pour SAP :
 
 - Choisissez **ZRS** quand les machines virtuelles sont réparties sur des zones : les données sont répliquées de façon synchrone sur trois zones, et les clients NFS passent à une zone saine sans remontage.
-- Sélectionnez **No root squash**, utilisez un **point de terminaison privé**, et soit décochez « Exiger un transfert sécurisé pour les opérations d'API REST » (sinon le montage expire), soit utilisez le chiffrement en transit avec l'assistant de montage AZNFS (`fstype aznfs`).
+- Sélectionnez **No root squash**, utilisez un **point de terminaison privé**, et soit utilisez le chiffrement en transit avec l'assistant de montage AZNFS (`fstype aznfs`), soit, pour monter sans TLS, désactivez **Exiger le chiffrement en transit pour NFS** sur le compte de stockage. Ce paramètre est activé par défaut sur les comptes créés dans le portail ; tant qu'il n'est pas sélectionné, **Transfert sécurisé requis** contrôle NFS, et un montage sans TLS expire s'il est activé.
 - Un partage `sapmnt` par système SAP, aucun autre usage pour `sapmnt` et `saptrans`, au plus environ cinq systèmes SAP par compte de stockage, production et hors production dans des comptes différents.
 - `/usr/sap/<SID>/J<nr>` des systèmes SAP Java n'est pas pris en charge sur Azure Files NFS.
 - Azure Files n'a pas de réplication automatique entre régions.
@@ -224,7 +225,7 @@ Règles SMB pour SAP (Windows) : exécutez le script Azure Files qui joint le co
 | HANA scale-out avec nœud de secours | Azure NetApp Files |
 | Partage de fichiers pour un cluster ASCS/SCS Windows | Azure Files SMB (ou Azure NetApp Files SMB) |
 
-> **Piège d'examen.** Azure Files ZRS est synchrone entre zones, mais ne réplique pas vers une autre région : la reprise d'activité de `sapmnt` entre régions exige un autre mécanisme.
+> **Piège d'examen.** Azure Files ZRS est synchrone entre zones, mais ne réplique pas vers une autre région : la reprise d'activité de `sapmnt` entre régions exige un autre mécanisme. Learn indique une réplication personnalisée (comme rsync) pour NFS sur Azure Files, et la réplication entre régions pour Azure NetApp Files.
 
 <!-- section: key-points -->
 ## Points clés

@@ -16,8 +16,9 @@ Les paramètres des hôtes de session et des utilisateurs viennent des deux mêm
 
 - Utilisez le **catalogue de paramètres**. Filtrez le sélecteur de paramètres sur *OS edition == Enterprise multi-session* ; les paramètres d'étendue utilisateur affichent *(User)*. Les modèles ne sont pas délivrés, sauf les profils de certificat (approuvé, SCEP, PKCS) et le VPN en tunnel d'appareil, et apparaissent comme *Non applicable*.
 - La configuration d'appareil s'attribue à des groupes d'appareils, la configuration utilisateur à des groupes d'utilisateurs : l'inverse est signalé en *Erreur* ou *Non applicable*.
-- Les hôtes joints hybrides s'inscrivent avec des **informations d'identification d'appareil** (inscription automatique par stratégie de groupe ou cogestion Configuration Manager) ; l'inscription avec des informations d'identification utilisateur n'est pas prise en charge. Un seul fournisseur MDM.
-- Les applications s'installent dans le contexte système avec l'intention **Obligatoire** ou **Désinstaller** ; *Disponible* n'est pas pris en charge.
+- Les hôtes joints hybrides s'inscrivent avec des **informations d'identification d'appareil** (inscription automatique par stratégie de groupe ou cogestion Configuration Manager) ; l'inscription avec des informations d'identification utilisateur n'est pas prise en charge en multisession. Un seul fournisseur MDM. Intune prend en charge les machines virtuelles multisession des pools d'hôtes partagés déployés par Azure Resource Manager.
+- Les applications s'installent dans le contexte système avec l'intention **Obligatoire** ou **Désinstaller** ; *Disponible* n'est pas pris en charge. Les applications web (contexte utilisateur) ne s'appliquent pas, et une application Win32 en contexte système qui dépend d'une application en contexte utilisateur n'est pas installée.
+- Ne sont pas pris en charge non plus : les anneaux de mise à jour Windows (gérez les mises à jour qualité avec les paramètres Windows Update du catalogue de paramètres), RemoteApp et MSIX app attach via Intune, et les actions à distance Autopilot reset, BitLocker key rotation, Fresh Start, Remote lock, Reset password et Wipe.
 - Les stratégies de conformité ciblent uniquement les appareils ; l'accès conditionnel prend en charge les configurations utilisateur et appareil.
 - N'inscrivez pas l'image clonée d'un appareil déjà inscrit, et gardez `RoamIdentity = 0` dans FSLogix pour que les jetons ne suivent pas l'utilisateur d'un hôte à l'autre.
 
@@ -56,7 +57,7 @@ Propriétés autres que la redirection qui apparaissent dans les questions :
 | Se reconnecter automatiquement après une coupure réseau | `autoreconnection enabled:i:1` (par défaut) |
 | Un seul moniteur | `use multimon:i:0` (par défaut 1) |
 | Seulement certains moniteurs locaux | `selectedmonitors:s:` avec les ID d'affichage donnés par `mstsc.exe /l`, exige `use multimon:i:1` |
-| Ouvrir dans une fenêtre plutôt qu'en plein écran | `screen mode id:i:1` (par défaut 2, plein écran) |
+| Ouvrir dans une fenêtre plutôt qu'en plein écran | `screen mode id:i:1` (par défaut 2, plein écran) ; ignorée quand `use multimon:i:1`, la session s'ouvre alors sur tous les écrans |
 | Mettre à l'échelle le contenu de la session selon la fenêtre | `smart sizing:i:1` |
 | Garder la résolution fixe quand la fenêtre est redimensionnée | `dynamic resolution:i:0` (par défaut 1) |
 | Les combinaisons de touches Windows vont à la session seulement en plein écran | `keyboardhook:i:2` (par défaut) |
@@ -149,7 +150,7 @@ Update-AzWvdSessionHost -HostPoolName hp-dev -ResourceGroupName rg-avd `
 
 Azure CLI peut définir le type d'attribution mais ne peut pas attribuer, annuler ou réattribuer des bureaux personnels. Configurer l'attribution des bureaux personnels exige le rôle **Desktop Virtualization Contributor** ou équivalent.
 
-**Plusieurs bureaux personnels par utilisateur** dans un même pool d'hôtes : définissez le type d'attribution sur **Direct** et enregistrez, puis sélectionnez **Attribuer plusieurs bureaux à un seul utilisateur** (type d'équilibreur de charge `MultiplePersistent` en PowerShell). Une fois activé, il ne peut plus être désactivé ; l'attribution automatique et les pools partagés ne sont pas pris en charge. Donnez des noms conviviaux aux hôtes, et autorisez les connexions FSLogix simultanées si un seul conteneur de profil sert le pool.
+**Plusieurs bureaux personnels par utilisateur** dans un même pool d'hôtes : définissez le type d'attribution sur **Direct** et enregistrez, puis sélectionnez **Attribuer plusieurs bureaux à un seul utilisateur** (type d'équilibreur de charge `MultiplePersistent` en PowerShell, qui exige le module Az.DesktopVirtualization en préversion, version 5.3.0-preview ou ultérieure). Une fois activé, il ne peut plus être désactivé ; l'attribution automatique et les pools partagés ne sont pas pris en charge. Donnez des noms conviviaux aux hôtes, et autorisez les connexions FSLogix simultanées si un seul conteneur de profil sert le pool.
 
 > **Piège d'examen.** Annuler l'attribution d'un bureau ne nettoie pas la machine virtuelle : les données de l'utilisateur précédent restent sur son disque de système d'exploitation. Réinitialisez l'image ou redéployez l'hôte de session avant de le donner à quelqu'un d'autre si les données ne doivent pas être conservées.
 

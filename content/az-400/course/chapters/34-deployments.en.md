@@ -147,7 +147,7 @@ Feature flags are created in the App Configuration store under **Operations > Fe
 | `Microsoft.TimeWindow` | Between `Start` and `End`, optionally recurring |
 | `Microsoft.Targeting` | For listed users and groups, a percentage of each group, a default percentage, with exclusions that win |
 
-`requirement_type` is `Any` by default (one passing filter is enough) or `All`. In .NET, the application loads flags with `UseFeatureFlags()` in `AddAzureAppConfiguration`, registers `AddFeatureManagement()` (`Microsoft.FeatureManagement.AspNetCore`) and tests flags with `IsEnabledAsync`, the `FeatureGate` attribute or the `feature` tag helper. Flags are refreshed every 30 seconds by default. The application reads the store with a managed identity holding **App Configuration Data Reader**.
+`requirement_type` is `Any` by default (one passing filter is enough) or `All`. In .NET, the application loads flags with `UseFeatureFlags()` in `AddAzureAppConfiguration`, registers `AddFeatureManagement()` (`Microsoft.FeatureManagement.AspNetCore`) and tests flags with `IsEnabledAsync`, the `FeatureGate` attribute or the `feature` tag helper. Without a `Select` call inside `UseFeatureFlags`, only flags with **no label** are loaded: a flag labeled per environment is loaded with `featureFlagOptions.Select("*", "<label>")`. Flags are refreshed every 30 seconds by default (`SetRefreshInterval`). The application reads the store with a managed identity holding **App Configuration Data Reader**.
 
 > **Exam trap.** Changing a flag doesn't need a pipeline run or a redeployment. If the requirement is "turn the feature off immediately without redeploying", the answer is the flag, not a slot swap.
 

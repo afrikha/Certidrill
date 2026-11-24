@@ -22,7 +22,7 @@ Paramètres choisis à la création :
 | SKU | Non modifiable après la création |
 | Niveau (tier) | **Régional** (par défaut) ou **Global**. Une adresse de niveau global est une adresse anycast utilisée par un équilibreur de charge inter-régions ; elle n'a pas de zones de disponibilité |
 | Attribution | Statique : l'adresse est allouée à la création de la ressource et n'est libérée qu'à sa suppression. Vous ne choisissez pas l'adresse, sauf à l'intérieur d'un préfixe |
-| Zone de disponibilité | Redondante interzone (par défaut dans les régions dotées de zones) ou une zone. Non modifiable après la création |
+| Zone de disponibilité | Redondante interzone (par défaut dans les régions dotées de zones ; seulement dans les régions qui ont trois zones actives) ou une zone. Dans une région sans zones de disponibilité, les adresses sont non zonales. Non modifiable après la création |
 | Préférence de routage | **Réseau Microsoft** (par défaut) : le trafic reste le plus longtemps possible sur le réseau principal de Microsoft. **Internet** : le trafic passe le moins de temps possible sur le réseau Microsoft et emprunte les réseaux des FAI de transit, pour un coût de transfert de données plus bas. Non modifiable après la création |
 | Délai d'inactivité | 4 à 30 minutes pour les flux d'origine entrante (4 par défaut) ; fixé à 4 minutes pour les flux sortants |
 | Étiquette de nom DNS | Crée `<label>.<region>.cloudapp.azure.com` ; l'étiquette doit être unique dans la région |
@@ -62,13 +62,14 @@ La préférence de routage Internet a ses propres limites : IPv4 uniquement, adr
 | Passerelle NAT | Adresses IP sortantes | Adresses et préfixes dans n'importe quelle combinaison, 16 adresses au maximum ; une passerelle NAT StandardV2 n'accepte que des adresses et des préfixes StandardV2 |
 | Pare-feu Azure | Une configuration IP | Au moins une adresse ; jusqu'à 250 dans un réseau virtuel. Un préfixe ne peut pas être attaché, mais des adresses créées à partir d'un préfixe le peuvent |
 | Application Gateway | Une configuration IP frontale | Une adresse Standard statique |
-| Passerelle VPN | Une configuration IP de passerelle | Une adresse Standard statique, et une seconde en mode actif-actif ; un préfixe ne peut pas être attaché |
+| Passerelle VPN | Une configuration IP de passerelle | Une adresse Standard statique, redondante interzone (les nouvelles passerelles de tous les SKU sauf Basic sont redondantes interzone), et une seconde en mode actif-actif ; un préfixe ne peut pas être attaché |
 | Azure Bastion | La configuration IP publique de l'hôte | Non modifiable après la création. Inutilisée par le SKU Developer et par un déploiement en mode privé uniquement (private-only) |
 | Azure Route Server | Une configuration IP frontale | Une adresse Standard statique |
 
 Règles valables pour toute association :
 
 - Même région et même abonnement pour l'adresse et la ressource.
+- Déplacer une adresse Standard : vers un autre groupe de ressources même quand elle est attachée (sauf à une passerelle de réseau virtuel), vers un autre abonnement seulement une fois détachée de toute ressource, jamais vers une autre région.
 - Une adresse est associée à une seule ressource à la fois. Dissociez-la avant de la réutiliser ou de la supprimer ; une adresse supprimée ne se récupère pas.
 - Une adresse zonale partage le sort de sa zone. Donnez une adresse redondante interzone à une ressource redondante interzone.
 

@@ -234,7 +234,7 @@ Measure-VMReplication -VMName VM1
 | Planned | Primary, then replica | Shut down the primary VM, `Start-VMFailover -Prepare` on the primary, `Start-VMFailover` on the replica, `Set-VMReplication -Reverse`, `Start-VM` | None |
 | Unplanned | Replica host | `Start-VMFailover`, `Start-VM`, then `Complete-VMFailover` (merges the recovery points). Later, `Set-VMReplication -AsReplica` on the old primary and reverse replication | Possible |
 
-To give the VM another IP address on the recovery site, configure **static IP injection** on the replica VM (`Set-VMNetworkAdapterFailoverConfiguration`), applied by the Key-Value Pair Exchange integration service.
+To give the VM another IP address on the recovery site, configure **static IP injection** on the replica VM after replication is enabled (`Set-VMNetworkAdapterFailoverConfiguration`, run on the replica host), applied by the Key-Value Pair Exchange integration service. It requires synthetic network adapters (not legacy adapters) and current integration services in the guest.
 
 > **Exam trap.** Hyper-V Replica isn't high availability: nothing fails over automatically. A cluster restarts VMs automatically on the same site; Replica requires a failover action that you start.
 

@@ -9,9 +9,9 @@ La Corbeille Active Directory restaure un objet supprimé avec **tous ses attrib
 | --- | --- |
 | Prérequis | Niveau fonctionnel de la forêt et du domaine Windows Server 2008 R2 ou supérieur ; Domain Admins du domaine cible |
 | État par défaut | Désactivée ; l'activation est **irréversible** |
-| Portée | Seulement les objets supprimés **après** son activation |
+| Étendue | Seulement les objets supprimés **après** son activation |
 | Activation exécutée sur | Le DC qui détient le rôle de **maître d'attribution de noms de domaine** |
-| Durée de vie des objets supprimés | `msDS-DeletedObjectLifetime` ; si non défini, la valeur de `tombstoneLifetime` (180 jours si non défini) |
+| Durée de vie des objets supprimés | `msDS-DeletedObjectLifetime` ; par défaut, la valeur de `tombstoneLifetime` : 180 jours dans les forêts créées avec Windows Server 2003 SP1 ou version ultérieure ; 60 jours (valeur interne) si l'attribut n'est pas défini, dans les forêts mises à niveau depuis Windows 2000 ou installées avec Windows Server 2003 sans service pack |
 
 Un objet supprimé reste dans le conteneur **Deleted Objects**, restaurable avec tous ses attributs, pendant la durée de vie des objets supprimés. Il devient ensuite un objet recyclé que la Corbeille ne peut pas restaurer, puis le garbage collection (toutes les 12 heures) le supprime.
 
@@ -60,7 +60,7 @@ bcdedit /deletevalue safeboot
 shutdown /r /t 0
 ```
 
-`restore object` marque un objet, `restore subtree` un objet et tous ses enfants. Les versions de leurs attributs augmentent de **100 000 par jour écoulé depuis la sauvegarde**, pour qu'ils l'emportent sur chaque partenaire (`verinc` remplace cette valeur, uniquement pour restaurer par-dessus une restauration faisant autorité incorrecte). Ntdsutil écrit aussi un **fichier LDIF** qui restaure les liens arrière, comme les appartenances aux groupes d'autres domaines.
+`restore object` marque un objet, `restore subtree` un objet et tous ses enfants. Les versions de leurs attributs augmentent de **100 000 par jour écoulé depuis la sauvegarde**, pour qu'ils l'emportent sur chaque partenaire (`verinc` remplace cette valeur, uniquement pour restaurer par-dessus une restauration faisant autorité incorrecte). Ntdsutil écrit aussi un fichier texte des noms uniques restaurés et un **fichier LDIF** qui restaure les liens arrière, comme les appartenances aux groupes des utilisateurs restaurés. Pour les groupes d'un autre domaine, `create ldif file(s) from` ce fichier texte crée le fichier LDIF des mises à jour de liens pour ce domaine.
 
 > **Piège d'examen.** Ne redémarrez pas en mode normal entre la restauration de l'état du système et la restauration faisant autorité : la suppression répliquée depuis les autres DC écraserait les objets restaurés.
 
@@ -145,7 +145,7 @@ Les clients localisent les DC grâce aux enregistrements DNS SRV inscrits par **
 | Inscription DNS pour AD | `dcdiag /test:dns` |
 | Quel DC, émulateur PDC ou catalogue global un client trouve | `nltest /dsgetdc:contoso.com` avec `/pdc` ou `/gc` |
 | Réinscrire les enregistrements DNS d'un DC | `nltest /dsregdns`, ou `ipconfig /registerdns` et redémarrage de Netlogon |
-| Supprimer un DC qui n'existe plus | Nettoyage des métadonnées : supprimez ses NTDS Settings dans Sites et services, ou `ntdsutil` `metadata cleanup` |
+| Supprimer un DC qui n'existe plus | Nettoyage des métadonnées : supprimez son objet ordinateur dans Utilisateurs et ordinateurs Active Directory ou ses NTDS Settings dans Sites et services (ses rôles FSMO passent au DC affiché ; déplacez-les ensuite si nécessaire), ou `ntdsutil` `metadata cleanup` |
 | Vérifier la base | `ntdsutil` `semantic database analysis` |
 
 ```text
@@ -168,7 +168,7 @@ Kerberos exige des horloges à moins de **5 minutes** d'écart, une résolution 
 | `KRB_AP_ERR_SKEW` | Écart d'horloge supérieur à 5 minutes : les membres se synchronisent sur les DC, les DC sur l'émulateur PDC de leur domaine, l'émulateur PDC du domaine racine de la forêt sur une source externe |
 | `KDC_ERR_S_PRINCIPAL_UNKNOWN` | SPN sur aucun compte : `setspn -S` sur le compte de service |
 | `KDC_ERR_PRINCIPAL_NOT_UNIQUE` | SPN sur plusieurs comptes : trouvez-le avec `setspn -X`, supprimez le doublon |
-| `KRB_AP_ERR_MODIFIED` | Le service ne peut pas déchiffrer le ticket (SPN sur le mauvais compte, nom DNS pointant vers le mauvais serveur) |
+| `KRB_AP_ERR_MODIFIED` | Le ticket de service n'a pas pu être déchiffré. Plusieurs causes possibles, consultez donc les événements associés : horloges désynchronisées, SPN non unique ou (plusieurs domaines) nom de compte de service non unique dans la forêt |
 | L'accès par adresse IP n'utilise que NTLM | Aucun SPN ne correspond à une adresse IP : utilisez le nom DNS |
 
 ```powershell

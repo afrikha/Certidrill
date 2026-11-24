@@ -24,7 +24,7 @@ Monitoring Azure Virtual Desktop combines two data sources in Log Analytics: the
 | Session Host Management Activity | Management activity on session hosts |
 | Autoscale | Scaling operations |
 
-For Insights, the host pool needs Management Activities, Feed, Connections, Errors, Checkpoints, HostRegistration and AgentHealthStatus; the workspace needs Management Activities, Feed, Errors and Checkpoints. An application group offers Checkpoints, Errors and Management.
+For Insights, the host pool needs Management Activities, Feed, Connections, Errors, Checkpoints, HostRegistration and AgentHealthStatus; the workspace needs Management Activities, Feed, Errors and Checkpoints. An application group offers Checkpoints, Errors and Management. To monitor autoscale in Insights (pooled host pools only), also send **Autoscale logs for pooled host pools** from the host pool (table `WVDAutoscaleEvaluationPooled`). The **scaling plan** has its own diagnostic setting (*Autoscale logs*) toward a storage account or Event Hubs, which is the option for personal host pools.
 
 A connection reports three states: **Started** (the user selects a resource in the client), **Connected** (the session is established on the host) and **Completed** (disconnected). In `WVDErrors`, `ServiceError` = `false` means an administrator can usually fix the cause; `true` means an issue to escalate to Microsoft with the *CorrelationId*.
 
@@ -40,13 +40,13 @@ Events
 ```
 
 ```kusto
-// How many users hit the same error
+// Whether a specific error occurred for other users
 WVDErrors
 | where CodeSymbolic == "ErrorSymbolicCode"
 | summarize count(UserName) by CodeSymbolic
 ```
 
-**Session host data.** The Log Analytics agent is retired: use the **Azure Monitor Agent** (a VM extension), which needs a **system-assigned managed identity** on the VM, and a DCR that defines the counters, the event logs and the destination workspace, associated with each session host. Microsoft recommends a **designated workspace** for session host data so that only Azure Virtual Desktop data is collected; it can differ from the workspace of the diagnostic settings. Log data appears with up to about 15 minutes of latency.
+**Session host data.** The Log Analytics agent is retired: use the **Azure Monitor Agent** (a VM extension), which needs a **system-assigned managed identity** on the VM, and a DCR that defines the counters, the event logs and the destination workspace, associated with each session host. Microsoft recommends a **designated workspace** for session host data so that only Azure Virtual Desktop data is collected; it can differ from the workspace of the diagnostic settings. Azure Monitor populates log data with a latency of about 15 minutes, and after the first setup of diagnostics, data can take a few hours to appear.
 
 > **Exam trap.** Diagnostic settings never collect CPU or memory from the session hosts, and the Azure Monitor Agent never collects connection or feed events: a question about "why users can't see their apps" needs the **Feed** category of the **workspace**, while "which host has high input delay" needs **performance counters** through a DCR.
 
@@ -155,7 +155,7 @@ Example: 2 hosts × 20 sessions = 40 sessions of capacity. With a 75 % threshold
 
 **Personal host pools.** For each phase: start assigned VMs, assigned and unassigned VMs, or none at the start time; **Start VM on Connect** (strongly recommended if VMs aren't started at ramp-up); and actions after a disconnection or a sign-out (0–360 minutes): **deallocate**, **hibernate** or nothing. Hibernation isn't supported with FSLogix or App attach.
 
-**Scaling methods for pooled host pools:** **power management** autoscaling starts and stops existing hosts; **dynamic** autoscaling (preview) also creates and deletes hosts, and requires a host pool with a **session host configuration**.
+**Scaling methods for pooled host pools:** **power management** autoscaling starts and stops existing hosts; **dynamic** autoscaling (preview) also creates and deletes hosts, and requires a host pool with a **session host configuration** and, in addition to Power On Off Contributor, the **Desktop Virtualization Virtual Machine Contributor** role for the Azure Virtual Desktop service principal at subscription scope.
 
 To reduce used capacity, sign out disconnected sessions with the policy *Set time limit for disconnected sessions* (*Remote Desktop Session Host > Session Time Limits*) through Intune or Group Policy.
 

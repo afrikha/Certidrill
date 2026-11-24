@@ -54,6 +54,8 @@ Les ressources cibles qu'utilisent les scénarios de la SC-500 :
 | Authentification renforcée pour une activation PIM ou un site SharePoint sensible | Un **contexte d'authentification**, publié pour les applications |
 | Contrôler où les utilisateurs inscrivent leurs méthodes MFA | Action utilisateur **Register security information** |
 
+Windows Azure Service Management API couvre aussi le centre d'administration Microsoft Entra (au travers du portail Azure), mais ne couvre plus Azure DevOps. Depuis le 6 juillet 2026, les stratégies qui ciblent **Register security information** s'appliquent aussi quand les utilisateurs inscrivent des informations d'identification Windows Hello for Business et macOS Platform SSO.
+
 Les états d'une stratégie sont **Report-only** (rapport uniquement), **On** et **Off**. Le mode rapport uniquement évalue sans appliquer ; les journaux de connexion affichent *Report-only: Success*, *Failure*, *User action required* ou *Not applied*, et le classeur Conditional Access insights and reporting exige un espace de travail Log Analytics qui reçoit les journaux de connexion. Quand plusieurs stratégies s'appliquent, toutes doivent être satisfaites, et un blocage l'emporte.
 
 Depuis octobre 2024 (portails) et le 1er octobre 2025 (Azure CLI, Azure PowerShell, outils IaC, API REST ; opérations de lecture exclues), Azure impose la **MFA obligatoire** aux comptes d'utilisateurs. Les identités de charge de travail ne sont pas concernées : faites passer l'automatisation sur des identités managées ou des principaux de service.
@@ -119,7 +121,7 @@ Rôles : **Application Administrator** et **Cloud Application Administrator** g�
 | Déléguée (étendue) | L'utilisateur connecté, dans la limite de ce qu'il peut faire | L'utilisateur, si le locataire l'autorise et que l'autorisation n'exige pas le consentement administrateur ; ou un administrateur pour tous les utilisateurs |
 | Application (rôle d'application) | L'application elle-même, sans utilisateur | Un administrateur uniquement |
 
-**Paramètres de consentement de l'utilisateur** (**Enterprise apps > Consent and permissions > User consent settings**), définis par un Privileged Role Administrator :
+**Paramètres de consentement de l'utilisateur** (**Enterprise apps > Consent and permissions > User consent settings**), définis par un Privileged Role Administrator avec Microsoft Graph ou Microsoft Graph PowerShell ; dans le centre d'administration Microsoft Entra, un Global Administrator est nécessaire :
 
 | Paramètre | Effet |
 | --- | --- |
@@ -128,7 +130,7 @@ Rôles : **Application Administrator** et **Cloud Application Administrator** g�
 | Allow user consent for apps | Toute autorisation qui n'exige pas le consentement administrateur (ancien mode, `microsoft-user-default-legacy`) |
 
 - Les **classifications d'autorisations** (**Consent and permissions > Permission classifications**) marquent comme Low (Medium et High en préversion) des autorisations déléguées qui n'exigent pas le consentement administrateur. Elles sont définies par un Cloud Application Administrator ou un Application Administrator.
-- Le **flux de travail de consentement administrateur** (**Admin consent settings** : *Users can request admin consent to apps they are unable to consent to* = Yes, réviseurs, notifications par e-mail, expiration en jours) permet à un utilisateur bloqué d'envoyer une demande au lieu de rester sans issue. L'activer exige un Global Administrator ; les réviseurs traitent les demandes depuis **My Pending**.
+- Le **flux de travail de consentement administrateur** (**Admin consent settings** : *Users can request admin consent to apps they are unable to consent to* = Yes, réviseurs, notifications par e-mail, expiration en jours) permet à un utilisateur bloqué d'envoyer une demande au lieu de rester sans issue. L'activer exige un Global Administrator ; les réviseurs traitent les demandes depuis **My Pending**. Dans le flux de travail, seuls les Global Administrators peuvent approuver les demandes d'autorisations d'application Microsoft Graph.
 
 Qui peut accorder le consentement administrateur pour tout le locataire (**Enterprise apps >** application **> Permissions > Grant admin consent**, ou **App registrations > API permissions**) :
 
@@ -172,7 +174,7 @@ az role assignment create --assignee-object-id <principal id> \
 
 - Les identités managées ne fonctionnent pas entre locataires. Déplacer un abonnement vers un autre annuaire oblige à les recréer, ainsi que leurs attributions de rôles.
 - Les jetons sont mis en cache environ 24 heures : un changement d'autorisation peut mettre des heures à s'appliquer.
-- Une identité affectée par l'utilisateur peut aussi porter des informations d'identification fédérées (par exemple pour faire confiance à GitHub Actions).
+- Une identité affectée par l'utilisateur peut aussi porter des informations d'identification fédérées (par exemple pour approuver GitHub Actions).
 
 <!-- section: key-points -->
 ## Points clés
@@ -181,5 +183,5 @@ az role assignment create --assignee-object-id <principal id> \
 - L'accès conditionnel exige P1 (conditions de risque : P2) ; passez d'abord par le mode rapport uniquement, excluez les comptes d'urgence, ciblez Windows Azure Service Management API pour protéger la gestion d'Azure.
 - Gérez les méthodes dans la stratégie des méthodes d'authentification ; exigez des méthodes précises avec les forces d'authentification ; le TAP permet d'inscrire des utilisateurs sans mot de passe.
 - Inscription d'application = objet application ; application d'entreprise = principal de service. Préférez les certificats, mieux les informations d'identification fédérées, au mieux les identités managées.
-- Limitez le consentement de l'utilisateur aux éditeurs vérifiés et aux autorisations à faible impact, et activez le flux de travail de consentement administrateur. Seul un Privileged Role Administrator accorde des autorisations d'application Microsoft Graph.
+- Limitez le consentement de l'utilisateur aux éditeurs vérifiés et aux autorisations à faible impact, et activez le flux de travail de consentement administrateur. Privileged Role Administrator, et non les rôles d'administration des applications, accorde des autorisations d'application Microsoft Graph ; dans le flux de travail de consentement administrateur, seul un Global Administrator les approuve.
 - L'identité affectée par le système disparaît avec sa ressource ; celle affectée par l'utilisateur se partage. Managed Identity Operator attribue, Managed Identity Contributor crée.

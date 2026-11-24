@@ -30,7 +30,7 @@ L'**accès sortant par défaut** (une adresse IP implicite, détenue par Microso
 | Inspecter de façon centralisée le trafic entrant non HTTP | Règle DNAT du Pare-feu Azure |
 | Administrer des machines virtuelles en RDP ou SSH sans leur donner d'adresse IP publique | Azure Bastion |
 
-Références SKU d'Azure Bastion : **Developer** (partagé, une connexion à la fois, pas de réseaux virtuels appairés, pas pour la production), **Basic** (dédié, atteint les réseaux virtuels appairés), **Standard** (client natif, liens partageables, mise à l'échelle des hôtes) et **Premium** (enregistrement de session, déploiement privé uniquement).
+Références SKU d'Azure Bastion : **Developer** (partagé, une connexion à la fois, pas de réseaux virtuels en peering, pas pour la production), **Basic** (dédié, atteint les réseaux virtuels en peering), **Standard** (client natif, liens partageables, mise à l'échelle des hôtes) et **Premium** (enregistrement de session, indisponible avec le client natif ; déploiement privé uniquement, choisi au déploiement, sans adresse IP publique : les clients locaux ont besoin d'ExpressRoute ou d'un VPN et de la connexion basée sur l'IP). Learn désigne Premium comme le choix recommandé pour les déploiements de production.
 
 <!-- section: on-premises-connectivity | objectives: 4.4.2 -->
 ## Connecter Azure aux réseaux locaux
@@ -40,7 +40,7 @@ Références SKU d'Azure Bastion : **Developer** (partagé, une connexion à la 
 | VPN de site à site (passerelle VPN) | Tunnel IPsec/IKE sur l'Internet public | Il faut une liaison chiffrée à faible coût, rapide à déployer ; la latence d'Internet est acceptable |
 | VPN de point à site | OpenVPN, IKEv2 ou SSTP depuis des appareils individuels | Utilisateurs distants. L'authentification Microsoft Entra ID, avec accès conditionnel et authentification multifacteur (MFA), exige OpenVPN |
 | ExpressRoute | Connexion privée par un fournisseur de connectivité ; ne passe jamais par l'Internet public | Latence constante, de 50 Mbit/s à 10 Gbit/s, gros transferts de données, ou règle interdisant le transit par Internet |
-| ExpressRoute Direct | Ports dédiés de 10, 100 ou 400 Gbit/s sur le réseau Microsoft | Ingestion massive, chiffrement MACsec, isolation physique |
+| ExpressRoute Direct | Ports dédiés de 10, 100 ou 400 Gbit/s sur le réseau Microsoft (400 Gbit/s : emplacements de peering limités, inscription obligatoire) | Ingestion massive, chiffrement MACsec, isolation physique |
 | Azure Virtual WAN | Hubs gérés par Microsoft qui réunissent VPN, ExpressRoute et réseaux virtuels | Nombreux sites ou régions, transit entre tous, effort d'administration minimal |
 
 Ce qu'il faut savoir pour concevoir avec ExpressRoute :
@@ -122,7 +122,7 @@ Accès privé aux services PaaS :
 | --- | --- | --- |
 | Adresse du service | Son adresse IP publique | Une adresse IP privée de votre réseau virtuel |
 | Accès depuis le réseau local par VPN ou ExpressRoute | Non | Oui |
-| Portée | Tout le service, autorisé par sous-réseau | Une instance de ressource |
+| Étendue | Tout le service, autorisé par sous-réseau | Une instance de ressource |
 | Protection contre l'exfiltration de données | Non | Oui |
 | Modifications DNS | Aucune | Requises (zone DNS privée) |
 | Coût | Gratuit | Facturé |
@@ -138,7 +138,7 @@ Niveaux DDoS : **protection de l'infrastructure** (gratuite, toujours active, to
 
 Deux questions décident : le trafic est-il HTTP(S), et l'application est-elle dans une région ou dans plusieurs ?
 
-| Portée | HTTP(S), couche 7 | Non-HTTP(S), couche 4 ou DNS |
+| Étendue | HTTP(S), couche 7 | Non-HTTP(S), couche 4 ou DNS |
 | --- | --- | --- |
 | Global | Azure Front Door | Traffic Manager, ou le niveau global d'Azure Load Balancer |
 | Régional | Application Gateway | Azure Load Balancer |
@@ -157,9 +157,9 @@ Méthodes de routage de Traffic Manager (une par profil ; combinez-les avec des 
 | --- | --- |
 | Priority | Basculement actif/passif vers une région secondaire |
 | Weighted | Migration progressive ou répartition du trafic |
-| Performance | Chaque utilisateur va vers le point de terminaison à la latence la plus faible |
+| Performance | Chaque utilisateur va vers le point de terminaison à la latence la plus faible, mesurée depuis son résolveur DNS récursif et non depuis le client |
 | Geographic | Souveraineté des données : le point de terminaison dépend de l'origine de la requête DNS |
-| MultiValue | Renvoyer plusieurs points de terminaison sains dans une même réponse DNS |
+| MultiValue | Renvoyer plusieurs points de terminaison sains dans une même réponse DNS ; chaque point de terminaison doit être de type External et indiqué par une adresse IPv4 ou IPv6 |
 | Subnet | Associer des plages d'adresses IP clientes à des points de terminaison précis |
 
 Azure Front Door **Premium** ajoute ce qui manque à Standard : Private Link vers les origines, ensembles de règles WAF gérés par Microsoft et protection contre les bots.

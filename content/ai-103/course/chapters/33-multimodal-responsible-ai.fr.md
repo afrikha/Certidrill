@@ -68,7 +68,7 @@ Un modèle multimodal lit le texte présent dans les images. Un attaquant peut c
 | Attaque par invite utilisateur (jailbreak) | Le message de l'utilisateur | Entrée utilisateur |
 | Attaque par document (indirecte) | Documents, e-mails, pages web, et pour les agents les réponses d'outils (préversion) | Les `documents` transmis avec la requête |
 
-Les sous-types d'attaques par document comprennent le contenu manipulé, l'accès aux systèmes, la collecte d'informations, les attaques de disponibilité, la fraude, les logiciels malveillants et les tentatives de modifier les règles du système. L'API autonome analyse un `userPrompt` et jusqu'à cinq `documents`, et renvoie `attackDetected` pour l'invite et pour chaque document. Dans les garde-fous Foundry, chaque contrôle renvoie `detected` et `filtered`, et peut bloquer ou annoter.
+Les sous-types d'attaques par document comprennent le contenu manipulé, l'accès aux systèmes, la collecte d'informations, les attaques de disponibilité, la fraude, les logiciels malveillants et les tentatives de modifier les règles du système. L'API autonome analyse un `userPrompt` et jusqu'à cinq `documents`, et renvoie `attackDetected` pour l'invite et pour chaque document. Dans les garde-fous Foundry, chaque contrôle renvoie `detected` et `filtered`, et son action est **Annotate** (modèles uniquement) ou **Annotate and block** (modèles et agents). La détection des attaques par invite utilisateur est activée par défaut ; celle des attaques par document est désactivée tant que vous ne l'activez pas.
 
 Prompt Shields analyse du **texte**. Une défense pour les images comporte donc ces étapes :
 
@@ -78,24 +78,24 @@ Prompt Shields analyse du **texte**. Une défense pour les images comporte donc 
 4. **Contraindre le modèle** : des instructions qui précisent que le texte présent dans les images est une donnée à décrire, jamais une instruction à suivre.
 5. **Limiter l'impact** : des outils à privilèges minimaux pour les agents, et une approbation humaine avant toute action lourde de conséquences (paiement, suppression, e-mail).
 
-Le **spotlighting** (préversion, désactivé par défaut) renforce la défense contre les attaques par document : le service encode le contenu des documents en base-64 pour que le modèle le considère comme moins fiable que les invites de l'utilisateur et du système. Il augmente le nombre de jetons des documents, peut faire dépasser les limites d'entrée aux documents volumineux, et n'est disponible que pour les modèles utilisés via l'API Chat Completions. Activez-le avec le bouton Spotlighting du contrôle d'attaque par document, ou `"spotlighting_enabled": true`.
+Le **spotlighting** (préversion, désactivé par défaut) renforce la défense contre les attaques par document : le service encode le contenu des documents en base-64 pour que le modèle le considère comme moins fiable que les invites de l'utilisateur et du système. Il augmente le nombre de jetons des documents, peut faire dépasser les limites d'entrée aux documents volumineux, et n'est disponible que pour les modèles utilisés via l'API Chat Completions (pas pour les agents). Activez-le avec le bouton Spotlighting du contrôle d'attaque par document, ou `"spotlighting_enabled": true`.
 
 > **Piège d'examen.** La protection contre les attaques par invite utilisateur inspecte ce que tape l'utilisateur. Le texte incorporé dans une image chargée est un contenu tiers : c'est une **attaque par document**, interceptée seulement si le texte extrait est transmis comme document.
 
 <!-- section: visual-policy | objectives: 3.3.3 -->
 ## Appliquer des règles de stratégie visuelle
 
-**Filigranes et provenance.** Toutes les images générées par Azure OpenAI dans Foundry Models (DALL-E et la série GPT-image-1) incluent automatiquement des **Content Credentials**, fondés sur la spécification ouverte C2PA (Coalition for Content Provenance and Authenticity). Le manifeste est attaché à l'image et signé de manière chiffrée par un certificat qui remonte à Azure OpenAI :
+**Filigranes et provenance.** Toutes les images générées par Azure OpenAI dans Foundry Models incluent automatiquement des **Content Credentials** (Learn cite la série DALL-E, retirée depuis le 4 mars 2026, et la série GPT-image-1), fondés sur la spécification ouverte C2PA (Coalition for Content Provenance and Authenticity). Le manifeste est attaché à l'image et signé de manière chiffrée par un certificat qui remonte à Azure OpenAI :
 
 | Champ du manifeste | Valeur |
 | --- | --- |
 | `description` | `"AI Generated Image"` |
-| `softwareAgent` | `"Azure OpenAI DALL-E"` ou `"Azure OpenAI ImageGen"` |
+| `softwareAgent` | `"Azure OpenAI DALL-E"` (série DALL-E) ou `"Azure OpenAI ImageGen"` (série GPT-image-1) |
 | `when` | Date de création des Content Credentials |
 
 Chacun peut les inspecter avec Content Credentials Verify (contentcredentials.org/verify) ou les outils open source de la Content Authenticity Initiative. Un filigrane **visible** ou une mention « Généré par l'IA » n'est pas un paramètre de la plateforme : l'application l'ajoute après la génération, avant publication.
 
-**Symboles interdits, règles de marque et contenu potentiellement inapproprié.** Aucun interrupteur unique n'applique la stratégie visuelle d'une entreprise ; vous combinez des contrôles :
+**Symboles interdits, règles de marque et contenu potentiellement inapproprié.** Les stratégies de garde-fou par défaut ajoutent déjà des contrôles côté invite : identification des personnes et déduction d'attributs sensibles pour les modèles de conversation compatibles avec la vision ; représentations de personnalités publiques, génération trompeuse de candidats politiques, matériel protégé (œuvres d'art et personnages de studio) et grossièretés pour les modèles de génération d'images. Aucun interrupteur unique n'applique la stratégie visuelle d'une entreprise ; vous combinez des contrôles :
 
 | Stratégie | Contrôle |
 | --- | --- |
@@ -130,7 +130,7 @@ Chacun peut les inspecter avec Content Credentials Verify (contentcredentials.or
 }
 ```
 
-Une valeur `Uncertain`, ou toute règle non respectée, part chez un relecteur humain au lieu d'être publiée automatiquement. Content Understanding hérite des garde-fous des déploiements de modèles Foundry qu'il utilise : le contenu préjudiciable est donc aussi filtré pendant l'analyse.
+Une valeur `Uncertain`, ou toute règle non respectée, part chez un relecteur humain au lieu d'être publiée automatiquement. Les garde-fous s'appliquent aussi pendant l'analyse Content Understanding : ils peuvent restreindre la génération de champs tout en conservant le contenu extrait, si bien qu'une analyse peut réussir avec des avertissements et sans certaines valeurs de champs. Examinez les avertissements avant toute décision automatisée.
 
 > **Conseil d'examen.** Repérez le verbe : « détecter des images préjudiciables » mène à Content Safety ou aux garde-fous ; « prouver qu'une image a été générée par l'IA » mène aux Content Credentials ; « vérifier nos propres règles de marque » mène à un analyseur personnalisé ou à une invite multimodale avec revue humaine.
 
@@ -141,6 +141,6 @@ Une valeur `Uncertain`, ou toute règle non respectée, part chez un relecteur h
 - Analyze Image de Content Safety modère les images en dehors d'un appel de modèle : gravités 0, 2, 4, 6 seulement ; 4 Mo au plus.
 - Une génération d'image bloquée renvoie `contentFilter` ; une invite de conversation bloquée renvoie HTTP 400 `content_filter`.
 - Le texte d'une image est une attaque indirecte potentielle : l'extraire, le transmettre à Prompt Shields comme document, et empêcher le modèle d'y obéir.
-- Spotlighting : préversion, désactivé par défaut, Chat Completions uniquement, plus de jetons.
+- Spotlighting : préversion, désactivé par défaut, modèles via Chat Completions uniquement (pas les agents), plus de jetons. La détection des attaques par document est désactivée par défaut.
 - Les images générées portent des Content Credentials C2PA (« AI Generated Image ») ; les filigranes visibles sont ajoutés par l'application.
 - Règles de marque et symboles interdits : champs `classify` ou invite multimodale, avec revue humaine des résultats incertains.

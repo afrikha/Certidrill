@@ -52,7 +52,7 @@ The Migrate methodology of the Adopt phase has five steps: plan the migration, p
 | Setting | Effect |
 | --- | --- |
 | Performance-based sizing | Sizes the target from the collected CPU, memory and disk utilization: avoids paying for oversized servers |
-| As on-premises sizing | Keeps the current allocation: use it when no performance history exists |
+| As-is on-premises sizing | Keeps the current allocation: use it when no performance history exists; web apps are always assessed this way, because the appliance collects no performance data for them |
 | Percentile utilization | The percentile of the samples used, 95th for example to ignore outliers |
 | Comfort factor | A multiplier that adds a buffer for seasonal peaks or growth: 2.0 doubles the computed size |
 
@@ -60,7 +60,7 @@ The Migrate methodology of the Adopt phase has five steps: plan the migration, p
 
 For SQL Server, an estate connected through Azure Arc can also be assessed from the Azure portal, with a recommended Azure SQL target and size. Data Migration Assistant was retired in July 2025.
 
-> **Exam trap.** A server sized "as on-premises" reproduces its over-provisioning in Azure. When the question says "minimize Azure costs" and the servers are underused, the answer is a performance-based assessment, after enough days of data collection.
+> **Exam trap.** A server sized "as-is on-premises" reproduces its over-provisioning in Azure. When the question says "minimize Azure costs" and the servers are underused, the answer is a performance-based assessment, after enough days of data collection.
 
 > **Exam tip.** "Identify which servers must be migrated together" is dependency analysis; "estimate the savings to justify the project" is the business case; "check whether the servers can run in Azure and at what size" is an assessment.
 
@@ -104,7 +104,7 @@ Then choose the tool, from the accepted downtime. An **offline** migration stops
 
 | Tool | Targets | Use |
 | --- | --- | --- |
-| Azure Database Migration Service | SQL Database (offline); SQL Managed Instance and SQL Server on Azure VMs (online or offline) | Managed service for migrations at scale, driven from the portal, PowerShell or the Azure CLI |
+| Azure Database Migration Service | SQL Database (offline); SQL Managed Instance and SQL Server on Azure VMs (online or offline) | Managed service for migrations at scale, driven from the portal, PowerShell or the Azure CLI; it migrates no logins and no TDE-encrypted databases |
 | Managed Instance link | SQL Managed Instance, from SQL Server 2016 or later | Near real-time replication through a distributed availability group: the online migration with the least downtime; the instance is readable during the migration |
 | Log Replay Service | SQL Managed Instance | Restores full, differential and log backups from Blob Storage until you cut over |
 | Native backup and restore from Blob Storage | SQL Managed Instance, SQL Server on Azure VMs | Simplest when a downtime window is accepted |
@@ -135,7 +135,7 @@ The method follows the volume of data, the available bandwidth and whether the t
 
 Data Box Heavy has been retired; several Data Box devices can be ordered for larger volumes. Data on a Data Box is encrypted with AES 256-bit, and the device is wiped after the upload.
 
-**Azure Storage Mover** is a fully managed migration service: one resource in Azure tracks the projects, and an agent deployed near the source copies files directly to blob containers or Azure file shares while preserving folder structure, timestamps and permissions. It combines with Data Box: the device carries the bulk offline, then Storage Mover uploads only the changes made since.
+**Azure Storage Mover** is a fully managed migration service: one resource in Azure tracks the projects. In an agent-based migration, an agent deployed near the source copies files directly to blob containers or Azure file shares while preserving folder structure, timestamps and permissions. Agentless migrations need no agent: from SMB shares (private connectivity to the share, credentials in Azure Key Vault), from NFS shares (preview) and from cloud sources such as AWS S3. It combines with Data Box: the device carries the bulk offline, then Storage Mover uploads only the changes made since.
 
 **Azure File Sync** synchronizes Windows file servers with Azure file shares. Used as a migration tool, it uploads in the background while users keep working; with cloud tiering, only the frequently used files stay on the server. For a cloud-only target, Robocopy to a mounted Azure file share and Storage Mover preserve full file fidelity; AzCopy and Storage Explorer may lose permissions on Azure Files.
 

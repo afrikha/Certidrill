@@ -139,11 +139,11 @@ La **Security overview** d'Azure DevOps comporte trois onglets :
 | Coverage | L'activation de chaque fonctionnalité pour chaque dépôt (dépôts désactivés et supprimés exclus) |
 | Alerts | Les alertes individuelles d'analyse du code, d'analyse des dépendances et d'analyse des secrets, filtrées par outil, gravité, état, projet et dépôt |
 
-Risk et Coverage s'exportent en CSV ; l'onglet Alerts exporte les 1 000 premières alertes qui correspondent aux filtres. Advanced Security pour Azure DevOps est vendu sous la forme de deux produits, **GitHub Secret Protection for Azure DevOps** (protection push et alertes d'analyse des secrets) et **GitHub Code Security for Azure DevOps** (alertes de dépendances, analyse du code CodeQL et résultats d'outils tiers), facturés selon les committers actifs et activés par dépôt, par projet ou pour l'organisation.
+Risk et Coverage s'exportent en CSV ; l'onglet Alerts exporte les 1 000 premières alertes qui correspondent aux filtres. Les métriques agrégées au niveau de l'organisation des onglets Risk et Coverage sont en préversion privée : leur disponibilité varie selon l'organisation. Advanced Security pour Azure DevOps est vendu sous la forme de deux produits, **GitHub Secret Protection for Azure DevOps** (protection push et alertes d'analyse des secrets) et **GitHub Code Security for Azure DevOps** (alertes de dépendances, analyse du code CodeQL et résultats d'outils tiers), facturés selon les committers actifs et activés par dépôt, par projet ou pour l'organisation.
 
 La **sécurité DevOps de Defender for Cloud** fournit aux équipes de sécurité les résultats d'analyse par gravité et par type (code, secrets, dépendances, infrastructure as code), des recommandations de posture DevOps, la couverture Advanced Security et un inventaire des dépôts connectés, avec un classeur DevOps personnalisable. Les annotations de pull request sont disponibles pour les dépôts Azure DevOps.
 
-> **Piège d'examen.** La vue d'ensemble de la sécurité d'Azure DevOps ne compte que les alertes de la **branche par défaut**, et la couverture ne s'active qu'après la soumission d'un résultat d'analyse. Un dépôt dont la dernière analyse a porté sur une branche de fonctionnalité n'affiche aucun risque.
+> **Piège d'examen.** La vue d'ensemble de la sécurité d'Azure DevOps ne compte que les alertes de la **branche par défaut** : les alertes trouvées uniquement sur une branche de fonctionnalité n'apparaissent pas dans Risk. La couverture ne s'active qu'après la soumission d'un résultat d'analyse, mais une analyse réussie sur **n'importe quelle** branche suffit, et l'ancienneté de l'analyse n'est pas prise en compte.
 
 <!-- section: delivery-metrics | objectives: 1.2.6 -->
 ## Métriques et requêtes pour la livraison
@@ -190,5 +190,5 @@ Les chapitres sur l'instrumentation détaillent la collecte de télémétrie, le
 - Les graphiques de requête exigent une requête en liste plate de 1 000 éléments ou moins ; `ASOF` en WIQL interroge le passé ; OData sur Analytics agrège.
 - Analytics est quasi temps réel (jusqu'à environ 30 secondes), activé par défaut dans Azure DevOps Services.
 - L'exclusion des tests instables fonctionne avec les tâches Visual Studio Test et Publish Test Results.
-- Security overview : Risk, Coverage, Alerts, branche par défaut uniquement ; Defender for Cloud unifie Azure DevOps, GitHub et GitLab.
+- Security overview : Risk, Coverage, Alerts ; Risk ne compte que la branche par défaut, la couverture s'active après une analyse sur n'importe quelle branche ; Defender for Cloud unifie Azure DevOps, GitHub et GitLab.
 - Pipeline pass rate désigne les tâches en échec ; Test failures désigne les tests en échec.

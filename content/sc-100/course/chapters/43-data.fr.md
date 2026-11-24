@@ -46,9 +46,9 @@ Azure chiffre les données au repos par défaut en AES-256 avec des **clés gér
 | Chiffrement au repos sans gestion de clés | Comportement par défaut de la plateforme (clés gérées par Microsoft) |
 | Contrôler la rotation et pouvoir révoquer l'accès aux données | **Clés gérées par le client (CMK)** dans Azure Key Vault ou Managed HSM ; coffre avec suppression réversible **et** protection contre le vidage |
 | Clés dans des HSM dédiés à un seul locataire, avec votre propre domaine de sécurité | **Azure Key Vault Managed HSM** |
-| Une deuxième couche de chiffrement avec un autre algorithme et une autre clé | **Chiffrement d'infrastructure** (double chiffrement) ; pour un compte de stockage, à définir **uniquement à la création** |
+| Une deuxième couche de chiffrement avec un autre algorithme et une autre clé | **Chiffrement d'infrastructure** (double chiffrement, toujours avec une clé gérée par Microsoft) ; pour un compte de stockage, à définir **uniquement à la création** ; sur un compte qui ne l'a pas, une nouvelle étendue de chiffrement de Stockage Blob peut l'activer à la création de l'étendue |
 | Chiffrer les disques temporaires, les caches et les flux de données des machines virtuelles vers le stockage | **Chiffrement sur l'hôte** ; la mise hors service d'Azure Disk Encryption est prévue le 15 septembre 2028 |
-| Des colonnes que les administrateurs de bases de données ne doivent jamais lire en clair | **Always Encrypted** (clés côté client), éventuellement avec enclaves sécurisées |
+| Des colonnes que les administrateurs de bases de données ne doivent jamais lire en clair | **Always Encrypted** (clés côté client), éventuellement avec enclaves sécurisées (les enclaves Intel SGX de la série DC arrivent en fin de support le 31 octobre 2027 ; enclaves VBS sur les autres niveaux de calcul) |
 | Des données protégées pendant leur traitement | Informatique confidentielle (machines virtuelles et conteneurs confidentiels) |
 
 Options de Key Vault :
@@ -56,7 +56,7 @@ Options de Key Vault :
 | Option | Protection | Usage |
 | --- | --- | --- |
 | Key Vault Standard | Clés protégées par logiciel, secrets, certificats | Secrets et certificats des applications |
-| Key Vault Premium | Ajoute les clés protégées par HSM (HSM validés FIPS 140-3 niveau 3) | CMK qui doit rester dans un HSM |
+| Key Vault Premium | Ajoute les clés protégées par HSM (HSM validés FIPS 140-3 niveau 3 pour les nouvelles clés ; des versions de clés plus anciennes peuvent être sur des HSM FIPS 140-2 niveau 2) | CMK qui doit rester dans un HSM |
 | Managed HSM | Pool HSM monolocataire, clés uniquement, RBAC local | Isolation maximale et souveraineté des clés |
 
 **En transit** : exigez HTTPS et **TLS 1.2** comme minimum sur les comptes de stockage, Azure SQL et App Service ; utilisez des points de terminaison privés pour que le trafic reste sur le réseau principal de Microsoft ; pour les liaisons hybrides, ajoutez un VPN IPsec sur le peering privé ExpressRoute ou **MACsec** sur ExpressRoute Direct.
@@ -76,7 +76,7 @@ Les charges de travail IA lisent des données d'ancrage (index, documents, bases
 | Les utilisateurs ne doivent obtenir dans les réponses que ce qu'ils ont le droit de voir | Respecter les autorisations des sources (filtrage de sécurité dans l'index), étiquettes de confidentialité avec droits EXTRACT pour les données Microsoft 365 |
 | Trouver les ressources d'IA dont les données d'ancrage sont sensibles ou exposées à Internet | Posture de sécurité de l'IA de **Defender CSPM** (nomenclature IA (AI BOM), chemins d'attaque) avec la découverte des données sensibles |
 | Détecter le jailbreak, la fuite de données et le vol d'informations d'identification dans les invites | **Defender for AI services** (protection contre les menaces pour les services d'IA) |
-| Classer, auditer et appliquer la gestion des risques internes et la rétention aux invites et réponses | Purview DSPM pour l'IA ; **sécurité des données pour les interactions IA** activée depuis le plan Defender for AI services (licence Purview) |
+| Classer, auditer et appliquer la gestion des risques internes et la rétention aux invites et réponses | Purview DSPM (applications et agents d'IA ; l'ancien produit s'appelle désormais DSPM for AI (classic)) ; **sécurité des données pour les interactions IA** activée depuis le plan Defender for AI services (licence Purview) |
 | Bloquer une attaque par invite avant qu'elle atteigne le modèle | Garde-fous (guardrails) Foundry (prompt shields) |
 | Empêcher que des données sensibles soient collées dans des sites d'IA grand public | DLP de point de terminaison Purview et contrôles du navigateur |
 

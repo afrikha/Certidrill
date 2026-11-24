@@ -11,7 +11,7 @@ The Active Directory Recycle Bin restores a deleted object with **all its link-v
 | Default state | Disabled; enabling is **irreversible** |
 | Scope | Only objects deleted **after** it was enabled |
 | Run the enable against | The DC that holds the **domain naming master** role |
-| Deleted object lifetime | `msDS-DeletedObjectLifetime`; when not set, the value of `tombstoneLifetime` (180 days when not set) |
+| Deleted object lifetime | `msDS-DeletedObjectLifetime`; by default, the value of `tombstoneLifetime`: 180 days in forests created with Windows Server 2003 SP1 or later; 60 days (internal default) when the attribute isn't set, in forests upgraded from Windows 2000 or installed with Windows Server 2003 without a service pack |
 
 A deleted object stays in the **Deleted Objects** container, restorable with all its attributes, for the deleted object lifetime. It then becomes a recycled object that the Recycle Bin can't restore, and garbage collection (every 12 hours) removes it later.
 
@@ -60,7 +60,7 @@ bcdedit /deletevalue safeboot
 shutdown /r /t 0
 ```
 
-`restore object` marks one object, `restore subtree` an object and all its children. Their attribute versions rise by **100,000 per day since the backup**, so they win on every partner (`verinc` overrides that value, only to restore over a previous, incorrect authoritative restore). Ntdsutil also writes an **LDIF file** that restores back-links, such as group memberships held in other domains.
+`restore object` marks one object, `restore subtree` an object and all its children. Their attribute versions rise by **100,000 per day since the backup**, so they win on every partner (`verinc` overrides that value, only to restore over a previous, incorrect authoritative restore). Ntdsutil also writes a text file of the restored distinguished names and an **LDIF file** that restores back-links, such as the group memberships of the restored users. For groups in another domain, `create ldif file(s) from` that text file builds the LDIF file of link updates for that domain.
 
 > **Exam trap.** Don't restart in normal mode between the system state restore and the authoritative restore: the deletion replicated from the other DCs would overwrite the restored objects.
 
@@ -145,7 +145,7 @@ Clients locate DCs through DNS SRV records registered by **Netlogon**. Most "can
 | DNS registration for AD | `dcdiag /test:dns` |
 | Which DC, PDC emulator or GC a client finds | `nltest /dsgetdc:contoso.com` with `/pdc` or `/gc` |
 | Re-register a DC's DNS records | `nltest /dsregdns`, or `ipconfig /registerdns` and restart Netlogon |
-| Remove a DC that no longer exists | Metadata cleanup: delete its NTDS Settings in Sites and Services, or `ntdsutil` `metadata cleanup` |
+| Remove a DC that no longer exists | Metadata cleanup: delete its computer object in Active Directory Users and Computers or its NTDS Settings in Sites and Services (its FSMO roles move to the DC shown; move them again afterwards if needed), or `ntdsutil` `metadata cleanup` |
 | Check the database | `ntdsutil` `semantic database analysis` |
 
 ```text
@@ -168,7 +168,7 @@ Kerberos needs clocks within **5 minutes**, correct DNS resolution, and a **serv
 | `KRB_AP_ERR_SKEW` | Clock skew over 5 minutes: members sync from DCs, DCs from their PDC emulator, the forest root PDC emulator from an external source |
 | `KDC_ERR_S_PRINCIPAL_UNKNOWN` | SPN on no account: `setspn -S` on the service account |
 | `KDC_ERR_PRINCIPAL_NOT_UNIQUE` | SPN on several accounts: find it with `setspn -X`, remove the duplicate |
-| `KRB_AP_ERR_MODIFIED` | The service can't decrypt the ticket (SPN on the wrong account, DNS name pointing to the wrong server) |
+| `KRB_AP_ERR_MODIFIED` | The service ticket couldn't be decrypted. Several causes, so check the related events: clocks out of sync, an SPN that isn't unique, or (several domains) a service account name that isn't unique in the forest |
 | Access by IP address uses NTLM only | No SPN matches an IP address: use the DNS name |
 
 ```powershell

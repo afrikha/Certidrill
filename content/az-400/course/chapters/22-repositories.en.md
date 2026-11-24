@@ -145,7 +145,7 @@ git push origin --delete v2.3.0-rc1             # delete on the server
 | Need | Azure DevOps | GitHub |
 | --- | --- | --- |
 | Run a pipeline when a release tag is pushed | `trigger: tags: include: [ 'v*' ]` | `on: push: tags: [ 'v*' ]` |
-| Who can create / delete tags | **Create tag** (Contributors); delete requires **Force push** on the repository or **All tags** | Write access; restrict with a **tag ruleset** (restrict creations, updates, deletions) |
+| Who can create / delete tags | **Create tag** (Contributors); delete requires **Force push** on the repository or **All tags**, which the tag's creator inherits on that tag | Write access; restrict with a **tag ruleset** (restrict creations, updates, deletions) |
 | Publish a release from a tag | Pipeline with the tag as source | **Releases** (tag, notes, binaries) |
 
 Tag names can't contain spaces, `~` or `:`; avoid 40-character hexadecimal names.
@@ -189,7 +189,7 @@ git push --force --mirror origin
 
 Consequences of rewriting history: every later commit hash changes, collaborators must re-clone or rebase (a merge reintroduces the data), protected branches must temporarily allow force push (the **Force push** permission in Azure Repos), and open pull requests break. The data can survive in forks, other clones and server caches: on GitHub, contact GitHub Support to remove cached views and pull request references. Azure Repos warns that a file removed from branch history can still be returned by clones of the repository.
 
-Prevent rather than purge: `.gitignore`, secret scanning **push protection** in GitHub and in GitHub Advanced Security for Azure DevOps, and Azure Repos repository policies (maximum file size, file path validation).
+Prevent rather than purge: `.gitignore`, secret scanning **push protection** in GitHub and in GitHub Advanced Security for Azure DevOps (or the standalone GitHub Secret Protection for Azure DevOps), and Azure Repos repository policies (maximum file size, file path validation).
 
 > **Exam trap.** Deleting the file in a new commit doesn't remove it: it stays in history. And rewriting history doesn't make a leaked secret safe, because copies exist elsewhere: rotation is always the first step.
 

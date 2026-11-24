@@ -14,7 +14,7 @@ La **mise à jour des hôtes de session** (session host update) applique pour vo
 
 1. Un hôte de session est mis à jour en premier pour valider le processus, puis les autres par **lots** (*Max VMs removed during update*, 1 par défaut).
 2. Pour chaque lot : les utilisateurs reçoivent le **message de déconnexion** et sont déconnectés après le **délai de déconnexion** (0 à 60 minutes, 2 par défaut), les hôtes sont drainés et retirés, de nouvelles machines virtuelles sont créées à partir de la nouvelle configuration avec les mêmes noms d'hôte, rejoignent l'annuaire et le pool d'hôtes, puis les anciennes machines sont supprimées.
-3. Le réseau, la configuration de disponibilité et l'emplacement sont conservés ; les personnalisations manuelles (fichiers, clés de Registre, certificats) sont perdues : placez-les dans l'image, dans Intune, dans une stratégie de groupe ou dans le script personnalisé.
+3. Le réseau, la configuration de disponibilité et l'emplacement sont conservés ; les personnalisations manuelles (fichiers, clés de Registre, certificats) sont perdues : placez-les dans l'image, dans Intune, dans une stratégie de groupe ou dans le script personnalisé. L'état d'alimentation et le mode drainage existants des hôtes sont respectés (un pool d'hôtes dont tous les hôtes sont libérés peut être mis à jour), et le plan d'achat d'une image de galerie n'est pas conservé.
 
 Règles à retenir : une seule mise à jour par pool d'hôtes à la fois ; impossible de mettre à jour un hôte isolé ; **désactivez la mise à l'échelle automatique** sur le pool d'hôtes pendant la mise à jour ; vérifiez les quotas de l'abonnement, car les nouvelles machines sont créées avant la suppression des anciennes ; l'agent Azure Monitor n'est pas réinstallé automatiquement sur les nouveaux hôtes (utilisez Azure Policy). Avec la **gestion standard**, la mise à jour des hôtes de session n'est pas disponible : vous reconstruisez les hôtes avec vos propres pipelines et un jeton d'inscription.
 
@@ -99,7 +99,7 @@ Sauvegardez ce qui ne peut pas être reconstruit ; reconstruisez le reste :
 | --- | --- |
 | Conteneurs de profil FSLogix sur Azure Files | **Sauvegarde Azure** pour Azure Files (coffre Recovery Services) ; redondance du coffre ZRS ou GRS |
 | Conteneurs ODFC | Souvent non sauvegardés : les données Outlook, OneDrive et Teams reviennent de Microsoft 365 ; s'ils sont sauvegardés, avec un intervalle plus long |
-| Conteneurs FSLogix sur Azure NetApp Files | Stratégies de captures instantanées, plus la **sauvegarde Azure NetApp Files** pour les copies à long terme |
+| Conteneurs FSLogix sur Azure NetApp Files | Stratégies d'instantanés, plus la **sauvegarde Azure NetApp Files** pour les copies à long terme |
 | Packages App attach | Sauvegardez le partage si les packages ne peuvent pas être facilement reconstruits |
 | Bureaux personnels | **Sauvegarde Azure** des machines virtuelles quand des données utilisateur sont stockées localement (OneDrive avec le déplacement des dossiers connus réduit ce besoin) |
 | Hôtes de session regroupés | Non sauvegardés : recréez-les à partir de l'image |
@@ -109,10 +109,10 @@ Sauvegardez la région primaire ; un environnement de reprise d'activité n'a en
 
 | Niveau de sauvegarde Azure Files | Fonctionnement |
 | --- | --- |
-| **Capture instantanée** (snapshot) | Captures instantanées du partage conservées dans le compte de stockage lui-même ; restauration rapide de fichiers ou du partage entier ; aucune copie hors du compte |
-| **Archivée** (vaulted, Vault-Standard) | Après chaque capture, les données modifiées sont copiées dans le coffre : copie hors site, protection contre les rançongiciels, restauration interrégion |
+| **Instantané** (snapshot) | Instantanés du partage conservés dans le compte de stockage lui-même ; restauration rapide de fichiers ou du partage entier ; aucune copie hors du compte |
+| **Archivée** (vaulted, Vault-Standard) | Après chaque instantané, les données modifiées sont copiées dans le coffre : copie hors site, protection contre les rançongiciels, restauration interrégion |
 
-Limites : jusqu'à **24 captures planifiées par jour** et **200 points de récupération** par partage ; les points quotidiens sont conservés jusqu'à 200 jours, une rétention plus longue passe par des points hebdomadaires, mensuels et annuels. Activer la sauvegarde active aussi la **suppression réversible** au niveau du compte de stockage (14 jours) et pose un bail sur les captures de sauvegarde pour qu'elles ne puissent pas être supprimées par accident.
+Limites : jusqu'à **24 instantanés planifiés par jour** et **200 points de récupération** par partage ; les points quotidiens sont conservés jusqu'à 200 jours, une rétention plus longue passe par des points hebdomadaires, mensuels et annuels. Activer la sauvegarde active aussi la **suppression réversible** au niveau du compte de stockage (14 jours) et pose un bail sur les instantanés de sauvegarde pour qu'ils ne puissent pas être supprimés par accident.
 
 ```bash
 az backup vault create --resource-group rg-avd-bcdr --name rsv-avd-weu --location westeurope
@@ -120,7 +120,7 @@ az backup protection enable-for-azurefileshare --vault-name rsv-avd-weu --resour
   --policy-name DailyProfiles --storage-account stprofweu --azure-file-share profiles
 ```
 
-> **Conseil d'examen.** Le coffre de sauvegarde d'Azure Files ou des machines virtuelles se trouve dans la **même région** que le compte de stockage ou la machine protégés. Avec des profils dans deux régions par Cloud Cache : sauvegardez la copie primaire.
+> **Conseil d'examen.** Le coffre de sauvegarde d'Azure Files ou des machines virtuelles se trouve dans la **même région** que le compte de stockage ou la machine protégés ; pour Azure Files, aussi dans le même abonnement, sauf avec la sauvegarde inter-abonnements (Cross Subscription Backup). Avec des profils dans deux régions par Cloud Cache : sauvegardez la copie primaire.
 
 <!-- section: backup-restore | objectives: 4.2.5 -->
 ## Configurer la sauvegarde et la restauration des profils, des bureaux personnels et des images
@@ -131,16 +131,16 @@ az backup protection enable-for-azurefileshare --vault-name rsv-avd-weu --resour
 2. Dans le coffre, choisissez la **restauration au niveau de l'élément** (Item Level Restore) pour le partage, sélectionnez le point de récupération et le dossier ou le VHDX de l'utilisateur (jusqu'à 99 fichiers ou dossiers par restauration).
 3. Restaurez à l'**emplacement d'origine** (en écrasant) pour revenir en arrière sur le profil, ou à un **autre emplacement** pour extraire des données en gardant le profil actuel.
 
-La **restauration du partage complet** (Full Share Restore, à l'emplacement d'origine ou à un autre emplacement) sert pour un partage perdu ou endommagé. Les restaurations partent de la capture instantanée si elle existe, sinon du coffre.
+La **restauration du partage complet** (Full Share Restore, à l'emplacement d'origine ou à un autre emplacement) sert pour un partage perdu ou endommagé. La restauration au niveau de l'élément et toute restauration à l'emplacement d'origine exigent l'instantané du point de récupération (niveau Snapshot, ou Snapshot and Vault-tier) : si l'instantané a disparu, la restauration échoue. Depuis le coffre, la seule option est une restauration du partage complet vers un autre emplacement.
 
-**Profils FSLogix sur Azure NetApp Files** (jusqu'à 255 captures instantanées par volume) :
+**Profils FSLogix sur Azure NetApp Files** (jusqu'à 255 instantanés par volume) :
 
 | Option de restauration | Effet |
 | --- | --- |
-| Restauration côté client | Copier le VHDX depuis le dossier de captures visible par les clients (visibilité du chemin des captures activée) |
-| Restauration d'un fichier depuis une capture | Restaure le fichier sur place ou dans un nouveau fichier, presque instantanément |
-| Restauration vers un nouveau volume | Clone la capture vers un nouveau volume, utilisable immédiatement |
-| Rétablir le volume | Ramène tout le volume en arrière ; les données ultérieures et les captures plus récentes sont perdues, de façon irréversible |
+| Restauration côté client | Copier le VHDX depuis le dossier d'instantanés visible par les clients (visibilité du chemin des instantanés activée) |
+| Restauration d'un fichier depuis un instantané | Restaure le fichier sur place ou dans un nouveau fichier, presque instantanément |
+| Restauration vers un nouveau volume | Clone l'instantané vers un nouveau volume, utilisable immédiatement |
+| Rétablir le volume | Ramène tout le volume en arrière ; les données ultérieures et les instantanés plus récents sont perdus, de façon irréversible |
 
 **Bureaux personnels** avec Sauvegarde Azure (les hôtes de session avec lancement fiable (Trusted launch) exigent une stratégie de sauvegarde **Enhanced**) :
 
@@ -162,5 +162,5 @@ La **restauration du partage complet** (Full Share Restore, à l'emplacement d'o
 - Personnel : mises à jour sur place ; Intune en multisession utilise le catalogue de paramètres, pas les anneaux de mise à jour.
 - Reprise d'activité : regroupé = pool d'hôtes secondaire + Cloud Cache (actif-actif ou actif-passif) ; personnel = Site Recovery, sans basculement de test.
 - Multirégion : Cloud Cache avec le stockage local en premier, contrôleurs de domaine et serveur Entra Connect en mode intermédiaire dans la région secondaire, une galerie ou des réplicas par région ; les zones ne sont pas une reprise d'activité.
-- Sauvegarde : sauvegarde Azure Files pour les profils (capture ou archivée, 200 points de récupération), captures et sauvegarde ANF, sauvegarde des machines virtuelles pour les bureaux personnels, hôtes regroupés reconstruits à partir de l'image.
+- Sauvegarde : sauvegarde Azure Files pour les profils (instantané ou archivée, 200 points de récupération), instantanés et sauvegarde ANF, sauvegarde des machines virtuelles pour les bureaux personnels, hôtes regroupés reconstruits à partir de l'image.
 - Restaurer un profil par restauration au niveau de l'élément, utilisateur déconnecté.

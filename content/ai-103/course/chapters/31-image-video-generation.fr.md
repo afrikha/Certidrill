@@ -9,8 +9,8 @@ DALL-E 3 a été mis hors service le 4 mars 2026 : ses déploiements ne fonction
 | --- | --- | --- |
 | `gpt-image-1`, `gpt-image-1.5` | Accès limité (formulaire de demande) | Tailles `1024x1024`, `1024x1536`, `1536x1024` ; qualité par défaut `high` ; 1.5 a une meilleure latence que 1 |
 | `gpt-image-1-mini` | Accès limité | Moins cher et plus rapide ; qualité par défaut `medium` ; pas de `input_fidelity`, pas de préservation des visages |
-| `gpt-image-2` | Généralement disponible | `WIDTHxHEIGHT` personnalisé : côtés multiples de 16 px, grand côté jusqu'à 3 840 px, rapport d'aspect jusqu'à 3:1 ; réalisme, latence et coût plus élevés |
-| `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare` | Généralement disponible | Sunburst : fidélité et précision de modification maximales. Flare : le plus rapide, optimisé pour la vitesse et le coût |
+| `gpt-image-2` | Généralement disponible | `WIDTHxHEIGHT` personnalisé : côtés multiples de 16 px, grand côté jusqu'à 3 840 px, rapport d'aspect jusqu'à 3:1, de 655 360 à 8 294 400 pixels au total ; réalisme, latence et coût plus élevés |
+| `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare` | Généralement disponible | Tailles personnalisées avec les mêmes règles de côtés, de rapport d'aspect (1:3 à 3:1) et de nombre de pixels ; au-delà de `2560x1440`, c'est expérimental. Sunburst : fidélité et précision de modification maximales. Flare : le plus rapide, optimisé pour la vitesse et le coût |
 
 Points communs à tous : entrée texte et image, 1 à 10 images par requête (`n`), une invite de 4 000 caractères au plus, et une sortie **uniquement en base64** (`b64_json`). Il n'y a pas de sortie sous forme d'URL, et `response_format` n'est pas pris en charge.
 
@@ -39,11 +39,11 @@ for i, item in enumerate(result.data):
         f.write(base64.b64decode(item.b64_json))
 ```
 
-Avec l'authentification sans clé, l'identité appelante a besoin du rôle **Cognitive Services OpenAI User** sur la ressource. Une génération prend en général 10 à 30 secondes, et la limite de débit par défaut est de 5 images par minute et par déploiement.
+Avec l'authentification sans clé, l'identité appelante a besoin du rôle **Cognitive Services OpenAI User** sur la ressource. Une génération prend en général 10 à 30 secondes. Le quota par défaut de la série GPT-image-1 et de GPT-image-2 est de 5 images par minute.
 
 **Médias de référence.** L'opération `generations` ne prend que du texte. Pour partir d'images existantes (photos de produit, logo, planche de personnage), appelez l'opération **edits** (`images.edit`, `POST .../images/edits`, `multipart/form-data`) : elle accepte jusqu'à 16 images d'entrée, PNG ou JPG, de moins de 50 Mo chacune, et l'invite indique comment les combiner (« place this bottle on the beach scene »).
 
-**Depuis un modèle de conversation.** L'API Responses propose l'outil `{"type": "image_generation"}` : un modèle de conversation ou de raisonnement décide de dessiner, le déploiement d'images est indiqué dans l'en-tête `x-ms-oai-image-generation-deployment`, et l'image revient en base64 dans le `result` d'un élément de sortie de type `image_generation_call`. Cet outil ne fait pas de streaming ; pour diffuser des images partielles, appelez directement l'API d'images avec `stream=True` et `partial_images`.
+**Depuis un modèle de conversation.** L'API Responses propose l'outil `{"type": "image_generation"}` : un modèle de conversation ou de raisonnement décide de dessiner, le déploiement d'images est indiqué dans l'en-tête `x-ms-oai-image-generation-deployment`, et l'image revient en base64 dans le `result` d'un élément de sortie de type `image_generation_call`. L'outil prend en charge la série GPT-image-1 et les modèles GPT-image-2.5 (Learn n'y cite pas `gpt-image-2`), mais pas la modification en plusieurs tours. Il ne fait pas de streaming ; pour diffuser des images partielles, appelez directement l'API d'images avec `stream=True` et `partial_images`.
 
 > **Piège d'examen.** « Utiliser nos trois photos de produit pour créer une image d'ambiance » est un appel **edit** avec plusieurs images d'entrée, pas `images.generate` : l'opération de génération n'a pas d'entrée image.
 
@@ -167,7 +167,7 @@ remix = client.videos.remix(
 | `background` | `transparent` ou `auto` ; la transparence exige PNG |
 | `mask` | PNG, même taille que l'image, transparent = zone à modifier |
 | `input_fidelity` | Degré de conservation du style et des traits (visages) des images d'entrée ; absent de `gpt-image-1-mini` |
-| `stream` + `partial_images` | Aperçu progressif de l'image pendant sa génération |
+| `stream` + `partial_images` | Aperçu progressif de l'image pendant sa génération (documenté pour la série GPT-image-1 et GPT-image-2) |
 | `user` | Identifiant de votre utilisateur final, pour suivre l'usage |
 | `seconds`, `input_reference` | Durée de la vidéo ; ancre de la première image |
 

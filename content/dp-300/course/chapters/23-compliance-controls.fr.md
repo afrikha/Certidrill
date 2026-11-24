@@ -30,6 +30,8 @@ Deux modes de stratégie s'appliquent à **toutes les bases du locataire** :
 | Stratégie SQL Information Protection | Étiquettes et types d'informations intégrés, personnalisables de façon centralisée dans Microsoft Defender pour le cloud | Oui |
 | Stratégie Microsoft Purview Information Protection | Étiquettes de sensibilité Microsoft 365 du portail Microsoft Purview ; le type d'informations affiche `[n/a]` | Non |
 
+Passer d'un mode à l'autre exige l'autorisation Security Admin à l'échelle du locataire. Le contrôle d'accès basé sur les étiquettes par les stratégies d'accès Microsoft Purview Information Protection est mis hors service : les stratégies d'accès existantes sur les colonnes sensibles ne sont plus appliquées.
+
 ```text
 ADD SENSITIVITY CLASSIFICATION TO Sales.Customer.Email, Sales.Customer.Phone
 WITH (LABEL = 'Confidential', INFORMATION_TYPE = 'Contact Info', RANK = MEDIUM);
@@ -39,7 +41,7 @@ SELECT * FROM sys.sensitivity_classifications;
 DROP SENSITIVITY CLASSIFICATION FROM Sales.Customer.Phone;
 ```
 
-T-SQL ne vérifie pas que l'étiquette existe dans la stratégie. Pour SQL Server, classifiez avec T-SQL ou SSMS (base de données > Tasks > **Data Discovery and Classification**). Owner, Contributor et **SQL Security Manager** peuvent modifier les classifications ; Reader peut les consulter.
+T-SQL ne vérifie pas que l'étiquette existe dans la stratégie. Pour SQL Server, classifiez avec T-SQL ou SSMS (base de données > Tasks > **Data Discovery and Classification**). Owner, Contributor et **SQL Security Manager** peuvent modifier les classifications ; Reader et User Access Administrator peuvent seulement les consulter.
 
 La classification prend sa valeur avec l'audit : le journal d'audit remplit le champ **`data_sensitivity_information`** avec les étiquettes des colonnes renvoyées par une requête, ce qui permet de rapporter qui a accédé à des données confidentielles.
 
@@ -63,6 +65,8 @@ L'**audit Azure SQL Database** suit les événements de la base et les écrit ve
 
 Activez l'audit au niveau du serveur dans le cas général ; ajoutez un audit au niveau de la base seulement quand une base a besoin d'autres groupes d'actions ou d'une autre destination. Les groupes d'actions par défaut sont `BATCH_COMPLETED_GROUP`, `SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP` et `FAILED_DATABASE_AUTHENTICATION_GROUP`. Une option distincte du serveur audite les **opérations du support Microsoft** sur votre serveur.
 
+Depuis juillet 2025, l'audit au niveau du serveur exécute une seule session d'événements étendus pour toutes les bases du serveur, et tous les journaux d'audit du serveur, réplicas en lecture seule compris, vont dans un seul dossier `master` (filtrez les événements des réplicas sur `is_secondary_replica_true`). La lecture des journaux exige `VIEW DATABASE SECURITY AUDIT` dans la base utilisateur. L'audit au niveau de la base ne change pas et écrit chaque base dans son propre dossier : Learn le recommande pour de nombreuses bases aux charges OLTP lourdes.
+
 ```powershell
 Set-AzSqlServerAudit -ResourceGroupName RG1 -ServerName sql-contoso `
   -LogAnalyticsTargetState Enabled `
@@ -72,10 +76,10 @@ Set-AzSqlServerAudit -ResourceGroupName RG1 -ServerName sql-contoso `
 ```text
 SELECT event_time, server_principal_name, statement, data_sensitivity_information
 FROM sys.fn_get_audit_file(
-  'https://stcontosoaudit.blob.core.windows.net/sqldbauditlogs/sql-contoso/', DEFAULT, DEFAULT);
+  'https://stcontosoaudit.blob.core.windows.net/sqldbauditlogs/sql-contoso/master/', DEFAULT, DEFAULT);
 ```
 
-Remarques sur le stockage : un compte de stockage derrière un pare-feu ou un réseau virtuel doit être v2 universel, et le serveur peut s'authentifier avec son identité managée. Pour le stockage immuable, la stratégie doit autoriser les écritures d'ajout protégées. Les échecs de connexion Microsoft Entra n'apparaissent pas dans le journal d'audit SQL (voir les journaux de connexion Microsoft Entra), et `tempdb` n'est pas audité.
+Remarques sur le stockage : un compte de stockage derrière un pare-feu ou un réseau virtuel doit être v2 universel, et le serveur peut s'authentifier avec son identité managée. Pour le stockage immuable, **Allow protected append writes** (autoriser les écritures d'ajout protégées) doit valoir *Append blobs* ou *Block and append blobs* (*None* n'est pas pris en charge) ; avec une stratégie de rétention basée sur le temps, l'intervalle de rétention du stockage doit être plus court que la rétention de l'audit, et une rétention d'audit de 0 n'est pas prise en charge. Les échecs de connexion Microsoft Entra n'apparaissent pas dans le journal d'audit SQL (voir les journaux de connexion Microsoft Entra), et `tempdb` n'est pas audité.
 
 **SQL Server et SQL Managed Instance** utilisent les objets SQL Server Audit :
 
@@ -127,7 +131,7 @@ EXEC sys.sp_cdc_enable_table @source_schema = N'Sales', @source_name = N'Orders'
   @role_name = NULL, @supports_net_changes = 1;
 ```
 
-Faits CDC pour Azure SQL Database : pris en charge sur tous les niveaux vCore et en DTU à partir de S3 (pas Basic, S0, S1, S2) ; le planificateur exécute la capture toutes les 20 secondes et le nettoyage toutes les heures, sans personnalisation possible ; une base serverless en pause ne capture rien. `@supports_net_changes = 1` exige une clé primaire ou un index unique. Vérifiez avec `sys.databases.is_cdc_enabled` et `sys.tables.is_tracked_by_cdc`.
+Faits CDC pour Azure SQL Database : pris en charge sur tous les niveaux vCore et en DTU à partir de S3 (pas Basic, S0, S1, S2) ; le planificateur exécute la capture toutes les 20 secondes et le nettoyage toutes les heures, sans personnalisation possible ; une base serverless en pause ne capture rien. `@supports_net_changes = 1` exige une clé primaire ou un index unique. Vérifiez avec `sys.databases.is_cdc_enabled` et `sys.tables.is_tracked_by_cdc`. `sp_cdc_change_job` peut toujours modifier `maxtrans` et `maxscans`. Tant que CDC est activé, les opérations d'index en ligne ne sont pas prises en charge (erreur 18773) et la troncation agressive du journal d'ADR est désactivée, donc l'utilisation du journal augmente ; il n'y a ni SLA ni latence inférieure à la seconde pour l'apparition des changements.
 
 Les **tables temporelles** (`SYSTEM_VERSIONING = ON`) sont l'autre façon de conserver l'historique des lignes : elles stockent chaque version précédente avec sa période de validité et répondent aux requêtes `FOR SYSTEM_TIME AS OF`.
 
@@ -197,12 +201,13 @@ EXECUTE sys.sp_verify_database_ledger_from_digest_storage @locations;   -- verif
 
 Gestion des synthèses :
 
-- **Stockage automatique des synthèses** : les synthèses sont générées toutes les 30 secondes (s'il y a eu des transactions) et chargées dans le **Stockage Blob Azure avec une stratégie d'immuabilité** (verrouillée, autorisant les écritures d'ajout protégées) ou dans **Azure Confidential Ledger**. L'identité du serveur ou de l'instance a besoin de Storage Blob Data Contributor sur le compte.
+- **Stockage automatique des synthèses** : les synthèses sont générées toutes les 30 secondes (s'il y a eu des transactions) et chargées dans le **Stockage Blob Azure avec une stratégie d'immuabilité** (verrouillée, autorisant les écritures d'ajout protégées) ou dans **Azure Confidential Ledger**. L'identité du serveur ou de l'instance a besoin de Storage Blob Data Contributor sur le compte de stockage, ou de Contributor sur l'instance Azure Confidential Ledger.
 - **Manuel** : `sp_generate_database_ledger_digest` renvoie une synthèse JSON à stocker dans un stockage approuvé (WORM) ; il exige l'autorisation `GENERATE LEDGER DIGEST`.
+- **Vérification** : `sys.sp_verify_database_ledger` exige l'autorisation `VIEW LEDGER CONTENT`.
 
 Dans Azure SQL Database, l'onglet **Sécurité** de la création de la base permet d'en faire une base de données de registre et de configurer le stockage automatique des synthèses.
 
-> **Piège d'examen.** Le registre détecte la falsification ; il ne l'empêche pas et ne masque pas les données. Une table ordinaire existante ne peut pas être transformée en table de registre : créez une nouvelle table de registre et copiez les données. « Les lignes ne doivent jamais être mises à jour ni supprimées » désigne une table de registre d'ajout uniquement.
+> **Piège d'examen.** Le registre bloque par SQL les modifications des tables d'ajout uniquement, des tables d'historique et des vues de registre, mais quelqu'un qui contrôle les fichiers de la base peut encore falsifier les données : le registre le détecte alors à la vérification, il ne peut pas l'empêcher. Il ne masque pas non plus les données. Une table ordinaire existante ne peut pas être transformée en table de registre : créez une nouvelle table de registre et copiez les données. « Les lignes ne doivent jamais être mises à jour ni supprimées » désigne une table de registre d'ajout uniquement.
 
 <!-- section: row-level-security | objectives: 2.3.6 -->
 ## Sécurité au niveau des lignes

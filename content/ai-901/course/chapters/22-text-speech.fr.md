@@ -71,7 +71,7 @@ print(completion.choices[0].message.audio.transcript)
 | Besoin | Utilisez |
 | --- | --- |
 | Comprendre une question posée à l'oral et y répondre, en un seul appel | Un modèle multimodal |
-| Transcrire de gros volumes d'audio à coût prévisible, ou par lots | Azure Speech |
+| Transcrire de gros volumes d'enregistrements stockés, par lots | Azure Speech |
 | Une voix précise ou personnalisée en sortie | Azure Speech |
 
 <!-- section: speech-app | objectives: 2.2.3 -->

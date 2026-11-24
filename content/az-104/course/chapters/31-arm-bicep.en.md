@@ -72,7 +72,7 @@ Functions you must recognize:
 | `uniqueString(resourceGroup().id)` | A deterministic 13-character hash: same input, same value. Used for globally unique names |
 | `concat('a', 'b')`, `format('{0}-{1}', a, b)` | Built strings |
 | `resourceId('Microsoft.Network/virtualNetworks', 'vnet1')` | The ID of a resource. Doesn't create a dependency by itself |
-| `reference(...)` | The runtime properties of a resource. Creates an implicit dependency when the resource is in the same template |
+| `reference(...)` | The runtime properties of a resource. Creates an implicit dependency when the resource is in the same template and is referenced by its name (a resource ID passed to `reference()` creates none) |
 | `copyIndex()` | The index of the current loop iteration, starting at 0; `copyIndex(1)` starts at 1 |
 
 <!-- section: modify-arm | objectives: 3.1.2 -->
@@ -105,7 +105,7 @@ Functions you must recognize:
 
 **Conditions.** `"condition": "[equals(parameters('env'), 'prod')]"` deploys the resource only when the expression is true.
 
-**Child resources** are named `parent/child` and typed `Microsoft.Network/virtualNetworks/subnets`, or nested in the parent's `resources` array.
+**Child resources** are named `parent/child` and typed `Microsoft.Network/virtualNetworks/subnets`, or nested in the parent's `resources` array. In JSON, a child resource gets **no implicit dependency** on its parent: if it must be deployed after the parent, add a `dependsOn` on the parent's resource ID.
 
 <!-- section: modify-bicep | objectives: 3.1.3 -->
 ## Modifying a Bicep file
@@ -169,11 +169,15 @@ output pipId string = env == 'prod' ? pip.id : ''
 | Symbolic name (`vnet`) | Name used inside the file; `vnet.id`, `vnet.name`, `vnet.properties...` |
 | `existing` | References a resource that is already deployed; add `scope` if it is in another resource group |
 | `parent: vnet` | Declares a child resource of `vnet` |
-| `[for x in list: {...}]`, `[for i in range(0, n): {...}]` | Loops; parallel by default |
+| `[for x in list: {...}]`, `[for (x, i) in list: {...}]`, `[for i in range(0, n): {...}]` | Loops; item first, then the zero-based index; parallel by default |
 | `= if (condition) {...}` | Conditional deployment |
 | `condition ? a : b` | Conditional value |
 
-Bicep creates an **implicit dependency** whenever a resource references another one through its symbolic name or `parent`; an explicit `dependsOn` is rarely needed. Resource groups are subscription-level resources: creating one in Bicep requires `targetScope = 'subscription'`.
+Bicep creates an **implicit dependency** whenever a resource references another one through its symbolic name or `parent`, and for a child nested in its parent; an explicit `dependsOn` is rarely needed.
+
+Define subnets in the `subnets` property of the virtual network, as above, not as separate `Microsoft.Network/virtualNetworks/subnets` resources: as long as the subnets are defined on the virtual network, it can be redeployed without losing them.
+
+Resource groups are subscription-level resources: creating one in Bicep requires `targetScope = 'subscription'`.
 
 <!-- section: deploy-templates | objectives: 3.1.4 -->
 ## Deploying templates and Bicep files
@@ -210,7 +214,7 @@ New-AzResourceGroupDeployment -ResourceGroupName RG1 -TemplateFile main.bicep `
 | **Incremental** (default) | Left unchanged |
 | **Complete** | **Deleted** |
 
-In both modes, resources that are in the template are created or updated to match it. In incremental mode, a property omitted from the template for an existing resource may be reset to its default: the template describes the full desired state of each resource it contains. Microsoft now recommends **deployment stacks** over complete mode to remove resources that left the template. Complete mode isn't available for subscription-level deployments and deletes nothing in a locked resource group.
+In both modes, resources that are in the template are created or updated to match it. In incremental mode, a property omitted from the template for an existing resource may be reset to its default: the template describes the full desired state of each resource it contains. Microsoft recommends **deployment stacks** over complete mode to remove resources that left the template, and says complete mode will be gradually deprecated. In complete mode, a resource whose `condition` is false is deleted (current Azure CLI and PowerShell), and so is any resource that isn't in the template once copy loops are resolved. Complete mode isn't available for subscription-level deployments and deletes nothing in a locked resource group.
 
 - Each deployment is recorded in the **Deployments** history of its scope, with its template, parameters and outputs.
 - A **template spec** stores a template as an Azure resource, versioned and shared with Azure RBAC; deploy it with `--template-spec <version ID>`.

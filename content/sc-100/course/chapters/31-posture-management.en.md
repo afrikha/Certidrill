@@ -5,7 +5,7 @@ Posture management answers one question for the architect: across Azure, AWS, GC
 
 Microsoft Defender for Cloud is a cloud-native application protection platform with two halves: **cloud security posture management (CSPM)**, which finds misconfigurations before an attacker does, and **cloud workload protection (CWP)**, which detects attacks on running resources (see [workload protection](#workload-protection)).
 
-The **Microsoft cloud security benchmark (MCSB)** is the default standard of Defender for Cloud. It is assigned automatically to every Azure subscription, AWS account and GCP project connected to Defender for Cloud, and its built-in recommendations feed the secure score. The MCSB controls are grouped by security domain (for example network security, identity management, privileged access, data protection, logging and threat detection, posture and vulnerability management, endpoint security, backup and recovery, DevOps security), and each Azure service has a **security baseline** that maps the MCSB controls to that service's settings.
+The **Microsoft cloud security benchmark (MCSB)** is the default standard of Defender for Cloud. It is assigned automatically to every Azure subscription, AWS account and GCP project connected to Defender for Cloud, and its built-in recommendations feed the secure score. The MCSB controls are grouped by security domain (for example network security, identity management, privileged access, data protection, logging and threat detection, posture and vulnerability management, endpoint security, backup and recovery, DevOps security), and each Azure service has a **security baseline** that maps the MCSB controls to that service's settings. MCSB v2 (preview) supersedes v1 with 12 domains, including a new Artificial Intelligence Security domain; service baselines such as the Key Vault one are still based on MCSB v1.0 and point to the service's own security guidance for current advice.
 
 | Capability | Foundational CSPM (free) | Defender CSPM (paid) |
 | --- | --- | --- |
@@ -18,9 +18,9 @@ The **Microsoft cloud security benchmark (MCSB)** is the default standard of Def
 | External attack surface insights (EASM) for cloud resources | No | Yes |
 | Governance rules, critical assets | No | Yes |
 
-**Recommendations** are the unit of work (affected resources, severity, remediation); accepted risks become **exemptions** with an expiration date. **Regulatory compliance** maps the same assessments to the controls of a standard; manual controls must be attested with evidence. Assign policies and plans at the **management group** so new subscriptions inherit them.
+**Recommendations** are the unit of work (affected resources, severity, remediation); accepted risks become **exemptions** with an expiration date. **Regulatory compliance** maps the same assessments to the controls of a standard; manual controls must be attested with evidence. Adding standards beyond the MCSB needs a paid plan: Defender CSPM, or any other Defender for Cloud plan except Defender for Servers Plan 1 and Defender for APIs Plan 1. Assign policies and plans at the **management group** so new subscriptions inherit them.
 
-> **Exam trap.** "Assess Azure, AWS and GCP against one common benchmark at no extra cost" is Foundational CSPM with the MCSB. As soon as the requirement names **another standard**, **attack paths** or **sensitive data context**, the answer becomes Defender CSPM.
+> **Exam trap.** "Assess Azure, AWS and GCP against one common benchmark at no extra cost" is Foundational CSPM with the MCSB. As soon as the requirement names **attack paths** or **sensitive data context**, the answer becomes Defender CSPM; **another standard** needs a paid plan, and Defender CSPM is the posture plan that adds it.
 
 <!-- section: secure-score | objectives: 3.1.2 -->
 ## Evaluating posture with Microsoft Secure Score
@@ -31,9 +31,9 @@ Rules that decide exam answers:
 
 - Each recommended action is worth **10 points or less**. Most actions are binary; some give **partial points** (50 of 100 users protected by MFA on a 10-point action gives 5 points).
 - Contributing products include Microsoft Entra ID, the Defender products for Endpoint, Identity, Office 365 and Cloud Apps, Exchange Online, SharePoint Online, Teams, plus SaaS apps such as Salesforce, ServiceNow and Okta.
-- An action handled differently can be marked **resolved through third party** or **resolved through alternative mitigation** (for example, security defaults cover the MFA and legacy authentication actions), or its risk can be **accepted**.
+- An action handled differently can be marked **resolved through third party** or **resolved through alternative mitigation** (for example, with security defaults on, Microsoft recommends this status for the sign-in risk and user risk policy actions; security defaults already earn the full points of the MFA and legacy authentication actions), or its risk can be **accepted**.
 - Recommendations appear whatever the license: the score reflects absolute posture, not what you bought.
-- Access: Defender unified RBAC permissions **Exposure Management (read)** and **(manage)**, or Microsoft Entra roles (Security Administrator read/write; Security Reader, Global Reader and Security Operator read-only).
+- Access: Defender unified RBAC permissions **Exposure Management (read)** and **(manage)**, or Microsoft Entra roles (Security Administrator or higher, Exchange Administrator and SharePoint Administrator read/write; Helpdesk Administrator, User Administrator, Service Support Administrator, Security Reader, Security Operator and Global Reader read-only).
 
 Five scores that the exam mixes up:
 
@@ -67,7 +67,7 @@ Design principles:
 
 1. **One view.** Defender for Cloud is integrated into the Microsoft Defender portal, next to endpoint, identity and email signals; Exposure Management correlates them.
 2. **Prioritize by risk.** Defender CSPM risk prioritization and **critical assets** put an internet-exposed VM with access to sensitive data before an isolated test VM.
-3. **Own and automate.** Governance rules assign an owner and a due date; workflow automation and continuous export feed ticketing and Microsoft Sentinel.
+3. **Own and automate.** Governance rules assign an owner and a due date; workflow automation feeds ticketing; Microsoft Sentinel ingests alerts through its built-in Defender for Cloud connectors; continuous export to Azure Event Hubs feeds third-party SIEMs such as Splunk and QRadar, and the built-in policy that deploys export to an event hub, assigned at the root management group, streams the whole tenant.
 4. **Enforce at scale.** Azure Policy (DeployIfNotExists) enables plans everywhere; deny policies stop the misconfiguration from coming back.
 
 > **Exam tip.** When the scenario says "a single dashboard for Azure, AWS, GCP and on-premises servers with the least administrative effort", the expected design is Defender for Cloud with the AWS and GCP connectors and Azure Arc for the servers, not a third-party CSPM tool or one Defender for Cloud deployment per cloud.
@@ -81,7 +81,7 @@ Posture finds weaknesses; **workload protection** detects active threats and rai
 | --- | --- |
 | EDR, vulnerability assessment and threat detection on Windows and Linux servers in any cloud or on-premises | Defender for Servers (Plan 1 or Plan 2) |
 | Just-in-time VM access, file integrity monitoring, agentless malware scanning, OS baseline assessment | Defender for Servers **Plan 2** |
-| Runtime protection of AKS, EKS, GKE and Arc-enabled Kubernetes, image vulnerability assessment, gated deployment | Defender for Containers |
+| Runtime protection of AKS, EKS, GKE and Arc-enabled Kubernetes, image vulnerability assessment, gated deployment (AKS only) | Defender for Containers |
 | Malware scanning on upload and threats on Blob Storage, Azure Files, Data Lake Storage | Defender for Storage |
 | SQL injection and anomalous access on Azure SQL, SQL Server on machines, open-source databases, Azure Cosmos DB | Defender for Databases |
 | Attacks on web apps hosted on App Service | Defender for App Service |

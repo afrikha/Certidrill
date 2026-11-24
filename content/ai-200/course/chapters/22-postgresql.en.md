@@ -93,7 +93,7 @@ Without an index, pgvector runs an **exact** search: perfect recall, a sequentia
 | --- | --- | --- | --- |
 | IVFFlat | k-means training on existing rows: load the data first | Fast build, low memory; lower recall ceiling, may need a rebuild when the data drifts | `lists` at build; `ivfflat.probes` at query (1) |
 | HNSW | Multilayer graph, no training: can be created on an empty table | Best speed-recall trade-off; more memory (about 50% of the vector data) and slower build | `m` (16), `ef_construction` (64); `hnsw.ef_search` at query (40) |
-| DiskANN (`pg_diskann`, Azure only) | Graph, no training | High recall with fast builds, scales to very large tables; product quantization reduces memory | `max_neighbors` (32), `l_value_ib` (100); `diskann.l_value_is` at query (100) |
+| DiskANN (`pg_diskann`, Azure only) | Graph, no training | High recall with fast builds, scales to very large tables; product quantization (preview) reduces memory | `max_neighbors` (32), `l_value_ib` (100); `diskann.l_value_is` at query (100) |
 
 The **operator class must match the query operator**, or the planner ignores the index:
 
@@ -121,9 +121,9 @@ COMMIT;
 Tuning rules:
 
 - IVFFlat: start with `lists` = rows / 1000 up to a million rows, `sqrt(rows)` above; `probes` = `lists` / 10, or `sqrt(lists)` for large tables. Probing every list is a brute-force search.
-- HNSW: `ef_construction` at least `2 * m`; raise `m` (32) for recall at the cost of memory and build time; changing `m` or `ef_construction` requires a rebuild; keep `hnsw.ef_search` at least equal to `LIMIT`, 100–200 for high accuracy, about 20 for latency-critical calls.
+- HNSW: `ef_construction` at least `2 * m`; raise `m` (32) for recall at the cost of memory and build time; changing `m` or `ef_construction` requires a rebuild; keep `hnsw.ef_search` at least equal to `LIMIT`, 100–200 for high accuracy; lower it for latency-critical calls, but not below `LIMIT`.
 - `CREATE INDEX` blocks writes; `CREATE INDEX CONCURRENTLY` doesn't, but takes longer. Follow a build with `pg_stat_progress_create_index`; rebuild with `REINDEX INDEX CONCURRENTLY` when recall degrades.
-- pgvector indexes `vector` columns of at most **2,000 dimensions**; above, reduce the dimensions (many workloads use 768 or 1,024) or use DiskANN, which reaches 16,000 dimensions with `product_quantized = true`.
+- pgvector indexes `vector` columns of at most **2,000 dimensions**; above, reduce the dimensions (many workloads use 768 or 1,024) or use DiskANN with product quantization (`product_quantized = true`, preview, pg_diskann 0.6 or later), which indexes up to 16,000 dimensions.
 - Check the plan with `EXPLAIN (ANALYZE, BUFFERS)`: index scan, parallel workers, partial index and partition pruning. `idx_scan` in `pg_stat_user_indexes` shows whether an index is used at all.
 
 > **Exam trap.** An index built with `vector_cosine_ops` doesn't serve `ORDER BY embedding <-> ...`. The query falls back to a sequential scan, with correct but slow results.
@@ -172,7 +172,7 @@ SET embedding = azure_openai.create_embeddings('text-embedding-3-small', content
 WHERE embedding IS NULL;
 ```
 
-`azure_openai.create_embeddings` takes the **deployment name**, the text (or a `text[]` array with `batch_size`, default 100), and `timeout_ms`, `throw_on_error` (default true: an error rolls back the transaction), `max_attempts` (default 1) and `retry_delay_ms`. It returns `real[]`, cast to `vector`.
+`azure_openai.create_embeddings` takes the **deployment name**, the text (or a `text[]` array with `batch_size`, default 100), and `timeout_ms`, `throw_on_error` (default true: an error rolls back the transaction), `max_attempts` (default 1) and `retry_delay_ms` (default 1,000). With azure_ai 1.1.0 or later and a text-embedding-3 model, `dimensions` (default NULL) returns shorter vectors, for example to stay under the 2,000-dimension index limit. It returns `real[]`, cast to `vector`. Without a key, set `azure_openai.auth_type` to `managed-identity` and give the server's system-assigned managed identity the Cognitive Services OpenAI User role on the Azure OpenAI resource.
 
 Retrieval with a metadata filter, a distance threshold and top-k, from Python:
 
@@ -255,7 +255,7 @@ Size `max_size` from the server: 10 instances and 1,000 allowed connections give
 
 - psycopg 3 with a Microsoft Entra token as the password, scope `https://ossrdbms-aad.database.windows.net/.default`, `sslmode=require`, `%s` parameters.
 - Allow `vector` in `azure.extensions`, then `CREATE EXTENSION vector` in each database; `vector(n)` must match the model; filterable attributes in typed columns, dynamic ones in `jsonb` with GIN.
-- IVFFlat: fast build after loading, `lists` and `probes`. HNSW: best recall, `m`, `ef_construction`, `hnsw.ef_search` (40). DiskANN: Azure only, large tables, quantization. Operator class must match `<=>`, `<->` or `<#>`.
+- IVFFlat: fast build after loading, `lists` and `probes`. HNSW: best recall, `m`, `ef_construction`, `hnsw.ef_search` (40). DiskANN: Azure only, large tables, product quantization (preview). Operator class must match `<=>`, `<->` or `<#>`.
 - Indexable up to 2,000 dimensions with pgvector; `CREATE INDEX CONCURRENTLY` in production.
 - Memory Optimized for large vector sets, index in memory with 50% headroom; Burstable for development only.
 - RAG: same embedding model, `WHERE` metadata filter plus `ORDER BY` distance plus `LIMIT`; `azure_openai.create_embeddings` takes the deployment name.

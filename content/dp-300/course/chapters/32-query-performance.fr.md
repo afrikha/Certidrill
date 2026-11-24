@@ -97,7 +97,7 @@ EXEC sys.sp_query_store_set_hints @query_id = 39,
 EXEC sys.sp_query_store_clear_hints @query_id = 39;
 ```
 
-Les indicateurs du Magasin des requêtes remplacent les indicateurs codés en dur au niveau de l'instruction et les repères de plan. Un indicateur inapplicable est ignoré, sans jamais bloquer la requête ; la raison de l'échec figure dans `sys.query_store_query_hints`.
+Les indicateurs du Magasin des requêtes remplacent les indicateurs codés en dur au niveau de l'instruction et les repères de plan. Un indicateur inapplicable est ignoré, sans jamais bloquer la requête ; la raison de l'échec figure dans `sys.query_store_query_hints`. Les indicateurs ne s'appliquent que sur le réplica principal, sauf dans SQL Server 2025 avec le Magasin des requêtes pour les réplicas secondaires activé : ils peuvent alors s'appliquer aussi aux secondaires d'un groupe de disponibilité (`@replica_group_id` cible un groupe de réplicas).
 
 > **Conseil d'examen.** « Le code de l'application ne peut pas être modifié » oriente vers le forçage de plan ou les indicateurs du Magasin des requêtes. Forcer un plan à la main est la correction ponctuelle ; la correction automatique des plans (`FORCE_LAST_GOOD_PLAN`, chapitre 33) le fait en continu.
 
@@ -138,7 +138,7 @@ WHERE s.session_id = 72;
 
 Réduisez le blocage dès la conception : transactions courtes, bons index (moins de lignes lues, donc moins de verrous) et **contrôle de version de ligne**. L'isolation de capture instantanée read committed (RCSI) est activée par défaut pour les nouvelles bases Azure SQL Database : les lecteurs ne prennent pas de verrous partagés et ne bloquent donc pas les écrivains. Sur SQL Server, activez-la avec `ALTER DATABASE SalesDB SET READ_COMMITTED_SNAPSHOT ON`.
 
-Le **verrouillage optimisé** (verrouillage par ID de transaction et verrouillage après qualification) réduit la mémoire de verrouillage et le nombre de verrous détenus par les écritures. Il est toujours activé dans Azure SQL Database et dans Azure SQL Managed Instance avec la stratégie de mise à jour SQL Server 2025 ou Always-up-to-date ; dans SQL Server 2025, il est désactivé par défaut et exige la récupération de base de données accélérée (ADR). Le verrouillage après qualification ne fonctionne qu'avec RCSI. Vérifiez-le avec `DATABASEPROPERTYEX(DB_NAME(), 'IsOptimizedLockingOn')`.
+Le **verrouillage optimisé** (verrouillage par ID de transaction et verrouillage après qualification) réduit la mémoire de verrouillage et le nombre de verrous détenus par les écritures. Il est toujours activé dans Azure SQL Database et dans Azure SQL Managed Instance avec la stratégie de mise à jour SQL Server 2025 ou Always-up-to-date (il n'est pas disponible avec la stratégie de mise à jour SQL Server 2022) ; dans SQL Server 2025, il est désactivé par défaut et exige la récupération de base de données accélérée (ADR). Le verrouillage après qualification ne fonctionne qu'avec RCSI. Vérifiez-le avec `DATABASEPROPERTYEX(DB_NAME(), 'IsOptimizedLockingOn')`.
 
 > **Piège d'examen.** Un délai d'attente dépassé ou une annulation termine le lot mais ne restaure pas la transaction ouverte : ses verrous restent jusqu'à ce que l'application valide, restaure ou se déconnecte.
 

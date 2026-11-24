@@ -1,0 +1,26 @@
+# QZ-dp-700-33-optimize-performance — notes
+
+`content/dp-700/quizzes/33-optimize-performance.yaml`: 10 questions, `draft`. Checker: `0 problem(s), 0 warning(s)`.
+Objectives: 3.3.1 (q1, q8), 3.3.2 (q3, q9), 3.3.3 (q5), 3.3.4 (q2), 3.3.5 (q4, q6), 3.3.6 (q7, q10). Positions 6–10: yesno_statements, multi, dragdrop, single, dropdown (KQL).
+
+## Chapter and mock exam vs current Learn (fix there, not done here)
+
+- **Data clustering is preview.** The Learn page is titled "Data Clustering in Fabric Data Warehouse (Preview)" and carries "This feature is in preview". The chapter labels it preview, correctly. But the mock questions `dp700-3c-add-clustering` (CTAS with `CLUSTER BY`) and `dp700-3c-cluster-columns` (choose the `CLUSTER BY` columns) make it the correct answer. Per the rule "never make a preview feature the correct answer", review them. The quiz doesn't use clustering.
+- **The Lakehouse Maintenance activity is preview** ("Run Delta table maintenance in lakehouse" labels it (Preview)). The mock question `dp700-3c-load-maintain-order` makes it the second step of the correct sequence. Review it.
+- **Native execution engine status**: the Learn page has no preview banner, but it still contains the sentence "during the preview phase, specific configurations are necessary". The chapter and the mock questions (`dp700-3d-native-engine-enable`, `dp700-cs2a-native-engine`) treat it as GA. To be safe, I didn't use it as an answer. Confirm its status in the release notes.
+- **Eventhouse caching vs retention**: the chapter says "the caching period must be less than or equal to the retention period". The caching policy page says only that the two policies are independent, and its example has a shorter hot window. It doesn't state the rule or what happens if it's broken. The same page says the default caching policy is `null`, meaning all data is hot. The chapter could add that.
+- **V-Order precedence detail**: the V-Order page says that when the session setting is `true`, every write uses V-Order even if the writer option `parquet.vorder.enabled` is `false`. The chapter says only that session and write settings override the table property. One sentence could be added.
+- **Lakehouse Maintenance dialog**: the current dialog has On toggles (compaction with **Apply V-order**, VACUUM, deletion vectors) and **Run now**. The labels "Optimize" and "Vacuum" used in the chapter don't appear as such. q1 avoids those labels.
+- Confirmed as written: V-Order is off by default in new workspaces. Resource profiles: `writeHeavy` is the default, `readHeavyForPBI` gives V-Order and optimized write in 1 GB bins, `readHeavyForSpark` gives optimized write in 128 MB bins without V-Order, and run time overrides the environment. Disabling V-Order in a warehouse is irreversible. A bare `decimal` is `decimal(18,0)`. Run parallel `COPY INTO` statements, one per table. Starter pools: 5–10 s, Medium only, not supported with managed VNets or tenant Private Links. Environment libraries add 30 s to 5 min. SQL analytics endpoint: avoid high-cardinality partitions (aim for ~1 GB), avoid static or row-count file targets, VACUUM doesn't improve the layout, and V-Order isn't required. Batching: 5 min / 500 items / 1 GB defaults, minimum 10 s, small values raise cost and can raise latency, set it from the upper bound of the latency requirement. A parallel copy is a source session, Auto produced 251 copies in Microsoft's test, and 50 is the tested value. Incremental watermark pattern. KQL joins: put the smallest table on the left, broadcast for a left side up to 100 MB, lookup for a small right side (it fails beyond tens of MB), and shufflekey when both sides are large with a high-cardinality key.
+
+## Doubts and unverified facts
+
+- q9 assumes that a Copy activity with a degree of copy parallelism of 4 opens at most 4 sessions on the source. Learn says that "parallel copies correlates to the number of sessions established on the source database". The stem treats the relation as one to one.
+- q2: the batching page says to set the time boundary "based on the higher bound of your latency requirement". The stem asks for the batch to be sealed within two minutes, which makes 00:02:00 the single answer.
+- q10: Learn gives no explicit size threshold for "both sides too large". The stem says that each side is much larger than 100 MB after filtering, so broadcast and lookup are excluded.
+
+## Overlap with the mock bank
+
+- The bank already covers most of the chapter. The quiz tests other decisions: maintenance without code (explorer dialog), the batching value under a cost constraint, filtering at the source with a watermark, the `readHeavyForSpark` profile, irreversible warehouse V-Order with bare `decimal` and parallel `COPY INTO`, starter pool limits (managed VNet, environment libraries), repartitioning plus compaction for the SQL analytics endpoint, the four V-Order levels, ForEach Batch count × parallel copies against a session limit, and a large-large KQL join (left order, shufflekey rather than broadcast or lookup).
+- `dp700-3d-kql-antipatterns` already uses `hint.shufflekey` for a high-cardinality `summarize`. q10 uses it for a join between two large tables, and the decision there depends on the size of each side and on the order of the tables.
+- No preview feature is an answer.

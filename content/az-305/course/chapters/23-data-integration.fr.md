@@ -35,7 +35,7 @@ Le **runtime d'intégration** est le sujet habituel de la question, car il déte
 
 > **Piège d'examen.** Un VPN site à site ou ExpressRoute n'est pas nécessaire pour copier des données locales avec Data Factory : le runtime d'intégration auto-hébergé n'établit que des connexions sortantes. À l'inverse, le runtime d'intégration Azure seul ne peut pas atteindre un serveur situé dans le réseau local.
 
-Azure Synapse Analytics comprend des pipelines fondés sur le même moteur d'intégration que Data Factory, pour orchestrer sans quitter l'espace de travail ; ils prennent en charge les runtimes d'intégration Azure et auto-hébergé, pas Azure-SSIS. Microsoft présente désormais Data Factory dans Microsoft Fabric comme la nouvelle génération d'Azure Data Factory et le recommande aux équipes qui démarrent un nouveau projet d'intégration.
+Azure Synapse Analytics comprend des pipelines fondés sur le même moteur d'intégration que Data Factory, pour orchestrer sans quitter l'espace de travail ; ils prennent en charge les runtimes d'intégration Azure et auto-hébergé, pas Azure-SSIS. Microsoft présente désormais Data Factory dans Microsoft Fabric comme la nouvelle génération d'Azure Data Factory : Learn conseille à ceux qui débutent en intégration de données de commencer par lui, et les charges de travail Azure Data Factory existantes peuvent y être mises à niveau.
 
 <!-- section: data-lake-processing | objectives: 2.3.1 -->
 ## Le lac de données et les moteurs de traitement
@@ -68,7 +68,7 @@ Azure Synapse Analytics comprend des pipelines fondés sur le même moteur d'int
 | Pool SQL dédié | Entrepôt de données qui répartit les requêtes sur des nœuds de calcul, avec des données chargées dans des tables distribuées par hachage, par tourniquet (round-robin) ou répliquées | Calcul réservé, dimensionné en Data Warehouse Units ; peut être mis en pause pour que seul le stockage soit facturé. Pour des performances prévisibles sur un entrepôt modélisé |
 | Pool SQL serverless | Point de terminaison T-SQL, présent dans chaque espace de travail, qui interroge sur place les fichiers du lac de données (Parquet, Delta Lake, texte délimité) | Facturé selon les données traitées par chaque requête, rien à provisionner. Pour l'exploration, un entrepôt de données logique au-dessus du lac, les charges de travail non planifiées ou en rafales |
 | Pool Apache Spark | Spark managé pour la préparation des données, l'ingénierie des données et le machine learning | Aucun cluster à gérer vous-même |
-| Pool Data Explorer (préversion) | Analytique interactive sur les journaux et les séries chronologiques | Analytique des journaux et de l'IoT en quasi-temps réel |
+| Pool Data Explorer (mis hors service) | Ancien moteur en préversion pour les journaux et les séries chronologiques, mis hors service le 7 octobre 2025 : ses charges de travail ont été supprimées | Ne le recommandez pas ; Learn oriente ses charges de travail vers Eventhouse dans Microsoft Fabric |
 
 > **Piège d'examen.** Un pool SQL serverless n'a pas de stockage propre et ne prend en charge ni les tables ni les instructions de modification de données : il lit les fichiers là où ils se trouvent. « Réduire le coût de requêtes occasionnelles sur des fichiers Parquet » le désigne ; « des performances constantes pour des centaines de rapports simultanés sur un schéma en étoile » désigne un pool SQL dédié.
 
@@ -101,7 +101,7 @@ Une conception analytique sert généralement plusieurs latences à la fois. Ide
 **Azure Stream Analytics** est le moteur de traitement de flux entièrement managé, programmé dans un langage SQL enrichi de sémantiques temporelles.
 
 - Entrées de streaming : Azure Event Hubs et Azure IoT Hub ; Stockage Blob ou Azure Data Lake Storage pour les données historiques. Des données de référence issues de Stockage Blob ou d'Azure SQL Database peuvent être jointes au flux pour des recherches.
-- Sorties : Stockage Blob et Azure Data Lake Storage, Azure SQL Database, Azure Cosmos DB, Azure Synapse Analytics, Event Hubs, Power BI pour des tableaux de bord en direct.
+- Sorties : Stockage Blob et Azure Data Lake Storage, Azure SQL Database, Azure Cosmos DB, Azure Synapse Analytics, Azure Data Explorer, Azure Database for PostgreSQL, Stockage Table, Event Hubs, files d'attente et rubriques Service Bus, Azure Functions, Power BI pour des tableaux de bord en direct.
 - Fenêtres bascules (tumbling), récurrentes (hopping) et glissantes (sliding) pour les agrégations dans le temps.
 - La capacité s'exprime en unités de streaming, sans cluster à provisionner ; le service garantit une disponibilité de 99,9 %.
 - Les mêmes requêtes peuvent s'exécuter sur Azure IoT Edge pour traiter les données au plus près des appareils.

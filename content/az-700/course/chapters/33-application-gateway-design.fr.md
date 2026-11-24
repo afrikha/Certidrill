@@ -44,7 +44,7 @@ Limites par passerelle : jusqu'à 4 adresses IP frontales (une publique et une p
 <!-- section: appgw-use-cases | objectives: 3.2.2 -->
 ## Cas d'usage et prérequis de déploiement
 
-Choisissez Application Gateway pour des applications HTTP(S) dans **une seule région** qui exigent des décisions de couche 7 : routage par chemin ou par hôte, déchargement ou rechiffrement TLS, WAF, affinité, réécritures. Il atteint des back-ends dans son propre réseau virtuel, dans des réseaux appairés, en local (VPN, ExpressRoute) et sur des points de terminaison publics comme App Service.
+Choisissez Application Gateway pour des applications HTTP(S) dans **une seule région** qui exigent des décisions de couche 7 : routage par chemin ou par hôte, déchargement ou rechiffrement TLS, WAF, affinité, réécritures. Il atteint des back-ends dans son propre réseau virtuel, dans des réseaux reliés par peering, en local (VPN, ExpressRoute) et sur des points de terminaison publics comme App Service.
 
 | Exigence | Meilleure réponse |
 | --- | --- |
@@ -104,7 +104,7 @@ Un pool principal peut contenir :
 | --- | --- |
 | Machines virtuelles | Sélectionnées par leur carte réseau |
 | Groupes de machines virtuelles identiques | Mettez à niveau les instances du groupe identique après l'ajout au pool, sinon elles restent non saines |
-| Adresses IP privées | Dans le réseau virtuel de la passerelle, des réseaux virtuels appairés, ou des réseaux connectés par VPN ou ExpressRoute |
+| Adresses IP privées | Dans le réseau virtuel de la passerelle, des réseaux virtuels reliés par peering, ou des réseaux connectés par VPN ou ExpressRoute |
 | Adresses IP publiques | Tout point de terminaison joignable |
 | FQDN | Résolus par les serveurs DNS du réseau virtuel ; App Service, Container Apps et autres services multilocataires |
 
@@ -158,7 +158,7 @@ Corrections courantes :
 | Serveur avec un certificat générique servant plusieurs noms d'hôte | Sonde personnalisée avec un nom d'hôte précis pour le SNI |
 | Back-end App Service non sain avec la sonde par défaut (hôte 127.0.0.1) | Pick host name from backend settings, avec des paramètres de back-end qui prennent le nom d'hôte de la cible |
 
-> **Piège d'examen.** Une sonde trop lente à échouer envoie du trafic vers un serveur mort pendant un moment : le délai de détection vaut environ l'intervalle multiplié par le seuil de défaillance. Réduire l'intervalle ou le seuil détecte les pannes plus tôt.
+> **Piège d'examen.** Une sonde trop lente à échouer envoie du trafic vers un serveur mort pendant un moment : le délai de détection vaut la première sonde en échec plus le seuil de défaillance multiplié par l'intervalle (exemple de Learn : 20 + 2 × 20 = 60 secondes). En v2, les nouvelles tentatives attendent l'intervalle ; en v1, elles sont envoyées en succession rapide. Réduire l'intervalle ou le seuil détecte les pannes plus tôt.
 
 <!-- section: key-points -->
 ## Points clés

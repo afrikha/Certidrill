@@ -60,7 +60,7 @@ Avec l'**authentification moderne**, les applications ne vérifient plus elles-m
 
 1. L'utilisateur ouvre une application, qui le dirige vers le fournisseur d'identité.
 2. Le fournisseur d'identité vérifie les informations d'identification et émet un **jeton de sécurité**.
-3. L'application, qui fait confiance au fournisseur d'identité, accepte le jeton comme preuve.
+3. L'application, qui approuve le fournisseur d'identité, accepte le jeton comme preuve.
 
 Un jeton porte des **revendications** sur l'identité (identifiant, nom, rôles, heure d'expiration) et sa durée est limitée.
 
@@ -68,7 +68,7 @@ Un jeton porte des **revendications** sur l'identité (identifiant, nom, rôles,
 | --- | --- |
 | Jeton d'ID | Prouve que l'utilisateur s'est connecté : authentification |
 | Jeton d'accès | Permet à l'application d'accéder à une ressource pour le compte de l'utilisateur : autorisation |
-| **Authentification unique** (SSO) | Se connecter une fois au fournisseur d'identité, puis accéder à toutes les applications qui lui font confiance sans ressaisir ses informations d'identification |
+| **Authentification unique** (SSO) | Se connecter une fois au fournisseur d'identité, puis accéder à toutes les applications qui l'approuvent sans ressaisir ses informations d'identification |
 
 | Protocole | Rôle |
 | --- | --- |
@@ -89,8 +89,9 @@ Un **annuaire** est un référentiel structuré d'informations sur les objets d'
 | --- | --- | --- |
 | Conçu pour | Les réseaux locaux | Internet et le cloud ; l'identité en tant que service |
 | Authentification | Kerberos et NTLM | Protocoles modernes : OpenID Connect, OAuth 2.0, SAML |
-| Gestion des appareils | Stratégie de groupe sur les appareils Windows joints au domaine | Fonctionne sur toutes les plateformes et tous les types d'appareils |
+| Gestion des appareils | Stratégie de groupe sur les appareils Windows joints au domaine ; utilisateurs et ordinateurs organisés en unités d'organisation (UO) | Fonctionne sur toutes les plateformes et tous les types d'appareils |
 | Applications cloud et SaaS | Pas nativement : il faut une synchronisation ou une fédération | Natif |
+| Accès à distance | Hors du réseau de l'entreprise, les utilisateurs ont besoin d'un VPN pour s'authentifier | Ni VPN ni infrastructure locale nécessaires |
 
 > **Piège d'examen.** Microsoft Entra ID n'est pas AD DS hébergé dans le cloud : il n'a ni contrôleurs de domaine, ni stratégie de groupe, ni unités d'organisation. Les organisations qui exploitent AD DS le connectent à Microsoft Entra ID : c'est l'identité hybride.
 
@@ -101,9 +102,9 @@ La **fédération** donne accès à des services par-delà les frontières d'une
 
 1. Un utilisateur de l'organisation B s'authentifie auprès du fournisseur d'identité de B.
 2. L'utilisateur demande une ressource de l'organisation A.
-3. Le fournisseur d'identité de A, qui fait confiance à celui de B, accepte cette authentification, et A accorde l'accès.
+3. Le fournisseur d'identité de A, qui approuve celui de B, accepte cette authentification, et A accorde l'accès.
 
-- L'approbation **n'est pas automatiquement bidirectionnelle** : si A fait confiance à B, B ne fait pas confiance à A tant que cela n'est pas configuré aussi.
+- L'approbation **n'est pas automatiquement bidirectionnelle** : si A approuve B, B n'approuve pas A tant que cela n'est pas configuré aussi.
 - Exemples : les employés d'une entreprise partenaire qui utilisent leurs propres informations d'identification (collaboration B2B) ; « se connecter avec Google » sur un site grand public ; les utilisateurs d'un Active Directory local qui atteignent des services cloud par Active Directory Federation Services (AD FS).
 
 > **Conseil d'examen.** L'authentification unique fonctionne au sein d'un seul fournisseur d'identité ; la fédération est une approbation entre deux fournisseurs d'identité.

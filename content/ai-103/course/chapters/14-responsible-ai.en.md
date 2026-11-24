@@ -40,7 +40,7 @@ Defaults and inheritance:
 - An agent uses the guardrail assigned to it; without one, it inherits the guardrail of its model deployment. An agent guardrail **replaces** the model guardrail completely: if the agent guardrail has no tool call or tool response control, those points aren't scanned.
 - One guardrail can be assigned to many models and agents. Default guardrails can't be edited; create a custom one (**Build > Guardrails > Create Guardrail**: add controls, assign agents and models, review and name). Creating one requires the Foundry Account Owner role or higher.
 - Behind the portal, a guardrail is an RAI policy, assigned to a deployment through its `raiPolicyName` property. A request can name another guardrail with the `x-policy-id` header.
-- **Blocklists** (a custom list of terms, or the built-in profanity list) can be added to input filtering, output filtering or both.
+- **Blocklists** (custom lists of exact terms or regex patterns, up to 10,000 terms per list) can be added to input filtering, output filtering or both. They are supported for Azure OpenAI models only, and a new term takes about 5 minutes to apply.
 
 How a blocked call looks to the application:
 
@@ -53,7 +53,7 @@ How a blocked call looks to the application:
 
 > **Exam trap.** A guardrail acts at run time on each request: it blocks or annotates. An evaluator measures a batch of outputs and produces scores: it blocks nothing. "Prevent the agent from returning violent content" is a guardrail; "measure how often responses are violent before release" is an evaluator.
 
-> **Exam tip.** "Malicious instructions hidden in an uploaded document or a web page returned by a tool" is an indirect attack. For an agent, scan the tool response intervention point; "a user types a jailbreak" is a user prompt attack on user input.
+> **Exam tip.** "Malicious instructions hidden in an uploaded document or a web page returned by a tool" is an indirect attack. For a model deployment, pass that content as documents and enable indirect attack detection; for an agent, the tool response intervention point scans it (preview, like every agent guardrail). "A user types a jailbreak" is a user prompt attack on user input.
 
 <!-- section: evaluation-instrumentation | objectives: 1.4.2 -->
 ## Evaluators, safety evaluations and explanations
@@ -64,11 +64,11 @@ An **evaluator** scores one characteristic of an output. Some are deterministic 
 | --- | --- | --- |
 | General purpose | Coherence, Fluency | Yes |
 | Textual similarity | Similarity, F1 Score, BLEU, GLEU, ROUGE, METEOR (need ground truth) | Similarity only |
-| RAG | Retrieval, Document Retrieval, Groundedness, Groundedness Pro, Relevance, Response Completeness | Yes, except Document Retrieval and Groundedness Pro |
+| RAG | Retrieval, Document Retrieval, Groundedness, Groundedness Pro (preview), Relevance, Response Completeness (preview) | Yes, except Document Retrieval and Groundedness Pro |
 | Risk and safety | Hate and Unfairness, Sexual, Violence, Self-Harm, Protected Materials, Indirect Attack, Code Vulnerability, Ungrounded Attributes, Prohibited Actions, Sensitive Data Leakage | No: hosted by the Foundry evaluation service |
-| Agent | Task Adherence, Task Completion, Intent Resolution, Tool Call Accuracy, Tool Selection, Tool Input Accuracy, Tool Output Utilization, Tool Call Success, and others | Mostly yes |
+| Agent | Task Adherence, Task Completion and Intent Resolution (all three preview), Tool Call Accuracy, Tool Selection, Tool Input Accuracy, Tool Output Utilization, Tool Call Success, and others | Mostly yes |
 
-Safety evaluators don't need a `deployment_name`. The four content evaluators return a **0–7 severity score** (very low 0–1, low 2–3, medium 4–5, high 6–7) with a default threshold of 3: a score at or below the threshold passes. Protected material, code vulnerability, indirect attack, prohibited actions and sensitive data leakage return pass or fail. The report also gives a **defect rate**: the percentage of responses with undesired content. Prohibited Actions and Sensitive Data Leakage (preview) apply to agent targets only.
+Safety evaluators don't need a `deployment_name`. The four content evaluators return a **0–7 severity score** (very low 0–1, low 2–3, medium 4–5, high 6–7) with a default threshold of 3: a score at or below the threshold passes. Protected material, code vulnerability, indirect attack, prohibited actions and sensitive data leakage return pass or fail. The report also gives a **defect rate**: the percentage of responses with undesired content. Prohibited Actions and Sensitive Data Leakage (preview) apply to agent targets only; Indirect Attack applies to model targets only.
 
 **Explanation tooling.** AI-assisted and safety evaluators return a `reason` next to the score, so a reviewer can see why a response failed:
 
@@ -104,7 +104,7 @@ testing_criteria = [
 ]
 ```
 
-The **AI Red Teaming Agent** goes one step further: it generates adversarial prompts with Microsoft's open-source PyRIT framework (attack strategies such as Base64, Flip, CharSwap, ROT13, Crescendo), sends them to the model or agent, scores the responses with the safety evaluators and reports an **Attack Success Rate (ASR)**, the percentage of successful attacks. Agent risk categories (Prohibited Actions, Sensitive Data Leakage, Task Adherence) run in the cloud only. It supports text scenarios only.
+The **AI Red Teaming Agent** goes one step further: it generates adversarial prompts with Microsoft's open-source PyRIT framework (attack strategies such as Base64, Flip, CharSwap, ROT13, Crescendo), sends them to the model or agent, scores the responses with the safety evaluators and reports an **Attack Success Rate (ASR)**, the percentage of successful attacks. Agent risk categories (Prohibited Actions, Sensitive Data Leakage, Task Adherence) run in the cloud only. Cloud red teaming is available in East US 2, France Central, North Central US and Sweden Central. It supports text scenarios only.
 
 | Requirement | Use |
 | --- | --- |
@@ -118,7 +118,7 @@ The **AI Red Teaming Agent** goes one step further: it generates adversarial pro
 <!-- section: auditing | objectives: 1.4.3 -->
 ## Auditing: traces, provenance and approvals
 
-**Trace logging.** Foundry tracing follows OpenTelemetry and stores traces in the **Application Insights** resource connected to the project. A trace records each step of a run in order: user input, model calls, tool calls with their arguments and results, token counts and durations. Spans follow the GenAI semantic conventions (`invoke_agent`, `execute_tool`, attributes such as `gen_ai.tool.call.arguments`). Server-side tracing of prompt agents needs no code once Application Insights is connected (**Agents > Traces > Connect**). Reading traces requires **Log Analytics Reader** on the resource, plus Privileged Monitoring Data Reader if the tables are protected.
+**Trace logging.** Foundry tracing follows OpenTelemetry and stores traces in the **Application Insights** resource connected to the project. A trace records each step of a run in order: user input, model calls, tool calls with their arguments and results, token counts and durations. Spans follow the GenAI semantic conventions (`invoke_agent`, `execute_tool`, attributes such as `gen_ai.tool.call.arguments`). Server-side tracing of prompt agents needs no code once Application Insights is connected (**Agents > Traces > Connect**). Reading traces requires **Log Analytics Reader** on the resource, plus Privileged Monitoring Data Reader if the tables are protected. The portal shows the traces of the past 90 days; stored data follows the Application Insights and Log Analytics retention settings.
 
 Client-side instrumentation of an application:
 
@@ -175,10 +175,10 @@ The approval response goes back in the **same conversation**, with `approval_req
 **Constraints:**
 
 - `allowed_tools` restricts the agent to the listed tools of an MCP server. Omitted or empty, **all** the server's tools are available.
-- The **instructions** state the task and its limits; Task Adherence (a guardrail risk and an evaluator) checks that the agent stays within them.
-- Guardrail controls on **tool call** and **tool response** scan what the agent sends to and receives from tools.
+- The **instructions** state the task and its limits; Task Adherence (a guardrail risk and an evaluator, both in preview) checks that the agent stays within them.
+- Guardrail controls on **tool call** and **tool response** (preview) scan what the agent sends to and receives from tools.
 - With function calling, the application runs the function, so it can refuse or ask for confirmation before any side effect.
-- The tool catalog notes that third-party MCP and A2A servers aren't verified by Microsoft: treat their descriptions and results as untrusted input that can carry prompt injection.
+- Microsoft doesn't test or verify the third-party remote MCP servers that you connect: treat their tool descriptions and results as untrusted input that can carry indirect prompt injection.
 
 **Tool-access controls** decide what a tool call can actually do:
 
@@ -188,7 +188,7 @@ The approval response goes back in the **same conversation**, with `approval_req
 | Agent identity | A Microsoft Entra identity per agent (blueprint plus instance identity); starts with **no** permissions |
 | Project managed identity | Used by connections configured for project managed identity authentication |
 | Azure RBAC or data-plane roles | Granted to that identity on the target, at the narrowest scope |
-| On-behalf-of (OBO) passthrough | The tool runs with the signed-in user's permissions, where the tool supports it |
+| On-behalf-of (OBO) passthrough | The tool runs with the signed-in user's permissions, where the tool supports it; an agent identity acting on behalf of the user is in preview |
 
 > **Exam trap.** `require_approval` defaults to `"always"`, and an empty `allowed_tools` means every tool, not none. To let an agent read freely but confirm writes, list the tools in `allowed_tools` and require approval only for the write tool.
 
@@ -198,7 +198,7 @@ The approval response goes back in the **same conversation**, with `approval_req
 ## Key points
 
 - Guardrail = controls (risk + intervention points + action). Default Microsoft.DefaultV2: four harms at medium, user prompt attack detection, protected material; indirect attacks off.
-- Agents add tool call and tool response intervention points; an agent guardrail fully replaces the model guardrail.
+- Agents add tool call and tool response intervention points (agent guardrails are preview); an agent guardrail fully replaces the model guardrail.
 - Blocked prompt: HTTP 400 `content_filter`. Blocked completion: `finish_reason` `content_filter`.
 - Evaluators score, guardrails block. Safety evaluators: 0–7, threshold 3, no deployment needed; the `reason` explains the score.
 - AI Red Teaming Agent: PyRIT attacks, Attack Success Rate.

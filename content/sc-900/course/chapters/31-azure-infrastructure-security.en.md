@@ -49,7 +49,7 @@ An **Azure virtual network** (VNet) is the basic building block of a private net
 | --- | --- |
 | Between resources of the same virtual network | Communication allowed, without going through the internet |
 | Between two virtual networks | No traffic until you connect them, for example with **virtual network peering** |
-| Outbound to the internet | Allowed |
+| Outbound to the internet | Depends on the subnet: subnets of new virtual networks are private (Azure portal, and API versions released after March 31, 2026), and need an explicit outbound method such as a NAT gateway; existing virtual networks keep default outbound access |
 | Inbound from the internet | Not possible without a public IP address or a load balancer |
 
 **Subnets** divide a virtual network into segments with different security needs, for example web servers in one and databases in another, with their own controls.
@@ -86,11 +86,11 @@ A **network security group** (NSG) filters network traffic to and from Azure res
 
 **Azure Bastion** is a fully managed service that provides secure **RDP and SSH** connectivity to virtual machines, over TLS (port 443), directly from the Azure portal in a browser. The virtual machines need **no public IP address**, no agent and no special client software, so their management ports aren't exposed to the internet or to port scanning.
 
-Bastion is deployed **per virtual network** and also reaches the virtual machines of peered virtual networks.
+Bastion is deployed **per virtual network** and also reaches the virtual machines of peered virtual networks, except with the Developer SKU.
 
 | SKU | In short |
 | --- | --- |
-| Developer | Free, shared infrastructure, one connection at a time; for development and testing |
+| Developer | Free, shared infrastructure, one connection at a time, no peered virtual networks; for development and testing |
 | Basic | Dedicated deployment with fixed capacity |
 | Standard | Adds scaling, native client support, shareable links, file transfer |
 | Premium | Adds session recording and private-only deployment |

@@ -9,8 +9,8 @@ DALL-E 3 was retired on March 4, 2026: its deployments no longer work. Image gen
 | --- | --- | --- |
 | `gpt-image-1`, `gpt-image-1.5` | Limited access (application form) | Sizes `1024x1024`, `1024x1536`, `1536x1024`; default quality `high`; 1.5 has better latency than 1 |
 | `gpt-image-1-mini` | Limited access | Cheaper and faster; default quality `medium`; no `input_fidelity`, no face preservation |
-| `gpt-image-2` | Generally available | Custom `WIDTHxHEIGHT`: edges multiples of 16 px, long edge up to 3,840 px, aspect ratio up to 3:1; realism, higher latency and cost |
-| `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare` | Generally available | Sunburst: highest fidelity and editing precision. Flare: fastest, optimized for speed and cost |
+| `gpt-image-2` | Generally available | Custom `WIDTHxHEIGHT`: edges multiples of 16 px, long edge up to 3,840 px, aspect ratio up to 3:1, 655,360 to 8,294,400 pixels in total; realism, higher latency and cost |
+| `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare` | Generally available | Custom sizes with the same edge, aspect-ratio (1:3 to 3:1) and pixel-count rules; above `2560x1440` is experimental. Sunburst: highest fidelity and editing precision. Flare: fastest, optimized for speed and cost |
 
 Common to all of them: text and image input, 1 to 10 images per request (`n`), a prompt of up to 4,000 characters, and output **only as base64** (`b64_json`). There is no URL output, and `response_format` isn't supported.
 
@@ -39,11 +39,11 @@ for i, item in enumerate(result.data):
         f.write(base64.b64decode(item.b64_json))
 ```
 
-With keyless authentication, the calling identity needs the **Cognitive Services OpenAI User** role on the resource. A typical generation takes 10 to 30 seconds, and the default rate limit is 5 images per minute per deployment.
+With keyless authentication, the calling identity needs the **Cognitive Services OpenAI User** role on the resource. A typical generation takes 10 to 30 seconds. The default quota of the GPT-image-1 series and GPT-image-2 is 5 images per minute.
 
 **Reference media.** The `generations` operation takes text only. To start from existing pictures (product photos, a logo, a character sheet), call the **edits** operation (`images.edit`, `POST .../images/edits`, `multipart/form-data`): it accepts up to 16 input images, PNG or JPG, each under 50 MB, and the prompt says how to combine them ("place this bottle on the beach scene").
 
-**From a chat model.** The Responses API offers the tool `{"type": "image_generation"}`: a chat or reasoning model decides to draw, the image deployment is named in the header `x-ms-oai-image-generation-deployment`, and the image comes back as base64 in the `result` of an output item of type `image_generation_call`. This tool doesn't stream; to stream partial images, call the image API directly with `stream=True` and `partial_images`.
+**From a chat model.** The Responses API offers the tool `{"type": "image_generation"}`: a chat or reasoning model decides to draw, the image deployment is named in the header `x-ms-oai-image-generation-deployment`, and the image comes back as base64 in the `result` of an output item of type `image_generation_call`. The tool supports the GPT-image-1 series and the GPT-image-2.5 models (Learn doesn't list `gpt-image-2` for it), and not multi-turn editing. It doesn't stream; to stream partial images, call the image API directly with `stream=True` and `partial_images`.
 
 > **Exam trap.** "Use our three product photos to create a lifestyle picture" is an **edit** call with several input images, not `images.generate`: the generation operation has no image input.
 
@@ -167,7 +167,7 @@ remix = client.videos.remix(
 | `background` | `transparent` or `auto`; transparency requires PNG |
 | `mask` | PNG, same size as the image, transparent = area to edit |
 | `input_fidelity` | How closely the output keeps the style and features (faces) of the input images; not on `gpt-image-1-mini` |
-| `stream` + `partial_images` | Progressive preview of the image while it's generated |
+| `stream` + `partial_images` | Progressive preview of the image while it's generated (documented for the GPT-image-1 series and GPT-image-2) |
 | `user` | Your end-user identifier, to track usage |
 | `seconds`, `input_reference` | Video duration; first-frame anchor |
 

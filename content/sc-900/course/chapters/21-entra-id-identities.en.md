@@ -18,7 +18,7 @@ Every organization that subscribes to Microsoft 365, Azure or Dynamics 365 autom
 | Developers | A standards-based way to add single sign-on to their applications |
 | Users | One identity to sign in to Microsoft 365, the Azure portal, SaaS applications and internal applications |
 
-Microsoft Entra ID exists in Free, P1 and P2 editions; premium features such as Conditional Access (P1) or Privileged Identity Management (P2) need the corresponding license. The **identity secure score**, a percentage that shows how well the tenant follows Microsoft's identity security recommendations, is available in every edition.
+Microsoft Entra ID exists in Free, P1 and P2 editions; premium features such as Conditional Access (P1) or Privileged Identity Management (P2, or Microsoft Entra ID Governance) need the corresponding license. The **identity secure score**, a percentage that shows how well the tenant follows Microsoft's identity security recommendations, is available in every edition.
 
 Other members of the family that the exam may name:
 
@@ -54,7 +54,7 @@ A user is described by where they authenticate and by their **user type**, Membe
 | **Security** group | Manage access to shared resources; members can be users, devices, other groups and service principals |
 | **Microsoft 365** group | Collaboration: shared mailbox, calendar, files, SharePoint site; members are users only |
 
-Membership is **assigned** (chosen manually) or **dynamic** (rules add and remove members automatically).
+Membership is **assigned** (chosen manually) or **dynamic** (rules add and remove members automatically). Dynamic membership requires Microsoft Entra ID P1 licenses for its users; devices need none. A dynamic group contains either users or devices, never both.
 
 A **device identity** gives administrators information to make access decisions:
 
@@ -94,7 +94,7 @@ Most organizations run both on-premises and cloud applications. **Hybrid identit
 | **Microsoft Entra Cloud Sync** | The recommended tool: a lightweight provisioning agent on-premises, with the configuration stored and managed in Microsoft Entra ID; several agents give high availability |
 | **Microsoft Entra Connect Sync** | The earlier tool, an on-premises synchronization server, being replaced by Cloud Sync |
 
-Synchronizing accounts doesn't say where passwords are checked. Three sign-in methods exist:
+Synchronizing accounts doesn't say where passwords are checked. Three sign-in methods exist (Cloud Sync doesn't configure pass-through authentication or federation: they are set up with separate tools):
 
 | Method | Where the password is validated | On-premises infrastructure |
 | --- | --- | --- |

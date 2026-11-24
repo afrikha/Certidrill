@@ -3,7 +3,7 @@ Une fois une solution Foundry en service, vous gérez ce qu'elle peut consommer 
 <!-- section: quotas-cost | objectives: 1.3.1 -->
 ## Gérer les quotas, la mise à l'échelle, les limites de débit et les coûts
 
-Le **quota** est attribué à un abonnement par région, par modèle et par type de déploiement, en jetons par minute (TPM). Vous le répartissez entre les déploiements : avec 240 000 TPM d'un modèle dans une région, vous pouvez créer un déploiement de 240 000 TPM ou deux de 120 000, tant que le total dans cette région reste dans le quota. Chaque déploiement applique ensuite une **limite de débit** dérivée de son TPM, plus une limite de requêtes par minute (RPM) dont le rapport au TPM dépend du modèle (6 RPM pour 1 000 TPM pour les anciens modèles de conversation, 1 RPM pour 1 000 TPM pour `o3`).
+Le **quota** est attribué à un abonnement par région, par modèle et par type de déploiement, en jetons par minute (TPM). Vous le répartissez entre les déploiements : avec 240 000 TPM d'un modèle dans une région, vous pouvez créer un déploiement de 240 000 TPM ou deux de 120 000, tant que le total dans cette région reste dans le quota. Chaque déploiement applique ensuite une **limite de débit** dérivée de son TPM, plus une limite de requêtes par minute (RPM) dont le rapport au TPM dépend du modèle (6 RPM pour 1 000 TPM pour les anciens modèles de conversation ; la page des quotas indique des rapports RPM plus faibles pour les modèles de raisonnement de la série o).
 
 Comment les limites sont évaluées :
 
@@ -44,7 +44,7 @@ Les leviers de coût, du plus efficace au moins efficace :
 
 L'observabilité de Foundry comporte trois parties, toutes intégrées à Azure Monitor Application Insights : l'**évaluation** (scores de qualité, de sécurité et de fiabilité sur des jeux de données, des traces de production ou des conversations simulées), la **surveillance** (tableaux de bord en temps réel des métriques opérationnelles, de la consommation de jetons, de la latence, des taux d'erreur et des scores de qualité, avec des alertes) et le **traçage** (fondé sur OpenTelemetry : chaque appel de modèle, appel d'outil et étape de raisonnement d'une exécution). Connectez une ressource Application Insights au projet pour collecter traces et métriques.
 
-En production, combinez quatre pratiques : les métriques opérationnelles, l'**évaluation continue** du trafic de production à un taux d'échantillonnage, l'**évaluation planifiée** sur des jeux de données de test pour détecter la dérive, et le red teaming planifié ; les alertes Azure Monitor vous préviennent quand des sorties passent sous les seuils de qualité ou produisent du contenu nuisible.
+En production, combinez quatre pratiques : les métriques opérationnelles, l'**évaluation continue** du trafic de production à un taux d'échantillonnage, l'**évaluation planifiée** sur des jeux de données de test pour détecter la dérive, et le red teaming planifié ; les alertes Azure Monitor vous préviennent quand des sorties passent sous les seuils de qualité ou produisent du contenu nuisible. Dans l'Agent Monitoring Dashboard, les évaluations récurrentes, les analyses de red teaming et les alertes sont marquées en préversion ; l'évaluation continue ne l'est pas.
 
 | À surveiller | Signal | Où |
 | --- | --- | --- |
@@ -59,11 +59,11 @@ La dérive a plusieurs causes, chacune avec son contrôle :
 | Cause | Comment la détecter |
 | --- | --- |
 | La version du modèle a changé (mise à niveau automatique) | Stratégie de mise à niveau de version, historique du déploiement, évaluation avant et après |
-| Les questions des utilisateurs ont changé | Scores de pertinence et de résolution d'intention sur le trafic échantillonné |
+| Les questions des utilisateurs ont changé | Scores de pertinence (et Intent Resolution, en préversion) sur le trafic échantillonné |
 | Le contenu source a changé ou l'index n'est plus à jour | Scores d'ancrage, état de l'indexeur (section suivante) |
 | Les invites ou les outils ont changé | Comparer les versions de l'agent avec le même jeu de données d'évaluation |
 
-Familles d'évaluateurs intégrés : usage général (cohérence, fluidité), RAG (ancrage, pertinence, récupération, exhaustivité de la réponse), agents (respect de la tâche, achèvement de la tâche, résolution d'intention, précision des appels d'outils, sélection des outils) et risques et sécurité (haine et injustice, contenu sexuel, violence, automutilation, contenu protégé, attaque indirecte, vulnérabilité du code, fuite de données sensibles). Plusieurs évaluateurs d'agents sont en préversion.
+Familles d'évaluateurs intégrés : usage général (cohérence, fluidité), RAG (ancrage, pertinence, récupération, exhaustivité de la réponse), agents (respect de la tâche, achèvement de la tâche, résolution d'intention, précision des appels d'outils, sélection des outils) et risques et sécurité (haine et injustice, contenu sexuel, violence, automutilation, contenu protégé, attaque indirecte, vulnérabilité du code, fuite de données sensibles). Response Completeness, Groundedness Pro, Task Adherence, Task Completion et Intent Resolution sont en préversion ; les évaluateurs d'outils (Tool Call Accuracy, Tool Selection, Tool Input Accuracy, Tool Output Utilization, Tool Call Success) ne le sont pas.
 
 > **Piège d'examen.** Un filtre de contenu bloque le contenu nuisible à l'exécution mais ne dit rien de l'exactitude d'une réponse. Pour détecter les réponses non étayées par les documents, exécutez un évaluateur d'ancrage. Pour voir pourquoi une exécution a échoué (quel outil a été appelé, avec quels arguments, en combien de temps), ouvrez sa trace.
 
@@ -145,7 +145,7 @@ project = AIProjectClient(
 
 Les développeurs reçoivent Foundry User sur le projet et Reader sur la ressource Foundry. Évitez Owner et Contributor pour le travail quotidien : Contributor peut déployer des modèles mais n'a aucune action de données. Azure AI Developer s'applique aux hubs et aux espaces de travail Azure Machine Learning, pas aux projets Foundry.
 
-**Identités managées entre services.** La ressource Foundry et ses projets ont des identités managées. Donnez à l'identité managée du projet le rôle Foundry User sur la ressource Foundry ; pour un compte de stockage créé en dehors de Foundry, donnez à l'identité managée de la ressource Foundry le rôle Storage Blob Data Reader ; ajoutez Foundry aux attributions de rôles d'un service Azure AI Search externe.
+**Identités managées entre services.** La ressource Foundry et ses projets ont des identités managées. Donnez à l'identité managée du projet le rôle Foundry User sur la ressource Foundry ; pour un compte de stockage créé en dehors de Foundry, donnez à l'identité managée de la ressource Foundry le rôle Storage Blob Data Reader ; pour l'outil Azure AI Search, donnez à l'identité managée affectée par le système du compte Foundry les rôles Search Index Data Contributor et Search Service Contributor sur le service de recherche (la section de dépannage de la page de l'outil cite plutôt l'identité managée du projet).
 
 **Réseau privé.**
 
@@ -158,7 +158,7 @@ Les développeurs reçoivent Foundry User sur le projet et Reader sur la ressour
 | Azure AI Search doit atteindre la ressource Foundry derrière son pare-feu | Exception pour les services Azure approuvés, plus un rôle pour l'identité managée du service de recherche |
 | Résolution de noms | Zone DNS privée du sous-domaine `privatelink` liée au réseau virtuel |
 
-Certains outils d'agent ne sont pas pris en charge avec l'injection réseau (par exemple l'automatisation du navigateur, l'utilisation de l'ordinateur et la génération d'images), et Grounding with Bing, la recherche web et l'ancrage SharePoint utilisent des points de terminaison publics. Un indexeur qui doit atteindre sa source de données par des points de terminaison privés a besoin de `executionEnvironment` à `"Private"` ; sinon l'indexation peut échouer sans signal et laisser un index vide.
+Certains outils d'agent ne sont pas pris en charge avec l'injection réseau : l'utilisation de l'ordinateur, la génération d'images et Logic Apps sont en cours de développement, et l'agent de données Fabric exige l'accès réseau public ; Fabric IQ et les agents de workflow ne sont que partiellement pris en charge. Grounding with Bing, la recherche web et l'ancrage SharePoint utilisent des points de terminaison publics. Un indexeur qui doit atteindre sa source de données par des points de terminaison privés a besoin de `executionEnvironment` à `"Private"` ; sinon l'indexation peut échouer sans signal et laisser un index vide. Un service de recherche dont l'accès public est désactivé derrière un point de terminaison privé exige la configuration standard des agents avec injection réseau, et la connexion de l'outil Search doit utiliser l'identité managée du projet : l'authentification par clé n'est pas prise en charge avec un réseau privé.
 
 > **Piège d'examen.** Azure RBAC ne s'applique qu'avec l'authentification Microsoft Entra ID. Un appelant muni d'une clé API contourne tous les rôles : « seuls les utilisateurs ayant le rôle X peuvent appeler le modèle » impose de désactiver l'authentification locale. Et le rôle qui permet à une application d'appeler modèles et agents est un rôle de données (Foundry User), pas Contributor ni Owner.
 
