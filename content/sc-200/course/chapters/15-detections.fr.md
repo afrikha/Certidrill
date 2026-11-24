@@ -7,7 +7,7 @@ Une règle de détection personnalisée exécute une requête de repérage avanc
 
 Deux points d'entrée : exécutez une requête dans **Repérage > Repérage avancé** et sélectionnez **Créer une règle de détection** (les résultats sont validés d'abord), ou sélectionnez **+ Créer une règle de détection** dans la liste des règles de détection personnalisées. L'assistant : détails de l'alerte, enrichissement (entités, détails personnalisés), actions, étendue, vérification.
 
-**Autorisations** : pour les données Defender XDR, **Security settings (manage)** dans le RBAC unifié, ou le rôle Microsoft Entra Security Administrator (Security Operator ne suffit que si le RBAC est désactivé dans Defender for Endpoint). Pour les données Sentinel, **Microsoft Sentinel Contributor** sur l'espace de travail. L'utilisateur doit aussi avoir des autorisations sur tous les appareils de l'étendue de la règle.
+**Autorisations** : pour les données Defender XDR, **Security settings (manage)** dans le RBAC unifié, ou le rôle Microsoft Entra Security Administrator (Security Operator ne suffit que si le RBAC est désactivé dans Defender for Endpoint ; avec le RBAC activé, il lui faut aussi l'autorisation **Manage security settings**). Les autorisations sont vérifiées par source de données : avec des autorisations de gestion sur Defender pour Office 365 seulement, vous pouvez utiliser les tables `Email*` mais pas les tables `Identity*`. Pour les données Sentinel, **Microsoft Sentinel Contributor** sur l'espace de travail. L'utilisateur doit aussi avoir des autorisations sur tous les appareils de l'étendue de la règle.
 
 **Exigences de la requête** :
 
@@ -30,9 +30,9 @@ DeviceProcessEvents
 | Toutes les 3 heures | 12 heures |
 | Toutes les 12 heures | 48 heures |
 | Toutes les 24 heures | 30 jours |
-| Personnalisée, de 5 minutes à 14 jours (données Sentinel uniquement) | Personnalisable, jusqu'à 30 jours |
+| Personnalisée, de 5 minutes à 14 jours (données Sentinel uniquement) | Personnalisable, jusqu'à 30 jours selon la fréquence ; moins de 48 heures quand la règle s'exécute plus d'une fois par heure |
 
-Une nouvelle règle s'exécute d'abord sur les 30 derniers jours, puis à sa fréquence. **Continuous** exige une requête sur une seule table prise en charge (par exemple `DeviceProcessEvents`, `EmailEvents`, `IdentityLogonEvents`, `SigninLogs`, `SecurityEvent`), sans `join`, `union` ni `externaldata`, et sans ligne de commentaire.
+Une nouvelle règle s'exécute d'abord sur les 30 derniers jours, puis à sa fréquence. **Continuous** exige une requête sur une seule table prise en charge (par exemple `DeviceProcessEvents`, `EmailEvents`, `IdentityLogonEvents`, `SigninLogs`, `SecurityEvent`), sans `join`, `union` ni `externaldata`, et sans ligne de commentaire. Seules les colonnes en disponibilité générale sont utilisables, `EmailEvents` est pris en charge sauf ses colonnes `LatestDeliveryLocation` et `LatestDeliveryAction`, et un motif `matches regex` doit être écrit comme un littéral de chaîne encodé. Les détections personnalisées évaluent `ingestion_time()` : des événements tardifs plus anciens que la période de recherche peuvent donc être inclus.
 
 Détails de l'alerte : nom de détection et titre d'alerte uniques, gravité, catégorie, techniques MITRE, description et actions recommandées ; valeurs dynamiques avec `{{ColumnName}}` (jusqu'à trois colonnes par champ) ; jusqu'à 20 détails personnalisés.
 
@@ -41,8 +41,9 @@ Détails de l'alerte : nom de détection et titre d'alerte uniques, gravité, ca
 | Cible | Actions | Colonne requise |
 | --- | --- | --- |
 | Appareil | Isoler l'appareil, Collecter le package d'investigation, Exécuter une analyse antivirus, Lancer une investigation, Restreindre l'exécution des applications | `DeviceId` |
-| Fichier | Autoriser/Bloquer, Mettre le fichier en quarantaine | `SHA1` ou `SHA256` |
-| Utilisateur | Marquer l'utilisateur comme compromis, Désactiver l'utilisateur, Réinitialiser l'authentification de l'utilisateur | `AccountObjectId` ou `AccountSid` |
+| Fichier | Autoriser/Bloquer (exige l'autorisation Remediate sur les fichiers), Mettre le fichier en quarantaine | `SHA1` ou `SHA256` (ou `InitiatingProcessSHA1`, `InitiatingProcessSHA256` pour la quarantaine) |
+| Utilisateur | Marquer l'utilisateur comme compromis | `AccountObjectId`, `InitiatingProcessAccountObjectId` ou `RecipientObjectId` |
+| Utilisateur | Désactiver l'utilisateur, Réinitialiser l'authentification de l'utilisateur | Une colonne de SID (`AccountSid`, `InitiatingProcessAccountSid`, `RequestAccountSid`, `OnPremSid`) ; les identités Microsoft Entra exigent aussi `AccountObjectId` |
 | E-mail | Déplacer vers un dossier de boîte aux lettres (Courrier indésirable, Boîte de réception, Éléments supprimés), Supprimer l'e-mail (suppression réversible ou définitive) | `NetworkMessageId` et `RecipientEmailAddress` |
 
 **Étendue** : tous les appareils ou des groupes d'appareils spécifiques ; elle ne concerne que les règles sur des données d'appareils.
@@ -61,7 +62,7 @@ Détails de l'alerte : nom de détection et titre d'alerte uniques, gravité, ca
 | Modify query | Ouvre la requête dans le repérage avancé |
 | Turn off / Turn on | Arrête ou reprend la règle ; l'historique est conservé |
 | Delete | Désactive la règle et la supprime définitivement |
-| Include or exclude from correlation | Indique si ses alertes sont corrélées en incidents (incluses par défaut) |
+| Include or exclude from correlation | Indique si ses alertes sont corrélées en incidents (incluses par défaut) ; en préversion publique pour les détections personnalisées, disponible pour les règles d'analytique |
 
 La page de détails de la règle affiche **Triggered alerts** (définir l'état et la classification, lier à un incident, relancer la requête) et **Triggered actions**. Les modifications s'appliquent à la prochaine exécution planifiée. Les règles qui remplissent les conditions de Continuous peuvent être migrées avec **Migrate now**. Les règles peuvent aussi être gérées sous forme de code avec l'extension Bicep Microsoft Security (préversion).
 
@@ -76,7 +77,7 @@ La page de détails de la règle affiche **Triggered alerts** (définir l'état 
 | --- | --- | --- |
 | Planifiée (Scheduled) | Requête KQL exécutée toutes les 5 minutes à 14 jours sur une période de 5 minutes à 14 jours | Entièrement |
 | Quasi en temps réel (NRT) | S'exécute chaque minute sur les événements ingérés pendant la minute précédente | En grande partie, avec des limites |
-| Microsoft Defender Threat Intelligence Analytics | Compare les indicateurs Microsoft (domaine, IPv4, URL) aux journaux CEF, DNS, Syslog et autres | Non (lecture seule) |
+| Microsoft Defender Threat Intelligence Analytics | Compare les indicateurs Microsoft de domaine et IPv4 (et les indicateurs d'URL dans le `RequestURL` du CEF) aux journaux CEF, DNS, Syslog et autres | Non (lecture seule) |
 | ML Behavior Analytics (préversion) | Détecte les connexions SSH et RDP anormales | Non |
 | Anomalie | Lignes de base Machine Learning ; écrit dans `Anomalies`, sans alerte | Dupliquer et régler |
 | Sécurité Microsoft (création d'incidents) | Crée des incidents à partir des alertes des produits Microsoft | Non pris en charge dans le portail Defender |
@@ -169,7 +170,7 @@ Anomalies
 | project TimeGenerated, RuleName, RuleStatus, Score, AnomalyReasons
 ```
 
-`Score` va de 0 à 1 : plus il est élevé, plus l'écart à la ligne de base est grand. Les détections d'anomalies DGA sur les domaines DNS ont été arrêtées le 8 mars 2026.
+`RuleStatus` indique si l'anomalie provient de la version Production ou Flighting de la règle. Les détections d'anomalies DGA sur les domaines DNS ont été arrêtées le 8 mars 2026.
 
 > **Piège d'examen.** Les anomalies ne créent jamais d'incident par elles-mêmes. Pour être alerté, écrivez une règle planifiée qui interroge `Anomalies`, éventuellement combinée à un autre signal.
 

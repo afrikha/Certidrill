@@ -5,7 +5,7 @@ difficulty: 1
 status: draft
 stem:
   en: |
-    Tailspin Toys shares one Microsoft Foundry resource between the projects of three teams. An AI Gateway is configured on the resource, and all projects are enabled on it. You need to meet the following requirements:
+    Tailspin Toys shares one Microsoft Foundry resource between three teams. An Azure API Management instance publishes the model deployments of the resource as LLM APIs, and each team calls them with its own API Management subscription. You need to meet the following requirements:
 
     - No team can consume the token capacity of another team.
     - A team's burst of requests is slowed down before the model deployment is called.
@@ -15,7 +15,7 @@ stem:
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Tailspin Toys partage une ressource Microsoft Foundry entre les projets de trois équipes. Une passerelle AI Gateway est configurée sur la ressource, et tous les projets y sont activés. Vous devez respecter les exigences suivantes :
+    Tailspin Toys partage une ressource Microsoft Foundry entre trois équipes. Une instance Gestion des API Azure publie les déploiements de modèles de la ressource sous forme d'API LLM, et chaque équipe les appelle avec son propre abonnement API Management. Vous devez respecter les exigences suivantes :
 
     - aucune équipe ne peut consommer la capacité en jetons d'une autre équipe ;
     - une rafale de requêtes d'une équipe est freinée avant l'appel du déploiement de modèle ;
@@ -28,19 +28,19 @@ body:
   layout: text
   template:
     en: |
-      Set the token limits per: [[scope]]
+      Enforce the token limits with: [[scope]]
       A request over the tokens-per-minute limit returns: [[tpm]]
       A request over the total token quota returns: [[quota]]
     fr: |
-      Définir les limites de jetons par : [[scope]]
+      Appliquer les limites de jetons avec : [[scope]]
       Une requête au-delà de la limite de jetons par minute renvoie : [[tpm]]
       Une requête au-delà du quota total de jetons renvoie : [[quota]]
   slots:
     - id: scope
       options:
-        - { id: project, text: { en: "Project and deployment", fr: "Projet et déploiement" } }
-        - { id: resource, text: { en: "Foundry resource", fr: "Ressource Foundry" } }
-        - { id: apim, text: { en: "API Management instance", fr: "Instance Gestion des API" } }
+        - { id: project, text: { en: "An llm-token-limit policy keyed on the subscription ID", fr: "Une stratégie llm-token-limit dont la clé est l'ID d'abonnement" } }
+        - { id: resource, text: { en: "The tokens-per-minute rate limit of each model deployment", fr: "La limite de débit en jetons par minute de chaque déploiement de modèle" } }
+        - { id: apim, text: { en: "An llm-emit-token-metric policy with a subscription dimension", fr: "Une stratégie llm-emit-token-metric avec une dimension d'abonnement" } }
     - id: tpm
       options:
         - { id: c401, text: "401 Unauthorized" }
@@ -58,17 +58,20 @@ answer:
 explanation:
   correct:
     en: |
-      All projects of a Foundry resource share one gateway, and Token management sets each limit for a project and deployment pair, which gives every team its own ceiling. Exceeding the tokens-per-minute rate limit returns 429 Too Many Requests, while exhausting the total token quota of the period returns 403 Forbidden.
+      The llm-token-limit policy keeps one counter per counter-key value, so keying it on the subscription ID gives every team its own tokens-per-minute limit and token quota. Exceeding the tokens-per-minute rate limit returns 429 Too Many Requests, while exhausting the token quota of the period (token-quota-period Monthly) returns 403 Forbidden.
     fr: |
-      Tous les projets d'une ressource Foundry partagent une passerelle, et Token management définit chaque limite pour une paire projet-déploiement, ce qui donne à chaque équipe son propre plafond. Dépasser la limite de débit en jetons par minute renvoie 429 Too Many Requests, alors qu'épuiser le quota total de jetons de la période renvoie 403 Forbidden.
+      La stratégie llm-token-limit tient un compteur par valeur de counter-key : avec l'ID d'abonnement comme clé, chaque équipe a donc sa propre limite de jetons par minute et son propre quota de jetons. Dépasser la limite de débit en jetons par minute renvoie 429 Too Many Requests, alors qu'épuiser le quota de jetons de la période (token-quota-period Monthly) renvoie 403 Forbidden.
   options:
     resource:
       en: |
-        A limit on the whole resource would let one team consume the capacity of the others.
+        A deployment's rate limit is shared by every caller of that deployment, so one team could consume the capacity of the others.
       fr: |
-        Une limite sur toute la ressource permettrait à une équipe de consommer la capacité des autres.
+        La limite de débit d'un déploiement est partagée par tous les appelants de ce déploiement : une équipe pourrait consommer la capacité des autres.
+    apim:
+      en: |
+        llm-emit-token-metric only sends token consumption metrics to Azure Monitor; it doesn't enforce any limit.
+      fr: |
+        llm-emit-token-metric envoie seulement des métriques de consommation de jetons à Azure Monitor ; elle n'applique aucune limite.
 references:
-  - title: Enforce token limits for models
-    url: https://learn.microsoft.com/en-us/azure/foundry/control-plane/how-to-enforce-limits-models
-  - title: Configure AI Gateway in your Foundry resources
-    url: https://learn.microsoft.com/en-us/azure/foundry/configuration/enable-ai-api-management-gateway-portal
+  - title: Limit large language model API token usage
+    url: https://learn.microsoft.com/en-us/azure/api-management/llm-token-limit-policy

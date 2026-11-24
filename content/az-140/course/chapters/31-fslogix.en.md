@@ -19,7 +19,7 @@ Microsoft's recommendation is the simplest design that meets the requirement:
 | Pooled host pool, users must keep their settings on any session host | Profile container only (**single container**), `VHDLocations` with one SMB share |
 | The organization keeps a third-party roaming profile solution and only needs Office data to roam | ODFC container only, and exclude the ODFC paths from the third-party solution |
 | Separate storage, size or isolation for Office data (for example a 10 GB profile and a 50 GB ODFC container) | Profile container plus ODFC container (dual container) |
-| The profile must stay available if one storage provider fails, in the same region | Cloud Cache with at least two providers in the session hosts' region |
+| The profile must stay available if one storage provider fails, in the same region | Cloud Cache with at least two providers of different kinds (for example Azure Files and Azure NetApp Files) in the session hosts' region, or zone-redundant storage |
 | Disaster recovery to a second region with profile data | Cloud Cache with a provider in each region, closest provider first |
 | Disaster recovery, simplest option, users accept new profiles | Duplicate infrastructure in the other region, standard `VHDLocations`, no profile recovery |
 | Some users must not see an installed application | Application masking hiding rule assigned to those users or groups |
@@ -30,7 +30,8 @@ General recommendations that apply to every design:
 - Keep `ProfileType = 0`: one read-write connection per profile. Azure Virtual Desktop doesn't support multiple connections to the same profile within the same host pool.
 - Put the storage in the **same region** as the session hosts. Azure Files (Premium for production pools) or Azure NetApp Files are the usual SMB providers; share-level and NTFS permissions must be set before the first sign-in.
 - Configure the settings once for all session hosts: registry values in the image, Group Policy (the FSLogix ADMX/ADML templates add an **FSLogix** node under Administrative Templates) or the Intune settings catalog.
-- Add the FSLogix antivirus exclusions (VHD and VHDX files, the Cloud Cache folders).
+- Add the FSLogix antivirus exclusions (VHD and VHDX files with their `.lock`, `.meta` and `.metadata` files, the FSLogix processes, drivers, folders and registry keys, the Cloud Cache folders).
+- The April 2026 Windows Server update changes the default Kerberos encryption type from RC4 to AES-SHA1: upgrade the file shares that hold the containers to AES-SHA1 before installing it, or containers may fail to attach.
 
 > **Exam trap.** Several entries in `VHDLocations` aren't a high-availability design. FSLogix uses the first location the user can reach and creates a new, empty profile there if the usual location is down. Resiliency requires Cloud Cache.
 
@@ -70,6 +71,8 @@ Other settings that appear in questions:
 | Send some users or groups to another share | `HKLM\SOFTWARE\FSLogix\Profiles\ObjectSpecific\<SID>` with its own `VHDLocations` |
 | Keep folders out of the container (caches, temporary data) | A `redirections.xml` file in the folder named by `RedirXMLSourceFolder` |
 | Attach the disk with the computer account instead of the user | `AccessNetworkAsComputerObject = 1` (security risk, only when required) |
+
+Object-specific settings exist under the Profiles key and under the ODFC key (`HKLM\SOFTWARE\Policies\FSLogix\ODFC\ObjectSpecific\<SID>`), and any container setting can be set there. Precedence is the user's object-specific setting, then the group's, then the system-wide settings. They can't be configured with the Group Policy templates and don't support Microsoft Entra ID cloud-only identities.
 
 **Who gets a container** is controlled by four local groups created on each session host: *FSLogix Profile Include List*, *FSLogix Profile Exclude List*, *FSLogix ODFC Include List* and *FSLogix ODFC Exclude List*. Everyone is a member of the include lists by default; membership in an exclude list wins over the include list. To pilot FSLogix with one group, remove Everyone from *FSLogix Profile Include List* and add that group.
 
@@ -130,9 +133,9 @@ Registration settings decide what happens when providers are unavailable:
 | --- | --- | --- |
 | `ClearCacheOnLogoff` | 0 | 1 on pooled hosts: deletes the local cache at sign-out to save disk space |
 | `HealthyProvidersRequiredForRegister` | 0 | 1: blocks sign-in when no provider is healthy (combine with `PreventLoginWithFailure`) |
-| `HealthyProvidersRequiredForUnregister` | 1 | Number of healthy providers needed to sign out; 0 isn't recommended (data loss risk) |
+| `HealthyProvidersRequiredForUnregister` | 1 | Number of healthy providers needed to sign out; 0 isn't recommended: `CcdUnregisterTimeout` and `ClearCacheOnForcedUnregister` then have no effect (data loss risk) |
 | `CcdUnregisterTimeout` | 0 | Seconds the sign-out waits for providers; 0 waits indefinitely |
-| `ClearCacheOnForcedUnregister` | 0 | 1 deletes the local cache when the timeout expires (unflushed data is lost) |
+| `ClearCacheOnForcedUnregister` | 0 | 1 deletes the local cache when the timeout expires (unflushed data is lost). With 0, the cache of a forced sign-out is kept even if `ClearCacheOnLogoff` is 1, and must be deleted manually after recovery |
 
 > **Exam tip.** "Primary region West Europe, failover North Europe, profiles must survive a regional outage" points to Cloud Cache: West Europe hosts list the West Europe share first and the North Europe share second; North Europe hosts use the reverse order.
 

@@ -7,7 +7,7 @@ L'analytique à grande échelle transforme les données de nombreux systèmes op
 | --- | --- |
 | **Ingestion et traitement des données** | Les données de magasins transactionnels, de fichiers et de flux en temps réel sont chargées dans un lac de données ou un entrepôt de données, puis nettoyées, filtrées et restructurées pour l'analyse |
 | **Magasin de données analytique** | Les données préparées sont conservées dans un entrepôt de données, un lac de données ou un lakehouse |
-| **Modèle de données analytique** | Un modèle sémantique définit des tables, des relations, des hiérarchies et des mesures au-dessus du magasin |
+| **Modèle de données analytique** | Un modèle sémantique définit des tables, des relations, des hiérarchies et des mesures au-dessus du magasin ; les mesures sont écrites en DAX et calculées au moment de la requête. Dans Microsoft Fabric, le mode **Direct Lake** charge les tables Delta de OneLake sans importer de copie des données dans le modèle |
 | **Visualisation des données** | Les analystes créent des rapports et des tableaux de bord qui montrent des tendances, des comparaisons et des indicateurs de performance clés (KPI) |
 
 Des assistants en langage naturel comme Copilot dans Microsoft Fabric ou Genie dans Azure Databricks permettent d'interroger les données sans écrire de requêtes.
@@ -87,7 +87,10 @@ Les deux plateformes couvrent toute l'architecture, avec des approches différen
 | --- | --- |
 | Une seule plateforme SaaS de l'ingestion aux rapports Power BI, avec un lac de données partagé | Microsoft Fabric |
 | Une plateforme Spark orientée code, des compétences Databricks existantes, la portabilité entre clouds | Azure Databricks |
-| Un entrepôt relationnel interrogé en T-SQL | Warehouse dans Microsoft Fabric |
+| Un entrepôt relationnel interrogé en T-SQL, avec une application stricte du schéma et de nombreux utilisateurs simultanés | Warehouse dans Microsoft Fabric |
+| Des données mixtes ou semi-structurées, des notebooks Spark, des flux de travail de machine learning | Lakehouse dans Microsoft Fabric |
+
+Les deux plateformes peuvent être combinées : un processus ELT copie les données dans le lac de données, un notebook Azure Databricks traite le grand volume, puis les résultats sont chargés dans les tables d'un Warehouse Fabric.
 
 <!-- section: key-points -->
 ## Points clés

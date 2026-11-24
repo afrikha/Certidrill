@@ -59,7 +59,7 @@ Autres règles que l'examen apprécie : ne capturez pas une machine virtuelle qu
 ]
 ```
 
-Créer le modèle ne construit pas l'image : vous lancez le build avec l'action `Run` (**Démarrer le build** dans le portail, ou les commandes ci-dessous). Image Builder crée un **groupe de ressources intermédiaire** (staging) nommé `IT_<resource group>_<template>_<GUID>` ; son compte de stockage conserve le `customization.log` (sortie Packer) pour diagnostiquer un build en échec.
+Créer le modèle ne construit pas l'image : vous lancez le build avec l'action `Run` (**Démarrer le build** dans le portail, ou les commandes ci-dessous). Image Builder crée un **groupe de ressources intermédiaire** (staging) nommé `IT_<resource group>_<template>_<GUID>` ; son compte de stockage conserve le `customization.log` (sortie Packer) pour diagnostiquer un build en échec. Si vous nommez vous-même le groupe de ressources intermédiaire, il doit être vide au démarrage du build.
 
 ```bash
 az resource invoke-action --resource-group rg-images \
@@ -70,7 +70,7 @@ az resource invoke-action --resource-group rg-images \
 Les **modèles d'images personnalisées** d'Azure Virtual Desktop (**Azure Virtual Desktop > Modèles d'images personnalisées**) sont le même service avec un assistant du portail adapté aux hôtes de session. Prérequis :
 
 - Inscrivez les fournisseurs de ressources, dont `Microsoft.VirtualMachineImages`, `Microsoft.DesktopVirtualization`, `Microsoft.Compute`, `Microsoft.Network`, `Microsoft.Storage`, `Microsoft.KeyVault` et `Microsoft.ContainerInstance`.
-- Créez une **identité managée affectée par l'utilisateur** et donnez-lui un **rôle personnalisé** avec les actions sur la galerie et les images (`Microsoft.Compute/galleries/images/versions/write`, `Microsoft.Compute/images/write` et les lectures et la suppression correspondantes), à l'étendue du groupe de ressources des images. Avec un réseau virtuel existant, l'identité doit aussi y avoir accès.
+- Créez une **identité managée affectée par l'utilisateur** et donnez-lui un **rôle personnalisé** avec les actions sur la galerie et les images (`Microsoft.Compute/galleries/images/versions/write`, `Microsoft.Compute/images/write` et les lectures et la suppression correspondantes), à l'étendue du groupe de ressources des images. Avec un réseau virtuel existant, l'identité doit aussi y avoir accès (ou à son groupe de ressources), et toute stratégie de service privé sur son sous-réseau doit être désactivée.
 - Pour une distribution vers une galerie, créez d'abord la galerie et la **définition d'image**, avec la même génération que l'image source ; le service crée les versions d'image.
 
 Les onglets de l'assistant sont Informations de base, Image source, Cibles de distribution, Propriétés de build (délai d'expiration du build, taille de la machine virtuelle de build, qui doit correspondre à la génération de la source) et Personnalisations. Les **scripts intégrés** couvrent les réglages habituels d'un hôte de session : installer des modules linguistiques et définir la langue par défaut, redirection du fuseau horaire, désactiver l'Assistant Stockage (Storage Sense), installer FSLogix et configurer Profile Container, FSLogix avec Kerberos, RDP Shortpath pour les réseaux managés, protection contre la capture d'écran, optimisations Teams, délais d'expiration de session, désactiver les mises à jour automatiques des applications MSIX, ajouter ou supprimer des Microsoft 365 Apps, et appliquer les mises à jour Windows. Vos propres scripts doivent être accessibles par URI (par exemple GitHub ou un compte de stockage que l'identité peut lire).
@@ -101,7 +101,7 @@ Contenu à mettre dans l'image ou en dehors :
 Pour déployer la mise à jour sur un pool d'hôtes :
 
 - **Gestion standard** : déployez de nouveaux hôtes de session à partir de la nouvelle version, mettez les anciens hôtes en **mode drainage**, attendez la déconnexion des utilisateurs (ou envoyez un message puis déconnectez-les), puis retirez les anciens hôtes du pool et supprimez les machines virtuelles.
-- **Configuration d'hôte de session** : mettez à jour la configuration avec la nouvelle image, puis planifiez une **mise à jour des hôtes de session** (session host update). Le service met à jour un premier hôte, puis des lots de la taille définie dans la stratégie de gestion (1 par défaut) ; il prévient les utilisateurs, attend le délai de déconnexion (0 à 60 minutes, 2 par défaut), les déconnecte, recrée les machines virtuelles à partir de la nouvelle image sous les mêmes noms d'ordinateur et les réinscrit dans le pool. Désactivez la mise à l'échelle automatique pendant la mise à jour.
+- **Configuration d'hôte de session** : mettez à jour la configuration avec la nouvelle image, puis planifiez une **mise à jour des hôtes de session** (session host update). Le service met à jour un premier hôte, puis des lots de la taille définie dans la stratégie de gestion (1 par défaut) ; il prévient les utilisateurs, attend le délai de déconnexion (0 à 60 minutes, 2 par défaut), les déconnecte, recrée les machines virtuelles à partir de la nouvelle image et les réinscrit dans le pool. Les noms d'hôte du système d'exploitation ne changent pas, mais les nouvelles machines virtuelles Azure sont nommées `<SessionHostName>-<DateTime>` et les machines virtuelles d'origine sont supprimées. Désactivez la mise à l'échelle automatique pendant la mise à jour.
 
 > **Piège d'examen.** La mise à jour des hôtes de session n'existe que pour les pools d'hôtes créés avec une **configuration d'hôte de session** (regroupés uniquement). Sur un pool d'hôtes standard, la réponse est le mode drainage plus un redéploiement, ou votre propre pipeline.
 
@@ -135,7 +135,7 @@ Règles à connaître :
 - Les hôtes de session Trusted launch exigent une définition Gen2 dont le type de sécurité prend en charge Trusted launch (`TrustedLaunchSupported`, ou la valeur qui prend en charge à la fois Trusted launch et les machines virtuelles confidentielles).
 - **Réplicas** : Microsoft recommande un réplica pour 20 machines virtuelles créées en même temps, et au moins trois pour les images de production ; jusqu'à 100 réplicas par version. Un réplica dans une région cible est nécessaire pour y déployer des hôtes de session.
 - `excludeFromLatest` (global) ou `regionalExcludeFromLatest` empêche une version d'être choisie comme « latest ».
-- Une galerie est une ressource régionale : pour la reprise d'activité, gardez les images répliquées dans la région de reprise, ou une seconde galerie dans cette région.
+- Une galerie est une ressource régionale : pour la reprise d'activité, Microsoft recommande au moins deux galeries dans des régions distinctes. Si la région d'une galerie est en panne, ses réplicas dans d'autres régions restent utilisables pour déployer, mais vous ne pouvez plus créer ni modifier de ressources dans cette galerie.
 - Protégez la galerie par un verrou de ressource ; `BlockDeletionBeforeEndOfLife` empêche de supprimer une version avant sa date de fin de vie.
 
 ```bash

@@ -58,7 +58,7 @@ Creating definitions and assignments requires **Resource Policy Contributor** (o
 
 The **Regulatory compliance** dashboard shows, for each assigned standard, its controls and the resources that pass or fail them. The **Microsoft cloud security benchmark (MCSB)** is assigned by default (on AWS and GCP, with the provider's own default standard). Other standards (ISO/IEC 27001:2022, PCI DSS v4.0.1, NIST SP 800-53, SOC 2, CIS benchmarks, HIPAA, EU GDPR, DORA, EU AI Act...) are added:
 
-- **Prerequisites**: any Defender for Cloud plan **except Defender for Servers Plan 1 and Defender for APIs Plan 1**, and **Owner** or **Policy Contributor** on the scope.
+- **Prerequisites**: any Defender for Cloud plan **except Defender for Servers Plan 1 and Defender for APIs Plan 1**, and **Owner** or **Policy Contributor** on the scope. Reading the compliance data needs **Reader** on the subscription; Security Reader doesn't give access to it.
 - **Steps**: **Regulatory compliance > Manage compliance policies >** management group, subscription, AWS account or GCP project **> Security policies >** toggle the standard **On** (set parameters if asked). Prefer the highest scope.
 - Only controls that can be **assessed automatically** have a status: green (compliant), red (non-compliant), greyed out (manual: attest it yourself). A standard with no relevant resources doesn't appear.
 - **Download audit reports** (Microsoft's certifications) or a report of your own status, and follow trends in the compliance-over-time workbook.
@@ -81,7 +81,7 @@ The **Regulatory compliance** dashboard shows, for each assigned standard, its c
 
 - Exemptions need the MCSB assigned and **Owner** or **Security Admin** (or Contributor, Resource Policy Contributor); they take up to 24 hours and don't apply to custom recommendations.
 - **Security Admin** updates security policies, dismisses alerts and manages connectors; **Security Reader** views only.
-- The **secure score** counts built-in MCSB recommendations; preview recommendations and risk prioritization don't change it.
+- The **secure score** counts built-in MCSB recommendations; preview recommendations and risk prioritization don't change it. Since June 30, 2026, over 200 AWS and GCP recommendations also count. The risk-based **Cloud Secure Score** of the Microsoft Defender portal is a different model, with its own values.
 - **Foundational CSPM** is free (recommendations, secure score, MCSB); **Defender CSPM** adds attack paths, cloud security explorer, agentless scanning, governance, CIEM and DSPM.
 
 <!-- section: resource-locks | objectives: 1.3.4 -->
@@ -185,7 +185,7 @@ Fix it:
 | Feature | Behavior |
 | --- | --- |
 | **Soft delete** | Deleted backup data kept 14 days at no extra cost, extendable to 180; **always-on** soft delete can't be disabled (irreversible) |
-| **Immutable vault** | States *Disabled*, *Enabled* (reversible), *Enabled and locked* (**irreversible**). Blocks deleting recovery points before expiry and reducing retention; increasing retention stays allowed. Recovery Services and Backup vaults |
+| **Immutable vault** | States *Disabled*, *Enabled* (reversible), *Enabled and locked* (**irreversible**). **Enable based on backup policy** (default): recovery points stay immutable as long as the policy retains them; deleting them before expiry and reducing retention are blocked, increasing retention stays allowed. **Enable for specific duration**: immutable for a fixed number of days; retention can be reduced down to that duration, not below. Recovery Services and Backup vaults |
 | **Multi-user authorization (MUA)** | A **Resource Guard**, owned by a security admin (ideally another subscription or tenant), must authorize critical operations |
 | Encryption | Microsoft-managed keys by default; customer-managed keys in Key Vault for Recovery Services vaults |
 | Private endpoints | For SQL Server and SAP HANA in VMs, MARS agent, DPM |

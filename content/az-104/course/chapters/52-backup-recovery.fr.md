@@ -46,6 +46,8 @@ Un coffre de sauvegarde utilise son **identité managée** pour atteindre les so
 | **Objets blob Azure, sauvegarde opérationnelle** | Continue, locale au compte de stockage : repose sur la restauration à un instant dans le passé, le versioning, la suppression réversible et le flux de modification, que Sauvegarde Azure active | Storage Account Backup Contributor sur le compte |
 | **Objets blob Azure, sauvegarde dans le coffre** | Copies planifiées transférées dans le coffre : protège contre la suppression du compte | Idem |
 
+Une nouvelle stratégie de sauvegarde d'objets blob inclut toujours la **sauvegarde dans le coffre** : elle est sélectionnée par défaut et ne peut pas être désactivée. La sauvegarde opérationnelle peut y être ajoutée, mais une stratégie ne peut pas être uniquement opérationnelle.
+
 Ordre de création : le coffre de sauvegarde, la **stratégie de sauvegarde**, puis l'**instance de sauvegarde** (l'association d'une source de données à une stratégie).
 
 <!-- section: backup-policy | objectives: 5.2.3 -->
@@ -59,7 +61,7 @@ Stratégies pour les machines virtuelles Azure :
 | --- | --- | --- |
 | Fréquence | Une fois par jour (ou par semaine) | **Plusieurs par jour** : toutes les 4, 6, 8, 12 ou 24 heures |
 | Rétention des instantanés de restauration instantanée | 1 à 5 jours (2 par défaut) | 1 à 30 jours (7 par défaut) |
-| Obligatoire pour | | Les machines à lancement fiable (trusted launch), les disques SSD Premium v2 et Ultra |
+| Obligatoire pour | | **Les disques SSD Premium v2 et Ultra** (non pris en charge par Standard). Les machines à lancement fiable (trusted launch) depuis le portail : Standard ne les protège que par Azure CLI 2.73.0+, Az PowerShell 14.0.0+ ou l'API REST 2025-01-01+ |
 | Changement | | Une machine ne peut pas revenir d'Enhanced à Standard |
 
 Déroulement de la sauvegarde d'une machine virtuelle :
@@ -70,12 +72,12 @@ Déroulement de la sauvegarde d'une machine virtuelle :
 
 Autres charges : **SQL Server dans une machine virtuelle Azure** utilise des sauvegardes complètes, différentielles et **de journaux, jusqu'à toutes les 15 minutes**, pour la restauration à un instant donné. La sauvegarde d'**Azure Files** repose sur des instantanés de partage, avec des copies dans le coffre en option.
 
-La stratégie par défaut sauvegarde une fois par jour et conserve les points 30 jours.
+La stratégie par défaut (Standard) sauvegarde une fois par jour, conserve les points quotidiens 30 jours et les instantanés de restauration instantanée 2 jours.
 
 <!-- section: backup-restore | objectives: 5.2.4 -->
 ## Opérations de sauvegarde et de restauration
 
-**Activer la sauvegarde** d'une machine virtuelle : depuis la machine (*Sauvegarde*), depuis le coffre (*+ Sauvegarde*) ou depuis le centre de sauvegarde. Choisissez le coffre (même région) et la stratégie. La première sauvegarde est une copie complète ; les suivantes sont incrémentielles. **Sauvegarder maintenant** déclenche une sauvegarde à la demande, avec sa propre rétention.
+**Activer la sauvegarde** d'une machine virtuelle : depuis la machine (*Sauvegarde*), depuis le coffre (*+ Sauvegarde*) ou depuis **Resiliency**. Choisissez le coffre (même région) et la stratégie. La première sauvegarde est une copie complète ; les suivantes sont incrémentielles. **Sauvegarder maintenant** déclenche une sauvegarde à la demande, avec sa propre rétention.
 
 **Options de restauration d'une machine virtuelle Azure :**
 
@@ -163,7 +165,7 @@ Un **plan de récupération** orchestre le basculement de plusieurs machines : d
 
 | Besoin | Outil |
 | --- | --- |
-| Voir les travaux, les éléments protégés et l'intégrité de tous les coffres | Centre de sauvegarde (centre de continuité d'activité), *Travaux de sauvegarde*, *Éléments de sauvegarde* |
+| Voir les travaux, les éléments protégés et l'intégrité de tous les coffres | **Resiliency** (qui étend Azure Business Continuity Center ; l'ancien Centre de sauvegarde n'apparaît plus dans la recherche du portail), *Travaux de sauvegarde*, *Éléments de sauvegarde* |
 | Historique, tendances, consommation, respect des stratégies sur plusieurs mois | **Rapports de sauvegarde** |
 | Être notifié des échecs et des opérations à risque | **Alertes Azure Monitor** pour Sauvegarde Azure |
 
@@ -177,7 +179,7 @@ Les **rapports de sauvegarde** reposent sur les journaux Azure Monitor :
 
 - Les **alertes intégrées** sont émises par défaut, sans créer aucune règle : **alertes de sécurité** (suppression de données de sauvegarde, désactivation de la suppression réversible, stratégie modifiée vers une rétention plus courte... toujours actives) et **alertes d'échec de travail** (sauvegarde ou restauration en échec ; désactivables).
 - Une alerte intégrée ne notifie personne par elle-même. Créez une **règle de traitement des alertes** sur l'abonnement, le groupe de ressources ou le coffre, qui attache un **groupe d'actions** (e-mail, ITSM, webhook, application logique).
-- Pour des conditions personnalisées, créez des **alertes de métrique** sur les métriques *Backup Health Events* et *Restore Health Events* du coffre, ou des alertes de recherche dans les journaux sur l'espace de travail.
+- Pour des conditions personnalisées, créez des **alertes de recherche dans les journaux** sur l'espace de travail qui reçoit les diagnostics du coffre, par exemple sur les travaux en échec de la table `AddonAzureBackupJobs`. Les métriques de Sauvegarde Azure (*Backup Health Events*, *Restore Health Events*) sont encore en préversion.
 
 <!-- section: key-points -->
 ## Points clés
@@ -185,7 +187,7 @@ Les **rapports de sauvegarde** reposent sur les journaux Azure Monitor :
 - Coffre Recovery Services : machines virtuelles, Azure Files, SQL dans des machines virtuelles, MARS, Site Recovery. Coffre de sauvegarde : disques, objets blob, PostgreSQL, AKS.
 - Sauvegarde : coffre dans la **même** région que la source. Site Recovery : coffre **hors** de la région source.
 - GRS par défaut ; réglez le type de réplication avant de protéger quoi que ce soit ; la restauration interrégion exige GRS ; la suppression réversible garde les données supprimées 14 jours.
-- Stratégie Standard : quotidienne. Stratégie Enhanced : toutes les 4 à 24 heures, obligatoire pour le lancement fiable et les disques Ultra.
+- Stratégie Standard : quotidienne. Stratégie Enhanced : toutes les 4 à 24 heures, obligatoire pour les disques SSD Premium v2 et Ultra, et pour les machines à lancement fiable dans le portail.
 - Restauration : créer une machine, restaurer les disques, remplacer l'existant, récupération de fichiers. MARS : fichiers, dossiers et état du système de machines Windows.
 - Site Recovery : extension Mobilité, compte de stockage de cache dans la région source, points cohérents en cas d'incident toutes les 5 minutes.
 - Test de basculement dans un réseau isolé ; puis basculement, validation, reprotection, restauration automatique.

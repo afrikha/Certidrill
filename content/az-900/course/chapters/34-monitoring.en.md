@@ -28,7 +28,7 @@ Examples: resize or shut down an underused virtual machine (cost), enable multif
 | **Service Health** | Only the **services and regions you use** | Service issues in progress, **planned maintenance** to come, health advisories; you can set **alerts** to be notified |
 | **Resource Health** | **Your individual resources**, such as one virtual machine | Whether a specific resource is available, and whether a problem comes from the platform |
 
-Service Health also keeps a history of events, with official reports that explain the cause of an incident.
+Service Health also keeps a history of past events: the Health history pane shows them for 90 days, and the API keeps them for up to a year.
 
 > **Exam trap.** "Is there an outage in the region where my virtual machines run?" is Service Health. "Is my virtual machine healthy?" is Resource Health. "What is the CPU usage of my virtual machine?" is Azure Monitor.
 
@@ -47,9 +47,9 @@ Three components are named in the exam:
 
 | Component | Role |
 | --- | --- |
-| **Azure Log Analytics** | The tool in the portal where you **write and run log queries** on the data collected by Azure Monitor, in the Kusto Query Language: from simple record retrieval to statistical analysis |
+| **Azure Log Analytics** | The tool in the portal where you **write and run log queries** on the data collected by Azure Monitor. Simple mode filters, sorts and aggregates data by pointing and clicking; KQL mode gives the full Kusto Query Language for deeper analysis |
 | **Azure Monitor alerts** | Automatically **notify** you when a threshold or a condition is met, on metrics (near real time) or on logs. An alert has a severity and uses **action groups** that say who is notified and what is done; it can also trigger a corrective action |
-| **Application Insights** | Monitors your **web applications**, whether they run in Azure, on-premises or in another cloud. Installed with an SDK in the application or with an agent |
+| **Application Insights** | Monitors your **web applications**, whether they run in Azure, on-premises or in another cloud. Enabled by automatic instrumentation on some platforms (no code change), or by adding a Microsoft OpenTelemetry distribution (Distro) to the application code; applications that use the older Application Insights SDKs can be migrated to OpenTelemetry |
 
 What Application Insights watches: request rates, response times and failure rates; dependency rates and failures (calls to external services); page views and load performance; numbers of users and sessions; performance counters such as CPU and memory. It can also send synthetic requests periodically to check that the application answers, even when nobody uses it.
 

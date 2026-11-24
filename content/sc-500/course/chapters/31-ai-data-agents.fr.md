@@ -43,7 +43,7 @@ Dans le portail Microsoft Purview, **Solutions > DSPM for AI (classic)** reste d
 | Exigence | Détail |
 | --- | --- |
 | Audit Microsoft Purview | Activé (actif par défaut pour les nouveaux locataires) |
-| Licences | Microsoft 365 Copilot pour les utilisateurs surveillés ; Microsoft 365 E5 ou Microsoft Purview Suite (E3 ne suffit pas) |
+| Licences | Microsoft 365 Copilot pour les utilisateurs surveillés ; facturation à l'utilisation pour les applications d'IA autres que Microsoft 365 Copilot ; Microsoft 365 E5 ou Microsoft Purview Suite (E3 ne suffit pas) |
 | Rôle | Compliance Administrator ou un rôle équivalent |
 | Sites d'IA externes (ChatGPT grand public, Gemini) | Appareils intégrés à Microsoft Purview et extension de navigateur Microsoft Purview |
 | Étiquettes de confidentialité | Recommandées : sans elles, seuls les types d'informations sensibles sont détectés |
@@ -66,7 +66,7 @@ Risques mis en évidence par DSPM : données sensibles dans un prompt, données 
 
 Les agents personnalisés Copilot Studio ont une protection intégrée contre les attaques par injection de prompt utilisateur (UPIA) et les attaques par injection de prompt inter-domaines (XPIA). Pour les agents qui utilisent l'orchestration générative, la **protection en temps réel** ajoute un contrôle externe : chaque fois que l'orchestrateur s'apprête à invoquer un outil, il envoie le prompt, l'historique récent, les sorties des outils précédents et l'appel d'outil proposé à un point de terminaison de détection des menaces, qui répond autoriser ou bloquer. Une requête bloquée arrête l'agent et indique à l'utilisateur que son message a été bloqué. Le fournisseur peut être Microsoft Defender, un autre éditeur ou votre propre service.
 
-L'activer avec Microsoft Defender se fait à deux équipes (préversion) :
+Avec Microsoft Defender, les stratégies de protection en temps réel couvrent les agents Copilot Studio (préversion ; seuls les appels d'outils sont évalués), les agents Foundry (préversion) et les Agent 365 Tooling Servers (WorkIQ et Custom MCP, en disponibilité générale). L'intégration actuelle de Copilot Studio est une procédure à deux équipes qui est **retirée le 23 décembre 2026** ; l'intégration automatique au niveau du locataire des agents Copilot Studio pris en charge (locataires où Security for AI agents est activé) est déployée en préversion publique à partir du 22 novembre 2026. La procédure actuelle :
 
 1. Ingénieur sécurité, portail Microsoft Defender : **System > Settings > Security for AI**, activez **Security for AI Agents** (lance la découverte), puis activez **Real time protection during agent runtime** et copiez l'URL fournie.
 2. Administrateur Power Platform, Centre d'administration Power Platform : **Security > Threat Protection > Microsoft Defender - Copilot Studio AI Agents**, activez-le, saisissez l'URL, créez ou sélectionnez une application Microsoft Entra et communiquez son **App ID**.
@@ -74,8 +74,8 @@ L'activer avec Microsoft Defender se fait à deux équipes (préversion) :
 
 | Fait | Valeur |
 | --- | --- |
-| Rôles | Power Platform Administrator côté Power Platform ; Global Administrator ou Security Administrator pour connecter le connecteur d'application Microsoft 365 |
-| Connecteur d'application Microsoft 365 | Doit être connecté, sinon les blocages ont lieu mais aucune alerte ni aucun incident n'apparaît |
+| Rôles | Power Platform Administrator côté Power Platform ; Security Administrator ou supérieur pour activer la sécurité des agents d'IA et connecter le connecteur d'application Microsoft 365 |
+| Connecteur d'application Microsoft 365 | Doit être connecté avec au moins Microsoft Entra ID Management events et Microsoft 365 activities, sinon les blocages ont lieu mais aucune alerte ni aucun incident n'apparaît |
 | Configuration d'un fournisseur personnalisé | **Security > Threat detection > Additional threat detection**, par environnement, y compris les environnements créés plus tard |
 | Délai d'expiration | Sans décision en une seconde, l'outil s'exécute par défaut (le comportement en cas d'erreur peut être réglé sur le blocage) |
 | Sessions | S'applique uniquement aux nouvelles sessions |
@@ -89,7 +89,7 @@ AIAgentsInfo
 | project AIAgentName, Platform, CreatorAccountUpn, AgentToolsDetails, IsBlocked
 ```
 
-> **Piège d'examen.** Activer Security for AI Agents dans Defender ne fait que découvrir les agents. Rien n'est bloqué tant que l'administrateur Power Platform n'a pas terminé la partie Copilot Studio et que l'App ID ne correspond pas des deux côtés.
+> **Piège d'examen.** Les paramètres de blocage définis par l'intégration actuelle ne sont pas migrés. Avant le 23 décembre 2026, désactivez-la sous **Settings > Security for AI > Get started > Copilot Studio**, puis recréez et activez les règles de blocage sous **Policies & rules > Real-time protection**. Après le retrait, un agent sans règle de blocage activée fonctionne en mode audit : des alertes, mais aucun blocage.
 
 <!-- section: agent-conditional-access | objectives: 3.1.4 -->
 ## Accès conditionnel pour Microsoft Entra Agent ID
@@ -145,10 +145,10 @@ Chaque objet a des relations distinctes des rôles d'administration Entra comme 
 | Relation | Qui | Obligatoire | Peut |
 | --- | --- | --- | --- |
 | Propriétaire (owner) | Utilisateurs (invités compris) ou principaux de service, pas des groupes | Non | Administration technique : paramètres, informations d'identification, propriétaires et sponsors, désactiver, réactiver, restaurer, supprimer |
-| Sponsor | Utilisateurs ou groupes (groupes dynamiques, groupes Microsoft 365 attribués ; pas de groupes assignables à un rôle) | **Oui**, au moins un par identité d'agent et par blueprint (jusqu'à 100, dont 5 groupes) | Responsabilité métier : demander des packages d'accès, renouveler ou retirer l'accès, désactiver ou supprimer de façon réversible, mais pas réactiver ni restaurer |
+| Sponsor | Utilisateurs ou groupes (groupes d'appartenance dynamique, groupes Microsoft 365 à appartenance affectée ; pas de groupes assignables à un rôle ni de groupes de sécurité à appartenance affectée) | **Oui**, au moins un par identité d'agent et par blueprint (jusqu'à 100, dont 5 groupes) ; facultatif sur un compte d'utilisateur d'agent (jusqu'à 5, tout type de groupe) | Responsabilité métier : demander des packages d'accès, renouveler ou retirer l'accès, désactiver ou supprimer de façon réversible, mais pas réactiver ni restaurer |
 | Responsable (manager) | Utilisateurs individuels | Non | Demander des packages d'accès pour le compte d'utilisateur de l'agent ; ne peut ni modifier ni supprimer l'agent |
 
-La **gestion des droits d'utilisation** encadre ce que reçoivent les agents : dans la stratégie du package d'accès, **Who can get access** = **For users, service principals, and agent identities in your directory** > **All agents**. L'agent peut demander le package lui-même (Graph `accessPackageAssignmentRequest`), son sponsor ou son propriétaire peut le demander pour lui, ou un administrateur l'attribue. Les packages peuvent contenir des appartenances à des groupes de sécurité, des autorisations d'API OAuth (déléguées et d'application) et des rôles Microsoft Entra. Avant l'expiration d'une attribution, le sponsor est averti et peut demander une prolongation. Les flux de travail de cycle de vie peuvent transférer le parrainage au responsable d'un sponsor qui quitte l'organisation, et une stratégie d'inactivité par défaut désactive les identités d'agent inactives.
+La **gestion des droits d'utilisation** encadre ce que reçoivent les agents : dans la stratégie du package d'accès, **Who can get access** = **For users, service principals, and agent identities in your directory** > **All agents** ; les agents qui utilisent des principaux de service classiques au lieu d'identités d'agent exigent une seconde stratégie avec **All Service principals**. L'agent peut demander le package lui-même (Graph `accessPackageAssignmentRequest`), son sponsor ou son propriétaire peut le demander pour lui, ou un administrateur l'attribue. Les packages peuvent contenir des appartenances à des groupes de sécurité, des autorisations d'API OAuth (déléguées et d'application) et des rôles Microsoft Entra. Avant l'expiration d'une attribution, le sponsor est averti et peut demander une prolongation. Les flux de travail de cycle de vie peuvent transférer le parrainage au responsable d'un sponsor qui quitte l'organisation, et une stratégie d'inactivité par défaut désactive les identités d'agent inactives.
 
 > **Piège d'examen.** Un sponsor est responsable, pas administrateur : il peut désactiver une identité d'agent mais ne peut ni la réactiver ni la restaurer. La récupération exige un propriétaire ou un administrateur.
 
@@ -166,7 +166,7 @@ Le **registre des agents** (Agent Registry, **Agents > All agents > Registry**) 
 | Delete / Restore / Permanently delete | Suppression réversible avec rétention de 30 jours |
 | Start / Stop | Agents Foundry uniquement ; exige le rôle Azure AI Owner |
 
-**Agents > Settings** contient **Agent and plugin access** (autoriser les agents créés par Microsoft, par votre organisation, par des éditeurs externes), **User access** (All users par défaut, No users, ou des utilisateurs ou groupes précis), **Sharing** (qui peut partager les agents Agent Builder), **Agent management rules** (par exemple bloquer les agents sans propriétaire et inutilisés) et les étiquettes. Utilisez le rôle **AI Administrator** plutôt que Global Administrator ; les AI Administrators ne peuvent configurer ni l'accès conditionnel ni les stratégies de packages d'accès.
+**Agents > Settings** contient **Agent and plugin access** (autoriser les agents créés par Microsoft, par votre organisation, par des éditeurs externes), **User access** (All users par défaut, No users, ou des utilisateurs ou groupes précis), **Sharing** (qui peut partager les agents Agent Builder ; **No users** désactive le partage au niveau de l'organisation mais permet toujours le partage direct avec des personnes précises), **Agent management rules** (actions en bloc : bloquer les agents sans propriétaire et inutilisés, réattribuer les agents Agent Builder sans propriétaire au responsable de l'ancien propriétaire, appliquer un modèle, installer des agents Microsoft, rejeter les anciennes demandes de publication) et les étiquettes. Utilisez le rôle **AI Administrator** plutôt que Global Administrator ; les AI Administrators ne peuvent configurer ni l'accès conditionnel ni les stratégies de packages d'accès.
 
 > **Piège d'examen.** Désactiver « Allow agents and plugins built by your organization » masque ces agents dans l'Agent Store ; pour arrêter partout un seul agent à risque, **bloquez-le** (Block) plutôt dans le registre.
 
@@ -175,7 +175,7 @@ Le **registre des agents** (Agent Registry, **Agents > All agents > Registry**) 
 
 - SharePoint : les rapports DAG détectent la surexposition ; la RCD masque un site à Copilot sans changer l'accès ; le RAC et les autorisations le restreignent ; DSPM évalue chaque semaine les 100 premiers sites.
 - DSPM for AI exige l'audit Purview et E5 ou Purview Suite ; il montre les risques, la DLP bloque.
-- Protection en temps réel de Copilot Studio : portail Defender plus Centre d'administration Power Platform, App ID identique, délai d'une seconde qui autorise par défaut.
+- Protection en temps réel de Copilot Studio : le blocage vient des règles personnalisées de Policies & rules > Real-time protection (règle par défaut = audit) ; l'intégration actuelle Defender plus Power Platform est retirée le 23 décembre 2026 et ses paramètres de blocage ne sont pas migrés ; délai d'une seconde qui autorise par défaut.
 - L'accès conditionnel pour les agents cible des identités d'agent ou des blueprints, jamais les utilisateurs d'agent via Users ; jetons émis par Entra uniquement.
 - Rayon d'impact = autorisations, sources de connaissances, actions du blueprint ; inventaire dans Assets > AI Agents, chemins d'attaque avec View on map.
 - Agent ID : sponsors obligatoires, propriétaires techniques ; packages d'accès pour All agents ; registre du Centre d'administration Microsoft 365 pour installer, bloquer et publier.

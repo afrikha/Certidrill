@@ -5,32 +5,34 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    You have an SDK-style database project for a Fabric warehouse named DW_Ops. The project contains a view named dbo.vw_ObjectList that queries sys.views. The default terminal of Visual Studio Code is PowerShell.
+    A Fabric workspace named WS-Ops is connected to the main branch of a GitHub repository and contains a SQL database named SQL_Ops. Fabric stores SQL_Ops in the SQL_Ops.SQLDatabase folder of the branch.
 
-    The project builds without errors. When you select **Publish** and then **Generate Script** against DW_Ops, the operation fails with error SQL72033 on the reference to sys.views.
+    A developer clones the repository, adds a property to the .sqlproj file in that folder by hand, and merges the change into main. WS-Ops is updated from main without errors. Later, an engineer changes a view in SQL_Ops and commits it from WS-Ops. After that commit, the property is no longer in the .sqlproj file.
 
-    You need to be able to publish the project. What should you do?
+    What is the cause?
   fr: |
-    Vous disposez d'un projet de base de données de style SDK pour un entrepôt Fabric nommé DW_Ops. Le projet contient une vue nommée dbo.vw_ObjectList qui interroge sys.views. Le terminal par défaut de Visual Studio Code est PowerShell.
+    Un espace de travail Fabric nommé WS-Ops est connecté à la branche main d'un dépôt GitHub et contient une base de données SQL nommée SQL_Ops. Fabric stocke SQL_Ops dans le dossier SQL_Ops.SQLDatabase de la branche.
 
-    Le projet se génère sans erreur. Quand vous sélectionnez **Publish** puis **Generate Script** sur DW_Ops, l'opération échoue avec l'erreur SQL72033 sur la référence à sys.views.
+    Un développeur clone le dépôt, ajoute à la main une propriété au fichier .sqlproj de ce dossier et fusionne la modification dans main. WS-Ops est mis à jour depuis main sans erreur. Plus tard, un ingénieur modifie une vue dans SQL_Ops et la valide (commit) depuis WS-Ops. Après ce commit, la propriété ne figure plus dans le fichier .sqlproj.
 
-    Vous devez pouvoir publier le projet. Que devez-vous faire ?
+    Quelle est la cause ?
 body:
   options:
-    - { id: a, text: { en: "Set BlockOnPossibleDataLoss to False in the publish profile.", fr: "Définir BlockOnPossibleDataLoss sur False dans le profil de publication." } }
-    - { id: b, text: { en: "Connect the publish profile to the SQL analytics endpoint of DW_Ops.", fr: "Connecter le profil de publication au point de terminaison d'analytique SQL de DW_Ops." } }
-    - { id: c, text: { en: "Set DropObjectsNotInSource to True in the publish profile.", fr: "Définir DropObjectsNotInSource sur True dans le profil de publication." } }
-    - { id: d, text: { en: "Add DatabaseVariableLiteralValue to the FabricDw package reference.", fr: "Ajouter DatabaseVariableLiteralValue à la référence du package FabricDw." } }
-answer: { optionId: d }
+    - { id: a, text: { en: "The update from main published SQL_Ops with ScriptDatabaseOptions set to false, which removed the property.", fr: "La mise à jour depuis main a publié SQL_Ops avec ScriptDatabaseOptions défini sur false, ce qui a supprimé la propriété." } }
+    - { id: b, text: { en: "Fabric generates the .sqlproj file of SQL_Ops and overwrites manual edits at each commit from the workspace.", fr: "Fabric génère le fichier .sqlproj de SQL_Ops et écrase les modifications manuelles à chaque commit depuis l'espace de travail." } }
+    - { id: c, text: { en: "The .sharedQueries folder is excluded from the build, so properties of the project file aren't kept.", fr: "Le dossier .sharedQueries est exclu du build : les propriétés du fichier projet ne sont donc pas conservées." } }
+    - { id: d, text: { en: "Database-level settings aren't included in source control, so Fabric removed the property from the project.", fr: "Les paramètres de base de données ne sont pas inclus dans le contrôle de code source : Fabric a donc retiré la propriété du projet." } }
+answer: { optionId: b }
 explanation:
   correct:
-    en: "The project references the Fabric warehouse system objects through the `Microsoft.SqlServer.Dacpacs.FabricDw` package. Without `<DatabaseVariableLiteralValue>master</DatabaseVariableLiteralValue>` in that package reference, the build succeeds but Publish and Generate Script can fail with SQL72033 on `sys` schema references such as sys.views."
-    fr: "Le projet référence les objets système de l'entrepôt Fabric via le package `Microsoft.SqlServer.Dacpacs.FabricDw`. Sans `<DatabaseVariableLiteralValue>master</DatabaseVariableLiteralValue>` dans cette référence de package, la génération réussit, mais Publish et Generate Script peuvent échouer avec l'erreur SQL72033 sur les références au schéma `sys`, comme sys.views."
+    en: |
+      Fabric source control integration generates and updates the project file of a SQL database automatically. Manual edits to the project file are overwritten by the next commit from Fabric, which is why Learn advises against editing it. The update from main succeeded, but the engineer's commit rewrote the .sqlproj file without the property.
+    fr: |
+      L'intégration du contrôle de code source de Fabric génère et met à jour automatiquement le fichier projet d'une base de données SQL. Les modifications manuelles du fichier projet sont écrasées par le commit suivant depuis Fabric, et c'est pourquoi Learn déconseille de le modifier. La mise à jour depuis main a réussi, mais le commit de l'ingénieur a réécrit le fichier .sqlproj sans la propriété.
   options:
-    a: { en: "BlockOnPossibleDataLoss stops risky deployments; it doesn't resolve references to system objects, and production should keep it True.", fr: "BlockOnPossibleDataLoss arrête les déploiements risqués ; il ne résout pas les références aux objets système, et il doit rester True en production." }
-    b: { en: "Warehouse projects connect with the warehouse SQL connection string, not the SQL analytics endpoint.", fr: "Les projets d'entrepôt se connectent avec la chaîne de connexion SQL de l'entrepôt, pas avec le point de terminaison d'analytique SQL." }
-    c: { en: "DropObjectsNotInSource controls whether target objects missing from the project are dropped; it doesn't fix the system reference.", fr: "DropObjectsNotInSource détermine si les objets de la cible absents du projet sont supprimés ; il ne corrige pas la référence système." }
+    a: { en: "ScriptDatabaseOptions=false is a publish option of the update; it affects what is applied to the database, not the content of the project file in Git.", fr: "ScriptDatabaseOptions=false est une option de publication de la mise à jour ; elle agit sur ce qui est appliqué à la base de données, pas sur le contenu du fichier projet dans Git." }
+    c: { en: "Excluding .sharedQueries from the build keeps the deployment scripts out of the schema model; it doesn't remove properties from the project file.", fr: "Exclure .sharedQueries du build tient les scripts de déploiement hors du modèle de schéma ; cela ne retire pas de propriétés du fichier projet." }
+    d: { en: "Collation and compatibility level aren't in source control, but that doesn't explain why a project file property disappears after a commit.", fr: "Le classement et le niveau de compatibilité ne sont pas dans le contrôle de code source, mais cela n'explique pas qu'une propriété du fichier projet disparaisse après un commit." }
 references:
-  - title: Develop Warehouse Projects in Visual Studio Code
-    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/develop-warehouse-project
+  - title: Fabric SQL database source control integration
+    url: https://learn.microsoft.com/en-us/fabric/database/sql/source-control

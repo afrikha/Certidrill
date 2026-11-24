@@ -5,7 +5,7 @@ Sécuriser Windows Server consiste à empiler plusieurs couches : des atténuati
 
 La protection contre les attaques applique des atténuations mémoire et processus à tout le système ou à des programmes précis. Elle se configure dans **Sécurité Windows > Contrôle des applications et du navigateur > Paramètres de protection contre les attaques**, avec deux onglets : **Paramètres système** et **Paramètres du programme**.
 
-| Atténuation | Portée | Mode audit |
+| Atténuation | Étendue | Mode audit |
 | --- | --- | --- |
 | Control flow guard (CFG) | Système et application | Non |
 | Prévention de l'exécution des données (DEP) | Système et application | Non |
@@ -30,7 +30,7 @@ Set-ProcessMitigation -Name C:\Apps\Lob\app.exe -Enable AuditDynamicCode
 Pour déployer une même configuration sur de nombreux serveurs, **exportez-la dans un fichier XML** depuis une machine de référence, puis déployez ce fichier :
 
 - Stratégie de groupe : **Configuration ordinateur > Modèles d'administration > Composants Windows > Microsoft Defender Exploit Guard > Exploit Protection > Use a common set of exploit protection settings**, activé, avec le chemin local, le chemin UNC ou l'URL du fichier XML.
-- Les modifications au niveau système exigent un redémarrage ; celles au niveau programme, non.
+- Certaines modifications exigent un redémarrage de l'application ou de Windows ; Sécurité Windows indique quand il est nécessaire.
 
 > **Piège d'examen.** Les atténuations au niveau système (DEP, ASLR, CFG, SEHOP, intégrité du tas) n'ont pas de mode audit. Si l'exigence est « évaluer l'impact avant de bloquer », utilisez une atténuation au niveau application qui prend en charge l'audit, comme ACG ou Don't allow child processes.
 
@@ -179,6 +179,8 @@ Configurez ensuite le GPO **Configuration ordinateur > Stratégies > Modèles d'
 
 Windows Server 2025 ajoute les **phrases secrètes** (passphrases), la **gestion automatique du compte** (LAPS crée son propre compte, éventuellement avec un nom aléatoire) et la **détection de restauration d'image** (exige la dernière version de `Update-LapsADSchema`).
 
+Avec la gestion automatique du compte (`AutomaticAccountManagementEnabled`), `AdministratorAccountName` est ignoré. Par défaut, LAPS gère un **nouveau compte personnalisé** (`AutomaticAccountManagementTarget` 1 ; 0 = le compte Administrator intégré) nommé `WLapsAdmin`, et le compte géré est **désactivé** (`AutomaticAccountManagementEnableAccount` 0). Avec `AutomaticAccountManagementRandomizeName`, le nom devient un préfixe suivi d'un suffixe aléatoire de six chiffres à chaque rotation.
+
 ```powershell
 Get-LapsADPassword -Identity SRV1 -AsPlainText
 Set-LapsADPasswordExpirationTime -Identity SRV1   # rotate at next processing
@@ -198,8 +200,10 @@ Defender for Servers est un plan de **Microsoft Defender pour le cloud**. Il pro
 | Defender pour point de terminaison (EDR), alertes et incidents | Oui | Oui |
 | Analyse des vulnérabilités avec agent, inventaire logiciel | Oui | Oui |
 | Analyse sans agent (vulnérabilités, programmes malveillants, secrets) | Non | Oui |
-| Supervision de l'intégrité des fichiers (FIM) | Non | Oui |
+| Supervision de l'intégrité des fichiers (FIM) (machines AWS et GCP : via Azure Arc) | Non | Oui |
+| Mises à jour système du système d'exploitation (locaux et autres clouds : machines Azure Arc uniquement) | Non | Oui |
 | Accès juste-à-temps (JIT) aux machines virtuelles | Non | Oui |
+| Carte réseau (network map, Azure) | Non | Oui |
 | 500 Mo d'ingestion de données gratuite par jour | Non | Oui |
 | Activation sur une seule ressource | Oui | Non (abonnement uniquement) |
 

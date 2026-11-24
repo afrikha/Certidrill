@@ -8,16 +8,20 @@ A method can serve as **primary** authentication (the way you sign in), as **sec
 | Method | Primary sign-in | MFA | SSPR |
 | --- | --- | --- | --- |
 | Password | Yes | No | No |
-| Windows Hello for Business | Yes | Yes | No |
+| Windows Hello for Business | Yes | Step-up only, if the user also has a passkey (FIDO2) registered | No |
 | Passkey (FIDO2) | Yes | Yes | No |
-| Microsoft Authenticator | Yes, passwordless sign-in | Yes, push notification | Yes |
+| Microsoft Authenticator, passwordless sign-in | Yes | No | No |
+| Microsoft Authenticator, push notifications | No | Yes | Yes |
+| Platform Credential for macOS | Yes | Yes | No |
 | Certificate-based authentication | Yes | Yes | No |
 | Temporary Access Pass | Yes | Yes | No |
 | QR code | Yes | No | No |
 | SMS | Yes | Yes | Yes |
 | Voice call | No | Yes | Yes |
-| OATH tokens, software or hardware | No | Yes | Yes |
+| OATH tokens, software or hardware (hardware tokens in preview) | No | Yes | Yes |
 | Email one-time passcode | No | No | Yes |
+
+An email one-time passcode can also be configured for the sign-in of guest users.
 
 **Passwordless** methods replace the password with something you have plus something you are or know:
 
@@ -56,7 +60,10 @@ Security defaults, enabled by default on new tenants:
 - require administrators to do MFA at every sign-in;
 - require users to do MFA when necessary;
 - block legacy authentication protocols;
+- block device code flow;
 - protect privileged activities such as access to the Azure portal.
+
+Users register Microsoft Authenticator with notifications (or an app that generates OATH TOTP codes); the former 14-day grace period for registering no longer exists.
 
 > **Exam trap.** Security defaults and Conditional Access policies aren't used together: an organization that adopts Conditional Access turns security defaults off.
 
@@ -67,7 +74,7 @@ Security defaults, enabled by default on new tenants:
 
 | List | Content | Details |
 | --- | --- | --- |
-| **Global banned password list** | Weak passwords found by Microsoft in its security telemetry | Applied automatically to every tenant; not published, can't be disabled |
+| **Global banned password list** | Weak passwords found by Microsoft in its security telemetry | Applied automatically to every tenant; not published, can't be disabled; free for cloud-only users, P1 or P2 for users synchronized from AD DS |
 | **Custom banned password list** | Terms specific to the organization: brand, products, locations | Up to 1,000 terms, combined with the global list; requires Microsoft Entra ID P1 or P2 |
 
 Matching is fuzzy: the password is normalized first (lowercase, common substitutions such as `@` for `a`), so variants of a banned term are caught too. This blocks the common passwords used in **password spray** attacks, which try a few passwords against many accounts. Password Protection can extend to an on-premises Active Directory Domain Services environment through agents installed on the domain controllers.
@@ -82,7 +89,7 @@ Matching is fuzzy: the password is normalized first (lowercase, common substitut
 | Reset | Forgot the password |
 | Unlock | Is locked out and unlocks the account |
 
-The user must be enabled for SSPR and have registered the authentication methods the administrator allows; the administrator decides whether one or two methods are required. In a hybrid environment, **password writeback** writes the new password back to the on-premises Active Directory.
+The user must be enabled for SSPR and have registered the authentication methods the administrator allows; the administrator decides whether one or two methods are required. Administrator accounts follow a separate, stricter policy that Microsoft sets and that can't be changed: in general two methods, never security questions. In a hybrid environment, **password writeback** writes the new password back to the on-premises Active Directory.
 
 > **Exam tip.** "Prevent users from choosing the company name as a password": custom banned password list. "Reduce help desk calls for forgotten passwords": SSPR. "Stop brute-force guessing": smart lockout.
 

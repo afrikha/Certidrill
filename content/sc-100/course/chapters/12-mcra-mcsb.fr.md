@@ -49,7 +49,7 @@ Le **MCSB** est un ensemble de contrôles et de recommandations de sécurité po
 | AM | Gestion des ressources | BR | Sauvegarde et récupération |
 | DS | Sécurité DevOps | AI | Sécurité de l'intelligence artificielle |
 
-Defender for Cloud attribue le MCSB par défaut comme norme de sécurité : les recommandations affichées et le degré de sécurisation en découlent. Les normes réglementaires (ISO 27001, PCI DSS, NIST SP 800-53...) s'ajoutent séparément dans le tableau de bord de conformité réglementaire.
+Defender for Cloud attribue le MCSB par défaut comme norme de sécurité (avec AWS Foundational Security Best Practices pour les connecteurs AWS et GCP Default pour GCP) : les recommandations affichées en découlent, et seules les recommandations MCSB intégrées comptent dans le degré de sécurisation. La documentation de Defender for Cloud ne précise pas la version de cette norme par défaut. Les normes réglementaires (ISO 27001, PCI DSS, NIST SP 800-53...) s'ajoutent séparément dans le tableau de bord de conformité réglementaire.
 
 | Exigence | Recommandation |
 | --- | --- |
@@ -135,7 +135,7 @@ Le framework suit les phases de cycle de vie du Cloud Adoption Framework : **Def
 ## Points clés
 
 - MCRA : diagrammes des capacités et intégrations Microsoft, composante du Security Adoption Framework. À utiliser comme modèle d'architecture cible et pour comparer avec les outils existants.
-- MCSB v2 (préversion) : 12 domaines de contrôle, dont la sécurité DevOps et la sécurité de l'IA, mappés à plus de 420 définitions Azure Policy ; la norme par défaut de Defender for Cloud.
+- MCSB v2 (préversion) : 12 domaines de contrôle, dont la sécurité DevOps et la sécurité de l'IA, mappés à plus de 420 définitions Azure Policy. Le MCSB est la norme par défaut de Defender for Cloud.
 - Risque interne : Purview Insider Risk Management, pseudonymisé par défaut ; les utilisateurs sur le départ exigent le connecteur RH. Chaîne d'approvisionnement : intégrité du code, mises à jour signées, analyse des dépendances et des secrets, accès des partenaires gouverné.
 - Contrôles d'IA du MCSB : modèles approuvés, filtrage de contenu multicouche, méta-prompts de sécurité, moindre privilège des agents, humain dans la boucle, surveillance, red teaming continu.
 - Framework d'adoption de la Confiance Zéro : trois principes, cinq scénarios métier, phases de cycle de vie du CAF, déploiement sur tout le patrimoine un élément à la fois.

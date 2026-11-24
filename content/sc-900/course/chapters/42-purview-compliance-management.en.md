@@ -16,6 +16,7 @@ What the portal shows:
 - A **home page** with **solution cards**: only the solutions that your permissions and your subscription let you access. **View all solutions** lists the rest.
 - A summary of the **compliance posture**, taken from Compliance Manager.
 - A global **search** and centralized **Settings**, including roles and scopes.
+- A **Solutions** page with four sections: **Core** (to set up and configure experiences across Microsoft Purview), then **Risk & Compliance**, **Data Governance** and **Data Security**.
 
 The portal replaces the retired Microsoft Purview compliance portal and the classic governance portal.
 
@@ -43,7 +44,7 @@ Controls come in three types, which reflect the shared responsibility model:
 | **Your controls** (customer managed) | Your organization |
 | **Shared controls** | Both: your organization and Microsoft share the responsibility |
 
-Compliance Manager continuously collects signals from your Microsoft 365 environment and updates the status of technical actions automatically.
+Compliance Manager continuously collects signals from your Microsoft 365 environment and updates the status of technical actions automatically; a change appears on the dashboard within 24 hours.
 
 <!-- section: compliance-score | objectives: 4.2.3 -->
 ## Uses and benefits of compliance score
@@ -52,7 +53,7 @@ The **compliance score** measures your progress in completing the recommended im
 
 - The points of an action depend on the **risk** it addresses: the bigger the risk, the more points.
 - The score adds **your points** (actions your organization completes) and **Microsoft-managed points** (actions Microsoft has completed as the cloud provider).
-- A new organization starts with an **initial score** based on the **Microsoft 365 data protection baseline**, a set of controls that covers key regulations and standards for data protection and general data governance.
+- A new organization starts with an **initial score** based on the **Microsoft 365 data protection baseline**, a set of controls that covers key regulations and standards for data protection and general data governance, drawn mainly from NIST CSF and ISO, and also from FedRAMP and GDPR.
 
 | Type of action | Mandatory | Discretionary |
 | --- | --- | --- |

@@ -5,76 +5,56 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    You are creating a table named dbo.FactTrips in a Fabric warehouse. The table will receive about 20 million rows per day in a single nightly load. It has the following columns:
+    You are creating a table named dbo.FactTrips in a Fabric warehouse named DW_Mobility. Every night, about 20 million new trips must be loaded into dbo.FactTrips from a Delta table named trips_silver in a lakehouse of the same workspace. In trips_silver, DriverID is stored as a string that always contains a whole number.
 
-    - TripID: bigint IDENTITY
-    - TripDate: date
-    - DriverID: int, about 80,000 distinct values
-    - IsCancelled: bit
-    - Region: varchar(20), six distinct values
-    - Notes: varchar(max)
+    Most queries join dbo.FactTrips to a table named dbo.DimDriver on DriverID. In dbo.DimDriver, DriverID is int.
 
-    Most queries filter on a range of TripDate values and on a single DriverID value in the same WHERE clause.
+    You need to design the column and the nightly load to maximize the performance of the load and of the queries.
 
-    You need to choose the clustering columns of dbo.FactTrips to minimize the files scanned by these queries.
-
-    Which two columns should you include in the CLUSTER BY option? Each correct answer presents part of the solution.
+    Which two actions should you perform? Each correct answer presents part of the solution.
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Vous créez une table nommée dbo.FactTrips dans un entrepôt Fabric. La table recevra environ 20 millions de lignes par jour en un seul chargement nocturne. Elle comporte les colonnes suivantes :
+    Vous créez une table nommée dbo.FactTrips dans un entrepôt Fabric nommé DW_Mobility. Chaque nuit, environ 20 millions de nouveaux trajets doivent être chargés dans dbo.FactTrips depuis une table Delta nommée trips_silver d'un lakehouse du même espace de travail. Dans trips_silver, DriverID est stocké sous forme de chaîne qui contient toujours un nombre entier.
 
-    - TripID : bigint IDENTITY
-    - TripDate : date
-    - DriverID : int, environ 80 000 valeurs distinctes
-    - IsCancelled : bit
-    - Region : varchar(20), six valeurs distinctes
-    - Notes : varchar(max)
+    La plupart des requêtes joignent dbo.FactTrips à une table nommée dbo.DimDriver sur DriverID. Dans dbo.DimDriver, DriverID est de type int.
 
-    La plupart des requêtes filtrent sur une plage de valeurs de TripDate et sur une seule valeur de DriverID dans la même clause WHERE.
+    Vous devez concevoir la colonne et le chargement nocturne pour optimiser les performances du chargement et des requêtes.
 
-    Vous devez choisir les colonnes de clustering de dbo.FactTrips pour réduire au minimum les fichiers analysés par ces requêtes.
-
-    Quelles sont les deux colonnes à inclure dans l'option CLUSTER BY ? Chaque bonne réponse présente une partie de la solution.
+    Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
 
     Remarque : chaque sélection correcte vaut un point.
 body:
   choose: 2
   options:
-    - { id: a, text: TripID }
-    - { id: b, text: TripDate }
-    - { id: c, text: DriverID }
-    - { id: d, text: IsCancelled }
-    - { id: e, text: Region }
-    - { id: f, text: Notes }
+    - { id: a, text: { en: "Define DriverID in dbo.FactTrips as varchar(max) to accept any source value.", fr: "Définir DriverID dans dbo.FactTrips en varchar(max) pour accepter toute valeur source." } }
+    - { id: b, text: { en: "Define DriverID in dbo.FactTrips as int.", fr: "Définir DriverID dans dbo.FactTrips en int." } }
+    - { id: c, text: { en: "Load the rows with one INSERT ... SELECT statement that reads trips_silver.", fr: "Charger les lignes avec une seule instruction INSERT ... SELECT qui lit trips_silver." } }
+    - { id: d, text: { en: "Load the rows from a notebook that runs one INSERT ... VALUES statement per trip.", fr: "Charger les lignes depuis un notebook qui exécute une instruction INSERT ... VALUES par trajet." } }
+    - { id: e, text: { en: "Run OPTIMIZE on dbo.FactTrips after each nightly load.", fr: "Exécuter OPTIMIZE sur dbo.FactTrips après chaque chargement nocturne." } }
 answer: { optionIds: [b, c] }
 explanation:
   correct:
     en: |
-      Data clustering works best on mid-to-high cardinality columns that queries use together in range or selective WHERE filters, so TripDate and DriverID are the right pair; multi-column clustering helps mainly when all the columns appear together in the predicates, as here. Each nightly load is well above the one million rows that DML operations should have to benefit from clustering.
+      An int column matches the type of dbo.DimDriver.DriverID, so the join needs no conversion, and Microsoft recommends integer types for identifiers. Reading the lakehouse table with INSERT ... SELECT (or CTAS) loads the rows in one set-based operation, which can be more efficient than other methods and avoids many small transactions.
     fr: |
-      Le clustering des données fonctionne le mieux sur des colonnes de cardinalité moyenne à élevée que les requêtes utilisent ensemble dans des filtres WHERE de plage ou sélectifs : TripDate et DriverID forment donc la bonne paire ; le clustering sur plusieurs colonnes aide surtout quand toutes les colonnes figurent ensemble dans les prédicats, comme ici. Chaque chargement nocturne dépasse largement le million de lignes que les opérations DML devraient compter pour profiter du clustering.
+      Une colonne int a le même type que dbo.DimDriver.DriverID : la jointure ne demande aucune conversion, et Microsoft recommande les types entiers pour les identifiants. Lire la table du lakehouse avec INSERT ... SELECT (ou CTAS) charge les lignes en une seule opération ensembliste, ce qui peut être plus efficace que d'autres méthodes et évite de nombreuses petites transactions.
   options:
     a:
       en: |
-        IDENTITY columns cannot be used as clustering columns, and the queries do not filter on TripID.
+        varchar(max) is the opposite of the smallest suitable type, and it differs from the int type of the dimension key, which forces conversions in joins.
       fr: |
-        Les colonnes IDENTITY ne peuvent pas être des colonnes de clustering, et les requêtes ne filtrent pas sur TripID.
+        varchar(max) est l'inverse du plus petit type adapté, et il diffère du type int de la clé de dimension, ce qui impose des conversions dans les jointures.
     d:
       en: |
-        The bit data type is not supported for clustering columns.
+        Each singleton INSERT creates a new Parquet file; 20 million row-level transactions make the load slow and fragment the table.
       fr: |
-        Le type de données bit n'est pas pris en charge pour les colonnes de clustering.
+        Chaque INSERT unitaire crée un nouveau fichier Parquet ; 20 millions de transactions ligne par ligne ralentissent le chargement et fragmentent la table.
     e:
       en: |
-        A low-cardinality column such as Region offers limited file skipping, and the queries do not filter on it.
+        Data compaction runs automatically in a warehouse; OPTIMIZE is for lakehouse Delta tables written by Spark.
       fr: |
-        Une colonne à faible cardinalité comme Region offre peu d'élimination de fichiers, et les requêtes ne filtrent pas dessus.
-    f:
-      en: |
-        varchar(max) columns are not supported as clustering columns.
-      fr: |
-        Les colonnes varchar(max) ne sont pas prises en charge comme colonnes de clustering.
+        Le compactage des données s'exécute automatiquement dans un entrepôt ; OPTIMIZE concerne les tables Delta de lakehouse écrites par Spark.
 references:
-  - title: Data clustering in Fabric Data Warehouse
-    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/data-clustering
+  - title: Performance guidelines in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/guidelines-warehouse-performance

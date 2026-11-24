@@ -5,7 +5,7 @@ A session host is a shared Windows desktop reachable from anywhere, so it combin
 
 Session hosts are Azure virtual machines, so Defender for Cloud protects them like any server:
 
-- **Foundational CSPM** (free): the secure score and recommendations, with **Quick Fix** for some of them.
+- **Foundational CSPM** (free): the secure score and recommendations, with a **Fix** button (Take action > Fix) for some of them.
 - **Enhanced security features**: enable the **Defender for Servers** plan on the subscription (or on selected resources) to get threat protection, vulnerability assessment and regulatory compliance dashboards (for example PCI DSS).
 
 | Need | Plan |
@@ -17,7 +17,7 @@ Session hosts are Azure virtual machines, so Defender for Cloud protects them li
 Microsoft's guidance for Azure Virtual Desktop:
 
 - Work through the **secure score** recommendations; remediate in the image when the finding concerns the OS, otherwise the next redeployment brings it back.
-- Install an **EDR** product on every session host. On Windows Server session hosts with Defender for Cloud enabled, Defender for Endpoint is deployed through the integration; on Windows client OS (including multi-session), deploy Defender for Endpoint (see below) or a third-party EDR.
+- Install an **EDR** product on every session host. On Windows Server session hosts with Defender for Cloud enabled, Defender for Endpoint is deployed through the integration; on Windows client OS (including multi-session), deploy Defender for Endpoint (see below) or a third-party EDR. On Windows Enterprise multi-session, Defender for Endpoint is licensed either through Defender for Servers for the VM or with a license for every user (Defender for Endpoint Plan 1 or Plan 2, Windows Enterprise E3 or E5, Microsoft 365 E3 or E5).
 - Use Defender for Endpoint **vulnerability management**, surfaced in Defender for Cloud, to find vulnerable software on the hosts and in the image.
 
 > **Exam trap.** Defender for Cloud doesn't patch or reimage session hosts. A recommendation about missing updates is fixed in the golden image and by redeploying hosts; Defender for Cloud only reports it.
@@ -32,7 +32,7 @@ Microsoft Defender Antivirus is built into Windows 11 and Windows 10 Enterprise 
 | **Define security intelligence location for VDI clients** | A file share that receives the unpacked updates once, so each VM doesn't download and unpack them (`Set-MpPreference -SharedSignaturesPath`) |
 | Randomize scheduled scan times | Enabled, so all hosts don't scan at the same moment |
 | Turn on catch-up quick scan | Enabled for non-persistent hosts that miss scheduled scans |
-| Scan after a security intelligence update | Can be disabled only for images already scanned, at the cost of protection |
+| Scan after a security intelligence update | Keep it on in production; disable it only while you create the base image (after a quick scan), because disabling it lowers protection |
 | Suppress notifications, headless UI | Enabled: users don't see Defender pop-ups |
 | Local administrator merge behavior | Disabled: only central policy applies |
 | Cloud-delivered protection, tamper protection | On |
@@ -43,10 +43,11 @@ Before sealing the image, run the **Windows Defender Cache Maintenance** schedul
 
 | Type | Exclusions |
 | --- | --- |
-| Containers on the share | `\\<server>\<share>\*\*.VHD`, `*.VHDX` and their `.lock`, `.meta`, `.metadata` files |
+| Containers on the share | `\\<server>\<share>\*\*.VHD`, `*.VHD.lock`, `*.VHD.meta`, `*.VHD.metadata`, and the same for `*.VHDX` |
 | Local temporary disks | `%TEMP%\*\*.VHD`, `%TEMP%\*\*.VHDX`, `%WINDIR%\TEMP\*\*.VHD`, `%WINDIR%\TEMP\*\*.VHDX` |
-| Cloud Cache | `%ProgramData%\FSLogix\Cache\*`, `%ProgramData%\FSLogix\Proxy\*` |
-| Processes | `frxsvc.exe`, `frxccds.exe` |
+| Cloud Cache | `%ProgramData%\FSLogix\Cache\*`, `%ProgramData%\FSLogix\Proxy\*` (adjust them if you move the cache or proxy folder) |
+| Processes and drivers | `frxsvc.exe`, `frxccds.exe`; `frxdrv.sys`, `frxdrvvt.sys`, `frxccd.sys` |
+| FSLogix folders, registry keys and mount points | `C:\Program Files\FSLogix\Apps\`, `C:\ProgramData\FSLogix\`, `C:\Users\%username%\AppData\Local\FSLogix\`; `HKLM\SOFTWARE\FSLogix\`, `HKLM\SOFTWARE\Policies\FSLogix\`; the profile VHD(X) mount points |
 
 ```powershell
 Set-MpPreference -SharedSignaturesPath "\\fs01.contoso.com\mdatp$\wdav-update"
@@ -91,9 +92,11 @@ Session hosts need **no inbound port** from the internet: the agent and RDP use 
 | `catalogartifact.azureedge.net` | TCP 443 | `AzureFrontDoor.Frontend` |
 | `mrsglobalsteus2prod.blob.core.windows.net` (agent updates) | TCP 443 | `Storage` |
 | `azkms.core.windows.net` (Windows activation) | TCP 1688 | `Internet` |
+| `*.service.windows.cloud.microsoft` (service traffic); `*.windows.cloud.microsoft` and `*.windows.static.microsoft` have no tag | TCP 443 | `WindowsVirtualDesktop` |
+| `51.5.0.0/16` (relayed RDP connectivity) | UDP 3478 | `WindowsVirtualDesktop` |
 | `169.254.169.254` (IMDS), `168.63.129.16` (platform) | TCP 80 and more | Never proxied or intercepted |
 
-Check access with the **Azure Virtual Desktop Agent URL Tool** on a session host.
+Certificate endpoints (`oneocsp.microsoft.com`, `www.microsoft.com`, `ctldl.windowsupdate.com` and others) use TCP 80. Check access with the **Azure Virtual Desktop Agent URL Tool** on a session host.
 
 **NSGs.** Associate an NSG with the session host subnet: deny inbound from the internet (default rules already do), allow RDP 3389 only from the Azure Bastion subnet or a management subnet, and if you restrict outbound, allow the service tags above before a deny rule. Use application security groups to group hosts.
 
@@ -123,9 +126,9 @@ Administrators sometimes need RDP to a session host outside Azure Virtual Deskto
 | Option | How it works | Requirements |
 | --- | --- | --- |
 | **Azure Bastion** | RDP over TLS 443 from the Azure portal (or the native client) to the host's private IP; no public IP on the VM | `AzureBastionSubnet` in the virtual network (or a peered one), a Bastion SKU that supports the features you need (native client and IP-based connection need Standard or Premium); NSG on hosts allows 3389 from the Bastion subnet |
-| **Just-in-time VM access** (Defender for Cloud) | The management port is closed by default; an authorized user requests access, and a temporary rule opens the port for the requester's IP for a limited time | **Defender for Servers Plan 2**; an NSG or Azure Firewall in front of the VM; defaults on Windows: port 3389, maximum 3 hours |
+| **Just-in-time VM access** (Defender for Cloud) | The management port is closed by default; an authorized user requests access, and a temporary rule opens the port for the requester's IP for a limited time | **Defender for Servers Plan 2**; an NSG or Azure Firewall in front of the VM (an Azure Firewall controlled by Azure Firewall Manager isn't supported); defaults on Windows: port 3389, maximum 3 hours |
 
-JIT is enabled from Defender for Cloud (Workload protections > Just-in-time VM access) or from the VM (Configuration). Requesting access requires `Microsoft.Security/locations/jitNetworkAccessPolicies/initiate/action` plus reads on the VM, NICs and public IPs; configuring the policy requires `jitNetworkAccessPolicies/write` and `Microsoft.Compute/virtualMachines/write`. Every request is logged in the activity log.
+JIT is enabled from Defender for Cloud (Workload protections > Just-in-time VM access) or from the VM (Configuration). Requesting access requires `Microsoft.Security/locations/jitNetworkAccessPolicies/initiate/action` and `jitNetworkAccessPolicies/*/read` plus reads on the VM, NICs and public IPs; configuring the policy requires `jitNetworkAccessPolicies/write` and `Microsoft.Compute/virtualMachines/write`. Every request is logged in the activity log.
 
 > **Exam tip.** "No public IP on the session hosts and connect from the browser" = Azure Bastion. "Port closed except when an administrator asks, for a few hours, from their IP" = JIT, which needs Defender for Servers Plan 2.
 
@@ -167,7 +170,7 @@ When folders are redirected (OneDrive Known Folder Move), the redirected locatio
 <!-- section: trusted-launch-confidential | objectives: 2.2.7 -->
 ## Trusted launch and Azure confidential VMs
 
-**Trusted launch** is the default security type for session hosts created in the portal and meets the Windows 11 requirements. It needs **Generation 2** VMs and a supported size, and doesn't support managed images (use Azure Compute Gallery).
+**Trusted launch** is the default security type for session hosts created in the portal and meets the Windows 11 requirements. It needs **Generation 2** VMs and a supported size, and doesn't support managed images (use Azure Compute Gallery). Existing Gen1 VMs can be upgraded to Gen2 with Trusted launch.
 
 | Feature | Protects against |
 | --- | --- |

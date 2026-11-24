@@ -119,12 +119,12 @@ az keyvault secret set --vault-name kv-contoso-prod --name storageKey \
 
 Two rotation patterns:
 
-- **Single credential** (a database password): the function generates a new password, updates the database, then writes the new version. There is a short window during which clients holding the old value fail and must re-read the secret.
+- **Single credential** (a database password): the function generates a new password, writes it as a new version of the secret, then updates the database. Between those two steps the secret in Key Vault can't authenticate, and clients that fail must re-read the secret; if a step fails, Event Grid retries for two hours.
 - **Dual credential** (services with two keys, such as a storage account `key1`/`key2`): each new version stores the **other** key after regenerating it. Clients keep a valid key for a full rotation cycle, so there is no downtime.
 
 > **Exam tip.** "Rotate a secret automatically 30 days before it expires" = an expiration date on the secret + an Event Grid subscription to `SecretNearExpiry` + a function. "Rotate a key every 90 days" = a key rotation policy, with no code.
 
-**Soft delete and purge protection.** Soft delete is on for every new vault and can't be disabled. Retention is 7 to 90 days (default 90), set only at creation. A deleted secret can only be listed, recovered or purged; creating a secret with the same name fails with a conflict until it is recovered or purged. **Purge protection** (off by default) blocks purging until the retention period ends. Purging needs the purge permission.
+**Soft delete and purge protection.** Soft delete is on for every new vault and can't be disabled. Retention is 7 to 90 days (default 90), set only at creation. A deleted secret can only be listed, recovered or purged; creating a secret with the same name fails with a conflict until it is recovered or purged. **Purge protection** (off by default) blocks purging until the retention period ends; once enabled, it can't be disabled. Purging needs the purge permission.
 
 <!-- section: app-configuration-store | objectives: 4.1.2 -->
 ## App Configuration: key-values, labels and tiers
@@ -140,7 +140,7 @@ az appconfig kv import -n appcs-contoso -s file --path ./settings.json --format 
 az appconfig kv list -n appcs-contoso --key "Rag:*" --label Prod --auth-mode login
 ```
 
-The CLI uses `--auth-mode key` by default; `login` uses your Microsoft Entra sign-in.
+The CLI uses `--auth-mode key` by default; `login` uses your Microsoft Entra sign-in. Without `--label`, `az appconfig kv list` lists every label (`--label '\0'` selects the null label), whereas the Python provider without `selects` loads only key-values with no label.
 
 | Tier | Storage | Request quota | SLA | Revision history | Geo-replication |
 | --- | --- | --- | --- | --- | --- |

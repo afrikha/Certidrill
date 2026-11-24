@@ -109,7 +109,7 @@ Monitoring the pool:
 | --- | --- | --- | --- |
 | Scope | Account | Account | Whole fleet |
 | Aggregation | 1 minute, preaggregated | Each request | 1 hour, preaggregated |
-| Retention | 90 days | You decide | You decide |
+| Retention | 93 days | You decide | You decide |
 | Cost | None | Log storage | Fabric or storage |
 | Tools | Metrics explorer, Grafana | Log Analytics, workbooks | Fabric SQL endpoint or KQL, Spark, Power BI |
 
@@ -128,23 +128,23 @@ Tables:
 
 | Table | Content |
 | --- | --- |
-| `FactAccountHourly` | Account settings per hour: default consistency level, free tier, burst capacity, backup mode and retention, `TotalRUPerSecLimit`, key settings and last key rotation |
-| `FactRequestHourly` | `TotalRequestCount` per resource and hour |
+| `FactAccountHourly` | Account settings per hour: `ResourceGroup`, default consistency level, free tier, burst capacity, backup mode and retention, `TotalRUPerSecLimit`, key settings and last key rotation |
+| `FactRequestHourly` | `TotalRequestCount` and `TotalRequestChargeInRU` per resource, operation and status code, per hour |
 | `FactResourceUsageHourly` | `MaxDataStorageInKB`, `MaxIndexStorageInKB` |
 | `FactMeterUsageHourly` | `ConsumedUnits` per billing meter (`MeterId`) |
-| `DimResource` | `ResourceId` with `SubscriptionId`, `AccountName`, `ResourceGroup` |
+| `DimResource` | `ResourceId` with `SubscriptionId`, `AccountName`, `Region`, `DatabaseName`, `CollectionName` (no resource group) |
 | `DimMeter` | Billing meters |
 
 Facts join to `DimResource` on `ResourceId`. Top 100 accounts by data plane requests over 7 days, from the Fabric SQL endpoint:
 
 ```text
-SELECT TOP 100 DR.[SubscriptionId], DR.[AccountName], DR.[ResourceGroup],
+SELECT TOP 100 DR.[SubscriptionId], DR.[AccountName],
        SUM(FRH.[TotalRequestCount]) AS sum_total_requests
 FROM [FactRequestHourly] FRH
 JOIN [DimResource] DR ON FRH.[ResourceId] = DR.[ResourceId]
 WHERE FRH.[Timestamp] >= DATEADD(DAY, -7, GETDATE())
   AND FRH.[ResourceName] IN ('Document', 'StoredProcedure')
-GROUP BY DR.[AccountName], DR.[SubscriptionId], DR.[ResourceGroup]
+GROUP BY DR.[AccountName], DR.[SubscriptionId]
 ORDER BY sum_total_requests DESC;
 ```
 

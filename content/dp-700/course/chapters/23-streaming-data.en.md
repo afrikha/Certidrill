@@ -36,7 +36,7 @@ An eventhouse can **ingest** data into native KQL tables, or **reference** data 
 | Duplication | A copy of the data | No copy |
 | Limits | | One folder or table per shortcut, one shortcut created at a time, can't be renamed, no `*` in column names |
 
-Delta types map to KQL types (`string` to `string`, `long` to `long`, `integer` to `int`, `decimal` to `decimal`, `date` and `timestamp_ntz` to `datetime`, `struct`, `array` and `map` to `dynamic`). Schema changes in the source are synchronized by default.
+Delta types map to KQL types (`string` to `string`, `long` to `long`, `integer` to `int`, `decimal` to `decimal`, `date` and `timestamp_ntz` to `datetime`, `struct`, `array` and `map` to `dynamic`). Schema changes in the source are synchronized by default for a standard shortcut (an accelerated one needs an `.alter`, see below).
 
 | Requirement | Choice |
 | --- | --- |
@@ -55,7 +55,7 @@ Delta types map to KQL types (`string` to `string`, `long` to `long`, `integer` 
 - Turn it on when creating the shortcut (**Accelerate** to On) or later: **Manage > Data policies > Query acceleration**. It requires Admin, Member or Contributor in the workspace.
 - The **caching period** (number of days, the policy's **Hot** property) counts from the file modification time in the Delta log; by default it's the database's caching period.
 - Billing: accelerated data is charged on the **OneLake Premium cache** meter, like native tables, and indexing consumes capacity units.
-- Limits: at most **900 columns**; Parquet files over **6 GB** compressed aren't cached; performance may suffer beyond 2.5 million data files; no index-based pruning for partitions. Accelerated shortcuts behave like external tables, without materialized views (and update policies over them are limited to a preview).
+- Limits: at most **900 columns**; Parquet files over **6 GB** compressed aren't cached; performance may suffer beyond 2.5 million data files; no index-based pruning for partitions. A schema change in the Delta table must be followed by an `.alter` of the external delta table schema, and a breaking change can restart acceleration from scratch. Accelerated shortcuts behave like external tables, without materialized views (and update policies over them are limited to a preview).
 - Monitor progress:
 
 ```kusto
@@ -80,13 +80,13 @@ An eventstream has a **default stream** fed by its sources; operators create pro
 | Filter | Keeps events that meet a condition (temperature `> 80`, status = error) |
 | Manage fields | Adds, removes, renames fields or changes their type; built-in string, date and time, and math functions |
 | Aggregate | Sum, Minimum, Maximum or Average recalculated on each new event over a period |
-| Group by | Aggregations over **time windows** (tumbling, sliding and other types), grouped by columns |
+| Group by | Aggregations over **time windows** (such as tumbling or sliding), grouped by columns |
 | Union | Merges streams; only fields with the same name and type are kept |
 | Join | Combines two streams on a matching condition |
 | Expand | One row per value of an array |
 | SQL | Custom logic in the Stream Analytics query language |
 
-The **SQL operator** writes one or more `SELECT ... INTO output FROM input` statements (a `WITH` clause reads the input once for several outputs), uses **arrival time** unless `TIMESTAMP BY` sets event time, and has late-arrival and out-of-order thresholds in its advanced settings. It can't be combined with other operators in the same path, can't be chained, and needs new destination nodes.
+The **SQL operator** writes one or more `SELECT ... INTO output FROM input` statements (a `WITH` clause reads the input once for several outputs), uses **arrival time** unless `TIMESTAMP BY` sets event time, and has late-arrival and out-of-order thresholds in its advanced settings. It can't be combined with other operators in the same path, can't be chained, and needs new destination nodes. Eventstream names that contain `_` or `.` aren't compatible with the SQL operator.
 
 ```text
 SELECT System.Timestamp() AS WindowEnd, roomId, AVG(temperature) AS AvgTemp
@@ -159,7 +159,7 @@ An **update policy** runs a query on every batch ingested into a source table an
 ```
 
 - `IsTransactional` defaults to `false`: if the policy fails, the source keeps the data and the target misses it. `true` makes both fail together (recommended in production).
-- The function's output must match the target schema (column types and order). Source and target are in the same database; no cross-database query, external table (except an accelerated one), or plugin call.
+- The function's output must match the target schema (column types and order). Source and target are in the same database. The query can read tables of other databases only if the policy has a `ManagedIdentity` that has the `viewer` role on them; no cross-eventhouse query, external table (except an accelerated one), or plugin call.
 - To keep only the transformed data, set the source's retention soft-delete period to `0s` with a transactional policy.
 - Policies can cascade (A to B to C). Check failures with `.show ingestion failures`.
 

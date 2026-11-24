@@ -29,7 +29,7 @@ az network watcher flow-log create --location westeurope --resource-group RG1 --
 
 Le **Moniteur de connexion** teste en continu l'accessibilité et la latence (pourcentage de vérifications en échec, durée d'aller-retour) entre des sources et des destinations :
 
-- Sources : VM et groupes de machines virtuelles identiques Azure dotés de l'**extension Network Watcher** (installée pour vous par le portail), et machines locales activées avec **Azure Arc** et l'**agent Azure Monitor**. L'agent Log Analytics n'est plus pris en charge.
+- Sources : VM et groupes de machines virtuelles identiques Azure dotés de l'**extension Network Watcher** (installée pour vous par le portail), et machines locales activées avec **Azure Arc** et l'**agent Azure Monitor**. Le portail active les extensions de surveillance, mais vous activez vous-même l'agent Arc sur chaque hôte local, et la solution **Network Performance Monitoring** doit être activée dans l'espace de travail Log Analytics (**+ Enable Non-Azure**). L'agent Log Analytics n'est plus pris en charge.
 - Destinations : VM, URL, FQDN, adresses IP, URL Microsoft 365 ; aucun agent nécessaire.
 - Structure : un moniteur de connexion régional contient des **groupes de tests** ; chaque groupe de tests a des sources, des destinations et des **configurations de test** (TCP, HTTP ou ICMP, port, fréquence, seuils). Chaque combinaison source × destination × configuration est un test.
 - Limites par région et par abonnement : 100 moniteurs de connexion ; par moniteur : 20 groupes de tests, 100 sources et destinations, 20 configurations de test.
@@ -62,7 +62,7 @@ az network watcher troubleshooting start --resource-group RG1 --resource VNet1to
 Détails qui décident des réponses :
 
 - La **capture de paquets** exige l'extension de VM `AzureNetworkWatcherExtension`. Sortie sur le disque de la VM ou dans un blob de stockage ; filtres par IP, port et protocole ; limite de durée par défaut de 18 000 secondes (5 heures) ; la capture **continue** utilise un tampon circulaire de fichiers pendant sept jours au plus. Jusqu'à 10 000 sessions par région et par abonnement.
-- La **résolution des problèmes de VPN** prend en charge les passerelles VPN basées sur des routes et les connexions IPsec ou de réseau virtuel à réseau virtuel, pas ExpressRoute, les passerelles basées sur des stratégies ni les connexions point à site. Elle écrit ses journaux dans un compte de stockage et renvoie des types d'erreur comme `Authentication` (clé prépartagée différente), `PeerReachability` et `IkePolicyMismatch`. Une seule opération à la fois par abonnement.
+- La **résolution des problèmes de VPN** prend en charge les passerelles VPN basées sur des routes et les connexions IPsec ou de réseau virtuel à réseau virtuel, pas ExpressRoute, les passerelles basées sur des stratégies ni les connexions point à site. Elle écrit ses journaux dans un compte de stockage et renvoie des types d'erreur comme `Authentication` (clé prépartagée différente), `PeerReachability` et `IkePolicyMismatch`. Une seule opération à la fois par abonnement. Avec Azure CLI, la passerelle et le compte de stockage doivent être dans le même groupe de ressources ; sinon, utilisez PowerShell ou le portail.
 - La **résolution des problèmes de connexion** part d'une VM, d'un groupe de machines virtuelles identiques, d'un hôte Azure Bastion ou d'une passerelle d'application v2 ; son mode sans agent (préversion) n'exige pas l'extension.
 - Chaque outil exige une instance Network Watcher dans la région de la ressource.
 
@@ -97,7 +97,7 @@ Chaque adresse IP publique Azure bénéficie de la **protection DDoS d'infrastru
 | DDoS Rapid Response, protection des coûts, remise WAF | Oui | Non |
 | IP publique Basic | Protégée | Non prise en charge |
 
-Communs aux deux : surveillance permanente, trois stratégies d'atténuation ajustées automatiquement par IP publique (TCP SYN, TCP, UDP), métriques, alertes, rapports et journaux de flux d'atténuation. Une IP publique attachée à une passerelle NAT ne peut pas être protégée.
+Communs aux deux : surveillance permanente, trois stratégies d'atténuation ajustées automatiquement par IP publique (TCP SYN, TCP, UDP), métriques, alertes, rapports et journaux de flux d'atténuation. Une stratégie personnalisée DDoS Protection (préversion) peut fixer des seuils de détection par protocole sur les adresses IP frontales d'un Standard Load Balancer. Une IP publique attachée à une passerelle NAT ne peut pas être protégée ; la protection DDoS des IP publiques d'une passerelle NAT StandardV2 est en préversion.
 
 ```bash
 az network ddos-protection create --resource-group RG1 --name ddos-plan-contoso
@@ -114,7 +114,7 @@ La supervision se fait sur la ressource **adresse IP publique** :
 | Métriques **Inbound packets dropped DDoS**, **Inbound packets forwarded DDoS**, **Inbound packets DDoS** | Trafic nettoyé, transmis et total pendant l'atténuation |
 | Journal `DDoSProtectionNotifications` | Début et fin de l'atténuation |
 | Journal `DDoSMitigationFlowLogs` | Flux abandonnés et transmis pendant une attaque, pour Microsoft Sentinel ou un SIEM |
-| Journal `DDoSMitigationReports` | Rapports d'attaque par tranches de cinq minutes ; cette catégorie est en cours de mise hors service au profit des journaux de flux |
+| Journal `DDoSMitigationReports` | Rapports d'attaque par tranches de cinq minutes ; en cours de mise hors service : Learn donne mi-août 2026 pour la fin de cette catégorie et septembre 2026 pour l'ancien pipeline (dates approximatives), reconstruisez donc ces rapports à partir de `DDoSMitigationFlowLogs`, dont les noms de colonnes changent aussi |
 
 Les journaux exigent un **paramètre de diagnostic** sur l'adresse IP publique. La télémétrie et les alertes n'existent que tant qu'une IP publique est protégée.
 
@@ -131,6 +131,7 @@ Comment évolue le degré de sécurisation classique (portail Azure) :
 - Un contrôle ne donne tous ses points que lorsque **chaque** recommandation qu'il contient est corrigée sur chaque ressource. L'**augmentation potentielle du score** indique le gain.
 - Les recommandations marquées **Preview (Préversion)** ne comptent pas tant qu'elles ne sont pas en disponibilité générale.
 - Les scores sont recalculés environ toutes les huit heures.
+- Sur plusieurs abonnements, le score global est une somme pondérée, pas une moyenne des pourcentages par abonnement. Le portail Microsoft Defender affiche un autre modèle, le **Cloud Secure Score** basé sur les risques ; le score classique reste dans le portail Azure (**Recommandations** > **Switch to classic view**).
 
 | Contrôle réseau (score maximal) | Correction qui rapporte ses points |
 | --- | --- |
@@ -175,7 +176,7 @@ Traiter un chemin dans le portail Azure : **Defender for Cloud** > **Analyse du 
 
 L'explorateur de sécurité du cloud exécute des requêtes de graphe sur le même graphique de sécurité cloud pour trouver des ressources de manière proactive, avant qu'un chemin d'attaque n'existe : inventaire, exposition à Internet, autorisations, mouvement latéral, sur Azure, AWS et GCP.
 
-- Exige **Defender CSPM** (et l'analyse sans agent) ; mêmes rôles que l'analyse du chemin d'attaque. Les données de configuration sont actualisées chaque jour.
+- Exige **Defender CSPM** (et l'analyse sans agent) ; avec seulement Defender for Servers Plan 2, vous pouvez rechercher des clés et des secrets, mais pas utiliser tout l'explorateur. Mêmes rôles que l'analyse du chemin d'attaque. Les données de configuration sont actualisées chaque jour.
 - **Defender for Cloud** > **Cloud Security Explorer** : sélectionnez un type de ressource, sélectionnez **+** pour ajouter des conditions et des sous-filtres (par exemple sur l'exposition à Internet ou les connexions à d'autres ressources), puis **Rechercher** (Search).
 - Les **modèles de requête** en bas de la page fournissent des questions toutes faites ; ouvrez-en un, ajustez-le, exécutez-le.
 - **Share query link** copie la requête ; **Download CSV report** exporte les résultats.

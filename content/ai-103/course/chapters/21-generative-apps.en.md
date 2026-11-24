@@ -75,6 +75,8 @@ Implementation options:
 | File search tool on an agent | Uploaded files; the service chunks (800 tokens, 400 overlap), embeds and indexes them for you |
 | Foundry IQ knowledge base | Several sources (Blob Storage, SharePoint, OneLake, web) shared by many agents; agentic retrieval splits the question into subqueries, reranks and returns citations, with permissions enforced at query time |
 
+For new RAG implementations, Learn now recommends starting with agentic retrieval (a Foundry IQ knowledge base); classic RAG in your own code stays the choice when you keep existing orchestration code or need fine control of the query pipeline.
+
 A minimal app-level RAG call with hybrid search and semantic ranking:
 
 ```text
@@ -140,7 +142,7 @@ Evaluation compares a model or an application against a test dataset before rele
 | Strict yes/no consistency with the context, without a judge deployment | Groundedness Pro (preview) |
 | Does the answer address the question? | Relevance |
 | Did the retrieval return useful chunks? | Retrieval; Document Retrieval when you have labeled relevance judgments |
-| Does the answer cover everything in the expected answer? | Response Completeness (recall against ground truth) |
+| Does the answer cover everything in the expected answer? | Response Completeness (preview; recall against ground truth) |
 | Readable, logical answers | Fluency, Coherence |
 | Closeness to a reference answer | Similarity, F1 Score, BLEU, ROUGE, METEOR, GLEU |
 | Harmful content, jailbreak susceptibility | Risk and safety evaluators |
@@ -178,7 +180,7 @@ Compare runs of two versions on the same dataset before promoting one. Results a
 | --- | --- |
 | `azure-ai-projects` (2.x), `AIProjectClient` | Project operations: agents, connections, telemetry, evaluation rules |
 | `project.get_openai_client()` | An OpenAI-compatible client for responses, conversations, files, vector stores and evals |
-| `openai` | The OpenAI client the project client returns, or used directly against `https://<resource>.openai.azure.com/openai/v1/` |
+| `openai` | The OpenAI client the project client returns, or used directly against `https://<resource>.openai.azure.com/openai/v1/`, which embeddings require: the project endpoint doesn't currently route embedding requests |
 | `azure-identity` | `DefaultAzureCredential` for keyless authentication |
 | Microsoft Agent Framework | Multi-agent orchestration and workflows; its Foundry client targets the project's Responses endpoint |
 | Foundry Tools SDKs | Speech, Language, Translator, Vision, Content Safety, Document Intelligence, Azure AI Search, each with its own endpoint |
@@ -205,7 +207,7 @@ https://<resource-name>.services.ai.azure.com/api/projects/<project-name>
 | --- | --- |
 | `https://<resource>.services.ai.azure.com/api/projects/<project>` | `AIProjectClient`: agents, connections, evaluations, models through the Responses API |
 | `https://<resource>.openai.azure.com/openai/v1/` | The `openai` client directly; the only one that also accepts an API key |
-| `https://<resource>.cognitiveservices.azure.com/` | Foundry Tools SDKs |
+| `https://<resource>.cognitiveservices.azure.com/` | Most Foundry Tools SDKs; Text Translation uses `https://api.cognitive.microsofttranslator.com/` and Speech uses regional endpoints |
 
 Authentication is **keyless by default**: `DefaultAzureCredential` uses the developer's `az login` session locally and the managed identity of the App Service, Container Apps or Functions app in Azure. With the `openai` client directly, pass a token provider for the scope `https://ai.azure.com/.default`:
 
@@ -219,11 +221,12 @@ client = OpenAI(base_url="https://contoso-ai.openai.azure.com/openai/v1/", api_k
 
 | Role (Foundry RBAC) | Grants |
 | --- | --- |
-| Foundry User (formerly Azure AI User) | Build and call agents and models in the project: day-to-day development and application identities |
-| Foundry Project Manager | Manage the project and its connections |
+| Foundry Agent Consumer | Call agent endpoints only: the least-privileged role for applications and users that only interact with agents |
+| Foundry User (formerly Azure AI User) | Build and call agents and models in the project: day-to-day development and application identities that call models through the project |
+| Foundry Project Manager | Manage projects, build in them, publish agents, and assign the Foundry User role |
 | Foundry Account Owner | Create projects and account-level resources |
 
-Steps for a production app: enable a managed identity on the hosting service, assign it **Foundry User** on the project, store the endpoint in configuration (for example an environment variable), and create the client with `DefaultAzureCredential`. Assign roles at the narrowest scope.
+Steps for a production app: enable a managed identity on the hosting service, assign it **Foundry User** on the project (Foundry Agent Consumer if the app only calls agents), store the endpoint in configuration (for example an environment variable), and create the client with `DefaultAzureCredential`. Assign roles at the narrowest scope.
 
 > **Exam trap.** An API key works only on the `/openai/v1` endpoint and gives no identity to audit. "No secrets in the code or configuration" means a managed identity with the Foundry User role, not a key stored in an app setting.
 
@@ -235,6 +238,6 @@ Steps for a production app: enable a managed identity on the hosting service, as
 - RAG: retrieve, augment, generate with citations. Hybrid plus semantic ranking is the best general retrieval; RAG adds knowledge, fine-tuning changes behavior.
 - Function calling: your code runs the function and returns `function_call_output` with the same `call_id`.
 - Agent Framework for code workflows; Foundry workflows designer retires December 1, 2026.
-- Fabrications: Groundedness. On-topic: Relevance. Missing content: Response Completeness. Scores 1–5, threshold 3.
+- Fabrications: Groundedness. On-topic: Relevance. Missing content: Response Completeness (preview). Scores 1–5, threshold 3.
 - Connections hold credentials; `project.connections.get(name).id` feeds tools.
 - Keyless: managed identity plus Foundry User on the project; keys only on `/openai/v1`.

@@ -54,9 +54,9 @@ Microsoft recommends one workspace per project, access through Microsoft Entra g
 
 | Recovered with the workspace | Lost for good |
 | --- | --- |
-| Run history, models, data, environments, components, notebooks, pipelines, AutoML jobs, labeling projects, datastores | Queued or running jobs, compute instances and clusters, inference endpoints, role assignments you added, internal cache |
+| Run history, models, data, environments, components, notebooks, pipelines, AutoML jobs, labeling projects, datastores, role assignments of the workspace identity (recreation attempted, not guaranteed) | Queued or running jobs, compute instances and clusters, inference endpoints, role assignments you added, internal cache |
 
-Recovery needs the key vault and storage account to be recovered first. To skip soft delete, select **Delete the workspace permanently** in the portal or set `permanently_delete=True` in the SDK:
+Recover the dependencies first: the key vault and the storage account; for a deleted Application Insights, recover its Log Analytics workspace, then recreate Application Insights with its original name. The container registry isn't required: images of custom environments are rebuilt. To skip soft delete, select **Delete the workspace permanently** in the portal or set `permanently_delete=True` in the SDK:
 
 ```text
 ml_client.workspaces.begin_delete(
@@ -132,7 +132,7 @@ Which identity reads the data of an identity-based datastore:
 | Studio, notebooks on a compute instance | The signed-in user's Microsoft Entra token |
 | Job with `identity: type: user_identity` | The user who submitted the job |
 | Job with no `identity` setting | The managed identity of the compute |
-| Studio data preview when the storage firewall only allows trusted Azure services | The workspace managed identity |
+| Studio data preview when the storage firewall only allows trusted Azure services | The workspace managed identity, once the datastore setting **Use workspace managed identity for data preview and profiling in Azure Machine Learning studio** is enabled. It needs Storage Blob Data Reader, plus Reader on the storage private endpoint if the storage uses one |
 
 The identity that reads needs at least **Storage Blob Data Reader** on the storage account. To avoid granting every data scientist a storage role, grant it to the compute cluster's managed identity and let jobs run with it.
 
@@ -184,12 +184,12 @@ az ml compute create -n gpu-cluster --type AmlCompute --min-instances 0 --max-in
 az ml compute list --output table
 ```
 
-Quota is counted per region and VM family and shared between clusters and instances. Don't put delete or read-only locks on the workspace resource group: they block scaling.
+A cluster can be created in another region than the workspace (more latency and data transfer costs; not supported with a managed virtual network); a compute instance can't. Quota is counted per region and VM family and shared between clusters and instances. Don't put delete or read-only locks on the workspace resource group: they block scaling.
 
 **Compute instance.** Facts that come back in questions:
 
 - The name must be unique across the region. The VM size can't be changed after creation.
-- **Idle shutdown**: the instance stops after a period of inactivity between 15 minutes and 3 days (no kernel, terminal, job or VS Code session). Up to four start/stop **schedules** per instance.
+- **Idle shutdown**: the instance stops after a period of inactivity between 15 minutes and 3 days (no kernel, terminal, job or VS Code session). An instance with a managed identity doesn't idle-shut-down unless that identity has Contributor on the workspace. Up to four start/stop **schedules** per instance.
 - Stopping stops compute billing but you still pay for the disk, public IP and load balancer, and the quota isn't released.
 - **Create on behalf of** a user (`create_on_behalf_of` with the user's tenant and object ID): an administrator prepares the instance; only the assigned user uses it.
 - SSH access is disabled by default and can't be enabled or disabled after creation.
@@ -289,10 +289,10 @@ az role assignment create --assignee-object-id <group-object-id> \
 
 | Option | Role assignments on the associated resources | Notes |
 | --- | --- | --- |
-| System-assigned | Created by Microsoft | Simplest; lifecycle tied to the workspace |
+| System-assigned | Created automatically: Azure AI Administrator for workspaces created after November 19, 2024 (before: Contributor on the resource group) | Simplest; lifecycle tied to the workspace |
 | User-assigned (with `primary_user_assigned_identity`) | Created by you | Independent lifecycle, can be reused, least-privilege control |
 
-You can move from system-assigned to system-assigned plus user-assigned, not back. With a user-assigned identity, grant it Contributor on the workspace and on each associated resource, plus Storage Blob Data Contributor (data preview in the studio) and, for a key vault using the Azure RBAC model, Key Vault Administrator.
+You can move from system-assigned to system-assigned plus user-assigned, not back. With a user-assigned identity, grant it Contributor on the workspace and on each associated resource, plus, optionally, Storage Blob Data Contributor (only needed for data preview in the studio) and, for a key vault using the Azure RBAC model, Key Vault Administrator.
 
 ```yaml
 location: westeurope

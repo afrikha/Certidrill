@@ -27,7 +27,7 @@ L'automatisation a besoin de mots de passe, de clés, de certificats et de fichi
 
 **Rotation.** Donnez une date d'expiration aux secrets et faites-les tourner : Key Vault publie des événements d'expiration proche et d'expiration dans Event Grid (déclenchez une fonction Azure qui effectue la rotation), les clés prennent en charge une stratégie de rotation automatique et les certificats d'une autorité de certification intégrée se renouvellent automatiquement. Les applications lisent la dernière version par son nom : la rotation n'exige pas de redéploiement.
 
-**Réseau.** Si le pare-feu du coffre bloque l'accès public, un agent hébergé par Microsoft ou un exécuteur hébergé par GitHub ne peut pas l'atteindre : utilisez un agent ou un exécuteur auto-hébergé dans un réseau autorisé par un point de terminaison privé ou par le pare-feu.
+**Réseau.** Si le pare-feu du coffre bloque l'accès public, un agent hébergé par Microsoft ou un exécuteur hébergé par GitHub ne peut pas l'atteindre (les agents hébergés par Microsoft ne font pas partie des services approuvés de Key Vault) : utilisez un agent ou un exécuteur auto-hébergé dans un réseau autorisé par un point de terminaison privé ou par le pare-feu. Un groupe de variables lié au coffre est interrogé depuis les adresses IP publiques d'Azure DevOps : le pare-feu doit donc aussi autoriser les plages d'adresses IP d'Azure DevOps de la zone géographique de l'organisation. Pour ne pas ouvrir le coffre à Azure DevOps, lisez les secrets avec AzureKeyVault@2 sur un agent auto-hébergé dont le réseau virtuel est autorisé.
 
 Dans Azure Pipelines, deux façons de lire les secrets :
 
@@ -67,7 +67,7 @@ Les **secrets GitHub Actions** existent à trois niveaux :
 | Dépôt | 100 | Disponibles pour tous les workflows du dépôt |
 | Environnement | 100 | Lisibles seulement par les jobs qui référencent l'environnement, une fois ses règles de protection (relecteurs obligatoires, minuteur d'attente, branches) satisfaites |
 
-Un secret fait au maximum 48 Ko ; les noms utilisent des lettres, des chiffres et `_`, et ne commencent ni par un chiffre ni par `GITHUB_`. Quand le même nom existe à plusieurs niveaux, le niveau le plus bas l'emporte (environnement, puis dépôt, puis organisation). Les secrets ne peuvent pas être référencés directement dans `if:` ; ils ne sont pas transmis aux workflows déclenchés par Dependabot ou depuis des forks (sauf GITHUB_TOKEN), ni automatiquement aux workflows réutilisables.
+Un secret fait au maximum 48 Ko ; les noms utilisent des lettres, des chiffres et `_`, et ne commencent ni par un chiffre ni par `GITHUB_`. Quand le même nom existe à plusieurs niveaux, le niveau le plus bas l'emporte (environnement, puis dépôt, puis organisation). Les secrets ne peuvent pas être référencés directement dans `if:` : définissez le secret comme variable d'environnement au niveau du job et testez cette variable dans la condition. Les secrets ne sont pas transmis aux workflows déclenchés par Dependabot ou depuis des forks (sauf GITHUB_TOKEN), ni automatiquement aux workflows réutilisables : le workflow appelant transmet explicitement les seuls secrets dont le workflow réutilisable a besoin.
 
 ```bash
 gh secret set SQL_PASSWORD --env production
@@ -107,7 +107,7 @@ Le sujet de l'information d'identification fédérée doit correspondre exacteme
 
 > **Piège d'examen.** Un job qui déclare `environment: production` présente le sujet d'environnement, pas celui de la branche. Si l'information d'identification a été créée pour `ref:refs/heads/main`, la connexion échoue même sur `main`.
 
-**Azure Pipelines** offre trois emplacements pour les secrets : les variables secrètes dans les paramètres du pipeline (limitées à ce pipeline), les groupes de variables de la Bibliothèque (partagés, avec la sécurité de la Bibliothèque et les autorisations de pipeline) et les groupes de variables liés à Key Vault. Les variables secrètes sont chiffrées au repos, masquées dans les journaux et **ne sont pas** déchiffrées dans des variables d'environnement : mappez-les avec `env:`. Pour Azure, utilisez une connexion de service Azure Resource Manager avec **fédération d'identité de charge de travail** : aucun secret à faire tourner. `AzureCLI@2` avec `addSpnToEnvironment: true` expose les détails du principal de service à un script sans les stocker.
+**Azure Pipelines** offre trois emplacements pour les secrets : les variables secrètes dans les paramètres du pipeline (limitées à ce pipeline), les groupes de variables de la Bibliothèque (partagés, avec la sécurité de la Bibliothèque et les autorisations de pipeline) et les groupes de variables liés à Key Vault. Les variables secrètes sont chiffrées au repos, masquées dans les journaux et **ne sont pas** déchiffrées dans des variables d'environnement : mappez-les avec `env:`. Pour Azure, utilisez une connexion de service Azure Resource Manager avec **fédération d'identité de charge de travail** : aucun secret à faire tourner. `AzureCLI@2` avec `addSpnToEnvironment: true` expose au script `servicePrincipalId`, `tenantId` et soit `servicePrincipalKey`, soit, avec la fédération d'identité de charge de travail, le jeton de fédération `idToken`, sans les stocker.
 
 | Exigence | Réponse |
 | --- | --- |
@@ -159,7 +159,7 @@ Le masquage est fait au mieux. Azure Pipelines et GitHub masquent dans les journ
 | Secret affiché par un script | Ne jamais afficher de secret ; le mapper dans une variable d'environnement plutôt qu'en argument de ligne de commande |
 | Valeur obtenue à l'exécution (un jeton généré) | L'enregistrer : `::add-mask::VALUE` (GitHub), `##vso[task.setvariable variable=token;issecret=true]` (Azure Pipelines) |
 | Secret structuré (JSON) partiellement non masqué | Un secret par valeur |
-| Une pull request depuis un fork vole les secrets | GitHub : les secrets ne sont pas envoyés aux workflows de forks, évitez `pull_request_target` avec une extraction du code du fork. Azure Pipelines : laissez **Make secrets available to builds of forks** désactivé, exigez le commentaire d'un membre de l'équipe, paramètre d'organisation **Limit building pull requests from forked GitHub repositories** |
+| Une pull request depuis un fork vole les secrets | GitHub : les secrets ne sont pas envoyés aux workflows de forks, évitez `pull_request_target` avec une extraction du code du fork. Azure Pipelines : laissez **Make secrets available to builds of forks** désactivé, exigez le commentaire d'un membre de l'équipe ; contrôle d'organisation ou de projet **Limit building pull requests from forked GitHub repositories** (désactiver, générer de manière sécurisée ou personnaliser les règles) |
 | Injection de script depuis le titre d'une pull request ou un nom de branche | Passer `${{ github.event... }}` par une variable `env:`, jamais directement dans `run:` |
 | Action tierce compromise | Épingler les actions sur un SHA de commit complet ; restreindre les actions autorisées |
 | Exécuteur auto-hébergé dans un dépôt public | Utiliser des exécuteurs hébergés pour du code non fiable |

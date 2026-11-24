@@ -60,7 +60,7 @@ Options d'authentification :
 | Utilisateur administrateur | Tests par un seul utilisateur | **Désactivé par défaut** ; push et pull complets, pas de RBAC ; à éviter |
 | Jetons non Entra avec mappages d'étendue | Accès limité à des référentiels pour des systèmes externes | Tous les niveaux |
 
-Autorisation : **AcrPull** (pull), **AcrPush** (push et pull), **AcrDelete**. Un registre en mode d'autorisation **RBAC Registry + ABAC Repository Permissions** utilise **Container Registry Repository Reader / Writer / Contributor** avec des conditions ABAC pour limiter l'accès à certains référentiels ; dans ce mode, Owner, Contributor et Reader n'ont aucun accès au plan de données.
+Autorisation : **AcrPull** (pull), **AcrPush** (push et pull), **AcrDelete**. Les rôles **Container Registry Repository Reader / Writer / Contributor** fonctionnent dans les deux modes d'autorisation : Reader pour les orchestrateurs qui extraient des images (AKS, Container Apps, Container Instances), Writer pour les pipelines CI/CD qui envoient des images, Contributor s'ils en suppriment aussi. Un registre en mode d'autorisation **RBAC Registry + ABAC Repository Permissions** utilise **Container Registry Repository Reader / Writer / Contributor** avec des conditions ABAC pour limiter l'accès à certains référentiels ; dans ce mode, AcrPull, AcrPush et AcrDelete ne sont pas pris en compte, et Owner, Contributor et Reader n'ont aucun accès au plan de données (AcrPull correspond à Repository Reader plus **Container Registry Repository Catalog Lister**). Le passage à ce mode invalide les informations d'identification émises avant le changement : les clients reçoivent une erreur HTTP 401 jusqu'à ce qu'ils les actualisent.
 
 | Fonctionnalité | Niveau |
 | --- | --- |
@@ -185,8 +185,8 @@ Les stratégies s'exécutent dans les sections **inbound**, **backend**, **outbo
 | Valider un jeton OAuth de n'importe quel émetteur | `validate-jwt` |
 | Valider un jeton Microsoft Entra (audience, revendications) | `validate-azure-ad-token` |
 | Autoriser ou bloquer des IP d'appelants | `ip-filter` |
-| Limiter le débit par abonnement / par clé (IP, revendication) | `rate-limit` / `rate-limit-by-key` (pas en Consommation) |
-| Quota de volume par abonnement / par clé | `quota` / `quota-by-key` (pas en Consommation) |
+| Limiter le débit par abonnement / par clé (IP, revendication) | `rate-limit` (tous les niveaux) / `rate-limit-by-key` (pas en Consommation) |
+| Quota de volume par abonnement / par clé | `quota` (tous les niveaux, étendue produit uniquement) / `quota-by-key` (Developer, Basic, Standard, Premium) |
 | APIM s'authentifie auprès du back-end sans secret | `authentication-managed-identity` |
 | Certificat client vers le back-end / valider le certificat de l'appelant | `authentication-certificate` / `validate-client-certificate` |
 | Rejeter les corps trop volumineux ou mal formés | `validate-content` (aussi `validate-parameters`, `validate-headers`) |
@@ -204,7 +204,7 @@ Les stratégies s'exécutent dans les sections **inbound**, **backend**, **outbo
 </inbound>
 ```
 
-Pour faire d'APIM le seul chemin vers le back-end, verrouillez aussi le back-end lui-même : restrictions d'accès ou point de terminaison privé sur l'application App Service ou de fonction, et une authentification du back-end que l'identité managée d'APIM satisfait.
+Pour faire d'APIM le seul chemin vers le back-end, verrouillez aussi le back-end lui-même : restrictions d'accès ou point de terminaison privé sur l'application App Service ou de fonction, et une authentification du back-end que l'identité managée d'APIM satisfait. Une instance ne peut être ni mise à niveau depuis le niveau Consommation ni rétrogradée vers celui-ci : une API qui exige `rate-limit-by-key` doit être publiée par une instance d'un autre niveau.
 
 > **Piège d'examen.** `rate-limit` et `quota` comptent par **clé d'abonnement** ; pour limiter par IP d'appelant ou par revendication utilisateur, utilisez les variantes `-by-key`.
 

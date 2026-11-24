@@ -36,7 +36,7 @@ Un eventhouse peut **ingérer** des données dans des tables KQL natives, ou **r
 | Duplication | Une copie des données | Aucune copie |
 | Limites | | Un dossier ou une table par raccourci, un seul raccourci créé à la fois, pas de renommage, pas de `*` dans les noms de colonnes |
 
-Les types Delta se mappent vers des types KQL (`string` vers `string`, `long` vers `long`, `integer` vers `int`, `decimal` vers `decimal`, `date` et `timestamp_ntz` vers `datetime`, `struct`, `array` et `map` vers `dynamic`). Les changements de schéma de la source sont synchronisés par défaut.
+Les types Delta se mappent vers des types KQL (`string` vers `string`, `long` vers `long`, `integer` vers `int`, `decimal` vers `decimal`, `date` et `timestamp_ntz` vers `datetime`, `struct`, `array` et `map` vers `dynamic`). Les changements de schéma de la source sont synchronisés par défaut pour un raccourci standard (un raccourci accéléré demande un `.alter`, voir plus bas).
 
 | Exigence | Choix |
 | --- | --- |
@@ -55,7 +55,7 @@ L'**accélération des requêtes** applique une stratégie à la table Delta ext
 - Activez-la à la création du raccourci (**Accelerate** sur On) ou plus tard : **Manage > Data policies > Query acceleration**. Il faut le rôle Admin, Member ou Contributor dans l'espace de travail.
 - La **période de mise en cache** (nombre de jours, propriété **Hot** de la stratégie) se compte à partir de l'heure de modification du fichier dans le journal Delta ; par défaut, c'est la période de mise en cache de la base de données.
 - Facturation : les données accélérées sont facturées sur le compteur **OneLake Premium cache**, comme les tables natives, et l'indexation consomme des unités de capacité.
-- Limites : au plus **900 colonnes** ; les fichiers Parquet de plus de **6 Go** compressés ne sont pas mis en cache ; les performances peuvent baisser au-delà de 2,5 millions de fichiers de données ; pas d'élagage par index pour les partitions. Les raccourcis accélérés se comportent comme des tables externes, sans vues matérialisées (et les stratégies de mise à jour sur eux sont limitées à une préversion).
+- Limites : au plus **900 colonnes** ; les fichiers Parquet de plus de **6 Go** compressés ne sont pas mis en cache ; les performances peuvent baisser au-delà de 2,5 millions de fichiers de données ; pas d'élagage par index pour les partitions. Un changement de schéma de la table Delta doit être suivi d'un `.alter` du schéma de la table delta externe, et un changement cassant peut faire repartir l'accélération de zéro. Les raccourcis accélérés se comportent comme des tables externes, sans vues matérialisées (et les stratégies de mise à jour sur eux sont limitées à une préversion).
 - Suivez la progression :
 
 ```kusto
@@ -80,13 +80,13 @@ Un flux d'événements a un **flux par défaut** alimenté par ses sources ; les
 | Filter | Garde les événements qui remplissent une condition (température `> 80`, état = erreur) |
 | Manage fields | Ajoute, supprime, renomme des champs ou change leur type ; fonctions intégrées de chaîne, de date et d'heure, et mathématiques |
 | Aggregate | Sum, Minimum, Maximum ou Average recalculé à chaque nouvel événement sur une période |
-| Group by | Agrégations sur des **fenêtres de temps** (bascule, glissante et autres types), groupées par colonnes |
+| Group by | Agrégations sur des **fenêtres de temps** (par exemple bascule ou glissante), groupées par colonnes |
 | Union | Fusionne des flux ; seuls les champs de même nom et de même type sont conservés |
 | Join | Combine deux flux sur une condition de correspondance |
 | Expand | Une ligne par valeur d'un tableau |
 | SQL | Logique personnalisée dans le langage de requête Stream Analytics |
 
-L'**opérateur SQL** écrit une ou plusieurs instructions `SELECT ... INTO output FROM input` (une clause `WITH` lit l'entrée une seule fois pour plusieurs sorties), utilise l'**heure d'arrivée** sauf si `TIMESTAMP BY` définit l'heure de l'événement, et propose des seuils d'arrivée tardive et de désordre dans ses paramètres avancés. Il ne peut pas être combiné à d'autres opérateurs sur le même chemin, ne peut pas être chaîné, et demande de nouveaux nœuds de destination.
+L'**opérateur SQL** écrit une ou plusieurs instructions `SELECT ... INTO output FROM input` (une clause `WITH` lit l'entrée une seule fois pour plusieurs sorties), utilise l'**heure d'arrivée** sauf si `TIMESTAMP BY` définit l'heure de l'événement, et propose des seuils d'arrivée tardive et de désordre dans ses paramètres avancés. Il ne peut pas être combiné à d'autres opérateurs sur le même chemin, ne peut pas être chaîné, et demande de nouveaux nœuds de destination. Les flux d'événements dont le nom contient `_` ou `.` ne sont pas compatibles avec l'opérateur SQL.
 
 ```text
 SELECT System.Timestamp() AS WindowEnd, roomId, AVG(temperature) AS AvgTemp
@@ -159,7 +159,7 @@ Une **stratégie de mise à jour** exécute une requête sur chaque lot ingéré
 ```
 
 - `IsTransactional` vaut `false` par défaut : si la stratégie échoue, la source garde les données et la cible les manque. `true` fait échouer les deux ensemble (recommandé en production).
-- La sortie de la fonction doit correspondre au schéma de la cible (types et ordre des colonnes). Source et cible sont dans la même base de données ; pas de requête entre bases de données, de table externe (sauf une table accélérée) ni d'appel de plug-in.
+- La sortie de la fonction doit correspondre au schéma de la cible (types et ordre des colonnes). Source et cible sont dans la même base de données. La requête ne peut lire des tables d'autres bases de données que si la stratégie a une `ManagedIdentity` qui a le rôle `viewer` sur ces bases ; pas de requête entre eventhouses, de table externe (sauf une table accélérée) ni d'appel de plug-in.
 - Pour ne garder que les données transformées, définissez la période de suppression réversible de la rétention de la source à `0s` avec une stratégie transactionnelle.
 - Les stratégies peuvent s'enchaîner (A vers B vers C). Vérifiez les échecs avec `.show ingestion failures`.
 

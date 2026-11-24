@@ -7,7 +7,7 @@ P2S needs a virtual network gateway of type **Vpn** with a **route-based** VPN t
 
 | SKU | SSTP connections | IKEv2/OpenVPN connections | Aggregate throughput | Notes |
 | --- | --- | --- | --- | --- |
-| Basic | 128 | IKEv2 only, OpenVPN not supported | 100 Mbps | No RADIUS, no IPv6, no BGP, not zone-redundant; created with PowerShell or Azure CLI only; dev-test |
+| Basic | 128 | IKEv2 only, OpenVPN not supported | 100 Mbps | No RADIUS, no IPv6, no BGP, not zone-redundant; created with PowerShell or Azure CLI only; dev-test. Since November 2025, new Basic gateways use IKEv2 by default; the SSTP limit concerns existing SSTP-only gateways |
 | VpnGw1AZ | 128 | 250 | 650 Mbps | Generation1 |
 | VpnGw2AZ | 128 | 500 | 1 Gbps (Generation1), 1.25 Gbps (Generation2) | |
 | VpnGw3AZ | 128 | 1,000 | 1.25 Gbps (Generation1), 2.5 Gbps (Generation2) | |
@@ -64,7 +64,7 @@ Set-AzVirtualNetworkGateway -VirtualNetworkGateway $gw `
 
 **Certificate authentication.** Upload the public key of the root certificate (Base-64 encoded X.509 `.cer`, pasted as one continuous line) on the Point-to-site configuration page; up to 20 trusted root certificates. Each client holds a client certificate generated from that root, with its private key, in `Current User\Personal`. To block one device, add the **thumbprint** of its client certificate to the revoked certificates list. Removing a root certificate blocks every client certificate it signed.
 
-Several authentication types can be selected on one gateway. A client then needs one authentication type that is supported by one of the configured tunnel types: with "IKEv2 and OpenVPN" and "Microsoft Entra ID and RADIUS", Entra ID clients use OpenVPN only.
+Several authentication types can be selected on one gateway. A client then needs one authentication type that is supported by one of the configured tunnel types: with "IKEv2 and OpenVPN" and "Microsoft Entra ID and RADIUS", Entra ID clients use OpenVPN only. Not every combination is offered: OpenVPN alone accepts any subset of the three types; "IKEv2 and OpenVPN" accepts RADIUS, certificate, Entra ID + RADIUS or Entra ID + certificate (not RADIUS + certificate); SSTP, IKEv2 and "IKEv2 and SSTP" accept RADIUS or certificate.
 
 > **Exam trap.** Revoking a client certificate uses its thumbprint on the gateway; it doesn't require touching the root certificate. Deleting the root certificate disconnects all the clients issued from it.
 
@@ -77,7 +77,7 @@ Requirements:
 
 - Any gateway SKU except Basic.
 - The gateway must reach the RADIUS server. The server is either in the virtual network or on-premises behind a **site-to-site VPN** connection. An ExpressRoute connection can't be used to reach an on-premises RADIUS server.
-- The gateway is given the server IP address and the **shared secret**, which must match the secret declared on the RADIUS server, where the gateway is registered as a RADIUS client.
+- The gateway is given the server IP address and the **shared secret**, which must match the secret declared on the RADIUS server, where the gateway is registered as a RADIUS client: when you add this client, specify the virtual network's GatewaySubnet.
 - Two RADIUS servers can be configured for high availability, each with a score.
 - With IKEv2, only EAP-based authentication is supported.
 
@@ -143,7 +143,7 @@ The package is a snapshot of the gateway configuration. **Generate and redistrib
 | "A certificate chain processed but terminated in a root certificate which is not trusted" | Certificates missing from the trusted root stores | Reinstall the client and gateway root certificates |
 | "File download error. Target URI is not specified" | Wrong gateway type | Use gateway type VPN with VPN type RouteBased |
 | Error 812, connection prevented by a policy on the RAS/VPN server | RADIUS server misconfigured or unreachable from the gateway | Check the RADIUS settings and the route to the server |
-| "The network connection between your computer and the VPN server could not be established" with IKEv2 | UDP 500 and 4500 blocked, or missing IKE fragmentation update on old Windows versions | Open the ports or use OpenVPN |
+| "The network connection between your computer and the VPN server could not be established" with IKEv2 | The Windows version doesn't support IKE fragmentation (the cause Learn gives). IKEv2 also needs UDP 500 and 4500, which a firewall may block | Install the Windows update and set the `DisableCertReqPayload` registry value to 1; for blocked ports, open them or use OpenVPN |
 | Connected, but Azure resources unreachable after a peering was added | The client doesn't have the new routes | Download the client package again |
 | "Your authentication with Microsoft Entra has expired" | Refresh token expired or revoked | Reconnect to trigger an interactive sign-in; check the Entra sign-in logs |
 

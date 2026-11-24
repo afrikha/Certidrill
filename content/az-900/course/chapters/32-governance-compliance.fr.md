@@ -55,7 +55,9 @@ Un **verrou de ressource** empêche la suppression ou la modification accidentel
 | **Suppression** (`CanNotDelete`) | Lire et modifier la ressource | La supprimer |
 | **Lecture seule** (`ReadOnly`) | Lire la ressource | La modifier ni la supprimer |
 
-- Un verrou s'applique à un **abonnement**, à un **groupe de ressources** ou à une **ressource**, et il est **hérité** : un verrou sur un groupe de ressources s'applique à toutes les ressources qu'il contient.
+- Un verrou s'applique à un **abonnement**, à un **groupe de ressources** ou à une **ressource**, jamais à un groupe d'administration, et il est **hérité** : un verrou sur un groupe de ressources s'applique à toutes les ressources qu'il contient, même à celles ajoutées plus tard. Le verrou le plus restrictif de la chaîne d'héritage l'emporte.
+- Un verrou Suppression sur une seule ressource bloque la suppression de tout son groupe de ressources : rien n'est supprimé, pas même les ressources non verrouillées.
+- Les verrous s'appliquent uniquement aux opérations du **plan de contrôle** (la gestion de la ressource), pas aux données : un verrou sur un compte de stockage ne protège pas les données de ses objets blob, files d'attente, tables ou fichiers.
 - Les verrous se gèrent depuis le portail, Azure PowerShell, Azure CLI ou un modèle ARM.
 - Pour supprimer ou modifier une ressource verrouillée, il faut **d'abord retirer le verrou**, puis effectuer l'opération. Deux étapes, volontairement.
 
@@ -66,4 +68,4 @@ Un **verrou de ressource** empêche la suppression ou la modification accidentel
 
 - Microsoft Purview : gouvernance unifiée des **données** (découverte, classification, traçabilité), risques et conformité, sur le local, le multicloud et le SaaS.
 - Azure Policy : des règles sur les **ressources** ; définitions, initiatives (groupes de stratégies), attributions à une étendue, héritage, évaluation des ressources existantes, correction possible.
-- Verrous de ressources : Supprimer ou Lecture seule ; sur les abonnements, groupes de ressources et ressources ; hérités ; s'appliquent quel que soit le rôle RBAC ; retirer le verrou avant de modifier la ressource.
+- Verrous de ressources : Suppression ou Lecture seule ; sur les abonnements, groupes de ressources et ressources (pas les groupes d'administration) ; hérités, le plus restrictif l'emporte ; plan de contrôle uniquement ; s'appliquent quel que soit le rôle RBAC ; retirer le verrou avant de modifier la ressource.

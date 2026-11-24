@@ -137,7 +137,7 @@ ORDER BY h.instance_id DESC;
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | The job never starts | Agent service stopped (VM), job or schedule disabled, no `sp_add_jobserver`, schedule end date passed | Start the service and set it to automatic; enable the job and schedule; target the server |
-| SSMS shows the Agent node empty | `Agent XPs` server option disabled | Start SQL Server Agent (it enables `Agent XPs`) or `sp_configure 'Agent XPs', 1` |
+| SSMS shows the Agent node empty | `Agent XPs` server option disabled | Start SQL Server Agent from SSMS (which enables `Agent XPs` automatically) or run `sp_configure 'Agent XPs', 1` |
 | Fails with "unable to determine if the owner has server access" | The job owner's login was disabled or deleted (for example a departed employee's domain account) | `sp_update_job @owner_login_name` to a valid login, such as a dedicated service login |
 | A step can't read or write a file share or folder | The SQL Server Agent service account (or the proxy's credential) lacks permissions | Grant the account rights, or use a proxy with a credential that has them |
 | A CmdExec, PowerShell or SSIS step fails for a non-sysadmin owner | No proxy for that subsystem | Create a credential and a proxy, grant the proxy to the owner, select it in the step (not on Managed Instance) |

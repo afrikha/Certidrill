@@ -7,7 +7,7 @@ A **message** carries data that the sender expects a receiver to process: an ord
 
 | Requirement | Storage queues | Service Bus |
 | --- | --- | --- |
-| Queue larger than 80 GB | Yes, up to the capacity of the storage account | No: 1 to 80 GB per queue |
+| Queue larger than 80 GB | Yes, up to the capacity of the storage account | No: 1 to 5 GB in Basic and Standard (80 GB with partitioning), 80 GB in Premium |
 | Message size | 64 KB | 256 KB in Standard, up to 100 MB in Premium |
 | Guaranteed first-in, first-out order | No | Yes, with sessions |
 | Duplicate detection, transactions, automatic dead-letter queue | No | Yes |
@@ -80,7 +80,7 @@ The tier follows the networking and geography requirements:
 
 The v2 tiers deploy in minutes and all have an SLA, but they don't offer multi-region deployment or the self-hosted gateway. The **self-hosted gateway** is a container that runs close to the APIs and stays managed from the Azure instance: it is the answer to "one management plane for APIs hosted on-premises and in several clouds".
 
-To expose a legacy system that has no API, front a Logic Apps workflow or a function with API Management. For integration with partners, Logic Apps provides the connectors and API Management the secured, documented endpoint.
+To expose a legacy system that has no API, front a Logic Apps workflow or a function with API Management; the automated import of a logic app as an API supports Logic App (Consumption) resources, not workspaces. For integration with partners, Logic Apps provides the connectors and API Management the secured, documented endpoint.
 
 > **Exam trap.** An application gateway or Front Door protects and load-balances HTTP traffic; neither publishes a developer portal, issues subscription keys or applies per-consumer quotas. Those requirements designate API Management.
 
@@ -107,7 +107,7 @@ With **cache-aside**, the application reads the cache first, loads from the data
 | Compute Optimized | Most vCPUs per GB: highest throughput |
 | Flash Optimized | Keeps less-used data on NVMe storage: very large datasets at a lower cost |
 
-Enable high availability for production: the instance then has at least two nodes, spread across zones where the region has them. Active geo-replication links instances in several regions that all accept writes, with automatic conflict resolution; it isn't available in Flash Optimized. Data persistence writes snapshots to disk for a faster recovery; it isn't a backup. Authenticate with Microsoft Entra ID and connect through a private endpoint.
+Enable high availability for production: the instance then has at least two nodes, spread across zones where the region has them. Active geo-replication links instances in several regions that all accept writes; conflict-free replicated data types (CRDTs) merge the writes with eventual consistency and no SLA on the sync time. It isn't available in Flash Optimized or in the Balanced B0 and B1 SKUs. Data persistence writes snapshots to disk for a faster recovery; it isn't a backup. Authenticate with Microsoft Entra ID and connect through a private endpoint.
 
 Azure Cache for Redis is being retired: the Enterprise tiers on March 31, 2027, the Basic, Standard and Premium tiers on September 30, 2028. New designs use Azure Managed Redis.
 
@@ -124,13 +124,13 @@ Front Door caches only responses to GET requests, per edge location: use it for 
 | Secrets, keys and certificates | Azure Key Vault |
 | Settings of one web app, injected as environment variables, possibly specific to a deployment slot | App Service app settings |
 
-**Azure App Configuration** stores key-values centrally. Labels hold a different value per environment or version; feature flags turn a feature on for some users without a deployment; applications refresh their settings dynamically; a point-in-time replay shows the values at an earlier date. App Configuration and Key Vault are used together: a key-value holds a **Key Vault reference**, and the application resolves the secret from the vault with its managed identity. Access to the store itself also uses Microsoft Entra ID and managed identities, with no connection string in the code.
+**Azure App Configuration** stores key-values centrally. Labels hold a different value per environment or version; feature flags turn a feature on for some users without a deployment; applications refresh their settings dynamically; a point-in-time replay shows the values at an earlier date (revision history kept 7 days in Free and Developer, 30 days in Standard and Premium). App Configuration and Key Vault are used together: a key-value holds a **Key Vault reference**, and the application resolves the secret from the vault with its managed identity. Access to the store itself also uses Microsoft Entra ID and managed identities, with no connection string in the code.
 
 | Tier | SLA | Notes |
 | --- | --- | --- |
 | Free | None | 10 MB, 1,000 requests per day |
 | Developer | None | Adds private endpoints |
-| Standard | 99.9 %, 99.95 % with geo-replication | Adds geo-replication, soft delete, customer-managed keys |
+| Standard | 99.9 %, 99.95 % with geo-replication | Adds geo-replication, soft delete (always on, can't be disabled), customer-managed keys |
 | Premium | 99.9 %, 99.99 % with geo-replication | No request quota |
 
 > **Exam trap.** Don't store a connection string or a password in App Configuration because it encrypts data: the recommended design keeps the secret in Key Vault and a reference in App Configuration.

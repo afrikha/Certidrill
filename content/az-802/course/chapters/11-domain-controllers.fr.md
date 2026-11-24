@@ -59,7 +59,7 @@ AD DS s'exécute sur des machines virtuelles Azure comme en local (contrairement
 | Disponibilité | Au moins deux machines virtuelles DC dans des zones de disponibilité différentes, ou dans un groupe à haute disponibilité si la région n'a pas de zones |
 | Adresse IP | Une adresse IP privée statique définie sur l'interface réseau de la machine virtuelle dans Azure. Pas d'adresse IP publique ; administration par Azure Bastion |
 | Disques | Un disque de données distinct pour `NTDS.dit`, les journaux et SYSVOL, avec la mise en cache de l'hôte sur **Aucune** (le moteur de base de données gère lui-même l'ordre de ses écritures). Disque de système d'exploitation managé persistant, jamais éphémère |
-| DNS | Les DC comme serveurs DNS personnalisés du réseau virtuel et des réseaux appairés |
+| DNS | Les DC comme serveurs DNS personnalisés du réseau virtuel et des réseaux connectés par peering |
 | Sites | Un site AD DS avec les sous-réseaux Azure, et un lien de sites vers les sites locaux |
 | Catalogue global | Au moins deux DC Azure comme serveurs de catalogue global |
 | Réseau | Un NSG qui n'autorise le trafic AD DS que depuis et vers le réseau local, via un VPN site à site ou ExpressRoute |

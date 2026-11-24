@@ -28,7 +28,7 @@ Les **agrégations définies par l'utilisateur** accélèrent les grands modèle
 | Règle | Valeur |
 | --- | --- |
 | Mode de stockage de la table de détails | DirectQuery (obligatoire) |
-| Mode de stockage de la table d'agrégation | Import (non modifiable ensuite) |
+| Mode de stockage de la table d'agrégation | Import pour les meilleures performances (non modifiable ensuite), ou DirectQuery optimisé par des index columnstore |
 | Dimensions liées | Double (Dual), pour que les deux tables puissent les utiliser |
 | Plusieurs tables d'agrégation | **Priorité** (precedence) : la plus élevée est essayée en premier |
 | Visibilité | Table d'agrégation masquée ; les utilisateurs interrogent la table de détails |
@@ -65,7 +65,7 @@ RETURN
     DIVIDE ( _Current - _PY, _PY )
 ```
 
-Un argument de filtre booléen ne peut référencer ni une mesure, ni des colonnes de plusieurs tables, ni un `CALCULATE` imbriqué, ni une fonction de table : ces cas exigent `FILTER`, idéalement sur `VALUES` d'une colonne plutôt que sur une table entière.
+Un argument de filtre booléen ne peut référencer ni une mesure, ni des colonnes de plusieurs tables, ni un `CALCULATE` imbriqué, ni une fonction qui parcourt ou renvoie une table (sauf dans une agrégation qui renvoie un scalaire, comme `Sales[OrderDateKey] = MAX ( Sales[OrderDateKey] )`) : ces cas exigent `FILTER`, idéalement sur `VALUES` d'une colonne plutôt que sur une table entière.
 
 | Modèle à éviter | Mieux |
 | --- | --- |
@@ -114,7 +114,7 @@ Diagnostiquez en DAX : la colonne `[DirectLakeFallbackInfo]` donne la raison pou
 EVALUATE TABLETRAITS ()
 ```
 
-Les garde-fous par table dépendent de la référence SKU (extrait) :
+Les garde-fous dépendent de la référence SKU (extrait). La taille maximale du modèle est évaluée pour tout le modèle ; les autres garde-fous sont évalués par requête :
 
 | Référence SKU Fabric | Fichiers Parquet et groupes de lignes par table | Lignes par table | Taille max. du modèle dans OneLake |
 | --- | --- | --- | --- |
@@ -208,7 +208,7 @@ Les modèles Direct Lake n'utilisent ni partitions de modèle ni actualisation i
 
 - Analyseur de performances : Requête DAX, Affichage visuel ou Autre indique s'il faut corriger le modèle, le visuel ou la page.
 - Un modèle plus petit est plus rapide : supprimez les colonnes à forte cardinalité, séparez les dates-heures, désactivez Date/heure automatique.
-- Agrégations : table d'agrégation Import sur une table de détails DirectQuery, dimensions en mode Double ; pas en Direct Lake.
+- Agrégations : table d'agrégation Import (ou DirectQuery avec columnstore) sur une table de détails DirectQuery, dimensions en mode Double ; pas en Direct Lake.
 - Les filtres booléens battent `FILTER` sur des tables ; utilisez des variables, `DIVIDE`, `COUNTROWS`, `SELECTEDVALUE` ; ne transformez pas les vides en zéros.
 - Le cadrage ne copie que des métadonnées ; Keep your Direct Lake data up to date est activé par défaut ; désactivez-le pour exposer les données après l'ETL.
 - `DirectLakeBehavior` : Automatic, DirectLakeOnly, DirectQueryOnly ; `TABLETRAITS()` montre les raisons de basculement.

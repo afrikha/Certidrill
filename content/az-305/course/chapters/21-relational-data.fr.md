@@ -29,7 +29,7 @@ Ce qui distingue les trois options SQL :
 
 > **Piège d'examen.** « Réduire au minimum les modifications de l'application » avec des travaux SQL Agent, des requêtes entre bases de données, du CLR ou des serveurs liés désigne SQL Managed Instance, pas SQL Database. « Le serveur héberge aussi SSRS ou SSAS » ou « l'éditeur exige un accès au système d'exploitation » désigne SQL Server sur machines virtuelles Azure. Aucun des deux services de plateforme n'exécute SSRS ni SSAS ; les packages SSIS s'exécutent dans un runtime d'intégration Azure-SSIS d'Azure Data Factory.
 
-Pour les moteurs open source, recommandez un serveur flexible (PostgreSQL ou MySQL) : haute disponibilité redondante interzone avec un serveur de secours dans une autre zone de disponibilité, serveur que l'on peut arrêter pour suspendre la facturation du calcul, et sauvegardes automatiques conservées 7 jours par défaut et jusqu'à 35 jours.
+Pour les moteurs open source, recommandez un serveur flexible (PostgreSQL ou MySQL) : haute disponibilité redondante interzone avec un serveur de secours dans une autre zone de disponibilité, serveur que l'on peut arrêter pour suspendre la facturation du calcul (un serveur flexible PostgreSQL arrêté redémarre de lui-même au bout de sept jours), et sauvegardes automatiques conservées 7 jours par défaut et jusqu'à 35 jours.
 
 <!-- section: service-compute-tiers | objectives: 2.1.2 -->
 ## Niveaux de service et niveaux de calcul
@@ -55,8 +55,8 @@ Le **niveau de calcul** détermine la facturation du calcul :
 | | Provisionné | Serverless |
 | --- | --- | --- |
 | Facturation | Prix fixe par heure pour les vCores provisionnés | À la seconde pour les vCores utilisés, entre un minimum et un maximum que vous fixez |
-| Mise en pause automatique | Non | Oui : après le délai de mise en pause automatique (15 minutes au minimum, 60 par défaut en General Purpose), seul le stockage est facturé |
-| Disponible dans | General Purpose, Business Critical, Hyperscale, pools élastiques | Bases de données uniques en General Purpose et Hyperscale |
+| Mise en pause automatique | Non | Oui : après le délai de mise en pause automatique (15 minutes au minimum, 60 par défaut en General Purpose), seul le stockage est facturé. En Hyperscale, la mise en pause automatique est en préversion (60 minutes au minimum) |
+| Disponible dans | General Purpose, Business Critical, Hyperscale, pools élastiques | Bases de données uniques en General Purpose et Hyperscale, sur matériel Standard-series (Gen5) uniquement |
 | Idéal pour | Utilisation régulière et prévisible ; bases de données qui ne tolèrent pas un délai de reprise | Utilisation intermittente et imprévisible avec des périodes d'inactivité ; nouvelles bases de données sans historique d'utilisation |
 
 | Exigence | Recommandation |
@@ -126,7 +126,7 @@ Les sauvegardes complètent la protection des données. SQL Database et SQL Mana
 
 - L'option la plus managée qui convient : SQL Database pour les nouvelles applications, SQL Managed Instance pour les fonctionnalités SQL Server d'instance, SQL Server sur machines virtuelles Azure pour l'accès au système d'exploitation, SSRS ou SSAS.
 - General Purpose est le choix par défaut ; Business Critical pour une latence de 1 à 2 ms, l'OLTP en mémoire et un réplica lisible gratuit ; Hyperscale au-delà de 4 To et jusqu'à 128 To.
-- Serverless : bases de données uniques en General Purpose ou Hyperscale, facturation à la seconde, mise en pause automatique ; jamais en Business Critical, en DTU ni en pool élastique.
+- Serverless : bases de données uniques en General Purpose ou Hyperscale, facturation à la seconde, mise en pause automatique (en préversion en Hyperscale) ; jamais en Business Critical, en DTU ni en pool élastique.
 - Pool élastique pour de nombreuses bases de données aux pics décalés ; lecture à l'échelle pour les charges dominées par les lectures ; partitionnement en dernier.
 - TDE protège les fichiers, TLS le réseau, Always Encrypted cache les données aux administrateurs, le masquage dynamique ne les cache que dans les résultats, la sécurité au niveau des lignes filtre les lignes.
 - Clé TDE gérée par le client dans Azure Key Vault quand l'organisation doit contrôler ou révoquer la clé.

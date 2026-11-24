@@ -15,7 +15,7 @@ Le flux de modification est **activé par défaut** et disponible dans chaque co
 | Plusieurs consommateurs | Plusieurs applications peuvent lire en même temps le flux du même conteneur, chacune dans son propre mode |
 | Multirégion | Les modifications faites dans une région sont disponibles dans toutes les régions ; le flux reste continu lors d'un basculement manuel |
 
-Dans un compte à écritures multirégions, chaque modification a deux horodatages : `_ts` (écriture dans la région locale) et `crts` (conflit résolu ou absence de conflit confirmée dans la région hub). Les éléments du flux arrivent dans l'ordre de `crts`.
+Dans un compte à écritures multirégions, chaque modification a deux horodatages : `_ts` (écriture dans la région locale) et `crts` (conflit résolu ou absence de conflit confirmée dans la région hub). Les éléments du flux arrivent dans l'ordre de `crts`. Dans un tel compte, le mode dernière version peut abandonner une modification entrante d'un document quand une modification plus récente existe dans une autre région ; le mode toutes les versions et suppressions capture chaque modification.
 
 Méthodes de lecture du flux en mode Dernière version :
 
@@ -136,7 +136,7 @@ static async Task HandleChangesAsync(
 
 **Cycle de vie.** Lire le flux ; si rien n'a changé, attendre l'intervalle d'interrogation (`WithPollInterval`) ; sinon appeler le délégué ; quand le délégué **se termine avec succès**, écrire le nouveau point de contrôle dans le bail ; recommencer.
 
-**Garantie de remise : au moins une fois.** Si le délégué lève une exception, le thread du lot s'arrête, un nouveau thread repart du dernier point de contrôle et le même lot est remis, jusqu'à ce qu'il réussisse. Rendez le délégué idempotent et envoyez les modifications problématiques vers un magasin de messages en erreur (par exemple un autre conteneur) pour éviter des tentatives sans fin. Ne lancez pas de travail asynchrone dans le délégué sans l'attendre : le bail pourrait être validé avant la fin du travail.
+**Garantie de remise : au moins une fois.** Si le délégué lève une exception, le thread du lot s'arrête, un nouveau thread repart du dernier point de contrôle et le même lot est remis, jusqu'à ce qu'il réussisse. Une exception : si la **toute première** exécution du délégué échoue, aucun état de bail n'est encore enregistré, et la nouvelle tentative utilise la configuration de démarrage initiale, qui peut inclure ou non ce lot. Rendez le délégué idempotent et envoyez les modifications problématiques vers un magasin de messages en erreur (par exemple un autre conteneur) pour éviter des tentatives sans fin. Ne lancez pas de travail asynchrone dans le délégué sans l'attendre : le bail pourrait être validé avant la fin du travail.
 
 **Heure de départ.** Par défaut, le processeur démarre au moment de sa **première** initialisation ; les modifications antérieures sont ignorées. `WithStartTime(DateTime)` démarre à une heure donnée et `WithStartTime(DateTime.MinValue.ToUniversalTime())` depuis le début. Ces options ne s'appliquent que s'il n'existe aucun bail : une fois les baux stockés, le processeur reprend à partir d'eux et une nouvelle heure de départ est sans effet.
 

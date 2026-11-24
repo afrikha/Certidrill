@@ -27,7 +27,7 @@ Automation needs passwords, keys, certificates and signing files, and every copy
 
 **Rotation.** Give secrets an expiration date and rotate them: Key Vault publishes near-expiry and expiry events to Event Grid (trigger an Azure Function that rotates), keys support an automatic rotation policy, and certificates from an integrated CA renew automatically. Applications read the latest version by name, so rotation needs no redeployment.
 
-**Network.** If the vault firewall blocks public access, a Microsoft-hosted agent or GitHub-hosted runner can't reach it: use a self-hosted agent or runner in a network allowed through a private endpoint or the firewall.
+**Network.** If the vault firewall blocks public access, a Microsoft-hosted agent or GitHub-hosted runner can't reach it (Microsoft-hosted agents aren't Key Vault trusted services): use a self-hosted agent or runner in a network allowed through a private endpoint or the firewall. A variable group linked to the vault is queried from the Azure DevOps public IP addresses, so the firewall must also allow the Azure DevOps IP ranges of the organization's geography. To avoid opening the vault to Azure DevOps, read the secrets with AzureKeyVault@2 on a self-hosted agent whose virtual network is allowed.
 
 In Azure Pipelines, two ways to read secrets:
 
@@ -67,7 +67,7 @@ Both need an Azure Resource Manager service connection whose identity has **Get*
 | Repository | 100 | Available to every workflow of the repository |
 | Environment | 100 | Readable only by jobs that reference the environment, after its protection rules (required reviewers, wait timer, branches) pass |
 
-A secret is at most 48 KB; names use letters, digits and `_`, don't start with a digit or `GITHUB_`. When the same name exists at several levels, the lowest level wins (environment, then repository, then organization). Secrets can't be referenced directly in `if:`; secrets aren't passed to workflows triggered by Dependabot or from forks (except GITHUB_TOKEN), nor automatically to reusable workflows.
+A secret is at most 48 KB; names use letters, digits and `_`, don't start with a digit or `GITHUB_`. When the same name exists at several levels, the lowest level wins (environment, then repository, then organization). Secrets can't be referenced directly in `if:`: set the secret as a job-level environment variable and test that variable in the condition. Secrets aren't passed to workflows triggered by Dependabot or from forks (except GITHUB_TOKEN), nor automatically to reusable workflows: the calling workflow passes only the secrets the reusable workflow needs, explicitly.
 
 ```bash
 gh secret set SQL_PASSWORD --env production
@@ -107,7 +107,7 @@ Issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTok
 
 > **Exam trap.** A job that declares `environment: production` presents the environment subject, not the branch subject. If the credential was created for `ref:refs/heads/main`, login fails even on `main`.
 
-**Azure Pipelines** has three places for secrets: secret variables in the pipeline settings (scoped to that pipeline), variable groups in the Library (shared, with Library security and pipeline permissions), and variable groups linked to Key Vault. Secret variables are encrypted at rest, masked in logs and **not** decrypted into environment variables: map them with `env:`. For Azure, use an Azure Resource Manager service connection with **workload identity federation**: no secret to rotate. `AzureCLI@2` with `addSpnToEnvironment: true` exposes the service principal details to a script without storing them.
+**Azure Pipelines** has three places for secrets: secret variables in the pipeline settings (scoped to that pipeline), variable groups in the Library (shared, with Library security and pipeline permissions), and variable groups linked to Key Vault. Secret variables are encrypted at rest, masked in logs and **not** decrypted into environment variables: map them with `env:`. For Azure, use an Azure Resource Manager service connection with **workload identity federation**: no secret to rotate. `AzureCLI@2` with `addSpnToEnvironment: true` exposes `servicePrincipalId`, `tenantId` and either `servicePrincipalKey` or, with workload identity federation, the federation token `idToken` to the script, without storing them.
 
 | Requirement | Answer |
 | --- | --- |
@@ -159,7 +159,7 @@ Masking is best effort. Azure Pipelines and GitHub mask registered secret values
 | Secret printed by a script | Never echo secrets; map to environment variables instead of command-line arguments |
 | Value obtained at run time (a generated token) | Register it: `::add-mask::VALUE` (GitHub), `##vso[task.setvariable variable=token;issecret=true]` (Azure Pipelines) |
 | Structured secret (JSON) partially unmasked | One secret per value |
-| Fork pull request steals secrets | GitHub: secrets aren't sent to fork workflows, avoid `pull_request_target` with a checkout of the fork code. Azure Pipelines: keep **Make secrets available to builds of forks** off, require a team member's comment, organization setting **Limit building pull requests from forked GitHub repositories** |
+| Fork pull request steals secrets | GitHub: secrets aren't sent to fork workflows, avoid `pull_request_target` with a checkout of the fork code. Azure Pipelines: keep **Make secrets available to builds of forks** off, require a team member's comment; organization or project control **Limit building pull requests from forked GitHub repositories** (disable, securely build, or customize rules) |
 | Script injection from a pull request title or branch name | Pass `${{ github.event... }}` through an `env:` variable, never inline in `run:` |
 | Compromised third-party action | Pin actions to a full commit SHA; restrict allowed actions |
 | Self-hosted runner in a public repository | Use hosted runners for untrusted code |

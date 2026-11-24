@@ -93,7 +93,7 @@ Sans index, pgvector exécute une recherche **exacte** : rappel parfait, une ana
 | --- | --- | --- | --- |
 | IVFFlat | Entraînement k-means sur les lignes existantes : chargez d'abord les données | Construction rapide, peu de mémoire ; plafond de rappel plus bas, reconstruction parfois nécessaire quand les données dérivent | `lists` à la construction ; `ivfflat.probes` à la requête (1) |
 | HNSW | Graphe multicouche, sans entraînement : peut être créé sur une table vide | Meilleur compromis vitesse-rappel ; plus de mémoire (environ 50 % des données vectorielles) et construction plus lente | `m` (16), `ef_construction` (64) ; `hnsw.ef_search` à la requête (40) |
-| DiskANN (`pg_diskann`, Azure uniquement) | Graphe, sans entraînement | Rappel élevé avec des constructions rapides, adapté aux très grandes tables ; la quantification de produit réduit la mémoire | `max_neighbors` (32), `l_value_ib` (100) ; `diskann.l_value_is` à la requête (100) |
+| DiskANN (`pg_diskann`, Azure uniquement) | Graphe, sans entraînement | Rappel élevé avec des constructions rapides, adapté aux très grandes tables ; la quantification de produit (préversion) réduit la mémoire | `max_neighbors` (32), `l_value_ib` (100) ; `diskann.l_value_is` à la requête (100) |
 
 La **classe d'opérateurs doit correspondre à l'opérateur de la requête**, sinon le planificateur ignore l'index :
 
@@ -121,9 +121,9 @@ COMMIT;
 Règles de réglage :
 
 - IVFFlat : commencez avec `lists` = lignes / 1000 jusqu'à un million de lignes, `sqrt(lignes)` au-delà ; `probes` = `lists` / 10, ou `sqrt(lists)` pour les grandes tables. Sonder toutes les listes revient à une recherche exhaustive.
-- HNSW : `ef_construction` au moins égal à `2 * m` ; augmentez `m` (32) pour le rappel au prix de la mémoire et du temps de construction ; modifier `m` ou `ef_construction` impose une reconstruction ; gardez `hnsw.ef_search` au moins égal à `LIMIT`, 100 à 200 pour une grande précision, environ 20 pour les appels où la latence est critique.
+- HNSW : `ef_construction` au moins égal à `2 * m` ; augmentez `m` (32) pour le rappel au prix de la mémoire et du temps de construction ; modifier `m` ou `ef_construction` impose une reconstruction ; gardez `hnsw.ef_search` au moins égal à `LIMIT`, 100 à 200 pour une grande précision ; réduisez-le pour les appels où la latence est critique, mais pas en dessous de `LIMIT`.
 - `CREATE INDEX` bloque les écritures ; `CREATE INDEX CONCURRENTLY` ne les bloque pas, mais prend plus de temps. Suivez une construction avec `pg_stat_progress_create_index` ; reconstruisez avec `REINDEX INDEX CONCURRENTLY` quand le rappel se dégrade.
-- pgvector indexe des colonnes `vector` d'au plus **2 000 dimensions** ; au-delà, réduisez les dimensions (beaucoup de charges de travail utilisent 768 ou 1 024) ou utilisez DiskANN, qui atteint 16 000 dimensions avec `product_quantized = true`.
+- pgvector indexe des colonnes `vector` d'au plus **2 000 dimensions** ; au-delà, réduisez les dimensions (beaucoup de charges de travail utilisent 768 ou 1 024) ou utilisez DiskANN avec la quantification de produit (`product_quantized = true`, en préversion, pg_diskann 0.6 ou version ultérieure), qui indexe jusqu'à 16 000 dimensions.
 - Vérifiez le plan avec `EXPLAIN (ANALYZE, BUFFERS)` : analyse d'index, workers parallèles, index partiel et élimination de partitions. `idx_scan` dans `pg_stat_user_indexes` indique si un index est utilisé.
 
 > **Piège d'examen.** Un index construit avec `vector_cosine_ops` ne sert pas `ORDER BY embedding <-> ...`. La requête revient à une analyse séquentielle, avec des résultats justes mais lents.
@@ -172,7 +172,7 @@ SET embedding = azure_openai.create_embeddings('text-embedding-3-small', content
 WHERE embedding IS NULL;
 ```
 
-`azure_openai.create_embeddings` prend le **nom du déploiement**, le texte (ou un tableau `text[]` avec `batch_size`, 100 par défaut), et `timeout_ms`, `throw_on_error` (true par défaut : une erreur annule la transaction), `max_attempts` (1 par défaut) et `retry_delay_ms`. Elle renvoie un `real[]`, converti en `vector`.
+`azure_openai.create_embeddings` prend le **nom du déploiement**, le texte (ou un tableau `text[]` avec `batch_size`, 100 par défaut), et `timeout_ms`, `throw_on_error` (true par défaut : une erreur annule la transaction), `max_attempts` (1 par défaut) et `retry_delay_ms` (1 000 par défaut). Avec azure_ai 1.1.0 ou version ultérieure et un modèle text-embedding-3, `dimensions` (NULL par défaut) renvoie des vecteurs plus courts, par exemple pour rester sous la limite d'index de 2 000 dimensions. Elle renvoie un `real[]`, converti en `vector`. Sans clé, définissez `azure_openai.auth_type` sur `managed-identity` et attribuez à l'identité managée affectée par le système du serveur le rôle Cognitive Services OpenAI User sur la ressource Azure OpenAI.
 
 Récupération avec un filtre de métadonnées, un seuil de distance et un top-k, depuis Python :
 
@@ -255,7 +255,7 @@ Dimensionnez `max_size` à partir du serveur : 10 instances et 1 000 connexions 
 
 - psycopg 3 avec un jeton Microsoft Entra comme mot de passe, étendue `https://ossrdbms-aad.database.windows.net/.default`, `sslmode=require`, paramètres `%s`.
 - Autorisez `vector` dans `azure.extensions`, puis `CREATE EXTENSION vector` dans chaque base ; `vector(n)` doit correspondre au modèle ; attributs filtrables dans des colonnes typées, attributs dynamiques en `jsonb` avec GIN.
-- IVFFlat : construction rapide après chargement, `lists` et `probes`. HNSW : meilleur rappel, `m`, `ef_construction`, `hnsw.ef_search` (40). DiskANN : Azure uniquement, grandes tables, quantification. La classe d'opérateurs doit correspondre à `<=>`, `<->` ou `<#>`.
+- IVFFlat : construction rapide après chargement, `lists` et `probes`. HNSW : meilleur rappel, `m`, `ef_construction`, `hnsw.ef_search` (40). DiskANN : Azure uniquement, grandes tables, quantification de produit (préversion). La classe d'opérateurs doit correspondre à `<=>`, `<->` ou `<#>`.
 - Indexable jusqu'à 2 000 dimensions avec pgvector ; `CREATE INDEX CONCURRENTLY` en production.
 - Memory Optimized pour de grands ensembles de vecteurs, index en mémoire avec 50 % de marge ; Burstable pour le développement uniquement.
 - RAG : même modèle d'incorporation, filtre de métadonnées `WHERE` plus `ORDER BY` sur la distance plus `LIMIT` ; `azure_openai.create_embeddings` prend le nom du déploiement.

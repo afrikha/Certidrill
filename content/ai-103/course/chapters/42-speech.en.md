@@ -17,10 +17,12 @@ Features that decide many answers:
 
 | Need | Feature |
 | --- | --- |
-| Who said what in a multi-speaker recording | **Diarization**, up to 35 speakers (more returns an error) |
+| Who said what in a multi-speaker recording | **Diarization**, up to 35 speakers (more returns an error); in batch transcription, mono audio only |
 | Product names or jargon misrecognized, no training wanted | **Phrase list**: likely words and phrases sent with the request |
 | Unknown or mixed spoken language | **Language identification** |
 | Two sides of a support call recorded on two channels | **Multichannel transcription** (preview), up to two channels |
+
+In batch transcription, channels 0 and 1 are transcribed by default (`channels` property), and language identification works only with base models: if the request also names a custom model, the service falls back to the base models. When you need both, use real-time speech to text.
 
 In an application, the Speech SDK (`azure-cognitiveservices-speech`) does both halves:
 
@@ -51,9 +53,9 @@ if spoken.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
 
 - `recognize_once_async()` returns after one utterance. For a conversation, use `start_continuous_recognition()` with the events `recognizing` (intermediate text), `recognized` (final text of a phrase), `canceled` and `session_stopped`, then `stop_continuous_recognition()`.
 - The source language is a locale (`en-US`, `de-DE`) in `speech_recognition_language`.
-- The voice is chosen by name. Neural voices also speak English, and multilingual voices speak the language of the input text. Finer control (style, rate, pitch, pauses) is written in SSML. Long-form text goes to batch synthesis.
+- The voice is chosen by name. Neural voices also speak English, and multilingual voices speak the language of the input text. Finer control (style, rate, pitch, pauses) is written in SSML. Long-form text goes to the batch synthesis API (GA, asynchronous, audio longer than 10 minutes); the Long Audio API retires on April 1, 2027.
 
-> **Exam trap.** The quickstarts use a key in environment variables "for learning only". For a production agent, Microsoft recommends Microsoft Entra ID authentication with a managed identity; when a key is unavoidable, keep it in Azure Key Vault and rotate it.
+> **Exam trap.** The quickstarts store a key in environment variables and say to use a more secure method in production. Microsoft recommends Microsoft Entra ID authentication with a managed identity; when a key is unavoidable, keep it in Azure Key Vault and rotate it. For the Speech SDK, Entra authentication needs a **custom domain name** on the Speech resource (it can't be undone), the Cognitive Services Speech User or Cognitive Services Speech Contributor role, and `SpeechConfig(token_credential=..., endpoint=...)` with the custom domain endpoint.
 
 <!-- section: voice-agents | objectives: 4.2.2 -->
 ## Speech as an agent modality and custom speech models
@@ -89,7 +91,7 @@ The events are compatible with the Azure OpenAI Realtime API: the client sends `
 | Setting | Values to know |
 | --- | --- |
 | `turn_detection.type` | `server_vad` (default, audio volume); `semantic_vad` (only `gpt-realtime` and `gpt-realtime-mini`); `azure_semantic_vad` (mainly English) and `azure_semantic_vad_multilingual`, both usable with all models |
-| `input_audio_transcription.model` | `azure-speech` (works with non-multimodal models and agents; supports phrase lists and custom speech); `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1` (only with `gpt-realtime` models; no phrase list) |
+| `input_audio_transcription.model` | `azure-speech` (works with non-multimodal models, agents and the realtime models such as `gpt-realtime`; supports phrase lists and custom speech); `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize`, `whisper-1` (only with `gpt-realtime` and `gpt-realtime-mini`; no phrase list) |
 | `voice.type` | `azure-standard` or `azure-custom` (custom voice: limited access, needs the deployment's `endpoint_id`) |
 
 **Voice for a Foundry agent.** Voice Live can front an agent of Foundry Agent Service instead of a bare model: the Python client (`azure-ai-voicelive`) connects with the agent name and the project name, and the agent keeps its instructions and tools.
@@ -108,7 +110,7 @@ async with connect(
     ...
 ```
 
-Only `agent_name` and `project_name` are required; `agent_version` pins a version (the latest is used otherwise) and `conversation_id` resumes a conversation. The voice settings can be stored in the agent's metadata rather than sent by the client.
+Only `agent_name` and `project_name` are required; `agent_version` pins a version (the latest is used otherwise) and `conversation_id` resumes a conversation. The voice settings can be stored in the agent's metadata rather than sent by the client. The caller needs the Foundry User role (formerly Azure AI User).
 
 > **Exam trap.** Key-based authentication isn't supported when Voice Live connects to an agent: agent mode requires Microsoft Entra ID.
 
@@ -160,7 +162,7 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
-The audio travels as base64 with its format. `modalities=["text", "audio"]` with an `audio` setting (voice, format) asks for a spoken answer, returned in `message.audio.data`, with its text in `message.audio.transcript`.
+The audio travels as base64 with its format. `modalities=["text", "audio"]` with an `audio` setting (voice, format) asks for a spoken answer, returned in `message.audio.data`, with its text in `message.audio.transcript`. Structured outputs aren't supported with `gpt-audio` and `gpt-audio-mini`: when the fields must follow a JSON schema, send the model's answer (or a transcript) to a text model with structured outputs in a second step.
 
 > **Exam trap.** "Detect frustration in the caller's voice" can't be answered from a transcript alone: the audio must reach a model that accepts audio. Conversely, "keep a searchable transcript of every call at the lowest cost" doesn't need an audio model: batch transcription does it.
 
@@ -173,6 +175,7 @@ The audio travels as base64 with its format. `modalities=["text", "audio"]` with
 | Stored files transcribed and translated with context and a custom prompt | Fast transcription with **Azure LLM Speech** |
 | Text already transcribed, translated by a dedicated service with predictable output | **Azure Translator** in Foundry Tools |
 | Translation adapted in tone or register, or combined with a summary | A language model prompted on the transcript |
+| A live conversation in several languages, no input language to set, speech-to-speech in a natural voice | **Live Interpreter** in speech translation |
 
 ```text
 translation_config = speechsdk.translation.SpeechTranslationConfig(
@@ -193,6 +196,7 @@ if result.reason == speechsdk.ResultReason.TranslatedSpeech:
 - The source is a locale (`en-US`); targets are language codes (`fr`, `de`, `zh-Hans`), and `result.translations` is a dictionary keyed by those codes.
 - `voice_name` adds a spoken translation, delivered as audio through the `synthesizing` event. This event-based synthesis works with a single target language whose voice matches it. To speak several translations, add several targets and synthesize each text yourself with a `SpeechSynthesizer` and a voice per language.
 - Custom speech models also work with speech translation, for the recognition half.
+- **Live Interpreter** identifies the spoken language continuously (language switches in one session) and keeps the speaker's style and tone. In Python it uses the same `TranslationRecognizer`, with an empty `AutoDetectSourceLanguageConfig()` (open-range detection) and the universal v2 endpoint; `voice_name = "personal-voice"` needs personal voice access.
 
 > **Exam trap.** Neither `SpeechRecognizer` nor `SpeechConfig` translates, and `SpeechConfig` has no target language: translation needs `SpeechTranslationConfig` and `TranslationRecognizer`. Sending the transcript to Azure Translator is a second call, justified only when the text needs Translator features.
 

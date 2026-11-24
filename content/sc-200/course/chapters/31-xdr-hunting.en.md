@@ -29,12 +29,12 @@ Each Defender workload feeds its own tables. Pick the table from the **source of
 | Activities in Office 365 and other cloud apps (Defender for Cloud Apps) | `CloudAppEvents` |
 | Requests to Microsoft Graph | `GraphAPIAuditEvents` |
 | Alerts from all Defender products, and the entities in them | `AlertInfo`, `AlertEvidence` |
-| Automatic attack disruption actions | `DisruptionAndResponseEvents` |
+| Automatic attack disruption events (preview) | `DisruptionAndResponseEvents` |
 | Exposure Management graph (assets and their relationships) | `ExposureGraphNodes`, `ExposureGraphEdges` |
 
 Rules that decide answers:
 
-- Advanced hunting covers **30 days** of Defender data. Once a Microsoft Sentinel workspace is connected to the Defender portal, its tables (`SecurityEvent`, `SigninLogs`, `CommonSecurityLog`, custom tables...) are queried in the same editor, for the analytics-tier retention of each table. Data that exists only in the **data lake** isn't available in advanced hunting: use data lake exploration.
+- Advanced hunting covers **30 days** of Defender data (up to 90 days of supported data with an eligible Integrated Security Operations Center (ISOC) license). Once a Microsoft Sentinel workspace is connected to the Defender portal, its tables (`SecurityEvent`, `SigninLogs`, `CommonSecurityLog`, custom tables...) are queried in the same editor, for the analytics-tier retention of each table. Data that exists only in the **data lake** isn't available in advanced hunting: use data lake exploration.
 - Defender tables are filtered on `Timestamp`; Sentinel tables on `TimeGenerated`. All data is in UTC.
 - Entity tables (`DeviceInfo`, `IdentityInfo`...) are refreshed every hour with the latest full record of each entity.
 
@@ -117,12 +117,13 @@ Open **Investigation & response > Hunting > Advanced hunting** in the Defender p
 - The schema pane lists the tables and their columns; queries can be saved under **My queries** or **Shared queries** for the tenant, and the sample queries are a starting point.
 - A query used regularly becomes a **custom detection rule** (**Create detection rule** from the editor), which runs it on a schedule and raises alerts.
 - From an incident, **Go hunt** opens a prebuilt query on an entity; **Link to incident** attaches selected results to an incident.
+- With Microsoft Sentinel data, guided mode and **Take actions** support Defender XDR data only, and bookmarks aren't supported in advanced hunting (use **Link to incident**).
 
 Quotas, applied separately to manual queries and custom detections:
 
 | Quota | Limit |
 | --- | --- |
-| Time range | 30 days of Defender data; Sentinel tables according to their analytics retention |
+| Time range | 30 days of Defender data (90 days of supported data with an eligible ISOC license); Sentinel tables according to their analytics retention |
 | Rows returned | 100,000 |
 | Duration | 10 minutes |
 | Result size | 64 MB (beyond, results are truncated) |
@@ -172,7 +173,7 @@ Viewing reports, incidents and impacted assets needs **Security data basics (rea
 <!-- section: hunting-graphs | objectives: 3.1.5 -->
 ## Creating hunting graphs and blast radius
 
-A **hunting graph** renders a hunting scenario as nodes (devices, accounts, IP addresses, cloud resources) and edges (relationships), to find attack paths and choke points that tables hide. Prerequisites: onboarding to the **Microsoft Sentinel data lake** (graph is provisioned with it), at least **read-only access to Microsoft Security Exposure Management**, and the advanced hunting permissions.
+A **hunting graph** renders a hunting scenario as nodes (devices, accounts, IP addresses, cloud resources) and edges (relationships), to find attack paths and choke points that tables hide. Prerequisites: onboarding to the **Microsoft Sentinel data lake** (graph is provisioned with it; Learn makes the capability available to customers who onboarded before September 23, 2026), at least **read-only access to Microsoft Security Exposure Management**, and the advanced hunting permissions.
 
 To create one:
 
@@ -191,7 +192,7 @@ To create one:
 
 Filters: **Show only the shortest paths**; source node (is critical, is vulnerable, is exposed to the internet); target node (has sensitive data, is vulnerable); edge type (member of, has permissions to, can authenticate as, has credentials of...); edge direction.
 
-**Blast radius** answers "if this entity is compromised, what can the attacker reach?". In an incident graph, select a node and **View blast radius**: the graph adds the possible propagation paths from that node to critical targets, up to **seven hops**. It shows **possible** paths, not confirmed attacker activity. It requires the same data lake onboarding and Exposure Management read permission.
+**Blast radius** answers "if this entity is compromised, what can the attacker reach?". In an incident graph, select a node and **View blast radius**: the graph adds the possible propagation paths from that node to critical targets, up to **seven hops**. It shows **possible** paths, not confirmed attacker activity. It requires the same data lake onboarding (before September 23, 2026) and the Exposure management (read) permission.
 
 > **Exam trap.** The incident graph shows what happened (alerts and their entities); blast radius adds what could happen next. "Show which critical servers a compromised account could reach" is blast radius, not the alert story or a KQL query on `DeviceLogonEvents`.
 
@@ -220,7 +221,7 @@ ExposureGraphEdges
 | summarize by IncomingNodeLabels
 ```
 
-AI clients reach the same graph through the graph tools of the Sentinel MCP server (`find_blastradius`, `find_walkable_paths`, `find_exposure_perimeter`).
+AI clients reach the same graph through the graph tools of the Sentinel MCP server (`find_blastradius`, `find_walkable_paths`, `find_exposure_perimeter`), which are in preview.
 
 > **Exam trap.** `ExposureGraphNodes` and `ExposureGraphEdges` are advanced hunting tables that describe assets and permissions, not activity: "which identities can access this key vault" is a graph question, "who accessed the key vault yesterday" is an activity table.
 
@@ -228,8 +229,8 @@ AI clients reach the same graph through the graph tools of the Sentinel MCP serv
 ## Key points
 
 - Pick the table from the source: `Device*` (Defender for Endpoint), `Email*` and `UrlClickEvents` (Defender for Office 365), `Identity*` (Defender for Identity), `EntraIdSignInEvents`, `CloudAppEvents`, `Alert*`.
-- Advanced hunting: 30 days of Defender data, Sentinel analytics-tier tables in the same editor, not lake-only data; 100,000 rows, 10 minutes, 64 MB.
+- Advanced hunting: 30 days of Defender data (90 with an eligible ISOC license), Sentinel analytics-tier tables in the same editor, not lake-only data; 100,000 rows, 10 minutes, 64 MB.
 - KQL: `has` (term) versus `contains` (substring); default join `innerunique`; `leftanti` for "no match"; `arg_max` for the latest row.
 - Actions from results need the identifying columns (`DeviceId`, `SHA1`, `NetworkMessageId`...).
 - Threat analytics: related incidents = attacked now; endpoints exposure = vulnerable; recommended actions = Secure Score mitigations.
-- Hunting graph and blast radius: data lake onboarding plus Exposure Management read; blast radius shows possible paths up to seven hops.
+- Hunting graph and blast radius: data lake onboarding (before September 23, 2026) plus Exposure Management read; blast radius shows possible paths up to seven hops.

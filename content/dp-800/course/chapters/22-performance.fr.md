@@ -9,9 +9,9 @@ Azure SQL Database propose deux modèles d'achat : **vCore** (choix des cœurs, 
 | --- | --- | --- | --- | --- |
 | Usage général (General Purpose) | Distant (latence de 5 à 10 ms) | 4 To | Aucun réplica lisible | Charges de travail soucieuses du budget |
 | Critique pour l'entreprise (Business Critical) | SSD local (latence de 1 à 2 ms) | 4 To | Inclut un réplica en lecture seule gratuit | Faible latence, E/S élevées, basculement le plus rapide |
-| Hyperscale | Découplé, cache SSD local | 128 To | 0 à 4 réplicas de haute disponibilité, plus des réplicas nommés | Bases volumineuses ou à croissance rapide, montée en charge en lecture |
+| Hyperscale | Découplé, cache SSD local (latence de 1 à 2 ms pour la partie de la base fréquemment consultée) | 128 To | 0 à 4 réplicas de haute disponibilité, plus des réplicas nommés | Bases volumineuses ou à croissance rapide, montée en charge en lecture |
 
-Niveaux de calcul : **provisionné** (vCores fixes, charges prévisibles) ou **serverless** (mise à l'échelle automatique, facturation à la seconde ; General Purpose et Hyperscale ; mise en pause automatique uniquement en General Purpose) pour les charges intermittentes.
+Niveaux de calcul : **provisionné** (vCores fixes, charges prévisibles) ou **serverless** (mise à l'échelle automatique, facturation à la seconde ; General Purpose et Hyperscale ; mise en pause automatique en General Purpose, en préversion en Hyperscale) pour les charges intermittentes.
 
 Paramètres au niveau de la base et leurs valeurs par défaut dans Azure SQL Database :
 
@@ -35,7 +35,7 @@ ALTER DATABASE CURRENT SET AUTOMATIC_TUNING (FORCE_LAST_GOOD_PLAN = ON, CREATE_I
 
 Le réglage automatique valide chaque modification (de 30 minutes à 72 heures) et l'annule si les performances se dégradent ; il ne supprime jamais les index uniques.
 
-> **Conseil d'examen.** « Latence de stockage constamment inférieure à 2 ms » = Business Critical. « La base dépassera 4 To » = Hyperscale. « Utilisée quelques heures par jour, coût minimal » = serverless General Purpose avec mise en pause automatique. « Décharger le reporting sans surcoût » = le réplica en lecture seule de Business Critical (`ApplicationIntent=ReadOnly`).
+> **Conseil d'examen.** « Latence de stockage constamment inférieure à 2 ms » pour toutes les données = Business Critical (Hyperscale ne donne 1 à 2 ms que pour la partie fréquemment consultée). « La base dépassera 4 To » = Hyperscale. « Utilisée quelques heures par jour, coût minimal » = serverless General Purpose avec mise en pause automatique. « Décharger le reporting sans surcoût » = le réplica en lecture seule de Business Critical (`ApplicationIntent=ReadOnly`).
 
 <!-- section: isolation-concurrency | objectives: 2.2.2 -->
 ## Niveaux d'isolation des transactions et contrôles d'accès concurrentiel
@@ -50,7 +50,7 @@ Le réglage automatique valide chaque modification (de 30 minutes à 72 heures) 
 | SERIALIZABLE | Non | Non | Non | Oui (verrous de plage) |
 
 - **RCSI** (par défaut dans Azure SQL Database) : chaque **instruction** lit la dernière version validée à son début, à partir des versions de lignes conservées par ADR dans la base.
-- **SNAPSHOT** : chaque **transaction** lit une version cohérente à son début. Il faut `ALLOW_SNAPSHOT_ISOLATION ON` et `SET TRANSACTION ISOLATION LEVEL SNAPSHOT`. Si deux transactions mettent à jour la même ligne, la seconde échoue avec l'erreur de conflit de mise à jour **3960** au lieu d'écraser.
+- **SNAPSHOT** : chaque **transaction** lit une version cohérente à son début. Il faut `ALLOW_SNAPSHOT_ISOLATION ON` (valeur par défaut dans Azure SQL Database ; `OFF` par défaut dans SQL Server et Azure SQL Managed Instance, où `ALTER DATABASE ... SET ALLOW_SNAPSHOT_ISOLATION ON` est nécessaire) et `SET TRANSACTION ISOLATION LEVEL SNAPSHOT`. Si deux transactions mettent à jour la même ligne, la seconde échoue avec l'erreur de conflit de mise à jour **3960** au lieu d'écraser.
 - **SERIALIZABLE** : empêche les fantômes avec des verrous de plage ; concurrence la plus faible, davantage d'interblocages.
 
 Le **verrouillage optimisé**, toujours activé dans Azure SQL Database, tient un seul verrou sur l'ID de transaction au lieu de verrous de ligne et de clé (**verrouillage TID**) et, avec RCSI, évalue le prédicat sur la dernière version validée avant de verrouiller uniquement les lignes qualifiées (**verrouillage après qualification**). Résultat : moins de verrous, quasiment pas d'escalade de verrous, moins de blocages.
@@ -199,7 +199,7 @@ END CATCH;
 ## Points clés
 
 - Business Critical pour la faible latence et un réplica lisible gratuit, Hyperscale au-delà de 4 To, serverless pour un usage intermittent.
-- Valeurs par défaut d'Azure SQL Database : MAXDOP 8, niveau de compatibilité 170, RCSI, ADR, verrouillage optimisé et Magasin des requêtes activés, `FORCE_LAST_GOOD_PLAN` activé.
+- Valeurs par défaut d'Azure SQL Database : MAXDOP 8, niveau de compatibilité 170, RCSI, `ALLOW_SNAPSHOT_ISOLATION`, ADR, verrouillage optimisé et Magasin des requêtes activés, `FORCE_LAST_GOOD_PLAN` activé.
 - RCSI = cohérence au niveau de l'instruction, SNAPSHOT = au niveau de la transaction (erreur 3960 en cas de conflit de mise à jour), SERIALIZABLE = pas de fantômes. Les mises à jour perdues exigent des mises à jour atomiques, `UPDLOCK` ou des vérifications de rowversion.
 - Les plans réels révèlent les erreurs d'estimation ; Key Lookup = ajouter `INCLUDE` ; conversion implicite = corriger les types de données.
 - Magasin des requêtes : requêtes régressées, forçage de plan, indicateurs sans modifier le code ; Query Performance Insight = vue du Magasin des requêtes dans le portail pour Azure SQL Database.

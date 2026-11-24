@@ -42,9 +42,9 @@ DevOps security connects Azure DevOps organizations, GitHub organizations and Gi
 | Capability | Foundational CSPM | Defender CSPM |
 | --- | --- | --- |
 | Inventory, DevOps misconfiguration recommendations | Yes | Yes |
-| Code, IaC, secret and dependency findings (from GHAS, MSDO or agentless scanning) | Yes | Yes |
+| Code, IaC, secret and dependency findings (from GHAS, MSDO or agentless code scanning, in preview) | Yes | Yes |
 | Pull request annotations (Azure DevOps) | No | Yes |
-| Code-to-cloud mapping, attack path analysis, Cloud Security Explorer, SBOM queries | No | Yes |
+| Code-to-cloud mapping, attack path analysis, Cloud Security Explorer, SBOM queries (SBOM needs agentless code scanning, in preview) | No | Yes |
 
 **Microsoft Security DevOps (MSDO)** runs open-source analyzers in the pipeline: Bandit (Python), BinSkim (binaries), Checkov, Terrascan and Template Analyzer (IaC), ESLint (JavaScript), Trivy (containers, IaC). Install the extension (Project Collection Administrator) and add the task; for Defender for Cloud to ingest the SARIF results, the artifact must be named `CodeAnalysisLogs`.
 
@@ -57,7 +57,7 @@ steps:
       break: true
 ```
 
-On GitHub the equivalent is the Microsoft Security DevOps action. MSDO's own credential scanner is deprecated: secrets come from GitHub Advanced Security. The **Defender for Cloud CLI** (Defender CSPM) adds container image scanning to any CI system and sends results to Cloud Security Explorer.
+On GitHub the equivalent is the Microsoft Security DevOps action. MSDO's own credential scanner is deprecated: secrets come from GitHub Advanced Security. The **Defender for Cloud CLI** (Defender CSPM) adds container image scanning to any CI system and sends results to Cloud Security Explorer. It's the migration path from the MSDO CLI: its Microsoft Container Security Scanner (backed by Microsoft Defender Vulnerability Management) replaces Trivy image scanning in pipelines, and `--defender-break` exits with a non-zero code when critical issues are found.
 
 > **Exam tip.** "Show code vulnerabilities as comments on Azure DevOps pull requests" needs Defender CSPM plus PR annotations configured; "map a vulnerable image back to its repository" needs Defender CSPM code-to-cloud mapping. Inventory and recommendations alone are in foundational CSPM.
 
@@ -93,12 +93,12 @@ jobs:
       - uses: github/codeql-action/analyze@v4
 ```
 
-**GitHub Advanced Security for Azure DevOps** has the same split: **GitHub Secret Protection for Azure DevOps** and **GitHub Code Security for Azure DevOps**, billed per active committer and enabled per repository, per project or for the organization (with an optional switch for new repositories). Managing it needs Project Collection Administrators or **Advanced Security: manage settings**; Contributors view alerts; Project Administrators dismiss them.
+**GitHub Advanced Security for Azure DevOps** has the same split: **GitHub Secret Protection for Azure DevOps** and **GitHub Code Security for Azure DevOps**, billed per active committer and enabled per repository, per project or for the organization. **Enable all** enables only the existing repositories; a separate option enables new repositories (project level) or new projects (organization level) automatically. Managing it needs Project Collection Administrators or **Advanced Security: manage settings**; Contributors view alerts; Project Administrators dismiss them.
 
 - **Push protection** blocks high-confidence secrets in pushes from the command line and the web. Bypass with `skip-secret-scanning:true` in the commit message; an alert is still created. Enabling Secret Protection also scans the full history.
-- **Code scanning default setup** runs weekly on supported languages; **advanced setup** adds tasks to a pipeline (Init, your build, Analyze).
+- **Code scanning default setup** runs weekly on supported languages (C#, C/C++, Java, JavaScript/TypeScript, Python, Ruby, Rust); Go and Swift need **advanced setup**, which adds tasks to a pipeline (Init, your build, Analyze).
 - **Dependency scanning** runs in a pipeline, after the package restore.
-- Results appear in **Repos > Advanced Security** and as pull request annotations. The scanning tasks are Marketplace tasks: **Disable Marketplace tasks** must be off.
+- Results appear in **Repos > Advanced Security** and as pull request annotations; the status checks `AdvancedSecurity/AllHighAndCritical` and `AdvancedSecurity/NewHighAndCritical` can block pull requests on high and critical findings. The scanning tasks are Marketplace tasks: **Disable Marketplace tasks** must be off.
 
 ```yaml
 steps:
@@ -120,7 +120,7 @@ steps:
 <!-- section: ghas-defender | objectives: 4.3.4 -->
 ## Integrating GitHub Advanced Security with Defender for Cloud
 
-Once a GitHub or Azure DevOps connector exists, Defender for Cloud ingests GHAS findings (exposed secrets and open-source vulnerabilities require GHAS; code findings come from GHAS code scanning, MSDO or agentless scanning) and shows them as recommendations, such as "Azure DevOps repositories should have code scanning findings resolved".
+Once a GitHub or Azure DevOps connector exists, Defender for Cloud ingests GHAS findings (exposed secrets and open-source vulnerabilities require GHAS; code findings come from GHAS code scanning, MSDO or agentless code scanning, in preview) and shows them as recommendations, such as "Azure DevOps repositories should have code scanning findings resolved".
 
 The **GitHub Advanced Security integration** goes further, from code to runtime and back:
 
@@ -129,7 +129,7 @@ The **GitHub Advanced Security integration** goes further, from code to runtime 
 - In GitHub, **Security > Campaigns > Create campaign > From code scanning filters** with the **Runtime Risks** filter focuses developers on code that is deployed and exposed.
 - From a Defender recommendation, **Take action > Generate GitHub issue** opens an issue in the originating repository; status syncs both ways.
 
-Prerequisites: GitHub connector, GHAS license on the repositories, Defender CSPM on the subscription, agentless code scanning on the connector, GitHub organization owner and Security Admin; commercial clouds only. Results can take up to 24 hours.
+Prerequisites: GitHub connector, GHAS license on the repositories, Defender CSPM on the subscription, GitHub organization owner and Security Admin; commercial clouds only. The deployment steps also check that agentless scanning (in preview) is on for the connector. Results can take up to 24 hours.
 
 > **Exam tip.** "Prioritize the Dependabot and code scanning alerts of code that actually runs in production and is internet-exposed" is the GHAS integration with Defender CSPM, not a GitHub setting alone.
 
@@ -140,7 +140,7 @@ Scan images at three points:
 
 | Point | Tool | Behavior |
 | --- | --- | --- |
-| Build, before push | Trivy (MSDO `containers` category), Defender for Cloud CLI (`defender scan image`, task `MicrosoftDefenderCLI@2`) | Fail the pipeline on critical findings, SARIF output |
+| Build, before push | Trivy (MSDO `containers` category), Defender for Cloud CLI (`defender scan image`, task `MicrosoftDefenderCLI@2`), whose scanner replaces Trivy image scanning | Fail the pipeline (MSDO `break`, CLI `--defender-break` on critical issues), SARIF output |
 | Registry | Defender for Containers (Microsoft Defender Vulnerability Management) | New or imported images scanned within hours; daily rescan of images pushed or pulled in the last 30 days |
 | Runtime | Defender for Containers with Kubernetes API access or the Defender sensor | Running images assessed even when built long ago |
 
@@ -223,7 +223,7 @@ Block new vulnerable dependencies at review time with the dependency review acti
 | Ignore alerts on development-only dependencies automatically | Auto-triage rule |
 | Same alerts in Azure Repos | GHAS for Azure DevOps dependency scanning |
 
-> **Exam trap.** `dependabot.yml` configures version updates only; security updates are switched on in settings. Workflows triggered by Dependabot don't receive repository Actions secrets.
+> **Exam trap.** `dependabot.yml` configures version updates and doesn't turn on security updates: they're switched on in settings. Workflows triggered by Dependabot don't receive repository Actions secrets.
 
 <!-- section: key-points -->
 ## Key points

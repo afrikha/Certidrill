@@ -63,13 +63,15 @@ reg load HKU\TempDefault C:\Users\Default\NTUSER.DAT
 reg add HKU\TempDefault\SOFTWARE\Policies\Microsoft\office\16.0\common /v InsiderSlabBehavior /t REG_DWORD /d 2 /f
 reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v enable /t REG_DWORD /d 1 /f
 reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v syncwindowsetting /t REG_DWORD /d 1 /f
+reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v CalendarSyncWindowSetting /t REG_DWORD /d 1 /f
+reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v CalendarSyncWindowSettingMonths /t REG_DWORD /d 1 /f
 reg unload HKU\TempDefault
 # Machine: hide the update UI from users
 reg add HKLM\SOFTWARE\Policies\Microsoft\office\16.0\common\officeupdate /v hideupdatenotifications /t REG_DWORD /d 1 /f
 reg add HKLM\SOFTWARE\Policies\Microsoft\office\16.0\common\officeupdate /v hideenabledisableupdates /t REG_DWORD /d 1 /f
 ```
 
-`InsiderSlabBehavior` = 2 hides the Office Insider option; the *cached mode* values turn on Outlook Cached Exchange Mode and limit the mail synchronization window, which keeps the OST small.
+`InsiderSlabBehavior` = 2 hides the Office Insider option; the *cached mode* values turn on Outlook Cached Exchange Mode and limit the mail synchronization window, which keeps the OST small; the documentation also sets `CalendarSyncWindowSetting` and `CalendarSyncWindowSettingMonths` to 1 in the same key.
 
 **Updates.** With automatic updates disabled, either add the updates to the custom image and redeploy the session hosts regularly, or update the hosts manually while no user is signed in, so that no Office app is in use. Install line-of-business apps after Microsoft 365 Apps.
 
@@ -106,7 +108,7 @@ REG ADD "HKLM\SOFTWARE\Policies\Microsoft\OneDrive" /v "KFMSilentOptIn" /t REG_S
 | OneDrive must start in every session | `Run` key in HKLM with `/background` |
 | One install serving all users, updated centrally | `AllUsersInstall` = 1 and `OneDriveSetup.exe /allusers` |
 
-OneDrive on non-persistent desktops is supported with Azure Virtual Desktop, and with FSLogix (latest version) for the profile or the Office container. The OneDrive cache is per user: with an ODFC container, OneDrive data is included by default and can be sized separately, for example a 10 GB Profile Container and a 50 GB ODFC container for heavy OneDrive users. FSLogix doesn't support running several instances of the same container at the same time.
+OneDrive on non-persistent desktops is supported with Azure Virtual Desktop, and with FSLogix (latest version) for the profile or the Office container on Windows 11 or Windows Server 2025 and later. The OneDrive cache is per user: with an ODFC container, OneDrive data is included by default and can be sized separately, for example a 10 GB Profile Container and a 50 GB ODFC container for heavy OneDrive users. FSLogix doesn't support running several instances of the same container at the same time.
 
 > **Exam trap.** `KFMSilentOptIn` takes the **tenant ID**, while `SilentAccountConfig` is a DWORD set to 1. And `OneDriveSetup.exe /allusers` without the `AllUsersInstall` value, or with a per-user copy left in place, isn't the documented per-machine installation.
 
@@ -117,12 +119,12 @@ Without optimization, Teams audio and video are encoded on the session host and 
 
 | Component | Used by | Where it runs |
 | --- | --- | --- |
-| **SlimCore** (new VDI optimization architecture) | New Teams, by default | Media engine `MsTeamsVdi.exe` on the **client**; its plugin is bundled with Windows App and downloaded automatically |
+| **SlimCore** (new VDI optimization architecture) | New Teams, by default | Media engine `MsTeamsVdi.exe` on the **client**; its plugin is bundled with Windows App and downloads SlimCore (an MSIX package) automatically from Microsoft's CDN |
 | **Remote Desktop WebRTC Redirector Service** | Classic Teams; **fallback** for new Teams when the client can't use SlimCore | Installed on the **session host** (MSI) |
 
 Microsoft recommends installing the WebRTC Redirector Service alongside new Teams, so that a user who roams to a device without SlimCore support still gets optimization. Teams tries SlimCore first, then WebRTC, then falls back to unoptimized server-side rendering.
 
-**Classic Teams** reached end of support on October 1, 2026 on virtual desktops, and end of availability on April 1, 2027: deploy **new Teams**.
+**Classic Teams** reached end of support on October 1, 2026 on virtual desktops, and end of availability on April 1, 2027: deploy **new Teams**. The same dates retire **WebRTC-based optimization** from Windows endpoints: since October 1, 2026 it still works but isn't supported, and from April 1, 2027 it stops working, so a new Teams client that can't use SlimCore falls back to server-side rendering. macOS endpoints follow (end of support April 1, 2027, end of availability September 1, 2027); supported Linux-based thin clients aren't affected.
 
 Configuration of a session host:
 
@@ -132,7 +134,7 @@ Configuration of a session host:
 | 2. Declare the environment | `HKLM\SOFTWARE\Microsoft\Teams`, `IsWVDEnvironment` (DWORD) = 1 |
 | 3. WebRTC Redirector Service | Install the MSI (`https://aka.ms/msrdcwebrtcsvc/msi`) |
 | 4. Install new Teams per machine | `teamsbootstrapper.exe -p` (required for pooled host pools) |
-| 5. FSLogix | FSLogix 2210 hotfix 4 or later (recommended by the Teams documentation); with an ODFC container, set `IncludeTeams` = 1 (off by default) so the Teams cache is kept |
+| 5. FSLogix | FSLogix 2210 hotfix 4 or later (recommended by the Teams documentation; the Azure Virtual Desktop page gives hotfix 3 as the minimum); with an ODFC container, set `IncludeTeams` = 1 (off by default) so the Teams cache is kept |
 
 ```powershell
 New-Item -Path "HKLM:\SOFTWARE\Microsoft\Teams" -Force
@@ -145,7 +147,7 @@ New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Teams" -Name IsWVDEnvironment -
 .\teamsbootstrapper.exe -x
 ```
 
-New Teams is an MSIX package installed in `C:\Program Files\WindowsApps` and **updates automatically**. In a non-persistent pool, set `disableAutoUpdate` (DWORD) = 1 under `HKLM\SOFTWARE\Microsoft\Teams` and update Teams through the image. To publish new Teams as a RemoteApp, use the stable path `shell:appsFolder\MSTeams_8wekyb3d8bbwe!MSTeams`, because the package folder changes with every version.
+New Teams is an MSIX package installed in `C:\Program Files\WindowsApps` and **updates automatically**. In a non-persistent pool, set `disableAutoUpdate` (DWORD) = 1 under `HKLM\SOFTWARE\Microsoft\Teams` and update Teams through the image. The value works only on Teams builds higher than 23306.3314.2555.9628, and when it's set the MSIX installer doesn't install or upgrade the Teams Meeting Add-in: provision it with `teamsbootstrapper.exe -p --installTMA` (or `--installTMA` alone if Teams is already provisioned). For the offline install, copy the MSIX to a local folder: a UNC path can fail with error `0x80070032`. To publish new Teams as a RemoteApp, use the stable path `shell:appsFolder\MSTeams_8wekyb3d8bbwe!MSTeams`, because the package folder changes with every version.
 
 **Clients.** Optimization needs a supported client: Windows App on Windows, macOS (non-Store version for new Teams), iOS/iPadOS and Android. The web client isn't in the list, and the Teams documentation no longer supports the Remote Desktop client for new Teams. SlimCore also needs a recent Windows App, and Teams administrators can turn it off per user with the `VDI2Optimization` setting of `Set-CsTeamsVdiPolicy`.
 
@@ -191,6 +193,6 @@ Microsoft Edge is included in Windows 10 and Windows 11. Install another channel
 - Microsoft 365 Apps on multi-session: Microsoft 365 Apps for enterprise, or for business with Business Premium, with `SharedComputerLicensing` = 1, 64-bit, automatic updates off and updates through the image.
 - Exclude OneDrive and Teams from the ODT install and install both **per machine**.
 - OneDrive: `AllUsersInstall` = 1, `OneDriveSetup.exe /allusers`, `SilentAccountConfig` = 1, `KFMSilentOptIn` = tenant ID.
-- Teams: new Teams via `teamsbootstrapper.exe -p`, `IsWVDEnvironment` = 1, WebRTC Redirector Service on the host as fallback, SlimCore on the client; check *About Teams* for the optimized state.
+- Teams: new Teams via `teamsbootstrapper.exe -p`, `IsWVDEnvironment` = 1, WebRTC Redirector Service on the host as fallback (retired on Windows endpoints: end of availability April 1, 2027), SlimCore on the client; check *About Teams* for the optimized state.
 - FSLogix: 2210 hotfix 4 or later for new Teams; ODFC includes Office activation, Outlook and OneDrive by default, Teams only with `IncludeTeams` = 1.
 - Edge: update in the image, Microsoft Entra ID sync for roaming, multimedia redirection extension for Edge and Chrome.

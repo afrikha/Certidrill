@@ -30,6 +30,8 @@ Two policy modes apply to **all databases of the tenant**:
 | SQL Information Protection policy | Built-in labels and information types, customizable centrally in Microsoft Defender for Cloud | Yes |
 | Microsoft Purview Information Protection policy | Microsoft 365 sensitivity labels from the Microsoft Purview portal; information type shows `[n/a]` | No |
 
+Switching between the two modes needs tenant-wide Security Admin permission. Label-based access control through Microsoft Purview Information Protection access policies is retired: existing access policies on sensitive columns are no longer enforced.
+
 ```text
 ADD SENSITIVITY CLASSIFICATION TO Sales.Customer.Email, Sales.Customer.Phone
 WITH (LABEL = 'Confidential', INFORMATION_TYPE = 'Contact Info', RANK = MEDIUM);
@@ -39,7 +41,7 @@ SELECT * FROM sys.sensitivity_classifications;
 DROP SENSITIVITY CLASSIFICATION FROM Sales.Customer.Phone;
 ```
 
-T-SQL doesn't validate that a label exists in the policy. For SQL Server, classify with T-SQL or SSMS (database > Tasks > **Data Discovery and Classification**). Owner, Contributor and **SQL Security Manager** can change classifications; Reader can view them.
+T-SQL doesn't validate that a label exists in the policy. For SQL Server, classify with T-SQL or SSMS (database > Tasks > **Data Discovery and Classification**). Owner, Contributor and **SQL Security Manager** can change classifications; Reader and User Access Administrator can only view them.
 
 The value of classification comes with auditing: the audit log fills the **`data_sensitivity_information`** field with the labels of the columns a query returned, so you can report who accessed confidential data.
 
@@ -63,6 +65,8 @@ The value of classification comes with auditing: the audit log fills the **`data
 
 Enable server-level auditing for the general case; add database-level auditing only when one database needs other action groups or another destination. The default action groups are `BATCH_COMPLETED_GROUP`, `SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP` and `FAILED_DATABASE_AUTHENTICATION_GROUP`. A separate server option audits **Microsoft support operations** on your server.
 
+Since July 2025, server-level auditing runs one extended event session for all the databases of the server, and every server audit log, read-only replicas included, goes to a single `master` folder (filter replica events on `is_secondary_replica_true`). Reading the logs needs `VIEW DATABASE SECURITY AUDIT` in the user database. Database-level auditing is unchanged and writes each database to its own folder: Learn recommends it for many databases with heavy OLTP workloads.
+
 ```powershell
 Set-AzSqlServerAudit -ResourceGroupName RG1 -ServerName sql-contoso `
   -LogAnalyticsTargetState Enabled `
@@ -72,10 +76,10 @@ Set-AzSqlServerAudit -ResourceGroupName RG1 -ServerName sql-contoso `
 ```text
 SELECT event_time, server_principal_name, statement, data_sensitivity_information
 FROM sys.fn_get_audit_file(
-  'https://stcontosoaudit.blob.core.windows.net/sqldbauditlogs/sql-contoso/', DEFAULT, DEFAULT);
+  'https://stcontosoaudit.blob.core.windows.net/sqldbauditlogs/sql-contoso/master/', DEFAULT, DEFAULT);
 ```
 
-Storage notes: a storage account behind a firewall or virtual network must be general-purpose v2, and the server can authenticate with its managed identity. For immutable storage, the policy must allow protected append writes. Failed Microsoft Entra sign-ins don't appear in the SQL audit log (look in Microsoft Entra sign-in logs), and `tempdb` isn't audited.
+Storage notes: a storage account behind a firewall or virtual network must be general-purpose v2, and the server can authenticate with its managed identity. For immutable storage, **Allow protected append writes** must be *Append blobs* or *Block and append blobs* (*None* isn't supported); with a time-based retention policy, the storage retention interval must be shorter than the auditing retention, and an auditing retention of 0 isn't supported. Failed Microsoft Entra sign-ins don't appear in the SQL audit log (look in Microsoft Entra sign-in logs), and `tempdb` isn't audited.
 
 **SQL Server and SQL Managed Instance** use SQL Server Audit objects:
 
@@ -127,7 +131,7 @@ EXEC sys.sp_cdc_enable_table @source_schema = N'Sales', @source_name = N'Orders'
   @role_name = NULL, @supports_net_changes = 1;
 ```
 
-CDC facts for Azure SQL Database: supported on every vCore tier and on DTU S3 and higher (not Basic, S0, S1, S2); the scheduler runs capture every 20 seconds and cleanup every hour, not customizable; a paused serverless database doesn't capture. `@supports_net_changes = 1` needs a primary key or unique index. Check with `sys.databases.is_cdc_enabled` and `sys.tables.is_tracked_by_cdc`.
+CDC facts for Azure SQL Database: supported on every vCore tier and on DTU S3 and higher (not Basic, S0, S1, S2); the scheduler runs capture every 20 seconds and cleanup every hour, not customizable; a paused serverless database doesn't capture. `@supports_net_changes = 1` needs a primary key or unique index. Check with `sys.databases.is_cdc_enabled` and `sys.tables.is_tracked_by_cdc`. `sp_cdc_change_job` can still change `maxtrans` and `maxscans`. While CDC is enabled, online index operations aren't supported (error 18773) and ADR aggressive log truncation is disabled, so log use grows; there is no SLA and no sub-second latency for changes to appear.
 
 **Temporal tables** (`SYSTEM_VERSIONING = ON`) are the other way to keep row history: they store every previous version with its validity period and answer `FOR SYSTEM_TIME AS OF` queries.
 
@@ -197,12 +201,13 @@ EXECUTE sys.sp_verify_database_ledger_from_digest_storage @locations;   -- verif
 
 Digest management:
 
-- **Automatic digest storage**: digests are generated every 30 seconds (when there were transactions) and uploaded to **Azure Blob Storage with an immutability policy** (locked, allowing protected append writes) or to **Azure Confidential Ledger**. The server or instance identity needs Storage Blob Data Contributor on the account.
+- **Automatic digest storage**: digests are generated every 30 seconds (when there were transactions) and uploaded to **Azure Blob Storage with an immutability policy** (locked, allowing protected append writes) or to **Azure Confidential Ledger**. The server or instance identity needs Storage Blob Data Contributor on the storage account, or Contributor on the Azure Confidential Ledger.
 - **Manual**: `sp_generate_database_ledger_digest` returns a JSON digest that you store in trusted (WORM) storage; it needs the `GENERATE LEDGER DIGEST` permission.
+- **Verification** with `sys.sp_verify_database_ledger` needs the `VIEW LEDGER CONTENT` permission.
 
 In Azure SQL Database, the portal's **Security** tab of database creation can make it a ledger database and configure automatic digest storage.
 
-> **Exam trap.** Ledger detects tampering; it doesn't prevent it and doesn't hide data. An existing regular table can't be switched to a ledger table: create a new ledger table and copy the data. "Rows must never be updated or deleted" is an append-only ledger table.
+> **Exam trap.** Ledger blocks changes to append-only tables, history tables and ledger views through SQL, but someone who controls the database files can still tamper with the data: ledger then detects it at verification, it can't prevent it. It doesn't hide data either. An existing regular table can't be switched to a ledger table: create a new ledger table and copy the data. "Rows must never be updated or deleted" is an append-only ledger table.
 
 <!-- section: row-level-security | objectives: 2.3.6 -->
 ## Row-level security

@@ -59,7 +59,7 @@ Other rules the exam likes: don't capture a VM that is already a session host, a
 ]
 ```
 
-Creating the template doesn't build the image: you start the build with the `Run` action (portal **Start build**, or the commands below). Image Builder creates a **staging resource group** named `IT_<resource group>_<template>_<GUID>`; its storage account keeps the `customization.log` (Packer output) to troubleshoot a failed build.
+Creating the template doesn't build the image: you start the build with the `Run` action (portal **Start build**, or the commands below). Image Builder creates a **staging resource group** named `IT_<resource group>_<template>_<GUID>`; its storage account keeps the `customization.log` (Packer output) to troubleshoot a failed build. If you name your own staging resource group instead, it must be empty when the build starts.
 
 ```bash
 az resource invoke-action --resource-group rg-images \
@@ -70,7 +70,7 @@ az resource invoke-action --resource-group rg-images \
 **Custom image templates** in Azure Virtual Desktop (**Azure Virtual Desktop > Custom image templates**) are the same service with a portal wizard tailored to session hosts. Prerequisites:
 
 - Register the resource providers, including `Microsoft.VirtualMachineImages`, `Microsoft.DesktopVirtualization`, `Microsoft.Compute`, `Microsoft.Network`, `Microsoft.Storage`, `Microsoft.KeyVault` and `Microsoft.ContainerInstance`.
-- Create a **user-assigned managed identity** and give it a **custom role** with the gallery and image actions (`Microsoft.Compute/galleries/images/versions/write`, `Microsoft.Compute/images/write` and the matching reads and delete), scoped to the image resource group. With an existing virtual network, the identity also needs access to it.
+- Create a **user-assigned managed identity** and give it a **custom role** with the gallery and image actions (`Microsoft.Compute/galleries/images/versions/write`, `Microsoft.Compute/images/write` and the matching reads and delete), scoped to the image resource group. With an existing virtual network, the identity also needs access to it (or to its resource group), and any private service policy on its subnet must be disabled.
 - For gallery distribution, create the gallery and the **image definition** first, with the same generation as the source image; the service creates the image versions.
 
 The wizard tabs are Basics, Source image, Distribution targets, Build properties (build timeout, build VM size, which must match the source generation) and Customizations. **Built-in scripts** cover the usual session host settings: install language packs and set the default language, time zone redirection, disable Storage Sense, install FSLogix and configure Profile Container, FSLogix with Kerberos, RDP Shortpath for managed networks, screen capture protection, Teams optimizations, session timeouts, disable automatic updates of MSIX apps, add or remove Microsoft 365 Apps, and apply Windows updates. Your own scripts must be reachable by URI (for example GitHub or a storage account the identity can read).
@@ -101,7 +101,7 @@ Content to put in the image versus outside it:
 To roll the update out on a host pool:
 
 - **Standard management**: deploy new session hosts from the new version, put the old hosts in **drain mode**, wait for users to sign out (or send a message and sign them out), then remove the old hosts from the pool and delete the VMs.
-- **Session host configuration**: update the configuration with the new image, then schedule a **session host update**. The service updates one host first, then batches of the size set in the management policy (default 1); it notifies users, waits the logoff delay (0 to 60 minutes, default 2), signs them out, re-creates the VMs from the new image under the same computer names and rejoins them to the pool. Disable autoscale during the update.
+- **Session host configuration**: update the configuration with the new image, then schedule a **session host update**. The service updates one host first, then batches of the size set in the management policy (default 1); it notifies users, waits the logoff delay (0 to 60 minutes, default 2), signs them out, re-creates the VMs from the new image and rejoins them to the pool. The OS host names don't change, but the new Azure VMs are named `<SessionHostName>-<DateTime>` and the original VMs are deleted. Disable autoscale during the update.
 
 > **Exam trap.** Session host update exists only for host pools created with a **session host configuration** (pooled only). On a standard host pool the answer is drain mode plus redeployment, or your own pipeline.
 
@@ -135,7 +135,7 @@ Rules to know:
 - Trusted launch session hosts need a Gen2 definition whose security type supports Trusted launch (`TrustedLaunchSupported`, or the value that supports both Trusted launch and confidential VMs).
 - **Replicas**: Microsoft recommends one replica per 20 virtual machines created at the same time, and at least three for production images; up to 100 replicas per version. Replicas in a target region are required to deploy session hosts in that region.
 - `excludeFromLatest` (global) or `regionalExcludeFromLatest` keeps a version from being picked as "latest".
-- A gallery is a regional resource: for disaster recovery keep images replicated to, or a second gallery in, the recovery region.
+- A gallery is a regional resource: for disaster recovery, Microsoft recommends at least two galleries in separate regions. If a gallery's region is down, its replicas elsewhere still deploy, but you can't create or update resources in that gallery.
 - Protect the gallery with a resource lock; `BlockDeletionBeforeEndOfLife` blocks deleting a version before its end-of-life date.
 
 ```bash

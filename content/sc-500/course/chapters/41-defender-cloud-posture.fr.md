@@ -33,7 +33,7 @@ Les composants (extensions) de Defender CSPM se règlent dans **Paramètres d'en
 <!-- section: regulatory-compliance | objectives: 4.1.2 -->
 ## Évaluer la conformité par rapport aux frameworks de sécurité
 
-Le tableau de bord **Conformité réglementaire** affiche chaque norme, ses contrôles et les évaluations derrière chaque contrôle. Le **Microsoft cloud security benchmark (MCSB)** est attribué par défaut à chaque abonnement Azure, compte AWS et projet GCP connecté à Defender for Cloud. Ajouter d'autres normes (par exemple NIST SP 800-53, PCI DSS, ISO 27001, les benchmarks CIS, des normes AWS et GCP) exige un plan payant ; dans **Paramètres d'environnement** > étendue > **Stratégies de sécurité**, activez la norme.
+Le tableau de bord **Conformité réglementaire** affiche chaque norme, ses contrôles et les évaluations derrière chaque contrôle. Le **Microsoft cloud security benchmark (MCSB)** est attribué par défaut à chaque abonnement Azure, compte AWS et projet GCP connecté à Defender for Cloud ; les comptes AWS reçoivent aussi **AWS Foundational Security Best Practices** et les projets GCP **GCP Default**. Ajouter d'autres normes (par exemple NIST SP 800-53, PCI DSS, ISO 27001, les benchmarks CIS, des normes AWS et GCP) exige un plan Defender autre que Defender for Servers Plan 1 ou Defender for APIs Plan 1 ; dans **Paramètres d'environnement** > étendue > **Stratégies de sécurité**, activez la norme.
 
 | Type d'évaluation | Comportement |
 | --- | --- |
@@ -81,7 +81,8 @@ Détails de Defender for Storage utilisés à l'examen :
 - Facturé par compte de stockage, plus par Go pour l'analyse des logiciels malveillants.
 - Plafond d'analyse des logiciels malveillants : **10 000 Go par compte de stockage et par mois** par défaut, configurable pour l'abonnement ou par compte ; une alerte se déclenche à 75 % et quand l'analyse se met en pause.
 - Activation au niveau de l'abonnement (couvre les comptes existants et futurs ; exclusion ou remplacement des paramètres par compte) ou au niveau du compte de stockage.
-- Les résultats sur un objet blob malveillant peuvent déclencher Event Grid, Azure Functions ou Logic Apps pour supprimer ou mettre en quarantaine l'objet blob.
+- Correction intégrée : la **suppression réversible des objets blob malveillants** (désactivée par défaut, au niveau de l'abonnement ou du compte) supprime de manière réversible chaque objet blob détecté comme malveillant et active la suppression réversible des objets blob si elle est désactivée (rétention de 7 jours par défaut, de 1 à 365).
+- Pour une réponse personnalisée (déplacement vers un conteneur de quarantaine, notification), les résultats d'analyse déclenchent Event Grid et Azure Functions, ou une automatisation des workflows Logic Apps sur l'alerte de logiciel malveillant.
 
 Activation à grande échelle : des définitions Azure Policy intégrées peuvent activer les plans sur tous les abonnements d'un groupe d'administration (DeployIfNotExists avec une tâche de correction). Defender for Servers Plan 1 et Defender for Storage peuvent aussi se régler par ressource ; le Plan 2 peut seulement être désactivé par ressource.
 
@@ -99,7 +100,7 @@ Chemin : **Paramètres d'environnement** > **Ajouter un environnement** > **Amaz
 | Authentification | Approbation fédérée avec des informations d'identification de courte durée (rôles IAM), aucune clé stockée | Fédération d'identité de charge de travail et emprunt d'identité de compte de service, aucune clé stockée |
 | Type d'autorisations | Accès par défaut ou accès avec privilège minimum | Accès par défaut ou accès avec privilège minimum |
 
-Prérequis côté Azure : **Contributor** sur l'abonnement qui héberge le connecteur ; pour CIEM (gestion des autorisations dans Defender CSPM), aussi **Security Admin** et l'autorisation `Application.ReadWrite.All` dans le locataire. Vérifiez l'intégrité dans la colonne **État de la connectivité** ; les recommandations apparaissent en quelques heures. Quand vous activez un nouveau plan sur le connecteur, mettez à jour et réexécutez le modèle ou le script.
+Prérequis côté Azure : **Contributor** sur l'abonnement qui héberge le connecteur ; pour CIEM (gestion des autorisations dans Defender CSPM), aussi **Security Admin** et l'autorisation `Application.ReadWrite.All` dans le locataire. Vérifiez l'intégrité dans la colonne **État de la connectivité** ; les recommandations apparaissent en quelques heures. Quand vous activez un nouveau plan sur le connecteur, mettez à jour et réexécutez le modèle ou le script. Un connecteur de compte de gestion (AWS) ou d'organisation (GCP) peut exclure des ID de comptes, ou des numéros de projets et des ID de dossiers. Un compte AWS déjà connecté à Microsoft Sentinel exige une procédure dédiée avant de pouvoir être connecté.
 
 Avec Defender for Servers sur un connecteur, les instances EC2 et les machines virtuelles GCP sont intégrées automatiquement comme **serveurs avec Azure Arc**. Les machines locales se connectent en installant l'agent Connected Machine d'Azure Arc (voir le chapitre sur les serveurs).
 
@@ -115,13 +116,15 @@ L'évaluation des vulnérabilités des machines repose sur **Microsoft Defender 
 | Avec agent | Defender for Servers Plan 1 ou 2 + intégration de Defender for Endpoint | Le capteur Defender for Endpoint sur la machine |
 | Sans agent | Defender for Servers Plan 2 ou Defender CSPM + analyse sans agent | Instantanés de disques toutes les 24 heures |
 
+L'analyse sans agent vérifie aussi les secrets et les paramètres EDR ; l'analyse des **logiciels malveillants** sans agent (Antivirus Microsoft Defender) n'existe que dans Defender for Servers Plan 2.
+
 Paramètres : **Paramètres d'environnement** > abonnement > Serveurs > **Paramètres** > **Évaluation des vulnérabilités des machines** sur On > **Modifier la configuration** > sélectionner Microsoft Defender Vulnerability Management > **Appliquer** > **Enregistrer**. Une seule machine virtuelle peut aussi être activée avec la ressource REST `Microsoft.Security/serverVulnerabilityAssessments/mdetvm`. Déployer le scanner demande Owner sur le groupe de ressources ; consulter les résultats demande Security Reader.
 
 Travailler avec les résultats :
 
 - **Recommandations** > **Vulnérabilités**, regrouper par ressource, puis ouvrir chaque recommandation : machine concernée, CVE, CVSS, version corrigée et correction.
 - Exporter à grande échelle avec Azure Resource Graph (`securityresources`, type `microsoft.security/assessments`).
-- Pour accepter un risque, utilisez une **exemption de recommandation** (dérogation ou atténuation, avec une date d'expiration). Les règles de désactivation de la recommandation **Machines should have vulnerability findings resolved** (par CVE, ID, catégorie, score CVSS, gravité minimale, état corrigeable) sont en cours de dépréciation au profit des exemptions.
+- Pour accepter un risque, utilisez une **exemption de recommandation** (dérogation ou atténuation, avec une date d'expiration facultative dans le portail Azure). Les règles de désactivation de la recommandation **Machines should have vulnerability findings resolved** (par CVE, ID, catégorie, score CVSS, gravité minimale, état corrigeable) sont en cours de dépréciation au profit des exemptions.
 - Avec le Plan 2, les **fonctionnalités premium de Defender Vulnerability Management** sont disponibles dans le portail Microsoft Defender.
 
 ```kusto
@@ -164,7 +167,7 @@ Rôles sur la ressource EASM : Owner et Contributor créent et modifient les res
 ## Points clés
 
 - Foundational CSPM : degré de sécurisation, recommandations, MCSB. Defender CSPM : chemins d'attaque, explorateur de sécurité, analyse sans agent, données sensibles, posture de l'IA, informations EASM, gouvernance.
-- Le MCSB est attribué par défaut ; les autres normes exigent un plan payant ; les contrôles manuels sont attestés ; Security Reader ne peut pas lire les données de conformité.
+- Le MCSB est attribué par défaut ; les autres normes exigent un plan Defender autre que Servers Plan 1 ou APIs Plan 1 ; les contrôles manuels sont attestés ; Security Reader ne peut pas lire les données de conformité.
 - Les plans s'activent par abonnement, compte AWS ou projet GCP ; plafond d'analyse des logiciels malveillants du stockage : 10 000 Go par compte et par mois.
 - Connecteur AWS : CloudFormation, compte de gestion pour les organisations. GCP : script `gcloud`, fédération d'identité de charge de travail. Contributor sur l'abonnement Azure.
 - Évaluation des vulnérabilités = Defender Vulnerability Management, avec agent (Plan 1/2) ou sans agent (Plan 2/Defender CSPM) ; les exemptions remplacent les règles de désactivation.

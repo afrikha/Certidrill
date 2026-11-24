@@ -18,7 +18,7 @@ Dans les pipelines YAML d'Azure Pipelines, les barrières de déploiement sont d
 | Query Azure Monitor alerts | Continuer uniquement si aucune alerte Azure Monitor n'est active |
 | Exclusive lock (verrou exclusif) | Une seule exécution à la fois sur la ressource (`lockBehavior: sequential` ou `runLatest`) |
 
-Ordre d'évaluation : vérifications statiques (contrôle de branche, modèle requis, évaluation d'artefact), approbations préalables, vérifications dynamiques, approbations postérieures, puis verrou exclusif. Quand une approbation expire, la phase est ignorée (skipped) ; quand les heures ouvrables ou les alertes Azure Monitor expirent, elle échoue.
+Ordre d'évaluation : vérifications statiques (contrôle de branche, modèle requis, évaluation d'artefact), approbations préalables, vérifications dynamiques, approbations postérieures, puis verrou exclusif. Quand une approbation expire, la phase est ignorée (skipped) ; quand une vérification Invoke Azure Function ou Invoke REST API expire, la phase et les phases qui en dépendent sont ignorées ; quand les heures ouvrables ou les alertes Azure Monitor expirent, la phase échoue.
 
 Les **pipelines de mise en production classiques** utilisent des **portes de prédéploiement et de post-déploiement (gates)** : Invoke Azure Function, Query Azure Monitor alerts, Invoke REST API, **Query work items** (pas plus de n bogues ouverts), **Check Azure Policy compliance**. Les portes sont réévaluées à intervalle régulier (après un délai avant évaluation) jusqu'à ce qu'elles réussissent toutes dans le même intervalle d'échantillonnage, ou que le délai d'expiration fasse échouer le déploiement. Les portes de post-déploiement sur les alertes Azure Monitor sont le contrôle classique pour « arrêter la mise en production si la nouvelle version génère des erreurs ».
 
@@ -45,7 +45,7 @@ jobs:
 
 Barrières de sécurité et de gouvernance : les résultats de l'analyse du code, les alertes de l'analyse des secrets et la conformité des licences comme règles de **ruleset** dans GitHub ; les vérifications Required template et Branch control, et la conformité Azure Policy, dans Azure DevOps ; l'échec du pipeline sur les résultats de gravité élevée de l'analyse des dépendances ou des conteneurs.
 
-> **Piège d'examen.** Dans les pipelines YAML, approbations et portes sont des **vérifications sur l'environnement**, pas un mot clé de la phase. « Empêcher les équipes de déployer avec un pipeline qui saute l'analyse de sécurité » correspond à la vérification **Required template** sur l'environnement ou la connexion de service.
+> **Piège d'examen.** Dans les pipelines YAML, approbations et portes sont des **vérifications sur l'environnement**, pas un mot clé de la phase. « Empêcher les équipes de déployer avec un pipeline qui saute l'analyse de sécurité » correspond à la vérification **Required template** sur la connexion de service utilisée par le déploiement.
 
 <!-- section: testing-strategy | objectives: 3.2.2 -->
 ## Concevoir une stratégie de test complète
@@ -61,7 +61,7 @@ Décalez les tests vers la gauche (shift left) : exécutez la plupart des tests 
 | Tests de charge | Le comportement sous le trafic attendu et en pointe : temps de réponse, erreurs, débit | Avant la production, sur un environnement proche de la production, souvent planifiés | **Azure Load Testing** (tests JMeter, Locust ou basés sur une URL) |
 | Tests de fumée (smoke tests) | Quelques parcours critiques après chaque déploiement | Juste après le déploiement, avant de basculer le trafic | Script ou appels REST |
 
-La taxonomie de tests de Microsoft exprime la même idée : L0 et L1 sont des tests unitaires sans déploiement, L2 des tests fonctionnels sur un déploiement léger, L3 s'exécutent en production. Placez chaque test au niveau le plus bas capable de détecter le défaut, et rendez chaque test fiable : un test instable qui échoue au hasard finit ignoré et ne bloque plus rien.
+La taxonomie de tests de Microsoft exprime la même idée : L0 et L1 sont des tests unitaires qui ne dépendent que de l'assembly testé, L2 des tests fonctionnels qui peuvent aussi nécessiter des dépendances comme SQL ou le système de fichiers, L3 des tests fonctionnels sur un déploiement de service testable, et L4 une catégorie restreinte de tests d'intégration exécutés en production. Placez chaque test au niveau le plus bas capable de détecter le défaut, et rendez chaque test fiable : un test instable qui échoue au hasard finit ignoré et ne bloque plus rien.
 
 Azure Load Testing décrit un test dans une configuration YAML avec des **critères d'échec**, pour qu'une exécution de pipeline échoue quand l'application ralentit :
 
@@ -136,7 +136,7 @@ jobs:
           rerunMaxAttempts: '2'
 ```
 
-**Intégration des résultats.** Les résultats publiés apparaissent dans l'onglet **Tests** de l'exécution (échecs, durée, pièces jointes, historique) et dans l'analytique et les rapports de test ; ils sont reliés à l'exécution du pipeline, au commit et aux bogues que l'on peut créer depuis un échec. Azure DevOps propose aussi la détection des **tests instables (flaky tests)**. Avec la validation de build, les tests en échec bloquent la pull request.
+**Intégration des résultats.** Les résultats publiés apparaissent dans l'onglet **Tests** de l'exécution (échecs, durée, pièces jointes, historique) et dans l'analytique et les rapports de test ; ils sont reliés à l'exécution du pipeline, au commit et aux bogues que l'on peut créer depuis un échec. Azure DevOps Services (pas Azure DevOps Server) gère aussi les **tests instables (flaky tests)** : la détection système marque un test comme instable, pour sa branche, quand il échoue puis réussit lors d'une réexécution (réexécutions de `VSTest@3` ou Rerun failed jobs) ; exclure les tests instables du résumé des tests empêche leurs échecs de faire échouer l'exécution, pour les tâches Visual Studio Test et Publish Test Results uniquement. Avec la validation de build, les tests en échec bloquent la pull request.
 
 **GitHub Actions** n'a pas d'onglet de résultats de tests intégré : les tests s'exécutent comme des étapes, un code de sortie non nul fait échouer le job (et la vérification d'état requise), les fichiers de résultats se conservent avec `actions/upload-artifact@v7`, et un résumé peut être écrit dans `$GITHUB_STEP_SUMMARY`. L'action `azure/load-testing@v1` exécute les tests Azure Load Testing après `azure/login`.
 
@@ -156,7 +156,7 @@ Collecter la couverture :
 | Java | JaCoCo (plug-in Maven ou Gradle) | XML JaCoCo |
 | JavaScript | Jest ou Istanbul (`--coverage`) | Cobertura ou LCOV |
 
-Publication dans Azure Pipelines : `PublishCodeCoverageResults@2` accepte les formats courants (`.coverage`, XML Cobertura et JaCoCo, LCOV et d'autres), fusionne plusieurs fichiers de synthèse et produit l'onglet **Code Coverage** avec un rapport HTML. Définissez `failIfCoverageEmpty: true` pour détecter une collecte cassée.
+Publication dans Azure Pipelines : `PublishCodeCoverageResults@2` accepte les formats courants (`.coverage`, XML Cobertura et JaCoCo, LCOV et d'autres), fusionne plusieurs fichiers de synthèse et produit l'onglet **Code Coverage** avec un rapport HTML. Définissez `failIfCoverageEmpty: true` pour détecter une collecte cassée. Learn indique la tâche Use .NET Core (`UseDotNet@2`) comme prérequis, plus tôt dans le pipeline.
 
 ```yaml
 steps:
@@ -171,7 +171,7 @@ steps:
       failIfCoverageEmpty: true
 ```
 
-**La couverture comme barrière de pull request dans Azure Repos.** Quand le pipeline exécuté par la validation de build publie la couverture, Azure DevOps publie un état de **couverture différentielle (diff coverage)** : la part des **lignes modifiées** couvertes par des tests, 70 % par défaut. Cela ne fonctionne que pour Azure Repos, et Learn indique le format Visual Studio `.coverage` (produit par `VSTest@3` ou `dotnet test --collect "Code coverage"`) comme entrée prise en charge. Configurez-la dans `azurepipelines-coverage.yml` à la racine du dépôt, et rendez-la bloquante avec une stratégie de branche de type **vérification d'état** sur `<pipeline name>/codecoverage`. Sans cette stratégie, l'état est seulement indicatif.
+**La couverture comme barrière de pull request dans Azure Repos.** Quand le pipeline exécuté par la validation de build publie la couverture, Azure DevOps publie un état de **couverture différentielle (diff coverage)** : la part des **lignes modifiées** couvertes par des tests, 70 % par défaut. Cela ne fonctionne que pour Azure Repos, et la FAQ de Learn indique le format Visual Studio `.coverage` (produit par `VSTest@3` ou `dotnet test --collect "Code coverage"`) comme entrée prise en charge. Configurez-la dans `azurepipelines-coverage.yml` à la racine du dépôt, et rendez-la bloquante avec une stratégie de branche de type **vérification d'état** sur `<pipeline name>/codecoverage`. Sans cette stratégie, l'état est seulement indicatif. La stratégie reste bloquée avec PublishCodeCoverageResults v1, avec plus de 100 fichiers dans la pull request ou avec plusieurs stratégies de couverture, et dans un pipeline multiphase les résultats de couverture ne sont disponibles qu'à la fin de toute l'exécution.
 
 ```yaml
 # azurepipelines-coverage.yml

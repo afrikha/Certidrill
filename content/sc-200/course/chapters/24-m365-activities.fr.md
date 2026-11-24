@@ -7,7 +7,7 @@ Le journal d'audit unifié enregistre les activités des utilisateurs et des adm
 
 | | Audit (Standard) | Audit (Premium) |
 | --- | --- | --- |
-| Rétention par défaut | 180 jours | 1 an pour Microsoft Entra ID, Exchange, OneDrive et SharePoint ; 180 jours pour les autres services |
+| Rétention par défaut | 180 jours | 1 an pour Microsoft Entra ID, Exchange, OneDrive et SharePoint, pour les utilisateurs qui ont une licence E5 ou la licence complémentaire Microsoft Purview Suite ou E5 eDiscovery and Audit (utilisateurs non E5 et invités : 180 jours) ; 180 jours pour les autres services |
 | Stratégies de rétention des journaux d'audit | Non disponibles | Jusqu'à 1 an, ou jusqu'à 10 ans avec la licence complémentaire 10-Year Audit Log Retention |
 | Exportation depuis une recherche | 50 000 lignes | 1 000 000 de lignes |
 | API Office 365 Management Activity | Bande passante de base | Environ le double |
@@ -50,7 +50,7 @@ Activités qu'un analyste recherche typiquement après la compromission d'un com
 | L'attaquant a-t-il créé une règle de transfert ou de suppression ? | `New-InboxRule`, `Set-InboxRule`, `UpdateInboxRules` |
 | Quels messages l'attaquant a-t-il lus ? | `MailItemsAccessed` |
 | Quels fichiers ont été emportés ? | `FileAccessed`, `FileDownloaded`, `FileSyncDownloadedFull` |
-| L'attaquant a-t-il accordé des accès ? | `Add member to role.`, `Consent to application.` (Microsoft Entra ID), `Add-MailboxPermission` |
+| L'attaquant a-t-il accordé des accès ? | `Add member to role.`, `Add delegation entry.` (Microsoft Entra ID), `Add-MailboxPermission` |
 
 Pour une exportation massive ou continue vers un SIEM, utilisez l'**API Office 365 Management Activity** plutôt que des scripts autour de l'applet de commande. Dans le portail Defender, la table de repérage avancé `CloudAppEvents` expose aussi les activités Microsoft 365 quand le connecteur d'application Microsoft 365 de Defender for Cloud Apps est connecté.
 
@@ -96,12 +96,12 @@ Get-ComplianceSearchAction
 | Point | Valeur |
 | --- | --- |
 | Éléments supprimés par boîte aux lettres et par exécution (PowerShell) | 10 |
-| Éléments supprimés par emplacement et par exécution (Microsoft Graph, cas Premium) | 100 |
+| Éléments supprimés par emplacement et par exécution (Microsoft Graph `purgeData`, boîtes aux lettres et messages Teams) | 100 |
 | Boîtes aux lettres d'une recherche utilisée pour une purge | 50 000 au maximum |
 | Emplacements | Boîtes aux lettres et dossiers publics uniquement ; une recherche qui inclut des sites SharePoint ou OneDrive échoue à l'étape de purge |
 | `SoftDelete` | Les éléments vont dans Éléments récupérables (Deletions) : l'utilisateur peut les récupérer pendant la période de rétention des éléments supprimés |
 | `HardDelete` | Les éléments vont dans le dossier Purges : l'utilisateur ne peut pas les récupérer |
-| Boîtes aux lettres en conservation | Les éléments sont conservés jusqu'à la fin de la conservation |
+| Boîtes aux lettres en conservation | Sous conservation pour litige ou conservation inaltérable, seuls 10 éléments sont retirés de la vue de l'utilisateur, et ils ne sont pas supprimés définitivement ; les éléments supprimés sont conservés jusqu'à l'expiration ou la levée de la conservation |
 
 > **Piège d'examen.** Un utilisateur eDiscovery Manager trouve le message d'hameçonnage mais reçoit l'erreur indiquant que le paramètre `Purge` est introuvable : il lui manque le rôle **Search And Purge**. Et avec Microsoft Defender for Office 365 Plan 2, Microsoft recommande de corriger les e-mails malveillants depuis Defender for Office 365 (Explorer) plutôt que par recherche et purge.
 

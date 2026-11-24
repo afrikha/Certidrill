@@ -34,7 +34,7 @@ The built-in RBAC roles are delivered as a **JEA endpoint** on each managed serv
 <!-- section: wac-azure-portal | objectives: 2.1.1 -->
 ## Windows Admin Center in the Azure portal
 
-WAC can also be opened from the Azure portal, on the resource page of an **Azure VM** or of an **Azure Arc-enabled server** (Settings > Windows Admin Center). It's installed as the `AdminCenter` VM extension (publisher `Microsoft.AdminCenter`), on **each** machine, at no cost.
+WAC can also be opened from the Azure portal, on the resource page of an **Azure VM** or of an **Azure Arc-enabled server** (Settings > Windows Admin Center). It's installed as the `AdminCenter` VM extension (publisher `Microsoft.AdminCenter`), on **each** machine. The extension has no cost, but on an Arc-enabled server Windows Admin Center in Azure is a benefit of Windows Server Management enabled by Azure Arc: it's available only with Software Assurance attestation or Windows Server pay-as-you-go.
 
 | | Azure VM | Arc-enabled server |
 | --- | --- | --- |
@@ -76,10 +76,11 @@ The **second hop** problem: from ServerA you open a session on ServerB, then a c
 | Option | Credentials stored on ServerB | Main points |
 | --- | --- | --- |
 | CredSSP | **Yes** (exposed if ServerB is compromised) | `Enable-WSManCredSSP -Role Client -DelegateComputer ServerB` on A, `-Role Server` on B. Doesn't work for members of Protected Users. Only in highly trusted cases |
-| Kerberos unconstrained delegation | No | Not recommended: no control over where credentials go |
-| Kerberos constrained delegation | No | Set on ServerB's AD object, needs Domain Admins rights, single domain |
-| **Resource-based Kerberos constrained delegation** | No | Set on **ServerC** with `Set-ADComputer`, no Domain Admins needed, works across domains and forests, Windows Server 2012 or later |
+| Kerberos unconstrained delegation | No | Not recommended: no control over where credentials go. Doesn't support the second hop for WinRM |
+| Kerberos constrained delegation | No | Set on ServerB's AD object, needs Domain Admins rights, single domain. Doesn't support the second hop for WinRM |
+| **Resource-based Kerberos constrained delegation** | No | Set on **ServerC** with `Set-ADComputer`, no Domain Admins needed, works across domains and forests, Windows Server 2012 or later. Doesn't support the second hop for WinRM |
 | JEA endpoint on ServerB | No | The session runs as a virtual account or gMSA that has the needed access |
+| Session configuration with a RunAs account on ServerB | No | Must be configured on every intermediate server; a domain RunAs account means password maintenance |
 | Explicit credentials in the script (`$Using:cred`) | No | No server configuration, awkward code |
 
 ```powershell
@@ -91,7 +92,7 @@ Set-ADComputer -Identity ServerC -PrincipalsAllowedToDelegateToAccount $ServerB
 Invoke-Command -ComputerName ServerB -ScriptBlock { klist purge -li 0x3e7 }
 ```
 
-> **Exam trap.** Resource-based constrained delegation is configured on the **resource** (ServerC, the last hop), listing the computer that delegates (ServerB). Classic constrained delegation is configured on ServerB. Both store no credentials, unlike CredSSP.
+> **Exam trap.** Resource-based constrained delegation is configured on the **resource** (ServerC, the last hop), listing the computer that delegates (ServerB). Classic constrained delegation is configured on ServerB. Both store no credentials, unlike CredSSP. None of the Kerberos delegation options supports the second hop for WinRM, that is, a nested remote session from ServerB to ServerC.
 
 <!-- section: jea | objectives: 2.1.2 -->
 ## Just Enough Administration (JEA)
@@ -187,7 +188,7 @@ Protect administrator credentials on the target:
 | Restricted Admin mode | `mstsc /restrictedAdmin` | Credentials aren't sent to the server; the user must be in the target's **Administrators** group; network access from the session uses the **server's identity** (no single sign-on, no multi-hop RDP) |
 | Remote Credential Guard | `mstsc /remoteGuard` | Credentials stay on the client; network access from the session works **as the user** (single sign-on, multi-hop RDP); **Kerberos only** (no NTLM fallback), target joined to AD DS; not through RD Gateway or RD Connection Broker |
 
-Both modes need the policy *Remote host allows delegation of nonexportable credentials* enabled on the target. On the clients, the policy *Restrict delegation of credentials to remote servers* (Administrative Templates > System > Credentials Delegation) can require Restricted Admin, require Remote Credential Guard, or require either (Remote Credential Guard first).
+Both modes need the policy *Remote host allows delegation of nonexportable credentials* enabled on the target. On the clients, the policy *Restrict delegation of credentials to remote servers* (Administrative Templates > System > Credentials Delegation) can require Restricted Admin, require Remote Credential Guard, or require either (*Restrict credential delegation*: Remote Credential Guard first, Restricted Admin if it can't be used). With *Restrict credential delegation*, the `/restrictedAdmin` switch is ignored and Remote Credential Guard is used. For help desk connections to clients that may be compromised, Microsoft recommends Restricted Admin mode, not Remote Credential Guard.
 
 > **Exam tip.** "Admins must reach file shares from the RDP session without their credentials being stored on the server" means Remote Credential Guard. Restricted Admin mode also avoids storing credentials, but the session accesses the network as the server, not as the user.
 
@@ -198,7 +199,7 @@ For Azure VMs, prefer no public RDP port: Azure Bastion or just-in-time VM acces
 
 - WAC gateway: not on a domain controller; Gateway users vs Gateway administrators; target rights come from admin credentials or WAC RBAC roles (JEA).
 - WAC in the Azure portal: `AdminCenter` extension; Azure VM needs a path to port 6516, Arc needs no inbound port; connect with Reader + Windows Admin Center Administrator Login.
-- WinRM 5985/5986; second hop: prefer resource-based constrained delegation (set on the last server) or JEA; CredSSP stores credentials.
+- WinRM 5985/5986; second hop: prefer resource-based constrained delegation (set on the last server, not for a nested WinRM hop) or JEA; CredSSP stores credentials.
 - JEA: `.psrc` (what) in a module's `RoleCapabilities` folder + `.pssc` (who, run as) registered as an endpoint; gMSA for network access.
 - OpenSSH: installed by default on Windows Server 2025; administrators' keys in `administrators_authorized_keys`.
 - RDP: off by default, NLA on, Remote Desktop Users group; Remote Credential Guard keeps credentials on the client and acts as the user.

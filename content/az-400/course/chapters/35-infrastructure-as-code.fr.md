@@ -100,7 +100,7 @@ La connexion de service ou l'étape GitHub `azure/login` utilise la fédération
 | Besoin | Outil et comportement |
 | --- | --- |
 | Les ressources Azure correspondent au modèle, les ressources en plus sont laissées | Déploiement ARM ou Bicep, mode **Incremental** (par défaut) |
-| Les ressources absentes du modèle sont supprimées | **Pile de déploiement** (deployment stack) avec `--action-on-unmanage deleteResources` (méthode recommandée), ou mode **Complete** à l'étendue du groupe de ressources |
+| Les ressources absentes du modèle sont supprimées | **Pile de déploiement** (deployment stack) avec `--action-on-unmanage deleteResources` (méthode recommandée), ou mode **Complete** à l'étendue du groupe de ressources (non recommandé, et appelé à être progressivement abandonné au profit des piles de déploiement) |
 | Empêcher la modification ou la suppression manuelle des ressources déployées | Pile de déploiement avec paramètres de refus (`denyDelete` ou `denyWriteAndDelete`) |
 | Paramètres du système audités ou imposés sur les machines virtuelles Azure et les serveurs avec Arc | Azure Machine Configuration |
 | Serveur pull PowerShell DSC existant dans Azure Automation | Azure Automation State Configuration, à migrer vers Machine Configuration avant le 30 septembre 2027 |

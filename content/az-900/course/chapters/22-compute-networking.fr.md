@@ -63,7 +63,7 @@ Un **réseau virtuel Azure** permet aux ressources Azure de communiquer entre el
 
 Un réseau virtuel appartient à une région et à un abonnement.
 
-Le **peering** (appairage) connecte deux réseaux virtuels pour que leurs ressources communiquent en privé sur le réseau principal de Microsoft, jamais sur l'internet public. Les réseaux peuvent être dans des régions différentes (peering mondial).
+Le **peering** connecte deux réseaux virtuels pour que leurs ressources communiquent en privé sur le réseau principal de Microsoft, jamais sur l'internet public. Les réseaux peuvent être dans des régions différentes (peering mondial).
 
 **Azure DNS** héberge vos domaines DNS sur l'infrastructure d'Azure : vous gérez les enregistrements avec les mêmes informations d'identification, outils et facturation que les autres services Azure. Il prend en charge les zones privées et les enregistrements d'alias, et bénéficie de la fiabilité d'Azure. Vous **ne pouvez pas acheter de nom de domaine** auprès d'Azure DNS.
 
@@ -74,7 +74,7 @@ Deux services relient un réseau local à Azure :
 | Chemin | Tunnel **chiffré** sur l'**internet public** | Connexion **privée** par un fournisseur de connectivité ; ne passe pas par l'internet public |
 | Usage | De site à site (tout un réseau), de point à site (un ordinateur), de réseau à réseau | Charges importantes ou sensibles qui demandent fiabilité, débit et latence constante |
 | Coût et mise en place | Coût plus faible, mise en place rapide | Coût plus élevé, dépend d'un fournisseur |
-| Remarques | Une seule passerelle VPN par réseau virtuel ; peut servir de chemin de secours à ExpressRoute | Redondance intégrée ; atteint toutes les régions d'une zone géographique, ou le monde entier avec Global Reach |
+| Remarques | Une seule passerelle VPN par réseau virtuel ; peut servir de chemin de secours à ExpressRoute | Redondance intégrée ; atteint toutes les régions d'une même région géopolitique, ou toutes les régions du monde avec le module complémentaire ExpressRoute Premium. ExpressRoute Global Reach relie vos sites locaux entre eux par leurs circuits |
 
 <!-- section: endpoints | objectives: 2.2.6 -->
 ## Points de terminaison publics et privés

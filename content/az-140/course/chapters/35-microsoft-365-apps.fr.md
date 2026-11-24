@@ -63,13 +63,15 @@ reg load HKU\TempDefault C:\Users\Default\NTUSER.DAT
 reg add HKU\TempDefault\SOFTWARE\Policies\Microsoft\office\16.0\common /v InsiderSlabBehavior /t REG_DWORD /d 2 /f
 reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v enable /t REG_DWORD /d 1 /f
 reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v syncwindowsetting /t REG_DWORD /d 1 /f
+reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v CalendarSyncWindowSetting /t REG_DWORD /d 1 /f
+reg add "HKU\TempDefault\software\policies\microsoft\office\16.0\outlook\cached mode" /v CalendarSyncWindowSettingMonths /t REG_DWORD /d 1 /f
 reg unload HKU\TempDefault
 # Machine: hide the update UI from users
 reg add HKLM\SOFTWARE\Policies\Microsoft\office\16.0\common\officeupdate /v hideupdatenotifications /t REG_DWORD /d 1 /f
 reg add HKLM\SOFTWARE\Policies\Microsoft\office\16.0\common\officeupdate /v hideenabledisableupdates /t REG_DWORD /d 1 /f
 ```
 
-`InsiderSlabBehavior` = 2 masque l'option Office Insider ; les valeurs *cached mode* activent le mode Exchange mis en cache d'Outlook et limitent la fenêtre de synchronisation du courrier, ce qui garde le fichier OST petit.
+`InsiderSlabBehavior` = 2 masque l'option Office Insider ; les valeurs *cached mode* activent le mode Exchange mis en cache d'Outlook et limitent la fenêtre de synchronisation du courrier, ce qui garde le fichier OST petit ; la documentation règle aussi `CalendarSyncWindowSetting` et `CalendarSyncWindowSettingMonths` sur 1 dans la même clé.
 
 **Mises à jour.** Avec les mises à jour automatiques désactivées, ajoutez les mises à jour à l'image personnalisée et redéployez régulièrement les hôtes de session, ou mettez à jour les hôtes manuellement quand aucun utilisateur n'est connecté, pour qu'aucune application Office ne soit en cours d'utilisation. Installez les applications métier après Microsoft 365 Apps.
 
@@ -106,7 +108,7 @@ REG ADD "HKLM\SOFTWARE\Policies\Microsoft\OneDrive" /v "KFMSilentOptIn" /t REG_S
 | OneDrive doit démarrer dans chaque session | Clé `Run` dans HKLM avec `/background` |
 | Une seule installation pour tous les utilisateurs, mise à jour de façon centralisée | `AllUsersInstall` = 1 et `OneDriveSetup.exe /allusers` |
 
-OneDrive sur des bureaux non persistants est pris en charge avec Azure Virtual Desktop, et avec FSLogix (dernière version) pour le conteneur de profil ou le conteneur Office. Le cache OneDrive est propre à chaque utilisateur : avec un conteneur ODFC, les données OneDrive sont incluses par défaut et peuvent être dimensionnées à part, par exemple un conteneur de profil de 10 Go et un conteneur ODFC de 50 Go pour les gros utilisateurs de OneDrive. FSLogix ne prend pas en charge l'exécution simultanée de plusieurs instances du même conteneur.
+OneDrive sur des bureaux non persistants est pris en charge avec Azure Virtual Desktop, et avec FSLogix (dernière version) pour le conteneur de profil ou le conteneur Office sous Windows 11 ou Windows Server 2025 et versions ultérieures. Le cache OneDrive est propre à chaque utilisateur : avec un conteneur ODFC, les données OneDrive sont incluses par défaut et peuvent être dimensionnées à part, par exemple un conteneur de profil de 10 Go et un conteneur ODFC de 50 Go pour les gros utilisateurs de OneDrive. FSLogix ne prend pas en charge l'exécution simultanée de plusieurs instances du même conteneur.
 
 > **Piège d'examen.** `KFMSilentOptIn` attend l'**ID du locataire**, alors que `SilentAccountConfig` est un DWORD à 1. Et `OneDriveSetup.exe /allusers` sans la valeur `AllUsersInstall`, ou en laissant une copie par utilisateur en place, n'est pas l'installation par ordinateur documentée.
 
@@ -117,12 +119,12 @@ Sans optimisation, l'audio et la vidéo de Teams sont encodés sur l'hôte de se
 
 | Composant | Utilisé par | Où il s'exécute |
 | --- | --- | --- |
-| **SlimCore** (nouvelle architecture d'optimisation VDI) | Le nouveau Teams, par défaut | Moteur multimédia `MsTeamsVdi.exe` sur le **client** ; son plug-in est fourni avec Windows App et téléchargé automatiquement |
+| **SlimCore** (nouvelle architecture d'optimisation VDI) | Le nouveau Teams, par défaut | Moteur multimédia `MsTeamsVdi.exe` sur le **client** ; son plug-in est fourni avec Windows App et télécharge automatiquement SlimCore (un package MSIX) depuis le CDN de Microsoft |
 | **Service redirecteur WebRTC Bureau à distance** (Remote Desktop WebRTC Redirector Service) | Teams classique ; **solution de secours** pour le nouveau Teams quand le client ne peut pas utiliser SlimCore | Installé sur l'**hôte de session** (MSI) |
 
 Microsoft recommande d'installer le service redirecteur WebRTC à côté du nouveau Teams, pour qu'un utilisateur qui passe sur un appareil sans prise en charge de SlimCore reste optimisé. Teams essaie d'abord SlimCore, puis WebRTC, puis revient au rendu côté serveur, non optimisé.
 
-**Teams classique** a atteint la fin du support le 1er octobre 2026 sur les bureaux virtuels, et sa fin de disponibilité est fixée au 1er avril 2027 : déployez le **nouveau Teams**.
+**Teams classique** a atteint la fin du support le 1er octobre 2026 sur les bureaux virtuels, et sa fin de disponibilité est fixée au 1er avril 2027 : déployez le **nouveau Teams**. Les mêmes dates retirent l'**optimisation basée sur WebRTC** des points de terminaison Windows : depuis le 1er octobre 2026, elle fonctionne encore mais n'est plus prise en charge, et à partir du 1er avril 2027 elle cesse de fonctionner ; un client du nouveau Teams qui ne peut pas utiliser SlimCore revient alors au rendu côté serveur. Les points de terminaison macOS suivent (fin du support le 1er avril 2027, fin de disponibilité le 1er septembre 2027) ; les clients légers Linux pris en charge ne sont pas concernés.
 
 Configuration d'un hôte de session :
 
@@ -132,7 +134,7 @@ Configuration d'un hôte de session :
 | 2. Déclarer l'environnement | `HKLM\SOFTWARE\Microsoft\Teams`, `IsWVDEnvironment` (DWORD) = 1 |
 | 3. Service redirecteur WebRTC | Installez le MSI (`https://aka.ms/msrdcwebrtcsvc/msi`) |
 | 4. Installer le nouveau Teams par ordinateur | `teamsbootstrapper.exe -p` (requis pour les pools d'hôtes regroupés) |
-| 5. FSLogix | FSLogix 2210 hotfix 4 ou ultérieur (recommandé par la documentation Teams) ; avec un conteneur ODFC, réglez `IncludeTeams` = 1 (désactivé par défaut) pour conserver le cache Teams |
+| 5. FSLogix | FSLogix 2210 hotfix 4 ou ultérieur (recommandé par la documentation Teams ; la page Azure Virtual Desktop indique le hotfix 3 comme minimum) ; avec un conteneur ODFC, réglez `IncludeTeams` = 1 (désactivé par défaut) pour conserver le cache Teams |
 
 ```powershell
 New-Item -Path "HKLM:\SOFTWARE\Microsoft\Teams" -Force
@@ -145,7 +147,7 @@ New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Teams" -Name IsWVDEnvironment -
 .\teamsbootstrapper.exe -x
 ```
 
-Le nouveau Teams est un package MSIX installé dans `C:\Program Files\WindowsApps` qui **se met à jour automatiquement**. Dans un pool non persistant, réglez `disableAutoUpdate` (DWORD) = 1 sous `HKLM\SOFTWARE\Microsoft\Teams` et mettez Teams à jour par l'image. Pour publier le nouveau Teams en tant que RemoteApp, utilisez le chemin stable `shell:appsFolder\MSTeams_8wekyb3d8bbwe!MSTeams`, car le dossier du package change à chaque version.
+Le nouveau Teams est un package MSIX installé dans `C:\Program Files\WindowsApps` qui **se met à jour automatiquement**. Dans un pool non persistant, réglez `disableAutoUpdate` (DWORD) = 1 sous `HKLM\SOFTWARE\Microsoft\Teams` et mettez Teams à jour par l'image. Cette valeur n'est prise en compte que par les builds de Teams supérieurs à 23306.3314.2555.9628, et quand elle est définie, le programme d'installation MSIX n'installe ni ne met à niveau le complément Teams Meeting (Teams Meeting Add-in) : approvisionnez-le avec `teamsbootstrapper.exe -p --installTMA` (ou `--installTMA` seul si Teams est déjà approvisionné). Pour l'installation hors connexion, copiez le MSIX dans un dossier local : un chemin UNC peut échouer avec l'erreur `0x80070032`. Pour publier le nouveau Teams en tant que RemoteApp, utilisez le chemin stable `shell:appsFolder\MSTeams_8wekyb3d8bbwe!MSTeams`, car le dossier du package change à chaque version.
 
 **Clients.** L'optimisation exige un client pris en charge : Windows App sur Windows, macOS (version hors Store pour le nouveau Teams), iOS/iPadOS et Android. Le client web ne figure pas dans la liste, et la documentation Teams ne prend plus en charge le client Bureau à distance pour le nouveau Teams. SlimCore exige aussi une version récente de Windows App, et les administrateurs Teams peuvent le désactiver par utilisateur avec le paramètre `VDI2Optimization` de `Set-CsTeamsVdiPolicy`.
 
@@ -191,6 +193,6 @@ La **redirection multimédia** (chapitre 32) passe par une extension de navigate
 - Microsoft 365 Apps en multisession : Microsoft 365 Apps for enterprise, ou for business avec Business Premium, avec `SharedComputerLicensing` = 1, en 64 bits, mises à jour automatiques désactivées et mises à jour par l'image.
 - Excluez OneDrive et Teams de l'installation ODT et installez-les tous deux **par ordinateur**.
 - OneDrive : `AllUsersInstall` = 1, `OneDriveSetup.exe /allusers`, `SilentAccountConfig` = 1, `KFMSilentOptIn` = ID du locataire.
-- Teams : nouveau Teams par `teamsbootstrapper.exe -p`, `IsWVDEnvironment` = 1, service redirecteur WebRTC sur l'hôte en secours, SlimCore sur le client ; vérifiez l'état optimisé dans *À propos de Teams*.
+- Teams : nouveau Teams par `teamsbootstrapper.exe -p`, `IsWVDEnvironment` = 1, service redirecteur WebRTC sur l'hôte en secours (retiré sur les points de terminaison Windows : fin de disponibilité le 1er avril 2027), SlimCore sur le client ; vérifiez l'état optimisé dans *À propos de Teams*.
 - FSLogix : 2210 hotfix 4 ou ultérieur pour le nouveau Teams ; ODFC inclut par défaut l'activation d'Office, Outlook et OneDrive, Teams seulement avec `IncludeTeams` = 1.
 - Edge : mise à jour dans l'image, synchronisation Microsoft Entra ID pour l'itinérance, extension de redirection multimédia pour Edge et Chrome.

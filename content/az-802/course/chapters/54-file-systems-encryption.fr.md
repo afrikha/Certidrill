@@ -54,7 +54,7 @@ Get-DedupStatus -Volume E:
 | --- | --- | --- |
 | Default | Serveurs de fichiers généraux : partages d'équipe, dossiers personnels, Dossiers de travail | Fichiers de plus de 3 jours ; ni fichiers en cours d'utilisation ni fichiers partiels |
 | Hyper-V | Serveurs VDI | Fichiers de plus de 3 jours ; optimise les fichiers en cours d'utilisation et partiels |
-| Backup | Applications de sauvegarde virtualisées comme DPM | Fichiers de plus de 0 jour ; optimisation prioritaire |
+| Backup | Applications de sauvegarde virtualisées comme DPM | Fichiers de plus de 0 jour ; optimise les fichiers en cours d'utilisation, pas les fichiers partiels ; optimisation prioritaire |
 
 | Travail | Rôle | Planification par défaut |
 | --- | --- | --- |
@@ -62,6 +62,8 @@ Get-DedupStatus -Volume E:
 | Garbage Collection | Libère les blocs qui ne sont plus référencés après des suppressions ou des modifications | Samedi à 2 h 35 |
 | Integrity Scrubbing | Détecte la corruption du magasin de blocs et répare à partir des copies miroir ou de parité | Samedi à 3 h 35 |
 | Unoptimization | Annule la déduplication et la désactive sur le volume | Manuel uniquement |
+
+`Disable-DedupVolume` arrête seulement la déduplication à venir : les fichiers optimisés restent dédupliqués et lisibles, et les cmdlets de travaux comme `Start-DedupJob` ne s'exécutent plus sur ce volume. Pour réhydrater les fichiers, exécutez le travail Unoptimization, qui échoue si le volume manque d'espace pour les données non optimisées.
 
 L'espace libéré par la suppression de fichiers n'apparaît qu'après l'exécution du **Garbage Collection**. Économies typiques : documents utilisateurs 30 à 50 %, partages de déploiement 70 à 80 %, bibliothèques de virtualisation 80 à 95 %.
 

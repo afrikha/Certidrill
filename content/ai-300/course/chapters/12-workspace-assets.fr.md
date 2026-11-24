@@ -147,7 +147,7 @@ Les règles qui décident des réponses :
 - Référencez un environnement inscrit avec `azureml:<name>:<version>` ou `azureml:<name>@latest`.
 - Archiver une version ne supprime pas son image en cache dans le registre de conteneurs. Une nouvelle version créée sous un nom archivé est archivée elle aussi.
 - La construction de l'image utilise un jeton Microsoft Entra vers le registre de l'espace de travail qui dure de 60 à 90 minutes : une construction plus longue échoue.
-- Quand l'espace de travail et son registre de conteneurs sont derrière des points de terminaison privés, les tâches du registre ne peuvent pas construire d'images : définissez `image_build_compute` sur l'espace de travail avec un cluster de calcul.
+- Par défaut, les images sont construites sur un calcul serverless, ce qui ne fonctionne que si les ressources dépendantes de l'espace de travail (compte de stockage, registre de conteneurs) n'ont aucune restriction réseau. Derrière des points de terminaison privés, définissez `image_build_compute` sur l'espace de travail avec un cluster de calcul CPU dans le même réseau virtuel ; un cluster sans adresse IP publique a besoin d'un itinéraire défini par l'utilisateur pour atteindre Internet (référentiels de packages, Microsoft Container Registry).
 
 > **Piège d'examen.** « Le package est installé dans l'image Docker de base, mais le travail lève `ModuleNotFoundError` » indique une spécification conda au-dessus de l'image : ajoutez le package au `conda_file`, ou utilisez un environnement image seule ou Dockerfile.
 
@@ -271,7 +271,7 @@ az ml registry create --file registry.yml --resource-group rg-ml-shared
 | --- | --- |
 | Régions | La `location` principale figure aussi dans `replication_locations`. La région principale ne peut pas changer ; les autres régions peuvent être mises à jour |
 | Espaces de travail | Un espace de travail ne peut utiliser le registre que si sa région fait partie des régions du registre |
-| Nom | 2 à 32 caractères, non modifiable |
+| Nom | 2 à 32 caractères (lettres, chiffres, `_` et `-`, en commençant par une lettre ou un chiffre), unique dans le locataire Microsoft Entra, non modifiable |
 | Ressources créées | Un compte de stockage par région et un registre de conteneurs répliqué dans chaque région |
 | Tirage d'images | L'identité managée du registre a AcrPull sur son registre de conteneurs ; les calculs des espaces de travail reçoivent un jeton limité, pas un accès direct |
 

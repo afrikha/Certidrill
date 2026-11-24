@@ -24,14 +24,14 @@ Paramètres de génération :
 | `temperature` | Caractère aléatoire, de 0 à 2 | Bas (environ 0,2) pour les tâches factuelles, juridiques ou d'extraction ; plus élevé (environ 0,7) pour un texte créatif |
 | `top_p` | Contrôle aussi le caractère aléatoire, en limitant la masse de probabilité des jetons | Modifiez temperature **ou** top_p, pas les deux |
 | `max_output_tokens` (Responses) / `max_completion_tokens` (Chat Completions) | Plafonne les jetons générés, jetons de raisonnement compris | Trop bas, la réponse est tronquée |
-| Effort de `reasoning` | Quantité de réflexion d'un modèle de raisonnement : `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (selon le modèle) | Commencer à `medium` ; augmenter pour les problèmes difficiles, baisser pour la latence et le coût |
+| Effort de `reasoning` | Quantité de réflexion d'un modèle de raisonnement : `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (valeurs prises en charge et valeurs par défaut selon le modèle) | Augmenter pour les problèmes difficiles, baisser pour la latence et le coût ; un réglage fin, pas la première correction quand la qualité baisse |
 | `presence_penalty`, `frequency_penalty` (Chat Completions) | Découragent la répétition de jetons ou de sujets | Sortie répétitive |
 
-La plupart des modèles de raisonnement refusent `temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logprobs`, `top_logprobs`, `logit_bias` et `max_tokens`. Donnez-leur plutôt un objectif clair, des contraintes fermes et un contrat de sortie explicite, sans prescrire chaque étape intermédiaire. Un message `developer` fonctionne comme un message système.
+Les modèles de raisonnement autres que GPT-6 Astra ne prennent pas en charge `temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logprobs`, `top_logprobs`, `logit_bias` et `max_tokens`. Donnez-leur plutôt un objectif clair, des contraintes fermes et un contrat de sortie explicite, sans prescrire chaque étape intermédiaire. Un message `developer` fonctionne comme un message système.
 
 ```json
 {
-  "model": "o4-mini",
+  "model": "gpt-5-mini",
   "reasoning": { "effort": "low" },
   "max_output_tokens": 4000,
   "input": "Classify this ticket as billing, technical or account. Return only the label."
@@ -75,7 +75,7 @@ Utilisez les évaluateurs comme critique ou comme contrôle après la boucle :
 | Besoin | Outil |
 | --- | --- |
 | Le brouillon est-il étayé par les sources ? | Évaluateur Groundedness, ou une invite de critique avec les sources |
-| Respecte-t-il les règles système ? | Task Adherence |
+| Respecte-t-il les règles système ? | Task Adherence (préversion) |
 | Score pondéré sur plusieurs critères personnalisés, avec un raisonnement par critère | Évaluateur Rubric (préversion) |
 | Pourquoi une réponse a-t-elle échoué ? | La raison (`reason`) renvoyée avec chaque score d'évaluateur |
 
@@ -86,7 +86,7 @@ Utilisez les évaluateurs comme critique ou comme contrôle après la boucle :
 <!-- section: observability | objectives: 2.3.3 -->
 ## Observabilité : suivi, analytique des jetons, signaux de sécurité et latence
 
-Le **suivi** (tracing) enregistre chaque opération sous forme d'étendues (spans) OpenTelemetry dans la ressource Application Insights connectée au projet : appels au modèle, exécutions d'outils (`execute_tool`), invocations d'agents (`invoke_agent`), opérations de mémoire, avec les durées, les nombres de jetons et, quand l'enregistrement du contenu est activé, les entrées et les sorties. Le suivi côté serveur fonctionne pour les agents d'invite dès qu'Application Insights est connecté ; l'instrumentation côté client ajoute les étendues propres à votre application :
+Le **suivi** (tracing) enregistre chaque opération sous forme d'étendues (spans) OpenTelemetry dans la ressource Application Insights connectée au projet : appels au modèle, exécutions d'outils (`execute_tool`), invocations d'agents (`invoke_agent`), opérations de mémoire, avec les durées, les nombres de jetons et, quand l'enregistrement du contenu est activé, les entrées et les sorties. Le suivi est en disponibilité générale pour les agents d'invite et les agents hébergés (les agents de workflow et les agents externes sont en préversion) et fonctionne pour les agents d'invite dès qu'Application Insights est connecté. L'instrumentation côté client (préversion) ajoute les étendues propres à votre application :
 
 ```text
 os.environ["AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING"] = "true"
@@ -100,7 +100,7 @@ with tracer.start_as_current_span("claim-triage"):   # parent span groups the wh
     response = openai.responses.create(model="gpt-4.1-mini", input=claim_text)
 ```
 
-La variable `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` doit valoir `true` avant l'appel à `instrument()`, sinon le suivi n'est pas activé. Un `ConsoleSpanExporter` affiche les étendues en local pour le débogage ; `configure_azure_monitor` les envoie à Application Insights.
+L'instrumentation du suivi GenAI est une fonctionnalité expérimentale en préversion : la variable `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` doit valoir `true` avant l'appel à `instrument()`, sinon le suivi n'est pas activé. Un `ConsoleSpanExporter` affiche les étendues en local pour le débogage ; `configure_azure_monitor` les envoie à Application Insights.
 
 **Analytique des jetons.** Chaque réponse contient un objet `usage` ; les jetons de raisonnement sont facturés comme des jetons de sortie :
 
@@ -152,11 +152,12 @@ Suivez les jetons d'entrée (taille de l'invite, passages récupérés, historiq
 Ce qu'il faut savoir du **model router** :
 
 - Modes de routage : **Balanced** (par défaut : le modèle le plus économique à environ 1-2 % de la meilleure qualité pour l'invite), **Cost** (une marge plus large, environ 5-6 %), **Quality** (le meilleur modèle, sans tenir compte du coût).
-- Un **sous-ensemble de modèles** (model subset) limite les modèles qu'il peut choisir ; c'est aussi l'ensemble de basculement, incluez donc au moins deux modèles. Les nouveaux modèles ne sont ajoutés que si vous les ajoutez.
-- Basculement automatique vers le modèle suivant en cas de problème transitoire, activé par défaut.
+- Un **sous-ensemble de modèles** (model subset) limite les modèles qu'il peut choisir (au moins un modèle) ; les nouveaux modèles sont exclus d'un sous-ensemble tant que vous ne les ajoutez pas. Le routage sur l'ensemble complet intègre automatiquement les nouveaux modèles.
+- Si le modèle sélectionné renvoie une erreur pouvant faire l'objet d'une nouvelle tentative, le router bascule automatiquement vers le meilleur modèle suivant, sans rien à configurer.
 - Types de déploiement pris en charge : Global Standard et Data Zone Standard.
-- La fenêtre de contexte est celle du **plus petit** modèle de l'ensemble ; les décisions de routage se fondent uniquement sur l'entrée texte ; l'audio n'est pas traité.
-- Les modèles Claude doivent être déployés séparément avant que le router puisse les utiliser.
+- La fenêtre de contexte est celle du **plus petit** modèle de l'ensemble. Le router accepte le texte et les images, mais route sur le texte seulement ; l'entrée audio n'est pas prise en charge.
+- Les modèles Claude doivent être déployés dans la même ressource Foundry, avec un type de déploiement identique à celui du déploiement du router, avant que celui-ci puisse les utiliser.
+- La version `2025-11-18` est en disponibilité générale et par défaut ; Auto, l'affinité de session et les contrôles de routage par requête sont en préversion.
 
 **Exemple hybride.** Litware Insurance doit approuver automatiquement les sinistres de moins de 1 000 USD et transmettre les plus importants à un expert. Le LLM extrait en JSON le montant, le numéro de police et le type d'incident de l'e-mail de déclaration ; un moteur de règles applique le seuil et la couverture de la police ; seule la lettre d'explication est à nouveau générée par le LLM. La décision est reproductible et auditable, et le modèle ne décide jamais de l'indemnisation.
 
@@ -176,8 +177,8 @@ Ce qu'il faut savoir du **model router** :
 - Techniques d'invite : message système, few-shot, décomposition, chaîne de pensée (modèles sans raisonnement), structure de sortie, ancrage, répétition à la fin, amorçage.
 - Modifiez temperature ou top_p, pas les deux. Modèles de raisonnement : effort de `reasoning` et `max_output_tokens` ; ni temperature ni top_p.
 - Réflexion : générer, critiquer selon des critères, réviser, avec un nombre borné de boucles. N'extrayez pas le raisonnement brut ; utilisez les résumés de raisonnement.
-- Suivi : étendues OpenTelemetry dans Application Insights ; définissez `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` avant `instrument()`.
+- Suivi : étendues OpenTelemetry dans Application Insights ; suivi côté client (préversion) : définissez `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` avant `instrument()`.
 - Jetons : `usage.input_tokens`, `output_tokens`, `output_tokens_details.reasoning_tokens` (facturés comme sortie).
 - Signaux de sécurité : HTTP 400 `content_filter`, `finish_reason` `content_filter`, annotations, évaluation continue de la sécurité.
-- Model router : Balanced (par défaut), Cost, Quality ; sous-ensemble de modèles = ensemble de basculement ; la plus petite fenêtre de contexte s'applique.
+- Model router : Balanced (par défaut), Cost, Quality ; un sous-ensemble de modèles exclut les nouveaux modèles tant que vous ne les ajoutez pas ; basculement automatique ; la plus petite fenêtre de contexte s'applique.
 - Les règles décident de ce qui doit être déterministe ; le LLM traite l'entrée non structurée et le langage.

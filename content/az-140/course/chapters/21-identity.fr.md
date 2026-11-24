@@ -33,7 +33,7 @@ Comment choisir :
 | Scénario | Ce dont les hôtes de session ont besoin |
 | --- | --- |
 | AD DS | Visibilité directe sur un contrôleur de domaine (DNS du réseau virtuel pointant vers les DC, via peering, VPN ou ExpressRoute) ; un compte de jonction avec les droits de création d'ordinateurs sur l'unité d'organisation (réinitialiser le mot de passe, écritures validées du nom d'hôte DNS et du nom de principal du service, lecture et écriture des restrictions de compte) |
-| Microsoft Entra Domain Services | DNS du réseau virtuel réglé sur les adresses du domaine managé ; un compte de jonction membre de **AAD DC Administrators** ; hachages de mots de passe des utilisateurs disponibles dans le domaine managé |
+| Microsoft Entra Domain Services | DNS du réseau virtuel réglé sur les adresses du domaine managé ; un compte de jonction membre de **AAD DC Administrators** ; hachages de mots de passe des utilisateurs disponibles dans le domaine managé : les utilisateurs cloud uniquement doivent changer leur mot de passe après l'activation de Domain Services, les utilisateurs synchronisés exigent la synchronisation de hachage de mot de passe via **Microsoft Entra Connect Sync** (Microsoft Entra Cloud Sync n'est pas pris en charge avec Domain Services) |
 | Microsoft Entra ID | Type de jonction **Microsoft Entra ID** dans le portail (en option **inscrire auprès d'Intune**), même locataire que l'abonnement ; Windows 11, Windows 10 2004 ou ultérieur, Windows Server 2022 ou 2019 ; aucun contrôleur de domaine nécessaire |
 
 Règles supplémentaires pour les hôtes de session **joints à Microsoft Entra** :
@@ -62,6 +62,8 @@ Les rôles intégrés couvrent les objets du service (fournisseur `Microsoft.Des
 | Desktop Virtualization Power On Off Contributor | Démarrer, arrêter, libérer, redémarrer des machines virtuelles (pour les plans de mise à l'échelle) | Créer ou supprimer des machines virtuelles |
 | Desktop Virtualization Virtual Machine Contributor | Créer et remplacer les machines virtuelles hôtes de session (pour l'identité managée d'une configuration d'hôte de session) | Groupes d'applications, espaces de travail |
 
+Pour voir les applications des groupes d'applications liés à un espace de travail, un Workspace Contributor a aussi besoin de **Desktop Virtualization Application Group Reader**.
+
 Réponses types :
 
 | Exigence | Attribution |
@@ -89,7 +91,7 @@ L'accès conditionnel exige **Microsoft Entra ID P1** (ou P2), ne peut pas être
 | Accorder | Exiger l'authentification multifacteur (ou exiger un appareil conforme, etc.) |
 | Session > Fréquence de connexion | Réauthentification périodique ; **Chaque fois** uniquement sur Windows Cloud Login avec l'authentification unique |
 
-Structure recommandée avec l'authentification unique : deux stratégies identiques, l'une sur Azure Virtual Desktop et l'autre sur Windows Cloud Login, qui ne diffèrent que par la fréquence de connexion. **Chaque fois** sur l'application Azure Virtual Desktop provoquerait une invite à chaque actualisation du flux.
+Structure recommandée avec l'authentification unique : deux stratégies identiques, l'une sur Azure Virtual Desktop et l'autre sur Windows Cloud Login, qui ne diffèrent que par la fréquence de connexion. **Chaque fois** sur l'application Azure Virtual Desktop provoquerait une invite à chaque actualisation du flux. Sur Windows Cloud Login, **Chaque fois** redemande l'authentification quand l'utilisateur lance une nouvelle connexion 5 à 10 minutes ou plus après sa dernière authentification.
 
 Pour les hôtes de session **joints à Microsoft Entra**, désactivez l'authentification multifacteur par utilisateur héritée (sinon « The sign-in method you're trying to use isn't allowed »), et excluez **Azure Windows VM Sign-In** de la stratégie si vous ne voulez pas restreindre la connexion aux méthodes fortes comme Windows Hello Entreprise.
 
@@ -153,7 +155,7 @@ Prérequis :
 Étapes :
 
 1. **Activez l'authentification Microsoft Entra pour RDP** sur le principal de service **Windows Cloud Login** : Microsoft Entra ID > Appareils > Configuration de la connexion à distance, ou définissez `isRemoteDesktopProtocolEnabled` à true avec Microsoft Graph.
-2. **Masquez l'invite de consentement** : ajoutez jusqu'à **10 groupes d'appareils** (un groupe dynamique des hôtes de session est pratique) comme groupes d'appareils cibles. Sinon les utilisateurs approuvent chaque nouvel hôte (mémorisé pour 15 hôtes et 30 jours).
+2. **Masquez l'invite de consentement** : ajoutez jusqu'à **10 groupes d'appareils** (un groupe dynamique des hôtes de session est pratique ; les groupes dynamiques exigent Microsoft Entra ID P1 ou Intune for Education) comme groupes d'appareils cibles. Sinon les utilisateurs approuvent chaque nouvel hôte (mémorisé pour 15 hôtes et 30 jours).
 3. **Créez un objet serveur Kerberos Microsoft Entra** dans AD DS quand les hôtes sont joints hybrides, ou quand des hôtes joints à Microsoft Entra doivent atteindre des ressources AD DS (partages SMB, authentification intégrée).
 4. **Revoyez l'accès conditionnel** : ajoutez Windows Cloud Login aux stratégies.
 5. **Activez l'authentification unique sur le pool d'hôtes** : Propriétés RDP > Informations de connexion > **Authentification unique Microsoft Entra**, ou la propriété ci-dessous.

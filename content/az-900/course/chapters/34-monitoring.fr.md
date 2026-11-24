@@ -28,7 +28,7 @@ Exemples : redimensionner ou arrêter une machine virtuelle sous-utilisée (coû
 | **Service Health** | Seulement les **services et régions que vous utilisez** | Problèmes de service en cours, **maintenance planifiée** à venir, avis d'intégrité ; vous pouvez définir des **alertes** pour être notifié |
 | **Resource Health** | **Vos ressources individuelles**, comme une machine virtuelle | Savoir si une ressource précise est disponible, et si un problème vient de la plateforme |
 
-Service Health conserve aussi un historique des événements, avec des rapports officiels qui expliquent la cause d'un incident.
+Service Health conserve aussi un historique des événements passés : le volet Health history les affiche pendant 90 jours, et l'API les conserve jusqu'à un an.
 
 > **Piège d'examen.** « Y a-t-il une panne dans la région où tournent mes machines virtuelles ? » relève de Service Health. « Ma machine virtuelle est-elle en bonne santé ? » relève de Resource Health. « Quelle est l'utilisation du processeur de ma machine virtuelle ? » relève d'Azure Monitor.
 
@@ -47,9 +47,9 @@ Trois composants sont nommés à l'examen :
 
 | Composant | Rôle |
 | --- | --- |
-| **Azure Log Analytics** | L'outil du portail où vous **écrivez et exécutez des requêtes de journal** sur les données collectées par Azure Monitor, en langage de requête Kusto : de la simple récupération d'enregistrements à l'analyse statistique |
+| **Azure Log Analytics** | L'outil du portail où vous **écrivez et exécutez des requêtes de journal** sur les données collectées par Azure Monitor. Le mode simple filtre, trie et agrège les données par pointer-cliquer ; le mode KQL donne tout le langage de requête Kusto pour une analyse plus poussée |
 | **Azure Monitor alerts** (alertes) | Vous **notifient** automatiquement quand un seuil ou une condition est atteint, sur des métriques (quasi temps réel) ou sur des journaux. Une alerte a une gravité et utilise des **groupes d'actions** qui disent qui est notifié et ce qui est fait ; elle peut aussi déclencher une action corrective |
-| **Application Insights** | Surveille vos **applications web**, qu'elles s'exécutent dans Azure, en local ou dans un autre cloud. S'installe avec un SDK dans l'application ou avec un agent |
+| **Application Insights** | Surveille vos **applications web**, qu'elles s'exécutent dans Azure, en local ou dans un autre cloud. S'active par l'instrumentation automatique sur certaines plateformes (sans modifier le code), ou en ajoutant au code de l'application une distribution OpenTelemetry de Microsoft (Distro) ; les applications qui utilisent les anciens SDK Application Insights peuvent migrer vers OpenTelemetry |
 
 Ce qu'Application Insights surveille : taux de requêtes, temps de réponse et taux d'échec ; taux et échecs des dépendances (appels à des services externes) ; vues de pages et performances de chargement ; nombres d'utilisateurs et de sessions ; compteurs de performances comme le processeur et la mémoire. Il peut aussi envoyer périodiquement des requêtes synthétiques pour vérifier que l'application répond, même quand personne ne l'utilise.
 

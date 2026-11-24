@@ -1,4 +1,4 @@
-Les questions de dépannage donnent un symptôme sur un serveur nommé (une application n'atteint pas SQL1, `nslookup` fonctionne mais pas le navigateur, les mises à jour échouent avec un code d'erreur, Kerberos échoue après un changement d'horloge, une extension est bloquée) et demandent quelle commande montre la cause ou quelle correction vient en premier. Travaillez de bas en haut : interface et IP, routage et pare-feu, résolution de noms, puis le service lui-même.
+Les questions de résolution de problèmes donnent un symptôme sur un serveur nommé (une application n'atteint pas SQL1, `nslookup` fonctionne mais pas le navigateur, les mises à jour échouent avec un code d'erreur, Kerberos échoue après un changement d'horloge, une extension est bloquée) et demandent quelle commande montre la cause ou quelle correction vient en premier. Travaillez de bas en haut : interface et IP, routage et pare-feu, résolution de noms, puis le service lui-même.
 
 <!-- section: connectivity | objectives: 7.2.1 -->
 ## Résoudre les problèmes de connectivité
@@ -107,7 +107,7 @@ w32tm /config /syncfromflags:domhier /update
 | `Local CMOS Clock` | Non synchronisé (aucune source joignable, ou service tout juste démarré) |
 | `time.windows.com` | Source NTP par défaut d'une machine hors domaine |
 
-Machines virtuelles : par défaut, les images Windows de la Place de marché Azure utilisent à la fois l'hôte (**VMICTimeProvider**) et time.windows.com. Un contrôleur de domaine virtualisé, et en particulier l'émulateur PDC, ne doit pas suivre son hôte : désactivez le VMICTimeProvider (`HKLM\SYSTEM\CurrentControlSet\Services\w32time\TimeProviders\VMICTimeProvider`, `Enabled` = 0) pour qu'il utilise la hiérarchie du domaine ou la source NTP configurée.
+Machines virtuelles : par défaut, les images Windows de la Place de marché Azure utilisent à la fois l'hôte (**VMICTimeProvider**) et time.windows.com. Sur les machines jointes à un domaine, le domaine définit la hiérarchie, mais l'émulateur PDC du domaine racine de la forêt a toujours besoin d'une source. Sur Hyper-V, Microsoft recommande de désactiver la synchronisation de l'heure avec l'hôte pour les machines virtuelles qui sont des contrôleurs de domaine : arrêtez la machine virtuelle et décochez **Time synchronization** sous **Integration Services**, pour que le contrôleur de domaine se synchronise sur la hiérarchie du domaine.
 
 > **Piège d'examen.** Après le transfert du rôle d'émulateur PDC, le nouvel émulateur PDC doit recevoir la configuration NTP externe, et l'ancien doit revenir à `/syncfromflags:domhier` ; sinon, la forêt a deux sources « fiables » ou aucune.
 
@@ -162,6 +162,7 @@ Remove-AzConnectedMachineExtension -Name AzureMonitorWindowsAgent -ResourceGroup
 - Une extension qui n'est pas à l'état **Succeeded** : supprimez-la, puis réinstallez-la. Bloquée à l'état **Deleting** : supprimez-la avec `az connectedmachine extension delete`, puis retirez son dossier sous `C:\Packages\Plugins\` si nécessaire.
 - Journaux du gestionnaire d'extensions : `%SystemDrive%\ProgramData\GuestConfig\ext_mgr_logs` (`gc_ext.log` montre les erreurs de téléchargement et de vérification) ; journaux par extension sous `C:\ProgramData\GuestConfig`.
 - Des contrôles de sécurité locaux refusent les installations et signalent un échec à Azure : une **liste d'autorisation** (seules les extensions listées), une **liste de blocage**, `extensions.enabled false` (gestionnaire d'extensions désactivé) ou le **mode supervision** (monitor). Ils ne se modifient que sur le serveur lui-même, et en mode supervision les listes ne peuvent pas changer avant `azcmagent config set config.mode full`.
+- Une extension présente dans les deux listes est bloquée ; dès qu'une liste d'autorisation existe, toute extension non listée est bloquée (la suppression d'une extension reste autorisée). `azcmagent config set` **remplace** une liste, sauf si vous ajoutez `--add` (ajout) ou `--remove` ; `azcmagent config clear` efface la valeur d'une propriété.
 
 ```powershell
 azcmagent config set extensions.allowlist "Microsoft.Azure.Monitor/AzureMonitorWindowsAgent"
@@ -193,7 +194,7 @@ Backup-BitLockerKeyProtector -MountPoint C: -KeyProtectorId $kp.KeyProtectorId
 **Azure Disk Encryption (ADE)** utilise BitLocker avec des clés dans Azure Key Vault. ADE est **mis hors service le 15 septembre 2028** : utilisez le **chiffrement sur l'hôte** (encryption at host) pour les nouvelles machines virtuelles et migrez les existantes. Échecs ADE courants :
 
 - Coffre de clés dans une autre **région ou un autre abonnement** que la machine virtuelle, ou non activé pour le chiffrement de disque.
-- Un GPO de domaine qui **impose des protecteurs TPM** (ADE utilise un protecteur de clé externe) ou bloque AES-CBC.
+- Un GPO de domaine qui **impose des protecteurs TPM** (ADE utilise un protecteur de clé externe) ou bloque AES-CBC ; un GPO BitLocker personnalisé sans **Allow 256-bit recovery key** (*Configure user storage of BitLocker recovery information*) ; les fonctionnalités de stratégie de groupe de MBAM, incompatibles avec ADE.
 - La machine virtuelle n'atteint pas les points de terminaison du dépôt d'extensions, du stockage ou de Key Vault.
 - Machine virtuelle non prise en charge : séries Basic ou A, moins de 2 Go de mémoire, séries v6 ou ultérieures.
 

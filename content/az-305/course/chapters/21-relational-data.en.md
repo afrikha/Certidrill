@@ -29,7 +29,7 @@ What separates the three SQL options:
 
 > **Exam trap.** "Minimize changes to the application" plus SQL Agent jobs, cross-database queries, CLR or linked servers means SQL Managed Instance, not SQL Database. "The server also hosts SSRS or SSAS" or "the vendor requires access to the operating system" means SQL Server on Azure VMs. Neither platform service runs SSRS or SSAS; SSIS packages run in an Azure-SSIS integration runtime of Azure Data Factory.
 
-For open-source engines, recommend a flexible server (PostgreSQL or MySQL): zone-redundant high availability with a standby server in another availability zone, a server that can be stopped to pause compute billing, and automated backups kept 7 days by default and up to 35 days.
+For open-source engines, recommend a flexible server (PostgreSQL or MySQL): zone-redundant high availability with a standby server in another availability zone, a server that can be stopped to pause compute billing (a stopped PostgreSQL flexible server restarts by itself after seven days), and automated backups kept 7 days by default and up to 35 days.
 
 <!-- section: service-compute-tiers | objectives: 2.1.2 -->
 ## Service tiers and compute tiers
@@ -55,8 +55,8 @@ Hyperscale backups are storage snapshots: restores take minutes regardless of si
 | | Provisioned | Serverless |
 | --- | --- | --- |
 | Billing | Fixed price per hour for the vCores provisioned | Per second for the vCores used, between a minimum and a maximum you set |
-| Auto-pause | No | Yes: after the auto-pause delay (15 minutes minimum, 60 by default in General Purpose) only storage is billed |
-| Available in | General Purpose, Business Critical, Hyperscale, elastic pools | Single databases in General Purpose and Hyperscale |
+| Auto-pause | No | Yes: after the auto-pause delay (15 minutes minimum, 60 by default in General Purpose) only storage is billed. In Hyperscale, auto-pause is in preview (60 minutes minimum) |
+| Available in | General Purpose, Business Critical, Hyperscale, elastic pools | Single databases in General Purpose and Hyperscale, on Standard-series (Gen5) hardware only |
 | Best for | Regular, predictable usage; databases that can't accept a resume delay | Intermittent, unpredictable usage with idle periods; new databases with no usage history |
 
 | Requirement | Recommendation |
@@ -126,7 +126,7 @@ Backups complete data protection. SQL Database and SQL Managed Instance take aut
 
 - Most managed option that fits: SQL Database for new applications, SQL Managed Instance for instance-scoped SQL Server features, SQL Server on Azure VMs for operating system access, SSRS or SSAS.
 - General Purpose is the default; Business Critical for 1 to 2 ms latency, in-memory OLTP and a free readable replica; Hyperscale beyond 4 TB and up to 128 TB.
-- Serverless: single databases in General Purpose or Hyperscale, billed per second, auto-pause; never Business Critical, DTU or elastic pools.
+- Serverless: single databases in General Purpose or Hyperscale, billed per second, auto-pause (preview in Hyperscale); never Business Critical, DTU or elastic pools.
 - Elastic pool for many databases with staggered peaks; read scale-out for read-heavy workloads; sharding last.
 - TDE protects files, TLS the network, Always Encrypted hides data from administrators, dynamic data masking only hides it in results, row-level security filters rows.
 - Customer-managed TDE key in Azure Key Vault when the organization must control or revoke the key.

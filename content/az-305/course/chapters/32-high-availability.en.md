@@ -79,7 +79,7 @@ A zone-redundant database fails over with an RPO of zero and an RTO typically un
 | Failover group | A group of databases of a logical server, or all user databases of a managed instance; the secondary is in another region | Customer managed (recommended) or Microsoft managed after a grace period of at least one hour; a read-write and a read-only listener endpoint stay the same |
 | Geo-restore | Geo-redundant backups | Manual restore to a new server; minutes to hours of downtime and data loss |
 
-Geo-replication and failover groups are asynchronous: RPO above zero, RTO typically under 60 seconds. SQL Managed Instance supports zone redundancy (General Purpose, Business Critical) and failover groups only: one group per instance, both instances in the same DNS zone, and a secondary used only for DR pays no SQL Server license.
+Geo-replication and failover groups are asynchronous: RPO above zero, RTO typically under 60 seconds. SQL Managed Instance supports zone redundancy (General Purpose, Next-gen General Purpose, Business Critical; Next-gen General Purpose needs Elastic SAN ZRS, so it isn't available in some regions) and failover groups only: one group per instance, both instances in the same DNS zone, and a secondary designated as a standby used only for DR pays no SQL Server license (its compute and storage are still billed).
 
 SQL Server on Azure Virtual Machines has no built-in HA. An **Always On availability group** protects databases (HA in the region, DR with an asynchronous replica elsewhere, readable secondaries); a **failover cluster instance** protects the whole instance on shared storage (Azure shared disks, premium file shares, Storage Spaces Direct). Spread the VMs across zones (99.99 %) or in an availability set (99.95 %).
 
@@ -110,7 +110,7 @@ Azure Storage always keeps several copies; the redundancy option decides where.
 | GZRS | ZRS, then asynchronous to a secondary region | 16 nines | A zone failure, and a regional outage after a failover |
 | RA-GRS, RA-GZRS | Same as GRS and GZRS | 16 nines | Same, and the secondary is readable at any time |
 
-The read-access options expose the endpoint `<account>-secondary` and raise the read SLA of the hot tier from 99.9 % to 99.99 %. The Last Sync Time property tells how much data a failover would lose; geo priority replication guarantees an RPO of 15 minutes or less for block blobs.
+The read-access options expose the endpoint `<account>-secondary` and raise the read SLA of the hot tier from 99.9 % to 99.99 %. The Last Sync Time property tells how much data a failover would lose; geo priority replication, an optional feature of GRS and GZRS accounts billed since January 1, 2026, has an SLA that the Last Sync Time of block blob data lags 15 minutes or less for 99 % of the billing month (an unplanned failover turns it off).
 
 | Failover | When | Result |
 | --- | --- | --- |

@@ -32,7 +32,7 @@ Attack disruption correlates signals from endpoints, identities, email and SaaS 
 
 | Action | Product that performs it |
 | --- | --- |
-| Contain device, contain IP, isolate device | Defender for Endpoint |
+| Contain device, contain IP, isolate device (automatic isolation in preview) | Defender for Endpoint |
 | Contain user | Defender for Endpoint |
 | Disable user (Active Directory) | Defender for Identity, through the sensor on a domain controller |
 | Revoke user session, suspend user | Microsoft Entra ID |
@@ -43,7 +43,7 @@ Prerequisites that the exam tests:
 
 | Product | Requirement |
 | --- | --- |
-| Defender for Endpoint | Device discovery set to **Standard discovery** (for Contain device); automation level **Full** recommended on device groups; Sense agent 10.8470 or later for Contain user |
+| Defender for Endpoint | Device discovery set to **Standard discovery** (for Contain device); automation level **Full** recommended on device groups (a **Semi** level also lets disruption act without manual approval); Sense agent 10.8470 or later for Contain user |
 | Defender for Identity | Audit policies on domain controllers; the action account is the domain controller's **LocalSystem** by default; a sensor on the domain controller where the account is disabled |
 | Defender for Cloud Apps | Microsoft 365 connected with the **Microsoft Office 365** connector, all options selected |
 | Defender for Office 365 | Mailboxes in Exchange Online, with mailbox auditing of MailItemsAccessed, UpdateInboxRules, MoveToDeletedItems, SoftDelete and HardDelete |
@@ -90,7 +90,7 @@ The automation levels:
 | Full - remediate threats automatically | Automatic; actions appear in History. Recommended, and the default for tenants created since August 16, 2020 |
 | Semi - require approval for all folders | Every action pending |
 | Semi - require approval for core folders | Pending for files in system folders such as `\windows\*`, automatic elsewhere |
-| Semi - require approval for non-temp folders | Automatic only in temporary folders such as `\users\*\downloads\*` or `\windows\temp\*`, pending elsewhere |
+| Semi - require approval for non-temp folders | Automatic only in temporary folders such as `\users\*\downloads\*` or `\windows\temp\*` (Learn's example list also includes `\program files\` and `\program files (x86)\*`), pending elsewhere |
 | No automated response | No automated investigation and no remediation; not recommended |
 
 **Permissions.** Defender for Endpoint roles (Settings > Endpoints > Roles > **Add role**) combine permissions and are assigned to Entra groups, then linked to device groups:
@@ -104,7 +104,7 @@ The automation levels:
 | Manage portal system settings | Automated file uploads, roles and device groups (only in the default administrator role) |
 | Live response capabilities | **Basic** (read-only commands, download files) or **Advanced** (upload files, run scripts from the library) |
 
-Since February 16, 2025, new Defender for Endpoint customers only have the **Microsoft Defender XDR unified RBAC** model; existing customers keep their Defender for Endpoint roles until they move. In unified RBAC, custom roles combine permission groups (Security operations, Authorization and settings, Data operations) and are assigned with a scope of data sources and device groups.
+Since February 16, 2025, new Defender for Endpoint customers only have the **Microsoft Defender XDR unified RBAC** model; existing customers keep their Defender for Endpoint roles until they move. In unified RBAC, custom roles combine permission groups (Security operations, Security posture, Authorization and settings, and Data operations in preview) and are assigned to users or groups with a scope of data sources and Sentinel data collections. Defender for Endpoint device groups, configured separately, still decide which devices those users see and act on.
 
 > **Exam trap.** An analyst who must collect investigation packages but not run scripts needs **Alerts investigation**, not **Live response capabilities: Advanced**. Least privilege usually means the narrower permission on the analyst's device group only.
 
@@ -157,11 +157,11 @@ The permissions are the most tested part:
 | Engineer who writes the playbook | **Logic App Contributor** (Consumption) or a Logic Apps Standard role | Create and edit the workflow |
 | Analyst who runs it manually | **Microsoft Sentinel Playbook Operator** | Run a playbook on an incident, an alert or an entity |
 | Playbook's managed identity | **Microsoft Sentinel Responder** on the workspace (update incidents), Reader if it only reads | Act on Sentinel |
-| Sentinel service account | **Microsoft Sentinel Automation Contributor** on the playbook's resource group, granted with **Manage playbook permissions** by an **Owner** | Let automation rules run the playbook |
+| Sentinel service account | **Microsoft Sentinel Automation Contributor** on the playbook's resource group, granted with **Manage playbook permissions** by an **Owner** or a **User Access Administrator** | Let automation rules run the playbook |
 
-In the designer, outputs of the trigger (incident ARM ID, entities, custom details) are picked from **Dynamic content**. An entity playbook run outside an incident receives a null incident ARM ID: test it with a condition before using it. Run history is on the logic app's page.
+In the designer, outputs of the trigger (incident ARM ID, entities, custom details) are picked from **Dynamic content**. An entity playbook run outside an incident receives a null incident ARM ID: test it with a condition before using it. Run history is on the logic app's page, and in the **Runs** tab of the **Run playbook** panel of an incident.
 
-> **Exam trap.** The playbook is listed but the automation rule fails to run it: Sentinel's service account has no permission on the playbook's resource group. Giving the analyst Logic App Contributor doesn't fix it; an Owner must grant **Manage playbook permissions**.
+> **Exam trap.** The playbook is listed but the automation rule fails to run it: Sentinel's service account has no permission on the playbook's resource group. Giving the analyst Logic App Contributor doesn't fix it; an Owner or a User Access Administrator must grant **Manage playbook permissions**.
 
 <!-- section: key-points -->
 ## Key points

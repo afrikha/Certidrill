@@ -22,7 +22,7 @@ Settings chosen at creation:
 | SKU | Can't be changed after creation |
 | Tier | **Regional** (default) or **Global**. A global-tier address is an anycast address used by a cross-region load balancer; it has no availability zones |
 | Assignment | Static: the address is allocated when the resource is created and released only when the resource is deleted. You can't choose the address, except inside a prefix |
-| Availability zone | Zone-redundant (the default in regions with zones) or one zone. Can't be changed after creation |
+| Availability zone | Zone-redundant (the default in regions with zones; only in regions with three live zones) or one zone. In a region without availability zones, addresses are non-zonal. Can't be changed after creation |
 | Routing preference | **Microsoft network** (default): traffic travels on the Microsoft backbone as long as possible. **Internet**: traffic spends as little time as possible on the Microsoft network and uses transit ISP networks, at a lower data transfer cost. Can't be changed after creation |
 | Idle timeout | 4 to 30 minutes for flows that originate inbound (default 4); fixed at 4 minutes for outbound flows |
 | DNS name label | Creates `<label>.<region>.cloudapp.azure.com`; the label must be unique in the region |
@@ -62,13 +62,14 @@ Routing preference Internet has its own limits: IPv4 only, zone-redundant Standa
 | NAT gateway | Outbound IP addresses | Addresses and prefixes in any combination, 16 addresses at most; a StandardV2 NAT gateway accepts only StandardV2 addresses and prefixes |
 | Azure Firewall | An IP configuration | At least one address; up to 250 in a virtual network. A prefix can't be attached, but addresses created from a prefix can |
 | Application Gateway | A frontend IP configuration | A static Standard address |
-| VPN gateway | A gateway IP configuration | A static Standard address, and a second one in active-active mode; a prefix can't be attached |
+| VPN gateway | A gateway IP configuration | A static Standard address, zone-redundant (new gateways of every SKU except Basic are zone-redundant), and a second one in active-active mode; a prefix can't be attached |
 | Azure Bastion | The public IP configuration of the host | Can't be changed after creation. Not used by the Developer SKU or a private-only deployment |
 | Azure Route Server | A frontend IP configuration | A static Standard address |
 
 Rules that apply to every association:
 
 - Same region and same subscription for the address and the resource.
+- Moving a Standard address: to another resource group even while it is attached (except to a virtual network gateway), to another subscription only once it is detached from every resource, never to another region.
 - An address is associated with one resource at a time. Dissociate it before you reuse it or delete it; a deleted address can't be recovered.
 - A zonal address shares the fate of its zone. Give a zone-redundant resource a zone-redundant address.
 

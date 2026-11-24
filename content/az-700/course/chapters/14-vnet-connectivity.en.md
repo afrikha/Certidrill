@@ -109,7 +109,7 @@ A virtual network can belong to several network groups. Membership changes apply
 | Topology / option | Result |
 | --- | --- |
 | Mesh | Every virtual network of the group connects to every other one through a **connected group** (next hop type `ConnectedGroup`; no peering appears under **Peerings**). Regional by default; **global mesh** connects across regions |
-| Hub and spoke | Network manager creates peerings between the hub and each spoke. The hub can also be a Virtual WAN hub (virtual network connections) |
+| Hub and spoke | Network manager creates peerings between the hub and each spoke. A Virtual WAN hub can also be the hub (virtual network connections), in preview: no SLA, not recommended for production |
 | Direct connectivity (per spoke group) | Adds a connected group among the spokes of that group only; spokes of different groups still can't talk |
 | Use hub as a gateway | Gateway transit for the spokes; enabled by default in the portal. Without a gateway in the hub, the spoke-to-hub peering fails |
 | Delete existing peerings | Removes peerings that don't match the configuration, even manual ones |
@@ -119,7 +119,7 @@ A virtual network can belong to several network groups. Membership changes apply
 | Limit | Value |
 | --- | --- |
 | Spokes peered to one hub by a hub-and-spoke configuration | 1,000 |
-| Virtual networks per connected group | 250 by default; up to 3,000 with the high-scale feature |
+| Virtual networks per connected group | 250 by default; up to 3,000 with a high-scale connected group (preview feature `AllowHighScaleConnectedGroup` and an enablement form) |
 | Private endpoints per connected group | 2,000 by default; up to 20,000 with the high-scale option |
 | Connected groups a virtual network can belong to | 2 (soft limit) |
 

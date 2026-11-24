@@ -58,7 +58,7 @@ Créer des définitions et des attributions exige **Resource Policy Contributor*
 
 Le tableau de bord **Regulatory compliance** (conformité réglementaire) montre, pour chaque norme attribuée, ses contrôles et les ressources qui les réussissent ou les échouent. Le **Microsoft cloud security benchmark (MCSB)** est attribué par défaut (sur AWS et GCP, avec la norme par défaut du fournisseur). Les autres normes (ISO/IEC 27001:2022, PCI DSS v4.0.1, NIST SP 800-53, SOC 2, benchmarks CIS, HIPAA, RGPD de l'UE, DORA, règlement européen sur l'IA...) s'ajoutent :
 
-- **Prérequis** : n'importe quel plan Defender for Cloud **sauf Defender for Servers Plan 1 et Defender for APIs Plan 1**, et **Owner** ou **Policy Contributor** sur l'étendue.
+- **Prérequis** : n'importe quel plan Defender for Cloud **sauf Defender for Servers Plan 1 et Defender for APIs Plan 1**, et **Owner** ou **Policy Contributor** sur l'étendue. Lire les données de conformité exige **Reader** sur l'abonnement ; Security Reader n'y donne pas accès.
 - **Étapes** : **Regulatory compliance > Manage compliance policies >** groupe d'administration, abonnement, compte AWS ou projet GCP **> Security policies >** passez la norme à **On** (définissez les paramètres si demandé). Préférez l'étendue la plus haute.
 - Seuls les contrôles **évaluables automatiquement** ont un état : vert (conforme), rouge (non conforme), grisé (manuel : à attester vous-même). Une norme sans ressource pertinente n'apparaît pas.
 - **Téléchargez les rapports d'audit** (certifications de Microsoft) ou un rapport de votre propre état, et suivez la tendance dans le classeur de conformité dans le temps.
@@ -81,7 +81,7 @@ Le tableau de bord **Regulatory compliance** (conformité réglementaire) montre
 
 - Les exemptions exigent que le MCSB soit attribué et **Owner** ou **Security Admin** (ou Contributor, Resource Policy Contributor) ; elles prennent jusqu'à 24 heures et ne s'appliquent pas aux recommandations personnalisées.
 - **Security Admin** met à jour les stratégies de sécurité, ignore des alertes et gère les connecteurs ; **Security Reader** ne fait que consulter.
-- Le **score de sécurité** compte les recommandations MCSB intégrées ; les recommandations en préversion et la hiérarchisation des risques ne le modifient pas.
+- Le **score de sécurité** compte les recommandations MCSB intégrées ; les recommandations en préversion et la hiérarchisation des risques ne le modifient pas. Depuis le 30 juin 2026, plus de 200 recommandations AWS et GCP comptent aussi. Le **Cloud Secure Score** fondé sur les risques du portail Microsoft Defender est un modèle différent, avec ses propres valeurs.
 - **Foundational CSPM** est gratuit (recommandations, score de sécurité, MCSB) ; **Defender CSPM** ajoute les chemins d'attaque, l'explorateur de sécurité cloud, l'analyse sans agent, la gouvernance, le CIEM et la DSPM.
 
 <!-- section: resource-locks | objectives: 1.3.4 -->
@@ -185,7 +185,7 @@ Les corriger :
 | Fonctionnalité | Comportement |
 | --- | --- |
 | **Suppression réversible** | Données de sauvegarde supprimées conservées 14 jours sans surcoût, jusqu'à 180 jours ; la suppression réversible **toujours active** ne peut plus être désactivée (irréversible) |
-| **Coffre immuable** | États *Disabled*, *Enabled* (réversible), *Enabled and locked* (**irréversible**). Bloque la suppression des points de récupération avant leur expiration et la réduction de la rétention ; augmenter la rétention reste permis. Coffres Recovery Services et coffres de sauvegarde |
+| **Coffre immuable** | États *Disabled*, *Enabled* (réversible), *Enabled and locked* (**irréversible**). **Enable based on backup policy** (par défaut) : les points de récupération restent immuables tant que la stratégie les conserve ; leur suppression avant expiration et la réduction de la rétention sont bloquées, augmenter la rétention reste permis. **Enable for specific duration** : immuables pendant un nombre de jours fixe ; la rétention peut être réduite jusqu'à cette durée, pas en deçà. Coffres Recovery Services et coffres de sauvegarde |
 | **Autorisation multi-utilisateur (MUA)** | Un **Resource Guard**, détenu par un administrateur de la sécurité (idéalement dans un autre abonnement ou un autre locataire), doit autoriser les opérations critiques |
 | Chiffrement | Clés gérées par Microsoft par défaut ; clés gérées par le client dans Key Vault pour les coffres Recovery Services |
 | Points de terminaison privés | Pour SQL Server et SAP HANA dans des VM, l'agent MARS, DPM |

@@ -3,13 +3,13 @@ Le réglage précis (fine-tuning) modifie les poids d'un modèle en le réentra�
 <!-- section: fine-tuning-methods | objectives: 5.2.1 -->
 ## Concevoir et implémenter des méthodes de réglage précis
 
-Foundry propose le **Managed Training** (vous fournissez les données et les paramètres, Foundry exécute le travail ; recommandé pour commencer) et le **Programmed Training** (préversion, sur approbation : vous écrivez la boucle d'entraînement en Python et contrôlez pertes, récompenses et points de contrôle). Le Managed Training propose trois méthodes :
+Foundry propose le **Managed Training** (vous fournissez les données et les paramètres, Foundry exécute le travail ; recommandé pour commencer) et le **Programmed Training** (préversion, sur approbation : vous écrivez la boucle d'entraînement en Python et contrôlez pertes, récompenses et points de contrôle). Le Managed Training propose trois méthodes, et un modèle pris en charge pour une méthode ne l'est pas automatiquement pour une autre :
 
 | Méthode | Signal d'entraînement | À choisir quand | Exemples de modèles pris en charge |
 | --- | --- | --- | --- |
-| **SFT** (réglage précis supervisé) | Des invites avec les réponses souhaitées | Vous pouvez montrer le comportement attendu : format, style, réponses métier, appels d'outils | `gpt-4o-mini`, `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano` |
+| **SFT** (réglage précis supervisé) | Des invites avec les réponses souhaitées | Vous pouvez montrer le comportement attendu : format, style, réponses métier, appels d'outils | `gpt-4o-mini`, `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, et des modèles ouverts comme `Llama-3.3-70B-Instruct`, `Qwen3-32B`, `gpt-oss-20b`, `Ministral-3B` |
 | **DPO** (optimisation directe des préférences) | Une réponse préférée et une réponse rejetée pour la même entrée | La qualité est affaire de préférence : ton, complétude, utilité | `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano` |
-| **RFT** (réglage précis par renforcement) | Des invites plus un **évaluateur (grader)** qui note les réponses générées | Plusieurs bonnes réponses existent et vous savez les noter de façon fiable (tâches de raisonnement) | `o4-mini` (`gpt-5` sur invitation) |
+| **RFT** (réglage précis par renforcement) | Des invites plus un **évaluateur (grader)** qui note les réponses générées | Plusieurs bonnes réponses existent et vous savez les noter de façon fiable (tâches de raisonnement) | `o4-mini` (`gpt-5` sur invitation) ; plusieurs modèles ouverts en préversion |
 
 Les données d'entraînement SFT sont au format JSON Lines, avec le format `messages` de Chat Completions ; les lignes DPO contiennent `input`, `preferred_output` et `non_preferred_output` :
 
@@ -23,7 +23,7 @@ Les enregistrements RFT se terminent par un message `user` et portent les champs
 | Évaluateur | Usage |
 | --- | --- |
 | `string_check` | Étiquettes exactes ou sous-chaînes (`eq`, `ne`, `like`, `ilike`) |
-| `text_similarity` | Similarité avec une référence (`fuzzy_match`, `bleu`, `rouge_l`...) |
+| `text_similarity` | Similarité avec une référence (`fuzzy_match`, `bleu`, `gleu`, `meteor`, `rouge_1` à `rouge_5`, `rouge_l`) ; `cosine` sert aux évaluations, pas au RFT |
 | `score_model` | Un modèle évaluateur applique une grille dans une plage `range` |
 | `python` | Une fonction `grade(sample, item)` renvoie un score ; s'exécute sans accès réseau |
 | `multi` | Combine des évaluateurs enfants avec une formule `calculate_output` |
@@ -124,9 +124,9 @@ Pendant l'entraînement, un travail publie des métriques par étape et peut ren
 
 | Tendance | Signification | Action |
 | --- | --- | --- |
-| La perte d'entraînement baisse, la perte de validation monte | Surajustement | Choisir un point de contrôle antérieur, moins d'époques, un taux d'apprentissage plus faible, des données plus variées |
-| Les deux pertes restent élevées | La tâche n'est pas apprise | Vérifier la qualité et la cohérence des données, ajouter des exemples |
-| La récompense monte, la qualité sur les données mises de côté non | **Détournement de la récompense** (reward hacking) : le modèle exploite l'évaluateur | Tester l'évaluateur sur des réponses correctes, fausses et adverses ; combiner des évaluateurs |
+| La perte d'entraînement baisse, la perte de validation monte | Surajustement | Examiner les exemples de validation en échec ; choisir un point de contrôle antérieur, moins d'époques, un taux d'apprentissage plus faible, des données plus variées |
+| Les deux pertes restent élevées | La tâche n'est pas apprise | Vérifier les données : exemples exacts, cohérents et représentatifs, sans scénarios manquants ni doublons |
+| La récompense monte, la qualité sur les données mises de côté non | **Détournement de la récompense** (reward hacking) : le modèle exploite l'évaluateur | Tester l'évaluateur sur des réponses correctes, fausses, mal formées et adverses, et vérifier que des réponses superficielles ne peuvent pas obtenir un score élevé ; combiner des évaluateurs |
 | Récompense combinée élevée, un critère faible | Un évaluateur `multi` masque une composante faible | Lire les scores par évaluateur |
 
 Les **points de contrôle** apparaissent au fil de l'entraînement. Ne supposez pas que le dernier est le meilleur : comparez les candidats sur des tâches mises de côté, jamais sur la seule perte d'entraînement. Évaluez ensuite le modèle retenu par rapport à la **référence** (le modèle de base avec votre meilleure invite) avec le même jeu de données et les mêmes évaluateurs, et comparez les exécutions. Un modèle ajusté qui ne bat pas la référence ne vaut pas son coût d'hébergement.
@@ -138,10 +138,10 @@ Coût de l'entraînement :
 | Méthode | Facturation |
 | --- | --- |
 | SFT | Jetons d'entraînement x époques x prix par jeton |
-| DPO | Jetons d'entraînement |
+| DPO | Jetons d'entraînement x époques x prix par jeton |
 | RFT | Heures d'entraînement plus jetons d'inférence de l'évaluateur (si un modèle évaluateur est utilisé) |
 
-Non facturés : le temps d'attente en file, les travaux en échec, les travaux annulés avant le début de l'entraînement, les vérifications de sécurité des données. Un travail RFT a une **limite de dépense** : une fois atteinte, l'entraînement se met en pause et crée un point de contrôle déployable ; la reprise continue sans nouvelle limite. Pour réduire les coûts : premières exécutions courtes, moins d'échantillons de validation, le plus petit évaluateur suffisant, entraînement Global quand la résidence n'est pas exigée, annulation précoce des exécutions qui n'améliorent pas la métrique cible, et alertes budgétaires dans Cost Management. La métrique `FineTunedTrainingHours` suit les heures d'entraînement.
+Non facturés : le temps d'attente en file, les travaux en échec, les travaux annulés avant le début de l'entraînement, les vérifications de sécurité des données, et le travail RFT perdu à cause d'une erreur du service. Une exécution annulée après son démarrage est facturée pour le travail effectué jusqu'à l'annulation, et les jetons de l'évaluateur RFT sont facturés à part, aux tarifs de zone de données, une fois l'entraînement terminé. Un travail RFT a une **limite de dépense** : une fois atteinte, l'entraînement se met en pause et crée un point de contrôle déployable ; la reprise continue sans nouvelle limite. Pour réduire les coûts : premières exécutions courtes, moins d'échantillons de validation, le plus petit évaluateur suffisant, entraînement Global quand la résidence n'est pas exigée, annulation précoce des exécutions qui n'améliorent pas la métrique cible, et alertes budgétaires dans Cost Management. La métrique `FineTunedTrainingHours` suit les heures d'entraînement.
 
 > **Piège d'examen.** Une perte d'entraînement plus faible ne prouve pas un meilleur modèle. La bonne réponse à « quel point de contrôle déployer » est celui qui obtient le meilleur score sur la **validation ou l'évaluation mise de côté**, souvent pas le dernier.
 
@@ -152,7 +152,7 @@ Non facturés : le temps d'attente en file, les travaux en échec, les travaux a
 2. **Entraîner** avec la bonne méthode et le bon type d'entraînement ; choisir un `suffix` qui identifie la version.
 3. **Sélectionner un point de contrôle** sur les résultats de validation.
 4. **Évaluer** sur un déploiement **Developer** : tester dans le Playground (en sélectionnant le déploiement ajusté, pas le modèle de base) et exécuter des évaluations cloud par rapport à la référence.
-5. **Déployer en production** sur un déploiement serverless Standard, Global Standard ou approvisionné, dans les limites du quota.
+5. **Déployer en production** sur un déploiement serverless Standard, Data Zone Standard, Global Standard ou approvisionné, dans les limites du quota.
 6. **Surveiller** les métriques et l'évaluation continue ; **itérer** (par exemple DPO sur le modèle SFT) et **retirer** : supprimer les déploiements devenus inutiles.
 
 | Type de déploiement | Facturation | Usage |
@@ -161,7 +161,7 @@ Non facturés : le temps d'attente en file, les travaux en échec, les travaux a
 | Standard | Jetons plus des **frais d'hébergement horaires** | Production régionale avec résidence |
 | Global Standard | Jetons plus frais d'hébergement horaires | Production sur capacité globale (les poids peuvent être stockés hors de votre zone géographique) |
 | Provisioned Throughput | Heures de PTU, sans frais par jeton | Volume élevé et régulier |
-| Global Provisioned | Heures de PTU | Modèles personnalisés importés |
+| Data Zone Standard | Facturation au jeton | Inférence dans une zone de données (États-Unis uniquement) |
 
 | Option de déploiement | État | Remarques |
 | --- | --- | --- |
@@ -184,5 +184,5 @@ Pour une nouvelle version, déployez-la dans un déploiement distinct, basculez 
 - Foundry User entraîne, Foundry Owner déploie ; DPO après SFT utilise l'identifiant du modèle ajusté.
 - Données synthétiques (préversion) : Simple Q&A ou Tool use, un fichier de moins de 20 Mo, 50 à 1 000 échantillons, répartition 80/20 facultative, sortie JSONL ; relire et mélanger avec des données réelles.
 - Surajustement = perte d'entraînement en baisse, perte de validation en hausse : point de contrôle antérieur, moins d'époques ; attention au détournement de la récompense en RFT.
-- SFT facture jetons x époques ; RFT facture les heures plus les jetons de l'évaluateur, avec une limite de dépense qui met le travail en pause.
+- SFT et DPO facturent jetons x époques (une exécution annulée paie le travail effectué) ; RFT facture les heures plus les jetons de l'évaluateur, avec une limite de dépense qui met le travail en pause.
 - Déploiement Developer : 24 heures, sans frais d'hébergement ; les déploiements de production facturent l'hébergement à l'heure jusqu'à leur suppression.

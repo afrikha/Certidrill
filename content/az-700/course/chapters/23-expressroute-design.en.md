@@ -30,7 +30,7 @@ A circuit SKU combines a **tier** (Local, Standard, Premium) and a **billing mod
 | Outbound data transfer | Included | Per GB (metered) or included (unlimited) | Per GB (metered) or included (unlimited) |
 | Microsoft 365 through Microsoft peering | No | No | Required |
 
-Premium limits for linked virtual networks: 20 at 50 Mbps, 25 at 100 and 200 Mbps, 40 at 500 Mbps, 50 at 1 Gbps, 60 at 2 Gbps, 75 at 5 Gbps, 100 at 10 Gbps and above.
+Premium limits for linked virtual networks: 20 at 50 Mbps, 25 at 100 and 200 Mbps, 40 at 500 Mbps, 50 at 1 Gbps, 60 at 2 Gbps, 75 at 5 Gbps, 100 at 10 Gbps and above. Global Reach connections count against the same limit: a 10 Gbps Premium circuit can have, for example, 5 Global Reach connections and 95 gateway connections.
 
 Billing models:
 
@@ -47,7 +47,7 @@ Changes allowed without recreating the circuit:
 | Increase the bandwidth | Yes, if the provider port has capacity |
 | Decrease the bandwidth | No: create a new circuit |
 | Standard to Premium, Premium to Standard | Yes |
-| Local to Standard or Premium | Yes, with Azure CLI or PowerShell |
+| Standard or Premium to Local | Yes, with Azure CLI or PowerShell (not in the portal) |
 | Metered to unlimited | Yes |
 | Unlimited to metered | No |
 
@@ -91,7 +91,7 @@ Steer both directions consistently, otherwise the flows are asymmetric.
 | Option | Problem solved | Main requirements |
 | --- | --- | --- |
 | Global Reach | Two on-premises sites, each on its own circuit, must exchange traffic over the Microsoft network | Private peering on both circuits; circuits in different peering locations; supported countries/regions; Premium only if the circuits are in different geopolitical areas |
-| FastPath | Traffic from on-premises to the virtual machines must skip the gateway to reduce latency | Gateway SKU `UltraPerformance`, `ErGw3AZ`, or `ErGwScale` with at least 10 scale units |
+| FastPath | Traffic from on-premises to the virtual machines must skip the gateway to reduce latency | Gateway SKU `UltraPerformance`, `ErGw3AZ`, or `ErGwScale` with at least 10 scale units; in Virtual WAN, an ExpressRoute gateway with at least 5 scale units |
 | ExpressRoute Direct | Very high bandwidth, physical isolation, or many circuits under your control | A pair of 10, 100 or 400 Gbps ports at a peering location; you provide the cross-connects |
 
 **Global Reach.** Without it, two sites connected to Azure through two circuits can each reach the virtual networks but not each other. Global Reach links the private peerings of the two circuits; it needs a dedicated **/29** subnet that isn't used on-premises or in Azure. It is configured on one of the two circuits. It isn't transitive: with circuits A, B and C, linking A to B and B to C doesn't connect A to C. It is billed as an add-on, and it isn't available on Local circuits.
@@ -101,6 +101,7 @@ Steer both directions consistently, otherwise the flows are asymmetric.
 | Capability | ExpressRoute Direct circuit | Provider circuit |
 | --- | --- | --- |
 | FastPath to the hub virtual network, IPv4 | Yes | Yes |
+| FastPath to the hub virtual network, IPv6 | Yes | No |
 | Virtual network peering over FastPath (same region) | Yes | No |
 | User-defined routes over FastPath | Yes | No |
 | Private endpoints over FastPath | Yes, limited availability | No |
@@ -113,7 +114,7 @@ Traffic that isn't eligible keeps flowing through the gateway, for example to a 
 | --- | --- |
 | 10 Gbps | 1, 2, 5, 10 Gbps |
 | 100 Gbps | 5, 10, 40, 100 Gbps |
-| 400 Gbps | 5, 10, 40, 100, 200, 400 Gbps |
+| 400 Gbps | 5, 10, 40, 100, 200, 400 Gbps (limited peering locations, enrollment required) |
 
 The ports use single-mode fiber and accept QinQ or Dot1Q encapsulation. ExpressRoute Direct is the only model that supports **MACsec** encryption of the physical links, and it unlocks the full FastPath feature set. Typical triggers: massive data ingestion into Azure Storage or Azure Cosmos DB, regulated industries that require dedicated ports, one circuit per business unit.
 

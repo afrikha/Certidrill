@@ -28,6 +28,8 @@ Get-SmbShareAccess -Name Finance
 | Limit simultaneous connections | `-ConcurrentUserLimit` (0 = unlimited, the default) |
 | Encrypt traffic of this share only | `-EncryptData $true` |
 
+Continuously available shares write data through to disk without buffering: they are slower for Folder Redirection, Offline Files, roaming user profiles, home directories and large file copies, and they are incompatible with FSRM. Keep them for workloads such as Hyper-V and SQL Server.
+
 > **Exam trap.** A user with Modify in NTFS but Read at the share can only read over the network; the same user signed in locally on the server can modify. When "access works locally but not from the network", check the share permissions.
 
 Since Windows Server 2025, creating a share enables the **File and Printer Sharing (Restrictive)** firewall group, which no longer opens the NetBIOS ports 137 to 139.
@@ -149,7 +151,7 @@ Defaults to know:
 - **SMB 1.0** isn't installed by default since Windows Server version 1709; remove it where it remains, because it bypasses SMB 3.1.1 pre-authentication integrity.
 - Windows Server 2025 **requires signing for outbound connections** by default. Domain controllers require signing from their clients (SYSVOL, NETLOGON).
 - SMB 3.1.1 negotiates **AES-128-GCM** encryption by default; AES-256-GCM and AES-256-CCM are available since Windows Server 2022.
-- With encryption required, an SMB 3 client that can't encrypt is rejected with **Access denied** and event 1003 in `Microsoft-Windows-SmbServer/Operational`.
+- With encryption required and `RejectUnencryptedAccess` at its default (`$true`), a client that doesn't support SMB 3.x (SMB 1.0 clients included) is rejected with **Access denied** and event 1003 in `Microsoft-Windows-SmbServer/Operational`.
 - **SMB Multichannel** uses several network paths automatically and is required for SMB Direct (see the storage chapter).
 
 > **Exam trap.** SMB encryption protects data in transit only. Data at rest is BitLocker's job, and SMB encryption doesn't need EFS or BitLocker.

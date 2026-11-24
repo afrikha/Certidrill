@@ -111,8 +111,8 @@ Certificates for custom domains:
 | --- | --- | --- |
 | Source | Issued by DigiCert; add a CAA record `0 issue digicert.com` if your domain restricts issuers | Imported in Azure Key Vault as a certificate object (PFX), from a trusted CA; EC keys not supported |
 | Domains | Subdomain, apex and wildcard | Any domain that matches the certificate's CN or SAN |
-| Renewal | Automatic when the domain CNAME points directly to the endpoint; otherwise revalidate with a new TXT record 45 days before expiry | Automatic when the secret version is **Latest**; a pinned version must be reselected manually |
-| Prerequisites | Domain validated (TXT record) | Key Vault in the **same subscription** as the profile; access through a managed identity (Azure RBAC) or Front Door's service principal (access policy); "Allow trusted Microsoft services" if the vault firewall is on |
+| Renewal | Automatic when the domain CNAME points directly to the endpoint; otherwise revalidate with a new TXT record 45 days before expiry. Apex domains may need revalidation; wildcard domains aren't rotated automatically | Automatic when the secret version is **Latest**; a pinned version must be reselected manually |
+| Prerequisites | Domain validated (TXT record) | Key Vault in the **same subscription** as the profile; access through a managed identity (Azure RBAC, recommended) or Front Door's service principal (access policy; this app registration method is being deprecated); "Allow trusted Microsoft services" if the vault firewall is on |
 
 > **Exam trap.** Encryption "between Front Door and the web servers" isn't a certificate setting on the domain: set the route's forwarding protocol to **HTTPS only** and make sure the origin certificate matches the origin host name.
 
@@ -172,7 +172,7 @@ Front Door shortens the path between users and origins even for content that can
 <!-- section: rules | objectives: 3.3.8 -->
 ## Rule sets, URL rewrite and URL redirect
 
-A **rule set** is a group of rules associated with one or more routes. WAF rules run first, then the route's rule sets in their configured order, then the rules of each set in order. A rule has up to **10 match conditions**, combined with AND (several values in one condition are combined with OR), and up to **5 actions**. **Stop evaluating remaining rules** ends the processing for that request.
+A **rule set** is a group of rules associated with one or more routes. WAF rules run first, then the route's rule sets in their configured order, then the rules of each set in order. A rule has up to **10 match conditions**, combined with AND (several values in one condition are combined with OR), and up to **5 actions**. With **Stop evaluating remaining rules**, the remaining rule sets associated with the route don't run.
 
 Match conditions include request path, URL, file extension, query string, header, cookies, method, protocol, host name, device type and remote address (IP or geo match). Regular expressions and server variables such as `{url_path:seg1}` are supported.
 
@@ -245,7 +245,7 @@ Design rules:
 
 - An origin group can't mix public and private origins.
 - In one profile, origins with the same resource, subresource and region share one private endpoint, approved once; another region or profile means another approval.
-- Each regional cluster accepts up to 7,200 requests per second per profile; for more load or regional redundancy, add origins that use different Private Link regions.
+- Each regional cluster accepts up to 7,200 requests per second per profile (beyond that, requests get `429 Too Many Requests`); for more load or regional redundancy, add origins that use different Private Link regions.
 - Private Link covers only Front Door to origin; clients still reach Front Door over the internet.
 
 Without Premium, lock down a public origin: allow only the **AzureFrontDoor.Backend** service tag (NSG or access restriction) and reject requests whose `X-Azure-FDID` header isn't your profile ID.

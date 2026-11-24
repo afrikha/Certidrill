@@ -27,7 +27,7 @@ Rules that decide answers:
 - Keep a host pool's session hosts in one region, close to users, with their virtual network, profile storage and images. For users in two regions, build a host pool per region.
 - Microsoft recommends no more than **5,000 VMs per subscription per region**; beyond that, add subscriptions as spokes peered to the hub, or use another region.
 - Service limits: 10,000 session hosts per host pool, 500 RemoteApps per application group, 200 role assignments per Azure Virtual Desktop object.
-- Session host name prefixes can't exceed 11 characters: Azure adds a suffix and the NetBIOS name is limited to 15 characters.
+- Session host name prefixes can't exceed 11 characters (10 with a session host configuration): Azure adds a suffix and the NetBIOS name is limited to 15 characters.
 - Tags (cost center, environment, owner) feed Cost Management filters and automation.
 
 > **Exam trap.** A question that asks where to assign a policy or a role "for all Azure Virtual Desktop subscriptions, including those created later" wants the management group, not each subscription.
@@ -72,7 +72,7 @@ The license grants access rights only. Compute, storage and networking are alway
 - Enroll the Azure subscription; charges appear on its bill.
 - A user is charged a flat monthly price only if they connect at least once in the billing month: the **Apps** tier if they used only RemoteApps, the **Desktops + apps** tier if they used a full desktop.
 - At most one charge per user per billing period, even across several subscriptions in the tenant.
-- It covers Azure Virtual Desktop access rights and FSLogix, not Microsoft 365 Apps, Microsoft Defender XDR or Universal Print.
+- It covers Azure Virtual Desktop access rights and FSLogix, not Microsoft Office, Microsoft Defender XDR or Universal Print.
 - An enrolled subscription also charges users who already hold an eligible license: put internal users in a separate, non-enrolled subscription.
 
 Other rules:
@@ -151,11 +151,12 @@ Rules for multi-session hosts:
 
 | VM series | Rendering | Encoding |
 | --- | --- | --- |
-| NVadsA10 v5, NVv3, NCasT4_v3 | Yes | HEVC/H.265 and AVC/H.264 |
-| NVv4 | Yes | AVC/H.264 only |
+| NVadsA10 v5, NCasT4_v3 | Yes | HEVC/H.265 and AVC/H.264 |
 
+- The NVv3 and NVv4 series, still listed on the Azure Virtual Desktop GPU page, had their retirement planned for September 30, 2026: don't plan new session hosts on them.
+- HEVC/H.265 encoding needs Windows 10 or Windows 11 session hosts (not Windows Server) and GRID driver 16.2 or later.
 - Avoid NC, NCv2, NCv3, ND and NDv2: built for compute, they don't accelerate the Windows desktop.
-- NVIDIA sizes need the **GRID** driver (the NVIDIA GPU Driver Extension installs it), not CUDA; AMD sizes need the AMD driver distributed by Azure.
+- NVIDIA sizes need the **GRID** driver (the NVIDIA GPU Driver Extension installs it), not CUDA. Only drivers distributed by Azure are supported.
 - Enable the policies **Use hardware graphics adapters for all Remote Desktop Services sessions** and **Configure H.264/AVC hardware encoding for Remote Desktop connections**, then restart the hosts.
 
 > **Exam tip.** "Users run a CAD application and complain about choppy graphics" calls for an NV-series GPU host with the GRID driver and the hardware rendering and encoding policies, not for more vCPUs.
@@ -186,7 +187,7 @@ Personal host pools need one VM per user, active or not: 200 developers mean 200
 ## Key points
 
 - Separate resource groups by lifecycle: service objects, compute, storage, network; governance at the management group.
-- Up to 5,000 VMs per subscription per region; 10,000 session hosts per host pool; host name prefix of 11 characters at most.
+- Up to 5,000 VMs per subscription per region; 10,000 session hosts per host pool; host name prefix of 11 characters at most (10 with a session host configuration).
 - Windows 11 Enterprise multi-session for pooled, Windows 11 Enterprise for personal, Windows Server when an app or RDS CAL licensing requires it.
 - Internal users: eligible per-user Windows client licenses or RDS CALs for Windows Server. External users: per-user access pricing, Windows client only.
 - Breadth-first spreads, depth-first fills up to the max session limit; personal pools use automatic or direct assignment.

@@ -10,10 +10,10 @@ A listener matches incoming requests on four values: **frontend IP**, **frontend
 | Frontend IP | Public or private; the two IPv4 listeners (public and private) can share a port, IPv6 public and private listeners can't |
 | Frontend port | 1 to 64999 on v2 (some ports excluded, such as 22 with Private Link) |
 | Protocol | HTTP, HTTPS (layer 7), TLS, TCP (layer 4 proxy) |
-| Type | **Basic**: any host name on that IP and port. **Multi-site**: up to 5 host names, wildcards `*` and `?` allowed (`*.contoso.com`) |
+| Type | **Basic**: any host name on that IP and port. **Multi-site**: up to 5 host names, wildcards `*` (several characters) and `?` (one character) allowed; `*.contoso.com` matches `shop.contoso.com` and `customer1.b2b.contoso.com` but not `contoso.com` |
 | Certificate | Required for HTTPS: a PFX file (private key and full chain) or a Key Vault reference |
 | SSL profile | Optional: listener-specific TLS policy and client authentication |
-| Custom error pages | For codes 400, 403, 405, 408, 500, 502, 503, 504, global or per listener |
+| Custom error pages | For codes 400, 403, 405, 408, 500, 502, 503, 504 (404 isn't supported), global or per listener; global pages can't be configured in the portal (PowerShell) |
 
 HTTP/2 applies to client connections over HTTPS only; it is enabled by default when the gateway is created in the portal. WebSocket needs no setting.
 
@@ -141,7 +141,7 @@ az network application-gateway ssl-cert create --resource-group RG-Web \
 | `AppGwSslPolicy20170401S` | TLS 1.2 | Older ciphers when required |
 | `CustomV2` | TLS 1.2 or 1.3 | Your own cipher order, TLS 1.3 support |
 
-`AppGwSslPolicy20150501` and `AppGwSslPolicy20170401` (TLS 1.0 and 1.1) are discontinued. A policy applies to the whole gateway; an **SSL profile** gives a listener its own policy.
+`AppGwSslPolicy20150501` (TLS 1.0 minimum, still the default for API versions earlier than 2023-02-01) and `AppGwSslPolicy20170401` (TLS 1.1 minimum) are still listed, but TLS 1.0 and 1.1 are no longer supported since August 31, 2025. These older policies and the 2022 or `CustomV2` policies can't coexist on one gateway. A policy applies to the whole gateway; an **SSL profile** gives a listener its own policy, but listeners on the same port can't use different TLS protocol versions: use a separate port for each version.
 
 **Mutual TLS** (Standard_v2 and WAF_v2): in an SSL profile, **strict** mode requires a valid client certificate chained to an uploaded trusted client CA certificate (root plus intermediates, 25 KB per file, 100 per profile, 200 per gateway); **passthrough** mode requests the certificate but lets the backend validate it. Server variables such as `client_certificate` forward it to the backend.
 

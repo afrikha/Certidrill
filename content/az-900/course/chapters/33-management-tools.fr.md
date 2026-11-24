@@ -19,7 +19,7 @@ L'**application mobile Azure** donne accès aux ressources, aux alertes et à un
 | --- | --- | --- |
 | **Azure PowerShell** | Un module de **cmdlets** pour PowerShell ; fonctionne sous Windows, Linux et macOS | `New-AzVM`, `Get-AzResourceGroup` |
 | **Azure CLI** | Une interface en ligne de commande avec des commandes de **style Bash** ; fonctionne sous Windows, Linux et macOS | `az vm create`, `az group list` |
-| **Azure Cloud Shell** | Un shell **dans le navigateur**, ouvert depuis le portail ou sur shell.azure.com, avec les deux outils déjà installés | Bash ou PowerShell, au choix |
+| **Azure Cloud Shell** | Un shell **dans le navigateur**, ouvert depuis le portail, sur shell.azure.com ou depuis l'application mobile Azure, avec les deux outils déjà installés | Bash ou PowerShell, au choix |
 
 Azure PowerShell et Azure CLI font les mêmes choses ; seule la syntaxe diffère. Tous deux appellent l'API REST d'Azure en arrière-plan, et tous deux permettent d'écrire des scripts pour automatiser la création d'une ressource ou de toute une infrastructure.
 
@@ -82,6 +82,8 @@ Un **modèle ARM** est un fichier **JSON** qui décrit les ressources à déploy
 | **Extensibilité** | On peut y ajouter des scripts de déploiement en PowerShell ou en Bash |
 
 **Bicep** est un langage qui décrit lui aussi les ressources de façon déclarative, avec une syntaxe plus simple et plus concise que le JSON. Il prend en charge tous les types de ressources, il est modulaire et donne des résultats reproductibles ; un fichier Bicep est converti en modèle ARM au déploiement.
+
+Quand un modèle ou un fichier Bicep est redéployé, ARM réapplique toutes les propriétés de chaque ressource qu'il décrit, car le fichier décrit toujours l'état final : une modification manuelle faite depuis le dernier déploiement, par exemple dans le portail, est écrasée.
 
 > **Piège d'examen.** Déclaratif signifie décrire l'état final (« un compte de stockage nommé X existe »). Les scripts sont impératifs : une liste de commandes à exécuter dans l'ordre. Les modèles ARM et Bicep sont déclaratifs.
 

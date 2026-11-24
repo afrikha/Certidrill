@@ -1,0 +1,513 @@
+chapter: 32-sentinel-hunting
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: sc200-qz-32-01
+    objective: "3.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso uses Microsoft Sentinel in the Microsoft Defender portal and is onboarded to the Microsoft Sentinel data lake. To reduce costs, the **ProxyLogs_CL** table is stored in the data lake tier only.
+
+        A custom hunting query on the **Hunting** page searches ProxyLogs_CL for events from last week. It returns no results, but the same KQL query run in **Data lake exploration > KQL queries** returns the expected events.
+
+        What is the cause?
+      fr: |
+        Contoso utilise Microsoft Sentinel dans le portail Microsoft Defender et est intégré au data lake Microsoft Sentinel. Pour réduire les coûts, la table **ProxyLogs_CL** est stockée uniquement au niveau data lake.
+
+        Une requête de chasse personnalisée de la page **Hunting** recherche dans ProxyLogs_CL des événements de la semaine dernière. Elle ne renvoie aucun résultat, alors que la même requête KQL exécutée dans **Data lake exploration > KQL queries** renvoie les événements attendus.
+
+        Quelle est la cause ?
+    body:
+      options:
+        - { id: a, text: { en: "Hunting queries run on the analytics tier and don't read data kept only in the data lake tier.", fr: "Les requêtes de chasse s'exécutent au niveau Analytics et ne lisent pas les données conservées uniquement au niveau data lake." } }
+        - { id: b, text: { en: "The query has no entity mappings, so the Hunting page returns no rows from data lake tables.", fr: "La requête n'a aucun mappage d'entités : la page Hunting ne renvoie donc aucune ligne des tables du data lake." } }
+        - { id: c, text: { en: "Data reaches the data lake about 15 minutes late, and the Hunting page skips these late events.", fr: "Les données arrivent dans le data lake avec environ 15 minutes de retard, et la page Hunting ignore ces événements tardifs." } }
+        - { id: d, text: { en: "Hunting queries read data lake custom tables only after the query becomes an analytics rule.", fr: "Les requêtes de chasse ne lisent les tables personnalisées du data lake qu'une fois la requête devenue règle d'analytique." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Data in the data lake tier isn't available to the real-time analytics features, including threat hunting: hunting queries and analytics rules work on the analytics tier. Data lake exploration queries the lake directly, which is why it finds the events. To hunt on this data from the Hunting page, promote the needed rows to the analytics tier with a KQL job, or aggregate them with a summary rule.
+        fr: |
+          Les données du niveau data lake ne sont pas disponibles pour les fonctionnalités d'analyse en temps réel, dont la chasse aux menaces : les requêtes de chasse et les règles d'analytique travaillent sur le niveau Analytics. L'exploration du data lake interroge directement le lake, d'où les événements trouvés. Pour chasser sur ces données depuis la page Hunting, promouvez les lignes nécessaires au niveau Analytics avec une tâche KQL, ou agrégez-les avec une règle de synthèse.
+      options:
+        b: { en: "Entity mappings enrich results and bookmarks; they don't decide which tier the query can read.", fr: "Les mappages d'entités enrichissent les résultats et les signets ; ils ne déterminent pas le niveau que la requête peut lire." }
+        c: { en: "The ingestion latency of the lake is about 15 minutes; it can't hide events from last week.", fr: "La latence d'ingestion du lake est d'environ 15 minutes ; elle ne peut pas masquer des événements de la semaine dernière." }
+        d: { en: "Analytics rules also work on the analytics tier: turning the query into a rule doesn't give it access to the lake-only data.", fr: "Les règles d'analytique travaillent elles aussi sur le niveau Analytics : transformer la requête en règle ne lui donne pas accès aux données présentes uniquement dans le lake." }
+    references:
+      - title: Manage data in Microsoft Sentinel and Defender
+        url: https://learn.microsoft.com/en-us/azure/sentinel/manage-data-overview
+      - title: Threat hunting in Microsoft Sentinel
+        url: https://learn.microsoft.com/en-us/azure/sentinel/hunting
+
+  # ------------------------------------------------------------------ 2
+  - id: sc200-qz-32-02
+    objective: "3.2.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has a Microsoft Sentinel workspace. A summary rule named **FwHourly** writes an aggregation of firewall logs to the **FwHourly_CL** table every 60 minutes.
+
+        You need a query that returns only the rows that FwHourly produced for the aggregation interval that started yesterday at 08:00.
+
+        Which column should you filter on?
+      fr: |
+        Fabrikam dispose d'un espace de travail Microsoft Sentinel. Une règle de synthèse nommée **FwHourly** écrit toutes les 60 minutes une agrégation des journaux de pare-feu dans la table **FwHourly_CL**.
+
+        Vous avez besoin d'une requête qui renvoie uniquement les lignes produites par FwHourly pour l'intervalle d'agrégation qui a commencé hier à 08:00.
+
+        Sur quelle colonne devez-vous filtrer ?
+    body:
+      options:
+        - { id: a, text: "`_RuleLastModifiedTime`" }
+        - { id: b, text: "`_BinSize`" }
+        - { id: c, text: "`_BinStartTime`" }
+        - { id: d, text: "`_RuleName`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Summary rules add four columns to each result row. `_BinStartTime` holds the start time of the aggregation interval (bin) that produced the row, so filtering on it isolates the bin that started at 08:00.
+        fr: |
+          Les règles de synthèse ajoutent quatre colonnes à chaque ligne de résultat. `_BinStartTime` contient l'heure de début de l'intervalle d'agrégation qui a produit la ligne : filtrer sur cette colonne isole l'intervalle qui a commencé à 08:00.
+      options:
+        a: { en: "`_RuleLastModifiedTime` records when the rule was last modified, the same value for every bin since that change.", fr: "`_RuleLastModifiedTime` indique la dernière modification de la règle, la même valeur pour tous les intervalles depuis ce changement." }
+        b: { en: "`_BinSize` holds the aggregation interval (60 minutes here), not its start time.", fr: "`_BinSize` contient la durée de l'intervalle d'agrégation (60 minutes ici), pas son heure de début." }
+        d: { en: "`_RuleName` identifies the rule that produced the row; every FwHourly row has the same value.", fr: "`_RuleName` identifie la règle qui a produit la ligne ; toutes les lignes de FwHourly ont la même valeur." }
+    references:
+      - title: Aggregate data in a Log Analytics workspace by using summary rules
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/logs/summary-rules
+
+  # ------------------------------------------------------------------ 3
+  - id: sc200-qz-32-03
+    objective: "3.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Woodgrove Bank has onboarded Microsoft Sentinel to the data lake. A threat hunter named **Hunter2** has no role in Microsoft Entra ID.
+
+        Hunter2 must connect GitHub Copilot in Visual Studio Code to the data exploration collection of the Microsoft Sentinel MCP server and use its `search_tables` and `query_lake` tools. Hunter2 won't use the entity analyzer tools. The solution must follow the principle of least privilege.
+
+        Which role should you assign to Hunter2?
+      fr: |
+        Woodgrove Bank a intégré Microsoft Sentinel au data lake. Un chasseur de menaces nommé **Hunter2** n'a aucun rôle dans Microsoft Entra ID.
+
+        Hunter2 doit connecter GitHub Copilot dans Visual Studio Code à la collection d'exploration des données du serveur MCP Microsoft Sentinel et utiliser ses outils `search_tables` et `query_lake`. Hunter2 n'utilisera pas les outils d'analyse d'entités. La solution doit respecter le principe du privilège minimum.
+
+        Quel rôle devez-vous attribuer à Hunter2 ?
+    body:
+      options:
+        - { id: a, text: "Security Operator" }
+        - { id: b, text: "Security Copilot Contributor" }
+        - { id: c, text: "Security Administrator" }
+        - { id: d, text: "Security Reader" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Listing and invoking the tools of the Microsoft Sentinel MCP server requires the Security Reader role, and the data exploration collection accepts Security Reader, Security Operator or Security Administrator. Security Reader is the least privileged of the three and is enough for `search_tables` and `query_lake`.
+        fr: |
+          Lister et appeler les outils du serveur MCP Microsoft Sentinel exige le rôle Security Reader, et la collection d'exploration des données accepte Security Reader, Security Operator ou Security Administrator. Security Reader est le moins privilégié des trois et suffit pour `search_tables` et `query_lake`.
+      options:
+        a: { en: "Security Operator also works, but it grants more permissions than reading data requires.", fr: "Security Operator fonctionne aussi, mais il accorde plus d'autorisations que la lecture des données n'en exige." }
+        b: { en: "Security Copilot Contributor is needed in addition for the entity analyzer tools; it doesn't replace the Security Reader requirement.", fr: "Security Copilot Contributor est nécessaire en plus pour les outils d'analyse d'entités ; il ne remplace pas l'exigence de Security Reader." }
+        c: { en: "Security Administrator works but is far more privileged than needed.", fr: "Security Administrator fonctionne, mais il est bien plus privilégié que nécessaire." }
+    references:
+      - title: Get started with Microsoft Sentinel MCP server
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/sentinel-mcp-get-started
+      - title: Data exploration tool collection in Microsoft Sentinel MCP server
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/sentinel-mcp-data-exploration-tool
+
+  # ------------------------------------------------------------------ 4
+  - id: sc200-qz-32-04
+    objective: "3.2.2"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Fabrikam is onboarded to the Microsoft Sentinel data lake. Before turning their queries into KQL jobs, its analysts test them in **Data lake exploration > KQL queries**, sometimes interactively and sometimes as async queries that run for a long time against the largest firewall and sign-in tables.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam est intégré au data lake Microsoft Sentinel. Avant de transformer leurs requêtes en tâches KQL, ses analystes les testent dans **Data lake exploration > KQL queries**, tantôt de manière interactive, tantôt comme requêtes asynchrones qui s'exécutent longtemps sur les plus grosses tables de pare-feu et de connexions.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: When 10 queries of the tenant are already running, a new query waits in a queue and starts when one of them finishes.
+            fr: Quand 10 requêtes du locataire sont déjà en cours, une nouvelle requête attend dans une file et démarre dès que l'une d'elles se termine.
+        - id: s2
+          text:
+            en: After an async query completes, its results can be fetched several times from the Async Queries tab during the next 24 hours.
+            fr: Une fois une requête asynchrone terminée, ses résultats peuvent être récupérés plusieurs fois depuis l'onglet Async Queries pendant les 24 heures suivantes.
+        - id: s3
+          text:
+            en: A query can search three years of a table's data when the retention of the table covers that period.
+            fr: Une requête peut porter sur trois ans de données d'une table quand la rétention de la table couvre cette période.
+    answer:
+      values: { s1: false, s2: true, s3: true }
+    explanation:
+      correct:
+        en: |
+          Interactive and async lake queries share a limit of 10 concurrent queries per tenant; beyond it, a query is rejected, not queued, and must be submitted again. Async query results are stored for 24 hours and can be accessed multiple times. The queryable time range goes up to 12 years, depending on the retention of the data.
+        fr: |
+          Les requêtes interactives et asynchrones sur le lake partagent une limite de 10 requêtes simultanées par locataire ; au-delà, une requête est rejetée, pas mise en file d'attente, et doit être soumise de nouveau. Les résultats d'une requête asynchrone sont conservés 24 heures et peuvent être consultés plusieurs fois. La plage de temps interrogeable va jusqu'à 12 ans, selon la rétention des données.
+    references:
+      - title: Run KQL queries on the Microsoft Sentinel data lake
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/kql-queries
+
+  # ------------------------------------------------------------------ 5
+  - id: sc200-qz-32-05
+    objective: "3.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has onboarded Microsoft Sentinel to the data lake. Threat hunters used the Microsoft Sentinel extension in Visual Studio Code to schedule four notebook jobs. All four jobs start every day at 02:00, each run takes about 40 minutes, and no other notebook job runs at that time.
+
+        What happens every day at 02:00?
+      fr: |
+        Litware a intégré Microsoft Sentinel au data lake. Des chasseurs de menaces ont utilisé l'extension Microsoft Sentinel de Visual Studio Code pour planifier quatre tâches de notebook. Les quatre tâches démarrent tous les jours à 02:00, chaque exécution dure environ 40 minutes et aucune autre tâche de notebook ne s'exécute à cette heure.
+
+        Que se passe-t-il chaque jour à 02:00 ?
+    body:
+      options:
+        - { id: a, text: { en: "Three jobs start, and the fourth run is rejected until its next scheduled time.", fr: "Trois tâches démarrent, et la quatrième exécution est rejetée jusqu'à sa prochaine heure planifiée." } }
+        - { id: b, text: { en: "Three jobs start, and the fourth run waits in a queue until one of them finishes.", fr: "Trois tâches démarrent, et la quatrième exécution attend dans une file jusqu'à ce que l'une d'elles se termine." } }
+        - { id: c, text: { en: "The four jobs start at the same time, each one on its own Spark pool.", fr: "Les quatre tâches démarrent en même temps, chacune sur son propre pool Spark." } }
+        - { id: d, text: { en: "The four jobs run one after the other, in the order in which they were created.", fr: "Les quatre tâches s'exécutent l'une après l'autre, dans l'ordre de leur création." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          At most three notebook jobs run at the same time; the next ones are queued and start when a running job finishes. Here three jobs start at 02:00 and the fourth starts at about 02:40. KQL jobs behave differently: beyond their concurrency limit, a run is rejected instead of queued.
+        fr: |
+          Trois tâches de notebook au plus s'exécutent en même temps ; les suivantes sont mises en file d'attente et démarrent quand une tâche en cours se termine. Ici, trois tâches démarrent à 02:00 et la quatrième vers 02:40. Les tâches KQL se comportent autrement : au-delà de leur limite de simultanéité, une exécution est rejetée au lieu d'être mise en file d'attente.
+      options:
+        a: { en: "Rejection is the behavior of KQL jobs beyond five concurrent runs; notebook jobs beyond three are queued.", fr: "Le rejet est le comportement des tâches KQL au-delà de cinq exécutions simultanées ; les tâches de notebook au-delà de trois sont mises en file d'attente." }
+        c: { en: "The limit of three concurrent notebook jobs applies whatever pool each job uses.", fr: "La limite de trois tâches de notebook simultanées s'applique quel que soit le pool de chaque tâche." }
+        d: { en: "Up to three jobs run in parallel; they aren't serialized one by one.", fr: "Jusqu'à trois tâches s'exécutent en parallèle ; elles ne sont pas exécutées une par une." }
+    references:
+      - title: Run notebooks on the Microsoft Sentinel data lake
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/notebooks
+
+  # ------------------------------------------------------------------ 6
+  - id: sc200-qz-32-06
+    objective: "3.2.3"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Adatum has a Microsoft Sentinel workspace named **ADT-SOC** that contains the following tables.
+
+        | Table | Plan |
+        | --- | --- |
+        | ProxyLogs_CL | Basic |
+        | WebLogs_CL | Basic |
+        | HrUsers_CL | Analytics |
+
+        ADT-SOC already has 99 active summary rules. A detection engineer plans two new hourly summary rules:
+
+        - **SR-Proxy** aggregates ProxyLogs_CL only, by user and destination host. Its definition hasn't been modified since its creation.
+        - **SR-Web** uses the following query.
+
+        ```kusto
+        union ProxyLogs_CL, WebLogs_CL
+        | summarize Requests = count() by SrcUser, DestHost
+        ```
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum dispose d'un espace de travail Microsoft Sentinel nommé **ADT-SOC** qui contient les tables suivantes.
+
+        | Table | Plan |
+        | --- | --- |
+        | ProxyLogs_CL | Basic |
+        | WebLogs_CL | Basic |
+        | HrUsers_CL | Analytics |
+
+        ADT-SOC compte déjà 99 règles de synthèse actives. Un ingénieur de détection prévoit deux nouvelles règles de synthèse horaires :
+
+        - **SR-Proxy** agrège uniquement ProxyLogs_CL, par utilisateur et par hôte de destination. Sa définition n'a pas été modifiée depuis sa création.
+        - **SR-Web** utilise la requête suivante.
+
+        ```kusto
+        union ProxyLogs_CL, WebLogs_CL
+        | summarize Requests = count() by SrcUser, DestHost
+        ```
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: The query of SR-Web is supported in a summary rule.
+            fr: La requête de SR-Web est prise en charge dans une règle de synthèse.
+        - id: s2
+          text:
+            en: After SR-Proxy is created and active, another new summary rule can be activated in ADT-SOC without disabling an existing rule.
+            fr: Une fois SR-Proxy créée et active, une autre nouvelle règle de synthèse peut être activée dans ADT-SOC sans désactiver une règle existante.
+        - id: s3
+          text:
+            en: If a bin of SR-Proxy fails all its automatic retries, the engineer can rerun that bin from the runs of the rule.
+            fr: Si un intervalle de SR-Proxy échoue à toutes ses nouvelles tentatives automatiques, l'ingénieur peut réexécuter cet intervalle depuis les exécutions de la règle.
+    answer:
+      values: { s1: false, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          A summary rule over Basic tables supports all KQL operators on a single table, with `lookup` to Analytics tables only: SR-Web combines two Basic tables, so it isn't supported. A workspace can have 100 active summary rules, and SR-Proxy is the 100th, so another rule needs an existing one to be disabled first. After 10 failed attempts within eight hours a bin is skipped, but you can rerun it from **View runs** > **Rerun this bin**, as long as the bin starts after the last modification of the rule.
+        fr: |
+          Une règle de synthèse sur des tables Basic prend en charge tous les opérateurs KQL sur une seule table, avec `lookup` vers des tables Analytics uniquement : SR-Web combine deux tables Basic, elle n'est donc pas prise en charge. Un espace de travail peut avoir 100 règles de synthèse actives, et SR-Proxy est la centième : une autre règle exige d'abord d'en désactiver une existante. Après 10 tentatives en échec en huit heures, un intervalle est ignoré, mais vous pouvez le réexécuter depuis **View runs** > **Rerun this bin**, tant que l'intervalle commence après la dernière modification de la règle.
+      options:
+        s1: { en: "With a Basic source, a summary rule reads a single table; combining two Basic tables with union isn't supported.", fr: "Avec une source Basic, une règle de synthèse lit une seule table ; combiner deux tables Basic avec union n'est pas pris en charge." }
+        s2: { en: "99 existing rules plus SR-Proxy reach the limit of 100 active summary rules per workspace.", fr: "Les 99 règles existantes plus SR-Proxy atteignent la limite de 100 règles de synthèse actives par espace de travail." }
+    references:
+      - title: Aggregate data in a Log Analytics workspace by using summary rules
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/logs/summary-rules
+
+  # ------------------------------------------------------------------ 7
+  - id: sc200-qz-32-07
+    objective: "3.2.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys has onboarded Microsoft Sentinel to the data lake. Last week, a threat hunter used the Microsoft Sentinel extension in Visual Studio Code to submit a notebook job named **BeaconBaseline** from the local file beacon.ipynb. The job runs every day at 03:00.
+
+        Yesterday, the hunter fixed a filter in beacon.ipynb and saved the file, but this morning's run still applied the old filter.
+
+        You need the next runs of BeaconBaseline to use the corrected code. The job must keep its name and its schedule.
+
+        What should you do?
+      fr: |
+        Tailspin Toys a intégré Microsoft Sentinel au data lake. La semaine dernière, un chasseur de menaces a utilisé l'extension Microsoft Sentinel de Visual Studio Code pour soumettre une tâche de notebook nommée **BeaconBaseline** à partir du fichier local beacon.ipynb. La tâche s'exécute tous les jours à 03:00.
+
+        Hier, le chasseur a corrigé un filtre dans beacon.ipynb et enregistré le fichier, mais l'exécution de ce matin a encore appliqué l'ancien filtre.
+
+        Vous devez faire en sorte que les prochaines exécutions de BeaconBaseline utilisent le code corrigé. La tâche doit garder son nom et sa planification.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "In the Defender portal, open the job on the Jobs page, select Edit, and paste the corrected cell.", fr: "Dans le portail Defender, ouvrir la tâche sur la page Jobs, sélectionner Edit et coller la cellule corrigée." } }
+        - { id: b, text: { en: "In the Defender portal, disable and then enable the job on the Jobs page so that it reloads the notebook.", fr: "Dans le portail Defender, désactiver puis activer la tâche sur la page Jobs pour qu'elle recharge le notebook." } }
+        - { id: c, text: { en: "In the extension, download the job definition, fix the downloaded notebook, select Edit job, and select Submit.", fr: "Dans l'extension, télécharger la définition de la tâche, corriger le notebook téléchargé, sélectionner Edit job, puis Submit." } }
+        - { id: d, text: { en: "In the job details of the extension, change the job name, and then select Submit so that the job reloads beacon.ipynb.", fr: "Dans les détails de la tâche de l'extension, changer le nom de la tâche, puis sélectionner Submit pour que la tâche recharge beacon.ipynb." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A submitted notebook job is no longer linked to the local notebook, so saving beacon.ipynb changes nothing. To change the code of the job, you download its definition from the Jobs panel of the extension, edit that notebook, and then select Edit job and Submit; the name and the schedule are kept.
+        fr: |
+          Une tâche de notebook soumise n'est plus liée au notebook local : enregistrer beacon.ipynb ne change donc rien. Pour modifier le code de la tâche, vous téléchargez sa définition depuis le panneau Jobs de l'extension, modifiez ce notebook, puis sélectionnez Edit job et Submit ; le nom et la planification sont conservés.
+      options:
+        a: { en: "The Defender portal can enable or disable a notebook job and show its history, but it can't edit it.", fr: "Le portail Defender peut activer ou désactiver une tâche de notebook et afficher son historique, mais pas la modifier." }
+        b: { en: "Disabling and enabling only changes whether the schedule runs; the job keeps the code it was submitted with.", fr: "Désactiver puis activer ne change que l'exécution de la planification ; la tâche garde le code avec lequel elle a été soumise." }
+        d: { en: "Changing the job name creates a new job definition when you submit it, and the original job keeps running the old code.", fr: "Changer le nom de la tâche crée une nouvelle définition de tâche à la soumission, et la tâche d'origine continue d'exécuter l'ancien code." }
+    references:
+      - title: Create and manage Jupyter notebook jobs
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/notebook-jobs
+
+  # ------------------------------------------------------------------ 8
+  - id: sc200-qz-32-08
+    objective: "3.2.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Woodgrove Bank is onboarded to the Microsoft Sentinel data lake with two Microsoft Sentinel workspaces, **SOC-EU** and **SOC-US**. Both workspaces contain a SigninLogs table with the same schema. A detection engineer who has the Security Operator role plans the following KQL jobs:
+
+        - **J1**: SOC-EU and SOC-US are both listed in **Selected workspaces**, and the query starts with `SigninLogs`, without the `workspace()` function.
+        - **J2**: the query calls `FwParser`, a function saved in SOC-EU.
+        - **J3**: the job must write high-severity matches to IocHigh_KQL_CL and the other matches to IocLow_KQL_CL.
+        - **J4**: the existing scheduled job **DailyFails** writes UserPrincipalName, Day and Failures to DailyFails_KQL_CL. Its output must now also include a Country column.
+
+        Which two statements are true?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank est intégré au data lake Microsoft Sentinel avec deux espaces de travail Microsoft Sentinel, **SOC-EU** et **SOC-US**. Les deux espaces de travail contiennent une table SigninLogs de même schéma. Un ingénieur de détection qui dispose du rôle Security Operator prévoit les tâches KQL suivantes :
+
+        - **J1** : SOC-EU et SOC-US figurent tous deux dans **Selected workspaces**, et la requête commence par `SigninLogs`, sans la fonction `workspace()`.
+        - **J2** : la requête appelle `FwParser`, une fonction enregistrée dans SOC-EU.
+        - **J3** : la tâche doit écrire les correspondances de gravité élevée dans IocHigh_KQL_CL et les autres dans IocLow_KQL_CL.
+        - **J4** : la tâche planifiée existante **DailyFails** écrit UserPrincipalName, Day et Failures dans DailyFails_KQL_CL. Sa sortie doit maintenant inclure aussi une colonne Country.
+
+        Quelles sont les deux affirmations vraies ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "J2 can run if SOC-EU is the only workspace listed in Selected workspaces.", fr: "J2 peut s'exécuter si SOC-EU est le seul espace de travail de Selected workspaces." } }
+        - { id: b, text: { en: "J1 processes the SigninLogs rows of both SOC-EU and SOC-US.", fr: "J1 traite les lignes SigninLogs de SOC-EU et de SOC-US." } }
+        - { id: c, text: { en: "J3 can be a single job that writes its rows to both existing tables.", fr: "J3 peut être une seule tâche qui écrit ses lignes dans les deux tables existantes." } }
+        - { id: d, text: { en: "J1 can be scheduled so that its first run starts 10 minutes after it's created.", fr: "J1 peut être planifiée pour que sa première exécution démarre 10 minutes après sa création." } }
+        - { id: e, text: { en: "J4 requires a new job, because Edit accepts only a query that returns the same columns.", fr: "J4 exige une nouvelle tâche, car Edit n'accepte qu'une requête qui renvoie les mêmes colonnes." } }
+    answer: { optionIds: [b, e] }
+    explanation:
+      correct:
+        en: |
+          When several workspaces are selected, `union()` is applied by default to the tables that have the same name and schema, so J1 reads the sign-ins of both workspaces. Editing a KQL job lets you change its description, its query and its schedule, but the query must return the same output schema as the original one: adding Country requires a new job and a destination table with that schema.
+        fr: |
+          Quand plusieurs espaces de travail sont sélectionnés, `union()` est appliqué par défaut aux tables de même nom et de même schéma : J1 lit donc les connexions des deux espaces de travail. Modifier une tâche KQL permet de changer sa description, sa requête et sa planification, mais la requête doit renvoyer le même schéma de sortie que l'originale : ajouter Country exige une nouvelle tâche et une table de destination ayant ce schéma.
+      options:
+        a: { en: "User-defined functions aren't supported in KQL jobs, whatever workspaces are selected.", fr: "Les fonctions définies par l'utilisateur ne sont pas prises en charge dans les tâches KQL, quels que soient les espaces de travail sélectionnés." }
+        c: { en: "A KQL job has exactly one output table; two destination tables need two jobs.", fr: "Une tâche KQL a une seule table de sortie ; deux tables de destination exigent deux tâches." }
+        d: { en: "The start time of a scheduled job must be at least 30 minutes after its creation.", fr: "L'heure de début d'une tâche planifiée doit être au moins 30 minutes après sa création." }
+    references:
+      - title: Create KQL jobs in the Microsoft Sentinel data lake
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/kql-jobs
+      - title: Manage jobs in the Microsoft Sentinel data lake
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/kql-manage-jobs
+
+  # ------------------------------------------------------------------ 9
+  - id: sc200-qz-32-09
+    objective: "3.2.1"
+    difficulty: 3
+    status: draft
+    type: ordering
+    stem:
+      en: |
+        Fabrikam uses Microsoft Sentinel in the Microsoft Defender portal and is onboarded to the Microsoft Sentinel data lake. Its workspace is named **SOC-WS**. To reduce costs, the **NetFlow_CL** table is stored in the data lake tier only, and it must stay there. No KQL job has created a table in SOC-WS yet, and the data lake managed identity has no role on SOC-WS.
+
+        You need a hunting query named **RareOutbound** in the queries list of the Hunting page. The query must be mapped to the IP entity and to MITRE ATT&CK technique T1041, search the NetFlow connections of the last 24 hours, and run automatically each time you open the Hunting page. Its data must be refreshed every hour. You have the Security Operator role in Microsoft Entra ID and the Owner role on SOC-WS.
+
+        Which four actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+      fr: |
+        Fabrikam utilise Microsoft Sentinel dans le portail Microsoft Defender et est intégré au data lake Microsoft Sentinel. Son espace de travail se nomme **SOC-WS**. Pour réduire les coûts, la table **NetFlow_CL** est stockée uniquement au niveau data lake et doit y rester. Aucune tâche KQL n'a encore créé de table dans SOC-WS, et l'identité managée du data lake n'a aucun rôle sur SOC-WS.
+
+        Vous avez besoin d'une requête de chasse nommée **RareOutbound** dans la liste des requêtes de la page Hunting. La requête doit être mappée à l'entité IP et à la technique MITRE ATT&CK T1041, porter sur les connexions NetFlow des dernières 24 heures et s'exécuter automatiquement chaque fois que vous ouvrez la page Hunting. Ses données doivent être actualisées toutes les heures. Vous disposez du rôle Security Operator dans Microsoft Entra ID et du rôle Owner sur SOC-WS.
+
+        Quelles sont les quatre actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+    body:
+      count: 4
+      actions:
+        - { id: tier, text: { en: "Change the tier of NetFlow_CL to the analytics tier.", fr: "Passer la table NetFlow_CL au niveau Analytics." } }
+        - { id: job, text: { en: "Create an hourly scheduled KQL job that writes the needed NetFlow_CL columns to a new table in SOC-WS.", fr: "Créer une tâche KQL planifiée toutes les heures qui écrit les colonnes utiles de NetFlow_CL dans une nouvelle table de SOC-WS." } }
+        - { id: mi, text: { en: "Assign the Log Analytics Contributor role on SOC-WS to the msg-resources-<guid> managed identity.", fr: "Attribuer le rôle Log Analytics Contributor sur SOC-WS à l'identité managée msg-resources-<guid>." } }
+        - { id: live, text: { en: "Start a livestream session that runs RareOutbound against NetFlow_CL.", fr: "Démarrer une session de livestream qui exécute RareOutbound sur NetFlow_CL." } }
+        - { id: query, text: { en: "On the Hunting page, select New query, query the new _KQL_CL table, and map the IP entity and T1041.", fr: "Sur la page Hunting, sélectionner New query, interroger la nouvelle table _KQL_CL, puis mapper l'entité IP et T1041." } }
+        - { id: shared, text: { en: "In Advanced hunting, save RareOutbound under Shared queries.", fr: "Dans le repérage avancé, enregistrer RareOutbound sous Shared queries." } }
+        - { id: fav, text: { en: "Add RareOutbound to your favorites.", fr: "Ajouter RareOutbound à vos favoris." } }
+    answer:
+      sequence: [mi, job, query, fav]
+    explanation:
+      correct:
+        en: |
+          Hunting queries don't read data kept only in the data lake tier, so an hourly KQL job must promote the needed NetFlow_CL rows to a new analytics-tier table (suffix `_KQL_CL`). Before a job can create a new table in SOC-WS, the data lake managed identity `msg-resources-<guid>` needs Log Analytics Contributor on the workspace. You then create RareOutbound with New query on the promoted table, with its entity and MITRE mappings, and add it to your favorites so that it runs each time the Hunting page opens.
+        fr: |
+          Les requêtes de chasse ne lisent pas les données conservées uniquement au niveau data lake : une tâche KQL horaire doit donc promouvoir les lignes utiles de NetFlow_CL vers une nouvelle table du niveau Analytics (suffixe `_KQL_CL`). Avant qu'une tâche puisse créer une nouvelle table dans SOC-WS, l'identité managée du data lake `msg-resources-<guid>` doit avoir Log Analytics Contributor sur l'espace de travail. Vous créez ensuite RareOutbound avec New query sur la table promue, avec ses mappages d'entités et MITRE, puis l'ajoutez à vos favoris pour qu'elle s'exécute à chaque ouverture de la page Hunting.
+      options:
+        tier: { en: "Moving NetFlow_CL to the analytics tier breaks the requirement that the table stays in the data lake tier.", fr: "Passer NetFlow_CL au niveau Analytics enfreint l'exigence de garder la table au niveau data lake." }
+        live: { en: "Livestream sessions are no longer available in Microsoft Sentinel.", fr: "Les sessions de livestream ne sont plus disponibles dans Microsoft Sentinel." }
+        shared: { en: "Shared queries belong to advanced hunting; the Hunting page lists the hunting queries installed from Content hub or created there.", fr: "Les requêtes partagées appartiennent au repérage avancé ; la page Hunting liste les requêtes de chasse installées depuis Content hub ou créées dans cette page." }
+    references:
+      - title: Create KQL jobs in the Microsoft Sentinel data lake
+        url: https://learn.microsoft.com/en-us/azure/sentinel/datalake/kql-jobs
+      - title: Threat hunting in Microsoft Sentinel
+        url: https://learn.microsoft.com/en-us/azure/sentinel/hunting
+
+  # ------------------------------------------------------------------ 10
+  - id: sc200-qz-32-10
+    objective: "3.2.3"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Proseware has a Microsoft Sentinel workspace. A summary rule named **FwHourly** runs every 60 minutes and writes the result of the following query over the **FwLogs_CL** table to the **FwHourly_CL** table.
+
+        ```kusto
+        FwLogs_CL
+        | summarize Connections = count() by SourceIP, DestinationIP
+        ```
+
+        You need to create a scheduled analytics rule that queries FwHourly_CL once a day. The rule must return one row for each source IP address that made more than 5,000 connections in total during the last 24 hours.
+
+        How should you complete the query? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Proseware dispose d'un espace de travail Microsoft Sentinel. Une règle de synthèse nommée **FwHourly** s'exécute toutes les 60 minutes et écrit dans la table **FwHourly_CL** le résultat de la requête suivante sur la table **FwLogs_CL**.
+
+        ```kusto
+        FwLogs_CL
+        | summarize Connections = count() by SourceIP, DestinationIP
+        ```
+
+        Vous devez créer une règle d'analytique planifiée qui interroge FwHourly_CL une fois par jour. La règle doit renvoyer une ligne pour chaque adresse IP source qui a établi plus de 5 000 connexions au total pendant les dernières 24 heures.
+
+        Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: kusto
+      template: |
+        FwHourly_CL
+        | where [[col]] > ago(1d)
+        | summarize TotalConnections = [[agg]] by [[key]]
+        | where TotalConnections > 5000
+      slots:
+        - id: col
+          options:
+            - { id: modified, text: "_RuleLastModifiedTime" }
+            - { id: start, text: "_BinStartTime" }
+            - { id: size, text: "_BinSize" }
+        - id: agg
+          options:
+            - { id: count, text: "count()" }
+            - { id: dcount, text: "dcount(DestinationIP)" }
+            - { id: sum, text: "sum(Connections)" }
+            - { id: max, text: "max(Connections)" }
+        - id: key
+          options:
+            - { id: srcbin, text: "SourceIP, _BinStartTime" }
+            - { id: src, text: "SourceIP" }
+            - { id: srcdst, text: "SourceIP, DestinationIP" }
+            - { id: rule, text: "_RuleName" }
+    answer:
+      values: { col: start, agg: sum, key: src }
+    explanation:
+      correct:
+        en: |
+          Each row of FwHourly_CL is already a count for one source, one destination and one hourly bin, and `_BinStartTime` gives the start of that bin, so it selects the last 24 bins. The total number of connections is the sum of the Connections values, not the number of rows. Grouping by SourceIP alone returns one row per source over the whole day.
+        fr: |
+          Chaque ligne de FwHourly_CL est déjà un décompte pour une source, une destination et un intervalle horaire, et `_BinStartTime` donne le début de cet intervalle : il sélectionne donc les 24 derniers intervalles. Le nombre total de connexions est la somme des valeurs de Connections, pas le nombre de lignes. Regrouper par SourceIP seul renvoie une ligne par source sur toute la journée.
+      options:
+        modified: { en: "`_RuleLastModifiedTime` is the time of the last change to the rule, the same for every recent bin.", fr: "`_RuleLastModifiedTime` est l'heure de la dernière modification de la règle, la même pour tous les intervalles récents." }
+        size: { en: "`_BinSize` is the length of the interval, not a timestamp.", fr: "`_BinSize` est la durée de l'intervalle, pas un horodatage." }
+        count: { en: "count() counts the summary rows (one per destination and bin), not the connections they represent.", fr: "count() compte les lignes de synthèse (une par destination et par intervalle), pas les connexions qu'elles représentent." }
+        dcount: { en: "dcount(DestinationIP) returns the number of distinct destinations, not of connections.", fr: "dcount(DestinationIP) renvoie le nombre de destinations distinctes, pas de connexions." }
+        max: { en: "max(Connections) returns the largest hourly count for one destination, not the daily total.", fr: "max(Connections) renvoie le plus grand décompte horaire pour une destination, pas le total quotidien." }
+        srcbin: { en: "Adding _BinStartTime returns one row per source and hour, and compares each hour with 5,000 instead of the daily total.", fr: "Ajouter _BinStartTime renvoie une ligne par source et par heure, et compare chaque heure à 5 000 au lieu du total quotidien." }
+        srcdst: { en: "Adding DestinationIP splits the total of each source between its destinations.", fr: "Ajouter DestinationIP répartit le total de chaque source entre ses destinations." }
+        rule: { en: "Grouping by _RuleName returns a single row for the whole rule, not one per source.", fr: "Regrouper par _RuleName renvoie une seule ligne pour toute la règle, pas une par source." }
+    references:
+      - title: Aggregate data in a Log Analytics workspace by using summary rules
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/logs/summary-rules
+      - title: Aggregate Microsoft Sentinel data with summary rules
+        url: https://learn.microsoft.com/en-us/azure/sentinel/summary-rules

@@ -59,7 +59,7 @@ Choosing the services to put in each hub:
 
 **Virtual WAN or a hub virtual network you manage?** Virtual WAN fits many branches, many regions, any-to-any connectivity and a managed router. A customer-managed hub virtual network fits when you need full control of the hub: your own UDRs on hub subnets, Azure Route Server, a VPN gateway in a spoke, or services that must live in the hub virtual network itself.
 
-> **Exam trap.** ExpressRoute-to-ExpressRoute traffic between two on-premises sites doesn't transit the hub by default: enable **Global Reach** between the circuits, or send it through a hub firewall with a private routing policy.
+> **Exam trap.** ExpressRoute-to-ExpressRoute traffic between two on-premises sites doesn't transit the hub by default: enable **Global Reach** between the circuits, or send it through a hub firewall with a private routing policy. The firewall option is enabled by a support case and requires Global Reach to be disabled: the two options can't be combined.
 
 <!-- section: create-hub | objectives: 2.4.3 -->
 ## Creating a virtual hub
@@ -119,7 +119,7 @@ Point-to-site units and concurrent connections:
 | 40 | 20,000 | 20 Gbps |
 | 200 | 100,000 | 100 Gbps |
 
-Size a site-to-site gateway by the **aggregate** of all branches: 40 branches at 50 Mbps need 2 Gbps, so 4 units. Size a point-to-site gateway by the **concurrent users** first: 3,000 users need 7 units even if they use little bandwidth. At 40 units or more, plan the client address pool accordingly.
+Size a site-to-site gateway by the **aggregate** of all branches: 40 branches at 50 Mbps need 2 Gbps, so 4 units. Each connection count holds until the next row: 1 to 3 units give 500 connections, 4 to 6 give 1,000, 7 to 10 give 5,000, 11 to 20 give 10,000. Size a point-to-site gateway by the **concurrent users** first: 3,000 users need 7 units even if they use little bandwidth. At 40 units or more, plan the client address pool accordingly.
 
 > **Exam trap.** Adding gateway scale units doesn't help when spokes with thousands of VMs saturate VNet-to-VNet traffic: that is the hub capacity (routing infrastructure units). The reverse is also true.
 
@@ -138,7 +138,7 @@ A hub gateway isn't a virtual network gateway: it lives in the hub, scales in sc
 
 1. Create a **User VPN configuration** on the WAN: tunnel type (OpenVPN, IKEv2, or both) and authentication (Azure certificate, RADIUS, Microsoft Entra ID; Entra ID requires OpenVPN).
 2. Create the point-to-site gateway in the hub: scale units, the User VPN configuration, a **client address pool** that overlaps nothing, up to five custom DNS servers.
-3. Download the **global profile** (from the WAN, connects users to the closest available hub) or a **hub profile** (one hub). With RADIUS and the global profile, enable **Use Remote/On-premises RADIUS server** and allow the RADIUS proxy IPs on the server.
+3. Download the **global profile** (from the WAN; it includes the hubs that use the same User VPN configuration and connects users to the closest one) or a **hub profile** (one hub). With RADIUS and the global profile, enable **Use Remote/On-premises RADIUS server** and allow the RADIUS proxy IPs on the server.
 
 **ExpressRoute.**
 
@@ -210,9 +210,9 @@ Three ways to bring a partner appliance into Virtual WAN:
 | NVA **in a spoke** | Spoke connected to the hub; BGP peering with the hub router or static routes | Any appliance, full control of the VM, indirect spokes behind the NVA |
 | **SaaS** security | Palo Alto Networks Cloud NGFW, selected as routing intent next hop | A firewall service without managing appliances |
 
-**NVA in the hub.** Requires a Standard hub, /23 or larger recommended. Supported partners include SD-WAN vendors (Barracuda, Cisco Catalyst 8000V, Arista VeloCloud, Versa, HPE Aruba EdgeConnect) and firewalls (Check Point, Fortinet, Cisco Secure Firewall Threat Defense). Capacity is set in **NVA infrastructure units** (about 500 Mbps each, 2 to 80 depending on the vendor). Licenses are bring-your-own. You configure it from the vendor's management portal: you can't sign in to the VMs nor change the managed resource group. An SD-WAN NVA peers with the hub router, so branch prefixes appear in hub routing like those of a Microsoft gateway.
+**NVA in the hub.** Requires a Standard hub, /23 or larger recommended. Supported partners include SD-WAN vendors (Barracuda, Cisco SD-WAN with Catalyst 8000V, Arista VeloCloud, Versa, HPE Aruba EdgeConnect), firewalls (Check Point, Fortinet, Cisco Secure Firewall Threat Defense) and a dual-role Fortinet SD-WAN and NGFW appliance (up to 20 units). New VMware SD-WAN deployments are blocked since the end of June 2026: Learn recommends Arista VeloCloud. Capacity is set in **NVA infrastructure units** (about 500 Mbps each, 2 to 80 depending on the vendor). Licenses are bring-your-own. You configure it from the vendor's management portal: you can't sign in to the VMs nor change the managed resource group. An SD-WAN NVA peers with the hub router, so branch prefixes appear in hub routing like those of a Microsoft gateway.
 
-**NVA in a spoke with BGP.** In the hub, add a **BGP peer** (name, ASN, NVA IP, VNet connection). Peer with **both** addresses of `virtualRouterIps` and advertise the same routes to both. Limits: 8 BGP peers per hub, only NVAs in directly connected spokes, 16-bit ASNs that differ from the hub's and aren't reserved (65515, 65517 to 65520, 8074, 8075, 12076...). The NVA connection is treated as a branch: associate it with the Default route table.
+**NVA in a spoke with BGP.** In the hub, add a **BGP peer** (name, ASN, NVA IP, VNet connection). Peer with **both** addresses of `virtualRouterIps` and advertise the same routes to both. Limits: 8 BGP peers per hub, only NVAs in directly connected spokes, 16-bit ASNs that differ from the hub's and aren't reserved (65515, 65517 to 65520, 8074, 8075, 12076...), an address assigned to an NVA interface (no loopback), at most 4,000 routes from the NVA. On a secured hub, BGP peering is supported only when routing intent is configured. The NVA connection is treated as a branch: associate it with the Default route table, and keep branch-to-branch enabled so that the NVA exchanges routes with VPN and ExpressRoute sites.
 
 **NVA in a spoke with static routes.** For indirect spokes peered with the NVA virtual network: a static route in the hub's Default route table (indirect spoke prefixes, next hop = the NVA VNet connection), a static route on that VNet connection with next hop IP = the NVA, and a UDR `0.0.0.0/0` to the NVA in the indirect spokes.
 

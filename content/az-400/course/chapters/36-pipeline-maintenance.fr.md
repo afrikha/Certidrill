@@ -72,16 +72,18 @@ Le cache d'Azure Pipelines : il est limité au pipeline et à la branche, immuab
 | Nombre d'agents des pools auto-hébergés, Maximum agents de Managed DevOps Pools | Capacité par pool, toujours plafonnée par les travaux parallèles auto-hébergés |
 | `maxParallel` sur une matrice, `max-parallel` dans GitHub | Laisser de la capacité aux autres pipelines |
 | Vérification Exclusive lock, `lockBehavior: sequential` ou `runLatest` | Sérialiser les déploiements vers un environnement partagé |
-| Groupe `concurrency` GitHub | Une exécution à la fois par groupe ; `cancel-in-progress: true` annule l'exécution la plus ancienne |
+| Groupe `concurrency` GitHub | Une exécution en cours et une exécution en attente par groupe : une nouvelle exécution annule celle en attente ; `cancel-in-progress: true` annule aussi celle en cours |
 | `batch: true` sur la CI | Regrouper en une seule exécution les push faits pendant une exécution |
 
-Les travaux parallèles ne peuvent pas être réservés à un projet ou à un pool, et les exécutions en attente d'une approbation ou d'une vérification n'en consomment pas. Les exécuteurs hébergés par GitHub ont des limites de concurrence par plan : 20 jobs en Free, 40 en Pro, 60 en Team et 500 en Enterprise pour les exécuteurs standard, avec une limite macOS de 5 (50 en Enterprise).
+Les travaux parallèles ne peuvent pas être réservés à un projet ou à un pool, et les exécutions en attente d'une approbation ou d'une vérification n'en consomment pas, pas plus que les travaux serveur et les mises en production qui déploient vers un groupe de déploiement. Les exécuteurs hébergés par GitHub ont des limites de concurrence par plan : 20 jobs en Free, 40 en Pro, 60 en Team et 500 en Enterprise pour les exécuteurs standard, avec une limite macOS de 5 (50 en Enterprise).
 
 ```yaml
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: false      # queue deployments instead of cancelling them
+  cancel-in-progress: false      # don't cancel the deployment in progress
 ```
+
+Sans paramètre `queue`, un groupe garde une seule exécution en attente, et une exécution plus récente l'annule. `queue: max` garde jusqu'à 100 exécutions en attente, traitées dans l'ordre, et ne peut pas être combiné avec `cancel-in-progress: true`.
 
 > **Conseil d'examen.** Des pipelines attendent longtemps en file alors que des agents d'un pool auto-hébergé sont inactifs ? La limite est le nombre de travaux parallèles auto-hébergés, pas les agents : achetez des travaux parallèles.
 
@@ -97,7 +99,7 @@ concurrency:
 | Jours de conservation des exécutions de demandes de tirage | Idem, pour les exécutions de demandes de tirage |
 | Nombre d'exécutions récentes à conserver par pipeline | Toujours conservées : pour Azure Repos, par pipeline, branche par défaut et chaque branche protégée |
 
-Une exécution n'est supprimée que si elle est plus ancienne que le nombre de jours configuré, ne fait pas partie des exécutions récentes à conserver, n'est pas conservée indéfiniment et n'est pas retenue par une mise en production. Sa suppression efface les journaux, les artefacts, les symboles, les résultats de tests et les métadonnées. Pour conserver plus longtemps une exécution de production, ajoutez un **bail de rétention** (API REST Leases depuis un script, avec `$(System.DefinitionId)` et `$(Build.BuildId)`) ou conservez-la depuis le menu de l'exécution. Les stratégies s'exécutent une fois par jour.
+Une exécution n'est supprimée que si elle est plus ancienne que le nombre de jours configuré, ne fait pas partie des exécutions récentes à conserver, n'est pas conservée indéfiniment et n'est pas retenue par une mise en production. La règle des exécutions récentes ne conserve que les exécutions réussies et partiellement réussies. La suppression d'une exécution efface les journaux, les artefacts, les symboles, les résultats de tests et les métadonnées ; la rétention des exécutions de tests est un paramètre distinct (**Paramètres du projet > Test > Rétention**). Pour conserver plus longtemps une exécution de production, ajoutez un **bail de rétention** (API REST Leases depuis un script, avec `$(System.DefinitionId)` et `$(Build.BuildId)`) ou conservez-la depuis le menu de l'exécution. Les stratégies s'exécutent une fois par jour.
 
 **Packages.** Les packages d'Azure Artifacts ne relèvent pas de la rétention des exécutions. Un Feed Owner active la **rétention des packages** sur le flux :
 
@@ -115,7 +117,7 @@ Une version n'est supprimée que si les deux conditions sont remplies. **Les pac
 <!-- section: classic-to-yaml | objectives: 3.6.5 -->
 ## Migrer un pipeline classique vers YAML
 
-Les **pipelines de build classiques** peuvent être exportés : ouvrez la définition du pipeline (pas une exécution), sélectionnez le menu à trois points, puis **Export to YAML**. Créez ensuite un pipeline YAML, collez le fichier, corrigez ce qui n'a pas été converti et exécutez-le. Les **pipelines de mise en production classiques** n'ont pas d'export YAML : réécrivez-les à la main.
+Les **pipelines de build classiques** peuvent être exportés : ouvrez la définition du pipeline (pas une exécution), sélectionnez le menu à trois points, puis **Export to YAML**. Créez ensuite un pipeline YAML, collez le fichier, corrigez ce qui n'a pas été converti et exécutez-le. Les **pipelines de mise en production classiques** n'ont pas d'export YAML : exportez chaque tâche individuellement et reconstruisez les phases sous forme de travaux de déploiement.
 
 | Élément classique | Équivalent YAML |
 | --- | --- |

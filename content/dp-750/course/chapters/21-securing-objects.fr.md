@@ -5,7 +5,7 @@ Sécuriser Unity Catalog, c'est accorder les bons privilèges aux bons principau
 
 Un **principal** est un utilisateur (adresse e-mail), un groupe ou un principal de service (son **ID d'application**). Les noms qui contiennent des caractères spéciaux comme `@` ou `-` s'écrivent entre accents graves. Accordez aux groupes chaque fois que possible : l'appartenance pilote alors l'accès.
 
-Les privilèges sont **hérités** vers le bas : un privilège accordé sur un catalogue s'applique à tous ses schémas et objets actuels et futurs. Lire une table exige toujours trois privilèges :
+Les privilèges sont **hérités** vers le bas : un privilège accordé sur un catalogue s'applique à tous ses schémas et objets actuels et futurs. Les refus sont hérités de la même façon : des stratégies ABAC peuvent accorder des privilèges, ou en refuser certains (les stratégies DENY sont en bêta), sur tous les objets enfants. Lire une table exige toujours trois privilèges :
 
 ```text
 GRANT USE CATALOG ON CATALOG prod_sales TO `sales-analysts`;
@@ -36,14 +36,15 @@ ALTER SCHEMA prod_sales.gold OWNER TO `sales-data-owners`;
 | `BROWSE` | Voir les métadonnées et demander l'accès sans accès aux données | Catalogue |
 | `APPLY TAG` | Ajouter et modifier des balises | Tout objet |
 | `MANAGE` | Accorder et révoquer, transférer la propriété, renommer, supprimer | Tout objet ; hérité par les enfants |
-| `ALL PRIVILEGES` | Tous les privilèges sur l'objet et ses enfants, sauf `MANAGE` et `EXTERNAL USE SCHEMA` | Tout objet |
+| `READ METADATA` | Voir toutes les métadonnées visibles du propriétaire (autorisations, filtres de lignes, masques de colonne, stratégies ABAC) sans les modifier ni lire les données ; un enfant de `MANAGE` | Tout objet ; sur le metastore, hérité par tous les objets |
+| `ALL PRIVILEGES` | Tous les privilèges sur l'objet et ses enfants, sauf `MANAGE`, `READ METADATA`, `EXTERNAL USE SCHEMA` et `EXTERNAL USE LOCATION` | Tout objet |
 | `READ FILES` / `WRITE FILES` / `CREATE EXTERNAL TABLE` / `CREATE MANAGED STORAGE` | Accès au niveau du chemin et création de tables ou de stockage | Emplacement externe |
 
-Peuvent accorder sur un objet : son **propriétaire**, le propriétaire de son catalogue ou de son schéma, un utilisateur qui a **`MANAGE`** sur lui, ou un **administrateur du metastore**. Chaque objet a un seul propriétaire, qui détient tous les privilèges sur lui ; attribuez la propriété en production à des groupes. `MANAGE` ne donne pas à lui seul accès aux données : un utilisateur qui a `MANAGE` peut s'accorder `SELECT`. `REVOKE` réussit même si le privilège n'a jamais été accordé. Les administrateurs de l'espace de travail sont propriétaires du catalogue de l'espace de travail ; tous les utilisateurs de l'espace de travail y reçoivent `USE CATALOG`.
+Peuvent accorder sur un objet : son **propriétaire**, le propriétaire de son catalogue ou de son schéma, un utilisateur qui a **`MANAGE`** sur lui, ou un **administrateur du metastore**. Chaque objet a un seul propriétaire, qui détient tous les privilèges sur lui ; attribuez la propriété en production à des groupes. Le propriétaire d'un objet parent ne possède pas ses enfants, mais peut gérer tous les objets enfants, nouveaux et existants, ce qui équivaut à `MANAGE` (sans apparaître dans `SHOW GRANTS`). `MANAGE` ne donne pas à lui seul accès aux données : un utilisateur qui a `MANAGE` peut s'accorder `SELECT`. `REVOKE` réussit même si le privilège n'a jamais été accordé. Les administrateurs de l'espace de travail sont propriétaires du catalogue de l'espace de travail ; tous les utilisateurs de l'espace de travail y reçoivent `USE CATALOG`.
 
 > **Piège d'examen.** Révoquer `SELECT` sur une table ne supprime pas l'accès hérité d'un `SELECT` accordé sur le schéma ou le catalogue. Révoquez au niveau où il a été accordé.
 
-> **Piège d'examen.** `ALL PRIVILEGES` n'inclut pas `MANAGE` : un principal qui a `ALL PRIVILEGES` peut lire et écrire, mais ne peut pas accorder de privilèges à d'autres.
+> **Piège d'examen.** `ALL PRIVILEGES` n'inclut pas `MANAGE` (ni `READ METADATA`, `EXTERNAL USE SCHEMA` ou `EXTERNAL USE LOCATION`) : un principal qui a `ALL PRIVILEGES` peut lire et écrire, mais ne peut pas accorder de privilèges à d'autres.
 
 <!-- section: table-column-row-security | objectives: 2.1.2 -->
 ## La sécurité au niveau des tables, des colonnes et des lignes
@@ -86,7 +87,7 @@ Les règles à connaître :
 - Les appliquer exige `EXECUTE` sur la fonction, `USE SCHEMA` et `USE CATALOG`, et d'être propriétaire de la table ou d'avoir `MANAGE` (plus `SELECT` pour les masques).
 - `is_account_group_member()` vérifie l'appartenance de l'utilisateur qui exécute la requête à un groupe de niveau compte.
 - Les filtres et masques ne s'appliquent pas à une vue, empêchent le voyage dans le temps et les clones sur la table, et ne peuvent pas référencer des tables qui ont elles-mêmes des filtres ou des masques. Préférez des expressions `CASE` simples aux tables de correspondance pour les performances.
-- Calcul : DBR 12.2 LTS ou version ultérieure (les runtimes plus anciens ne renvoient aucune donnée) ; le mode d'accès Dedicated exige DBR 15.4 LTS ou version ultérieure avec le serverless activé pour l'espace de travail, car le filtrage s'exécute sur du calcul serverless.
+- Calcul : DBR 12.2 LTS ou version ultérieure (les runtimes plus anciens ne renvoient aucune donnée) ; le mode d'accès Dedicated exige DBR 15.4 LTS ou version ultérieure avec le serverless activé pour l'espace de travail, car le filtrage s'exécute sur du calcul serverless. Sur un calcul dédié, DBR 15.4 à 16.2 ne font que lire ces tables ; les écritures exigent DBR 16.3 ou version ultérieure avec des modèles pris en charge comme `MERGE INTO`.
 - Databricks recommande les **stratégies ABAC** quand le même filtre ou le même masque doit s'appliquer de façon cohérente à de nombreuses tables ; les propriétaires de tables ne peuvent pas les contourner.
 
 > **Piège d'examen.** Les masques de colonne changent les valeurs renvoyées, pas la liste des colonnes ; pour retirer complètement une colonne de la vue des utilisateurs, exposez une vue qui ne la contient pas. Un filtre de lignes s'attache avec `ALTER TABLE ... SET ROW FILTER`, jamais avec `GRANT`.
@@ -125,7 +126,9 @@ password secret('kv-finance', 'erp-sql-password')
 | WRITE | Oui | Oui | Non |
 | MANAGE | Oui | Oui | Oui |
 
-Les ACL s'appliquent à **toute une étendue** : les utilisateurs qui ont accès à une étendue adossée à Key Vault peuvent lire tous les secrets de ce coffre. Pour séparer des secrets, utilisez des coffres de clés et des étendues distincts. Les valeurs lues avec `dbutils.secrets.get()` ou référencées dans la configuration Spark s'affichent `[REDACTED]` dans les sorties ; la rédaction est faite au mieux, donc n'accordez les étendues qu'à ceux qui en ont besoin. Les étendues adossées à Key Vault sont en lecture seule depuis Azure Databricks : créez et mettez à jour leurs secrets dans Azure.
+Les ACL s'appliquent à **toute une étendue**, et accorder des autorisations sur une étendue exige le plan Premium : les utilisateurs qui ont accès à une étendue adossée à Key Vault peuvent lire tous les secrets de ce coffre. Pour séparer des secrets, utilisez des coffres de clés et des étendues distincts. Les valeurs lues avec `dbutils.secrets.get()` ou référencées dans la configuration Spark s'affichent `[REDACTED]` dans les sorties ; la rédaction est faite au mieux, donc n'accordez les étendues qu'à ceux qui en ont besoin. Les étendues adossées à Key Vault sont en lecture seule depuis Azure Databricks : créez et mettez à jour leurs secrets dans Azure.
+
+Learn documente aussi les **secrets Unity Catalog** : des éléments sécurisables nommés `catalog.schema.secret`, disponibles dans tous les espaces de travail attachés au metastore, avec des privilèges Unity Catalog accordés sur le secret, le schéma ou le catalogue. Ils sont managés par Azure Databricks ou adossés à Azure Key Vault (bêta). Les étendues de secrets d'espace de travail n'offrent aucun contrôle d'accès au niveau du secret.
 
 > **Piège d'examen.** « Le coffre de clés utilise Azure RBAC et la création de l'étendue échoue » se corrige en passant le coffre au modèle de stratégie d'accès, pas en attribuant Key Vault Secrets User.
 
@@ -140,7 +143,7 @@ Un principal de service est une identité réservée aux API, pour l'automatisat
 | Géré par Microsoft Entra ID | Microsoft Entra ID (une inscription d'application) | OAuth Databricks, jetons Microsoft Entra ID | Accéder à Azure Databricks et à d'autres ressources Azure avec la même identité |
 
 - Rôle **Service principal user** : permet à un utilisateur d'exécuter des jobs en tant que principal de service, pour que les jobs de production ne cassent pas quand le propriétaire part. Le rôle **Service principal manager** gère les rôles du principal et n'inclut pas le rôle utilisateur.
-- **OAuth machine à machine (M2M)** : générez un secret OAuth pour le principal de service (durée de vie jusqu'à 730 jours, cinq secrets au maximum, affiché une seule fois). Les jetons d'accès durent une heure et sont renouvelés automatiquement par l'authentification unifiée.
+- **OAuth machine à machine (M2M)** : générez un secret OAuth pour le principal de service (durée de vie jusqu'à 730 jours, cinq secrets au maximum, affiché une seule fois ; les étendues sont fixées à la génération du secret, et un secret inutilisé pendant 90 jours est supprimé automatiquement). Les jetons d'accès durent une heure et sont renouvelés automatiquement par l'authentification unifiée.
 - Écritures en production : Databricks recommande d'exécuter les jobs en tant que principaux de service et de leur réserver `MODIFY` sur les tables de production.
 
 ```bash
@@ -194,7 +197,7 @@ GRANT READ FILES ON EXTERNAL LOCATION finance_raw TO `data-engineers`;
 GRANT CREATE EXTERNAL TABLE ON EXTERNAL LOCATION finance_raw TO `data-engineers`;
 ```
 
-Créer un emplacement externe exige d'être administrateur du metastore ou d'avoir `CREATE EXTERNAL LOCATION` sur le metastore, plus `CREATE EXTERNAL LOCATION` sur les informations d'identification de stockage.
+Créer un emplacement externe exige d'être administrateur du metastore ou d'avoir `CREATE EXTERNAL LOCATION` sur le metastore, plus `CREATE EXTERNAL LOCATION` sur les informations d'identification de stockage. Les administrateurs du metastore détiennent par défaut `CREATE EXTERNAL LOCATION` et `CREATE STORAGE CREDENTIAL` sur le metastore, tout comme les administrateurs des espaces de travail activés automatiquement pour Unity Catalog.
 
 | Exigence | Réponse |
 | --- | --- |

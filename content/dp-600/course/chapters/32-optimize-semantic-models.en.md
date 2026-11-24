@@ -28,7 +28,7 @@ Reduce what visuals ask for:
 | Rule | Value |
 | --- | --- |
 | Detail table storage mode | DirectQuery (required) |
-| Aggregation table storage mode | Import (can't be changed afterwards) |
+| Aggregation table storage mode | Import for the best performance (can't be changed afterwards), or DirectQuery optimized with columnstore indexes |
 | Related dimensions | Dual, so both tables can use them |
 | Several aggregation tables | **Precedence**: higher is tried first |
 | Visibility | Aggregation table hidden; users query the detail table |
@@ -65,7 +65,7 @@ RETURN
     DIVIDE ( _Current - _PY, _PY )
 ```
 
-A Boolean filter argument can't reference a measure, columns of several tables, a nested `CALCULATE` or a table function: those cases need `FILTER`, ideally over `VALUES` of a column rather than a whole table.
+A Boolean filter argument can't reference a measure, columns of several tables, a nested `CALCULATE` or a function that scans or returns a table (except inside an aggregation that returns a scalar, as in `Sales[OrderDateKey] = MAX ( Sales[OrderDateKey] )`): those cases need `FILTER`, ideally over `VALUES` of a column rather than a whole table.
 
 | Pattern to avoid | Better |
 | --- | --- |
@@ -114,7 +114,7 @@ Diagnose with DAX: the `[DirectLakeFallbackInfo]` column gives each table's reas
 EVALUATE TABLETRAITS ()
 ```
 
-Guardrails per table depend on the SKU (excerpt):
+Guardrails depend on the SKU (excerpt). The maximum model size is evaluated for the whole model; the other guardrails are evaluated per query:
 
 | Fabric SKU | Parquet files and row groups per table | Rows per table | Max model size in OneLake |
 | --- | --- | --- | --- |
@@ -208,7 +208,7 @@ Direct Lake models don't use model partitions or incremental refresh: framing al
 
 - Performance analyzer: DAX query, Visual display or Other tells you whether to fix the model, the visual or the page.
 - Smaller models are faster: remove high-cardinality columns, split datetimes, disable Auto date/time.
-- Aggregations: Import aggregation table over a DirectQuery detail table, Dual dimensions; not in Direct Lake.
+- Aggregations: Import (or columnstore DirectQuery) aggregation table over a DirectQuery detail table, Dual dimensions; not in Direct Lake.
 - Boolean filters beat `FILTER` over tables; use variables, `DIVIDE`, `COUNTROWS`, `SELECTEDVALUE`; don't turn blanks into zeros.
 - Framing copies metadata only; Keep your Direct Lake data up to date is on by default; turn it off to expose data after ETL.
 - `DirectLakeBehavior`: Automatic, DirectLakeOnly, DirectQueryOnly; `TABLETRAITS()` shows fallback reasons.

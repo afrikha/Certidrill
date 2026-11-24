@@ -91,7 +91,7 @@ WITH (MEMORY_OPTIMIZED = ON, DURABILITY = SCHEMA_AND_DATA);
 | --- | --- |
 | `SCHEMA_AND_DATA` (default) | Logged, survives a restart; primary key required |
 | `SCHEMA_ONLY` | Only the definition survives a restart: no log I/O, for staging and transient data |
-| Hash index | Equality lookups; `BUCKET_COUNT` one to two times the distinct keys |
+| Hash index | Equality lookups; `BUCKET_COUNT` one to two times the distinct keys (two to three times when equality lookups matter more than memory) |
 | Nonclustered index | Ranges and ordered scans |
 | Natively compiled procedure | `WITH NATIVE_COMPILATION, SCHEMABINDING` and `BEGIN ATOMIC`; accesses only memory-optimized tables |
 
@@ -189,7 +189,7 @@ WITH (LOCATION = 'archive/year=*/*.parquet',
       FILE_FORMAT = ParquetFormat);
 ```
 
-Use the prefixes `abs://` (Blob Storage) or `adls://` (Data Lake Storage Gen2); the credential can also be a managed identity. `OPENROWSET(BULK ...)` serves ad hoc exploration. In Azure SQL Database, CETAS (`CREATE EXTERNAL TABLE AS SELECT`) isn't available, external tables have no statistics, and Row-Level Security and Dynamic Data Masking can't apply to them.
+Use the prefixes `abs://` (Blob Storage) or `adls://` (Data Lake Storage Gen2); the credential can also be a managed identity. `OPENROWSET(BULK ...)` serves ad hoc exploration. In Azure SQL Database, CETAS (`CREATE EXTERNAL TABLE AS SELECT`) isn't available, external tables have no statistics, and Row-Level Security and Dynamic Data Masking can't apply to them. In Azure SQL Managed Instance, data virtualization isn't labeled preview: the same `abs://` and `adls://` prefixes apply (the generic `https://` prefix is disabled), and CETAS exists but is disabled by default.
 
 **Graph tables** model relationships that are traversed (social links, bills of materials, recommendations): `AS NODE` adds `$node_id`; `AS EDGE` adds `$edge_id`, `$from_id`, `$to_id`.
 

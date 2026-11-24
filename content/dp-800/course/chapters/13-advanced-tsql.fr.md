@@ -160,14 +160,14 @@ SELECT m.match_value
 FROM REGEXP_MATCHES('Ticket #A-102 replaces #A-099', '#([A-Z]-\d+)') AS m;
 ```
 
-Indicateurs : `i` insensible à la casse, `c` sensible à la casse (par défaut), `m` `^` et `$` multilignes, `s` permet à `.` de correspondre à un saut de ligne ; quand des indicateurs se contredisent, le dernier l'emporte. Entrées jusqu'à 2 Mo, modèles jusqu'à 8 000 octets. Les deux fonctions table exigent le niveau de compatibilité 170, sauf si la configuration délimitée à la base de données `ALLOW_BUILTIN_TVF_IN_ALL_COMPAT_LEVELS` est activée. Les expressions régulières ignorent les règles de classement, et `REGEXP_LIKE` ne peut utiliser une recherche d'index que si le modèle commence par `^`.
+Indicateurs : `i` insensible à la casse, `c` sensible à la casse (par défaut), `m` `^` et `$` multilignes, `s` permet à `.` de correspondre à un saut de ligne ; quand des indicateurs se contredisent, le dernier l'emporte. Entrées jusqu'à 2 Mo, modèles jusqu'à 8 000 octets. Les deux fonctions table exigent le niveau de compatibilité 170, sauf si la configuration délimitée à la base de données `ALLOW_BUILTIN_TVF_IN_ALL_COMPAT_LEVELS` est activée (en préversion, Azure SQL Database et base de données SQL dans Fabric uniquement). Les expressions régulières ignorent les règles de classement, et `REGEXP_LIKE` ne peut utiliser une recherche d'index que si le modèle commence par `^`.
 
 > **Piège d'examen.** « `REGEXP_LIKE` n'est pas reconnu » sur Azure SQL Database signifie un niveau de compatibilité inférieur à 170. Les autres fonctions `REGEXP_*` scalaires fonctionnent à tous les niveaux : elles ne prouvent donc pas que le niveau est suffisant.
 
 <!-- section: fuzzy-matching | objectives: 1.3.5 -->
 ## Correspondance de chaînes floue
 
-Les fonctions floues trouvent les quasi-doublons et les fautes de frappe que `LIKE` et les expressions régulières manquent : « Contoso Ltd » face à « Contosso Ltd. », « Colour » face à « Color ». Elles sont en **préversion** ; dans SQL Server 2025, elles exigent `ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON`.
+Les fonctions floues trouvent les quasi-doublons et les fautes de frappe que `LIKE` et les expressions régulières manquent : « Contoso Ltd » face à « Contosso Ltd. », « Colour » face à « Color ». Elles s'exécutent sur SQL Server 2025, Azure SQL Database, Azure SQL Managed Instance (stratégie de mise à jour SQL Server 2025 ou Always-up-to-date) et base de données SQL dans Fabric. Elles sont **en disponibilité générale depuis SQL Server 2025 CU11** ; sur les builds antérieures de SQL Server 2025, elles sont en préversion et, si elles ne sont pas activées par défaut, exigent `ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON`.
 
 | Fonction | Retourne | Sens |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ Les fonctions floues trouvent les quasi-doublons et les fautes de frappe que `LI
 | `JARO_WINKLER_SIMILARITY(a, b)` | De 0 à 100 | Plus haut = plus proche |
 
 ```text
-ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;
+ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;   -- only on SQL Server 2025 builds before CU11
 
 SELECT s.SupplierID, s.SupplierName, c.CandidateName,
        EDIT_DISTANCE_SIMILARITY(s.SupplierName, c.CandidateName) AS Similarity
@@ -187,7 +187,7 @@ JOIN Staging.SupplierCandidate AS c
 WHERE EDIT_DISTANCE(s.SupplierName, c.CandidateName, 3) <= 2;
 ```
 
-Les arguments ne peuvent pas être de type `varchar(max)` ou `nvarchar(max)` ; une entrée NULL retourne NULL ; les classements `SQL_*` non binaires ne sont pas pris en charge (appliquez un classement Windows ou binaire avec `COLLATE`). Chaque comparaison est calculée ligne par ligne : réduisez d'abord les paires candidates. Choisissez la distance d'édition pour les fautes de frappe dans des codes et des chaînes courtes, Jaro-Winkler pour les noms dont le début compte le plus.
+Les arguments ne peuvent pas être de type `varchar(max)` ou `nvarchar(max)` ; une entrée NULL retourne NULL ; les classements `SQL_*` non binaires ne sont pas pris en charge (appliquez un classement Windows ou binaire avec `COLLATE`). Chaque comparaison est calculée ligne par ligne : réduisez d'abord les paires candidates ; avec un argument `max`, `EDIT_DISTANCE` peut s'arrêter dès que la distance le dépasse. Choisissez la distance d'édition pour les fautes de frappe dans des codes et des chaînes courtes, Jaro-Winkler pour les noms dont le début compte le plus.
 
 > **Piège d'examen.** Distance et similarité vont en sens inverse : filtrez `EDIT_DISTANCE(...) <= 2` mais `EDIT_DISTANCE_SIMILARITY(...) >= 80`. Une requête qui garde les lignes de distance élevée retourne les chaînes les moins semblables.
 
@@ -315,7 +315,7 @@ END;
 - Fonctions de fenêtre : `ROWS` pour les cumuls, cadre complet pour `LAST_VALUE`, filtrage des résultats par une CTE ; `RANK` laisse des trous, `DENSE_RANK` non.
 - JSON : `JSON_OBJECT` est `NULL ON NULL` par défaut, `JSON_ARRAY` et `JSON_ARRAYAGG` `ABSENT ON NULL` ; `JSON_VALUE` pour les scalaires, `JSON_QUERY` pour les fragments, `OPENJSON ... WITH` pour décomposer, `JSON_CONTAINS` pour rechercher.
 - `REGEXP_*` : SQL Server 2025 et Azure SQL uniquement ; `REGEXP_LIKE` et les fonctions table exigent le niveau de compatibilité 170 ; l'occurrence `0` remplace tout.
-- La correspondance floue est en préversion (`PREVIEW_FEATURES = ON` dans SQL Server 2025) ; la distance baisse, la similarité monte ; pas de types `max`.
+- La correspondance floue est en disponibilité générale depuis SQL Server 2025 CU11 (préversion avec `PREVIEW_FEATURES = ON` sur les builds antérieures) ; la distance baisse, la similarité monte ; pas de types `max`.
 - `MATCH` exige des flèches explicites, `AND` uniquement, des alias d'arêtes distincts ; `SHORTEST_PATH` avec `FOR PATH` et `WITHIN GROUP (GRAPH PATH)`.
 - Préférez `NOT EXISTS` à `NOT IN` avec des colonnes NULL possibles ; `CROSS APPLY` avec `TOP` pour les n premiers par groupe.
 - `SET XACT_ABORT ON`, `TRY...CATCH`, annulation quand `XACT_STATE() <> 0`, puis `THROW;`.

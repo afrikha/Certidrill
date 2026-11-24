@@ -7,7 +7,7 @@ For a logical server of Azure SQL Database, **Security > Networking** has three 
 
 | Setting | Values | Exam facts |
 | --- | --- | --- |
-| Public network access | Disable, Selected networks | Disabled: only private endpoints connect (error 47073), and firewall rules can't be created or edited (error 42101) |
+| Public network access | Disable (default), Selected networks | Disabled: only private endpoints connect (error 47073), and firewall rules can't be created or edited (error 42101) |
 | Minimum TLS version | 1.2 (lowest supported), 1.3 | Clients below the minimum fail with error 47072. Once a minimum is enforced, you can't return to the default |
 | Connection policy | Default, Redirect, Proxy | Redirect is recommended over Proxy (lowest latency, highest throughput) |
 
@@ -56,14 +56,14 @@ az sql mi ad-only-auth enable --resource-group RG-Sql --name sqlmi-contoso
 | --- | --- |
 | Key store | Azure Key Vault or Managed HSM, any region |
 | Vault settings | Soft delete and purge protection, otherwise setup fails |
-| Key | RSA or RSA-HSM 2048 or 3072 bits, enabled, not expired |
+| Key | RSA or RSA-HSM 2048 or 3072 bits (SQL Database and SQL Managed Instance), or, for SQL Database only, AES 128, 192 or 256 bits in Key Vault Premium or Managed HSM (AES-256 recommended for new protectors); enabled, not expired |
 | Server identity | System-assigned or user-assigned managed identity |
 | Access | Role **Key Vault Crypto Service Encryption User** (RBAC model) or `get`, `wrapKey`, `unwrapKey` (access policy model) |
 | Vault firewall | Allow trusted Microsoft services, unless you use a private endpoint |
-| Rotation | Automatic rotation is off by default; when on, the protector moves to the latest key version within 24 hours. Keep old versions: backups need them |
+| Rotation | Automatic rotation is off by default; when on, the protector moves to the latest key version within 24 hours. A versionless key identifier (SQL Database only) always uses the latest enabled version. Keep old versions: backups need them |
 | Geo-replication | Both servers need access to the key vaults that hold the keys |
 
-Switching from a service-managed to a customer-managed key re-encrypts only the DEK: online, no downtime. If the server loses access to the key (permission removed, key or vault deleted, firewall change, identity deleted), databases become **Inaccessible** within about 10 minutes; restored within 30 minutes, they heal automatically.
+Switching from a service-managed to a customer-managed key re-encrypts only the DEK: online, no downtime. If the server loses access to the key (permission removed, key or vault deleted, firewall change, identity deleted), databases become **Inaccessible** within about 10 minutes (Key Vault 4XX errors: after 30 minutes; intermittent 5XX errors get a 24-hour buffer). If access returns within 30 minutes, they recover automatically within one hour; after that, restore the original key version (a new version doesn't help), then select **Retry existing key** and **Validate key** on the **Transparent data encryption** page.
 
 Other platform controls the exam contrasts:
 
@@ -98,7 +98,7 @@ az sql server audit-policy update --resource-group RG-Sql --name sql-contoso \
   --log-analytics-workspace-resource-id "<workspace resource ID>"
 ```
 
-Sending audit logs to Log Analytics or Event Hubs creates a diagnostic setting named `SQLSecurityAuditEvents_...`; deleting it makes auditing fail silently. Audit logs written to storage are append blobs in `.xel` format. A storage account behind a firewall or virtual network must be **general-purpose v2**, and the server then authenticates with its managed identity.
+Sending audit logs to Log Analytics or Event Hubs creates a diagnostic setting named `SQLSecurityAuditEvents_...`; deleting it makes auditing fail silently. Audit logs written to storage are append blobs in `.xel` format; since the July 2025 re-architecture of server auditing (SQL Database), one server-level extended event session captures the events of all databases, and all server audit logs go to a single `master` folder. A storage account behind a firewall or virtual network must be **general-purpose v2**, and the server then authenticates with its managed identity.
 
 For SQL Managed Instance:
 
@@ -117,14 +117,14 @@ WITH (STATE = ON);
 ALTER SERVER AUDIT [Audit-Logins] WITH (STATE = ON);
 ```
 
-To send Managed Instance audit events to Log Analytics or Event Hubs instead, add a diagnostic setting with the category **SQLSecurityAuditEvents**, then create the audit with `TO EXTERNAL_MONITOR`.
+To send Managed Instance audit events to Log Analytics or Event Hubs instead, add a diagnostic setting with the category **SQLSecurityAuditEvents**, then create the audit with `TO EXTERNAL_MONITOR`. Microsoft support operations need a **separate** server audit: selecting **Microsoft support operations** on an existing audit overwrites it, and it then logs only support operations.
 
 > **Exam trap.** Enabling auditing on both the server and a database doesn't replace one with the other: both run and you get two audit trails. Use the server policy for "all databases, including future ones", and a database policy only for a different destination or event set.
 
 <!-- section: defender-for-databases | objectives: 2.2.3 -->
 ## Configuring Defender for Databases
 
-In **Defender for Cloud > Environment settings > subscription > Defender plans**, the **Databases** plan groups four plans, each priced separately. Turning Databases **On** enables all four; **Select types** lets you choose.
+In **Defender for Cloud > Environment settings > subscription > Defender plans**, the **Databases** plan groups four plans, each priced separately. Turning Databases **On** enables all four; to enable or change one plan alone, follow that plan's own enablement article.
 
 | Plan | Protects | Notes |
 | --- | --- | --- |
@@ -147,6 +147,7 @@ When enabled at the subscription, all supported resources, existing and future, 
 | | Express configuration (recommended) | Classic configuration |
 | --- | --- | --- |
 | Scan results storage | Managed by Defender for Cloud, no storage account | Your Azure Storage account |
+| Dependency | System-assigned managed identity (SQL Managed Instance only) | The Azure Storage account |
 | Recurring scans | Always active | Can be turned on or off |
 | Baselines | Batch or single rule; apply without rescanning | Single rule; apply after a rescan |
 | Change settings | SQL Security Manager or Security Admin | SQL Security Manager **and** Storage Blob Data Reader **and** Owner of the storage account |
@@ -160,6 +161,6 @@ When enabled at the subscription, all supported resources, existing and future, 
 - Public network access Disable leaves only private endpoints; the "Allow Azure services" rule admits every Azure customer.
 - Database-level IP rules are T-SQL only and checked before server-level rules; virtual network rules need the `Microsoft.Sql` service endpoint.
 - Microsoft Entra-only authentication needs an Entra admin first; SQL Security Manager can toggle it, SQL Server Contributor can't.
-- Customer-managed TDE: soft delete and purge protection, RSA key, managed identity with Key Vault Crypto Service Encryption User; losing the key makes databases inaccessible.
+- Customer-managed TDE: soft delete and purge protection, RSA key (or AES for SQL Database), managed identity with Key Vault Crypto Service Encryption User; losing the key makes databases inaccessible.
 - Server auditing covers all databases; Managed Instance auditing is T-SQL `CREATE SERVER AUDIT` to URL or `EXTERNAL_MONITOR`.
 - Defender for Databases = four plans; vulnerability assessment express configuration needs no storage account.

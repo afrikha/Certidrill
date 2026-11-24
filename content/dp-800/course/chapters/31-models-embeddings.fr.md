@@ -61,7 +61,7 @@ WITH (
 | Argument | Valeurs et règles |
 | --- | --- |
 | `LOCATION` | Point de terminaison HTTPS uniquement (TLS). Azure OpenAI : `.../openai/deployments/{deployment}/embeddings?api-version=...` ; OpenAI : `.../v1/embeddings` ; Ollama : `.../api/embed` ; ONNX Runtime : un dossier local |
-| `API_FORMAT` | `Azure OpenAI`, `OpenAI`, `Ollama`, `ONNX Runtime` |
+| `API_FORMAT` | `Azure OpenAI`, `OpenAI`, `Ollama`, `ONNX Runtime`. `ONNX Runtime` fonctionne seulement avec SQL Server 2025 sur Windows, avec Machine Learning Services installé, `external AI runtimes enabled` et les fonctionnalités en préversion (`PREVIEW_FEATURES = ON`) |
 | `MODEL_TYPE` | `EMBEDDINGS` est la seule valeur |
 | `MODEL` | Nom du modèle chez le fournisseur |
 | `CREDENTIAL` | Des informations d'identification délimitées à la base de données ; inutiles pour un modèle Ollama ou ONNX local |
@@ -72,7 +72,7 @@ Identités des informations d'identification :
 
 | `IDENTITY` | `SECRET` | Quand |
 | --- | --- | --- |
-| `'Managed Identity'` | `{"resourceid":"https://cognitiveservices.azure.com"}` | À privilégier : aucune clé à stocker ni à renouveler. L'identité managée de la base de données a besoin d'un rôle Azure OpenAI sur la ressource |
+| `'Managed Identity'` | `{"resourceid":"https://cognitiveservices.azure.com"}` | À privilégier : aucune clé à stocker ni à renouveler. L'identité managée a besoin d'un rôle sur la ressource Azure OpenAI : Cognitive Services OpenAI User dans les exemples de `sp_invoke_external_rest_endpoint` ; la page `CREATE EXTERNAL MODEL` indique Cognitive Services OpenAI Contributor pour SQL Server 2025 (Azure Arc) |
 | `'HTTPEndpointHeaders'` | `{"api-key":"..."}` ou `{"Bearer":"..."}` | Points de terminaison à clé, OpenAI |
 
 Le nom des informations d'identification doit être une URL dont le schéma et l'hôte correspondent à l'URL appelée, et dont le chemin est identique ou plus générique. Dans SQL Server 2025, l'identité managée (Azure Arc ou machine virtuelle Azure) nécessite aussi `sp_configure 'allow server scoped db credentials', 1`, et les appels aux points de terminaison REST nécessitent `sp_configure 'external rest endpoint enabled', 1` ; cette option est déjà activée dans Azure SQL Database et SQL Database dans Fabric.
@@ -212,7 +212,7 @@ Quand le texte source change, son incorporation doit être régénérée. La mé
 | Capture des données modifiées (CDC) | Asynchrone | Charges à fort volume ; les valeurs avant et après montrent si le texte incorporé a vraiment changé | Processus de capture et tables de modifications à gérer |
 | Azure Functions avec liaison de déclencheur SQL | Quasi temps réel | Décharger la génération du moteur de base de données, mise à l'échelle indépendante | Repose sur le suivi des modifications ; du code à déployer |
 | Azure Logic Apps | Selon la planification du flux de travail | Orchestration low-code avec d'autres services | Intervalle d'interrogation, limites du connecteur |
-| Streaming d'événements de modification (CES) | Quasi temps réel | Plusieurs consommateurs du même flux de modifications, aucun travail supplémentaire dans la transaction | Préversion ; les événements vont vers Azure Event Hubs, un consommateur doit appeler le modèle et réécrire |
+| Streaming d'événements de modification (CES) | Quasi temps réel | Plusieurs consommateurs du même flux de modifications, aucun travail supplémentaire dans la transaction | Préversion ; les événements vont vers Azure Event Hubs ou Fabric Eventstream, un consommateur doit appeler le modèle et réécrire |
 | Microsoft Foundry | Pas une méthode de détection | Sélection, hébergement et évaluation centralisés des modèles | Un autre processus doit détecter les changements et mettre à jour la base |
 
 Déclencheur qui se contente de **marquer** la ligne, avec un travail par lots qui régénère plus tard (le modèle n'est pas appelé dans la transaction de l'utilisateur) :
@@ -275,4 +275,4 @@ UPDATE dbo.EmbeddingSync SET LastVersion = @now;
 - Incorporez du texte porteur de sens, pas des identifiants ni des nombres ; stockez les vecteurs dans une table séparée.
 - `AI_GENERATE_CHUNKS` : `FIXED` uniquement, taille en caractères, chevauchement en pourcentage (0 à 50), niveau de compatibilité 170.
 - `AI_GENERATE_EMBEDDINGS(text USE MODEL m [PARAMETERS j])` dans `SELECT`, `UPDATE` ou `INSERT ... SELECT`.
-- Maintenance : déclencheur (immédiat), suivi des modifications (par lots), CDC (anciennes et nouvelles valeurs), Functions (hors du moteur), Logic Apps (low-code), CES (flux vers Event Hubs), Foundry (modèles uniquement).
+- Maintenance : déclencheur (immédiat), suivi des modifications (par lots), CDC (anciennes et nouvelles valeurs), Functions (hors du moteur), Logic Apps (low-code), CES (flux vers Event Hubs ou Fabric Eventstream), Foundry (modèles uniquement).

@@ -14,8 +14,8 @@ When you enable guest monitoring, you choose between two experiences:
 
 | Experience | Stored in | Queried with | Notes |
 | --- | --- | --- | --- |
-| OpenTelemetry metrics (recommended for new deployments) | Azure Monitor workspace | PromQL | Default set is free: `system.cpu.time`, `system.memory.usage`, `system.disk.io`, `system.network.io`, `system.filesystem.usage`... Extra metrics such as `system.cpu.utilization` or `process.cpu.utilization` are billed |
-| Logs-based metrics (classic) | Log Analytics workspace, `InsightsMetrics` table | KQL | Feeds the VM insights Performance view; namespaces `Processor`, `Memory`, `LogicalDisk`, `Network` |
+| OpenTelemetry metrics (recommended for new deployments) | Azure Monitor workspace | PromQL | Default set is free: `system.cpu.time`, `system.memory.usage`, `system.disk.io`, `system.network.io`, `system.filesystem.usage`... Extra metrics such as `system.cpu.utilization` or `process.cpu.utilization` are billed. Individual VMs and Arc-enabled servers only (not scale sets), no private link support, and a single query can't span the Azure Monitor workspace and a Log Analytics workspace |
+| Logs-based metrics (classic) | Log Analytics workspace, `InsightsMetrics` table | KQL | Feeds the VM insights Performance view; namespaces `Processor`, `Memory`, `LogicalDisk`, `Network`. Default metrics go to `InsightsMetrics`, extra counters to `Perf`. Also supports scale sets |
 
 The VM insights **Performance** view (Monitor > Virtual Machines, or the VM's Insights) shows, for the logs-based experience:
 
@@ -39,7 +39,7 @@ Reading the indicators:
 | Logical Disk Space Used % near 100 % | Volume full | Extend the disk, clean logs |
 | Network rates high, CPU idle | Network-bound or chatty dependency | Accelerated networking, larger size, caching |
 
-Other resources follow the same logic: an App Service plan exposes `CPU Percentage`, `Memory Percentage`, `Disk Queue Length` and `Http Queue Length`; a storage account exposes `Transactions` (split by `ResponseType` or `ApiName`), `Availability`, `SuccessE2ELatency` and `SuccessServerLatency`. In Container insights, **Memory working set** includes cache, while **Memory RSS** shows resident memory only; Managed Prometheus visualizations are preferred over Log Analytics visualizations.
+Other resources follow the same logic: an App Service plan in the Basic, Standard, Premium or Isolated tier (plan metrics don't exist in Free and Shared, where the app's `CPU Time` tracks the CPU quota) exposes `CPU Percentage`, `Memory Percentage`, `Disk Queue Length` and `Http Queue Length`; a storage account exposes `Transactions` (split by `ResponseType` or `ApiName`), `Availability`, `SuccessE2ELatency` and `SuccessServerLatency`. In Container insights, **Memory working set** includes cache, while **Memory RSS** shows resident memory only; Managed Prometheus visualizations are preferred over Log Analytics visualizations.
 
 > **Exam trap.** Storage `SuccessE2ELatency` includes network time and client acknowledgment; `SuccessServerLatency` is only processing time inside Azure Storage. High end-to-end latency with low server latency points to the network or the client, not to storage.
 

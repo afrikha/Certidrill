@@ -46,7 +46,7 @@ Outils d'évaluation :
 <!-- section: online-migration | objectives: 1.3.3 -->
 ## Implémenter une migration en ligne
 
-Le **lien Managed Instance** réplique une base par lien, quasiment en temps réel, depuis SQL Server 2016 ou ultérieur (Enterprise, Developer ou Standard). Pendant la réplication, la base sur l'instance managée est en **lecture seule**, ce qui permet aussi des tests et du reporting avant le basculement. Prérequis : connectivité réseau de SQL Server vers l'instance, un point de terminaison de mise en miroir de bases de données (port 5022 par défaut), une approbation par certificats entre les deux côtés. Seules les bases utilisateur sont répliquées, pas les connexions, les travaux ni les objets de serveur. Basculement : arrêtez l'application, basculez le lien vers l'instance managée, redirigez les chaînes de connexion. Avec SQL Server 2022 ou ultérieur, le lien permet aussi de revenir en arrière.
+Le **lien Managed Instance** réplique une base par lien, quasiment en temps réel, depuis SQL Server 2016 ou ultérieur (Enterprise, Developer ou Standard). Pendant la réplication, la base sur l'instance managée est en **lecture seule**, ce qui permet aussi des tests et du reporting avant le basculement. Prérequis sur SQL Server : la fonctionnalité des groupes de disponibilité Always On activée (un redémarrage du service est nécessaire) et le mode de lien multibase activé ; une clé principale de base de données dans `master`, qui protège les certificats de l'approbation entre les deux côtés ; un point de terminaison de mise en miroir de bases de données (port 5022 par défaut) ; chaque base répliquée en mode de récupération complète avec au moins une sauvegarde complète. Réseau : port 5022 ouvert dans les deux sens et plage 11000-11999 ouverte de SQL Server vers le sous-réseau de l'instance managée, sans plages IP qui se chevauchent. Les indicateurs de trace `-T1800` et `-T9567` sont recommandés. Seules les bases utilisateur sont répliquées, pas les connexions, les travaux ni les objets de serveur. Basculement : arrêtez l'application, basculez le lien vers l'instance managée, redirigez les chaînes de connexion. Avec SQL Server 2022 ou ultérieur, le lien permet aussi de revenir en arrière.
 
 **Log Replay Service (LRS)** en mode **continu** :
 
@@ -101,7 +101,7 @@ SqlPackage /a:Export /ssn:sqlsrv01 /sdn:SalesDb /tf:SalesDb.bacpac
 SqlPackage /a:Import /tsn:sql-contoso-prod.database.windows.net /tdn:SalesDb /sf:SalesDb.bacpac /ua:True /tid:"contoso.onmicrosoft.com"
 ```
 
-Contraintes d'importation : le portail ne crée qu'une base Azure SQL unique, à partir d'un BACPAC du Stockage Blob ; un BACPAC vers une instance managée exige SqlPackage ou SSMS ; l'importation dans un pool élastique n'est prise en charge ni par le portail, ni par PowerShell, ni par Azure CLI ; le service Import/Export ne fonctionne pas avec un stockage derrière un pare-feu ni quand « Autoriser l'accès aux services Azure » est désactivé.
+Contraintes d'importation : le portail ne crée qu'une base Azure SQL unique, à partir d'un BACPAC du Stockage Blob ; un BACPAC vers une instance managée exige SqlPackage ou SSMS ; l'importation dans un pool élastique n'est prise en charge ni par le portail, ni par PowerShell, ni par Azure CLI ; le service Import/Export ne fonctionne pas avec un stockage derrière un pare-feu, quand « Autoriser l'accès aux services Azure » est désactivé, ni avec l'authentification Microsoft Entra quand l'authentification multifacteur (MFA) est exigée.
 
 **Database Migration Service hors connexion** vers Azure SQL Database migre le schéma et les données ; il ne migre ni les connexions ni les bases chiffrées par TDE.
 
@@ -119,7 +119,7 @@ Quel que soit l'outil, la procédure suit le même ordre :
 
 Gardez d'abord le **niveau de compatibilité** de la base source et relevez-le après les tests, avec le Magasin des requêtes qui capture les plans avant et après, pour détecter les régressions.
 
-Pour une cible **SQL Server sur les machines virtuelles Azure**, les choix courants sont la sauvegarde et restauration via le Stockage Blob (hors connexion), Database Migration Service en ligne, ou l'ajout de la machine virtuelle comme réplica d'un groupe de disponibilité existant suivi d'un basculement (en ligne, temps d'arrêt minimal).
+Pour une cible **SQL Server sur les machines virtuelles Azure**, les choix courants sont la sauvegarde et restauration via le Stockage Blob (hors connexion), Database Migration Service en ligne ou hors connexion, ou un **groupe de disponibilité distribué** quand un groupe de disponibilité est déjà configuré en local (temps d'arrêt minimal). Azure Migrate déplace un serveur entier tel quel (lift and shift).
 
 <!-- section: between-azure-sql | objectives: 1.3.6 -->
 ## Migrer entre services Azure SQL
@@ -132,7 +132,7 @@ Pour une cible **SQL Server sur les machines virtuelles Azure**, les choix coura
 | Azure SQL Database | Managed Instance | Exportation et importation BACPAC avec SqlPackage (SQL Database n'a pas de sauvegarde native) |
 | Managed Instance | Azure SQL Database | BACPAC, ou réplication transactionnelle avec l'instance managée comme éditeur |
 | Managed Instance | Managed Instance, même région | Copie ou déplacement de base |
-| Managed Instance | SQL Server 2022 ou SQL Server 2025 | Sauvegarde `COPY_ONLY` vers une URL et restauration, si la stratégie de mise à jour correspond à la version cible |
+| Managed Instance | SQL Server 2022 ou SQL Server 2025 | Sauvegarde `COPY_ONLY` vers une URL et restauration `WITH MOVE` (chemins de fichiers explicites), si la stratégie de mise à jour correspond à la version cible. Une base chiffrée par une clé TDE gérée par le service (le cas par défaut) ne peut pas être restaurée : il faut une clé gérée par le client, que SQL Server atteint via le connecteur SQL Server pour Azure Key Vault |
 | SQL Server sur les machines virtuelles Azure | Managed Instance | Les mêmes outils que depuis le site local : lien Managed Instance, LRS, Database Migration Service |
 
 ```text
@@ -165,7 +165,7 @@ Règles :
 - La source et la destination sont des instances différentes dans la **même région Azure** ; des abonnements différents sont permis dans le même locataire Microsoft Entra.
 - Des réseaux virtuels différents exigent une connectivité (par exemple un peering) et les ports TCP **5022** et **11000-11999** ouverts dans les deux sens.
 - Bases utilisateur uniquement, une opération à la fois par base, jusqu'à huit opérations simultanées par instance source ; pas de renommage pendant l'opération.
-- Les bases d'un groupe de basculement ou d'un lien Managed Instance ne peuvent être ni copiées ni déplacées.
+- Les bases d'un groupe de basculement ou d'un lien Managed Instance ne peuvent être ni copiées ni déplacées, et ni l'instance source ni l'instance de destination ne doivent être configurées avec un groupe de basculement.
 - Les sauvegardes de restauration à un point dans le temps ne suivent pas : une nouvelle chaîne de sauvegarde commence sur la destination. Les étiquettes ne sont pas copiées ; la réplication transactionnelle, la capture des données modifiées et les transactions distribuées sont à reconfigurer après un déplacement.
 - La destination exige une **stratégie de mise à jour** identique ou plus récente, et l'accès à la même clé Key Vault pour un protecteur TDE géré par le client.
 
@@ -194,7 +194,7 @@ FROM sys.dm_hadr_physical_seeding_stats;
 | Un BACPAC de plus de 150 Go échoue à l'importation depuis le portail (« File contains corrupted data ») ou « not enough space on the disk » | Limites du service Import/Export (450 Go de disque local) | Importer avec SqlPackage |
 | La requête Import/Export échoue | Stockage derrière un pare-feu, ou « Autoriser l'accès aux services Azure » désactivé | Exécuter SqlPackage depuis une machine virtuelle Azure |
 | Database Migration Service ne peut pas migrer une base | Base chiffrée par TDE | Utiliser une autre méthode (lien, LRS, sauvegarde et restauration avec le certificat) |
-| La copie ou le déplacement ne démarre pas ou stagne | Ports 5022 et 11000-11999 bloqués, autre région, stratégie de mise à jour inférieure, base dans un groupe de basculement | Ouvrir les ports, choisir une destination valide |
+| La copie ou le déplacement ne démarre pas ou stagne | Ports 5022 et 11000-11999 bloqués, autre région, stratégie de mise à jour inférieure, groupe de basculement sur la base ou sur l'une des instances | Ouvrir les ports, choisir une destination valide |
 | Requêtes plus lentes après la migration | Nouveau niveau de compatibilité ou statistiques obsolètes | Comparer les plans dans le Magasin des requêtes, forcer le bon plan ou abaisser le niveau de compatibilité, mettre à jour les statistiques |
 
 <!-- section: key-points -->

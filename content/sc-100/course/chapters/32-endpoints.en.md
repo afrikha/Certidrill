@@ -42,7 +42,7 @@ For clients, Microsoft Intune manages **configuration and compliance**, Defender
 | Block unknown applications | App Control for Business |
 | Protect credentials from theft | Credential Guard, Windows Hello for Business |
 | Encrypt lost devices | BitLocker (Windows), FileVault (macOS), device encryption required by compliance policy |
-| Prevent users from disabling protection | Tamper protection |
+| Prevent users from disabling protection | Tamper protection (Windows; macOS in Block mode; on Linux it is in preview and Audit mode only: it reports changes but doesn't block them) |
 
 Hardening principles to state: remove local administrator rights from users, keep the OS and apps updated (Windows Update for Business through Intune), enable network protection and web content filtering, and use security baselines as the starting configuration.
 
@@ -122,7 +122,7 @@ Rules to remember:
 <!-- section: windows-laps | objectives: 3.2.6 -->
 ## Evaluating Windows LAPS
 
-**Windows LAPS** (Local Administrator Password Solution) is built into Windows 11 23H2 and later and Windows Server 2025, and was added to Windows 10, Windows 11 21H2 and 22H2, Windows Server 2019 and 2022 by the April 11, 2023 update. It rotates the password of one local administrator account per device and backs it up, which defeats pass-the-hash and lateral movement with a shared local password.
+**Windows LAPS** (Local Administrator Password Solution) is built into Windows 11 23H2 and later and Windows Server 2025, and was added to Windows 10, Windows 11 21H2 and 22H2, Windows Server 2019 and 2022 by the April 11, 2023 update. Windows 10 reached end of support on October 14, 2025: Windows LAPS remains available only on Windows 10 devices that still receive updates, such as through Extended Security Updates, and new deployments use Windows 11 or a supported Windows Server. It rotates the password of one local administrator account per device and backs it up, which defeats pass-the-hash and lateral movement with a shared local password.
 
 | Device join state | Backup directory |
 | --- | --- |
@@ -144,7 +144,7 @@ Evaluation criteria:
 | Rotate after use | Post-authentication actions: reset the password, sign out or reboot after a grace period |
 | Policy deployment | Intune Windows LAPS policy (Entra joined or hybrid), Group Policy (AD and hybrid) |
 
-Migration: **legacy Microsoft LAPS** is deprecated starting with Windows 11 23H2, which blocks its installation. Emulation mode lets Windows LAPS honor legacy policies during transition, but it stores passwords in clear text in AD, without encryption or history, so treat it as temporary.
+Migration: **legacy Microsoft LAPS** is deprecated as of Windows 11 23H2, and newer OS versions block the installation of its MSI package. Emulation mode lets Windows LAPS honor legacy policies during transition, but it stores passwords in clear text in AD, without encryption or history, so treat it as temporary.
 
 > **Exam trap.** If a device is deleted from Microsoft Entra ID, its LAPS password is lost with it. And Conditional Access can target the built-in roles that recover passwords, but not roles scoped to an administrative unit or custom roles.
 

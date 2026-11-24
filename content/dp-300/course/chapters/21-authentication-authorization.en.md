@@ -32,7 +32,7 @@ Authentication methods offered by drivers and tools:
 | Managed identity (system-assigned or user-assigned) | Azure-hosted applications: token based, **no secret to store**, the recommended choice |
 | Service principal with a client secret | Applications outside Azure; not recommended because the secret is a password |
 
-**Microsoft Entra-only authentication** disables SQL authentication (and Windows authentication on a managed instance) for the whole server or instance. Existing SQL logins aren't deleted; they just can't connect. A Microsoft Entra admin must be set first, and it can't be removed while the feature is on.
+**Microsoft Entra-only authentication** disables SQL authentication for the whole server or instance. Existing SQL logins aren't deleted; they just can't connect. A Microsoft Entra admin must be set first, and it can't be removed while the feature is on.
 
 ```bash
 az sql server ad-only-auth enable --resource-group RG1 --name sql-contoso
@@ -105,11 +105,11 @@ Server-level roles differ by offering:
 
 | Offering | Server roles |
 | --- | --- |
-| SQL Server (VM) and SQL Managed Instance | Classic fixed server roles: `sysadmin`, `securityadmin`, `serveradmin`, `dbcreator`, `processadmin`... |
+| SQL Server (VM) and SQL Managed Instance | Classic fixed server roles: `sysadmin`, `securityadmin`, `serveradmin`, `dbcreator`, `processadmin`..., plus the `##MS_...##` roles on SQL Server 2022 and later and on SQL Managed Instance |
 | Azure SQL Database | `##MS_DatabaseConnector##`, `##MS_DatabaseManager##`, `##MS_DefinitionReader##`, `##MS_LoginManager##`, `##MS_SecurityDefinitionReader##`, `##MS_ServerStateManager##`, `##MS_ServerStateReader##` |
 | Azure SQL Database, `master` only | Database roles `dbmanager` (create databases) and `loginmanager` (create logins) |
 
-In Azure SQL Database there is no `sysadmin`: the server admin and the Microsoft Entra admin are the only full administrators, and only they can add logins to server roles. `##MS_DatabaseManager##` creates databases; the creator becomes `dbo` of that database only.
+In Azure SQL Database there is no `sysadmin`: the server admin and the Microsoft Entra admin are the only full administrators, and only they can add logins to server roles. `##MS_DatabaseManager##` creates databases; the creator becomes `dbo` of that database only. Azure SQL Database server roles aren't supported for Microsoft Entra groups: add individual Microsoft Entra logins (or SQL logins) to them.
 
 The nine fixed database roles: `db_owner`, `db_securityadmin`, `db_accessadmin`, `db_backupoperator`, `db_ddladmin`, `db_datawriter`, `db_datareader`, `db_denydatawriter`, `db_denydatareader`.
 
@@ -135,7 +135,7 @@ Rules to remember:
 - The server resolves names through Microsoft Graph: in Azure SQL Database the server identity can hold `User.Read.All`, `GroupMember.Read.All` and `Application.Read.All`; SQL Managed Instance needs Directory Readers on its identity.
 - A new user receives only `CONNECT`. Grant permissions to roles, and add groups to roles.
 - Members of a group have no implicit user: they have no default schema. Create the group user with `WITH DEFAULT_SCHEMA = dbo` if members create objects.
-- `ALTER LOGIN [name] DISABLE` blocks a Microsoft Entra login and every user created from it, but not contained users, and it isn't supported for groups.
+- `ALTER LOGIN [name] DISABLE` blocks a Microsoft Entra login and every user created from it, but not contained users, and it isn't supported for groups. For the change to apply immediately, clear the caches with `DBCC FLUSHAUTHCACHE` and `DBCC FREESYSTEMCACHE('TokenAndPermUserStore')`.
 
 > **Exam tip.** "The application runs in Azure App Service and must not store credentials" means: enable a managed identity on the app, then `CREATE USER [app name] FROM EXTERNAL PROVIDER` and grant a role. Neither a SQL login nor a service principal secret.
 

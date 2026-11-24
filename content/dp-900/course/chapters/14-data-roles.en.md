@@ -8,7 +8,7 @@ A **database administrator** manages databases: the design, implementation, main
 - Keeps databases **available**, with consistent **performance**, and optimizes them.
 - Defines and implements **backup and recovery** policies, tools and processes, so that data can be restored after a disaster or a human error.
 - Manages the **security of the data** in the database: grants privileges over data, grants or denies access to users.
-- On Azure, provisions and manages database services such as Azure SQL, Azure Database for MySQL and Azure Database for PostgreSQL.
+- On Azure, provisions and manages database services such as Azure SQL, Azure Database for MySQL and Azure Database for PostgreSQL. Azure Cosmos DB is sometimes managed by an administrator, but often by the software developers of the application.
 
 The SQL statements `GRANT`, `DENY` and `REVOKE`, which control permissions, belong to the administrator's daily work.
 
@@ -24,7 +24,7 @@ A **data engineer** manages the infrastructure and the processes that **integrat
 - Identifies **data governance** rules and makes sure that **data privacy** is maintained in the cloud and between on-premises and cloud data stores.
 - Owns the management and monitoring of **data pipelines**, so that data loads run as expected.
 
-Typical services of the data engineer: Azure Data Factory (defining and scheduling pipelines that transfer and transform data), Microsoft Fabric, Azure Databricks, Azure Stream Analytics (processing streams of data in real time), Azure Storage (hosting data lakes) and Microsoft Purview (governance and data lineage).
+Typical services of the data engineer: Azure Data Factory (defining and scheduling pipelines that transfer and transform data; its version built into Fabric, Fabric Data Factory, is recommended when all the data work is in Fabric), Microsoft Fabric, Azure Databricks, Azure Stream Analytics (processing streams of data in real time), Azure Storage (hosting data lakes) and Microsoft Purview (governance and data lineage).
 
 <!-- section: data-analyst | objectives: 1.4.3 -->
 ## Data analysts

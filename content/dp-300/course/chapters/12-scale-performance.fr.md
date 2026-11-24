@@ -51,7 +51,7 @@ Le **serverless** se met à l'échelle automatiquement entre les vCores minimum 
 
 | | General Purpose | Next-gen General Purpose | Business Critical |
 | --- | --- | --- | --- |
-| Stockage | Distant, 5 à 10 ms, jusqu'à 16 To | Elastic SAN, 3 à 5 ms, jusqu'à 32 To | SSD local, 1 à 2 ms, jusqu'à 4 To (16 To avec le matériel série Premium) |
+| Stockage | Distant, 5 à 10 ms, jusqu'à 16 To | Elastic SAN, 3 à 5 ms, jusqu'à 32 To | SSD local, 1 à 2 ms, jusqu'à 4 To en série Standard ; série Premium jusqu'à 5,5 To, ou 16 To avec 64 vCores ou plus dans les grandes régions |
 | Bases par instance | 100 | 500 | 100 |
 | IOPS | 500 à 7 500 par fichier, selon la taille du fichier | 3 IOPS gratuites par Go de stockage, d'autres peuvent être achetées | 4 000 IOPS par vCore |
 | OLTP en mémoire | Non | Non | Oui |
@@ -60,7 +60,7 @@ Le **serverless** se met à l'échelle automatiquement entre les vCores minimum 
 
 Le matériel fixe la mémoire par vCore : série Standard 5,1 Go, série Premium 7 Go, série Premium à mémoire optimisée 13,6 Go. Une charge gourmande en mémoire passe à la série Premium à mémoire optimisée plutôt qu'à davantage de vCores.
 
-La mise à l'échelle des vCores, du stockage ou du niveau se fait dans le portail (**Calcul + stockage**), avec `az sql mi update` ou `Set-AzSqlInstance`. L'instance reste disponible pendant l'opération et n'est indisponible que pendant le basculement final. Les opérations Business Critical, et tout changement entre General Purpose et Business Critical, **amorcent** (seeding) les données vers de nouveaux réplicas : leur durée croît avec la taille des données. Next-gen General Purpose règle les IOPS et la mémoire indépendamment :
+La mise à l'échelle des vCores, du stockage ou du niveau se fait dans le portail (**Calcul + stockage**), avec `az sql mi update` ou `Set-AzSqlInstance`. L'instance reste disponible pendant l'opération et n'est indisponible que pendant le basculement final. Les opérations Business Critical, et tout changement entre General Purpose et Business Critical, **amorcent** (seeding) les données vers de nouveaux réplicas : leur durée croît avec la taille des données. Next-gen General Purpose règle les IOPS indépendamment du stockage ; sur le matériel série Premium, Next-gen General Purpose et Business Critical peuvent aussi régler la mémoire indépendamment des vCores (mémoire flexible, facturée au Go) :
 
 ```bash
 az sql mi update -g RG1 -n mi-contoso -e GeneralPurpose --gpv2 true --iops 6000
@@ -69,7 +69,7 @@ az sql mi update -g RG1 -n mi-contoso -e GeneralPurpose --gpv2 true --iops 6000
 Leviers de performance propres à Managed Instance :
 
 - Les **IOPS par fichier en General Purpose** dépendent de la taille du fichier : agrandir à l'avance un fichier de données ou de journal très sollicité relève ses limites d'IOPS et de débit.
-- Le **débit d'écriture du journal** est plafonné par vCore (4,5 Mio/s par vCore en General Purpose, 16 Mio/s par vCore en Business Critical) ; une charge d'écriture qui atteint le plafond exige plus de vCores ou Business Critical.
+- Le **débit d'écriture du journal** est plafonné par vCore, jusqu'à un maximum par instance : General Purpose 4,5 Mio/s par vCore, 120 Mio/s au plus ; Next-gen General Purpose 6 Mio/s par vCore, 220 Mio/s au plus (acheter des IOPS ne le relève pas) ; Business Critical 16 Mio/s par vCore, 160 Mio/s au plus en série Standard ou 192 Mio/s en série Premium. Une charge d'écriture qui atteint le plafond par vCore exige plus de vCores ou un autre niveau.
 - `tempdb` accepte jusqu'à 128 fichiers ; en General Purpose, sa taille est limitée à 24 Go par vCore.
 - Les **pools d'instances** hébergent plusieurs instances General Purpose sur des ressources partagées et préprovisionnées : les instances à 2 vCores n'existent que dans un pool, et une instance se crée en 10 minutes environ. Idéal pour migrer de nombreuses petites instances ; l'inconvénient est un possible voisin bruyant.
 

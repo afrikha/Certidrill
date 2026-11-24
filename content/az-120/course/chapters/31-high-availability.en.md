@@ -32,7 +32,7 @@ Without a cluster, **Azure VM restart** (service healing) restarts a failed VM o
 | Protects against | Host, rack, power or switch failure in one datacenter (fault domains) and planned maintenance (update domains, one rebooted at a time) | Loss of a whole datacenter (independent power, cooling, network) |
 | Disks | Managed disks are aligned with the VM's fault domain | Managed disks are created in the VM's zone; managed disks are mandatory |
 | Latency | Lowest (one datacenter) | Varies between zones: measure it |
-| Storage restrictions | Premium SSD v2 and Ultra Disk not supported | Ultra Disk and Premium SSD v2 supported |
+| Storage restrictions | Ultra Disk not supported; Premium SSD v2 only in a few regions without availability zones, after feature registration | Ultra Disk and Premium SSD v2 supported |
 | Assignment | Only when the VM is created (or redeployed) | Only when the VM is created |
 
 Design rules:
@@ -103,7 +103,7 @@ resource ilb 'Microsoft.Network/loadBalancers@2023-11-01' = {
 | Locks on enqueue restart | Lost | Kept |
 | Cluster size | Two nodes | Two nodes, or three nodes (ENSA2 only) |
 
-For new SLES 15 deployments, Microsoft recommends the **simple mount** configuration (file systems mounted by the OS, not by the cluster). On Linux, one cluster can host at most five SAP SIDs (multi-SID).
+For new SLES 15 deployments, Microsoft recommends the **simple mount** configuration (file systems mounted by the OS, not by the cluster). On Linux, one cluster can host at most five SAP SIDs (multi-SID), and ENSA1 and ENSA2 systems can't be mixed in one cluster.
 
 **Windows** clusters ASCS/SCS with WSFC, using either a **file share** (SMB on Azure Files or Azure NetApp Files, or Scale-Out File Server) or a **shared disk** (Azure shared disk on Premium SSD, `Premium_LRS` with availability sets, `Premium_ZRS` with zones, `maxShares` 2; or SIOS DataKeeper). Use Windows Server 2019 Datacenter or later: WSFC is Azure-aware and uses a distributed network name for the cluster name.
 
@@ -216,8 +216,8 @@ Azure block storage keeps three synchronous copies inside one zone, but database
 | Premium SSD v1 (`Premium_ZRS`) | Synchronous, but not tested with SAP databases | Not supported for database files; supported for Azure shared disks (ASCS/SCS on WSFC, SBD) |
 | Premium SSD v2, Ultra Disk | None | Replicate with the DBMS (HSR, Always On) |
 | Azure Files SSD (ZRS) | Synchronous across three zones, transparent to clients | Fully supported for `sapmnt`, transport and central services HA |
-| Azure NetApp Files cross-zone replication | **Asynchronous** to a volume in another zone | Zone resilience for volumes that no application replication protects; destination read-only until you break the replication peering (manual failover); no extra charge beyond the capacity pools |
-| Azure NetApp Files cross-region replication | Asynchronous to a paired region | Disaster recovery; billed per GiB replicated |
+| Azure NetApp Files cross-zone replication | **Asynchronous** to a volume in another zone | Zone resilience for volumes that no application replication protects; destination read-only until you break the replication peering and mount it (manual failover); no extra charge beyond the capacity pools |
+| Azure NetApp Files cross-region replication | Asynchronous to a region of a supported replication pair (Azure paired regions and some nonstandard pairs) | Disaster recovery; billed per GiB replicated |
 | SIOS DataKeeper | Synchronous mirror between two managed disks | Third-party shared-disk option for Windows ASCS/SCS |
 
 Design rules:

@@ -24,7 +24,7 @@ The workflow has five steps:
 | **Investigate** | A **case** gathers the user's activity, the related content and the case notes |
 | **Action** | Send a reminder notice to the user, or escalate the case to eDiscovery for a legal investigation |
 
-Policy templates to recognize: **data theft by departing users** (uses an HR connector to know who is leaving), **data leaks**, **security policy violations** (uses Microsoft Defender for Endpoint signals), **risky AI usage**, **patient data misuse**.
+Policy templates to recognize: **data theft by departing users** (triggered by a resignation or termination date from an HR connector, or by the deletion of the user's Microsoft Entra account), **data leaks**, **security policy violations** (uses Microsoft Defender for Endpoint signals), **risky AI usage**. **Patient data misuse** is still in preview.
 
 > **Exam trap.** DLP looks at the **content** and blocks an action at the moment it happens. Insider risk management looks at the **behavior of a user** over time and raises alerts for an investigation: its purpose is to detect and investigate, not to block.
 

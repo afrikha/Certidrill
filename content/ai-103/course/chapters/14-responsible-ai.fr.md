@@ -11,7 +11,7 @@ Dans le portail Foundry actuel, un **garde-fou** (guardrail) est une collection 
 | User prompt attacks | Un utilisateur tente de modifier les règles système, de remplacer la persona ou de contourner la sécurité (jailbreak) | Oui | Oui |
 | Indirect attacks | Instructions cachées dans des documents, des e-mails ou des résultats d'outils que le modèle traite | Oui | Oui |
 | Spotlighting (préversion) | Aide le modèle à distinguer une entrée non fiable des instructions | Oui | Non |
-| Protected material for text / for code | Texte protégé connu (paroles, articles) ; code issu de dépôts publics, avec citation et licence | Oui | Oui |
+| Protected material for text / for code | Texte protégé connu (paroles, articles) ; code issu de référentiels publics, avec citation et licence | Oui | Oui |
 | Groundedness (préversion) | Sortie non étayée par les sources fournies | Oui | Non |
 | Personally identifiable information (préversion) | Données personnelles dans le contenu | Oui | Oui |
 | Task Adherence (préversion) | Comportement de l'agent qui s'écarte de la tâche assignée | Oui | Oui |
@@ -40,7 +40,7 @@ Valeurs par défaut et héritage :
 - Un agent utilise le garde-fou qui lui est attribué ; sans garde-fou, il hérite de celui de son déploiement de modèle. Le garde-fou d'un agent **remplace** entièrement celui du modèle : s'il ne contient aucun contrôle sur l'appel ou la réponse d'outil, ces points ne sont pas analysés.
 - Un même garde-fou peut être attribué à de nombreux modèles et agents. Les garde-fous par défaut ne sont pas modifiables ; créez-en un personnalisé (**Build > Guardrails > Create Guardrail** : ajouter les contrôles, attribuer des agents et des modèles, vérifier et nommer). Il faut pour cela le rôle Foundry Account Owner ou supérieur.
 - Derrière le portail, un garde-fou est une stratégie RAI (RAI policy), attribuée à un déploiement par sa propriété `raiPolicyName`. Une requête peut désigner un autre garde-fou avec l'en-tête `x-policy-id`.
-- Des **listes de blocage** (une liste personnalisée de termes, ou la liste intégrée de grossièretés) peuvent être ajoutées au filtrage des entrées, des sorties ou des deux.
+- Des **listes de blocage** (listes personnalisées de termes exacts ou d'expressions régulières, jusqu'à 10 000 termes par liste) peuvent être ajoutées au filtrage des entrées, des sorties ou des deux. Elles ne sont prises en charge que pour les modèles Azure OpenAI, et un nouveau terme met environ 5 minutes à s'appliquer.
 
 Ce que voit l'application quand un appel est bloqué :
 
@@ -53,7 +53,7 @@ Ce que voit l'application quand un appel est bloqué :
 
 > **Piège d'examen.** Un garde-fou agit à l'exécution, sur chaque requête : il bloque ou annote. Un évaluateur mesure un lot de sorties et produit des scores : il ne bloque rien. « Empêcher l'agent de renvoyer du contenu violent » relève d'un garde-fou ; « mesurer la fréquence des réponses violentes avant la mise en production » relève d'un évaluateur.
 
-> **Conseil d'examen.** « Des instructions malveillantes cachées dans un document chargé ou dans une page web renvoyée par un outil » est une attaque indirecte. Pour un agent, analysez le point d'intervention de réponse d'outil ; « un utilisateur tape un jailbreak » est une attaque par invite utilisateur, sur l'entrée utilisateur.
+> **Conseil d'examen.** « Des instructions malveillantes cachées dans un document chargé ou dans une page web renvoyée par un outil » est une attaque indirecte. Pour un déploiement de modèle, transmettez ce contenu sous forme de documents et activez la détection des attaques indirectes ; pour un agent, le point d'intervention de réponse d'outil l'analyse (préversion, comme tous les garde-fous d'agent). « Un utilisateur tape un jailbreak » est une attaque par invite utilisateur, sur l'entrée utilisateur.
 
 <!-- section: evaluation-instrumentation | objectives: 1.4.2 -->
 ## Évaluateurs, évaluations de sécurité et explications
@@ -64,11 +64,11 @@ Un **évaluateur** note une caractéristique d'une sortie. Certains sont des cal
 | --- | --- | --- |
 | Usage général | Coherence, Fluency | Oui |
 | Similarité textuelle | Similarity, F1 Score, BLEU, GLEU, ROUGE, METEOR (nécessitent une vérité terrain) | Similarity uniquement |
-| RAG | Retrieval, Document Retrieval, Groundedness, Groundedness Pro, Relevance, Response Completeness | Oui, sauf Document Retrieval et Groundedness Pro |
+| RAG | Retrieval, Document Retrieval, Groundedness, Groundedness Pro (préversion), Relevance, Response Completeness (préversion) | Oui, sauf Document Retrieval et Groundedness Pro |
 | Risque et sécurité | Hate and Unfairness, Sexual, Violence, Self-Harm, Protected Materials, Indirect Attack, Code Vulnerability, Ungrounded Attributes, Prohibited Actions, Sensitive Data Leakage | Non : hébergés par le service d'évaluation Foundry |
-| Agent | Task Adherence, Task Completion, Intent Resolution, Tool Call Accuracy, Tool Selection, Tool Input Accuracy, Tool Output Utilization, Tool Call Success, entre autres | Oui pour la plupart |
+| Agent | Task Adherence, Task Completion et Intent Resolution (tous trois en préversion), Tool Call Accuracy, Tool Selection, Tool Input Accuracy, Tool Output Utilization, Tool Call Success, entre autres | Oui pour la plupart |
 
-Les évaluateurs de sécurité n'ont pas besoin de `deployment_name`. Les quatre évaluateurs de contenu renvoient un **score de gravité de 0 à 7** (très faible 0-1, faible 2-3, moyen 4-5, élevé 6-7) avec un seuil par défaut de 3 : un score inférieur ou égal au seuil réussit. Contenu protégé, vulnérabilité du code, attaque indirecte, actions interdites et fuite de données sensibles renvoient réussite ou échec. Le rapport donne aussi un **taux de défauts** : le pourcentage de réponses au contenu indésirable. Prohibited Actions et Sensitive Data Leakage (préversion) s'appliquent uniquement aux cibles de type agent.
+Les évaluateurs de sécurité n'ont pas besoin de `deployment_name`. Les quatre évaluateurs de contenu renvoient un **score de gravité de 0 à 7** (très faible 0-1, faible 2-3, moyen 4-5, élevé 6-7) avec un seuil par défaut de 3 : un score inférieur ou égal au seuil réussit. Contenu protégé, vulnérabilité du code, attaque indirecte, actions interdites et fuite de données sensibles renvoient réussite ou échec. Le rapport donne aussi un **taux de défauts** : le pourcentage de réponses au contenu indésirable. Prohibited Actions et Sensitive Data Leakage (préversion) s'appliquent uniquement aux cibles de type agent ; Indirect Attack s'applique uniquement aux cibles de type modèle.
 
 **Outils d'explication.** Les évaluateurs assistés par IA et de sécurité renvoient une raison (`reason`) à côté du score : un relecteur voit pourquoi une réponse a échoué.
 
@@ -104,7 +104,7 @@ testing_criteria = [
 ]
 ```
 
-L'**AI Red Teaming Agent** va plus loin : il génère des invites adverses avec le framework open source PyRIT de Microsoft (stratégies d'attaque comme Base64, Flip, CharSwap, ROT13, Crescendo), les envoie au modèle ou à l'agent, note les réponses avec les évaluateurs de sécurité et calcule un **taux de réussite des attaques (Attack Success Rate, ASR)**, le pourcentage d'attaques réussies. Les catégories de risque propres aux agents (Prohibited Actions, Sensitive Data Leakage, Task Adherence) s'exécutent uniquement dans le cloud. Seuls les scénarios texte sont pris en charge.
+L'**AI Red Teaming Agent** va plus loin : il génère des invites adverses avec le framework open source PyRIT de Microsoft (stratégies d'attaque comme Base64, Flip, CharSwap, ROT13, Crescendo), les envoie au modèle ou à l'agent, note les réponses avec les évaluateurs de sécurité et calcule un **taux de réussite des attaques (Attack Success Rate, ASR)**, le pourcentage d'attaques réussies. Les catégories de risque propres aux agents (Prohibited Actions, Sensitive Data Leakage, Task Adherence) s'exécutent uniquement dans le cloud. Le red teaming cloud est disponible dans les régions USA Est 2, France Centre, USA Centre Nord et Suède Centre. Seuls les scénarios texte sont pris en charge.
 
 | Exigence | Solution |
 | --- | --- |
@@ -118,7 +118,7 @@ L'**AI Red Teaming Agent** va plus loin : il génère des invites adverses avec 
 <!-- section: auditing | objectives: 1.4.3 -->
 ## Audit : traces, provenance et approbations
 
-**Journalisation des traces.** Le suivi (tracing) de Foundry repose sur OpenTelemetry et stocke les traces dans la ressource **Application Insights** connectée au projet. Une trace enregistre chaque étape d'une exécution dans l'ordre : entrée utilisateur, appels au modèle, appels d'outils avec leurs arguments et leurs résultats, nombres de jetons et durées. Les étendues (spans) suivent les conventions sémantiques GenAI (`invoke_agent`, `execute_tool`, attributs comme `gen_ai.tool.call.arguments`). Le suivi côté serveur des agents d'invite ne demande aucun code une fois Application Insights connecté (**Agents > Traces > Connect**). Lire les traces exige **Log Analytics Reader** sur la ressource, plus Privileged Monitoring Data Reader si les tables sont protégées.
+**Journalisation des traces.** Le suivi (tracing) de Foundry repose sur OpenTelemetry et stocke les traces dans la ressource **Application Insights** connectée au projet. Une trace enregistre chaque étape d'une exécution dans l'ordre : entrée utilisateur, appels au modèle, appels d'outils avec leurs arguments et leurs résultats, nombres de jetons et durées. Les étendues (spans) suivent les conventions sémantiques GenAI (`invoke_agent`, `execute_tool`, attributs comme `gen_ai.tool.call.arguments`). Le suivi côté serveur des agents d'invite ne demande aucun code une fois Application Insights connecté (**Agents > Traces > Connect**). Lire les traces exige **Log Analytics Reader** sur la ressource, plus Privileged Monitoring Data Reader si les tables sont protégées. Le portail affiche les traces des 90 derniers jours ; les données stockées suivent les paramètres de rétention d'Application Insights et de Log Analytics.
 
 Instrumentation côté client d'une application :
 
@@ -139,7 +139,7 @@ Les traces peuvent contenir des invites, des sorties et des arguments d'outils. 
 Les **métadonnées de provenance** indiquent d'où vient le contenu :
 
 - **Content Credentials.** Les images générées par les séries DALL-E et GPT-image-1 dans Azure OpenAI portent un manifeste C2PA signé cryptographiquement : `description` « AI Generated Image », `softwareAgent` (« Azure OpenAI DALL-E » ou « Azure OpenAI ImageGen ») et `when` (date de création). Ils sont appliqués automatiquement. Chacun peut les vérifier avec le site Content Credentials Verify ou les outils open source de la Content Authenticity Initiative.
-- **Citations.** Les outils de récupération renvoient des annotations de citation qui relient chaque réponse à son document source ; le contenu protégé pour le code renvoie le dépôt source et sa licence.
+- **Citations.** Les outils de récupération renvoient des annotations de citation qui relient chaque réponse à son document source ; le contenu protégé pour le code renvoie le référentiel source et sa licence.
 - **Versions.** Les versions d'agent sont des instantanés : une trace peut être rattachée aux instructions et aux outils exacts qui l'ont produite.
 
 **Workflows d'approbation.** Une action à fort impact attend la décision d'une personne, et la demande comme la décision sont journalisées. Pour les outils MCP de Foundry Agent Service, `require_approval` fait émettre à l'agent un élément `mcp_approval_request` au lieu d'appeler l'outil ; l'application montre le nom de l'outil et ses arguments à une personne et renvoie un `mcp_approval_response` (voir [Supervision des agents et accès aux outils](#agent-governance)).
@@ -175,10 +175,10 @@ La réponse d'approbation est renvoyée dans la **même conversation**, avec `ap
 **Contraintes :**
 
 - `allowed_tools` limite l'agent aux outils listés d'un serveur MCP. Absent ou vide, **tous** les outils du serveur sont disponibles.
-- Les **instructions** énoncent la tâche et ses limites ; Task Adherence (un risque de garde-fou et un évaluateur) vérifie que l'agent les respecte.
-- Les contrôles de garde-fou sur l'**appel d'outil** et la **réponse d'outil** analysent ce que l'agent envoie aux outils et ce qu'il en reçoit.
+- Les **instructions** énoncent la tâche et ses limites ; Task Adherence (un risque de garde-fou et un évaluateur, tous deux en préversion) vérifie que l'agent les respecte.
+- Les contrôles de garde-fou sur l'**appel d'outil** et la **réponse d'outil** (préversion) analysent ce que l'agent envoie aux outils et ce qu'il en reçoit.
 - Avec l'appel de fonction, c'est l'application qui exécute la fonction : elle peut refuser ou demander une confirmation avant tout effet de bord.
-- Le catalogue d'outils précise que les serveurs MCP et A2A tiers ne sont pas vérifiés par Microsoft : traitez leurs descriptions et leurs résultats comme des entrées non fiables, susceptibles de porter une injection d'invite.
+- Microsoft ne teste ni ne vérifie les serveurs MCP distants tiers que vous connectez : traitez leurs descriptions d'outils et leurs résultats comme des entrées non fiables, susceptibles de porter une injection d'invite indirecte.
 
 Les **contrôles d'accès aux outils** déterminent ce qu'un appel d'outil peut réellement faire :
 
@@ -188,7 +188,7 @@ Les **contrôles d'accès aux outils** déterminent ce qu'un appel d'outil peut 
 | Identité d'agent | Une identité Microsoft Entra par agent (blueprint plus identité d'instance) ; elle démarre **sans** aucune autorisation |
 | Identité managée du projet | Utilisée par les connexions configurées pour l'authentification par identité managée du projet |
 | Azure RBAC ou rôles du plan de données | Accordés à cette identité sur la cible, à l'étendue la plus restreinte |
-| Transmission on-behalf-of (OBO) | L'outil s'exécute avec les autorisations de l'utilisateur connecté, quand l'outil le prend en charge |
+| Transmission on-behalf-of (OBO) | L'outil s'exécute avec les autorisations de l'utilisateur connecté, quand l'outil le prend en charge ; une identité d'agent qui agit pour le compte de l'utilisateur est en préversion |
 
 > **Piège d'examen.** `require_approval` vaut `"always"` par défaut, et un `allowed_tools` vide signifie tous les outils, pas aucun. Pour laisser un agent lire librement mais confirmer les écritures, listez les outils dans `allowed_tools` et exigez l'approbation uniquement pour l'outil d'écriture.
 
@@ -198,7 +198,7 @@ Les **contrôles d'accès aux outils** déterminent ce qu'un appel d'outil peut 
 ## Points clés
 
 - Garde-fou = contrôles (risque + points d'intervention + action). Microsoft.DefaultV2 par défaut : quatre préjudices au niveau moyen, détection des attaques par invite utilisateur, contenu protégé ; attaques indirectes désactivées.
-- Les agents ajoutent les points d'intervention appel d'outil et réponse d'outil ; le garde-fou d'un agent remplace entièrement celui du modèle.
+- Les agents ajoutent les points d'intervention appel d'outil et réponse d'outil (les garde-fous d'agent sont en préversion) ; le garde-fou d'un agent remplace entièrement celui du modèle.
 - Invite bloquée : HTTP 400 `content_filter`. Complétion bloquée : `finish_reason` `content_filter`.
 - Les évaluateurs notent, les garde-fous bloquent. Évaluateurs de sécurité : 0 à 7, seuil 3, sans déploiement ; la raison (`reason`) explique le score.
 - AI Red Teaming Agent : attaques PyRIT, taux de réussite des attaques (ASR).

@@ -81,7 +81,7 @@ For SAP HANA across regions, synchronous HSR is excluded by latency. Use **async
 | Name resolution | Update DNS after failover rather than reconfiguring clients; the DR region uses a different IP range |
 | Foundation services | At least one domain controller and DNS server running in Azure; AD and DNS must work before SAP is recovered |
 
-Site Recovery **network mapping** links source and target VNets in both directions. When replication is enabled, it creates by default an identical target network with the `-asr` suffix. The target subnet is the one with the same name as the source subnet, otherwise the first subnet in alphabetical order.
+Site Recovery **network mapping** links source and target VNets in both directions. When replication is enabled, it creates the mappings in both directions automatically and, by default, an identical target network with the `-asr` suffix; when you map networks manually, you also create the mapping in the opposite direction. The target subnet is the one with the same name as the source subnet, otherwise the first subnet in alphabetical order.
 
 | Failover IP rule | Result |
 | --- | --- |

@@ -55,7 +55,7 @@ Rules:
 - A zone can have many linked networks. All linked networks resolve all the records of the zone, including those registered by other networks; **peering isn't required for resolution**, only for the traffic itself.
 - Auto-registration covers virtual machines only (primary interface). Records for other resources, such as an internal load balancer, are created manually.
 - Private endpoints use the same mechanism with the `privatelink.*` zones.
-- If custom DNS servers are set on the virtual network, the machines use them instead: those servers must forward to Azure DNS (168.63.129.16) for private zones to work. **Azure DNS Private Resolver** provides inbound and outbound endpoints for hybrid resolution with on-premises.
+- If custom DNS servers are set on the virtual network, the machines use them instead: those servers must forward to Azure DNS (168.63.129.16) for private zones to work. **Azure DNS Private Resolver** handles hybrid resolution: on-premises DNS servers send queries for Azure zones to its **inbound endpoint** with a conditional forwarder; its **outbound endpoint** with a **DNS forwarding ruleset** sends queries from Azure to on-premises DNS servers.
 
 ```bash
 az network private-dns zone create -g RG1 -n corp.contoso.internal
@@ -132,7 +132,7 @@ Symptoms and causes:
 | A client isn't always sent to the same instance | Session persistence is None: set Client IP |
 | Outbound connections of the backend fail intermittently | **SNAT port exhaustion**: add a **NAT gateway** on the subnet (recommended), or outbound rules with more frontend IP addresses |
 | Backend machines have no internet access | Behind an internal load balancer, or with outbound SNAT disabled, there is no outbound path: add a NAT gateway |
-| A backend machine can't reach the frontend of its own internal load balancer | The flow can be sent back to the same machine and fail: an expected limitation |
+| A backend machine can't reach the frontend of its own internal load balancer | Outbound flows from a backend machine to the frontend of its internal load balancer fail: a documented limitation |
 
 Where to look:
 

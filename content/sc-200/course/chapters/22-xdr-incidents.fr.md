@@ -12,12 +12,14 @@ Après le 31 mars 2027, Microsoft Sentinel n'est plus pris en charge que dans le
 
 Étapes d'enquête sur la page de l'incident : lisez l'**histoire de l'attaque (attack story)** et le graphe, examinez les **Alertes** (avec la raison de leur corrélation), ouvrez les **Ressources** et les pages d'entités, vérifiez **Preuves et réponse**, puis pivotez vers les données brutes avec **Go hunt** ou, pour les incidents issus de règles d'analytique, **Run query**, qui exécute la requête de la règle dans le repérage avancé.
 
+Learn présente désormais cette page d'incident comme l'expérience **héritée (legacy)** : les cas d'incident (préversion, voir la dernière section) sont recommandés, et la page héritée reste disponible pendant la préversion. Sur celle-ci, un incident a un seul propriétaire, un utilisateur ou un groupe, et attribuer l'incident donne le même propriétaire à toutes ses alertes.
+
 Le portail Azure (jusqu'à son retrait) ajoute ses propres widgets :
 
 | Fonctionnalité | Détail |
 | --- | --- |
 | Chronologie de l'incident | Alertes et signets dans l'ordre chronologique, avec les tactiques MITRE et l'ID d'alerte système |
-| Incidents similaires | Jusqu'à 20 incidents similaires, avec une raison de similarité ; non pris en charge dans le portail Defender |
+| Incidents similaires | Jusqu'à 20 incidents similaires, avec une raison de similarité ; préversion, non pris en charge dans le portail Defender |
 | Principaux insights | Requêtes de la recherche en sécurité, de 24 heures avant la première alerte jusqu'à la dernière alerte |
 | Graphe d'investigation | Exige un mappage d'entités dans la règle ; incidents de 30 jours au plus |
 | Onglet Entités | Volet latéral d'entité avec une chronologie de sept jours ; page d'entité complète au-delà |
@@ -47,7 +49,7 @@ Copilot dans Defender est disponible pour les utilisateurs disposant d'un accès
 | Réponses guidées | Actions de triage, de confinement et de correction recommandées pour l'incident |
 | Analyse de script, Analyse de fichier | Explique une ligne de commande ou un fichier suspect des preuves |
 | Résumé d'appareil, Résumé d'identité | Les informations clés sur un appareil ou un utilisateur |
-| Générer des requêtes KQL | Repérage avancé : du langage naturel vers KQL |
+| Générer des requêtes KQL | Repérage avancé : l'assistant de chasse aux menaces (version préliminaire) traduit le langage naturel en KQL (mode **Query only**) ou mène une enquête en plusieurs étapes (**Rich insights**, le mode par défaut) |
 | Rapport d'incident | Un rapport sur l'incident et les actions entreprises |
 
 **Defender Chat** (préversion), ouvert par le bouton **Copilot**, répond en langage courant en tenant compte du contexte de la page (« quels utilisateurs sont impliqués dans cet incident ? »). Pour les demandes en plusieurs étapes, il propose un plan que vous **approuvez** ou **rejetez** avant toute exécution. Les **notes d'analyste générées par l'IA** exigent l'activation au niveau du locataire (**Opt-in to analyst notes** dans les fonctionnalités avancées), une licence Security Copilot et Security Data Read ou Manage ; leur génération prend jusqu'à 20 minutes.
@@ -71,13 +73,13 @@ Un incident corrèle les alertes des points de terminaison, des identités, de l
 | Outil | Pour |
 | --- | --- |
 | Graphe de l'incident | Voir où l'attaque a commencé, comment elle s'est propagée dans le temps et jusqu'où elle est allée ; **Play** rejoue les alertes et les nœuds dans l'ordre |
-| Group similar nodes, filtres par type d'entité | Simplifier les grands graphes |
+| Filtres du graphe (gravité, état, sources de service), **Entity types** | Simplifier les grands graphes |
 | Onglet Alertes, raison de corrélation | Comprendre pourquoi les alertes ont été liées |
-| Onglet Ressources | Appareils, utilisateurs, boîtes aux lettres, applications et ressources cloud, classés par risque |
+| Onglet Ressources | Appareils, utilisateurs, boîtes aux lettres et applications, avec le nombre de ressources de chaque catégorie |
 | Analyse du rayon d'impact (blast radius) | Chemins de propagation possibles depuis un nœud compromis vers des cibles critiques |
 | Go hunt | Exécuter des requêtes sur une entité (All Activity, Related Alerts) et lier les résultats à l'incident |
 
-L'**analyse du rayon d'impact** remplace l'analyse des chemins d'attaque. Elle exige un locataire intégré au data lake de Microsoft Sentinel et **Exposure management (read)** ou plus ; elle affiche les huit chemins les mieux notés, jusqu'à sept sauts (cinq pour le cloud, cinq en local, trois pour l'hybride). Les chemins sont des itinéraires possibles, pas la preuve que l'attaquant les a empruntés.
+L'**analyse du rayon d'impact** remplace l'analyse des chemins d'attaque. Elle n'est disponible que pour les locataires intégrés au data lake de Microsoft Sentinel **avant le 23 septembre 2026**, et exige **Exposure management (read)** ou plus ; elle affiche les huit chemins les mieux notés, jusqu'à sept sauts (cinq pour le cloud, cinq en local, trois pour l'hybride). Les chemins sont des itinéraires possibles, pas la preuve que l'attaquant les a empruntés.
 
 La chasse complète le graphe. Comptes ayant des alertes dans plusieurs charges de travail :
 
@@ -99,7 +101,7 @@ DeviceLogonEvents
 | where Targets > 5
 ```
 
-Séquence typique à reconnaître : e-mail d'hameçonnage (Defender pour Office 365), connexion à risque (Microsoft Entra ID Protection), vol d'informations d'identification ou reconnaissance sur un contrôleur de domaine (Defender pour Identity), exécution à distance sur des serveurs (Defender for Endpoint), exfiltration de données vers une application cloud (Defender pour les applications cloud). Contenez en partant de la position la plus privilégiée : désactivez ou confinez le compte, isolez les appareils, révoquez les sessions, puis supprimez la persistance.
+Séquence typique à reconnaître : e-mail d'hameçonnage (Defender pour Office 365), connexion à risque (Microsoft Entra ID Protection), vol d'informations d'identification ou reconnaissance sur un contrôleur de domaine (Defender pour Identity), exécution à distance sur des serveurs (Defender pour point de terminaison), exfiltration de données vers une application cloud (Defender pour les applications cloud). Contenez en partant de la position la plus privilégiée : désactivez ou confinez le compte, isolez les appareils, révoquez les sessions, puis supprimez la persistance.
 
 > **Conseil d'examen.** « Identifier les autres ressources que le compte compromis peut atteindre » désigne l'analyse du rayon d'impact ; « à quels appareils le compte s'est-il réellement connecté » désigne une requête de chasse sur `DeviceLogonEvents` ou `IdentityLogonEvents`.
 
@@ -138,6 +140,6 @@ Les cas d'incident liés peuvent être fusionnés ; les règles de notification 
 - `SecurityIncident` garde chaque mise à jour : `arg_max` par `IncidentNumber` d'abord.
 - Copilot : résumés, réponses guidées, analyse de script et de fichier, génération de KQL, rapports d'incident ; les plans de Defender Chat exigent une approbation.
 - Phishing Triage Agent : Defender pour Office 365 Plan 2, alertes de messages signalés, balise Agent, apprentissage uniquement sur demande.
-- Attaques complexes : graphe de l'incident avec Play, résumé aligné sur MITRE, rayon d'impact (data lake, Exposure management read), chasse sur `AlertEvidence` et les tables de connexion.
+- Attaques complexes : graphe de l'incident avec Play, résumé aligné sur MITRE, rayon d'impact (data lake intégré avant le 23 septembre 2026, Exposure management read), chasse sur `AlertEvidence` et les tables de connexion.
 - Cas : espace de travail Sentinel requis, états New/Open/Closed plus personnalisés, trois niveaux de RBAC.
 - Cas d'incident : Security Data Read ou Manage ; résoudre ne résout pas les alertes.

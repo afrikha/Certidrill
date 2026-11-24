@@ -28,7 +28,7 @@ Types d'agents :
 | Type | Ce que vous fournissez | Convient à |
 | --- | --- | --- |
 | Agent d'invite (prompt agent) | Modèle, instructions, outils ; Foundry l'exécute | La plupart des agents métier, sans infrastructure à gérer |
-| Agent hébergé (hosted agent) | Votre code (Agent Framework, LangGraph, OpenAI Agents SDK ou autre) sous forme d'image conteneur ou de package .zip | Orchestration personnalisée, systèmes multi-agents, protocoles personnalisés |
+| Agent hébergé (hosted agent) | Votre code (Agent Framework, LangGraph, Semantic Kernel ou code personnalisé ; Python ou C#) sous forme d'image conteneur ou de package .zip | Orchestration personnalisée, systèmes multi-agents, protocoles personnalisés (Responses, Invocations, Activity, A2A) |
 
 Chaque appel à `create_version` crée une nouvelle **version** : vous pouvez comparer les versions et revenir en arrière.
 
@@ -112,14 +112,16 @@ Le service extrait, consolide (fusionne les doublons, résout les conflits) et r
 | Appel de fonction | Votre propre code | Votre application |
 | OpenAPI | Une API REST décrite par une spécification OpenAPI 3.0 ou 3.1 | Le service appelle l'API |
 | Model Context Protocol (MCP) | Les outils d'un serveur MCP distant | Le serveur MCP |
-| Azure Functions | Une application de fonction comme outil | Azure Functions |
+| Azure Functions | Une fonction déclenchée par file d'attente : files d'attente Stockage Azure d'entrée et de sortie, mises en correspondance par `CorrelationId` | Azure Functions |
 | Azure AI Search, recherche de fichiers, Foundry IQ | Magasins de connaissances et recherche | Le service |
 | Recherche web, Grounding with Bing | Informations publiques actuelles du web | Le service |
 | Interpréteur de code (code interpreter) | Python dans un bac à sable, pour les calculs, les graphiques et le traitement de fichiers | Le service |
 | Agent-to-agent (A2A) | Délégation à un autre agent | L'agent distant |
 | Content Understanding Tool | Fichiers multimodaux transformés en Markdown ou en champs de schéma | Content Understanding |
 
-Règles de l'outil OpenAPI : chaque opération doit avoir un `operationId` (lettres, `-` et `_`), les corps de requête sont en `application/json`, un seul schéma de clé API par outil. L'authentification passe par une connexion de projet : anonyme, clé API, jeton du porteur dans une connexion de clés personnalisées, ou identité managée du projet avec l'**audience** de l'API cible (par exemple `https://storage.azure.com`).
+Règles de l'outil OpenAPI : chaque opération doit avoir un `operationId` (lettres, `-` et `_`), les corps de requête sont en `application/json` ou `application/json-patch+json`, un seul schéma de clé API par outil. L'authentification passe par une connexion de projet : anonyme, clé API, jeton du porteur dans une connexion de clés personnalisées, ou identité managée du projet avec l'**audience** de l'API cible (par exemple `https://storage.azure.com`). L'identité managée du compte est une option héritée, à abandonner.
+
+L'outil Azure Functions exige la configuration d'agent standard (la configuration de base n'est pas prise en charge) et le rôle Storage Queue Data Contributor pour les identités managées du projet et de l'application de fonction. Une fonction déclenchée par HTTP s'intègre plutôt par l'outil OpenAPI.
 
 ```text
 weather_tool = OpenApiTool(
@@ -132,9 +134,9 @@ weather_tool = OpenApiTool(
 )
 ```
 
-MCP : `server_label` (unique par agent), `server_url`, `project_connection_id` pour les informations d'identification, `allowed_tools`, `require_approval`. Les appels MCP non diffusés en continu expirent au bout de 100 secondes. Un serveur MCP privé exige la configuration d'agent standard avec votre propre réseau virtuel.
+MCP : `server_label` (unique par agent), `server_url`, `project_connection_id` pour les informations d'identification, `allowed_tools` (omis ou `[]` = tous les outils du serveur), `require_approval` (`always` par défaut). Les appels MCP non diffusés en continu expirent au bout de 100 secondes. Un serveur MCP privé exige la configuration d'agent standard avec réseau privé (votre propre réseau virtuel) et un sous-réseau délégué à `Microsoft.App/environments`.
 
-Outil Azure AI Search : cible un seul index par l'intermédiaire d'une connexion ; l'identité managée du compte Foundry a besoin de Search Index Data Contributor et de Search Service Contributor pour un accès sans clé. Les **toolboxes** regroupent des outils derrière un point de terminaison MCP managé unique, pour que plusieurs agents les réutilisent avec leurs informations d'identification.
+Outil Azure AI Search (Learn l'intitule désormais outil Foundry IQ (Azure AI Search)) : cible un seul index par l'intermédiaire d'une connexion ; l'identité managée du compte Foundry a besoin de Search Index Data Contributor et de Search Service Contributor pour un accès sans clé. Les **toolboxes** regroupent des outils derrière un point de terminaison MCP managé unique, pour que plusieurs agents les réutilisent avec leurs informations d'identification.
 
 | Exigence | Outil |
 | --- | --- |
@@ -163,11 +165,11 @@ Façons de les construire dans Foundry :
 
 | Option | Usage |
 | --- | --- |
-| **Outil A2A** (A2A 1.0, en disponibilité générale) | Un agent Foundry appelle un agent distant et garde le contrôle de la conversation ; la cible doit avoir l'A2A entrant activé et l'appelant le rôle Foundry Agent Consumer sur son projet |
+| **Outil A2A** (A2A 1.0, en disponibilité générale) | Un agent Foundry appelle un agent distant et garde le contrôle de la conversation ; la cible doit avoir l'A2A entrant activé et l'appelant le rôle Foundry Agent Consumer sur son projet ; la création de la connexion A2A exige Foundry Project Manager ; texte uniquement, sans diffusion en continu |
 | Workflows **Microsoft Agent Framework**, déployés comme agent hébergé | Orchestration en code ou en YAML déclaratif avec les modèles ci-dessus ; la voie recommandée |
 | **Foundry workflows** (préversion) | Concepteur visuel avec les modèles sequential, group chat et human in the loop ; retiré le 1er décembre 2026 (exportez le YAML) |
 
-L'outil classique **connected agents** n'est pas disponible dans le nouveau Foundry Agent Service : migrez vers l'outil A2A ou vers les workflows.
+L'outil classique **connected agents** n'est pas disponible dans le nouveau Foundry Agent Service : migrez vers l'outil A2A, ou orchestrez avec les workflows Agent Framework (les Foundry workflows sont retirés le 1er décembre 2026).
 
 > **Piège d'examen.** Le multi-agent n'est pas la réponse à « l'agent a besoin d'une source de données de plus » : ajoutez un outil. Choisissez le multi-agent pour séparer des responsabilités, des autorisations ou des modèles.
 
@@ -218,15 +220,15 @@ rule = project.evaluation_rules.create_or_update(
 )
 ```
 
-`max_hourly_runs` (100 par défaut) plafonne les exécutions d'évaluation par heure ; celles qui dépassent sont ignorées. L'identité managée du projet a besoin du rôle Foundry User pour l'évaluation continue.
+`max_hourly_runs` (100 par défaut) plafonne les exécutions d'évaluation par heure ; celles qui dépassent sont ignorées. L'identité managée du projet a besoin du rôle Foundry User pour l'évaluation continue. Les vues fondées sur les journaux exigent aussi le rôle Log Analytics Reader sur l'espace de travail (plus Privileged Monitoring Data Reader pour les tables protégées).
 
 **Évaluateurs d'agent** :
 
 | Question | Évaluateur |
 | --- | --- |
-| L'agent a-t-il compris ce que voulait l'utilisateur ? | Intent Resolution |
-| A-t-il respecté ses instructions et ses contraintes ? | Task Adherence |
-| A-t-il terminé la tâche avec un résultat exploitable ? | Task Completion |
+| L'agent a-t-il compris ce que voulait l'utilisateur ? | Intent Resolution (préversion) |
+| A-t-il respecté ses instructions et ses contraintes ? | Task Adherence (préversion) |
+| A-t-il terminé la tâche avec un résultat exploitable ? | Task Completion (préversion) |
 | Les bons outils, les bons paramètres, sans appels redondants ? | Tool Call Accuracy |
 | Les outils nécessaires choisis, sans outils inutiles ? | Tool Selection |
 | Des arguments valides selon le schéma et ancrés ? | Tool Input Accuracy |
@@ -234,7 +236,7 @@ rule = project.evaluation_rules.create_or_update(
 | Des appels d'outil exécutés sans erreur technique ? | Tool Call Success |
 | La séquence d'étapes attendue ? | Task Navigation Efficiency |
 
-Les évaluateurs d'outil et de tâche lisent la sortie structurée de l'agent (`{{sample.output_items}}`), qui contient les appels d'outil. Learn conseille d'éviter les évaluateurs d'outil quand la conversation appelle Azure AI Search, Grounding with Bing, l'interpréteur de code ou la recherche web.
+Les évaluateurs d'outil et de tâche lisent la sortie structurée de l'agent (`{{sample.output_items}}`), qui contient les appels d'outil. Learn conseille d'éviter Tool Call Accuracy, Tool Input Accuracy, Tool Output Utilization, Tool Call Success et Groundedness quand la conversation appelle Foundry IQ (Azure AI Search), Grounding with Bing, Bing Custom Search, SharePoint grounding, l'interpréteur de code, Fabric data agent ou la recherche web.
 
 L'**analyse des erreurs** lit la trace d'une exécution en échec : l'étendue `execute_tool` montre les arguments et le résultat de chaque appel, et les durées montrent d'où vient la latence.
 
@@ -257,6 +259,7 @@ Regroupez ensuite les échecs, changez un seul élément, réévaluez et compare
 - Appel de fonction : votre application exécute la fonction ; OpenAPI et MCP : le service les appelle. Les exécutions expirent au bout de 10 minutes.
 - OpenAPI exige `operationId` ; les appels MCP expirent à 100 secondes ; l'outil Azure AI Search cible un seul index.
 - Multi-agent : outil A2A pour la délégation, Agent Framework pour les modèles d'orchestration ; le concepteur Foundry workflows est retiré le 1er décembre 2026 ; connected agents n'est pas disponible.
+- `require_approval` de MCP vaut `always` par défaut ; l'outil Azure Functions repose sur des files d'attente et exige la configuration d'agent standard.
 - Une approbation humaine garantie vient de la configuration de l'outil ou du workflow, pas des instructions.
 - Onglet Monitor : jetons, latence, taux de réussite, évaluations. Règle d'évaluation continue : `max_hourly_runs` à 100.
-- Évaluateurs d'agent : Intent Resolution, Task Adherence, Task Completion, Tool Call Accuracy et les autres évaluateurs d'outil.
+- Évaluateurs d'agent : Intent Resolution, Task Adherence et Task Completion (tous trois en préversion), Tool Call Accuracy et les autres évaluateurs d'outil.

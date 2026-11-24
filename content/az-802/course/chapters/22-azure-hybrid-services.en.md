@@ -78,6 +78,8 @@ azcmagent config set config.mode monitor                # allow only monitoring 
 azcmagent config list
 ```
 
+In monitor mode, Microsoft maintains the list of allowed extensions (monitoring and security, such as Azure Monitor Agent and Defender for Cloud), and you can't modify the allowlist or blocklist: to set your own lists, switch back with `azcmagent config set config.mode full`.
+
 <!-- section: vm-extensions | objectives: 2.2.3 -->
 ## VM extensions on non-Azure machines
 
@@ -131,7 +133,7 @@ Patch orchestration (Update settings):
 
 | Option | Effect |
 | --- | --- |
-| Customer Managed Schedules | Required for scheduled patching; sets patch mode to Azure-orchestrated with `BypassPlatformSafetyChecksOnUserSchedule` = TRUE |
+| Customer Managed Schedules | Required for scheduled patching of Azure VMs (Arc-enabled servers have no patch orchestration prerequisite, only the schedule association); sets patch mode to Azure-orchestrated with `BypassPlatformSafetyChecksOnUserSchedule` = TRUE |
 | Azure Managed - Safe Deployment | Automatic VM guest patching (`AutomaticByPlatform`), Azure VMs only, not Arc-enabled servers |
 | Windows Automatic Updates | `AutomaticByOS`: the OS installs updates itself |
 | Manual updates | Windows automatic updates disabled; patching only when triggered |
@@ -156,7 +158,7 @@ An **Automation account** holds runbooks, schedules, webhooks, shared assets (cr
 
 Steps: create the runbook (or import it), edit, test in the **Test pane**, **Publish** (only published runbooks can be started by a schedule or webhook), then start it manually, from a **schedule**, a **webhook**, an alert, or another runbook.
 
-Authentication: Run As accounts are gone; runbooks use the Automation account's **managed identity**, which needs Azure roles on the target resources.
+Authentication: Run As accounts are gone; runbooks use the Automation account's **managed identity**, which needs Azure roles on the target resources. On a Hybrid Runbook Worker, use the Automation account's **system-assigned** identity (its user-assigned identity isn't supported there); once it's enabled, runbooks can no longer use the managed identity of the VM or Arc-enabled server.
 
 ```powershell
 # Inside a runbook: authenticate with the Automation account's system-assigned managed identity
@@ -172,7 +174,8 @@ Get-AzVM -ResourceGroupName "RG-App" -Status | Where-Object PowerState -eq "VM r
 | --- | --- |
 | Deployment | **Extension-based** (Hybrid Worker extension), the only supported model: the agent-based model (Log Analytics agent) was retired on August 31, 2024 and its jobs stopped in April 2025 |
 | Groups | Workers belong to a **Hybrid Runbook Worker group**; you start a runbook on a group, and any worker in it takes the job. Several workers = high availability |
-| Identity | Jobs run as **Local System** on Windows (`nxautomation` on Linux) unless a Run As credential is set on the group; to reach Azure, use a managed identity |
+| Requirements | Windows Server up to 2022 (Learn's supported list doesn't include Windows Server 2025), Windows PowerShell 5.1 (PowerShell Core isn't supported), .NET Framework 4.6.2 or later; the machine's system-assigned managed identity is enabled when it's added |
+| Identity | Jobs run as **Local System** on Windows (`nxautomation` on Linux) unless custom **Hybrid Worker credentials** (a credential asset) are set on the group, Windows only; to reach Azure, use a managed identity |
 | Limits | No sandbox limits (fair share, the three-hour cloud job limit, memory, sockets); only the machine's resources |
 | One machine | One worker reporting to one Automation account |
 
@@ -189,5 +192,5 @@ Start-AzAutomationRunbook -AutomationAccountName "AA-Ops" -ResourceGroupName "RG
 - Arc: Connected Machine agent, outbound 443 only; onboard with Azure Connected Machine Onboarding (service principal at scale); manage with Azure Connected Machine Resource Administrator; not for Azure VMs.
 - Machine configuration is built into the Arc agent; Audit, ApplyAndMonitor, ApplyAndAutoCorrect; the DSC extension isn't available on Arc.
 - Extensions: Azure Monitor Agent, Custom Script, Key Vault, MDE, Hybrid Worker, AdminCenter; lock down locally with `azcmagent config` allowlists.
-- Update Manager: periodic assessment every 24 hours, maintenance configurations with dynamic scopes, Customer Managed Schedules for scheduled patching; Arc servers are billed unless Windows Server Management enabled by Azure Arc applies.
+- Update Manager: periodic assessment every 24 hours, maintenance configurations with dynamic scopes, Customer Managed Schedules for scheduled patching of Azure VMs; Arc servers are billed unless Windows Server Management enabled by Azure Arc applies.
 - Runbooks: PowerShell 7.6/7.4/5.1 or Python 3.10, publish before scheduling, managed identity; Hybrid Runbook Worker groups (extension-based) for local resources and long jobs.

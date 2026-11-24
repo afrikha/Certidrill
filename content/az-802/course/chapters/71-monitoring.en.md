@@ -124,7 +124,7 @@ The **Azure Monitor Agent** (AMA) collects guest data from Azure VMs and Azure A
 | Data source | Destination | Table |
 | --- | --- | --- |
 | Windows events | Log Analytics workspace | `Event` |
-| Performance counters | Log Analytics workspace and/or Azure Monitor Metrics | `Perf` |
+| Performance counters | Log Analytics workspace and/or Azure Monitor Metrics (preview) | `Perf` |
 | Text and JSON logs | Log Analytics workspace | Custom table |
 | IIS logs | Log Analytics workspace | `W3CIISLog` |
 
@@ -182,9 +182,9 @@ VM insights ("enhanced monitoring" in the portal) installs AMA and collects a pr
 | OpenTelemetry metrics (recommended for new deployments) | Azure Monitor workspace | New metrics experience, optional per-process metrics |
 | Logs-based metrics (classic) | Log Analytics workspace, table `InsightsMetrics` | Classic **Performance** view and workbooks |
 
-Enable it from the VM (**Monitoring > Insights** or the enhanced monitoring option), from **Monitor > Virtual Machines**, or at scale with Azure Policy, CLI, PowerShell or templates. The portal creates the DCR and the association. Machines outside Azure need the **Azure Connected Machine agent** first.
+Enable it from the VM (**Monitoring > Insights** or the enhanced monitoring option), from **Monitor > Virtual Machines**, or at scale with Azure Policy (its initiatives cover only the logs-based experience), CLI, PowerShell or templates. The portal creates the DCR and the association. Machines outside Azure need the **Azure Connected Machine agent** first.
 
-The **Performance** view compares CPU, available memory, logical disk use and IOPS, and network across machines, with top-N lists and trends, to find which VM is saturated. The classic **Map** view (processes and dependencies) also requires the **Dependency agent**.
+The **Performance** view compares CPU, available memory, logical disk use and IOPS, and network across machines, with top-N lists and trends, to find which VM is saturated. The classic **Map** view (processes and dependencies) also requires the **Dependency agent**; both retire on June 30, 2028.
 
 ```kusto
 // Classic logs-based VM insights: free space per logical disk

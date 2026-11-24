@@ -26,7 +26,7 @@ Quel score répond à quelle question :
 | Exigence | Métrique |
 | --- | --- |
 | Posture des charges de travail et des identités Microsoft 365 | Niveau de sécurité Microsoft (Microsoft Secure Score) |
-| Posture des ressources Azure, AWS et GCP | **Score de sécurité** (secure score) de Microsoft Defender for Cloud |
+| Posture des ressources Azure, AWS et GCP | **Score de sécurité** (secure score) de Microsoft Defender for Cloud (Cloud Secure Score fondé sur les risques dans le portail Defender, score de sécurité classique dans le portail Azure) |
 | Progression vers une réglementation (RGPD, ISO 27001, NIST) | **Score de conformité** de Microsoft Purview Compliance Manager |
 | Configuration des points de terminaison uniquement | Microsoft Secure Score for Devices (Defender Vulnerability Management) |
 | Mauvaises configurations d'une application SaaS tierce | Gestion de la posture de sécurité SaaS (SSPM) de Defender for Cloud Apps, remontée dans Secure Score |
@@ -47,7 +47,7 @@ Chaque boîte aux lettres cloud dispose d'**Exchange Online Protection (EOP)**. 
 | **Investigation et réponse automatisées (AIR)** | Non | Non | Oui |
 | **Formation à la simulation d'attaque**, protection des comptes prioritaires | Non | Non | Oui |
 
-Le Plan 1 est inclus dans Microsoft 365 Business Premium ; le Plan 2 dans Microsoft 365 E5 (ainsi que A5 et G5) ; les deux sont vendus en module complémentaire. Déployez la protection avec les **stratégies de sécurité prédéfinies** **Standard** ou **Strict** plutôt qu'avec des stratégies construites à la main : Microsoft fait évoluer leurs paramètres avec les menaces.
+Le Plan 1 est inclus dans Microsoft 365 E3/G3 et Microsoft 365 Business Premium ; le Plan 2 dans Microsoft 365 E5 (ainsi que A5 et G5) ; les deux sont vendus en module complémentaire. Déployez la protection avec les **stratégies de sécurité prédéfinies** **Standard** ou **Strict** plutôt qu'avec des stratégies construites à la main : Microsoft fait évoluer leurs paramètres avec les menaces.
 
 **Defender for Cloud Apps** est le CASB (cloud access security broker) de Microsoft, et davantage :
 
@@ -58,7 +58,7 @@ Le Plan 1 est inclus dans Microsoft 365 Business Premium ; le Plan 2 dans Micros
 | Bloquer les téléchargements depuis des appareils non gérés pendant une session | **Contrôle d'application par accès conditionnel** (Conditional Access app control : stratégies de session, lancées depuis une stratégie d'accès conditionnel Microsoft Entra) |
 | Détecter les applications OAuth inutilisées ou dotées de trop de privilèges, et leurs informations d'identification | **Gouvernance des applications** (app governance) |
 | Trouver les mauvaises configurations de Salesforce, ServiceNow ou GitHub | **Gestion de la posture de sécurité SaaS (SSPM)**, remontée dans Secure Score |
-| Appliquer des étiquettes de confidentialité ou retirer des collaborateurs externes sur les fichiers confidentiels des applications SaaS | Stratégies de protection des informations, intégrées à Microsoft Purview |
+| Appliquer des étiquettes de confidentialité ou retirer des collaborateurs externes sur les fichiers confidentiels des applications SaaS | Stratégies de fichiers avec actions de gouvernance, intégrées à Microsoft Purview ; les stratégies de fichiers sont mises hors service le 6 janvier 2027, donc les nouvelles conceptions utilisent les stratégies DLP ou d'étiquetage automatique de Purview |
 | Détecter un voyage impossible, un téléchargement massif, une activité de rançongiciel dans les applications SaaS | Protection contre les menaces avec l'analyse du comportement des utilisateurs et des entités, dans les incidents Defender XDR |
 
 > **Piège d'examen.** Le hameçonnage et les pièces jointes malveillantes relèvent de Defender for Office 365 ; le consentement OAuth malveillant et l'usage risqué des applications SaaS relèvent de Defender for Cloud Apps. « Investiguer une campagne et corriger automatiquement » exige le **Plan 2**, car Threat Explorer et AIR ne sont pas dans le Plan 1.
@@ -125,11 +125,11 @@ Microsoft 365 Copilot fonde ses réponses sur Microsoft Graph et l'index sémant
 | Sites partagés à l'excès (Everyone except external users, liens larges) | SharePoint Advanced Management : rapports de gouvernance de l'accès aux données, révisions d'accès aux sites, **contrôle d'accès restreint** (restricted access control) ; **évaluations des risques liés aux données** de Purview DSPM |
 | Exclure un site de Copilot et de la recherche à l'échelle de l'organisation pendant que les propriétaires corrigent les autorisations | **Découverte de contenu restreinte** (restricted content discovery, qui ne change pas qui peut ouvrir le site) |
 | Copilot ne doit pas renvoyer le contenu de fichiers chiffrés à des utilisateurs non autorisés | Étiquettes de confidentialité avec chiffrement : l'utilisateur a besoin des droits d'utilisation **VIEW** et **EXTRACT** |
-| Copilot ne doit pas résumer les fichiers ou e-mails portant une étiquette donnée | **Stratégie DLP pour l'emplacement Microsoft 365 Copilot** : condition sur les étiquettes de confidentialité |
+| Copilot ne doit pas résumer les fichiers ou e-mails portant une étiquette donnée | **Stratégie DLP pour l'emplacement Copilot** (nommé Microsoft Copilot, Copilot Chat, and Copilot Cowork) : condition sur les étiquettes de confidentialité |
 | Copilot ne doit pas répondre aux invites contenant des types d'informations sensibles, ni lancer de recherche web pour elles | Même emplacement DLP : actions de **traitement des invites** et de **recherches web** (blocage des invites en préversion) |
 | Détecter une injection d'invite ou l'accès à des contenus protégés par un initié | Gestion des risques internes, modèle de stratégie **Risky AI usage** |
 | Détecter un contenu inapproprié dans les invites et les réponses | Conformité des communications |
-| Enregistrer et investiguer les interactions avec Copilot | **Audit** (invites et réponses dans le journal d'audit unifié) et explorateur d'activités DSPM |
+| Enregistrer et investiguer les interactions avec Copilot | **Audit** (un enregistrement par interaction : identifiants des messages, indicateur invite ou réponse, ressources consultées et leurs étiquettes de confidentialité, pas le texte) et explorateur d'activités DSPM |
 | Conserver ou supprimer les interactions, les retrouver pour une affaire juridique | Stratégies de rétention pour les applications d'IA ; **eDiscovery** (les interactions sont stockées dans la boîte aux lettres de l'utilisateur) |
 | Évaluer les réglementations sur l'IA | Modèles Compliance Manager pour l'IA générative |
 | Contrôler quels agents les utilisateurs peuvent exécuter | Centre d'administration Microsoft 365, **Applications intégrées** |

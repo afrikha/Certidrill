@@ -166,13 +166,13 @@ Every item has an **action**:
 | Update (default for most items) | Created | Only the configured properties are changed |
 | Delete | Nothing | Deleted |
 
-The **Common** tab of each item adds: *Stop processing items in this extension if an error occurs*, *Run in logged-on user's security context* (needed for user items that read user resources, such as a drive map to a share the computer account can't reach), *Remove this item when it is no longer applied* (forces the Replace action), *Apply once and do not reapply*, and *Item-level targeting*.
+The **Common** tab of each item adds: *Stop processing items in this extension if an error occurs*, *Run in logged-on user's security context* (user items run as SYSTEM by default; select it when an item needs user-specific resources, such as user environment variables or network locations that SYSTEM can't reach; Drive Maps and Printers already use the user's context and don't need it), *Remove this item when it is no longer applied* (forces the Replace action), *Apply once and do not reapply*, and *Item-level targeting*.
 
 **Item-level targeting** filters one item with conditions combined by AND/OR, negated with "is not", and grouped in collections: security group, organizational unit, site, computer name, operating system, IP address range, registry match, WMI query, language, time range, battery present and others.
 
 > **Exam tip.** "Map drive `S:` to `\\FS1\Sales` only for the members of G-Sales, and drive `F:` to `\\FS1\Finance` only for G-Finance, with one GPO" means one GPO with two Drive Maps items, each with item-level targeting on a security group. Two GPOs with security filtering also work but don't meet "one GPO".
 
-> **Exam trap.** Preferences can no longer store passwords: since security update MS14-025 the password fields of Local Users and Groups, Drive Maps, Services, Scheduled Tasks and Data Sources are disabled, because the stored value could be decrypted by any domain user. To manage local administrator passwords, use Windows LAPS.
+> **Exam trap.** Preferences can no longer store passwords: since security update MS14-025 the password fields of Local Users and Groups, Drive Maps, Services, Scheduled Tasks (immediate tasks included) and Data Sources are disabled, because the stored value could be decrypted by any domain user. To manage local administrator passwords, use Windows LAPS.
 
 **Local Users and Groups** is the preferred way to add a domain group to the local Administrators group of servers: action **Update**, group "Administrators (built-in)", add `CONTOSO\G-SrvAdmins`. It adds members without removing the others, unless *Delete all member users* / *Delete all member groups* is selected. The older **Restricted Groups** policy (Computer Configuration > Policies > Windows Settings > Security Settings) with "Members of this group" **replaces** the whole membership.
 

@@ -1,0 +1,562 @@
+chapter: 23-performance
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp420-qz-23-01
+    objective: "2.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso has an Azure Cosmos DB for NoSQL container named **parts** that uses the default indexing policy. A C# catalog API filters the container on several properties.
+
+        Which filter can the query engine serve from the index?
+      fr: |
+        Contoso dispose d'un conteneur Azure Cosmos DB for NoSQL nommé **parts** qui utilise la stratégie d'indexation par défaut. Une API C# de catalogue filtre le conteneur sur plusieurs propriétés.
+
+        Quel filtre le moteur de requête peut-il servir à partir de l'index ?
+    body:
+      options:
+        - { id: a, text: "`WHERE UPPER(c.sku) = \"AB-1200\"`" }
+        - { id: b, text: "`WHERE StartsWith(c.sku, \"AB-\")`" }
+        - { id: c, text: "`WHERE LOWER(c.sku) = \"ab-1200\"`" }
+        - { id: d, text: "`WHERE c.updatedTs > GetCurrentTimestamp() - 3600000`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `StartsWith` is one of the string system functions that use the index, with `Contains`, `RegexMatch`, `Left` and `Substring` when it starts at position 0. Functions such as `UPPER`, `LOWER` and `GetCurrentTimestamp` in a `WHERE` clause can't use the index, so the engine loads every item.
+        fr: |
+          `StartsWith` fait partie des fonctions système de chaîne qui utilisent l'index, avec `Contains`, `RegexMatch`, `Left` et `Substring` quand elle commence à la position 0. Des fonctions comme `UPPER`, `LOWER` et `GetCurrentTimestamp` dans une clause `WHERE` ne peuvent pas utiliser l'index : le moteur charge alors chaque élément.
+      options:
+        a: { en: "`UPPER` in a filter can't use the index; store a normalized value at write time instead.", fr: "`UPPER` dans un filtre ne peut pas utiliser l'index ; stockez plutôt une valeur normalisée à l'écriture." }
+        c: { en: "`LOWER` in a filter can't use the index; it causes a scan of every item.", fr: "`LOWER` dans un filtre ne peut pas utiliser l'index ; il provoque l'analyse complète de chaque élément." }
+        d: { en: "`GetCurrentTimestamp` doesn't use the index; compute the value in the client and pass it as a parameter.", fr: "`GetCurrentTimestamp` n'utilise pas l'index ; calculez la valeur dans le client et passez-la en paramètre." }
+    references:
+      - title: Troubleshoot query issues when using Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-query-performance
+
+  # ------------------------------------------------------------------ 2
+  - id: dp420-qz-23-02
+    objective: "2.3.2"
+    difficulty: 1
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        Fabrikam has an Azure Cosmos DB for NoSQL container named **orders** with 1,000 RU/s of manual provisioned throughput. The query metrics of a Python lookup show a request charge of 5 RUs per execution, and no other workload uses the container.
+
+        About how many executions per second can the container serve before requests are rate limited?
+      fr: |
+        Fabrikam dispose d'un conteneur Azure Cosmos DB for NoSQL nommé **orders** avec un débit provisionné manuel de 1 000 RU/s. Les métriques de requête d'une recherche Python montrent des frais de 5 RU par exécution, et aucune autre charge de travail n'utilise le conteneur.
+
+        Environ combien d'exécutions par seconde le conteneur peut-il servir avant que les requêtes soient limitées ?
+    body:
+      options:
+        - { id: a, text: "5" }
+        - { id: b, text: "200" }
+        - { id: c, text: "1,000" }
+        - { id: d, text: "5,000" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Throughput sizing follows from the request charge: 1,000 RU/s divided by 5 RUs per query gives about 200 queries per second. Above that rate, the service returns 429 responses, and the SDK backs off and retries, which shows up as higher latency.
+        fr: |
+          Le dimensionnement du débit découle des frais de requête : 1 000 RU/s divisées par 5 RU par requête donnent environ 200 requêtes par seconde. Au-delà, le service renvoie des réponses 429, et le SDK attend puis réessaie, ce qui se traduit par une latence plus élevée.
+      options:
+        a: { en: "5 is the charge of one execution, not the rate the throughput allows.", fr: "5 est le coût d'une exécution, pas le rythme que permet le débit." }
+        c: { en: "1,000 would require each execution to cost 1 RU, like a point read of a 1 KB item.", fr: "1 000 supposerait que chaque exécution coûte 1 RU, comme une lecture de point d'un élément de 1 Ko." }
+        d: { en: "5,000 multiplies the throughput by the charge instead of dividing it.", fr: "5 000 multiplie le débit par les frais au lieu de le diviser." }
+    references:
+      - title: Tuning query performance with Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query-metrics
+
+  # ------------------------------------------------------------------ 3
+  - id: dp420-qz-23-03
+    objective: "2.3.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has a nightly C# export job that runs a cross-partition query against an Azure Cosmos DB for NoSQL container named **invoices** by using a `FeedIterator<Invoice>`. The job stops reading as soon as `ReadNextAsync()` returns a page that contains no items.
+
+        Some nights, the export file misses invoices that match the query, although the job logs no exception.
+
+        What should you do?
+      fr: |
+        Litware dispose d'un travail d'exportation C# nocturne qui exécute une requête interpartitions sur un conteneur Azure Cosmos DB for NoSQL nommé **invoices** à l'aide d'un `FeedIterator<Invoice>`. Le travail arrête la lecture dès que `ReadNextAsync()` renvoie une page qui ne contient aucun élément.
+
+        Certaines nuits, le fichier d'exportation omet des factures qui correspondent à la requête, alors que le travail ne journalise aucune exception.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Set MaxItemCount to -1 so that the query returns its results in a single page.", fr: "Définir MaxItemCount sur -1 pour que la requête renvoie ses résultats en une seule page." } }
+        - { id: b, text: { en: "Set MaxBufferedItemCount to the expected number of invoices in the result.", fr: "Définir MaxBufferedItemCount sur le nombre attendu de factures dans le résultat." } }
+        - { id: c, text: { en: "Keep calling ReadNextAsync() while HasMoreResults is true, even after an empty page.", fr: "Continuer d'appeler ReadNextAsync() tant que HasMoreResults vaut true, même après une page vide." } }
+        - { id: d, text: { en: "Add an ORDER BY clause on the id property so that no page is ever empty.", fr: "Ajouter une clause ORDER BY sur la propriété id pour qu'aucune page ne soit jamais vide." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          An empty page doesn't mean that the query is finished: it can occur when the SDK made several network calls or when retrieving the items took a long time. Every query can return a continuation token, so the job must drain the query completely by reading while `HasMoreResults` is true.
+        fr: |
+          Une page vide ne signifie pas que la requête est terminée : elle peut survenir quand le SDK a effectué plusieurs appels réseau ou quand la récupération des éléments a pris du temps. Toute requête peut renvoyer un jeton de continuation : le travail doit donc vider entièrement la requête en lisant tant que `HasMoreResults` vaut true.
+      options:
+        a: { en: "-1 lets the SDK choose the page size; it doesn't guarantee a single page, so the stop condition stays wrong.", fr: "-1 laisse le SDK choisir la taille de page ; il ne garantit pas une seule page, et la condition d'arrêt reste fausse." }
+        b: { en: "MaxBufferedItemCount controls client-side prefetching for latency; it doesn't prevent empty pages.", fr: "MaxBufferedItemCount contrôle la prélecture côté client pour la latence ; il n'empêche pas les pages vides." }
+        d: { en: "ORDER BY changes the order of results, not the way the query is paged across round trips.", fr: "ORDER BY change l'ordre des résultats, pas la manière dont la requête est paginée entre les allers-retours." }
+    references:
+      - title: Troubleshoot query issues when using Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-query-performance
+
+  # ------------------------------------------------------------------ 4
+  - id: dp420-qz-23-04
+    objective: "2.3.5"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin stores the bookings of all its tenants in an Azure Cosmos DB for NoSQL container partitioned by `/tenantId`. A diagnostic setting already sends every log category of the account to a Log Analytics workspace in resource-specific mode.
+
+        You need to be alerted when the data of a single tenant approaches the 20 GB limit of a logical partition, and the alert must name the tenant.
+
+        What should you create?
+      fr: |
+        Tailspin stocke les réservations de tous ses locataires dans un conteneur Azure Cosmos DB for NoSQL partitionné par `/tenantId`. Un paramètre de diagnostic envoie déjà toutes les catégories de journaux du compte vers un espace de travail Log Analytics en mode spécifique à la ressource.
+
+        Vous devez être alerté quand les données d'un seul locataire approchent la limite de 20 Go d'une partition logique, et l'alerte doit nommer le locataire.
+
+        Que devez-vous créer ?
+    body:
+      options:
+        - { id: a, text: { en: "A metric alert on Data Usage, with the Maximum aggregation, split by CollectionName", fr: "Une alerte de métrique sur Data Usage, avec l'agrégation Maximum, fractionnée par CollectionName" } }
+        - { id: b, text: { en: "A log search alert on CDBPartitionKeyRUConsumption, summing RequestCharge by PartitionKey", fr: "Une alerte de recherche dans les journaux sur CDBPartitionKeyRUConsumption, qui additionne RequestCharge par PartitionKey" } }
+        - { id: c, text: { en: "A metric alert on Normalized RU Consumption, with the Maximum aggregation, split by PartitionKeyRangeId", fr: "Une alerte de métrique sur Normalized RU Consumption, avec l'agrégation Maximum, fractionnée par PartitionKeyRangeId" } }
+        - { id: d, text: { en: "A log search alert on CDBPartitionKeyStatistics, comparing SizeKb with 20 GB by PartitionKey", fr: "Une alerte de recherche dans les journaux sur CDBPartitionKeyStatistics, qui compare SizeKb à 20 Go par PartitionKey" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The PartitionKeyStatistics category records the storage size of the logical partition keys that hold a significant amount of data in the `SizeKb` column of `CDBPartitionKeyStatistics`. A log search alert on a query that compares `SizeKb` with 20 GB, split by `PartitionKey`, fires for the tenant that approaches the limit and names it.
+        fr: |
+          La catégorie PartitionKeyStatistics enregistre la taille de stockage des clés de partition logiques qui contiennent un volume significatif de données dans la colonne `SizeKb` de `CDBPartitionKeyStatistics`. Une alerte de recherche dans les journaux sur une requête qui compare `SizeKb` à 20 Go, fractionnée par `PartitionKey`, se déclenche pour le locataire qui approche la limite et le nomme.
+      options:
+        a: { en: "Data Usage is a container-level metric: it can't show the size of one logical partition key value.", fr: "Data Usage est une métrique au niveau du conteneur : elle ne peut pas montrer la taille d'une valeur de clé de partition logique." }
+        b: { en: "CDBPartitionKeyRUConsumption measures the RUs consumed per key, not the data stored per key.", fr: "CDBPartitionKeyRUConsumption mesure les RU consommées par clé, pas les données stockées par clé." }
+        c: { en: "Normalized RU Consumption measures throughput use per physical partition, which holds many tenants.", fr: "Normalized RU Consumption mesure l'utilisation du débit par partition physique, qui contient de nombreux locataires." }
+    references:
+      - title: Create alerts to monitor if storage for a logical partition key is approaching 20 GB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-alert-on-logical-partition-key-storage-size
+
+  # ------------------------------------------------------------------ 5
+  - id: dp420-qz-23-05
+    objective: "2.3.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Woodgrove has an Azure Cosmos DB for NoSQL container named **trips** with the default indexing policy. The index metrics of the following query recommend a composite index (`/region ASC`, `/startedAt ASC`) with a High impact score:
+
+        ```sql
+        SELECT t.id FROM t WHERE t.region = @region AND t.startedAt > @since
+        ```
+
+        You add the composite index at 09:00. At 09:05, the query still costs the same number of RUs, and the index transformation progress of the container is 35 percent.
+
+        What should you do?
+      fr: |
+        Woodgrove dispose d'un conteneur Azure Cosmos DB for NoSQL nommé **trips** avec la stratégie d'indexation par défaut. Les métriques d'index de la requête suivante recommandent un index composite (`/region ASC`, `/startedAt ASC`) avec un score d'impact High :
+
+        ```sql
+        SELECT t.id FROM t WHERE t.region = @region AND t.startedAt > @since
+        ```
+
+        Vous ajoutez l'index composite à 09:00. À 09:05, la requête coûte toujours le même nombre de RU, et la progression de la transformation d'index du conteneur est de 35 %.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Exclude /region/? and /startedAt/? so that the engine has to use the composite index.", fr: "Exclure /region/? et /startedAt/? pour que le moteur soit obligé d'utiliser l'index composite." } }
+        - { id: b, text: { en: "Wait for the transformation to complete, then measure the request charge again.", fr: "Attendre la fin de la transformation, puis mesurer de nouveau les frais de la requête." } }
+        - { id: c, text: { en: "Set the indexing mode to none, and then back to consistent, to rebuild the index faster.", fr: "Définir le mode d'indexation sur none, puis de nouveau sur consistent, pour reconstruire l'index plus vite." } }
+        - { id: d, text: { en: "Replace the composite index with (/startedAt ASC, /region ASC) and add it again.", fr: "Remplacer l'index composite par (/startedAt ASC, /region ASC) et l'ajouter de nouveau." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Adding an index starts an online transformation. Until the new composite index is complete, the query keeps using the existing range indexes, so its charge doesn't drop yet. Index metrics are suggestions: once the transformation reaches 100 percent, measure the charge again to confirm the gain.
+        fr: |
+          Ajouter un index lance une transformation en ligne. Tant que le nouvel index composite n'est pas terminé, la requête continue d'utiliser les index de plage existants : ses frais ne baissent donc pas encore. Les métriques d'index sont des suggestions : une fois la transformation à 100 %, mesurez de nouveau les frais pour confirmer le gain.
+      options:
+        a: { en: "Dropping an indexed path takes effect immediately: the engine stops using it and scans until the composite index is ready.", fr: "Supprimer un chemin indexé prend effet immédiatement : le moteur cesse de l'utiliser et effectue des analyses complètes jusqu'à ce que l'index composite soit prêt." }
+        c: { en: "Switching to none drops the index, so every query scans while the whole index is rebuilt.", fr: "Passer à none supprime l'index : chaque requête effectue une analyse complète pendant la reconstruction de tout l'index." }
+        d: { en: "The range filter must be the last path; the recommended order is already correct.", fr: "Le filtre de plage doit être le dernier chemin ; l'ordre recommandé est déjà correct." }
+    references:
+      - title: Indexing policies in Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/index-policy
+
+  # ------------------------------------------------------------------ 6
+  - id: dp420-qz-23-06
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum has an Azure Cosmos DB for NoSQL container named **assets** partitioned by `/siteId`. Each item averages 180 KB because it embeds a long `history` array. A C# dashboard displays only the `id`, `name` and `status` of the active assets of a site, by using the following query:
+
+        ```sql
+        SELECT * FROM c WHERE c.siteId = @site AND c.status = "active"
+        ```
+
+        The query metrics of a typical page show the following values:
+
+        | Metric | Value |
+        | --- | --- |
+        | Retrieved Document Count | 100 |
+        | Output Document Count | 100 |
+        | Index Hit Ratio | 1.0 |
+        | Index Lookup Time | 0.4 ms |
+        | Document Load Time | 6.1 ms |
+        | Document Write Time | 48.7 ms |
+        | Runtime Execution Time | 0.3 ms |
+        | Total Execution Time | 56.2 ms |
+
+        No request returns status code 429. You need to reduce the server-side execution time of the query as much as possible.
+
+        What should you do?
+      fr: |
+        Adatum dispose d'un conteneur Azure Cosmos DB for NoSQL nommé **assets** partitionné par `/siteId`. Chaque élément fait en moyenne 180 Ko, car il incorpore un long tableau `history`. Un tableau de bord C# affiche seulement les propriétés `id`, `name` et `status` des équipements actifs d'un site, à l'aide de la requête suivante :
+
+        ```sql
+        SELECT * FROM c WHERE c.siteId = @site AND c.status = "active"
+        ```
+
+        Les métriques de requête d'une page typique montrent les valeurs suivantes :
+
+        | Métrique | Valeur |
+        | --- | --- |
+        | Retrieved Document Count | 100 |
+        | Output Document Count | 100 |
+        | Index Hit Ratio | 1.0 |
+        | Index Lookup Time | 0.4 ms |
+        | Document Load Time | 6.1 ms |
+        | Document Write Time | 48.7 ms |
+        | Runtime Execution Time | 0.3 ms |
+        | Total Execution Time | 56.2 ms |
+
+        Aucune requête ne renvoie le code d'état 429. Vous devez réduire au maximum le temps d'exécution côté serveur de la requête.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Add a composite index on (/siteId ASC, /status ASC) to the indexing policy.", fr: "Ajouter un index composite sur (/siteId ASC, /status ASC) à la stratégie d'indexation." } }
+        - { id: b, text: { en: "Set MaxBufferedItemCount to the expected number of results in the query options.", fr: "Définir MaxBufferedItemCount sur le nombre de résultats attendu dans les options de la requête." } }
+        - { id: c, text: { en: "Increase the provisioned throughput of the container to give the query more RU/s.", fr: "Augmenter le débit provisionné du conteneur pour donner plus de RU/s à la requête." } }
+        - { id: d, text: { en: "Replace SELECT * with a projection of the id, name and status properties.", fr: "Remplacer SELECT * par une projection des propriétés id, name et status." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The filter is efficient: every retrieved item is returned, the index hit ratio is 1.0 and the index lookup takes 0.4 ms. Most of the 56 ms goes to Document Write Time, the time spent serializing the output items, which grows with the size of what is returned. Projecting only the three displayed properties instead of the 180 KB items removes most of that time.
+        fr: |
+          Le filtre est efficace : chaque élément récupéré est renvoyé, le ratio d'utilisation de l'index vaut 1.0 et la recherche dans l'index prend 0,4 ms. L'essentiel des 56 ms est consacré à Document Write Time, le temps de sérialisation des éléments de sortie, qui augmente avec la taille de ce qui est renvoyé. Projeter uniquement les trois propriétés affichées au lieu des éléments de 180 Ko supprime l'essentiel de ce temps.
+      options:
+        a: { en: "The index already serves the filter (ratio 1.0, 0.4 ms lookup); a composite index can't reduce the serialization time.", fr: "L'index sert déjà le filtre (ratio 1.0, recherche de 0,4 ms) ; un index composite ne peut pas réduire le temps de sérialisation." }
+        b: { en: "MaxBufferedItemCount tunes client-side prefetching; it doesn't change the server-side execution time.", fr: "MaxBufferedItemCount règle la prélecture côté client ; il ne change pas le temps d'exécution côté serveur." }
+        c: { en: "No request is rate limited, and more RU/s don't make the engine serialize large items faster.", fr: "Aucune requête n'est limitée, et plus de RU/s ne font pas sérialiser plus vite les gros éléments par le moteur." }
+    references:
+      - title: Tuning query performance with Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query-metrics
+
+  # ------------------------------------------------------------------ 7
+  - id: dp420-qz-23-07
+    objective: "2.3.4"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Northwind runs a C# order API on Azure virtual machines that have only private IP addresses, in the same region as its Azure Cosmos DB for NoSQL account. The API uses the .NET SDK v3 in direct mode, and a new `CosmosClient` is created for each incoming HTTP request.
+
+        The API misses its latency objective for point reads. You collect the following data:
+
+        - Azure Monitor shows an average CPU of 35 percent on the virtual machines, over 5-minute intervals.
+        - The `systemHistory` section of the diagnostics of slow reads shows CPU samples between 78 and 86 percent.
+        - Some reads fail with a `TransportException`, and the diagnostics show a very high number of open connections.
+        - Server Side Latency Direct stays below 5 ms, and no request returns status code 429.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind exécute une API C# de commandes sur des machines virtuelles Azure qui n'ont que des adresses IP privées, dans la même région que son compte Azure Cosmos DB for NoSQL. L'API utilise le SDK .NET v3 en mode direct, et un nouveau `CosmosClient` est créé pour chaque requête HTTP entrante.
+
+        L'API ne respecte pas son objectif de latence pour les lectures de point. Vous collectez les données suivantes :
+
+        - Azure Monitor montre un processeur moyen de 35 % sur les machines virtuelles, par intervalles de 5 minutes.
+        - La section `systemHistory` des diagnostics des lectures lentes montre des échantillons de processeur entre 78 et 86 %.
+        - Certaines lectures échouent avec une `TransportException`, et les diagnostics montrent un très grand nombre de connexions ouvertes.
+        - Server Side Latency Direct reste sous 5 ms, et aucune requête ne renvoie le code d'état 429.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "Because the average CPU is below 40 percent, the CPU of the virtual machines can be ruled out as a cause of the latency.", fr: "Comme le processeur moyen est inférieur à 40 %, le processeur des machines virtuelles peut être écarté comme cause de la latence." }
+        - id: s2
+          text: { en: "Reusing a single CosmosClient for the lifetime of the API reduces the connections that exhaust the SNAT ports of the virtual machines.", fr: "Réutiliser un seul CosmosClient pendant toute la durée de vie de l'API réduit les connexions qui épuisent les ports SNAT des machines virtuelles." }
+        - id: s3
+          text: { en: "Increasing the provisioned throughput of the container reduces the end-to-end latency of the point reads.", fr: "Augmenter le débit provisionné du conteneur réduit la latence de bout en bout des lectures de point." }
+    answer:
+      values: { s1: false, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          Client CPU must be read as the maximum over short intervals, not as an average: the 10-second samples of `systemHistory` above 70 percent point to CPU exhaustion that the 5-minute average hides. A `TransportException` with many open connections from VMs without a public IP points to SNAT port exhaustion, and one client per request multiplies connections. With server-side latency low and no 429, the time is spent in the client and the network, so more RU/s don't help.
+        fr: |
+          Le processeur du client doit se lire comme le maximum sur de courts intervalles, pas comme une moyenne : les échantillons de 10 secondes de `systemHistory` au-dessus de 70 % révèlent un épuisement du processeur que la moyenne sur 5 minutes masque. Une `TransportException` avec beaucoup de connexions ouvertes depuis des machines virtuelles sans adresse IP publique révèle un épuisement des ports SNAT, et un client par requête multiplie les connexions. Avec une latence côté serveur faible et aucun 429, le temps se passe dans le client et le réseau : plus de RU/s n'y changent rien.
+      options:
+        s1: { en: "Averages hide spikes: watch the maximum CPU, here above the 70 percent exhaustion level.", fr: "Les moyennes masquent les pics : surveillez le processeur maximum, ici au-delà du seuil d'épuisement de 70 %." }
+        s3: { en: "High latency with low server-side latency and no throttling is never fixed by adding RU/s.", fr: "Une latence élevée avec une latence côté serveur faible et sans limitation ne se corrige jamais en ajoutant des RU/s." }
+    references:
+      - title: Diagnose and troubleshoot slow requests in Azure Cosmos DB .NET SDK
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-dotnet-sdk-slow-request
+      - title: Diagnose and troubleshoot issues when using Azure Cosmos DB .NET SDK
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/troubleshoot-dotnet-sdk
+
+  # ------------------------------------------------------------------ 8
+  - id: dp420-qz-23-08
+    objective: "2.3.6"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Proseware has an Azure Cosmos DB for NoSQL account whose diagnostic setting sends the **DataPlaneRequests** and **QueryRuntimeStatistics** categories to a Log Analytics workspace in resource-specific mode.
+
+        After a release, the RU consumption of the account doubled. You need a query that lists, for the last hour and for each operation type and container, the total request units consumed, the 99th percentile of the server-side duration and the number of calls. The most expensive combination must appear first.
+
+        How should you complete the query? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Proseware dispose d'un compte Azure Cosmos DB for NoSQL dont le paramètre de diagnostic envoie les catégories **DataPlaneRequests** et **QueryRuntimeStatistics** vers un espace de travail Log Analytics en mode spécifique à la ressource.
+
+        Après une mise en production, la consommation de RU du compte a doublé. Vous avez besoin d'une requête qui liste, pour la dernière heure et pour chaque type d'opération et chaque conteneur, le total des unités de requête consommées, le 99e centile de la durée côté serveur et le nombre d'appels. La combinaison la plus coûteuse doit apparaître en premier.
+
+        Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: kusto
+      template: |
+        [[table]]
+        | where TimeGenerated > ago(1h)
+        | summarize TotalRU = [[agg]](RequestCharge), P99Ms = [[pct]], Calls = count()
+            by OperationName, CollectionName
+        | [[order]]
+      slots:
+        - id: table
+          options:
+            - { id: tqr, text: CDBQueryRuntimeStatistics }
+            - { id: tdp, text: CDBDataPlaneRequests }
+            - { id: tact, text: AzureActivity }
+        - id: agg
+          options:
+            - { id: avg, text: avg }
+            - { id: max, text: max }
+            - { id: sum, text: sum }
+        - id: pct
+          options:
+            - { id: pdur, text: "percentile(DurationMs, 99)" }
+            - { id: pru, text: "percentile(RequestCharge, 99)" }
+            - { id: mdur, text: "max(DurationMs)" }
+        - id: order
+          options:
+            - { id: asc, text: "order by TotalRU asc" }
+            - { id: top, text: "top 99 by P99Ms" }
+            - { id: desc, text: "order by TotalRU desc" }
+    answer:
+      values: { table: tdp, agg: sum, pct: pdur, order: desc }
+    explanation:
+      correct:
+        en: |
+          `CDBDataPlaneRequests` holds one row per data plane request, with `OperationName`, `CollectionName`, `RequestCharge` and `DurationMs`, the server-side duration. `sum(RequestCharge)` gives the total RUs and `percentile(DurationMs, 99)` the 99th percentile of the duration. `order by TotalRU desc` puts the most expensive operation and container first.
+        fr: |
+          `CDBDataPlaneRequests` contient une ligne par requête du plan de données, avec `OperationName`, `CollectionName`, `RequestCharge` et `DurationMs`, la durée côté serveur. `sum(RequestCharge)` donne le total des RU et `percentile(DurationMs, 99)` le 99e centile de la durée. `order by TotalRU desc` place en premier l'opération et le conteneur les plus coûteux.
+      options:
+        tqr: { en: "CDBQueryRuntimeStatistics holds the query text joined on ActivityId; it has no RequestCharge or DurationMs column.", fr: "CDBQueryRuntimeStatistics contient le texte des requêtes, joint sur ActivityId ; il n'a pas de colonne RequestCharge ni DurationMs." }
+        tact: { en: "AzureActivity records control plane events of the subscription, not data plane requests.", fr: "AzureActivity enregistre les événements du plan de contrôle de l'abonnement, pas les requêtes du plan de données." }
+        avg: { en: "avg returns the average charge per call, not the total consumed.", fr: "avg renvoie les frais moyens par appel, pas le total consommé." }
+        pru: { en: "This is a percentile of the charge, not of the duration.", fr: "C'est un centile des frais, pas de la durée." }
+        mdur: { en: "max returns the single slowest call, not the 99th percentile.", fr: "max renvoie l'appel le plus lent, pas le 99e centile." }
+        top: { en: "This keeps 99 rows sorted by latency, not every combination sorted by total RUs.", fr: "Cela garde 99 lignes triées par latence, pas toutes les combinaisons triées par total de RU." }
+    references:
+      - title: CDBDataPlaneRequests
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/cdbdataplanerequests
+
+  # ------------------------------------------------------------------ 9
+  - id: dp420-qz-23-09
+    objective: "2.3.5"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Wingtip has an Azure Cosmos DB for NoSQL account named **cosmos-wt-games** with a write region in West Europe, a read region in North Europe and service-managed failover enabled. A C# game service uses the account.
+
+        The operations team must be notified in the following cases:
+
+        - The account fails over to another region.
+        - The availability of the account over an hour drops below 99.99 percent.
+
+        Which two alert rules should you create? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Wingtip dispose d'un compte Azure Cosmos DB for NoSQL nommé **cosmos-wt-games** avec une région d'écriture dans West Europe, une région de lecture dans North Europe et le basculement géré par le service activé. Un service C# de jeux utilise le compte.
+
+        L'équipe d'exploitation doit être notifiée dans les cas suivants :
+
+        - Le compte bascule vers une autre région.
+        - La disponibilité du compte sur une heure passe sous 99,99 %.
+
+        Quelles sont les deux règles d'alerte à créer ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      options:
+        - { id: a, text: { en: "A metric alert on Service Availability, Average aggregation, 1-minute granularity, less than 99.99", fr: "Une alerte de métrique sur Service Availability, agrégation Average, granularité de 1 minute, inférieure à 99,99" } }
+        - { id: b, text: { en: "A metric alert on Region Failed Over, Count aggregation, greater than 0", fr: "Une alerte de métrique sur Region Failed Over, agrégation Count, supérieure à 0" } }
+        - { id: c, text: { en: "A metric alert on Total Requests filtered on StatusCode 429, Count aggregation, greater than 0", fr: "Une alerte de métrique sur Total Requests filtrée sur StatusCode 429, agrégation Count, supérieure à 0" } }
+        - { id: d, text: { en: "A metric alert on Service Availability, Minimum aggregation, 1-hour granularity, less than 99.99", fr: "Une alerte de métrique sur Service Availability, agrégation Minimum, granularité de 1 heure, inférieure à 99,99" } }
+        - { id: e, text: { en: "A metric alert on Normalized RU Consumption, Maximum aggregation, greater than 99", fr: "Une alerte de métrique sur Normalized RU Consumption, agrégation Maximum, supérieure à 99" } }
+      choose: 2
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          Region Failed Over counts the region failovers of the account, so a Count above 0 detects a failover. Service Availability reports the availability of the account as a percentage and is emitted at an hourly grain or coarser, with the Minimum, Average or Maximum aggregation; Minimum over 1 hour below 99.99 matches the availability requirement.
+        fr: |
+          Region Failed Over compte les basculements de région du compte : un Count supérieur à 0 détecte un basculement. Service Availability indique la disponibilité du compte en pourcentage et est émise à une granularité d'une heure ou plus, avec l'agrégation Minimum, Average ou Maximum ; Minimum sur 1 heure sous 99,99 répond à l'exigence de disponibilité.
+      options:
+        a: { en: "Service Availability has no 1-minute grain: its smallest time grain is 1 hour.", fr: "Service Availability n'a pas de granularité de 1 minute : sa plus petite granularité est de 1 heure." }
+        c: { en: "A few 429 responses are normal rate limiting; they measure neither a failover nor availability.", fr: "Quelques réponses 429 sont une limitation de débit normale ; elles ne mesurent ni un basculement ni la disponibilité." }
+        e: { en: "Normalized RU Consumption measures throughput use per partition, not failovers or availability.", fr: "Normalized RU Consumption mesure l'utilisation du débit par partition, pas les basculements ni la disponibilité." }
+    references:
+      - title: Azure Cosmos DB monitoring data reference
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-reference
+      - title: Create alerts for Azure Cosmos DB using Azure Monitor
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/create-alerts
+
+  # ------------------------------------------------------------------ 10
+  - id: dp420-qz-23-10
+    objective: "2.3.1"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso has an Azure Cosmos DB for NoSQL container named **customers** whose indexing policy includes `/*`. Several legacy applications write the `name` property with inconsistent casing, and you can't change how items are written.
+
+        A C# support portal must find customers by name without regard to case, newest first, by using the following query:
+
+        ```sql
+        SELECT c.id, c.name FROM c
+        WHERE c.cp_lowerName = @name
+        ORDER BY c.cp_lowerName ASC, c._ts DESC
+        ```
+
+        Other queries filter on `cp_lowerName` alone. The solution must minimize the RU charge of these queries, and the queries must not fail.
+
+        How should you complete the container definition? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso dispose d'un conteneur Azure Cosmos DB for NoSQL nommé **customers** dont la stratégie d'indexation inclut `/*`. Plusieurs applications héritées écrivent la propriété `name` avec une casse incohérente, et vous ne pouvez pas changer la manière dont les éléments sont écrits.
+
+        Un portail C# de support doit trouver les clients par nom sans tenir compte de la casse, du plus récent au plus ancien, à l'aide de la requête suivante :
+
+        ```sql
+        SELECT c.id, c.name FROM c
+        WHERE c.cp_lowerName = @name
+        ORDER BY c.cp_lowerName ASC, c._ts DESC
+        ```
+
+        D'autres requêtes filtrent sur `cp_lowerName` seul. La solution doit réduire au minimum les frais en RU de ces requêtes, et les requêtes ne doivent pas échouer.
+
+        Comment devez-vous compléter la définition du conteneur ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: json
+      template: |
+        {
+          "id": "customers",
+          "computedProperties": [
+            { "name": "cp_lowerName", "query": "[[cpq]]" }
+          ],
+          "indexingPolicy": {
+            "indexingMode": "consistent",
+            "automatic": true,
+            "includedPaths": [ { "path": "/*" }, { "path": "[[inc]]" } ],
+            "excludedPaths": [],
+            "compositeIndexes": [
+              [
+                { "path": "[[first]]", "order": "ascending" },
+                { "path": "/_ts", "order": "[[tsorder]]" }
+              ]
+            ]
+          }
+        }
+      slots:
+        - id: cpq
+          options:
+            - { id: novalue, text: "SELECT LOWER(c.name) FROM c" }
+            - { id: value, text: "SELECT VALUE LOWER(c.name) FROM c" }
+            - { id: where, text: "SELECT VALUE LOWER(c.name) FROM c WHERE IS_DEFINED(c.name)" }
+        - id: inc
+          options:
+            - { id: cp, text: "/cp_lowerName/?" }
+            - { id: cpnested, text: "/computedProperties/cp_lowerName/?" }
+            - { id: name, text: "/name/?" }
+        - id: first
+          options:
+            - { id: fname, text: "/name" }
+            - { id: fcp, text: "/cp_lowerName" }
+            - { id: fnested, text: "/computedProperties/cp_lowerName" }
+        - id: tsorder
+          options:
+            - { id: asc, text: ascending }
+            - { id: desc, text: descending }
+    answer:
+      values: { cpq: value, inc: cp, first: fcp, tsorder: desc }
+    explanation:
+      correct:
+        en: |
+          A computed property query must use `VALUE` and can't contain `WHERE`. Computed properties aren't covered by `/*`, so `/cp_lowerName/?` must be included explicitly, and a computed property used in `ORDER BY` must be indexed or the query fails. Computed properties can appear in composite indexes by their top-level path `/cp_lowerName`, and the directions must match the `ORDER BY` (ascending, then descending on `_ts`).
+        fr: |
+          La requête d'une propriété calculée doit utiliser `VALUE` et ne peut pas contenir `WHERE`. Les propriétés calculées ne sont pas couvertes par `/*` : `/cp_lowerName/?` doit être inclus explicitement, et une propriété calculée utilisée dans `ORDER BY` doit être indexée, sinon la requête échoue. Les propriétés calculées peuvent figurer dans les index composites par leur chemin de premier niveau `/cp_lowerName`, et les sens doivent correspondre à l'`ORDER BY` (croissant, puis décroissant sur `_ts`).
+      options:
+        novalue: { en: "Without VALUE, the query returns an object instead of a scalar; VALUE is required.", fr: "Sans VALUE, la requête renvoie un objet au lieu d'une valeur scalaire ; VALUE est obligatoire." }
+        where: { en: "WHERE isn't allowed in a computed property query.", fr: "WHERE n'est pas autorisé dans la requête d'une propriété calculée." }
+        cpnested: { en: "A computed property is top level: its path is /cp_lowerName, not nested under computedProperties.", fr: "Une propriété calculée est de premier niveau : son chemin est /cp_lowerName, pas imbriqué sous computedProperties." }
+        name: { en: "/name is already covered by /*, and it indexes the raw value, not the lowercase one.", fr: "/name est déjà couvert par /*, et il indexe la valeur brute, pas la valeur en minuscules." }
+        fname: { en: "The query sorts on cp_lowerName; a composite index on /name doesn't serve it.", fr: "La requête trie sur cp_lowerName ; un index composite sur /name ne la sert pas." }
+        asc: { en: "The directions must match the ORDER BY, which sorts _ts descending after an ascending first path.", fr: "Les sens doivent correspondre à l'ORDER BY, qui trie _ts en ordre décroissant après un premier chemin croissant." }
+    references:
+      - title: Computed properties - Query language in Cosmos DB (in Azure and Fabric)
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query/computed-properties
+      - title: Indexing policies in Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/index-policy

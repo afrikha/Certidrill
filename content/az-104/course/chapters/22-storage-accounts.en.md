@@ -40,7 +40,7 @@ Azure Storage always keeps at least three copies. The redundancy option decides 
 | Option | Copies | Survives a datacenter failure | Survives a zone failure | Survives a region failure | Read from the secondary without failover |
 | --- | --- | --- | --- | --- | --- |
 | **LRS** | 3, synchronous, one datacenter | No | No | No | No |
-| **ZRS** | 3, synchronous, three availability zones | Yes | Yes | No | No |
+| **ZRS** | Synchronous, across three or more availability zones | Yes | Yes | No | No |
 | **GRS** | LRS in the primary + 3 asynchronous copies (LRS) in the paired region | Yes | Yes | Yes | No |
 | **RA-GRS** | GRS | Yes | Yes | Yes | **Yes** |
 | **GZRS** | ZRS in the primary + 3 asynchronous copies (LRS) in the paired region | Yes | Yes | Yes | No |
@@ -153,7 +153,7 @@ For very large offline transfers, Azure offers Data Box devices and the Import/E
 
 - Name: 3 to 24 lowercase letters and digits. Account type is final; redundancy isn't.
 - Premium accounts: LRS or ZRS only. NFS shares: premium file shares account.
-- LRS (one datacenter), ZRS (three zones), GRS (plus paired region), RA- (readable secondary, `-secondary` endpoint), GZRS (zones plus region).
+- LRS (one datacenter), ZRS (three or more zones), GRS (plus paired region), RA- (readable secondary, `-secondary` endpoint), GZRS (zones plus region).
 - Unplanned failover leaves the account in LRS. Archive isn't available with ZRS, GZRS, RA-GZRS.
 - Object replication: block blobs, versioning on both accounts, change feed on the source, destination read-only.
 - Encryption at rest is always on. Customer-managed keys: vault with soft delete and purge protection, managed identity. Infrastructure encryption: at creation only.

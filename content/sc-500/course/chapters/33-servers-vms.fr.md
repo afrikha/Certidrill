@@ -10,7 +10,7 @@ Ce chapitre couvre les contrôles qui protègent les machines virtuelles et les 
 | Azure Disk Encryption (ADE) | Disques de système d'exploitation et de données dans l'invité avec BitLocker (Windows) ou DM-Crypt (Linux) | Azure Key Vault, clé de chiffrement à clé (KEK) facultative | Utilise le processeur de la machine virtuelle. **Mise hors service le 15 septembre 2028** |
 | Chiffrement de disque confidentiel | Disque de système d'exploitation, clés liées au TPM de la machine virtuelle | Gérées par la plateforme ou par le client | Tailles de machines virtuelles confidentielles uniquement |
 
-> **Piège d'examen.** Après le 15 septembre 2028, les disques chiffrés avec ADE ne se déverrouillent plus après un redémarrage. ADE et le chiffrement sur l'hôte s'excluent mutuellement : une machine virtuelle qui a **déjà** eu ADE ne peut pas recevoir le chiffrement sur l'hôte, la migration passe donc par de nouveaux disques.
+> **Piège d'examen.** Après le 15 septembre 2028, les disques chiffrés avec ADE ne se déverrouillent plus après un redémarrage. ADE et le chiffrement sur l'hôte s'excluent mutuellement : une machine virtuelle qui a **déjà** eu ADE ne peut pas recevoir le chiffrement sur l'hôte, la migration passe donc par de nouveaux disques. Les disques conservent un indicateur Unified Data Encryption (UDE) même après le déchiffrement, et les instantanés comme les copies de disque faites avec l'option Copy le conservent aussi : créez de nouveaux disques avec la méthode Upload et copiez les données du VHD avec AzCopy.
 
 Le chiffrement sur l'hôte demande une inscription unique de la fonctionnalité par abonnement et une taille de machine virtuelle prise en charge ; une machine virtuelle existante doit être libérée puis réallouée pour être chiffrée.
 
@@ -32,7 +32,7 @@ Azure Bastion fournit RDP et SSH vers les machines virtuelles via TLS, depuis le
 | Fonctionnalité | Developer | Basic | Standard | Premium |
 | --- | --- | --- | --- | --- |
 | Hôte dédié, `AzureBastionSubnet`, adresse IP publique | Non (partagé) | Oui | Oui | Oui (pas d'IP publique en déploiement privé uniquement) |
-| Machines virtuelles dans des réseaux virtuels appairés | Non | Oui | Oui | Oui |
+| Machines virtuelles dans des réseaux virtuels connectés par peering | Non | Oui | Oui | Oui |
 | Client natif (Azure CLI), transfert de fichiers, port personnalisé | Non | Non | Oui | Oui |
 | Connexion par adresse IP, lien partageable | Non | Non | Oui | Oui |
 | Mise à l'échelle de l'hôte (nombre d'instances) | Non | Non (2 instances) | Oui | Oui |
@@ -144,9 +144,9 @@ L'analyse sans agent prend un **instantané des disques de système d'exploitati
 | Lancement fiable (Trusted launch) | **Démarrage sécurisé** (seuls les chargeurs de démarrage, noyaux et pilotes signés démarrent) et **vTPM** (TPM 2.0 pour les clés et le démarrage mesuré), surveillance de l'intégrité du démarrage facultative. Machines virtuelles de **génération 2** uniquement |
 | Machine virtuelle confidentielle | Environnement d'exécution de confiance matériel, chiffrement de disque confidentiel ; tailles confidentielles |
 
-- Le portail, Azure CLI et Azure PowerShell créent par défaut des machines virtuelles **à lancement fiable** ; cela ne coûte rien de plus. Non pris en charge sur certaines tailles (par exemple famille A, Dv2, Dv3, série M) ni avec les images managées (utilisez Azure Compute Gallery).
+- Le portail, Azure CLI et Azure PowerShell créent par défaut des machines virtuelles **à lancement fiable** ; cela ne coûte rien de plus. Les déploiements ARM, Bicep et Terraform l'utilisent par défaut avec la version d'API 2025-11-01 ou ultérieure quand l'image, le disque et la taille le prennent en charge, ou une fois `TrustedLaunchByDefaultPreview` inscrite sur l'abonnement ; sinon, un modèle sans `securityProfile` crée une machine virtuelle sans lancement fiable. Non pris en charge sur certaines tailles (par exemple famille A, Dv2, Dv3, série M) ni avec les images managées (utilisez Azure Compute Gallery).
 - Une machine virtuelle Gen1 peut être mise à niveau en Gen2 avec lancement fiable ; le lancement fiable peut être activé sur une machine virtuelle Gen2 existante.
-- **Surveillance de l'intégrité** : avec le démarrage sécurisé et le vTPM actifs, installez l'extension **Guest Attestation** ; Defender for Cloud valide alors à distance l'intégrité du démarrage et déclenche *VM attestation failure* si la chaîne de démarrage s'écarte de la référence.
+- **Surveillance de l'intégrité** : avec le démarrage sécurisé et le vTPM actifs, installez l'extension **Guest Attestation** ; Defender for Cloud valide alors à distance l'intégrité du démarrage et déclenche *VM attestation failure* si la chaîne de démarrage s'écarte de la référence. Dans le portail, **Configuration** > **Security type** > **Integrity monitoring** installe l'extension (Azure CLI à la création : `az vm create --enable-integrity-monitoring`). L'extension doit joindre le point de terminaison Azure Attestation : autorisez le trafic sortant vers l'étiquette de service `AzureAttestation` dans les NSG et le Pare-feu Azure.
 
 ```json
 "securityProfile": {

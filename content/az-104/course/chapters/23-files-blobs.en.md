@@ -36,7 +36,7 @@ sudo mount -t cifs //stor1.file.core.windows.net/share1 /mnt/share1 \
 ```
 
 - If port 445 is blocked, mounting over the internet fails. From on-premises, use a VPN or ExpressRoute with a private endpoint.
-- **Azure File Sync** synchronizes Windows file servers with an Azure file share: a *Storage Sync Service* contains *sync groups*; each sync group has one **cloud endpoint** (the share) and one or more **server endpoints** (folders on registered servers with the agent). **Cloud tiering** keeps only recently used files on the server.
+- **Azure File Sync** synchronizes Windows file servers with an Azure file share: a *Storage Sync Service* contains *sync groups*; each sync group has one **cloud endpoint** (the share) and one or more **server endpoints** (folders on registered servers with the agent). A server registers with **only one** Storage Sync Service; a sync group accepts one server endpoint per registered server, and a file share can belong to only one sync group. A server can have endpoints in several sync groups of its service. **Cloud tiering** keeps only recently used files on the server.
 
 ```bash
 az storage share-rm create -g RG1 --storage-account stor1 --name share1 \
@@ -88,8 +88,8 @@ Blob tiers trade storage price against access price:
 | **Archive** | Lowest | Highest | 180 days | **Offline** |
 
 - A blob moved or deleted before the minimum duration incurs an **early deletion charge** for the remaining days (deleted after 20 days in Cold: 70 days charged).
-- The **default access tier** of an account can be Hot, Cool or Cold; blobs without an explicit tier inherit it. **Archive** is set **blob by blob**, never as account default.
-- Tiers apply to **block blobs** in standard general-purpose v2 accounts (and Blob Storage accounts). Premium accounts have no tiers.
+- The **default access tier** of an account can be Hot, Cool or Cold; blobs without an explicit tier inherit it (the portal shows **Hot (inferred)**, for example). Changing the default tier changes the tier of every blob whose tier is inferred; blobs with an explicitly set tier don't move. **Archive** is set **blob by blob**, never as account default.
+- Tiers apply to **block blobs** in standard general-purpose v2 accounts (and Blob Storage accounts). Premium accounts have no tiers: premium block blob data can't be tiered with Set Blob Tier or lifecycle management. To move it to a cooler tier, copy it to a standard account (Put Block From URL, or AzCopy).
 - Archive requires LRS, GRS or RA-GRS redundancy.
 
 An archived blob can't be read or modified; only its metadata and properties are visible. To read it, **rehydrate** it:
@@ -118,7 +118,7 @@ az storage blob set-tier --account-name stor1 --container-name logs --name app.l
 
 - On Windows, snapshots of a mounted SMB share appear in the **Previous Versions** tab of files and folders: users restore files themselves.
 - A share that has snapshots can't be deleted unless its snapshots are deleted too. Deleting the share deletes its snapshots (they come back if the soft-deleted share is undeleted).
-- Soft delete doesn't protect individual files: use snapshots or Azure Backup for file shares, which schedules snapshots and manages their retention.
+- Soft delete doesn't protect individual files: use snapshots or Azure Backup for file shares, which schedules snapshots and manages their retention. Configuring Azure Backup also enables share soft delete on the storage account, with 14 days of retention. Azure Backup for NFS shares isn't generally available (snapshot backup is in private preview).
 - A soft-deleted share is billed at snapshot rates until it is permanently deleted at the end of the retention period.
 
 ```bash
@@ -186,7 +186,8 @@ Rules to remember:
 
 Versioning in practice:
 
-- The latest write is the **current version**; older ones are **previous versions**. Deleting a blob removes the current version and keeps the previous ones.
+- The latest write is the **current version**; older ones are **previous versions**. Deleting a blob without a version ID turns the current version into a previous version: no current version remains, and existing previous versions are kept.
+- With blob soft delete also enabled, that deletion soft-deletes nothing: the new previous version isn't subject to the soft delete retention. Deleting a previous version **by its version ID** soft-deletes it. *Undelete Blob* restores all the soft-deleted versions of the blob but promotes none of them to current version.
 - To restore, **copy a previous version over the base blob**, or make it the current version in the portal.
 - Versions are billed for the data they hold: combine versioning with a lifecycle rule that deletes old versions.
 - Versioning doesn't protect against the deletion of the container or of the account: add container soft delete and a `CanNotDelete` lock.

@@ -10,7 +10,7 @@ Une stratégie de création de branches décide où le travail se fait, comment 
 | Branche de mise en production | Une branche comme `release/20` est créée depuis `main` à l'approche d'un jalon, stabilisée, et conservée tant que cette version est prise en charge | Plusieurs versions prises en charge en parallèle, logiciels mobiles ou empaquetés, mises en production planifiées |
 | Git Flow (non cité par le guide, distracteur fréquent) | Branches durables `develop` et `main`, plus des branches de fonctionnalité, de mise en production et de correctif | Produits strictement versionnés ; lourd pour la livraison continue |
 
-Les recommandations de Microsoft pour Azure Repos combinent les trois premières : des branches de fonctionnalité pour **toutes** les nouvelles fonctionnalités et tous les correctifs, fusionnées dans `main` uniquement par pull request, une branche `main` qui se construit et passe les tests en permanence, et des branches de mise en production créées depuis `main` à l'approche d'une version. Une branche de mise en production n'est **jamais refusionnée** dans `main` par pull request. Les correctifs arrivent d'abord dans `main` puis sont **sélectionnés (cherry-pick)** vers la branche de mise en production (ou l'inverse), pour ne déplacer que les commits choisis. Verrouillez une branche de mise en production quand sa version n'est plus prise en charge.
+Les recommandations de Microsoft pour Azure Repos combinent les trois premières : des branches de fonctionnalité pour **toutes** les nouvelles fonctionnalités et tous les correctifs, fusionnées dans `main` uniquement par pull request, une branche `main` qui se construit et passe les tests en permanence, et des branches de mise en production créées depuis `main` à l'approche d'une version. Une branche de mise en production n'est **jamais refusionnée** dans `main` par pull request. Les correctifs arrivent d'abord dans `main` puis sont **sélectionnés (cherry-pick)** vers la branche de mise en production (ou l'inverse), pour ne déplacer que les commits choisis. Verrouillez une branche de mise en production quand sa version n'est plus prise en charge. Les branches d'environnement (`deploy/performance-test`) se traitent comme des branches de mise en production, sauf en déploiement continu, où Azure Pipelines promeut les builds de `main` vers les cibles de déploiement.
 
 Les conventions de nommage organisent les branches et permettent des autorisations par dossier : `feature/<name>`, `bugfix/<description>`, `hotfix/<description>`, `users/<alias>/<description>`, `release/<version>`.
 
@@ -53,7 +53,7 @@ Les stratégies de branche se configurent par branche dans **Repos > Branches > 
 | Status checks (vérifications d'état) | Un état publié par un service externe via l'API Status des pull requests (`genre/name`), obligatoire ou facultatif, éventuellement appliqué seulement après la publication du premier état |
 | Automatically included reviewers (réviseurs inclus automatiquement) | Utilisateurs ou groupes ajoutés à la pull request, facultatifs ou obligatoires, avec un **filtre de chemin** (`/src/Payments/*;!/src/Payments/Tests/*`) |
 
-Deux détails sur les réviseurs tranchent beaucoup de questions : avec un **groupe** comme réviseur obligatoire, l'approbation d'un seul membre suffit ; et la séparation des tâches (« le développeur qui a poussé en dernier ne peut pas approuver ») correspond à **Prohibit the most recent pusher**, pas à l'option du demandeur. Un utilisateur peut activer la **saisie semi-automatique (auto-complete)** pour que la pull request se termine dès que toutes les stratégies sont satisfaites.
+Deux détails sur les réviseurs tranchent beaucoup de questions : quand des groupes sont réviseurs obligatoires, au moins un membre de chaque groupe doit approuver (si un seul groupe est obligatoire, le nombre minimal de ses membres défini dans la stratégie doit approuver) ; et la séparation des tâches (« le développeur qui a poussé en dernier ne peut pas approuver ») correspond à **Prohibit the most recent pusher**, pas à l'option du demandeur. Un utilisateur peut activer la **saisie semi-automatique (auto-complete)** pour que la pull request se termine dès que toutes les stratégies sont satisfaites.
 
 ```bash
 az repos policy approver-count create --repository-id <repo-id> \
@@ -93,7 +93,7 @@ Une **règle de protection de branche** cible un modèle de nom de branche (`mai
 | Require status checks to pass before merging | Des vérifications nommées (noms de jobs de workflows, ou états publiés par des applications) doivent réussir. **Require branches to be up to date before merging** = mode strict |
 | Require conversation resolution before merging | Tous les commentaires de revue résolus |
 | Require deployments to succeed before merging | Un déploiement dans un environnement choisi (par exemple staging) doit d'abord réussir |
-| Require merge queue | Les pull requests sont fusionnées dans l'ordre, chacune testée avec la dernière version de la branche cible plus les pull requests qui la précèdent |
+| Require merge queue | Les pull requests sont fusionnées dans l'ordre, chacune testée avec la dernière version de la branche cible plus les pull requests qui la précèdent. Dépôts publics appartenant à une organisation, et dépôts privés sur GitHub Enterprise Cloud |
 
 Les propriétaires de code viennent d'un fichier `CODEOWNERS` placé dans `.github/`, à la racine ou dans `docs/` (recherchés dans cet ordre) sur la **branche de base** de la pull request. Les propriétaires sont sollicités automatiquement ; **le dernier modèle correspondant l'emporte** ; utilisateurs et équipes doivent avoir l'accès en écriture.
 
@@ -128,7 +128,7 @@ Les **rulesets** sont le mécanisme plus récent. Ils portent les mêmes règles
 | Une seule règle s'applique à une branche | Plusieurs rulesets s'appliquent ensemble et **s'agrègent** : la version la plus restrictive de chaque règle l'emporte ; ils se cumulent aussi avec les règles de protection de branche |
 | Supprimer pour désactiver | État d'application **Active** ou **Disabled**, plus **Evaluate** (rapport seul, GitHub Enterprise) |
 | Visibles par les administrateurs | Toute personne ayant l'accès en lecture voit les rulesets actifs |
-| Par dépôt | Aussi au niveau de l'organisation, pour cibler de nombreux dépôts ; jusqu'à 75 rulesets par dépôt |
+| Par dépôt | Aussi au niveau de l'organisation (plans GitHub Team et Enterprise), pour cibler de nombreux dépôts ; jusqu'à 75 rulesets par dépôt |
 | Contournées par les administrateurs sauf blocage | **Liste de contournement (bypass list)** explicite (rôles, équipes, GitHub Apps) |
 
 > **Conseil d'examen.** « Appliquer la même protection à tous les dépôts de l'organisation » ou « voir quels push violeraient une règle avant de l'imposer » désigne les rulesets (ruleset d'organisation, mode Evaluate), pas des règles de protection de branche recopiées dans chaque dépôt.
@@ -152,9 +152,9 @@ Qui peut pousser ou fusionner :
 | Exigence | Azure Repos | GitHub |
 | --- | --- | --- |
 | Personne ne pousse directement sur `main` | N'importe quelle stratégie de branche obligatoire | Require a pull request before merging |
-| Seule l'équipe de mise en production peut modifier `release/*` | Sécurité de branche : refuser **Contribute** aux autres sur le dossier de branches | **Restrict who can push to matching branches** (dépôts d'organisation), ou un ruleset **Restrict updates** avec une liste de contournement |
+| Seule l'équipe de mise en production peut modifier `release/*` | Sécurité de branche : refuser **Contribute** aux autres sur le dossier de branches | **Restrict who can push to matching branches** (dépôts d'organisation ; les administrateurs peuvent toujours pousser tant que le contournement n'est pas bloqué), ou un ruleset **Restrict updates** avec une liste de contournement |
 | Rendre une branche en lecture seule | **Verrouiller (Lock)** la branche | **Lock branch** |
-| Autoriser la réécriture de l'historique | Autorisation **Force push** (supprime aussi branches et balises) | **Allow force pushes** (toute personne avec l'accès en écriture, ou des personnes précises) |
+| Autoriser la réécriture de l'historique | Autorisation **Force push** (également requise pour supprimer branches et balises ; le créateur d'une branche la reçoit sur cette branche) | **Allow force pushes** (toute personne avec l'accès en écriture, ou des personnes précises) |
 | Fusion d'urgence sans satisfaire les règles | **Bypass policies when completing pull requests** | Les administrateurs contournent par défaut ; activez **Do not allow bypassing the above settings** pour les inclure, ou utilisez la liste de contournement du ruleset |
 | Pousser en passant outre les règles | **Bypass policies when pushing** | Liste de contournement, ou autoriser les push forcés |
 | Uniquement des commits signés | (pas une stratégie de branche) | **Require signed commits** |

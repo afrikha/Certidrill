@@ -27,7 +27,7 @@ L'aller-retour entre les serveurs d'applications et le SGBD conditionne les temp
 | Règle | Détail |
 | --- | --- |
 | Aucune appliance virtuelle réseau entre application et SGBD | Une NVA peut doubler la latence, limiter le débit et faire échouer les clusters Pacemaker. Les règles NSG et ASG sont autorisées |
-| Même réseau virtuel | Séparer les couches application et SGBD dans des réseaux virtuels appairés n'est pas pris en charge, et le trafic de peering est facturé. Utilisez des sous-réseaux d'un même réseau virtuel, ou des ASG |
+| Même réseau virtuel | Séparer les couches application et SGBD dans des réseaux virtuels connectés par peering n'est pas pris en charge, et le trafic de peering est facturé. Utilisez des sous-réseaux d'un même réseau virtuel, ou des ASG |
 | Mise en réseau accélérée | Sur toutes les cartes réseau de toutes les machines virtuelles SAP quand c'est techniquement possible |
 | Plus de cartes réseau | N'ajoute pas de bande passante : toutes les cartes réseau d'une machine virtuelle partagent son quota réseau |
 | NSG | Ne réduisent pas les performances ; appliquez-les au niveau du sous-réseau |
@@ -78,7 +78,8 @@ Règles pour SAP :
 
 - La taille cible doit être prise en charge pour SAP (note SAP 1928533) et, pour HANA, figurer dans le répertoire du matériel SAP HANA.
 - Le redimensionnement redémarre la machine virtuelle. Si la nouvelle taille n'est pas disponible sur le cluster matériel actuel, toutes les machines virtuelles du groupe à haute disponibilité doivent être arrêtées et redimensionnées.
-- On ne peut pas redimensionner directement entre une série avec disque temporaire et une série sans ; les machines virtuelles de génération 1 ne peuvent pas passer à des familles uniquement de génération 2 comme Mv2.
+- Les machines virtuelles Linux peuvent être redimensionnées entre des tailles avec et sans disque temporaire local. Les machines virtuelles Windows ne le peuvent pas : elles passent seulement d'une taille avec disque temporaire à une autre, ou d'une taille sans disque à une autre (contournement : déplacer `pagefile.sys` vers C:, prendre un instantané du disque du système d'exploitation et créer une nouvelle machine virtuelle sans disque à partir de l'instantané).
+- Les machines virtuelles de génération 1 ne peuvent pas être redimensionnées vers des familles uniquement de génération 2 comme Mv2. Une machine virtuelle de génération 1 existante ne devient de génération 2 qu'en passant au lancement fiable (Trusted launch), machine virtuelle libérée, taille et système d'exploitation pris en charge ; sinon, déployez une nouvelle machine virtuelle.
 - Certaines familles ne peuvent pas partager un groupe de placement de proximité, ce qui peut bloquer un redimensionnement.
 
 ```bash

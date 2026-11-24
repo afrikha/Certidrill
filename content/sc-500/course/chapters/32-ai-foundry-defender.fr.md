@@ -3,38 +3,30 @@ Les charges de travail d'IA générative créées dans Microsoft Foundry demande
 <!-- section: ai-gateway | objectives: 3.1.7 -->
 ## AI Gateway dans API Management pour Foundry
 
-**AI Gateway** fait passer le trafic vers les modèles et les outils d'une ressource Foundry par une instance **Azure API Management**. L'instance joue le rôle de proxy inverse avec un point de terminaison entrant unique : elle authentifie l'appelant, applique les limites de jetons, journalise la requête et seulement ensuite la transmet au déploiement de modèle.
+Les fonctionnalités de **passerelle IA** (AI gateway) d'**Azure API Management** placent une instance API Management devant les déploiements de modèles d'une ressource Foundry. L'instance joue le rôle de proxy inverse avec un point de terminaison entrant unique : elle authentifie l'appelant, applique les limites de jetons, journalise la requête et seulement ensuite la transmet au déploiement de modèle. Tous les niveaux d'API Management, classiques ou v2, peuvent servir de passerelle ; la prise en charge de chaque fonctionnalité de passerelle IA dépend du niveau.
 
-Prérequis et autorisations :
+Foundry peut consommer des modèles via deux types de ressources distincts :
 
-| Tâche | Exigence |
-| --- | --- |
-| Créer une nouvelle instance API Management depuis Foundry | Contributor ou Owner sur le groupe de ressources cible |
-| Utiliser une instance existante | API Management Service Contributor (ou Owner) sur cette instance |
-| Gérer la passerelle dans Foundry | Par exemple Foundry Account Owner ou Foundry Owner sur la ressource Foundry (anciennement Azure AI Account Owner et Azure AI Owner) |
-| Instance existante proposée dans la liste | Même locataire Microsoft Entra **et** même abonnement que la ressource Foundry, et un **niveau v2** |
-| Ressource Foundry dont l'accès réseau public est désactivé | L'instance API Management doit aussi être privée : Standard v2 ou Premium v2 avec un point de terminaison privé, ou Premium v2 injecté dans un réseau virtuel |
+| Voie | Configuration | Utilisation par les projets |
+| --- | --- | --- |
+| API Management | Back-ends, authentification, XML des stratégies, limites de jetons et réseau se configurent dans API Management (portail Azure ou code). Dans Foundry : **Connections** > **Add connection** > **Model** > source **Gateway**, avec l'URL de base de la passerelle et l'authentification | Comme modèles connectés. Une connexion à l'**étendue de la ressource** peut servir à tous les projets de la ressource Foundry ; une connexion à l'**étendue du projet** est limitée à un projet |
+| Azure AI Gateway | Un produit distinct, avec son propre portail et `az aigateway` ; dans Foundry, **Manage** > **Gateways** > **Azure AI Gateway** (intégration à l'interface Foundry encore en cours de déploiement) | Les alias sélectionnés apparaissent dans les projets comme modèles connectés |
 
-Étapes dans le portail Foundry (nouvelle expérience Foundry) : **Manage** > **AI Gateway** > **Add AI Gateway**, sélectionner la ressource Foundry, choisir **Create new** ou **Use existing**, nommer la passerelle, sélectionner **Add** et attendre l'état **Enabled**. **Create new** déploie une instance **Basic v2**, prévue pour le développement et le test ; utilisez une instance Standard v2 ou Premium v2 existante pour la production.
+L'ancienne expérience en préversion liait et gérait une instance API Management depuis le portail Foundry ; on ne peut plus créer de nouveau lien API Management depuis Foundry. Les liens, API et stratégies existants continuent de fonctionner ; leurs paramètres de limites de jetons restent visibles dans Foundry, mais se modifient dans le XML des stratégies API Management.
 
-Règles d'étendue :
+> **Piège d'examen.** La passerelle n'applique ses stratégies qu'au trafic envoyé à son point de terminaison. Une application qui appelle le point de terminaison propre du déploiement de modèle, ou un outil MCP inscrit avec l'URL directe de son back-end, contourne la passerelle : ni limites de jetons, ni journaux de passerelle. Le code doit utiliser le point de terminaison d'exécution de la passerelle, et les agents le modèle connecté. L'accès de gestion à une passerelle n'accorde pas non plus l'accès à l'exécution.
 
-- La passerelle est rattachée à la **ressource Foundry** et partagée par tous ses projets. Les limites se définissent **par projet**. Des projets qui exigent des passerelles distinctes vont dans des ressources Foundry distinctes.
-- Les nouveaux projets sont activés par défaut. **Les projets existants ne le sont pas** : ouvrez la passerelle, vérifiez la colonne **Gateway status** et sélectionnez **Add project to gateway**. D'ici là, leurs requêtes contournent la passerelle.
-
-> **Piège d'examen.** Un projet qui existait avant l'ajout de la passerelle continue d'appeler les modèles directement tant que vous n'avez pas sélectionné **Add project to gateway**. « Les limites de jetons ne s'appliquent pas » dans un scénario signifie en général que le projet n'est pas activé.
-
-Les limites de jetons se configurent dans **Manage** > **AI Gateway** > la passerelle > **Token management** > **+ Set limit**, par projet et par déploiement :
+Les limites de jetons se définissent avec la stratégie `llm-token-limit`, par clé de compteur (par exemple l'abonnement API Management de chaque équipe) :
 
 | Limite | Ce qu'elle plafonne | Réponse en cas de dépassement |
 | --- | --- | --- |
-| Jetons par minute (TPM) | Le débit | `429 Too Many Requests` |
-| Quota total de jetons | Le volume sur une période (par exemple horaire, quotidienne, mensuelle) | `403 Forbidden` |
+| `tokens-per-minute` | Le débit | `429 Too Many Requests` |
+| `token-quota` avec `token-quota-period` | Le volume sur une période (Hourly, Daily, Weekly, Monthly, Yearly) | `403 Forbidden` |
 
 Contrôles d'authentification et de réseau de la passerelle :
 
 - Les appelants s'authentifient avec des **jetons Microsoft Entra** (chaque application utilise sa propre identité managée) plutôt qu'avec une clé partagée : une application compromise ne peut ni utiliser le quota d'une autre application ni usurper son identité.
-- La passerelle elle-même utilise une **identité managée affectée par le système ou par l'utilisateur** pour appeler les déploiements de modèles, avec un rôle comme **Cognitive Services User** limité à ces déploiements. Aucune clé à stocker ni à faire tourner.
+- La passerelle elle-même utilise une **identité managée affectée par le système ou par l'utilisateur** pour appeler les déploiements de modèles : attribuez-lui **Cognitive Services OpenAI User** sur la ressource Foundry, et obtenez le jeton avec `authentication-managed-identity` pour la ressource `https://cognitiveservices.azure.com`. Aucune clé à stocker ni à faire tourner. La validation des appelants (`validate-azure-ad-token`) se place avant les stratégies d'authentification auprès du back-end.
 - Restreignez le point de terminaison de la passerelle avec un **point de terminaison privé** pour les appelants situés dans Azure, ou une liste d'adresses IP autorisées pour les appelants externes, combinés à la validation des jetons Microsoft Entra.
 
 Les stratégies personnalisées se gèrent dans l'instance API Management. Les stratégies de passerelle IA à reconnaître :
@@ -43,7 +35,7 @@ Les stratégies personnalisées se gèrent dans l'instance API Management. Les s
 | --- | --- |
 | `llm-token-limit` | Limite TPM ou quota de jetons par clé de compteur (abonnement, adresse IP...) ; peut estimer les jetons de l'invite et rejeter avant d'appeler le back-end |
 | `llm-emit-token-metric` | Envoie des métriques de consommation de jetons avec des dimensions personnalisées à Azure Monitor |
-| `llm-content-safety-policy` | Modère les invites avec Azure AI Content Safety |
+| `llm-content-safety` | Envoie les invites ou les complétions à Azure AI Content Safety et renvoie `403` quand un contenu est signalé ; `shield-prompt="true"` détecte aussi les attaques par invite. Couvre aussi les API d'outils MCP et d'agents A2A |
 
 ```text
 <llm-token-limit counter-key="@(context.Subscription.Id)"
@@ -51,7 +43,7 @@ Les stratégies personnalisées se gèrent dans l'instance API Management. Les s
     remaining-tokens-variable-name="remainingTokens" />
 ```
 
-Pour auditer le trafic, ajoutez un paramètre de diagnostic sur l'instance API Management avec **Logs related to ApiManagement Gateway**, envoyé vers un espace de travail Log Analytics avec des tables **Resource specific**. Les journaux de diagnostic capturent les métadonnées des requêtes (heure, appelant, jetons, code de réponse, latence), **pas le contenu des invites ni des complétions** par défaut. Créez ensuite des alertes sur les anomalies, comme un appelant proche de sa limite de jetons ou un agent qui fait soudain beaucoup plus d'appels au modèle que d'habitude.
+Pour auditer le trafic, ajoutez un paramètre de diagnostic sur l'instance API Management avec **Logs related to ApiManagement Gateway**, envoyé vers un espace de travail Log Analytics avec des tables **Resource specific**. Les journaux de diagnostic capturent les métadonnées des requêtes (heure, appelant, code de réponse, latence), **pas les corps des requêtes ni des réponses** par défaut ; les corps activés par API sont limités à 8 192 octets chacun. Pour les API LLM, sélectionnez aussi **Logs related to generative AI gateway** : cette catégorie enregistre la consommation de jetons et les modèles et, si vous activez la journalisation des messages sur l'API LLM, les invites et les complétions (découpées en blocs de 32 Ko, jusqu'à 2 Mo par message). Créez ensuite des alertes sur les anomalies, comme un appelant proche de sa limite de jetons ou un agent qui fait soudain beaucoup plus d'appels au modèle que d'habitude.
 
 ```kusto
 ApiManagementGatewayLogs
@@ -64,12 +56,12 @@ ApiManagementGatewayLogs
 
 La **protection contre les menaces pour les services d'IA** est un plan de protection des charges de travail de Defender for Cloud. Elle détecte en temps réel les menaces contre les applications d'IA générative, comme les tentatives de jailbreak, la fuite de données, l'empoisonnement de données et le vol d'informations d'identification, à l'aide des **Prompt Shields** d'Azure AI Content Safety et du renseignement sur les menaces de Microsoft. Les alertes peuvent être corrélées en incidents dans le portail Microsoft Defender (Defender XDR).
 
-Pour l'activer : **Microsoft Defender for Cloud** > **Paramètres d'environnement** > sélectionner l'abonnement > sur la page **Plans Defender**, passer **AI services** à **On**. L'activation du plan à l'étendue de l'abonnement demande **Owner** (ou des rôles disposant des autorisations correspondantes). Ouvrez ensuite **Settings** pour le plan afin de configurer ses composants :
+Pour l'activer : **Microsoft Defender for Cloud** > **Paramètres d'environnement** > sélectionner l'abonnement > sur la page **Plans Defender**, passer **AI services** à **On**. L'activation du plan demande le niveau **Owner** ou **Contributor**. Ouvrez ensuite **Settings** pour le plan afin de configurer ses composants :
 
 | Composant | Effet | Remarques |
 | --- | --- | --- |
 | Preuves des invites suspectes (**Enable user prompt evidence**) | Les alertes incluent les segments suspects de l'invite et de la réponse du modèle, données sensibles masquées | Désactivé : les invites sont toujours analysées, mais leur contenu est masqué dans les alertes |
-| Sécurité des données pour les interactions IA | Permet à Microsoft Purview d'analyser invites et réponses (classification, audit, gestion des risques internes, conformité des communications, eDiscovery) | Fonctionnalité Purview payante, licence Purview requise ; non incluse dans le plan |
+| Sécurité des données pour les interactions IA | Permet à Microsoft Purview d'analyser invites et réponses (classification, audit, gestion des risques internes, conformité des communications, eDiscovery) | Fonctionnalité Purview payante, licence Purview requise ; non incluse dans le plan. N'inclut pas les données des agents Foundry ; la prise en charge complète des stratégies de sécurité des données exige des appels Entra ID avec un jeton de contexte utilisateur |
 | Sécurité des modèles IA | Analyse les modèles des registres Azure Machine Learning à la recherche de problèmes comme des logiciels malveillants et des vulnérabilités de sérialisation | |
 
 Couverture :
@@ -103,6 +95,8 @@ Un **garde-fou** (guardrail) est une collection nommée de **contrôles**. Chaqu
 | Task adherence (préversion) | Oui | Oui |
 | Groundedness (préversion), Spotlighting (préversion) | Oui | Non |
 
+La détection Groundedness (préversion) d'Azure OpenAI est retirée le 30 avril 2027. Les agents hébergés disposent aussi de contrôles de sortie réseau (en disponibilité générale, sauf les règles Transform, en préversion).
+
 Points d'intervention :
 
 | Point | Analyse | S'applique à |
@@ -112,7 +106,7 @@ Points d'intervention :
 | Tool response (préversion) | Le contenu renvoyé par l'outil, avant qu'il n'atteigne la mémoire de l'agent ou l'utilisateur | Agents |
 | Output | La complétion finale renvoyée à l'utilisateur | Modèles et agents |
 
-Actions : **Annotate** (modèles uniquement) ou **Annotate and block** (modèles et agents). Pour les quatre catégories de préjudice, le niveau de blocage est **Low** (bloque seulement la gravité élevée), **Medium** (moyenne et élevée) ou **High** (faible, moyenne et élevée, le plus restrictif). Les contrôles aux points Tool call et Tool response ne fonctionnent qu'avec les outils qui prennent en charge la modération, comme Azure AI Search, Azure Functions, OpenAPI, le grounding SharePoint, le grounding Bing et Browser Automation.
+Actions : **Annotate** (modèles uniquement) ou **Annotate and block** (modèles et agents). Pour les quatre catégories de préjudice, le niveau de blocage est **Low** (bloque seulement la gravité élevée), **Medium** (moyenne et élevée) ou **High** (faible, moyenne et élevée, le plus restrictif) ; **Off** ne bloque rien pour ce risque, et la désactivation des préjudices de contenu sur les sorties est réservée aux clients approuvés. Les contrôles aux points Tool call et Tool response ne fonctionnent qu'avec les outils qui prennent en charge la modération, comme Azure AI Search, Azure Functions, OpenAPI, le grounding SharePoint, le grounding Bing et Browser Automation.
 
 Attribution et héritage :
 
@@ -152,8 +146,8 @@ Depuis le tableau de bord, **Manage Sensitivity Settings** ouvre les paramètres
 <!-- section: key-points -->
 ## Points clés
 
-- AI Gateway = API Management devant les modèles Foundry : authentification Entra, limites TPM (`429`) et quota (`403`) par projet, journalisation des métadonnées.
-- Une instance API Management existante doit être v2, dans le même locataire et le même abonnement ; les projets existants doivent être ajoutés à la passerelle.
+- AI Gateway = API Management devant les modèles Foundry : authentification Entra, `llm-token-limit` avec TPM (`429`) et quota (`403`) par clé de compteur, journalisation (catégorie generative AI gateway pour les invites et les complétions).
+- API Management se configure dans Azure, puis se consomme dans Foundry par une connexion Gateway (étendue de la ressource ou du projet) ; on ne peut plus créer de lien API Management depuis Foundry, et le trafic qui évite le point de terminaison de la passerelle n'est pas contrôlé.
 - Defender for AI services détecte (jailbreak, fuite de données) et alerte ; les preuves d'invite ajoutent seulement le texte de l'invite aux alertes ; l'intégration Purview demande une licence Purview.
 - La posture de l'IA (AI BOM, chemins d'attaque) vient de Defender CSPM, pas du plan AI services.
 - Garde-fou = contrôles (risque + point d'intervention + action) ; le garde-fou de l'agent remplace celui du modèle ; les points Tool call et Tool response sont réservés aux agents.

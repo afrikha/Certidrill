@@ -77,7 +77,7 @@ Get-ADDomainController -Identity "DC5" | Move-ADDirectoryServer -Site "Lyon"
 | Coût | 100 (`DEFAULTIPSITELINK`) | Le coût total le plus bas entre deux sites l'emporte, pour la réplication comme pour trouver le DC le plus proche dans un autre site |
 | Intervalle de réplication | 180 minutes | Minimum 15 minutes ; un intervalle plus court réduit la latence mais augmente le trafic WAN |
 | Planification | Toujours disponible | La réplication à travers plusieurs liens n'a lieu que lorsque leurs planifications se chevauchent |
-| Transport | IP (RPC sur IP) | SMTP ne peut pas répliquer les partitions de domaine et n'est pas recommandé |
+| Transport | IP (RPC sur IP) | SMTP n'est pas recommandé : la réplication SMTP ne sera plus prise en charge dans les versions futures d'AD DS |
 
 Tous les liens de sites sont transitifs par défaut (**Établir un pont entre tous les liens de sites** (Bridge all site links) est activé sur le transport IP). Ne créez des ponts de liens de sites que si le réseau n'est pas entièrement routé : désactivez **Établir un pont entre tous les liens de sites**, puis reliez par un pont les liens qui peuvent réellement acheminer le trafic.
 

@@ -65,9 +65,9 @@ az ml online-deployment create --file blue-deployment.yml --all-traffic
 - Le **script de scoring** a `init()` (s'exécute une fois quand le conteneur démarre ou est mis à jour : charger le modèle) et `run()` (s'exécute à chaque requête).
 - Les **modèles MLflow** utilisent le déploiement sans code : omettez `code_configuration` et `environment` ; un environnement organisé et un script de scoring généré sont utilisés, et la signature produit le swagger.
 - `instance_count` : au moins **3** pour la haute disponibilité. Le quota est réservé selon `ceil(1.2 × instances) × cœurs de la SKU` : les 20 % supplémentaires sont gardés pour les mises à niveau.
-- `request_settings` : `request_timeout_ms` vaut 5 000 par défaut (180 000 au maximum) ; `max_concurrent_requests_per_instance` vaut 1 par défaut.
+- `request_settings` : `request_timeout_ms` vaut 5 000 par défaut (180 000 au maximum) ; `max_concurrent_requests_per_instance` vaut 1 par défaut. Avec le serveur d'inférence Azure Machine Learning ou les images d'inférence, une valeur supérieure à 1 demande aussi que le modèle gère les requêtes simultanées : passez `WORKER_COUNT` comme variable d'environnement. `max_queue_wait_ms` est déprécié : augmentez `request_timeout_ms` pour couvrir les délais d'attente en file.
 - Sondes (`liveness_probe`, `readiness_probe`) : `initial_delay` 10 s, `period` 10 s, `timeout` 2 s, `failure_threshold` 30 par défaut. Augmentez `initial_delay` pour un modèle lent à charger.
-- `egress_public_network_access: disabled` bloque l'accès Internet sortant du déploiement ; le scoring entrant passe par le point de terminaison privé de l'espace de travail.
+- `egress_public_network_access: disabled` (méthode d'isolement réseau héritée) limite le déploiement aux ressources de l'espace de travail sécurisées dans le réseau virtuel et télécharge le modèle, le code et les images par des points de terminaison privés ; il ne peut pas être modifié après la création. Microsoft recommande fortement un **réseau virtuel managé d'espace de travail** à la place ; avec celui-ci, ne définissez pas cet indicateur. Le scoring entrant passe par le point de terminaison privé de l'espace de travail.
 - La **mise à l'échelle automatique** utilise des règles de mise à l'échelle automatique Azure Monitor sur le déploiement : basées sur une métrique (CPU au-dessus de 70 %), sur une planification (heures ouvrées), ou les deux.
 
 > **Conseil d'examen.** `--all-traffic` sur `az ml online-deployment create` envoie 100 % du trafic du point de terminaison au nouveau déploiement. Sans cet indicateur, un nouveau déploiement reçoit 0 % : le point de terminaison continue de servir par les déploiements existants.
@@ -160,7 +160,7 @@ Les clients REST atteignent directement un déploiement avec l'en-tête `azureml
 | 404 | Aucun déploiement avec un poids de trafic positif |
 | 408 | La requête a dépassé `request_timeout_ms` |
 | 424 | Le conteneur du modèle a renvoyé une réponse autre que 200 : lisez `ms-azureml-model-error-statuscode` et `ms-azureml-model-error-reason` |
-| 429 | Trop de requêtes en attente (plus de `2 × max_concurrent_requests_per_instance × instance_count`) ou limite de débit : temporisez, augmentez le nombre d'instances |
+| 429 | Trop de requêtes en attente (au plus `2 × max_concurrent_requests_per_instance × instance_count` sont traitées en parallèle ; l'excédent est rejeté ; vérifiez que `WORKER_COUNT` est passé) ou requêtes par seconde au-delà des limites du point de terminaison : temporisez, augmentez le nombre d'instances |
 | 500 | Défaillance de l'infrastructure de la plateforme |
 
 > **Piège d'examen.** Un 404 juste après un déploiement réussi signifie généralement que le nouveau déploiement a 0 % de trafic et qu'aucun autre n'en a : définissez le trafic ou appelez avec `--deployment-name`. Un 424 est l'erreur du modèle lui-même, pas celle de la plateforme.

@@ -49,7 +49,7 @@ Microsoft peering exchanges **public** routes. In addition to the two subnets, t
 | Advertised public prefixes | The public prefixes you will announce; only prefixes registered to you in an RIR or IRR |
 | Routing registry name | ARIN, RIPENCC, APNIC, AFRINIC, LACNIC, RADB or ALTDB |
 
-Microsoft verifies ownership of the prefixes and of the ASN in the registry. If the automatic check fails, `AdvertisedPublicPrefixesState` shows `Validation needed`: open a support request and provide proof of ownership. Until then, the peering exchanges no routes.
+Microsoft verifies ownership of the prefixes and of the ASN in the registry. If the automatic check fails, `AdvertisedPublicPrefixesState` shows `Validation needed`: open a support request and provide proof of ownership. Until then, the peering exchanges no routes. A private ASN is allowed on Microsoft peering but needs manual validation, and the documentation ASNs 64496 to 64511 aren't allowed in the AS path.
 
 Private addresses (RFC 1918) and default routes aren't accepted on Microsoft peering. On-premises hosts therefore reach Microsoft services through **NAT** to public addresses.
 
@@ -77,7 +77,7 @@ Set-AzExpressRouteCircuit -ExpressRouteCircuit $ckt
 
 Private peering reaches a virtual network through a virtual network gateway of type **ExpressRoute**, deployed in `GatewaySubnet`. A virtual network can hold one ExpressRoute gateway and one VPN gateway, in the same `GatewaySubnet`.
 
-| SKU | Throughput | Circuits from different peering locations | FastPath |
+| SKU | Throughput | Maximum circuit connections | FastPath |
 | --- | --- | --- | --- |
 | `Standard` / `ErGw1Az` | 1 Gbps | 4 | No |
 | `HighPerformance` / `ErGw2Az` | 2 Gbps | 8 | No |
@@ -126,7 +126,7 @@ Connection settings and limits:
 
 - **Routing weight** (0 to 32000, default 0): when a virtual network is linked to several circuits, the connection with the highest weight is preferred for traffic leaving Azure.
 - **FastPath**: `-ExpressRouteGatewayBypass` on the connection, with an eligible gateway SKU.
-- A Standard circuit links up to 10 virtual networks, all in the same geopolitical area as the circuit; Premium removes the geographic limit and raises the count.
+- A Standard circuit links up to 10 virtual networks, all in the same geopolitical area as the circuit; Premium removes the geographic limit and raises the count. A virtual network can be linked to up to 16 circuits. When the connection is created, the local and peered virtual networks must advertise 200 address spaces or fewer; up to 1,000 can be added afterward.
 - Spoke virtual networks don't each need a gateway: peer them to the hub with **Allow gateway transit** on the hub side and **Use remote gateways** on the spoke side.
 
 > **Exam trap.** The authorization key alone isn't enough: the circuit user also needs the resource ID of the circuit (the peer ID). And the connection is created in the subscription of the gateway, not of the circuit.
@@ -171,7 +171,7 @@ ExpressRoute traffic is private but not encrypted by default. Two mechanisms exi
 | Default | Disabled on the ports | Not configured |
 | Azure resources | The ExpressRoute Direct ports and a key vault | A VPN gateway in the same virtual network, or a Virtual WAN VPN gateway |
 
-MACsec encrypts everything on the port, BGP included; if the keys don't match, connectivity is lost, with no fallback to clear text.
+MACsec encrypts everything on the port, BGP included; if the keys don't match, connectivity is lost, with no fallback to clear text. Setup: a key vault with soft delete enabled and not behind a private endpoint, the CKN and CAK stored as secrets, a user-assigned managed identity that reads them, then MACsec on both ports or on one; enable SCI on the ports when the on-premises router is a Cisco device.
 
 **Site-to-site VPN over private peering** encrypts end to end without using public addresses:
 
@@ -191,8 +191,8 @@ By default, a failed link is detected by BGP timers: keepalive 60 seconds and ho
 
 - On the Microsoft side, BFD is **enabled by default** on the MSEE interfaces of new private and Microsoft peerings, and can't be removed.
 - On your side, it is optional and requires two steps on **both** edge routers: enable BFD on the interface, then link it to the BGP session of the neighbor.
-- The MSEE interval is 300 ms; the slower peer sets the rate, so you can configure a longer interval, not a shorter one.
-- For an old peering created before BFD was enabled by default (IPv4 private peering before August 2018, IPv4 Microsoft peering before January 2020), **reset the peering** to activate it.
+- The MSEE interval is 300 ms (750 ms in certain scenarios); the slower peer sets the rate, so you can configure a longer interval, not a shorter one. Learn recommends disabling BFD echo mode on ExpressRoute connections.
+- For an old peering created before BFD was enabled by default (IPv4 private peering before August 2018, IPv4 Microsoft peering before January 2020, IPv6 peering before November 2025), **reset the peering** to activate it.
 
 ```text
 interface TenGigabitEthernet2/0/0.150
@@ -226,7 +226,7 @@ Frequent causes:
 - BGP session torn down repeatedly: the prefix limit (4,000 or 10,000) is exceeded.
 - Circuit healthy but a virtual network unreachable: no connection, gateway not provisioned, or a spoke peering without **Use remote gateways**.
 - Microsoft services unreachable: no route filter, or prefixes in `Validation needed`.
-- Large packets dropped through the gateway: the maximum packet size is 1,400 bytes and fragments aren't supported.
+- Large packets dropped through the gateway: the maximum TCP and UDP packet size is 1,400 bytes and the gateway doesn't support fragments; if fragmentation is required, FastPath bypasses the gateway.
 
 <!-- section: key-points -->
 ## Key points

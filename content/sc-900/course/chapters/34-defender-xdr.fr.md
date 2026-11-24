@@ -10,9 +10,11 @@ Une attaque reste rarement au même endroit : un e-mail d'hameçonnage vole des 
 | **Microsoft Defender pour point de terminaison** (Defender for Endpoint) | Les appareils : ordinateurs portables, téléphones, tablettes, PC |
 | **Gestion des vulnérabilités Microsoft Defender** (Defender Vulnerability Management) | Les ressources, en trouvant et en corrigeant les vulnérabilités et les erreurs de configuration |
 | **Microsoft Defender pour Office 365** | L'e-mail, les liens et les outils de collaboration (Teams, SharePoint, OneDrive) |
-| **Microsoft Defender pour Identity** | Les identités d'Active Directory local et des environnements hybrides |
+| **Microsoft Defender pour Identity** | Les identités d'Active Directory local et de Microsoft Entra ID, dans les environnements hybrides |
 | **Microsoft Entra ID Protection** | Les identités cloud, contre les risques liés à l'identité |
 | **Microsoft Defender pour les applications cloud** (Defender for Cloud Apps) | Les applications SaaS et les données qu'elles contiennent |
+| **Microsoft Defender Threat Intelligence** | Les investigations, avec des informations sur les menaces rassemblées et enrichies pour le tri, la réponse aux incidents et le repérage des menaces (voir Microsoft Threat Intelligence plus bas) |
+| **Microsoft Security Exposure Management** | La posture de sécurité de l'ensemble des ressources et des charges de travail : surface d'attaque et risque d'exposition |
 
 Ce que la suite ajoute au-dessus de chaque service :
 
@@ -64,7 +66,7 @@ Une protection de base contre les programmes malveillants, le courrier indésira
 <!-- section: defender-identity | objectives: 3.4.5 -->
 ## Microsoft Defender pour Identity
 
-**Defender pour Identity** est une solution cloud qui utilise les signaux de votre infrastructure d'identité pour détecter les attaques fondées sur l'identité. Des **capteurs** installés sur les contrôleurs de domaine et sur les serveurs AD FS et AD CS analysent les événements et le trafic réseau, puis envoient les données analysées au service cloud.
+**Defender pour Identity** est une solution cloud qui utilise les signaux de votre infrastructure d'identité pour détecter les attaques fondées sur l'identité. Il surveille Active Directory local, Microsoft Entra ID et d'autres solutions d'identité comme Okta. Des **capteurs** installés sur les contrôleurs de domaine et sur les serveurs AD FS et AD CS analysent les événements et le trafic réseau, puis envoient les données analysées au service cloud.
 
 Il détecte chaque étape d'une attaque : **reconnaissance**, **informations d'identification compromises** (force brute, échecs d'authentification), **mouvement latéral** et **domination du domaine**. Il évalue aussi la posture des identités et alimente le Degré de sécurisation Microsoft (Microsoft Secure Score) en recommandations.
 
@@ -93,6 +95,8 @@ Son tableau de bord montre un **score d'exposition** (plus il est bas, mieux c'e
 - **Explorateur Intel** (intel explorer) : recherche d'articles et d'indicateurs de compromission par mot clé, indicateur ou identifiant CVE.
 - **Projets Intel** (intel projects) : les indicateurs rassemblés pendant une investigation.
 
+Dans la nouvelle expérience Threat Intelligence du portail Defender, ces fonctionnalités sont regroupées en deux pages : **Vue d'ensemble** (Overview), qui liste les articles sur les menaces, et l'**Explorateur Intel** (Intel explorer), où les profils Intel apparaissent comme des types tels qu'acteur de menace, outil et vulnérabilité.
+
 Le produit autonome Microsoft Defender Threat Intelligence (Defender TI) a été mis hors service le 1er août 2026 : ses fonctionnalités ont convergé vers Defender XDR et Microsoft Sentinel.
 
 <!-- section: defender-portal | objectives: 3.4.8 -->
@@ -119,7 +123,7 @@ Le **Degré de sécurisation Microsoft** (Microsoft Secure Score) mesure la post
 - Defender pour Office 365 : e-mail et collaboration (Pièces jointes sécurisées, Liens sécurisés, anti-hameçonnage).
 - Defender pour point de terminaison : appareils (réduction de la surface d'attaque, protection de nouvelle génération, EDR).
 - Defender pour les applications cloud : CASB pour les applications SaaS (découverte du cloud, informatique fantôme).
-- Defender pour Identity : Active Directory local, par des capteurs.
+- Defender pour Identity : Active Directory local par des capteurs, ainsi que Microsoft Entra ID et d'autres solutions d'identité.
 - Gestion des vulnérabilités Microsoft Defender : découvrir, hiérarchiser selon le risque, corriger.
 - Microsoft Threat Intelligence : analyse des menaces, profils Intel, explorateur Intel.
 - Portail Defender : incidents, repérage, Degré de sécurisation et rapports, avec Sentinel et Defender pour le cloud.

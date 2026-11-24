@@ -33,7 +33,7 @@ How to choose:
 | Scenario | What the session hosts need |
 | --- | --- |
 | AD DS | Line of sight to a domain controller (virtual network DNS pointing to the DCs, through peering, VPN or ExpressRoute); a join account with create-computer rights on the OU (reset password, validated writes to DNS host name and service principal name, read and write account restrictions) |
-| Microsoft Entra Domain Services | Virtual network DNS set to the managed domain addresses; a join account member of **AAD DC Administrators**; password hashes available in the managed domain for the users |
+| Microsoft Entra Domain Services | Virtual network DNS set to the managed domain addresses; a join account member of **AAD DC Administrators**; password hashes available in the managed domain for the users: cloud-only users must change their password after Domain Services is enabled, synced users need password hash synchronization through **Microsoft Entra Connect Sync** (Microsoft Entra Cloud Sync isn't supported with Domain Services) |
 | Microsoft Entra ID | Join type **Microsoft Entra ID** in the portal (optionally **enroll with Intune**), same tenant as the subscription; Windows 11, Windows 10 2004 or later, Windows Server 2022 or 2019; no domain controller needed |
 
 Extra rules for **Microsoft Entra joined** session hosts:
@@ -62,6 +62,8 @@ Built-in roles cover the service objects (provider `Microsoft.DesktopVirtualizat
 | Desktop Virtualization Power On Off Contributor | Start, stop, deallocate, restart VMs (for scaling plans) | Create or delete VMs |
 | Desktop Virtualization Virtual Machine Contributor | Create and replace session host VMs (for the managed identity of a session host configuration) | Application groups, workspaces |
 
+To see the applications of the application groups related to a workspace, a Workspace Contributor also needs **Desktop Virtualization Application Group Reader**.
+
 Typical answers:
 
 | Requirement | Assignment |
@@ -89,7 +91,7 @@ Conditional Access requires **Microsoft Entra ID P1** (or P2), can't be used whi
 | Grant | Require multifactor authentication (or require a compliant device, and so on) |
 | Session > Sign-in frequency | Periodic reauthentication; **Every time** only on Windows Cloud Login with SSO |
 
-Recommended structure with SSO: two matching policies, one on Azure Virtual Desktop and one on Windows Cloud Login, differing only by sign-in frequency. **Every time** on the Azure Virtual Desktop app would prompt at every feed refresh.
+Recommended structure with SSO: two matching policies, one on Azure Virtual Desktop and one on Windows Cloud Login, differing only by sign-in frequency. **Every time** on the Azure Virtual Desktop app would prompt at every feed refresh. On Windows Cloud Login, **Every time** prompts users when they launch a new connection 5 to 10 minutes or more after their last authentication.
 
 For **Microsoft Entra joined** session hosts, disable legacy per-user MFA (otherwise "The sign-in method you're trying to use isn't allowed"), and exclude **Azure Windows VM Sign-In** from the policy if you don't want to restrict sign-in to strong methods such as Windows Hello for Business.
 
@@ -153,7 +155,7 @@ Prerequisites:
 Steps:
 
 1. **Enable Microsoft Entra authentication for RDP** on the **Windows Cloud Login** service principal: Microsoft Entra ID > Devices > Remote connection configuration, or set `isRemoteDesktopProtocolEnabled` to true with Microsoft Graph.
-2. **Hide the consent prompt**: add up to **10 device groups** (a dynamic group of the session hosts is convenient) as target device groups. Otherwise users approve each new host (remembered for 15 hosts and 30 days).
+2. **Hide the consent prompt**: add up to **10 device groups** (a dynamic group of the session hosts is convenient; dynamic groups need Microsoft Entra ID P1 or Intune for Education) as target device groups. Otherwise users approve each new host (remembered for 15 hosts and 30 days).
 3. **Create a Microsoft Entra Kerberos server object** in AD DS when hosts are hybrid joined, or when Microsoft Entra joined hosts must reach AD DS resources (SMB shares, integrated authentication).
 4. **Review Conditional Access**: add Windows Cloud Login to the policies.
 5. **Enable SSO on the host pool**: RDP properties > Connection information > **Microsoft Entra single sign-on**, or the property below.

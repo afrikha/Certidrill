@@ -162,7 +162,7 @@ Liste de contrôle de SQL Server sur machines virtuelles Azure :
 <!-- section: resource-governor | objectives: 3.3.6 -->
 ## Resource Governor
 
-Resource Governor limite le processeur, la mémoire et les E/S de lecture physiques qu'une charge de travail peut utiliser. Il existe dans SQL Server (éditions Enterprise et Developer ; aussi Standard à partir de SQL Server 2025) et Azure SQL Managed Instance ; il ne peut pas être configuré dans Azure SQL Database.
+Resource Governor limite le processeur, la mémoire et les E/S physiques (lectures et écritures, en IOPS par volume) qu'une charge de travail peut utiliser. Il existe dans SQL Server (éditions Enterprise et Developer ; aussi Standard à partir de SQL Server 2025) et Azure SQL Managed Instance ; il ne peut pas être configuré dans Azure SQL Database.
 
 | Composant | Rôle |
 | --- | --- |
@@ -244,10 +244,10 @@ SELECT * FROM sys.dm_operation_status WHERE major_resource_id = 'SalesDB';
 | --- | --- |
 | Durée | Constante (quelques minutes) quand le stockage reste en place ; environ 1 minute par Go quand les données doivent être copiées (vers Premium, Business Critical ou Hyperscale) |
 | Taille maximale | Non augmentée par un passage à un niveau supérieur sauf si vous la définissez ; une rétrogradation exige un espace utilisé inférieur à la limite cible |
-| Géoréplication | Montez d'abord les secondaires ; rétrogradez d'abord le principal |
+| Géoréplication | Montez d'abord les secondaires ; rétrogradez d'abord le principal : obligatoire quand l'édition (niveau de service) change, recommandation générale pour de meilleures performances dans le même niveau |
 | Hyperscale | La mise à l'échelle entre tailles Hyperscale est à durée constante ; le retour vers General Purpose est limité aux scénarios pris en charge |
 | Serverless | General Purpose et Hyperscale, vCore uniquement ; définissez les vCores minimum et maximum et le délai de pause automatique (General Purpose de 15 minutes à 7 jours, 60 par défaut, -1 le désactive ; la pause automatique Hyperscale est en préversion) |
-| Surveillance, annulation | `sys.dm_operation_status`, `az sql db op list` / `cancel`, `Get-AzSqlDatabaseActivity` / `Stop-AzSqlDatabaseActivity` |
+| Surveillance, annulation | `sys.dm_operation_status` (dans `master`, principal au niveau du serveur, environ 1 heure conservée ; le journal d'activité garde 90 jours), `az sql db op list` / `cancel`, `Get-AzSqlDatabaseActivity` / `Stop-AzSqlDatabaseActivity` |
 
 Autres leviers : les pools élastiques pour de nombreuses bases aux pics complémentaires, le scale-out en lecture (`ApplicationIntent=ReadOnly`) pour décharger les rapports en Premium, Business Critical et Hyperscale.
 
@@ -278,7 +278,7 @@ Les fonctionnalités de traitement intelligent des requêtes (IQP) améliorent l
 | Coût de compilation des plans forcés | Forçage de plan optimisé | Tous (SQL Server 2022+) |
 | Paramètres facultatifs (`@p IS NULL OR col = @p`) | Optimisation du plan des paramètres facultatifs (OPPO) | 170 (SQL Server 2025) |
 
-Dans Azure SQL Managed Instance, les fonctionnalités les plus récentes (rétroaction du degré de parallélisme, forçage de plan optimisé, OPPO) exigent la stratégie de mise à jour SQL Server 2025 ou Always-up-to-date. Désactivez une fonctionnalité sans changer le niveau avec sa configuration à l'échelle de la base (par exemple `BATCH_MODE_ON_ROWSTORE = OFF`, `TSQL_SCALAR_UDF_INLINING = OFF`).
+Dans Azure SQL Managed Instance, les fonctionnalités les plus récentes (rétroaction du degré de parallélisme, forçage de plan optimisé, OPPO) exigent la stratégie de mise à jour SQL Server 2025 ou Always-up-to-date. Désactivez une fonctionnalité sans changer le niveau avec sa configuration à l'échelle de la base (par exemple `BATCH_MODE_ON_ROWSTORE = OFF`, ou `TSQL_SCALAR_UDF_INLINING = OFF` sur SQL Server 2019 et versions ultérieures ; dans Azure SQL Database, Learn indique `TSQL_SCALAR_UDF_INLINING` en préversion).
 
 > **Conseil d'examen.** « Améliorer les performances sans modifier le code, après une migration depuis une ancienne version de SQL Server » signifie en général relever le niveau de compatibilité (en laissant d'abord le Magasin des requêtes capturer une base de référence pour pouvoir annuler les régressions).
 

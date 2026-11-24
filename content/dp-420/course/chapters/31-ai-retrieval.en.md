@@ -54,12 +54,7 @@ Languages: `en-US`; `de-DE`, `es-ES`, `fr-FR`, `it-IT`, `pt-PT` and `pt-BR` are 
 <!-- section: vector-design | objectives: 3.1.2 -->
 ## Designing for vector data
 
-Enable vector search on the account once (it can take up to 15 minutes):
-
-```bash
-az cosmosdb update --resource-group rg-ai --name cosmos-contoso \
-  --capabilities EnableNoSQLVectorSearch
-```
+Vector indexing and search are on by default: no feature registration or account capability is needed. Older Learn pages still say to enable the `EnableNoSQLVectorSearch` capability (Settings > Features), which current accounts don't require.
 
 The container's **vector embedding policy** describes each vector path:
 
@@ -196,7 +191,7 @@ Vector search combines with any `WHERE` filter (price, date, tenant). Project th
 <!-- section: hybrid-search | objectives: 3.1.5 -->
 ## Hybrid search
 
-Hybrid search fuses a vector ranking and a BM25 ranking with **Reciprocal Rank Fusion** (`RRF`). Prerequisites: vector search and full-text search enabled, and a container with a vector policy, a full-text policy, a vector index and a full-text index.
+Hybrid search fuses a vector ranking and a BM25 ranking with **Reciprocal Rank Fusion** (`RRF`). Prerequisites: full-text search enabled on the account (vector search is on by default), and a container with a vector policy, a full-text policy, a vector index and a full-text index.
 
 ```text
 SELECT TOP 10 c.id, c.name
@@ -280,7 +275,7 @@ Design points:
 ## Key points
 
 - Full-text: full-text policy + `fullTextIndexes`; `FullTextContains`/`All`/`Any` in `WHERE`, `FullTextScore` only in `ORDER BY RANK`; fuzzy distance up to 2.
-- Vector: enable `EnableNoSQLVectorSearch`; embedding policy (path, `dataType`, `dimensions`, `distanceFunction`); `flat` up to 505 dimensions, `quantizedFlat` and `diskANN` up to 4,096; at least 1,000 vectors; no shared throughput.
+- Vector: on by default, no account capability; embedding policy (path, `dataType`, `dimensions`, `distanceFunction`); `flat` up to 505 dimensions, `quantizedFlat` and `diskANN` up to 4,096; at least 1,000 vectors; no shared throughput.
 - `diskANN` beyond about 50,000 vectors per physical partition; `vectorIndexShardKey` builds one DiskANN index per property value.
 - Always `TOP N` with `ORDER BY VectorDistance`; exclude the vector path from the range index.
 - Hybrid: `ORDER BY RANK RRF(...)`, optional weights array last.

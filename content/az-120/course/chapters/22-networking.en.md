@@ -8,7 +8,7 @@ The common topology is **hub and spoke**: the hub holds the ExpressRoute or VPN 
 | Requirement | Design |
 | --- | --- |
 | Separate the application layer from the database layer | Different **subnets of the same virtual network**, or dedicated ASGs in one subnet |
-| Application layer and database in different virtual networks | Not supported unless the networks are peered, and peering then adds transfer cost on terabytes of app-to-DB traffic |
+| Application layer and database in different virtual networks | Not supported, even with peering (which such a setup would require); peering also adds transfer cost on terabytes of app-to-DB traffic |
 | Azure NetApp Files volumes | A subnet **delegated** to Azure NetApp Files; a `/25` range is recommended for SAP |
 | ExpressRoute or VPN gateway | `GatewaySubnet`, `/27` or larger |
 | Reserved names | `GatewaySubnet`, `AzureFirewallSubnet`, `AzureFirewallManagementSubnet`, `AzureBastionSubnet` |
@@ -64,7 +64,7 @@ New-AzVm -ResourceGroupName "rg-sap-prd" -Name "app-z1-01" -Location "westeurope
   -AvailabilitySetName "avset-app-z1" -ProximityPlacementGroup "ppg-prd-z1" -Size "Standard_E16s_v4"
 ```
 
-A PPG is also needed with the Azure NetApp Files **application volume group for SAP HANA** when it's deployed with pinned placement. Azure shared disks don't require one.
+The Azure NetApp Files **application volume group for SAP HANA** uses availability zone volume placement by default (recommended), which needs no PPG; a PPG anchored to the HANA VMs, ideally with a pinned availability set, is the alternative, for example in regions without zones.
 
 > **Exam trap.** A PPG doesn't give high availability: it only reduces distance, and the disks of application VMs can even end up in another zone than the VMs. Availability comes from zones or availability sets.
 
@@ -141,7 +141,7 @@ For SAP:
 
 - **NFS Azure file shares** have no user authentication: clients must connect through a **private endpoint** or a **service endpoint** with virtual network rules; IP rules aren't supported. Microsoft recommends **private endpoints** for every NFS or SMB Azure Files share used by SAP, and disabling public network access.
 - With Azure Files ZRS, an NFS client is redirected to a healthy zone if a zone fails, without remounting.
-- **Azure NetApp Files** doesn't use service or private endpoints: volumes get IP addresses in the delegated subnet, reachable from the same or peered virtual networks in the region.
+- **Azure NetApp Files** doesn't use service or private endpoints: volumes get IP addresses in the delegated subnet, reachable from the same or peered virtual networks. With Standard network features, the only option for new or modified volumes since July 2026, global peering works too (with peering charges); Basic network features are limited to the region.
 - Backups and SAP media in Blob Storage use a blob private endpoint.
 
 <!-- section: name-resolution | objectives: 2.2.8 -->
@@ -162,7 +162,7 @@ Rules:
 
 - On-premises conditional forwarders target the **public** zone (`file.core.windows.net`), not `privatelink.file.core.windows.net`.
 - Use one private DNS zone per private endpoint service type; don't mix records of several services in one zone.
-- If a private zone exists for a service and a needed account has no private endpoint, enable fallback to internet on the virtual network link, or the query returns NXDOMAIN.
+- When a resource resolves to a `privatelink` name that your linked Private Link zone has no record for (for example an account whose private endpoint is in another tenant's network), the query returns NXDOMAIN. Enable fallback to internet (`NxDomainRedirect`) on the virtual network link to retry it on the public endpoint; it exists only for Private Link zones.
 
 <!-- section: expressroute | objectives: 2.2.9 -->
 ## ExpressRoute for hybrid connectivity
@@ -180,7 +180,7 @@ The `AZ` SKUs are zone-redundant: use them with zonal SAP systems.
 
 **FastPath** sends traffic from on-premises directly to the VMs, bypassing the gateway on the data path, for lower latency and higher throughput. Limits to know:
 
-- Traffic to **internal load balancers in spoke virtual networks** (SAP cluster frontends), to Azure Firewall or DNS Private Resolver in spokes, and to PaaS services in spokes still goes through the gateway.
+- Traffic to **internal load balancers in spoke virtual networks** (SAP cluster frontends), to Azure Firewall or DNS Private Resolver in spokes, and to PaaS services in spokes still goes through the gateway; internal load balancers, Azure Firewall and DNS Private Resolver in the hub work with FastPath.
 - Peered spokes over FastPath and UDRs over FastPath require **ExpressRoute Direct**, with all virtual networks in the same region.
 - Azure NetApp Files volumes need **Standard network features**.
 

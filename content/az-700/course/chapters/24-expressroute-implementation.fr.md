@@ -49,7 +49,7 @@ Le peering Microsoft échange des routes **publiques**. En plus des deux sous-r�
 | Préfixes publics publiés | Les préfixes publics que vous annoncerez ; uniquement des préfixes inscrits à votre nom dans un RIR ou un IRR |
 | Nom du registre de routage | ARIN, RIPENCC, APNIC, AFRINIC, LACNIC, RADB ou ALTDB |
 
-Microsoft vérifie la propriété des préfixes et de l'ASN dans le registre. Si la vérification automatique échoue, `AdvertisedPublicPrefixesState` affiche `Validation needed` : ouvrez une demande de support et fournissez une preuve de propriété. D'ici là, le peering n'échange aucune route.
+Microsoft vérifie la propriété des préfixes et de l'ASN dans le registre. Si la vérification automatique échoue, `AdvertisedPublicPrefixesState` affiche `Validation needed` : ouvrez une demande de support et fournissez une preuve de propriété. D'ici là, le peering n'échange aucune route. Un ASN privé est autorisé sur le peering Microsoft mais exige une validation manuelle, et les ASN de documentation 64496 à 64511 ne sont pas autorisés dans le chemin d'AS.
 
 Les adresses privées (RFC 1918) et les routes par défaut ne sont pas acceptées sur le peering Microsoft. Les hôtes locaux atteignent donc les services Microsoft par une traduction d'adresses (**NAT**) vers des adresses publiques.
 
@@ -77,7 +77,7 @@ Set-AzExpressRouteCircuit -ExpressRouteCircuit $ckt
 
 Le peering privé atteint un réseau virtuel par une passerelle de réseau virtuel de type **ExpressRoute**, déployée dans `GatewaySubnet`. Un réseau virtuel peut contenir une passerelle ExpressRoute et une passerelle VPN, dans le même `GatewaySubnet`.
 
-| SKU | Débit | Circuits d'emplacements de peering différents | FastPath |
+| SKU | Débit | Connexions de circuit maximales | FastPath |
 | --- | --- | --- | --- |
 | `Standard` / `ErGw1Az` | 1 Gbit/s | 4 | Non |
 | `HighPerformance` / `ErGw2Az` | 2 Gbit/s | 8 | Non |
@@ -87,7 +87,7 @@ Le peering privé atteint un réseau virtuel par une passerelle de réseau virtu
 Règles :
 
 - `GatewaySubnet` doit être en **/27 ou plus grand** ; /26 ou plus grand pour connecter 16 circuits. N'y déployez rien d'autre.
-- Pas de groupe de sécurité réseau sur `GatewaySubnet`. Pas de route définie par l'utilisateur avec 0.0.0.0/0 dessus, et la propagation des routes BGP doit rester activée.
+- Pas de groupe de sécurité réseau sur `GatewaySubnet`. Pas d'itinéraire défini par l'utilisateur avec 0.0.0.0/0 dessus, et la propagation des routes BGP doit rester activée.
 - Les références SKU `Az` sont redondantes interzones. Les nouvelles passerelles reçoivent une adresse IP publique attribuée automatiquement et gérée par Microsoft : vous ne créez plus de ressource d'adresse IP publique.
 - Quelle que soit la référence SKU, au plus 4 circuits du **même** emplacement de peering peuvent être liés à un réseau virtuel.
 
@@ -126,8 +126,8 @@ Paramètres de connexion et limites :
 
 - **Poids de routage** (0 à 32000, 0 par défaut) : quand un réseau virtuel est lié à plusieurs circuits, la connexion de poids le plus élevé est préférée pour le trafic qui sort d'Azure.
 - **FastPath** : `-ExpressRouteGatewayBypass` sur la connexion, avec une référence SKU de passerelle éligible.
-- Un circuit Standard lie jusqu'à 10 réseaux virtuels, tous dans la même zone géopolitique que le circuit ; Premium lève la limite géographique et augmente le nombre.
-- Les réseaux virtuels spoke n'ont pas chacun besoin d'une passerelle : appairez-les au hub avec **Autoriser le transit par passerelle** côté hub et **Utiliser des passerelles distantes** côté spoke.
+- Un circuit Standard lie jusqu'à 10 réseaux virtuels, tous dans la même zone géopolitique que le circuit ; Premium lève la limite géographique et augmente le nombre. Un réseau virtuel peut être lié à 16 circuits au plus. À la création de la connexion, les réseaux virtuels local et reliés par peering doivent publier 200 espaces d'adressage au plus ; jusqu'à 1 000 peuvent être ajoutés ensuite.
+- Les réseaux virtuels spoke n'ont pas chacun besoin d'une passerelle : reliez-les au hub par peering avec **Autoriser le transit par passerelle** côté hub et **Utiliser des passerelles distantes** côté spoke.
 
 > **Piège d'examen.** La clé d'autorisation seule ne suffit pas : l'utilisateur du circuit a aussi besoin de l'ID de ressource du circuit (l'ID d'homologue). Et la connexion est créée dans l'abonnement de la passerelle, pas dans celui du circuit.
 
@@ -153,7 +153,7 @@ Recommandations selon le besoin :
 
 À retenir :
 
-- Publier une route par défaut envoie tout le trafic sortant des réseaux virtuels liés vers le réseau local, y compris le trafic vers les points de terminaison publics Azure et l'activation de Windows (KMS). Ajoutez des routes définies par l'utilisateur pour les destinations qui doivent sortir directement.
+- Publier une route par défaut envoie tout le trafic sortant des réseaux virtuels liés vers le réseau local, y compris le trafic vers les points de terminaison publics Azure et l'activation de Windows (KMS). Ajoutez des itinéraires définis par l'utilisateur pour les destinations qui doivent sortir directement.
 - Microsoft marque chaque route qu'il publie avec des communautés BGP, mais **ignore** les communautés que vous posez sur vos routes. Microsoft retire aussi les numéros d'AS privés du chemin d'AS sur le peering Microsoft : préfixer un ASN privé n'y a donc aucun effet.
 
 > **Piège d'examen.** Le poids de connexion est évalué avant la longueur du chemin d'AS. Un circuit au chemin d'AS plus long l'emporte quand même si sa connexion a le poids le plus élevé.
@@ -171,7 +171,7 @@ Le trafic ExpressRoute est privé mais n'est pas chiffré par défaut. Deux méc
 | Par défaut | Désactivé sur les ports | Non configuré |
 | Ressources Azure | Les ports ExpressRoute Direct et un coffre de clés | Une passerelle VPN dans le même réseau virtuel, ou une passerelle VPN Virtual WAN |
 
-MACsec chiffre tout ce qui passe sur le port, BGP compris ; si les clés ne correspondent pas, la connectivité est perdue, sans repli en clair.
+MACsec chiffre tout ce qui passe sur le port, BGP compris ; si les clés ne correspondent pas, la connectivité est perdue, sans repli en clair. Mise en place : un coffre de clés avec la suppression réversible activée et pas derrière un point de terminaison privé, le CKN et le CAK stockés comme secrets, une identité managée affectée par l'utilisateur qui les lit, puis MACsec sur les deux ports ou sur un seul ; activez SCI sur les ports quand le routeur local est un appareil Cisco.
 
 Le **VPN de site à site sur le peering privé** chiffre de bout en bout sans utiliser d'adresses publiques :
 
@@ -191,8 +191,8 @@ Par défaut, une liaison en panne est détectée par les minuteurs BGP : keepali
 
 - Côté Microsoft, BFD est **activé par défaut** sur les interfaces MSEE des nouveaux peerings privés et Microsoft, et ne peut pas être retiré.
 - De votre côté, il est facultatif et demande deux étapes sur **les deux** routeurs de périphérie : activer BFD sur l'interface, puis le lier à la session BGP du voisin.
-- L'intervalle des MSEE est de 300 ms ; l'homologue le plus lent fixe la cadence : vous pouvez donc configurer un intervalle plus long, pas plus court.
-- Pour un ancien peering créé avant l'activation par défaut de BFD (peering privé IPv4 avant août 2018, peering Microsoft IPv4 avant janvier 2020), **réinitialisez le peering** pour l'activer.
+- L'intervalle des MSEE est de 300 ms (750 ms dans certains scénarios) ; l'homologue le plus lent fixe la cadence : vous pouvez donc configurer un intervalle plus long, pas plus court. Learn recommande de désactiver le mode écho BFD sur les connexions ExpressRoute.
+- Pour un ancien peering créé avant l'activation par défaut de BFD (peering privé IPv4 avant août 2018, peering Microsoft IPv4 avant janvier 2020, peering IPv6 avant novembre 2025), **réinitialisez le peering** pour l'activer.
 
 ```text
 interface TenGigabitEthernet2/0/0.150
@@ -217,7 +217,7 @@ Procédez du circuit vers le réseau virtuel :
 | 3 | Couche 2 : le MSEE voit l'adresse MAC de votre routeur | `Get-AzExpressRouteCircuitARPTable` | Entrée incomplète ou entrée Microsoft seule : problème de VLAN ou de couche 2 avec le fournisseur |
 | 4 | Couche 3 : les préfixes locaux attendus sont reçus | `Get-AzExpressRouteCircuitRouteTable` | Session `Idle` ou `Active` : ASN, adresses, clé. Préfixe absent : publication ou filtre côté local |
 | 5 | Les compteurs de trafic augmentent sur les deux liaisons | `Get-AzExpressRouteCircuitStats` | Zéro sur un chemin : cette liaison n'est pas utilisée |
-| 6 | Paquets vus dans les deux sens sur chaque MSEE | **Tester la connectivité du peering privé**, sous Diagnostiquer et résoudre les problèmes | Reçus mais pas renvoyés : routage Azure ou routes définies par l'utilisateur. Envoyés mais pas reçus : réseau local ou fournisseur |
+| 6 | Paquets vus dans les deux sens sur chaque MSEE | **Tester la connectivité du peering privé**, sous Diagnostiquer et résoudre les problèmes | Reçus mais pas renvoyés : routage Azure ou itinéraires définis par l'utilisateur. Envoyés mais pas reçus : réseau local ou fournisseur |
 
 Les commandes de table ARP et de table de routage prennent chacune `-DevicePath Primary` ou `Secondary` : exécutez les deux, car un circuit qui ne fonctionne que sur une liaison n'a plus de redondance.
 
@@ -226,7 +226,7 @@ Causes fréquentes :
 - Session BGP interrompue à répétition : la limite de préfixes (4 000 ou 10 000) est dépassée.
 - Circuit sain mais réseau virtuel injoignable : pas de connexion, passerelle non approvisionnée, ou peering de spoke sans **Utiliser des passerelles distantes**.
 - Services Microsoft injoignables : pas de filtre de routage, ou préfixes en `Validation needed`.
-- Gros paquets rejetés par la passerelle : la taille maximale de paquet est de 1 400 octets et les fragments ne sont pas pris en charge.
+- Gros paquets rejetés par la passerelle : la taille maximale des paquets TCP et UDP est de 1 400 octets et la passerelle ne prend pas en charge les fragments ; si la fragmentation est nécessaire, FastPath contourne la passerelle.
 
 <!-- section: key-points -->
 ## Points clés

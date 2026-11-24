@@ -55,7 +55,7 @@ Utilisez des **secrets d'environnement** GitHub pour la production : quand l'env
 <!-- section: bicep-cli | objectives: 1.3.2 -->
 ## Déployer des espaces de travail et des ressources avec Bicep et Azure CLI
 
-Le type de ressource de l'espace de travail est `Microsoft.MachineLearningServices/workspaces` ; les cibles de calcul sont son enfant `workspaces/computes`. La version d'API stable actuelle est `2026-05-01`.
+Le type de ressource de l'espace de travail est `Microsoft.MachineLearningServices/workspaces` ; les cibles de calcul sont son enfant `workspaces/computes`. La dernière version d'API en disponibilité générale des deux est `2026-09-01` ; les exemples utilisent `2026-05-01`, qui reste valide.
 
 ```bicep
 param location string = resourceGroup().location
@@ -255,13 +255,13 @@ Règles du réseau virtuel managé :
 
 - Types de règles de trafic sortant : `private_endpoint` (vers une ressource Azure), `service_tag` et `fqdn`. Les règles d'étiquette de service et FQDN ne sont valides qu'en `allow_only_approved_outbound`.
 - Les règles FQDN sont implémentées avec un Pare-feu Azure facturé : Standard par défaut, Basic avec `firewall_sku: basic` ; Premium n'est pas pris en charge. Les règles FQDN n'autorisent que les ports 80 et 443, et ne peuvent pas servir à atteindre un compte de stockage en mode approuvé uniquement : utilisez une règle de point de terminaison privé.
-- Les points de terminaison privés requis vers le stockage, le coffre de clés, le registre de conteneurs et l'espace de travail sont créés automatiquement (en mode internet sortant, seulement pour les ressources dont l'accès public est désactivé).
-- Le réseau est provisionné à la création du premier calcul (cela peut prendre environ 30 minutes), ou à la demande avec `az ml workspace provision-network` ou `--provision-network-now` à la création. Provisionnez-le avant de créer un déploiement en ligne ou un travail Spark serverless.
-- Une fois activée, l'isolation par réseau managé ne peut plus être désactivée. Le calcul existant n'est pas migré : recréez clusters, instances et points de terminaison en ligne managés.
+- Les points de terminaison privés requis vers le stockage, le coffre de clés, le registre de conteneurs et l'espace de travail sont créés automatiquement au provisionnement du réseau, pas avant (en mode internet sortant, seulement pour les ressources dont l'accès public est désactivé).
+- Le réseau est provisionné à la création du premier calcul (cela peut prendre environ 30 minutes), ou à la demande avec `az ml workspace provision-network` ou `--provision-network-now` à la création. Provisionnez-le avant de créer un déploiement en ligne. Pour les travaux Spark serverless, provisionnez-le manuellement avec `az ml workspace provision-network --include-spark`, après avoir désactivé l'accès réseau public de l'espace de travail.
+- Une fois activée, l'isolation par réseau managé ne peut plus être désactivée, et le mode ne peut changer dans aucun sens : le mode approuvé uniquement ne peut pas devenir internet sortant, et le mode internet sortant ne peut pas devenir approuvé uniquement. Le calcul existant n'est pas migré : recréez clusters, instances et points de terminaison en ligne managés.
 - Dans un réseau managé, le calcul ne peut pas être placé dans votre propre réseau virtuel ; Kubernetes et les VM attachées ne sont pas pris en charge, et un cluster ne peut pas être créé dans une autre région.
 - Prérequis : le fournisseur de ressources `Microsoft.Network` inscrit, et le rôle Azure AI Enterprise Network Connection Approver pour que l'identité de l'espace de travail approuve les connexions de points de terminaison privés vers vos ressources.
 
-Alternative sans réseau managé : gardez `disabled` et placez le calcul dans votre propre sous-réseau (`network_settings.subnet` dans le YAML du calcul, `enableNodePublicIp: false` pour des clusters sans IP publique). Quand l'espace de travail et son registre de conteneurs utilisent des points de terminaison privés, définissez `image_build_compute` avec un cluster, car les tâches du registre ne peuvent pas construire les images.
+Alternative sans réseau managé : gardez `disabled` et placez le calcul dans votre propre sous-réseau (`network_settings.subnet` dans le YAML du calcul, `enableNodePublicIp: false` pour des clusters sans IP publique). Quand le compte de stockage ou le registre de conteneurs utilise des points de terminaison privés, la construction d'images par défaut sur calcul serverless ne fonctionne pas : définissez `image_build_compute` avec un cluster de calcul CPU du réseau virtuel.
 
 | Exigence | Réponse |
 | --- | --- |
@@ -324,7 +324,7 @@ Pratique des branches : travaillez sur des branches de fonctionnalité, ouvrez u
 
 - GitHub se connecte avec OIDC : informations d'identification fédérées (émetteur `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, sujet exact), `permissions: id-token: write`, `azure/login@v2` avec les ID client, de locataire et d'abonnement.
 - Le sujet dépend du contexte du déclencheur : environnement, branche ou étiquette ; un travail avec `environment:` utilise le sujet de l'environnement.
-- Bicep : `Microsoft.MachineLearningServices/workspaces@2026-05-01` et l'enfant `workspaces/computes` ; valeurs en PascalCase en Bicep, en snake_case dans le YAML de la CLI.
+- Bicep : `Microsoft.MachineLearningServices/workspaces` (dernière version d'API en disponibilité générale `2026-09-01`) et l'enfant `workspaces/computes` ; valeurs en PascalCase en Bicep, en snake_case dans le YAML de la CLI.
 - Protection entrante : accès réseau public désactivé plus un point de terminaison privé (`amlworkspace`) ; protection sortante : réseau managé `allow_only_approved_outbound`.
-- Les règles de trafic sortant FQDN ajoutent un Pare-feu Azure facturé et n'autorisent que les ports 80 et 443 ; l'isolation par réseau managé ne peut plus être désactivée une fois activée.
+- Les règles de trafic sortant FQDN ajoutent un Pare-feu Azure facturé et n'autorisent que les ports 80 et 443 ; l'isolation par réseau managé ne peut plus être désactivée une fois activée, et son mode ne peut pas être changé.
 - Les travaux enregistrent le dépôt, la branche, le commit et l'indicateur « dirty » quand ils sont soumis depuis un dossier de travail Git.

@@ -23,7 +23,7 @@ VACUUM dbo.sales RETAIN 168 HOURS                   -- remove unreferenced files
 | Fast optimize | Skips bins unlikely to reach the target size | Set with `spark.microsoft.delta.optimize.fast.enabled` |
 | `VACUUM` | Deletes files no longer referenced and older than the retention | 7 days; shorter retention fails unless `spark.databricks.delta.retentionDurationCheck.enabled` is `false` |
 
-V-Order can be set at three levels: the session (`spark.sql.parquet.vorder.default`), the table (`TBLPROPERTIES("delta.parquet.vorder.enabled" = "true")`) and one write (`.option("parquet.vorder.enabled", "true")`). Session and write settings override the table property. Changing the property affects future writes only: existing files keep their layout until rewritten, for example by `OPTIMIZE ... VORDER`.
+V-Order can be set at three levels: the session (`spark.sql.parquet.vorder.default`), the table (`TBLPROPERTIES("delta.parquet.vorder.enabled" = "true")`) and one write (`.option("parquet.vorder.enabled", "true")`). Session and write settings override the table property, and a session set to `true` applies V-Order to every write, even one whose `parquet.vorder.enabled` option is `false`. Changing the property affects future writes only: existing files keep their layout until rewritten, for example by `OPTIMIZE ... VORDER`.
 
 **Resource profiles** set these options together (`spark.fabric.resourceProfile`, in an environment or with `spark.conf.set` at run time; run time wins):
 
@@ -34,7 +34,7 @@ V-Order can be set at three levels: the session (`spark.sql.parquet.vorder.defau
 | `readHeavyForSpark` | Frequent Spark reads | Optimized write on (128 MB bins) |
 | `custom` | Your own settings | User-defined |
 
-Without code, the lakehouse explorer offers **Maintenance** on a table: **Optimize** (with **Apply V-order**), **Vacuum** (retention threshold, 7 days by default) and **Merge deletion vectors**, run as a job visible in the Monitor hub. A pipeline can run the same job with the Lakehouse Maintenance activity (preview). Maintenance applies to Delta tables only.
+Without code, the lakehouse explorer runs maintenance on a table: you turn **On** compaction (`OPTIMIZE`, with the **Apply V-order** check box), `VACUUM` (retention 7 days by default) and the merge of deletion vectors, then select **Run now**; the job appears in the notifications and in the Monitoring hub. A pipeline can run the same job with the Lakehouse Maintenance activity (preview). Maintenance applies to Delta tables only.
 
 **Partitioning.** Partition only large tables, on a low-cardinality column (year, date) that produces partitions of about 1 GB or more; a high-cardinality column creates a partition per value and many small files.
 
@@ -121,7 +121,7 @@ An Azure Event Hubs source with fewer than four partitions is limited by its par
 | Update policy | Transforms data once at ingestion (parse JSON, convert Unix time) instead of at every query | `.alter table ... policy update` |
 | Materialized view | Precomputes an aggregation, kept up to date as data arrives | `.create materialized-view` |
 
-The caching period must be less than or equal to the retention period. A batching time that's too short increases cost and can even add latency on busy tables.
+The two policies are independent: retention sets how long data stays queryable, caching how much of it stays hot (keep the hot period within the retention). By default the effective caching policy is `null`, so all data is hot. A batching time that's too short increases cost and can even add latency on busy tables.
 
 ```kusto
 // Keep only the latest reading per device, maintained at ingestion
@@ -148,7 +148,7 @@ A materialized view ends with a single `summarize` (supported aggregations inclu
 | Starter pool plus libraries | Add 30 seconds to 5 minutes | Prefer an environment with libraries published once |
 | High concurrency mode | Reuses a running session | Several notebooks share one Spark session |
 
-Node sizes: Small 4 vCores and 32 GB, Medium 8 and 64 GB, Large 16 and 128 GB, X-Large 32 and 256 GB, XX-Large 64 and 512 GB. Autoscale sets minimum and maximum nodes; **dynamic allocation** adds and releases executors as the job needs. A capacity gives 2 Spark VCores per capacity unit, with 3x burst: an F64 allows 384 VCores in total.
+Node sizes: Small 4 vCores and 32 GB, Medium 8 and 64 GB, Large 16 and 128 GB, X-Large 32 and 256 GB, XX-Large 64 and 512 GB. Autoscale sets minimum and maximum nodes; **dynamic allocation** adds and releases executors as the job needs. A capacity gives 2 Spark VCores per capacity unit, with 3x burst: an F64 allows 384 VCores in total (an F2 bursts to 20 VCores, and a trial capacity doesn't burst).
 
 **Native execution engine.** A vectorized engine (Velox and Apache Gluten) runs supported Spark operators outside the JVM, with no code change, on Runtime 1.3 and 2.0. It accelerates Parquet, Delta and CSV; unsupported operations (JSON, XML, structured streaming) fall back to the regular engine automatically. Enable it in the environment (**Spark compute** > **Acceleration** > **Enable native execution engine**) or per session:
 

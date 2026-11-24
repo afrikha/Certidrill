@@ -34,7 +34,7 @@ Conséquences de conception de la plateforme unifiée :
 
 Une conception de journalisation répond à quatre questions : quelles sources, quelle destination, combien de temps, et qui peut lire.
 
-**Espaces de travail Log Analytics.** Commencez avec le moins d'espaces de travail possible : un seul espace de travail Sentinel simplifie la corrélation et le repérage. Ne séparez que pour une raison claire : résidence des données (garder les données européennes dans une région de l'UE), propriété ou facturation distinctes, ou frontière réglementaire. Plusieurs locataires ou clients (un MSSP) se gèrent avec **Azure Lighthouse** et des vues multiespaces de travail plutôt qu'en copiant les données.
+**Espaces de travail Log Analytics.** Commencez avec le moins d'espaces de travail possible : un seul espace de travail Sentinel simplifie la corrélation et le repérage. Ne séparez que pour une raison claire : résidence des données (garder les données européennes dans une région de l'UE), propriété ou facturation distinctes, ou frontière réglementaire. Plusieurs locataires ou clients (un MSSP) se gèrent dans le **portail multilocataire Microsoft Defender** plutôt qu'en copiant les données : dans le portail Defender, l'accès aux données Sentinel passe par Microsoft Entra B2B (GDAP n'est pas pris en charge pour les données Sentinel), et **Azure Lighthouse** n'est nécessaire que pour exécuter des requêtes interlocataires, par exemple avec l'opérateur `workspace()`.
 
 **Niveaux de rétention** (Sentinel) :
 
@@ -93,21 +93,21 @@ Deux couches d'automatisation existent, et elles se complètent :
 
 | Couche | Mécanisme | Usage typique |
 | --- | --- | --- |
-| Defender XDR | **Investigation et réponse automatisées (AIR)**, régies par le niveau d'automatisation des groupes d'appareils | Investiguer une alerte et corriger les preuves (fichiers, processus, éléments de boîte aux lettres) |
+| Defender XDR | **Investigation et réponse automatisées (AIR)** | Investiguer les alertes de messagerie et mettre en file d'attente des actions de correction à approuver par le SOC (Defender for Office 365). Sur les appareils, depuis le 1er septembre 2026, AIR ne s'exécute plus comme une investigation distincte : ses fonctionnalités s'exécutent automatiquement dans la pile de protection antivirus de Defender, et le niveau d'automatisation des groupes d'appareils décide si la correction exige une approbation |
 | Defender XDR | **Interruption automatique des attaques** | Contenir les utilisateurs et appareils compromis pendant un rançongiciel ou une compromission de messagerie professionnelle, avec une confiance élevée, avant la réaction du SOC |
 | Sentinel | **Règles d'automatisation** | Tri sans code : changer la gravité ou l'état, attribuer un propriétaire, ajouter des étiquettes ou des tâches, exécuter un playbook |
 | Sentinel | **Playbooks** (Azure Logic Apps) | Réponses en plusieurs étapes avec des connecteurs : ouvrir un ticket ServiceNow, bloquer une IP sur un pare-feu tiers, désactiver un compte dans Okta, notifier Teams |
 
-Dans le portail Defender, les règles d'automatisation à déclencheur d'alerte n'agissent que sur les alertes Sentinel, sauf avec l'**Enhanced Alert Trigger**, et la condition Incident provider n'existe plus. Les mises à jour d'incidents arrivent dans Sentinel avec un léger délai (jusqu'à quelques minutes) : un SLA qui exige une réponse en secondes relève de l'interruption des attaques ou d'AIR, pas d'un playbook.
+Dans le portail Defender, les règles d'automatisation à déclencheur d'alerte n'agissent que sur les alertes Sentinel, sauf avec l'**Enhanced Alert Trigger**, et la condition Incident provider n'existe plus. Les mises à jour d'incidents arrivent dans Sentinel avec un léger délai (jusqu'à quelques minutes) : un SLA qui exige une réponse en secondes relève de l'interruption automatique des attaques, pas d'un playbook.
 
-Conception des playbooks : une **identité managée** limitée aux rôles dont l'action a besoin, les secrets des connecteurs dans Key Vault, et une étape d'approbation humaine pour les actions destructrices sur les ressources critiques.
+Conception des playbooks : une identité limitée aux rôles dont l'action a besoin (un principal de service ; l'authentification par identité managée du connecteur Microsoft Sentinel est encore en préversion), les secrets des connecteurs dans Key Vault, et une étape d'approbation humaine pour les actions destructrices sur les ressources critiques.
 
 | Exigence | Recommandation |
 | --- | --- |
 | Fermer automatiquement les faux positifs connus d'un scanner | Règle d'automatisation Sentinel |
 | Isoler les appareils et désactiver les comptes dès qu'un rançongiciel est détecté | Interruption automatique des attaques de Defender XDR |
 | Créer un ticket dans l'outil ITSM pour chaque incident de gravité élevée | Règle d'automatisation qui exécute un playbook |
-| Corriger les fichiers malveillants sur les serveurs avec le moins d'effort | AIR avec automatisation complète sur le groupe d'appareils |
+| Corriger les fichiers malveillants sur les serveurs avec le moins d'effort | Niveau d'automatisation complète sur le groupe d'appareils |
 
 > **Piège d'examen.** Un playbook n'est la réponse que si l'action exige un connecteur ou plusieurs étapes. « Réduire l'effort d'administration » avec une action simple (état, propriétaire, gravité, étiquette) désigne une règle d'automatisation.
 
@@ -169,6 +169,6 @@ Comment évaluer la couverture :
 - Peu d'espaces de travail ; séparer uniquement pour la résidence, la propriété ou la réglementation. Niveau lac de données pour une longue rétention bon marché.
 - Purview Audit Standard conserve 180 jours ; Premium ajoute 1 an pour les services principaux, des stratégies de rétention, 10 ans avec le module complémentaire, et `MailItemsAccessed`.
 - Serveurs hors Azure : Azure Arc + AMA + DCR. AWS et GCP : connecteurs Defender pour le cloud pour la posture, connecteurs Sentinel pour les journaux.
-- Interruption des attaques et AIR pour un confinement rapide ; règles d'automatisation pour le tri sans code ; playbooks pour les connecteurs et les réponses en plusieurs étapes.
+- Interruption des attaques pour un confinement rapide ; sur les appareils, les fonctionnalités d'AIR s'exécutent automatiquement dans la pile antivirus depuis le 1er septembre 2026 ; règles d'automatisation pour le tri sans code ; playbooks pour les connecteurs et les réponses en plusieurs étapes.
 - Les repérages deviennent des détections ; les workflows d'incident exigent des rôles, des SLA, des responsables du confinement et un retour d'expérience.
 - Matrices MITRE : Enterprise, Mobile, ICS. La page MITRE de Sentinel montre la couverture active et simulée.

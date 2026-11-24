@@ -46,6 +46,8 @@ A Backup vault uses its **managed identity** to reach the data sources; you gran
 | **Azure Blobs, operational backup** | Continuous, local to the storage account: relies on point-in-time restore, versioning, soft delete and change feed, which Azure Backup enables | Storage Account Backup Contributor on the account |
 | **Azure Blobs, vaulted backup** | Scheduled copies transferred to the vault: protects against deletion of the account | Same |
 
+A new blob backup policy always includes **vaulted backup**: it is selected by default and can't be turned off. Operational backup can be added to it, but a policy can't be operational-only.
+
 Creation order: Backup vault, **backup policy**, then **backup instance** (the association of a data source with a policy).
 
 <!-- section: backup-policy | objectives: 5.2.3 -->
@@ -59,7 +61,7 @@ Policies for Azure virtual machines:
 | --- | --- | --- |
 | Frequency | Once a day (or weekly) | **Several per day**: every 4, 6, 8, 12 or 24 hours |
 | Instant restore snapshot retention | 1 to 5 days (default 2) | 1 to 30 days (default 7) |
-| Required for | | Trusted launch machines, Premium SSD v2 and Ultra disks |
+| Required for | | **Premium SSD v2 and Ultra disks** (not supported by Standard). Trusted launch machines from the portal: Standard protects them only through Azure CLI 2.73.0+, Az PowerShell 14.0.0+ or REST API 2025-01-01+ |
 | Change | | A machine can't go back from Enhanced to Standard |
 
 How a virtual machine backup runs:
@@ -70,12 +72,12 @@ How a virtual machine backup runs:
 
 Other workloads: **SQL Server in an Azure virtual machine** uses full, differential and **log backups, as often as every 15 minutes**, for point-in-time restore. **Azure Files** backup is based on share snapshots, with optional vaulted copies.
 
-The default policy backs up once a day and keeps the points 30 days.
+The default policy (Standard) backs up once a day, keeps the daily points 30 days and the instant restore snapshots 2 days.
 
 <!-- section: backup-restore | objectives: 5.2.4 -->
 ## Backup and restore operations
 
-**Enabling backup** of a virtual machine: from the machine (*Backup*), from the vault (*+ Backup*) or from the backup center. Choose the vault (same region) and the policy. The first backup is a full copy; the following ones are incremental. **Backup now** triggers an on-demand backup with its own retention.
+**Enabling backup** of a virtual machine: from the machine (*Backup*), from the vault (*+ Backup*) or from **Resiliency**. Choose the vault (same region) and the policy. The first backup is a full copy; the following ones are incremental. **Backup now** triggers an on-demand backup with its own retention.
 
 **Restore options for an Azure virtual machine:**
 
@@ -163,7 +165,7 @@ A **recovery plan** orchestrates the failover of several machines: **groups** th
 
 | Need | Tool |
 | --- | --- |
-| See jobs, protected items and health across vaults | Backup center (business continuity center), *Backup jobs*, *Backup items* |
+| See jobs, protected items and health across vaults | **Resiliency** (which extends Azure Business Continuity Center; the legacy Backup center is no longer in portal search), *Backup jobs*, *Backup items* |
 | History, trends, consumption, policy adherence over months | **Backup reports** |
 | Be notified of failures and risky operations | **Azure Monitor alerts** for Azure Backup |
 
@@ -177,7 +179,7 @@ A **recovery plan** orchestrates the failover of several machines: **groups** th
 
 - **Built-in alerts** are raised by default, without creating any rule: **security alerts** (deleting backup data, disabling soft delete, changing a policy to a shorter retention... always on) and **job failure alerts** (backup or restore failed; can be turned off).
 - A built-in alert notifies nobody by itself. Create an **alert processing rule** on the subscription, resource group or vault that attaches an **action group** (email, ITSM, webhook, logic app).
-- For custom conditions, create **metric alerts** on the vault's *Backup Health Events* and *Restore Health Events* metrics, or log search alerts on the workspace.
+- For custom conditions, create **log search alerts** on the workspace that receives the vault's diagnostics, for example on failed jobs in the `AddonAzureBackupJobs` table. Azure Backup metrics (*Backup Health Events*, *Restore Health Events*) are still in preview.
 
 <!-- section: key-points -->
 ## Key points
@@ -185,7 +187,7 @@ A **recovery plan** orchestrates the failover of several machines: **groups** th
 - Recovery Services vault: virtual machines, Azure Files, SQL in virtual machines, MARS, Site Recovery. Backup vault: disks, blobs, PostgreSQL, AKS.
 - Backup: vault in the **same** region as the source. Site Recovery: vault **outside** the source region.
 - GRS by default; set the replication type before protecting anything; Cross Region Restore needs GRS; soft delete keeps deleted data 14 days.
-- Standard policy: daily. Enhanced policy: every 4 to 24 hours, required for trusted launch and Ultra disks.
+- Standard policy: daily. Enhanced policy: every 4 to 24 hours, required for Premium SSD v2 and Ultra disks and for trusted launch machines in the portal.
 - Restore: create new, restore disks, replace existing, file recovery. MARS: files, folders and system state of Windows machines.
 - Site Recovery: Mobility extension, cache storage account in the source region, crash-consistent points every 5 minutes.
 - Test failover in an isolated network; then failover, commit, re-protect, failback.

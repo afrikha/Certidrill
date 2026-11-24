@@ -128,7 +128,7 @@ An NSG on AzureBastionSubnet is optional, but if you associate one it must conta
 | Outbound | VirtualNetwork | VirtualNetwork | 8080, 5701 | Bastion host communication |
 | Outbound | Any | Internet | 80 | Session and certificate validation |
 
-On the **target VM subnet** (or NIC) NSG, allow inbound 3389 or 22 (or the custom port used with the Standard or Premium SKU) from the **AzureBastionSubnet address range**. No inbound rule from the internet is needed on the VM side.
+On the **target VM subnet** (or NIC) NSG, allow inbound 3389 or 22 (or the custom port used with the Standard or Premium SKU) from the **AzureBastionSubnet address range**. No inbound rule from the internet is needed on the VM side. With the custom port feature, the AzureBastionSubnet NSG must also let the sessions out on the custom ports: allow egress to the **VirtualNetwork** service tag instead of only 22 and 3389 to the VM subnets.
 
 **Just-in-time (JIT) VM access** (Microsoft Defender for Servers Plan 2) is the other NSG-based pattern: Defender for Cloud adds *deny all inbound* rules for the selected management ports, and on an approved request it temporarily allows the requester's IP for the chosen duration, then restores the NSG. JIT doesn't support firewalls managed by Firewall Manager (classic rules only).
 
@@ -155,7 +155,7 @@ A security admin rule has a **priority** (1 to 4,096, lower first), an **action*
 
 Typical pattern: a **Deny** rule for high-risk ports (for example 22 and 3389 from the internet) on an "all virtual networks" group, plus a higher-priority **Always Allow** for the virtual networks that need an exception, so application teams keep NSGs for their own filtering but can't open what governance closes.
 
-Security admin rules apply at the virtual network level, with exceptions: they aren't applied by default to virtual networks containing Azure SQL Managed Instance or Azure Databricks, and they don't apply to subnets of Application Gateway (without network isolation), Azure Bastion, Azure Firewall, Azure Route Server, VPN Gateway, Virtual WAN and ExpressRoute gateways. Rules arrive with **eventual consistency** (short delay); on a VM's **Networking** page they appear below the NSG rules.
+Security admin rules apply at the virtual network level, with exceptions: they aren't applied by default to virtual networks containing Azure SQL Managed Instance or Azure Databricks (with `AllowRulesOnly` set in the security admin configuration, only its Allow rules are applied there), they don't apply to private endpoints in a managed virtual network, and they don't apply to subnets of Application Gateway (without network isolation), Azure Bastion, Azure Firewall, Azure Route Server, VPN Gateway, Virtual WAN and ExpressRoute gateways. Rules arrive with **eventual consistency** (short delay); on a VM's **Networking** page they appear below the NSG rules.
 
 > **Exam trap.** "Ensure that no team can open port 3389 from the internet, even by editing its NSG" is a security admin rule with **Deny**, not an Azure Policy on NSGs and not an NSG managed centrally. "Ensure monitoring traffic always reaches the VMs whatever the NSGs say" is **Always Allow**.
 

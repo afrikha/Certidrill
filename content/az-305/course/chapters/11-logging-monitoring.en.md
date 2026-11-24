@@ -35,7 +35,7 @@ Start with **one workspace** and add others only for a stated reason. The size o
 | Different retention for the same table depending on the resources | Separate workspaces, because retention is set per table |
 | Operational data and security data (Microsoft Sentinel) | Combine them for cross-visibility and to reach a commitment tier; separate them when the security team requires it or when Sentinel pricing on operational data costs more |
 | Microsoft Sentinel and Microsoft Defender for Cloud | The same workspace |
-| Critical data must survive a regional failure | Ingest it into workspaces in different regions |
+| Critical data must survive a regional failure | Ingest it into workspaces in different regions, or enable workspace replication: a paid feature that copies only data ingested after it is enabled to a secondary region of the same region group, with a switchover you trigger yourself; Auxiliary tables, VM insights and Container insights aren't replicated |
 
 **Access control.** The default access mode, *Use resource or workspace permissions*, lets a user who can read a resource query the logs of that resource without any permission on the workspace (resource-context access). A user with access to the workspace itself sees all its data, unless table-level access narrows it.
 
@@ -56,7 +56,7 @@ Start with **one workspace** and add others only for a stated reason. The size o
 <!-- section: routing | objectives: 1.1.2 -->
 ## Routing logs
 
-**Diagnostic settings** route the resource logs and platform metrics of a resource, the activity log of a subscription or of a management group, and Microsoft Entra logs (configured in Microsoft Entra ID). Four destinations exist:
+**Diagnostic settings** route the resource logs and platform metrics of a resource, the activity log of a subscription or of a management group (a management group setting doesn't capture every subscription event, so keep a setting on each subscription for full coverage), and Microsoft Entra logs (configured in Microsoft Entra ID). Four destinations exist:
 
 | Destination | Recommend it for | Constraint |
 | --- | --- | --- |
@@ -89,7 +89,7 @@ A **data export rule** sends the new records of selected tables continuously fro
 | Agents and queries must not use public endpoints | Azure Monitor Private Link Scope (AMPLS) with a private endpoint |
 | A service provider must work on the logs of customer tenants | Workspaces in each tenant, delegated through Azure Lighthouse |
 
-An **AMPLS** groups workspaces, Application Insights resources and data collection endpoints behind one private endpoint. Its *Private Only* access mode blocks access to Azure Monitor resources outside the scope, which prevents data exfiltration; *Open* mode still allows them. Use a single AMPLS for all networks that share the same DNS.
+An **AMPLS** groups workspaces, Application Insights resources and data collection endpoints behind one private endpoint. Its *Private Only* access mode blocks access to Azure Monitor resources outside the scope, which prevents data exfiltration; *Open* mode still allows them. Log Analytics ingestion uses resource-specific endpoints and doesn't follow the access modes: to stop agents from sending logs to workspaces outside the AMPLS, the network firewall must also block traffic to the public endpoints. Use a single AMPLS for all networks that share the same DNS.
 
 > **Exam trap.** The region constraint applies to storage accounts and event hubs, not to workspaces. A regional resource in West Europe can send its logs to a workspace in any region, but an event hub or storage account used as destination must be in West Europe.
 
@@ -117,7 +117,7 @@ Azure Monitor has two families of data. **Metrics** are numeric, lightweight and
 <!-- section: alerts-visualization | objectives: 1.1.3 -->
 ## Alerts and visualization
 
-An **alert rule** detects a condition; an **action group** says who is notified (email, SMS, push, voice) and what runs (Automation runbook, function, logic app, webhook, event hub, ITSM connector); an **alert processing rule** changes fired alerts, for example to suppress notifications during a maintenance window.
+An **alert rule** detects a condition; an **action group** says who is notified (email, SMS, push, voice) and what runs (Automation runbook, function, logic app, webhook, event hub, ITSM connector); an **alert processing rule** changes fired alerts without editing the alert rules: it suppresses their notifications, for example during a maintenance window, or applies action groups to them. Its scope stays within one subscription, it doesn't affect Service Health alerts, and a change can take up to 30 minutes to apply.
 
 | Alert type | Signal | Recommend when |
 | --- | --- | --- |

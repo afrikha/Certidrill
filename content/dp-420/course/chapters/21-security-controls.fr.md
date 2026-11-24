@@ -65,7 +65,7 @@ Rôles intégrés du **plan de contrôle** :
 
 | Rôle | Permet |
 | --- | --- |
-| DocumentDB Account Contributor | Gérer les comptes Azure Cosmos DB |
+| DocumentDB Account Contributor | Gérer les comptes Azure Cosmos DB : `databaseAccounts/*` sans NotActions, donc il peut aussi lister et régénérer les clés et écrire les définitions et attributions de rôles du plan de données |
 | Cosmos DB Operator | Gérer les comptes, bases de données et conteneurs, mais **sans** clés, chaînes de connexion ni accès aux données, et sans gestion des rôles du plan de données |
 | Cosmos DB Account Reader Role | Lire les métadonnées du compte et les **clés en lecture seule** |
 | CosmosBackupOperator | Soumettre une demande de restauration (mode périodique) et modifier la rétention des sauvegardes |
@@ -117,7 +117,7 @@ az cosmosdb sql role assignment create --resource-group rg-contoso \
   --scope "/dbs/sales/colls/orders"
 ```
 
-Microsoft recommande des identités distinctes pour le plan de contrôle et le plan de données, afin qu'une application qui lit des données ne puisse pas aussi modifier le compte.
+Microsoft recommande des identités distinctes pour le plan de contrôle et le plan de données ([Sécuriser votre compte](https://learn.microsoft.com/fr-fr/azure/cosmos-db/security)), afin qu'une application qui lit des données ne puisse pas aussi modifier le compte.
 
 > **Piège d'examen.** Les rôles Azure RBAC comme Owner, Contributor ou DocumentDB Account Contributor ne donnent **aucun** accès aux données par Microsoft Entra ; ce qu'ils peuvent faire, c'est lister les clés (qui contournent les rôles du plan de données tant que l'authentification locale n'est pas désactivée). Une application qui utilise `DefaultAzureCredential` et reçoit 403 en lecture n'a pas d'attribution de rôle du **plan de données**, à créer avec `az cosmosdb sql role assignment create`.
 
@@ -129,10 +129,10 @@ Chaque requête doit présenter un jeton d'autorisation valide. Les règles rés
 | Contrôle | Fonctionnement | À retenir |
 | --- | --- | --- |
 | Pare-feu IP | Adresses IP publiques ou plages CIDR autorisées (`ipRules` ; CLI `--ip-range-filter`) | Les adresses IP privées sont refusées dans la liste. **Accept connections from within Azure datacenters** ajoute `0.0.0.0` : toutes les adresses IP Azure, y compris les abonnements d'autres clients. **Add Azure Portal Middleware IPs** maintient les fonctionnalités du portail |
-| Point de terminaison de service de réseau virtuel | Activer `Microsoft.AzureCosmosDB` sur le sous-réseau, puis ajouter le sous-réseau comme règle de réseau virtuel | Le trafic arrive avec l'identité du sous-réseau et non plus une adresse IP publique, donc les règles IP existantes pour ces machines ne correspondent plus. Jusqu'à 256 sous-réseaux. Les réseaux appairés ne sont pas inclus automatiquement. Même locataire Microsoft Entra |
-| Point de terminaison privé (Private Link) | Adresses IP privées dans votre sous-réseau ; sous-ressource cible `Sql` ; zone DNS privée `privatelink.documents.azure.com` | Une adresse IP pour le point de terminaison global plus **une par région**. Fonctionne depuis les réseaux appairés et depuis l'environnement local par VPN ou ExpressRoute. Jusqu'à 200 par compte |
+| Point de terminaison de service de réseau virtuel | Activer `Microsoft.AzureCosmosDB` sur le sous-réseau, puis ajouter le sous-réseau comme règle de réseau virtuel | Le trafic arrive avec l'identité du sous-réseau et non plus une adresse IP publique, donc les règles IP existantes pour ces machines ne correspondent plus. Jusqu'à 256 sous-réseaux. Les réseaux connectés par peering ne sont pas inclus automatiquement. Même locataire Microsoft Entra |
+| Point de terminaison privé (Private Link) | Adresses IP privées dans votre sous-réseau ; sous-ressource cible `Sql` ; zone DNS privée `privatelink.documents.azure.com` | Une adresse IP pour le point de terminaison global plus **une par région**. Fonctionne depuis les réseaux connectés par peering et depuis l'environnement local par VPN ou ExpressRoute. Jusqu'à 200 par compte |
 | `publicNetworkAccess: Disabled` | Bloque tout le trafic public et par point de terminaison de service | A priorité sur toutes les règles IP et de réseau virtuel, y compris l'option des centres de données Azure. Seuls les points de terminaison privés restent |
-| Périmètre de sécurité réseau | Définit une limite réseau autour du compte | L'isole de l'accès depuis l'internet public |
+| Périmètre de sécurité réseau (préversion) | Définit une limite réseau autour du compte | L'isole de l'accès depuis l'internet public |
 
 Règles de combinaison :
 
@@ -152,7 +152,7 @@ az cosmosdb network-rule add --resource-group rg-contoso \
   --name cosmos-contoso --virtual-network vnet-app --subnet snet-api
 ```
 
-Transport et stockage : imposez une version TLS minimale sur le compte ; les données au repos sont chiffrées avec des clés gérées par le service ou des clés gérées par le client dans Azure Key Vault ; Always Encrypted chiffre côté client les propriétés choisies.
+Transport et stockage : imposez une version TLS minimale sur le compte (`minimalTlsVersion` n'accepte que `Tls12`, le minimum pour tout compte depuis le 31 août 2025 ; TLS 1.3 est pris en charge) ; les données au repos sont chiffrées avec des clés gérées par le service ou des clés gérées par le client dans Azure Key Vault ; Always Encrypted chiffre côté client les propriétés choisies.
 
 > **Piège d'examen.** « Seul l'App Service du sous-réseau intégré peut se connecter, et le compte ne doit avoir aucun point de terminaison public » signifie un point de terminaison privé plus `publicNetworkAccess` à `Disabled`. Un point de terminaison de service utilise toujours le point de terminaison public du compte, et l'option des centres de données ouvre le compte à tout Azure.
 

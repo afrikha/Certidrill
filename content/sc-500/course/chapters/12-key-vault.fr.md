@@ -5,8 +5,8 @@ Azure Key Vault tient les secrets, les clés de chiffrement et les certificats �
 
 | Option | Choisissez-la quand |
 | --- | --- |
-| Coffre de clés, niveau **Standard** | Secrets, certificats et clés protégées par logiciel (logiciel validé FIPS 140 niveau 1) |
-| Coffre de clés, niveau **Premium** | Les clés doivent être **protégées par HSM** (RSA-HSM, EC-HSM), générées et conservées dans des HSM validés FIPS 140-3 niveau 3 ; elles ne quittent jamais la limite du HSM |
+| Coffre de clés, niveau **Standard** | Secrets, certificats et clés protégées par logiciel (FIPS 140-2 niveau 1) |
+| Coffre de clés, niveau **Premium** | Les clés doivent être **protégées par HSM** (RSA-HSM, EC-HSM), générées et conservées dans des HSM ; elles ne quittent jamais la limite du HSM. HSM Platform 2 (FIPS 140-3 niveau 3) protège toutes les nouvelles clés et versions de clés ; les clés plus anciennes de HSM Platform 1 sont FIPS 140-2 niveau 2 |
 | **Managed HSM** | Un type de ressource distinct : un pool HSM monolocataire réservé aux clés, avec son propre contrôle d'accès local basé sur les rôles |
 
 Règles de conception : un coffre **par application et par environnement** (développement, préproduction, production) et par région. Un coffre partagé par plusieurs équipes expose tous les secrets à quiconque l'administre.
@@ -35,7 +35,7 @@ az keyvault create --name kv-orders-prod-weu --resource-group rg-orders-prod \
 | Paramètres de diagnostic | Envoyez les journaux **AuditEvent** vers un espace de travail Log Analytics, un compte de stockage ou un hub d'événements pour savoir qui a accédé à quoi |
 | Événements | Des événements Event Grid comme `Microsoft.KeyVault.SecretNearExpiry` ou `Microsoft.KeyVault.CertificateNearExpiry` déclenchent des flux de rotation |
 
-Récupération : dans le portail, **Key vaults > Manage deleted vaults** (ou **Manage deleted** sur la page Secrets, Keys ou Certificates) propose **Recover** ou **Purge**. Récupérer un coffre exige Key Vault Contributor ; le vider exige le rôle **Key Vault Purge Operator** ou Owner de l'abonnement. Un coffre récupéré ne retrouve ni ses attributions de rôles ni ses abonnements Event Grid.
+Récupération : dans le portail, **Key vaults > Manage deleted vaults** (ou **Manage deleted** sur la page Secrets, Keys ou Certificates) propose **Recover** ou **Purge**. Récupérer un coffre exige l'autorisation de créer un coffre de clés dans le groupe de ressources (par exemple Key Vault Contributor) ; le vider exige le rôle **Key Vault Purge Operator** ou Owner de l'abonnement. Un coffre récupéré ne retrouve ni ses attributions de rôles ni ses abonnements Event Grid.
 
 ```bash
 az keyvault update --name kv-orders-prod-weu --enable-purge-protection true
@@ -85,7 +85,7 @@ Rôles du plan de données (modèle d'autorisation Azure RBAC) :
 | Exception : **Allow trusted Microsoft services to bypass this firewall** | Les services approuvés de la liste (par exemple Sauvegarde Azure, Azure Disk Encryption, le déploiement de modèles Resource Manager) atteignent toujours le coffre, même avec l'accès public désactivé. Les services absents de la liste, comme Azure DevOps, sont bloqués |
 
 - Limites : 200 règles de réseau virtuel et 1 000 règles IPv4. Pas d'IPv6, pas de plages privées RFC 1918 dans les règles IP.
-- Les changements prennent jusqu'à 15 minutes.
+- L'activation du point de terminaison de service `Microsoft.KeyVault` sur un sous-réseau peut prendre jusqu'à 15 minutes.
 - Les règles de pare-feu ne restreignent que le **plan de données**. Le portail est un client du plan de données : un administrateur hors des réseaux autorisés ouvre le coffre mais ne peut pas lister ses secrets.
 - Un **point de terminaison privé** donne au coffre une adresse IP privée dans votre réseau virtuel, avec la zone `privatelink.vaultcore.azure.net`. Le nom public se résout toujours ; c'est la désactivation de l'accès public qui bloque internet.
 - Un **périmètre de sécurité réseau** en mode Enforced remplace `publicNetworkAccess` et bloque aussi les services approuvés sauf si une règle du périmètre les admet ; le mode Transition se contente de journaliser.
@@ -143,7 +143,7 @@ Les secrets laissés en clair (chaînes de connexion, clés privées SSH, jetons
 
 - Ni agent, ni connectivité réseau, ni impact sur les performances : l'analyseur lit des instantanés par les API du cloud.
 - Les résultats apparaissent dans l'**inventaire des ressources**, en recommandations sous le contrôle **Remediate vulnerabilities** (*Machines should have secrets findings resolved* ; *EC2 instances should have secrets findings resolved* ; *VM instances should have secrets findings resolved*), dans les requêtes de l'**explorateur de sécurité cloud** (par exemple « VM with plaintext secret that can authenticate to a storage account ») et dans les **chemins d'attaque** d'une VM exposée vers un compte de stockage ou un serveur SQL.
-- Consulter les résultats exige Security Reader, Security Admin, Reader, Contributor ou Owner.
+- Utiliser l'analyse des secrets exige Security Reader, Security Admin, Reader, Contributor ou Owner.
 
 Correction : retirez le secret de la machine ou du modèle, stockez-le dans Key Vault, donnez une identité managée à la charge de travail, faites tourner l'identifiant exposé, et préférez des identifiants de courte durée (un SAS court plutôt qu'une chaîne de connexion de stockage).
 
@@ -159,7 +159,7 @@ Une alerte indique l'ID d'objet, et le nom d'utilisateur principal ou l'adresse 
 Réponse, dans l'ordre :
 
 1. Identifiez la source ; n'ignorez pas une alerte au seul motif que vous reconnaissez l'utilisateur ou l'application.
-2. Contenez : pour une source inconnue, activez le pare-feu de Key Vault et n'autorisez que les réseaux approuvés ; pour une application ou un utilisateur non autorisé, supprimez son attribution de rôle ou sa stratégie d'accès.
+2. Contenez : pour une source inconnue, activez le pare-feu de Key Vault et n'autorisez que les réseaux approuvés ; pour une application non autorisée ou un utilisateur suspect, retirez le principal des stratégies d'accès du coffre ou restreignez ses opérations (dans un coffre qui utilise Azure RBAC, supprimez son attribution de rôle) ; si la source détient un rôle Microsoft Entra, faites réduire ou révoquer ce rôle par un administrateur.
 3. Mesurez l'impact à partir des secrets consultés et de leurs horodatages, et des journaux de diagnostic.
 4. Faites tourner les secrets, clés et certificats concernés, et désactivez ou supprimez les versions compromises.
 

@@ -42,7 +42,7 @@ Le **réglage des alertes** (alert tuning, anciennement suppression des alertes)
 | --- | --- | --- |
 | Hide alert | L'alerte est supprimée et aucun incident n'est créé ; elle reste dans `AlertInfo` et `AlertEvidence` | Alertes Defender for Endpoint uniquement |
 | Resolve alert | Les alertes correspondantes et leurs incidents sont créés déjà résolus | |
-| Set as behavior | Les signaux deviennent des comportements, visibles dans `BehaviorInfo` et `BehaviorEntities` pour la chasse, jamais dans la file d'alertes | Pas pour les alertes Defender for Cloud ni Defender for Office 365 |
+| Set as behavior | Les signaux deviennent des comportements, visibles dans `BehaviorInfo` et `BehaviorEntities` (tables en préversion) pour la chasse, jamais dans la file d'alertes | Pas pour les alertes Defender for Cloud ni Defender for Office 365 |
 
 Defender fournit aussi des **règles de réglage intégrées** pour les activités bénignes courantes. Elles n'affectent ni les enquêtes automatisées ni les notifications par e-mail, et une alerte qu'elles ont supprimée est réactivée si une enquête trouve une activité malveillante. Vous en désactivez une depuis son volet de détails. Les règles intégrées ne s'appliquent pas aux alertes des détections personnalisées ni du renseignement sur les menaces personnalisé.
 
@@ -54,7 +54,7 @@ Defender fournit aussi des **règles de réglage intégrées** pour les activit�
 - la fusion dépasserait le nombre maximal d'entités ;
 - ils contiennent des appareils de groupes d'appareils différents, une condition désactivée par défaut.
 
-Vous pouvez fusionner jusqu'à cinq incidents manuellement, ou déplacer une alerte vers un autre incident. Seul l'espace de travail Microsoft Sentinel **principal** voit ses alertes corrélées avec celles de Defender XDR ; les espaces secondaires sont corrélés séparément.
+Vous pouvez fusionner jusqu'à cinq incidents manuellement, ou déplacer une alerte vers un autre incident. Les incidents candidats à une fusion manuelle doivent avoir les mêmes valeurs, ou des valeurs nulles, pour **Assigned to**, **Classification** et **Determination**, et c'est Defender qui décide quel incident est la cible. Seul l'espace de travail Microsoft Sentinel **principal** voit ses alertes corrélées avec celles de Defender XDR ; les espaces secondaires sont corrélés séparément.
 
 > **Piège d'examen.** Le réglage et la suppression agissent sur les **alertes à leur création** dans Defender XDR. Une règle d'automatisation Sentinel qui ferme des incidents agit **après** la création de l'incident. Quand la question dit « l'alerte ne doit pas créer d'incident », la réponse est une règle de réglage des alertes.
 
@@ -96,6 +96,8 @@ La section **Paramètres > Points de terminaison > Règles** regroupe les règle
 | Asset rule management | Règles qui appliquent des **étiquettes dynamiques** aux appareils |
 | Custom data collection | Règles de télémétrie supplémentaire, voir la section suivante |
 
+Le filtrage du contenu web utilise SmartScreen dans Microsoft Edge et exige la **protection réseau en mode blocage** pour Chrome, Firefox, Brave et Opera sous Windows.
+
 **Indicateurs.** Jusqu'à 15 000 par locataire. Chacun a une action, une expiration et une étendue (tous les appareils ou des groupes d'appareils).
 
 | Type d'indicateur | Actions |
@@ -106,12 +108,12 @@ La section **Paramètres > Points de terminaison > Règles** regroupe les règle
 
 Les règles à retenir :
 
-- Les indicateurs de fichier exigent l'Antivirus Defender en mode **actif**, la protection cloud et la fonctionnalité avancée **Allow or block file**. Sous Windows, ils s'appliquent aux fichiers PE (.exe, .dll). Les indicateurs ne sont pas pris en charge en mode passif.
-- Les indicateurs d'IP et d'URL s'appuient sur la protection réseau. Un indicateur de domaine couvre aussi ses sous-domaines ; les chemins HTTPS ne sont reconnus que dans Microsoft Edge. Les plages d'IP et les caractères génériques ne sont pas pris en charge.
+- Les indicateurs de fichier exigent l'Antivirus Defender en mode **actif**, la protection cloud, le calcul du hachage des fichiers (`EnableFileHashComputation`) et la fonctionnalité avancée **Allow or block file**. Sous Windows, ils s'appliquent aux fichiers PE (.exe, .dll). Les indicateurs ne sont pas pris en charge en mode passif.
+- Les indicateurs d'IP et d'URL s'appuient sur SmartScreen dans Microsoft Edge et sur la protection réseau en **mode blocage** dans les autres navigateurs et processus. Un indicateur de domaine couvre aussi ses sous-domaines ; les chemins HTTPS ne sont reconnus que dans Microsoft Edge. Les plages d'IP et les caractères génériques ne sont pas pris en charge.
 - Entre indicateurs de fichier en conflit, le hachage le plus long l'emporte (SHA-256, puis SHA-1, puis MD5), et un indicateur de groupe d'appareils l'emporte sur un indicateur « tous les appareils ».
 - **Allow** ne crée pas d'alerte, **Audit** crée une alerte avec votre gravité, **Block** et **Warn** ne créent que des alertes informatives.
 - Les fichiers signés par Microsoft ne peuvent pas être bloqués, et les indicateurs de fichier ne l'emportent pas sur les exclusions de l'Antivirus Defender.
-- Une application prend en général effet en 15 à 30 minutes, jusqu'à 2 heures.
+- Un indicateur de fichier prend en général effet en 15 minutes (30 en moyenne), jusqu'à 2 heures. Un indicateur d'IP ou d'URL prend en général effet en moins de deux heures, mais peut demander jusqu'à 48 heures.
 
 Les **exclusions de dossiers d'automatisation** s'appliquent à tous les appareils intégrés et uniquement à l'enquête automatisée : les fichiers exclus restent analysés par l'antivirus. Champs : dossier (obligatoire, sous-dossiers inclus, caractère générique final accepté), extensions, noms de fichiers, description (obligatoire).
 
@@ -195,7 +197,7 @@ Add-MpPreference -AttackSurfaceReductionRules_Ids d4f940ab-401b-4efc-aadc-ad5f3c
 Add-MpPreference -AttackSurfaceReductionOnlyExclusions "C:\Tools\Packager\pack.exe"
 ```
 
-`Set-MpPreference` remplace toute la liste des règles ; `Add-MpPreference` la complète. Les paramètres locaux ont la priorité la plus basse. La stratégie de groupe l'emporte sur la MDM sauf si `MDMWinsOverGP` vaut 1.
+`Set-MpPreference` remplace toute la liste des règles ; `Add-MpPreference` la complète. Les paramètres locaux ont la priorité la plus basse. La stratégie de groupe l'emporte sur la MDM sauf si `MDMWinsOverGP` vaut 1. Avec la **protection de la configuration** (controlled configuration, en préversion), seules les stratégies Intune et Defender for Endpoint s'appliquent, et la stratégie de groupe, les scripts, Configuration Manager et les modifications locales sont ignorés.
 
 Les exclusions sont soit **globales** (`AttackSurfaceReductionOnlyExclusions`, toutes les règles), soit **par règle** (section ASR only per rule exclusions dans Intune et le portail Defender). Plusieurs règles ont une prise en charge limitée des exclusions, dont la règle LSASS.
 

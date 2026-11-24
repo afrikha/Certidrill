@@ -10,10 +10,10 @@ Un écouteur fait correspondre les requêtes entrantes sur quatre valeurs : **ad
 | Adresse IP frontale | Publique ou privée ; les deux écouteurs IPv4 (public et privé) peuvent partager un port, les écouteurs IPv6 public et privé ne le peuvent pas |
 | Port frontal | 1 à 64999 en v2 (certains ports exclus, comme 22 avec Private Link) |
 | Protocole | HTTP, HTTPS (couche 7), TLS, TCP (proxy de couche 4) |
-| Type | **De base** (Basic) : tout nom d'hôte sur cette adresse IP et ce port. **Multisite** : jusqu'à 5 noms d'hôte, caractères génériques `*` et `?` autorisés (`*.contoso.com`) |
+| Type | **De base** (Basic) : tout nom d'hôte sur cette adresse IP et ce port. **Multisite** : jusqu'à 5 noms d'hôte, caractères génériques `*` (plusieurs caractères) et `?` (un caractère) autorisés ; `*.contoso.com` correspond à `shop.contoso.com` et à `customer1.b2b.contoso.com`, mais pas à `contoso.com` |
 | Certificat | Obligatoire en HTTPS : un fichier PFX (clé privée et chaîne complète) ou une référence Key Vault |
 | Profil SSL | Facultatif : stratégie TLS propre à l'écouteur et authentification des clients |
-| Pages d'erreur personnalisées | Pour les codes 400, 403, 405, 408, 500, 502, 503, 504, globales ou par écouteur |
+| Pages d'erreur personnalisées | Pour les codes 400, 403, 405, 408, 500, 502, 503, 504 (404 n'est pas pris en charge), globales ou par écouteur ; les pages globales ne se configurent pas dans le portail (PowerShell) |
 
 HTTP/2 s'applique aux connexions des clients en HTTPS uniquement ; il est activé par défaut quand la passerelle est créée dans le portail. WebSocket ne demande aucun paramètre.
 
@@ -141,7 +141,7 @@ az network application-gateway ssl-cert create --resource-group RG-Web \
 | `AppGwSslPolicy20170401S` | TLS 1.2 | Chiffrements plus anciens quand ils sont exigés |
 | `CustomV2` | TLS 1.2 ou 1.3 | Votre propre ordre de chiffrements, prise en charge de TLS 1.3 |
 
-`AppGwSslPolicy20150501` et `AppGwSslPolicy20170401` (TLS 1.0 et 1.1) ne sont plus disponibles. Une stratégie s'applique à toute la passerelle ; un **profil SSL** donne à un écouteur sa propre stratégie.
+`AppGwSslPolicy20150501` (TLS 1.0 minimum, toujours la valeur par défaut pour les versions d'API antérieures à 2023-02-01) et `AppGwSslPolicy20170401` (TLS 1.1 minimum) figurent encore dans la liste, mais TLS 1.0 et 1.1 ne sont plus pris en charge depuis le 31 août 2025. Ces anciennes stratégies et les stratégies 2022 ou `CustomV2` ne peuvent pas coexister sur une même passerelle. Une stratégie s'applique à toute la passerelle ; un **profil SSL** donne à un écouteur sa propre stratégie, mais des écouteurs sur le même port ne peuvent pas utiliser des versions de protocole TLS différentes : utilisez un port distinct pour chaque version.
 
 **TLS mutuel** (Standard_v2 et WAF_v2) : dans un profil SSL, le mode **strict** exige un certificat client valide chaîné à un certificat d'autorité de certification cliente approuvée chargé sur la passerelle (racine plus intermédiaires, 25 Ko par fichier, 100 par profil, 200 par passerelle) ; le mode **passthrough** demande le certificat mais laisse le back-end le valider. Des variables de serveur comme `client_certificate` le transmettent au back-end.
 

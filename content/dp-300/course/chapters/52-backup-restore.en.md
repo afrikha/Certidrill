@@ -119,7 +119,7 @@ RESTORE LOG SalesDb FROM DISK = N'F:\Backup\SalesDb_log_1030.trn'
 
 `STOPATMARK` stops at a named transaction (`BEGIN TRANSACTION Release42 WITH MARK`). Point-in-time restore needs the FULL recovery model and an unbroken log chain.
 
-**Azure SQL Database and SQL Managed Instance:** PITR from the portal (database > Restore), Azure CLI, PowerShell or REST, never with T-SQL. It always creates a **new** database; you can't overwrite an existing one.
+**Azure SQL Database and SQL Managed Instance:** PITR from the portal (database > Restore), Azure CLI, PowerShell or REST, never with T-SQL. It always creates a **new** database; you can't overwrite an existing one. In SQL Database, PITR runs only on a primary database, never on a geo-secondary, and a restore between Hyperscale and the other service tiers isn't supported.
 
 ```bash
 az sql db restore --resource-group rg-data --server srv-sales --name SalesDb \
@@ -164,7 +164,7 @@ Set-AzSqlDatabaseBackupLongTermRetentionPolicy -ResourceGroupName "rg-data" -Ser
   -DatabaseName "SalesDb" -WeeklyRetention P12W -MonthlyRetention P12M -YearlyRetention P7Y -WeekOfYear 16
 ```
 
-Rules: you can't trigger an LTR backup or choose its time; the first one can take up to 7 days to appear (the most recent PITR full backup is copied when the policy is first enabled). LTR exists for SQL Database, including Hyperscale, and SQL Managed Instance. A restore creates a new database on any server or instance **of the same subscription** (`az sql db ltr-backup restore`, `Restore-AzSqlDatabase -FromLongTermRetentionBackup`). With geo-replication or failover groups, configure the same policy on the secondary: it takes effect only once that database becomes primary. SQL Server Contributor can restore LTR backups but not delete them.
+Rules: you can't trigger an LTR backup or choose its time; the first one can take up to 7 days to appear (the most recent PITR full backup is copied when the policy is first enabled). LTR exists for SQL Database, including Hyperscale, and SQL Managed Instance. A restore creates a new database on any server or instance **of the same subscription** (`az sql db ltr-backup restore`, `Restore-AzSqlDatabase -FromLongTermRetentionBackup`). With geo-replication or failover groups, configure the same policy on the secondary: it takes effect only once that database becomes primary. SQL Server Contributor can restore LTR backups but not delete them. LTR backups can be made immutable (in preview for SQL Managed Instance); immutable LTR backups also block the deletion of the logical server.
 
 > **Exam tip.** "Keep backups for 7 years for compliance" = LTR, never a PITR retention (35 days maximum). On SQL Server VMs, the equivalent is Azure Backup retention policies.
 
@@ -199,8 +199,9 @@ Rules to remember:
 - Backup to URL over HTTP and to premium storage isn't supported.
 - Use `MAXTRANSFERSIZE = 4194304` and `BLOCKSIZE = 65536` for large backups, and stripe them to stay under the block limit.
 - Starting with SQL Server 2025, backup to URL can authenticate with a managed identity (preview, SQL Server enabled by Azure Arc).
+- Immutable blob storage is supported starting with SQL Server 2025, with container-level immutability only (not version-level); on an immutable container, `WITH FORMAT` fails when a backup with the same name already exists.
 
-On **SQL Managed Instance**, the credential uses a SAS or the instance's managed identity (access keys aren't supported), a backup can use up to 32 stripes of at most 195 GB each, and only `BACKUP ... TO URL WITH COPY_ONLY` is allowed. Native restore from URL is how you bring a `.bak` from SQL Server into a managed instance, and a backup taken on a managed instance can be restored to SQL Server 2022 only.
+On **SQL Managed Instance**, the credential uses a SAS or the instance's managed identity (access keys aren't supported), a backup can use up to 32 stripes of at most 195 GB each (enough for databases up to 4 TB with backup compression), and only `BACKUP ... TO URL WITH COPY_ONLY` is allowed. Native restore from URL is how you bring a `.bak` from SQL Server into a managed instance, and a copy-only backup taken on a managed instance restores to SQL Server according to the instance's update policy: SQL Server 2022 policy to SQL Server 2022, SQL Server 2025 policy (the default for new instances deployed from the portal) to SQL Server 2025, Always-up-to-date to no SQL Server version.
 
 > **Exam trap.** Restoring a SQL Server backup into SQL Managed Instance uses `RESTORE ... FROM URL`, not `FROM DISK`: upload the `.bak` to Blob Storage first. Into Azure SQL Database, a `.bak` can't be restored at all; use a BACPAC or a migration tool.
 

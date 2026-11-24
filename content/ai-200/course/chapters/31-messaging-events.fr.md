@@ -49,7 +49,7 @@ with client.get_queue_sender(queue_name="summarize-jobs") as sender:
 | `time_to_live` | Expiration du message |
 | `scheduled_enqueue_time_utc` ou `sender.schedule_messages()` | Remise différée |
 
-`add_message` lève `ValueError` quand le lot créé par `create_message_batch()` est plein : envoyez-le et commencez-en un nouveau. Les sessions et la détection des doublons se choisissent à la création de la file d'attente ou de l'abonnement.
+`add_message` lève `ValueError` quand le lot créé par `create_message_batch()` est plein : envoyez-le et commencez-en un nouveau. Les sessions (file d'attente ou abonnement) et la détection des doublons (file d'attente ou rubrique) ne s'activent qu'à la création de l'entité, sans modification possible ensuite ; la fenêtre de détection des doublons (10 minutes par défaut, de 20 secondes à 7 jours) peut être modifiée plus tard.
 
 > **Piège d'examen.** « Traiter les étapes de chaque conversation dans l'ordre » exige une entité **avec sessions activées** et un `session_id` sur chaque message, en Standard ou Premium. Une simple file d'attente avec des consommateurs concurrents ne préserve pas l'ordre.
 
@@ -98,12 +98,13 @@ Chaque file d'attente et chaque abonnement possède une sous-file de lettres mor
 | Raison (`dead_letter_reason`) | Cause |
 | --- | --- |
 | `MaxDeliveryCountExceeded` | Remis plus de fois que **MaxDeliveryCount** (10 par défaut) : abandons ou verrous expirés |
+| `HeaderSizeExceeded` | Le quota de taille du flux du message a été dépassé |
 | `TTLExpiredException` | Le message a expiré et les lettres mortes à l'expiration des messages sont activées sur l'entité |
 | `Session ID is null` | Un message sans `session_id` envoyé à une entité avec sessions activées |
 | `MaxTransferHopCountExceeded` | Plus de quatre sauts de transfert automatique |
 | Votre propre raison | L'application a appelé `dead_letter_message` (message incohérent, validation échouée) |
 
-Un abonnement peut aussi placer en lettres mortes les messages dont l'évaluation du filtre lève une exception, si cette option est activée. Les messages expirés sont simplement supprimés quand les lettres mortes à l'expiration sont désactivées.
+Un abonnement peut aussi placer en lettres mortes les messages dont l'évaluation du filtre lève une exception, si cette option est activée. Les messages expirés sont simplement supprimés quand les lettres mortes à l'expiration sont désactivées. Les messages différés qui expirent ne sont pas déplacés vers la DLQ.
 
 ```text
 from azure.servicebus import ServiceBusSubQueue
@@ -174,7 +175,7 @@ from azure.eventgrid import EventGridPublisherClient
 
 client = EventGridPublisherClient(
     "https://eval-events.westeurope-1.eventgrid.azure.net/api/events",
-    DefaultAzureCredential(),            # identity holds Event Grid Data Sender
+    DefaultAzureCredential(),            # identity holds EventGrid Data Sender
 )
 
 client.send([
@@ -189,7 +190,7 @@ client.send([
 
 | Besoin | Paramètre |
 | --- | --- |
-| Authentifier l'éditeur | Microsoft Entra ID avec **Event Grid Data Sender**, ou la clé d'accès de la rubrique (`AzureKeyCredential`) |
+| Authentifier l'éditeur | Microsoft Entra ID avec **EventGrid Data Sender**, ou la clé d'accès de la rubrique (`AzureKeyCredential`) |
 | Schéma Event Grid au lieu de CloudEvents | `EventGridEvent(subject=..., event_type=..., data=..., data_version="1.0")` |
 | Meilleur débit | Envoyer une liste d'événements en un appel plutôt qu'un appel par événement |
 | Gestionnaire webhook | Doit répondre à la négociation de validation de l'abonnement ; le déclencheur Event Grid d'Azure Functions le fait pour vous |
@@ -240,7 +241,7 @@ Event Grid attend une réponse pendant 30 secondes ; 200 à 204 signifie succès
 | Nombre maximal de tentatives de remise | 1–30 | 30 |
 | Durée de vie de l'événement | 1–1 440 minutes | 1 440 (24 heures) |
 
-La première limite atteinte met fin à la remise. Certaines réponses ne sont pas réessayées : 400 (requête incorrecte), 403 (interdit) et 413 (charge utile trop grande) pour tous les points de terminaison, plus 401 pour les webhooks ; 400 et 413 placent immédiatement l'événement en lettres mortes. Les lettres mortes sont **désactivées par défaut** : sans elles, les événements impossibles à remettre sont supprimés. Activez-les avec un conteneur d'objets blob ; l'événement en lettres mortes ajoute `deadLetterReason`, `deliveryAttempts` et `lastDeliveryOutcome`.
+La première limite atteinte met fin à la remise. Certaines réponses ne sont pas réessayées : 400 (requête incorrecte), 403 (interdit) et 413 (charge utile trop grande) pour tous les points de terminaison, plus 401 pour les webhooks (un 401 d'un point de terminaison de ressource Azure est réessayé après 5 minutes ou plus) ; 400 et 413 placent immédiatement l'événement en lettres mortes. Les lettres mortes sont **désactivées par défaut** : sans elles, les événements impossibles à remettre sont supprimés. Activez-les avec un conteneur d'objets blob : l'événement y arrive 5 minutes après la dernière tentative, et il est supprimé si le conteneur reste indisponible pendant 4 heures. L'événement en lettres mortes ajoute `deadLetterReason`, `deliveryAttempts` et `lastDeliveryOutcome`.
 
 ```bash
 az eventgrid event-subscription create --name low-scores \
@@ -270,6 +271,6 @@ Le traitement par lots (désactivé par défaut) regroupe jusqu'à 5 000 événe
 - Peek-lock (défaut) est « au moins une fois » : `complete`, `abandon`, `dead_letter`, `defer` ; verrou de 1 minute par défaut, 5 au plus, à renouveler pour un long travail ; gestionnaires idempotents.
 - Une DLQ par file d'attente et par abonnement ; `MaxDeliveryCountExceeded` après 10 remises par défaut ; lisez-la avec `sub_queue=ServiceBusSubQueue.DEAD_LETTER` et renvoyez un nouveau message.
 - `$Default` accepte tout tant qu'elle n'est pas supprimée ; les filtres de corrélation sont les moins coûteux ; les filtres lisent les propriétés, jamais le corps.
-- Event Grid : rubriques personnalisées, schéma CloudEvents ou Event Grid, Event Grid Data Sender, « au moins une fois », sans ordre.
+- Event Grid : rubriques personnalisées, schéma CloudEvents ou Event Grid, EventGrid Data Sender, « au moins une fois », sans ordre.
 - Filtres : types d'événements, préfixe ou suffixe de l'objet, filtres avancés (valeurs en OU, filtres en ET, limite de 25).
 - Nouvelles tentatives : 30 tentatives et 24 heures par défaut, la première limite l'emporte ; les lettres mortes vers un conteneur d'objets blob sont désactivées par défaut.

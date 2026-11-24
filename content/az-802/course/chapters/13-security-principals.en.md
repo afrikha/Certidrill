@@ -68,7 +68,7 @@ Points that decide answers:
 - **Only domain local groups** (and local groups of computers) can contain principals of another forest. Global and universal groups are limited to their domain and their forest.
 - A one-way trust allows members of the trusted forest to be added to groups of the trusting forest, not the reverse. `Get-ADGroupMember` can fail on a group of the trusting forest that contains members of the trusted forest; use Active Directory Users and Computers in that case.
 - **UPN suffixes** let users sign in with a friendly name (`ana@contoso.com`) whatever their domain: add them in Active Directory Domains and Trusts (properties of the root node) or with `Set-ADForest -UPNSuffixes @{Add="contoso.com"}`. Across a forest trust, the suffixes are routed to the forest that owns them; a suffix used in both forests is in conflict.
-- Moving a user to another domain of the forest gives it a new SID; moving it between OUs of the same domain keeps it.
+- Moving a user to another domain of the forest gives it a new SID; the old SID is copied to `SIDHistory` and stays in the access token, so ACLs that name the old SID don't need to change. Moving it between OUs of the same domain keeps its SID.
 
 ```powershell
 # Universal group in the forest root, fed by the global groups of two domains
@@ -91,7 +91,7 @@ Add-ADGroupMember -Identity "DL-Finance-Share-Read" `
 | Domain user account | Set and rotated by an administrator, follows the password policy | Any server | Only for applications that support nothing else |
 | Standalone managed service account (sMSA) | Managed by Windows | One computer | A service on one server, never a cluster or farm |
 | Group managed service account (gMSA) | Computed by the DCs (default rotation every 30 days), retrieved by authorized hosts | Several servers | A farm, a load-balanced service, a cluster, scheduled tasks on several servers |
-| Delegated managed service account (dMSA) | Fully randomized keys held by the DCs, bound to the machine identity | Computers mapped to it (Windows Server 2025) | Replace an existing service account and stop credential theft (kerberoasting) |
+| Delegated managed service account (dMSA) | Fully randomized keys held by the DCs, bound to the machine identity | Computers mapped to it (Windows Server 2025) | A new standalone account, or the replacement of an existing service account, that stops credential theft (kerberoasting) |
 | Virtual account (`NT SERVICE\name`) | None; uses the computer account on the network | One computer | A local service that needs no domain identity of its own |
 
 **gMSA prerequisites and steps:**
@@ -117,9 +117,9 @@ Test-ADServiceAccount -Identity "svc-web"
 
 Rules to remember: gMSA names are unique in the forest; the password interval (`-ManagedPasswordIntervalInDays`) can be set only at creation; `Reset-ADServiceAccountPassword` applies to sMSAs only; to let another host use the gMSA, add its computer account to the group. An sMSA is created with `New-ADServiceAccount -RestrictToSingleComputer`, linked to its computer with `Add-ADComputerServiceAccount`, then installed with `Install-ADServiceAccount`.
 
-**dMSA migration** (Windows Server 2025): create the dMSA with `New-ADServiceAccount -CreateDelegatedServiceAccount`, start the migration with `Start-ADServiceAccountMigration -Identity "<dMSA>" -SupersededAccount "<DN of the old account>"`, let it learn the computers that use the old account, then run `Complete-ADServiceAccountMigration`. The old account is disabled and its SPNs move to the dMSA. Prerequisites: a KDS root key, Windows Server 2025 DCs, and the **Enable Delegated Managed Service Account logons** Kerberos policy (or the `DelegatedMSAEnabled` registry value) on the computers. You can't migrate an sMSA or a gMSA to a dMSA; don't delete the old account after migration.
+**dMSA migration** (Windows Server 2025): create the dMSA with `New-ADServiceAccount -CreateDelegatedServiceAccount`, start the migration with `Start-ADServiceAccountMigration -Identity "<dMSA>" -SupersededAccount "<DN of the old account>"`, let it learn the computers that use the old account, then run `Complete-ADServiceAccountMigration`. The old account is disabled and its SPNs move to the dMSA. Prerequisites: a KDS root key, Windows Server 2025 (dMSA setup is available only on Windows Server 2025, and every machine that uses the account must support dMSA), a writable DC for the migration, and the **Enable Delegated Managed Service Account logons** Kerberos policy (or the `DelegatedMSAEnabled` registry value) on the computers. Once the account is linked, restart the services that use it; the dMSA adds a computer at each ticket renewal. A dMSA can also be created as a standalone account, without migration. You can't migrate an sMSA or a gMSA to a dMSA; don't delete the old account after migration.
 
-> **Exam trap.** "The service runs on three servers behind a load balancer and the password must change automatically" is a gMSA, not an sMSA (one computer) and not a dMSA (which replaces an existing account and binds it to mapped machines). If the gMSA creation succeeds but the host can't use it, check the KDS root key age and the host's group membership.
+> **Exam trap.** "The service runs on three Windows Server 2022 servers behind a load balancer and the password must change automatically" is a gMSA, not an sMSA (one computer) and not a dMSA (available only on Windows Server 2025). If the gMSA creation succeeds but the host can't use it, check the KDS root key age and the host's group membership.
 
 <!-- section: key-points -->
 ## Key points
@@ -128,5 +128,5 @@ Rules to remember: gMSA names are unique in the forest; the password interval (`
 - AGDLP: accounts in global groups, global groups in domain local groups, permissions on domain local groups; universal groups to span domains.
 - Principals of another forest go only into domain local groups; they appear as foreign security principals.
 - UPN suffixes are added at the forest level and routed across forest trusts.
-- sMSA: one computer. gMSA: several hosts, needs a KDS root key and a host group. dMSA: Windows Server 2025, replaces an existing service account and binds it to machines.
+- sMSA: one computer. gMSA: several hosts, needs a KDS root key and a host group. dMSA: Windows Server 2025, a standalone account or the replacement of an existing service account, bound to machines.
 - gMSA steps: `Add-KdsRootKey`, `New-ADServiceAccount -PrincipalsAllowedToRetrieveManagedPassword`, `Install-ADServiceAccount`, `Test-ADServiceAccount`.

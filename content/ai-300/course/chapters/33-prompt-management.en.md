@@ -7,19 +7,20 @@ With chat models, a prompt is made of a **system message** (instructions that se
 
 | Technique | When it helps | Note |
 | --- | --- | --- |
-| Clear instructions at the start | Always: say the task before the context and examples | Newer chat models are less sensitive to the order than older ones |
+| Clear instructions at the start | Always: say the task before the context and examples | Still recommended; in Learn's tests, ChatGPT and GPT-4 gave the same response whether the statement came first or last |
 | Repeat instructions at the end | The model ignores a rule given early in a long prompt | Models show **recency bias**: the end of the prompt weighs more |
 | Few-shot examples | The output must follow a format or style the model doesn't infer | Conditions the current inference only; the model isn't changed. The order of examples matters |
 | Break the task down | Multi-part requests produce incomplete answers | Ask for steps separately (for example extract facts, then answer) |
 | Chain of thought | Non-reasoning models make errors on multi-step problems | Ask the model to proceed step by step. **Only for non-reasoning models** |
-| Specify the output structure | Responses must be parsed or must cite sources | Ask for citations or a fixed structure; citations make fabricated statements less likely |
+| Specify the output structure | Responses must be parsed or must cite sources | Ask for citations or a fixed structure; citations make fabricated statements less likely, and **inline** citations work better than citations at the end |
 | Clear syntax and delimiters | Instructions and data get mixed up | Separate sections with Markdown headings or XML tags |
 | Priming the output | The response must start in a given form | End the prompt with the first words of the expected answer |
 | Grounding context | Answers must be factual and current | Provide the source data; the closer it is to the final answer, the fewer errors |
+| Use of affordances | The model must check facts or get current information instead of relying on its parameters | Tell it to emit calls such as `SEARCH("query")`, stop generation at those calls, run them, then paste the results back into the prompt |
 
-Learn states that these prompt engineering techniques aren't recommended for **reasoning models** (gpt-5 and o-series), and that some techniques give different results with newer models: test them with an evaluation rather than assuming they help. Extracting a reasoning model's reasoning by any method other than its reasoning summary parameter isn't supported.
+Learn states that these prompt engineering techniques aren't recommended for **reasoning models** (gpt-5 and o-series), and that some techniques give different results with newer models: test them with an evaluation rather than assuming they help. Extracting a reasoning model's reasoning by any method other than its reasoning summary parameter (`reasoning.summary`, Responses API) isn't supported, and summaries aren't guaranteed for every request.
 
-Generation parameters complete the design. `temperature` ranges from 0 to 2: low values give focused, repeatable output; high values more varied output. Change either `temperature` or `top_p`, not both. Cap the output length to control cost.
+Generation parameters complete the design. `temperature` ranges from 0 to 2: low values give focused, repeatable output; high values more varied output. Change either `temperature` or `top_p`, not both. Cap the output length to control cost. Reasoning models other than GPT-6 Astra don't support `temperature`, `top_p` or `max_tokens`: cap their output with `max_output_tokens` (Responses API) or `max_completion_tokens` (Chat Completions).
 
 A system message structure that works well and versions cleanly:
 
@@ -77,10 +78,10 @@ A **variant** is an alternative version of a prompt or of its settings (instruct
 
 | Tool | How it compares |
 | --- | --- |
-| Evaluation runs in the portal | Select two or more runs, then **Compare**; set a **baseline run**. Cells are colored using statistical t-tests (for example ImprovedStrong for p at most 0.001 in the desired direction, Inconclusive when there are too few examples or p is 0.05 or more). The comparison view isn't saved |
+| Evaluation runs in the portal | Select two or more runs, then **Compare**; set a **baseline run**. Cells are colored using statistical t-tests (Improved = desired direction, Degraded = wrong direction, Changed = no desired direction; suffix Strong for p at most 0.001, Weak for p above 0.001 and at most 0.05, for example ImprovedStrong or DegradedWeak; Inconclusive when there are too few examples or p is 0.05 or more). The comparison view isn't saved |
 | `microsoft/ai-agent-evals` GitHub Action (preview) | `agent-ids: "order-agent:3,order-agent:4"` evaluates several versions on the data file; the first is the baseline unless `baseline-agent-id` is set; the summary shows confidence intervals and a pairwise significance test |
 
-For runs against a model target, the run details also show p50 and p95 end-to-end latency and an estimated cost from token usage (evaluator model usage excluded).
+For runs against a model target, the run details also show p50 and p95 end-to-end latency and an estimated cost from token usage. The estimate exists only for **Global Standard** model deployments, is marked **partial** when some models can't be priced, and excludes evaluator model usage, evaluation runtime costs, negotiated pricing, commitments and discounts: use Azure billing data for actual charges.
 
 **In Foundry (classic) prompt flow**, variants are a built-in feature of the **LLM tool** node: the original node is `variant_0` (the default); **Clone** creates `variant_1` with different prompt text or parameters. A single run tests the variants of one LLM node at a time, the other nodes using their default variant. To compare at scale, run a batch run with an evaluation method over a dataset, then multi-select the variant runs and select **Visualize outputs**; finally set the best variant as the node's default. Prompt flow is retired on **April 20, 2027**, is no longer recommended for new development, and its replacement is Microsoft Agent Framework (evaluation flows map to Azure AI Evaluation SDK evaluators).
 

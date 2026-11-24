@@ -74,7 +74,7 @@ Two services connect an on-premises network to Azure:
 | Path | **Encrypted** tunnel over the **public internet** | **Private** connection through a connectivity provider; doesn't use the public internet |
 | Use | Site-to-site (a whole network), point-to-site (one computer), network-to-network | Large or sensitive workloads that need reliability, speed and consistent latency |
 | Cost and setup | Lower cost, quick to set up | Higher cost, depends on a provider |
-| Notes | One VPN gateway per virtual network; can serve as a failover path for ExpressRoute | Built-in redundancy; reaches all regions of a geography, or worldwide with Global Reach |
+| Notes | One VPN gateway per virtual network; can serve as a failover path for ExpressRoute | Built-in redundancy; reaches all regions of a geopolitical region, or every region worldwide with the ExpressRoute Premium add-on. ExpressRoute Global Reach links your on-premises sites to each other through their circuits |
 
 <!-- section: endpoints | objectives: 2.2.6 -->
 ## Public and private endpoints

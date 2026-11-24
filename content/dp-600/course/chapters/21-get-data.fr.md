@@ -13,7 +13,7 @@ Créez-en une dans **Paramètres > Gérer les connexions et les passerelles > Co
 | Type de connexion | Le connecteur : SQL Server, Azure Data Lake Storage Gen2, Amazon S3, etc. |
 | Méthode d'authentification | Dépend du connecteur : pour SQL Server, **Basic**, **OAuth2** ou **Service Principal**. Les jetons OAuth2 peuvent expirer pendant les longues requêtes ; les comptes Entra d'un autre locataire ne sont pas pris en charge |
 | Niveau de confidentialité | Facultatif ; utilisé par Power Query pour combiner des sources. Sans effet en DirectQuery |
-| Utilisation par une passerelle | **This connection can be used with on-premise data gateways and VNet data gateways** (case à cocher) |
+| Utilisation par une passerelle | **This connection can be used with on-premise data gateways and VNet data gateways** (case à cocher). Pour les connexions cloud créées par Dataflow Gen2, elle n'est pas appliquée actuellement : toute connexion cloud partageable passe par une passerelle s'il y en a une |
 
 Chaque connexion a sa **propre liste d'accès**, distincte des rôles d'espace de travail :
 
@@ -64,7 +64,7 @@ Depuis le hub, vous **connectez** une source (Event Hubs, Service Bus, IoT Hub, 
 | --- | --- |
 | Utiliser des données d'ADLS Gen2, S3, Google Cloud Storage, Dataverse ou d'un autre élément Fabric **sans les copier** | Raccourci OneLake |
 | Garder une base opérationnelle (Azure SQL, SQL Server, Cosmos DB, Snowflake, PostgreSQL...) répliquée en quasi-temps réel, sans ETL à construire | Mise en miroir |
-| Copier des données avec des chargements incrémentiels ou CDC depuis un assistant, sans pipeline à concevoir | Travail de copie (Copy job) |
+| Copier des données avec des chargements incrémentiels ou CDC depuis un assistant, sans pipeline à concevoir | Travail de copie (Copy job), qui peut aussi s'exécuter comme activité de travail de copie dans un pipeline |
 | Déplacer de gros volumes selon une planification, avec orchestration et flux de contrôle | Pipeline avec une activité de copie |
 | Nettoyer, remodeler et fusionner des données avec Power Query, en low code | Dataflow Gen2 |
 | Transformation complexe en code, à grande échelle (PySpark, Spark SQL) | Notebook |
@@ -75,10 +75,10 @@ Les **raccourcis** se comportent comme des liens symboliques : les données rest
 
 - Dans le dossier **Tables** d'un lakehouse, un raccourci doit être au **premier niveau** et pointer vers des données **Delta** pour apparaître comme une table. Dans **Files**, n'importe quel niveau et n'importe quel format.
 - Cibles : d'autres éléments Fabric (lakehouse, entrepôt, base de données KQL, base de données en miroir, base de données SQL, modèle sémantique) et des stockages externes (ADLS Gen2, Stockage Blob Azure, Amazon S3 et compatibles S3, Google Cloud Storage, Dataverse, OneDrive et SharePoint, Iceberg, local par une passerelle).
-- Les raccourcis internes utilisent l'**identité de l'appelant** (passthrough) : l'utilisateur doit avoir accès en lecture à la cible. Les raccourcis externes utilisent les informations d'identification de la **connexion**.
+- Les raccourcis internes utilisent l'**identité de l'appelant** (passthrough) : l'utilisateur doit avoir accès en lecture à la cible. Exception : par Direct Lake sur SQL, ou en T-SQL en mode identité déléguée, c'est l'identité du propriétaire de l'élément appelant qui atteint la cible ; utilisez Direct Lake sur OneLake ou T-SQL en mode identité de l'utilisateur pour vérifier l'accès propre de l'utilisateur. Les raccourcis externes utilisent les informations d'identification de la **connexion**.
 - **Supprimer un raccourci** laisse la cible intacte ; supprimer un fichier **à l'intérieur** d'un raccourci le supprime dans la cible.
 - La mise en cache des raccourcis S3, compatibles S3, Google Cloud Storage et par passerelle réduit les sorties de données : 1 à 28 jours, les fichiers de plus de 1 Go ne sont pas mis en cache.
-- Un entrepôt peut être la **cible** d'un raccourci, mais les raccourcis se créent dans les lakehouses et les bases de données KQL.
+- Un entrepôt peut être la **cible** d'un raccourci, mais les raccourcis se créent dans les lakehouses et les bases de données KQL. Un eventhouse peut aussi contenir un **raccourci de base de données**, qui partage tout ou partie des sous-éléments d'une autre base de données du même locataire et de la même région.
 
 La **mise en miroir** crée un élément base de données en miroir doté d'un point de terminaison d'analytique SQL, et réplique la source dans des tables Delta de OneLake :
 

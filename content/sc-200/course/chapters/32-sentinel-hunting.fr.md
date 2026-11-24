@@ -23,14 +23,14 @@ Surveiller et exploiter les résultats :
 | Results delta, Results delta percentage | Dernières 24 heures comparées aux 24 à 48 heures précédentes, pour repérer les pics |
 | Favorites | Les requêtes favorites s'exécutent automatiquement à chaque ouverture de la page Hunting |
 | N/A dans le filtre Results | Requêtes dont les sources de données ne sont pas connectées |
-| Signets (bookmarks) | Lignes conservées d'un résultat avec la requête, des étiquettes, des notes, des mappages d'entités et MITRE ; stockés dans la table `HuntingBookmark` |
-| Incident actions | Transformer des signets en nouvel incident ou les ajouter à un incident existant |
+| Signets (bookmarks) | Lignes conservées d'un résultat avec la requête, des étiquettes, des notes, des mappages d'entités et MITRE ; stockés dans la table `HuntingBookmark`. Créés uniquement dans le portail Azure (**Add bookmark**) ; le portail Defender affiche les signets existants mais ne permet pas d'en ajouter |
+| Incident actions | Transformer des signets en nouvel incident ou les ajouter à un incident existant (portail Azure uniquement) |
 | Hunts (préversion) | Un projet de chasse : hypothèse, requêtes, signets, état, commentaires et métriques ; les règles d'analytique et les incidents créés depuis la chasse y sont liés |
 | New alert rule > Create Microsoft Sentinel alert | Transforme la requête en règle d'analytique planifiée |
 
 Les requêtes de chasse s'exécutent sur le **niveau Analytics** : les données stockées uniquement dans le data lake ne sont interrogées ni par elles ni par les règles d'analytique. Les sessions **Livestream** ne sont plus disponibles : utilisez à la place des tâches KQL, des règles d'analytique (planifiées ou NRT) ou des playbooks.
 
-> **Piège d'examen.** Une requête de chasse ne déclenche jamais d'alerte à elle seule. « Exécuter cette requête de chasse toutes les heures et créer des incidents » correspond à une règle d'analytique créée depuis la requête. « Conserver ces lignes suspectes comme preuves et les rattacher à l'incident 42 » correspond à un signet. Les signets existent dans la page Hunting de Sentinel, pas dans le repérage avancé.
+> **Piège d'examen.** Une requête de chasse ne déclenche jamais d'alerte à elle seule. « Exécuter cette requête de chasse toutes les heures et créer des incidents » correspond à une règle d'analytique créée depuis la requête. « Conserver ces lignes suspectes comme preuves et les rattacher à l'incident 42 » correspond à un signet. Les signets existent dans la page Hunting de Sentinel, pas dans le repérage avancé, et jusqu'au retrait du portail Azure ils se créent et s'ajoutent aux incidents uniquement dans le portail Azure ; dans le portail Defender, utilisez **Link to incident** depuis les résultats du repérage avancé.
 
 <!-- section: kql-jobs | objectives: 3.2.2 -->
 ## Créer et gérer des tâches KQL dans le data lake
@@ -78,7 +78,7 @@ CommonSecurityLog
 
 Le `delay` absorbe la latence d'ingestion du lake pour ne pas manquer d'événements tardifs entre deux exécutions.
 
-**Gérer les tâches** : la page **Jobs** (tâches KQL, de notebook et de graphe) affiche l'état, les dernière et prochaine exécutions et les problèmes d'intégrité récents. Le volet de détails d'une tâche KQL propose **Enable** / **Disable**, **Edit** (la requête peut changer mais doit garder le même schéma de sortie ; modifier une tâche unique la réexécute), **View history** (exécutions, état, lignes envoyées) et **Delete** (définitif ; une tâche en cours ne peut pas être supprimée). Une tâche dont l'espace de travail source a été supprimé est désactivée automatiquement.
+**Gérer les tâches** : la page **Jobs** (tâches KQL, de notebook et de graphe) affiche l'état, les dernière et prochaine exécutions et les problèmes d'intégrité récents. Le volet de détails d'une tâche KQL propose **Enable** / **Disable**, **Edit** (la requête peut changer mais doit garder le même schéma de sortie ; modifier une tâche unique la réexécute), **View history** (exécutions, état, lignes envoyées) et **Delete** (définitif ; une tâche en cours ne peut pas être supprimée). Désactiver ou supprimer une tâche n'arrête pas les exécutions déjà en cours ou en file d'attente ; seules les exécutions futures ne sont plus planifiées. Une tâche dont l'espace de travail source a été supprimé est désactivée automatiquement.
 
 Autorisations : un rôle Microsoft Entra qui peut écrire au niveau Analytics et planifier des tâches (Security Operator ou Security Administrator) et, pour créer de **nouvelles** tables au niveau Analytics, le rôle **Log Analytics Contributor** sur l'espace de travail pour l'identité managée du data lake `msg-resources-<guid>`.
 
@@ -100,7 +100,7 @@ Créez-la dans **Microsoft Sentinel > Configuration > Summary rules** (l'espace 
 | Colonnes ajoutées | `_RuleName`, `_RuleLastModifiedTime`, `_BinSize`, `_BinStartTime` |
 | Règles actives | 100 par espace de travail |
 | Non pris en charge | `workspaces()`, `app()`, `resource()`, `ADX()`, `ARG()`, `union *`, `bag_unpack`, `narrow`, `pivot`, fonctions définies par l'utilisateur |
-| Échecs | 10 nouvelles tentatives en 8 heures, puis l'intervalle est ignoré ; les intervalles en échec peuvent être réexécutés |
+| Échecs | 10 nouvelles tentatives en 8 heures, puis l'intervalle est ignoré ; les intervalles en échec peuvent être réexécutés ; après huit nouvelles tentatives consécutives d'intervalles, la règle passe à `isActive: false` et est suspendue |
 | Coût | Pas de frais pour la règle ; sources Analytics : ingestion des résultats uniquement ; sources Basic et Auxiliary : données analysées plus ingestion des résultats |
 
 N'ajoutez pas de filtre de temps à la requête : l'intervalle définit la plage de temps. Testez d'abord la requête dans **Hunts** et gardez des résultats petits (Microsoft suggère environ 0,01 % du volume source).
@@ -119,7 +119,7 @@ Surveillance : activez la catégorie **Summary Logs** dans les paramètres de di
 | Requête planifiée ou unique sur les données du lake, résultats promus au niveau Analytics | Tâche KQL |
 | Recherche ponctuelle dans la rétention à long terme d'une table Analytics | Travail de recherche (table `_SRCH`) |
 
-> **Piège d'examen.** Une règle de synthèse ne traite pas l'historique : elle ne traite que des intervalles récents, à partir de son heure de début. « Détecter au coût le plus bas l'apparition d'une IP du flux de renseignement sur les menaces dans 1 To/jour de journaux de pare-feu » correspond à une règle de synthèse sur la table bon marché plus une règle d'analytique sur la table de synthèse.
+> **Piège d'examen.** Une règle de synthèse ne traite pas l'historique : elle ne traite que des intervalles récents, à partir de son heure de début, et des données du passé récent jusqu'à 24 heures au plus. « Détecter au coût le plus bas l'apparition d'une IP du flux de renseignement sur les menaces dans 1 To/jour de journaux de pare-feu » correspond à une règle de synthèse sur la table bon marché plus une règle d'analytique sur la table de synthèse.
 
 <!-- section: notebooks-mcp | objectives: 3.2.4 -->
 ## Chasser avec des notebooks et le serveur MCP Sentinel
@@ -137,14 +137,14 @@ data_provider.save_as_table(failed, "FailedSignins_SPRK", write_options={"mode":
 | Point | Valeur |
 | --- | --- |
 | Pools | Small (exploration), Medium (jointures, agrégations, ML), Large (deep learning, grosses jointures) |
-| Démarrage de session | Quelques minutes la première fois |
-| Expiration d'une session interactive | 30 minutes par défaut, configurable |
+| Démarrage de session | 3 à 6 minutes la première fois ; les exécutions suivantes sont plus rapides |
+| Expiration d'une session interactive | Paramètre d'expiration de session : 30 minutes par défaut, configurable ; les limites du service indiquent une expiration après 20 minutes d'inactivité |
 | Expiration d'une requête interactive | 2 heures |
 | Expiration et simultanéité des tâches de notebook | 8 heures ; 3 tâches à la fois, les suivantes en file d'attente |
 | Bibliothèques | Bibliothèques Azure Synapse et bibliothèque Microsoft Sentinel Provider uniquement ; pas de `pip install` |
 | Affichage | 100 000 lignes dans VS Code |
 
-Un notebook peut être planifié comme **tâche de notebook** depuis l'extension pour écrire des résultats dans le data lake ou au niveau Analytics ; la page Jobs du portail Defender l'affiche en lecture seule. Créer des tables au niveau Analytics exige la même attribution Log Analytics Contributor de `msg-resources-<guid>` que les tâches KQL.
+Un notebook peut être planifié comme **tâche de notebook** depuis l'extension pour écrire des résultats dans le data lake ou au niveau Analytics ; dans la page Jobs du portail Defender, vous pouvez consulter son détail et son historique et activer ou désactiver sa planification, mais pas la modifier. Une fois soumise, la tâche n'est plus liée au notebook local : pour la changer, téléchargez la définition de la tâche, modifiez le notebook, puis **Edit job** et **Submit** (un nouveau nom de tâche crée une nouvelle définition de tâche). Créer des tables au niveau Analytics exige la même attribution Log Analytics Contributor de `msg-resources-<guid>` que les tâches KQL.
 
 Le **serveur MCP Microsoft Sentinel** expose des collections d'outils sur le data lake et les données Defender aux clients MCP : Security Copilot, Copilot Studio, Microsoft Foundry et Visual Studio Code (conversation GitHub Copilot en mode agent). Il est hébergé par Microsoft et s'authentifie avec Microsoft Entra ID.
 
@@ -176,7 +176,7 @@ Des outils MCP personnalisés peuvent aussi exposer vos requêtes KQL de repéra
 <!-- section: key-points -->
 ## Points clés
 
-- Requêtes de chasse : New query avec mappages d'entités et MITRE, Results delta, Favorites, signets vers les incidents, Hunts ; niveau Analytics uniquement ; plus de livestream.
+- Requêtes de chasse : New query avec mappages d'entités et MITRE, Results delta, Favorites, signets vers les incidents (créés dans le portail Azure), Hunts ; niveau Analytics uniquement ; plus de livestream.
 - Tâches KQL : promouvoir des données du lake au niveau Analytics (`_KQL_CL`), uniques ou planifiées, 100 tâches activées, 5 exécutions simultanées, expiration à 1 heure ; `msg-resources-<guid>` exige Log Analytics Contributor pour les nouvelles tables.
 - Règles de synthèse : intervalles de 20 à 1 440 minutes, destination `_CL` Analytics, n'importe quel plan source, 100 règles par espace de travail, surveillées dans `LASummaryLogs`.
 - Notebooks : VS Code avec l'extension Microsoft Sentinel, pools Spark, `MicrosoftSentinelProvider`, tâches de notebook.

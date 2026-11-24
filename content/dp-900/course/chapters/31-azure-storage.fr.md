@@ -28,9 +28,10 @@ Les niveaux d'accès équilibrent le coût du stockage avec le coût et la rapid
 | **Froid (Cold)** | Rarement consultées, mais qui doivent rester lisibles immédiatement | 90 jours | Coût de stockage plus bas, coût d'accès plus élevé que le niveau froid (Cool) |
 | **Archive** | Conservées pour l'historique et presque jamais lues | 180 jours | Coût de stockage le plus bas ; l'objet blob est hors connexion |
 
-- Les objets blob des niveaux chaud (Hot), froid (Cool) et froid (Cold) se lisent en quelques millisecondes. Un objet blob du niveau archive (Archive) doit d'abord être **réhydraté** en changeant son niveau en Hot, Cool ou Cold, ce qui peut prendre des heures.
+- Les objets blob des niveaux chaud (Hot), froid (Cool) et froid (Cold) se lisent en quelques millisecondes. Un objet blob du niveau archive (Archive) doit d'abord être **réhydraté** en changeant son niveau en Hot, Cool ou Cold, ce qui peut prendre jusqu'à 15 heures.
 - Supprimer un objet blob avant la durée minimale entraîne des frais de suppression anticipée.
 - Une **stratégie de gestion du cycle de vie** déplace automatiquement les objets blob du niveau chaud (Hot) vers les niveaux froid (Cool), froid (Cold) et archive (Archive) selon le nombre de jours écoulés depuis leur dernière modification, et peut supprimer les objets blob obsolètes.
+- Le **niveau intelligent** (smart tier), défini comme niveau d'accès par défaut d'un compte usage général v2 standard avec stockage redondant interzone (ZRS, GZRS ou RA-GZRS), déplace les objets blob de blocs entre les niveaux chaud (Hot), froid (Cool) et froid (Cold) selon leurs accès, sans stratégie à écrire ; il n'utilise pas le niveau archive (Archive).
 
 **Azure Data Lake Storage Gen2** est le Stockage Blob avec l'**espace de noms hiérarchique** activé sur le compte de stockage. Les objets blob sont alors organisés dans de vrais répertoires, sur lesquels des listes de contrôle d'accès conformes à POSIX définissent les autorisations de chaque fichier et de chaque dossier. Les plateformes d'analytique comme Azure Databricks et Microsoft Fabric fonctionnent avec ce stockage. Un compte existant peut être mis à niveau, mais la mise à niveau est irréversible.
 

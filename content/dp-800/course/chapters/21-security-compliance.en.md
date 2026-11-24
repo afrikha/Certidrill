@@ -190,7 +190,7 @@ Remaining secrets (if any) go to Azure Key Vault or environment variables, never
 | Database-level policy | For one database; enabling both creates two separate audits |
 | Default action groups | `BATCH_COMPLETED_GROUP`, `SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP`, `FAILED_DATABASE_AUTHENTICATION_GROUP` |
 | Reading logs | Storage: `sys.fn_get_audit_file` or the portal; Log Analytics: KQL on `AzureDiagnostics`, category `SQLSecurityAuditEvents` |
-| Protection | Store logs outside the audited database, use immutable blob storage, set retention to the regulatory period |
+| Protection | Store logs outside the audited database, use immutable blob storage, set retention to the regulatory period. With immutable storage: **Allow protected append writes** set to Append blobs or Block and append blobs (not None), a storage retention interval shorter than the auditing retention, and an auditing retention other than 0 |
 
 ```kusto
 AzureDiagnostics

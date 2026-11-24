@@ -91,7 +91,7 @@ WITH (MEMORY_OPTIMIZED = ON, DURABILITY = SCHEMA_AND_DATA);
 | --- | --- |
 | `SCHEMA_AND_DATA` (par défaut) | Journalisée, survit à un redémarrage ; clé primaire obligatoire |
 | `SCHEMA_ONLY` | Seule la définition survit à un redémarrage : aucune E/S de journal, pour les données de préparation et transitoires |
-| Index de hachage | Recherches d'égalité ; `BUCKET_COUNT` d'une à deux fois le nombre de clés distinctes |
+| Index de hachage | Recherches d'égalité ; `BUCKET_COUNT` d'une à deux fois le nombre de clés distinctes (deux à trois fois quand les recherches d'égalité comptent plus que la mémoire) |
 | Index non cluster | Plages et analyses ordonnées |
 | Procédure compilée en mode natif | `WITH NATIVE_COMPILATION, SCHEMABINDING` et `BEGIN ATOMIC` ; n'accède qu'aux tables optimisées en mémoire |
 
@@ -189,7 +189,7 @@ WITH (LOCATION = 'archive/year=*/*.parquet',
       FILE_FORMAT = ParquetFormat);
 ```
 
-Utilisez les préfixes `abs://` (Stockage Blob) ou `adls://` (Data Lake Storage Gen2) ; les informations d'identification peuvent aussi reposer sur une identité managée. `OPENROWSET(BULK ...)` sert à l'exploration ponctuelle. Dans Azure SQL Database, CETAS (`CREATE EXTERNAL TABLE AS SELECT`) n'est pas disponible, les tables externes n'ont pas de statistiques, et Row-Level Security et le masquage dynamique des données ne s'y appliquent pas.
+Utilisez les préfixes `abs://` (Stockage Blob) ou `adls://` (Data Lake Storage Gen2) ; les informations d'identification peuvent aussi reposer sur une identité managée. `OPENROWSET(BULK ...)` sert à l'exploration ponctuelle. Dans Azure SQL Database, CETAS (`CREATE EXTERNAL TABLE AS SELECT`) n'est pas disponible, les tables externes n'ont pas de statistiques, et Row-Level Security et le masquage dynamique des données ne s'y appliquent pas. Dans Azure SQL Managed Instance, la virtualisation des données n'est pas indiquée en préversion : les mêmes préfixes `abs://` et `adls://` s'appliquent (le préfixe générique `https://` est désactivé), et CETAS existe mais est désactivé par défaut.
 
 Les **tables de graphe** modélisent des relations que l'on parcourt (liens sociaux, nomenclatures, recommandations) : `AS NODE` ajoute `$node_id` ; `AS EDGE` ajoute `$edge_id`, `$from_id`, `$to_id`.
 

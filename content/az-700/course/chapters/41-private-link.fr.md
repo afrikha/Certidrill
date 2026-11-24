@@ -20,9 +20,9 @@ Règles de planification :
 
 - **Un point de terminaison par sous-ressource.** Une application qui utilise les objets blob et les partages de fichiers d'un même compte de stockage a besoin de deux points de terminaison privés.
 - **Région et abonnement** : le point de terminaison privé se trouve dans la même région et le même abonnement que son réseau virtuel ; la ressource cible peut être dans une autre région, un autre abonnement ou un autre locataire.
-- **Accessibilité** : les clients du même réseau virtuel, des réseaux virtuels appairés dans la même région ou dans d'autres régions, et du réseau local via VPN ou ExpressRoute atteignent le point de terminaison. Les connexions sont unidirectionnelles : le service ne peut pas ouvrir de connexion vers votre réseau.
+- **Accessibilité** : les clients du même réseau virtuel, des réseaux virtuels reliés par peering dans la même région ou dans d'autres régions, et du réseau local via VPN ou ExpressRoute atteignent le point de terminaison. Les connexions sont unidirectionnelles : le service ne peut pas ouvrir de connexion vers votre réseau.
 - **Sous-réseau** : un sous-réseau ordinaire convient ; aucune délégation n'est nécessaire et d'autres ressources peuvent le partager. Prévoyez l'espace d'adressage : chaque point de terminaison consomme au moins une adresse IP.
-- **Limites** : 1 000 points de terminaison privés par réseau virtuel, 4 000 sur des réseaux virtuels appairés et 64 000 par abonnement.
+- **Limites** : 1 000 points de terminaison privés par réseau virtuel, 4 000 sur des réseaux virtuels reliés par peering et 64 000 par abonnement.
 - **Stockage** : seuls les comptes v2 universels prennent en charge les points de terminaison privés.
 - **Accès public** : un point de terminaison privé ajoute un chemin privé mais ne ferme pas le point de terminaison public. Désactivez l'accès réseau public sur la ressource (ou restreignez son pare-feu) pour imposer l'accès privé.
 - **Conception DNS** : pour un ensemble de réseaux qui partagent le DNS, préférez un seul point de terminaison privé par ressource, pour éviter les enregistrements en double.
@@ -36,7 +36,7 @@ Un point de terminaison privé a ces propriétés :
 
 | Propriété | Signification |
 | --- | --- |
-| Sous-réseau | Où vont l'interface réseau et son adresse IP (dynamique par défaut, statique en option) |
+| Sous-réseau | Où vont l'interface réseau et son adresse IP (dynamique par défaut, statique en option sauf pour AKS, Application Gateway, HDInsight, les coffres Recovery Services et les services Private Link tiers) |
 | Ressource de liaison privée | ID de ressource ou, pour un service Private Link, son alias |
 | Sous-ressource cible | L'ID de groupe du tableau ci-dessus |
 | Méthode d'approbation de la connexion | **Automatique** si vous avez l'autorisation d'approbation sur la ressource, sinon **manuelle** avec un message de requête |
@@ -97,8 +97,8 @@ az network vnet subnet update \
 Le paramètre concerne tous les points de terminaison privés du sous-réseau ; les autres ressources du sous-réseau restent toujours soumises au NSG. Une fois les stratégies activées :
 
 - Un NSG peut n'autoriser que certaines sources à atteindre le point de terminaison, et un **groupe de sécurité d'application** peut contenir des points de terminaison privés.
-- Chaque point de terminaison privé ajoute un **itinéraire système /32** à son réseau virtuel et aux réseaux appairés. Pour faire passer ce trafic par un pare-feu, un itinéraire défini par l'utilisateur doit avoir un préfixe **égal ou plus précis que l'espace d'adressage du réseau virtuel**, par exemple 10.1.0.0/16 pour un réseau en /16. Un itinéraire 0.0.0.0/0 ne remplace pas le /32. Le pare-feu doit appliquer la SNAT pour que le trafic de retour suive le même chemin.
-- Les itinéraires effectifs et les règles de sécurité effectives ne sont pas affichés pour l'interface réseau du point de terminaison, et les journaux de flux NSG n'enregistrent pas le trafic entrant vers celui-ci.
+- Chaque point de terminaison privé ajoute un **itinéraire système /32** à son réseau virtuel et aux réseaux reliés par peering. Pour faire passer ce trafic par un pare-feu, un itinéraire défini par l'utilisateur doit avoir un préfixe **égal ou plus précis que l'espace d'adressage du réseau virtuel**, par exemple 10.1.0.0/16 pour un réseau en /16. Un itinéraire 0.0.0.0/0 ne remplace pas le /32. Le pare-feu doit appliquer la SNAT pour que le trafic de retour suive le même chemin.
+- Les itinéraires effectifs et les règles de sécurité effectives ne sont pas affichés pour l'interface réseau du point de terminaison, et les journaux de flux NSG n'enregistrent pas le trafic entrant vers celui-ci (les journaux de flux NSG sont mis hors service le 30 septembre 2027 et ne peuvent plus être créés : les journaux de flux de réseau virtuel les remplacent).
 
 **3. Le service lui-même.** Désactivez l'accès réseau public, ou gardez son pare-feu restreint, pour qu'il ne reste que le chemin privé.
 
@@ -203,7 +203,7 @@ Le routage pose rarement problème ; le **DNS**, si. Les serveurs DNS locaux ne 
 | Azure DNS Private Resolver (recommandé) | Redirecteur conditionnel vers l'adresse IP du **point de terminaison entrant** du résolveur | Résolveur dans un réseau virtuel lié aux zones `privatelink` |
 | Redirecteur DNS (machine virtuelle ou proxy DNS du Pare-feu Azure) | Redirecteur conditionnel vers l'adresse IP du redirecteur | Redirecteur dans un réseau virtuel lié, qui transfère vers 168.63.129.16 |
 
-Le redirecteur conditionnel cible le nom de la zone **publique** : `blob.core.windows.net`, `database.windows.net`, `vaultcore.azure.net`. La chaîne de CNAME mène ensuite au nom `privatelink`, qu'Azure résout avec la zone privée.
+Le redirecteur conditionnel cible le nom de la zone **publique** : `blob.core.windows.net`, `database.windows.net`, et à la fois `vault.azure.net` et `vaultcore.azure.net` pour Key Vault. La chaîne de CNAME mène ensuite au nom `privatelink`, qu'Azure résout avec la zone privée.
 
 Pour votre propre **service Private Link**, il n'existe pas de zone `privatelink` recommandée : publiez le nom qu'utilisent vos clients (par exemple `orders.fabrikam.internal`) sous forme d'enregistrement A pointant vers l'adresse IP du point de terminaison privé du consommateur, dans une zone DNS privée atteinte via le résolveur ou directement dans le DNS local.
 

@@ -121,7 +121,7 @@ App settings become environment variables (`os.environ`, `os.getenv`). Locally, 
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Sends logs and traces to Application Insights |
 | `OPENAI_API_KEY` = `@Microsoft.KeyVault(SecretUri=https://kv-ai.vault.azure.net/secrets/openai-key/)` | Key Vault reference: the app identity needs **Key Vault Secrets User** |
 
-The identity also needs a data role on each target: Azure Service Bus Data Receiver for a trigger, Data Sender for an output binding (Learn suggests Data Owner for accurate scaling of the Service Bus trigger), Storage Blob Data Contributor to write blobs. Locally, identity-based connections use the developer's own sign-in.
+The identity also needs a data role on each target: Azure Service Bus Data Receiver for a trigger, Data Sender for an output binding (for accurate scaling, the Service Bus trigger needs Azure Service Bus Data Owner or a custom role with `Microsoft.ServiceBus/namespaces/*/read`; without it, the extension silently falls back to a less accurate peek-based estimate), Storage Blob Data Contributor to write blobs. Locally, identity-based connections use the developer's own sign-in.
 
 ```json
 {
@@ -153,7 +153,9 @@ The identity also needs a data role on each target: Azure Service Bus Data Recei
 | Container Apps | KEDA, to zero | Depends on triggers | Functions as containers next to other microservices |
 | Consumption (legacy) | Event driven, to zero | 5 minutes by default, 10 at most | Existing apps only; no virtual network |
 
-Flex Consumption specifics: instance memory of 512, 2,048 (recommended default) or 4,096 MB; HTTP, blob and Durable functions scale as groups, every other function on its own; always-ready instances (0 by default) remove cold starts and are billed even when idle; one app per plan; no deployment slots; the Blob trigger supports only the Event Grid source; Python 3.10 and later.
+Flex Consumption specifics: instance memory of 512, 2,048 (recommended default) or 4,096 MB; HTTP, blob and Durable functions scale as groups, every other function on its own; always-ready instances (0 by default) remove cold starts and are billed even when idle; one app per plan; no deployment slots; the Blob trigger supports only the Event Grid source; Python 3.10 to 3.15. App initialization times out after 30 seconds (not configurable), `WEBSITE_TIME_ZONE` and `TZ` aren't supported, and an app can't be migrated in place to or from Flex Consumption: create a new app and redeploy. In each region, all the Flex Consumption instances of a subscription share a default quota of 250 cores (512,000 MB), always-ready instances included.
+
+Always-ready counts are set per group (`http`, `durable`, `blob`) or per function (`function:<FUNCTION_NAME>=n`), at creation with `--always-ready-instances` or later with `az functionapp scale config always-ready set --settings`.
 
 ```bash
 az functionapp create --resource-group rg-ai --name contoso-summarizer \

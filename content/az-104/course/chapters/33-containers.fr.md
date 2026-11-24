@@ -5,7 +5,7 @@ Un conteneur emballe une application avec ses dépendances et partage le noyau d
 
 | Service | Ce que c'est | À choisir pour |
 | --- | --- | --- |
-| **Azure Container Registry** (ACR) | Registre privé d'images de conteneurs | Stocker, générer et répliquer des images |
+| **Azure Container Registry** (ACR) | Registre privé d'images conteneur | Stocker, générer et répliquer des images |
 | **Azure Container Instances** (ACI) | Un groupe de conteneurs démarré à la demande, facturé à la seconde | Tâches simples ou courtes, traitements par lots, tests ; pas d'orchestration, **pas de mise à l'échelle automatique** |
 | **Azure Container Apps** | Plateforme serverless pour applications et microservices | **Mise à l'échelle automatique** sur HTTP ou sur événements, **y compris jusqu'à zéro**, révisions, fractionnement du trafic, sans gérer Kubernetes |
 | Azure Kubernetes Service (AKS) | Cluster Kubernetes managé | Contrôle complet de Kubernetes (hors du périmètre de cet examen) |
@@ -13,15 +13,15 @@ Un conteneur emballe une application avec ses dépendances et partage le noyau d
 <!-- section: acr | objectives: 3.3.1 -->
 ## Azure Container Registry
 
-Un registre a un nom unique au monde (5 à 50 caractères alphanumériques) et un serveur de connexion `<nom>.azurecr.io`. Les images s'adressent sous la forme `<nom>.azurecr.io/<dépôt>:<étiquette>`.
+Un registre a un nom unique au monde : 5 à 50 caractères alphanumériques **en minuscules**, sans tiret. Son serveur de connexion dépend de l'**étendue d'étiquette de nom de domaine** (DNL, domain name label) choisie à la création, qui ne peut plus être modifiée : `<nom>-<hachage>.azurecr.io` avec la protection DNL (Tenant Reuse, Subscription Reuse, Resource Group Reuse, No Reuse), qui empêche la prise de contrôle de sous-domaine, ou `<nom>.azurecr.io` avec **Unsecure**. Les images s'adressent sous la forme `<serveur de connexion>/<référentiel>:<balise>` ; les exemples ci-dessous utilisent un registre sans hachage DNL.
 
 | Niveau | Fonctionnalités |
 | --- | --- |
 | Basic | Entrée de gamme : mêmes fonctions de base, stockage et débit les plus faibles |
 | Standard | Plus de stockage et de débit ; convient à la plupart des besoins de production |
-| **Premium** | Limites les plus hautes, plus la **géoréplication**, les **points de terminaison privés** (Private Link), la redondance de zone, l'approbation de contenu, la stratégie de rétention des manifestes sans étiquette |
+| **Premium** | Limites les plus hautes, plus la **géoréplication**, les **points de terminaison privés** (Private Link), les clés gérées par le client, la stratégie de rétention des manifestes sans balise |
 
-Le niveau se change à tout moment.
+Le niveau se change à tout moment (les géoréplications doivent être supprimées avant de descendre depuis Premium). La **redondance de zone** n'est pas une fonctionnalité Premium : elle est activée par défaut dans tous les niveaux, dans les régions qui prennent en charge les zones de disponibilité. Docker Content Trust (Premium) est en cours de retrait : il ne peut plus être activé sur un nouveau registre depuis le 31 mai 2026 et il est supprimé le 31 mars 2028 (Microsoft oriente vers le projet Notary).
 
 **Authentification :**
 

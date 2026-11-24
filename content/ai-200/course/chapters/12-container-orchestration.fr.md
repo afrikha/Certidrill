@@ -29,7 +29,7 @@ az containerapp create --resource-group rg-rag --name ca-rag-api \
 | Option | Règle |
 | --- | --- |
 | `--registry-identity system` | Tire l'image d'ACR avec l'identité managée de l'application (AcrPull) ; aucun mot de passe de registre |
-| `--secrets name=value` | Secret stocké dans l'application ; les noms de secrets sont limités à 20 caractères |
+| `--secrets name=value` | Secret stocké dans l'application |
 | `--secrets name=keyvaultref:<uri>,identityref:<id>` | Secret lu dans Key Vault par une identité managée (`system` ou l'ID de ressource d'une identité affectée par l'utilisateur) qui détient **Key Vault Secrets User** |
 | `--env-vars NAME=secretref:<secret>` | Variable d'environnement dont la valeur vient d'un secret |
 | `--ingress external` / `internal` | Joignable par l'adresse IP entrante de l'environnement / uniquement depuis les applications du même environnement |
@@ -52,7 +52,7 @@ Les secrets peuvent aussi être montés comme fichiers : un volume de type `Secr
 | --- | --- | --- |
 | Single (par défaut) | La nouvelle révision reçoit tout le trafic dès qu'elle est prête, puis l'ancienne est déprovisionnée ; si la mise à jour échoue, le trafic reste sur l'ancienne révision | Mise à jour progressive simple, sans interruption |
 | Multiple | Plusieurs révisions actives ; trafic réparti par pondération ; vous choisissez quand désactiver | Bleu-vert, canary, test A/B d'un nouveau modèle ou d'un nouveau prompt |
-| Étiquettes (préversion) | Étiquettes nommées (dev, staging, prod) déplacées d'une révision à l'autre | URL stables par étape, retour arrière simple |
+| Étiquettes de déploiement (préversion) | Étiquettes nommées (dev, staging, prod) déplacées d'une révision à l'autre | URL stables par étape, retour arrière simple |
 
 En mode Single, l'ancienne révision reste active jusqu'à ce que la nouvelle soit provisionnée, ait atteint le nombre de réplicas précédent et ait passé ses sondes de démarrage et de disponibilité.
 
@@ -69,7 +69,7 @@ az containerapp revision deactivate --resource-group rg-rag --name ca-rag-api \
 az containerapp revision list --resource-group rg-rag --name ca-rag-api --output table
 ```
 
-Une étiquette reçoit sa propre URL, qui reste la même quand l'étiquette passe à une autre révision : les testeurs atteignent ainsi la nouvelle révision avec 0 % du trafic de production. Les révisions inactives ne sont pas facturées ; par défaut, jusqu'à 100 révisions inactives sont conservées et les plus anciennes sont purgées au-delà.
+Une étiquette reçoit sa propre URL, qui reste la même quand l'étiquette passe à une autre révision : les testeurs atteignent ainsi la nouvelle révision avec 0 % du trafic de production. Les révisions inactives ne sont pas facturées ; par défaut, jusqu'à 100 révisions inactives sont conservées et les plus anciennes sont purgées au-delà (la modification de cette limite avec `--max-inactive-revisions` est en préversion).
 
 > **Piège d'examen.** Les pondérations de trafic exigent le mode de révision **Multiple**. En mode Single, `ingress traffic set` ne peut pas laisser 90 % sur l'ancienne révision : la nouvelle révision prend tout dès qu'elle est prête.
 
@@ -81,7 +81,7 @@ Chaque révision évolue entre `minReplicas` (0 par défaut, 1 000 au maximum) e
 | Règle | Métrique | Propriété / option CLI |
 | --- | --- | --- |
 | HTTP | Requêtes HTTP simultanées par réplica, mesurées sur 15 secondes | `concurrentRequests` (10 par défaut) / `--scale-rule-http-concurrency` |
-| TCP | Connexions TCP simultanées | `concurrentConnections` (10 par défaut) / `--scale-rule-tcp-concurrency` |
+| TCP | Connexions TCP simultanées ; non configurable dans le portail | `concurrentConnections` (10 par défaut) / `--scale-rule-tcp-concurrency` |
 | Personnalisée | Tout scaler KEDA basé sur ScaledObject : Azure Service Bus, Event Hubs, files d'attente Stockage, Kafka, Redis, processeur, mémoire... | `custom.type`, `custom.metadata`, `custom.auth` ou `custom.identity` |
 
 Une règle personnalisée est le déclencheur KEDA recopié dans l'application : `type` et `metadata` gardent les noms KEDA, et chaque `secretTargetRef` du `TriggerAuthentication` KEDA devient une entrée `auth` qui pointe vers un secret de l'application.
@@ -128,6 +128,7 @@ az containerapp update --resource-group rg-rag --name ca-embed-worker \
 | Période de refroidissement avant de passer de 1 réplica à 0 | 300 secondes |
 | Fenêtre de stabilisation à la réduction | 300 secondes ; à l'augmentation : aucune |
 | Paliers d'augmentation | 1, 4, 8, 16, 32... jusqu'à `maxReplicas` |
+| Palier de réduction | 100 % des réplicas qui doivent s'arrêter, en une seule étape |
 | Cible | `desiredReplicas = ceil(metric / target)` : 200 messages avec `messageCount` 20 = 10 réplicas |
 | Plusieurs règles | La mise à l'échelle démarre dès que la condition d'une règle quelconque est remplie |
 
@@ -153,7 +154,7 @@ az aks get-credentials --resource-group rg-rag --name aks-rag
 az aks update --resource-group rg-rag --name aks-rag --attach-acr crcontoso
 ```
 
-`--attach-acr` utilise les autorisations de la personne qui l'exécute (Owner ou un autre rôle capable d'attribuer des rôles) et n'est pas pris en charge sur les registres ACR en mode d'autorisations de dépôt ABAC, qui demandent à la place Container Registry Repository Reader.
+`--attach-acr` utilise les autorisations de la personne qui l'exécute (Owner ou un autre rôle capable d'attribuer des rôles) et n'est pas pris en charge sur les registres ACR en mode d'autorisations de référentiel ABAC, qui demandent à la place Container Registry Repository Reader.
 
 ```yaml
 apiVersion: v1
@@ -262,7 +263,7 @@ kubectl get endpoints rag-api -n rag
 
 | État du pod | Cause probable | Où regarder |
 | --- | --- | --- |
-| `ImagePullBackOff` / `ErrImagePull` | Image ou étiquette erronée, ou les nœuds ne peuvent pas s'authentifier auprès du registre (pas d'AcrPull) | Événements de `kubectl describe pod` |
+| `ImagePullBackOff` / `ErrImagePull` | Image ou balise erronée, ou les nœuds ne peuvent pas s'authentifier auprès du registre (pas d'AcrPull) | Événements de `kubectl describe pod` |
 | `CrashLoopBackOff` | Le processus s'arrête au démarrage : variable manquante, secret erroné, exception non gérée | `kubectl logs --previous` |
 | `Pending` | Aucun nœud avec assez de processeur ou de mémoire pour les `requests`, ou un sélecteur de nœud non satisfait | `kubectl describe pod` (FailedScheduling) |
 | `OOMKilled` (dernier état) | Limite de mémoire trop basse pour le modèle ou le lot | `kubectl describe pod`, augmenter `limits.memory` |

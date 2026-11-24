@@ -59,7 +59,7 @@ Each monitoring signal compares a **production** data window with **reference** 
 | Feature attribution drift (preview) | Feature importance in production vs training | Training data (required) | Normalized discounted cumulative gain (NDCG) |
 | Model performance (preview) | Predictions vs **ground truth** | Ground truth data (required) | Classification: accuracy, precision, recall. Regression: MAE, MSE, RMSE |
 
-Out-of-bounds uses the reference: the min to max interval for numerical features, the set of known values for categorical ones. Windows: the production lookback window defaults to the monitoring frequency; the reference can be a fixed window (`window_start_date`, `window_end_date`) or a rolling one (`lookback_window_size`, `lookback_window_offset`, for example `P7D`).
+Out-of-bounds uses the reference: the min to max interval for numerical features, the set of known values for categorical ones. Windows: the production lookback window defaults to the monitoring frequency; the reference can be a fixed window (`window_start_date`, `window_end_date`) or a rolling one (`lookback_window_size`, `lookback_window_offset`, for example `P7D`). The reference offset defaults to twice the production `lookback_window_size`; to keep the two windows from overlapping, set it to at least the production window size plus the production offset.
 
 **Out-of-box monitoring** needs only the deployment: it detects the collected data assets, uses recent past production data as reference, and runs data drift, prediction drift and data quality, emailing the user who set it up when a threshold is breached. **Advanced monitoring** chooses signals, reference data, features and thresholds:
 
@@ -122,14 +122,14 @@ az ml schedule create --file churn-monitoring.yml
 
 Monitoring jobs run on **serverless Spark** compute (sizes such as `Standard_E4s_v3`, `Standard_E8s_v3`). Microsoft recommends a daily frequency for models with heavy daily traffic and weekly or monthly otherwise. Model monitoring doesn't support the `AllowOnlyApprovedOutbound` managed network isolation mode. Drift metrics are computed **per feature**, so the results show which features drifted; `top_n_feature_importance` limits drift monitoring to the most important features, where drift is most likely to explain a drop in quality.
 
-> **Exam trap.** Data drift looks at inputs, prediction drift at outputs, and neither needs labels. Only the model performance signal measures accuracy, and it needs **ground truth** joined to predictions by a correlation ID. "The customers changed" is data drift; "the model now predicts churn twice as often" is prediction drift; "null values appeared" is data quality.
+> **Exam trap.** Data drift looks at inputs, prediction drift at outputs, and neither needs labels. Only the model performance signal (preview) measures accuracy, and it needs **ground truth** joined to predictions by a correlation ID. "The customers changed" is data drift; "the model now predicts churn twice as often" is prediction drift; "null values appeared" is data quality.
 
 <!-- section: performance-metrics | objectives: 2.4.2 -->
 ## Monitoring performance metrics of deployed models
 
 Two kinds of performance matter: the **model's** quality on real data, and the **endpoint's** operational health.
 
-Model quality uses the `model_performance` signal. Ground truth arrives later (for example, whether the customer actually churned) and is registered as a data asset with the same correlation ID:
+Model quality uses the `model_performance` signal, which is in **preview** for classification and regression (no SLA, not recommended for production workloads); data drift, prediction drift and data quality are the generally available signals. Ground truth arrives later (for example, whether the customer actually churned) and is registered as a data asset with the same correlation ID:
 
 ```yaml
   monitoring_signals:
@@ -163,14 +163,14 @@ Endpoint health comes from **Azure Monitor**:
 | --- | --- | --- |
 | Endpoint metrics | Request latency, requests per minute, new connections per second, network bytes; drill down by deployment or status | Latency and error trends, alert rules |
 | Deployment metrics | CPU, GPU, memory and disk utilization, down to the instance | Sizing and autoscale |
-| `AmlOnlineEndpointTrafficLog` | Each request: response code and reason, model status code, deployment, durations, throttling delays | Which deployment returns errors, where latency comes from |
+| `AmlOnlineEndpointTrafficLog` | Each request: `ResponseCode` (returned to the client) and `ModelStatusCode` (returned by the model), deployment, `TotalDurationMs`, `RequestDurationMs`, `ResponseDurationMs`, `RequestThrottlingDelayMs`, `ResponseThrottlingDelayMs` | Which deployment returns errors, where latency comes from |
 | `AmlOnlineEndpointConsoleLog` | Container console output (stdout) | Errors printed by `score.py` |
 | `AmlOnlineEndpointEventLog` | Container events: `LivenessProbeFailed`, `ReadinessProbeFailed`, `BackOff`, `Killing`, `Started` | Restarts and probe failures |
 | Application Insights | Live metrics, failures, performance views of the deployment (`app_insights_enabled: true`) | Application-level tracing |
 
 The three log tables require a **diagnostic setting** on the endpoint that sends logs to a Log Analytics workspace (allow up to an hour for the first data). Throttling caused by bandwidth limits shows in the network bytes metric and in the response trailers `ms-azureml-bandwidth-request-delay-ms` and `ms-azureml-bandwidth-response-delay-ms`.
 
-> **Exam tip.** "Which deployment returns 5xx errors and how long does the model take" → query `AmlOnlineEndpointTrafficLog`. "Why does the container restart" → `AmlOnlineEndpointEventLog`. "The model's accuracy dropped" → the model performance signal, not endpoint metrics.
+> **Exam tip.** "Which deployment returns 5xx errors and how long does the model take" → query `AmlOnlineEndpointTrafficLog`. "Why does the container restart" → `AmlOnlineEndpointEventLog`. "The model's accuracy dropped" → the model performance signal (preview), not endpoint metrics.
 
 <!-- section: alerts-retraining | objectives: 2.4.3 -->
 ## Configuring alerts and retraining triggers
@@ -195,7 +195,7 @@ Workspace events available in Event Grid:
 | --- | --- |
 | `Microsoft.MachineLearningServices.RunCompleted` | A run completes |
 | `Microsoft.MachineLearningServices.RunStatusChanged` | A run changes status |
-| `Microsoft.MachineLearningServices.ModelRegistered` | A model or model version is registered (filter on model tags or subject `models/<name>`) |
+| `Microsoft.MachineLearningServices.ModelRegistered` | A model or model version is registered (filter on model tags or on the subject `models/<name>:<version>`: a filter on the model name must match the start of the subject, not its end) |
 | `Microsoft.MachineLearningServices.ModelDeployed` | Models are deployed to an endpoint |
 
 Failed or canceled operations don't raise the success events (a failed deployment raises no `ModelDeployed`). Creating subscriptions needs Contributor or Owner on the workspace and the `Microsoft.EventGrid` resource provider registered.
@@ -225,7 +225,7 @@ az ml schedule disable --name churn_weekly_retraining
 ## Key points
 
 - The data collector (`model_inputs`, `model_outputs`, pandas DataFrames) feeds monitoring for online endpoints; batch and external models need their own data assets.
-- Data drift = inputs, prediction drift = outputs, data quality = nulls, types, out of bounds; model performance needs ground truth.
+- Data drift = inputs, prediction drift = outputs, data quality = nulls, types, out of bounds; model performance (preview) needs ground truth.
 - Out-of-box monitoring: data drift, prediction drift and data quality against recent production data, emails to the creator.
 - Monitors are schedules (`az ml schedule create`) running on serverless Spark, with `metric_thresholds` per signal.
 - Endpoint health: Azure Monitor metrics, plus traffic, console and event logs through a diagnostic setting.

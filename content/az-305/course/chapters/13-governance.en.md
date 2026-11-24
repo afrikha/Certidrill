@@ -52,7 +52,7 @@ A subscription is a unit of management, billing and scale, and a boundary for po
 | Billing | A business unit that must receive its own invoice |
 | Platform function | Management, connectivity, identity and security each in their own subscription |
 
-Not sufficient reasons: one subscription per region (only data sovereignty justifies it) or per small application. For chargeback inside a subscription, tags are enough. Large organizations automate creation with **subscription vending**: a request produces a subscription already placed in the right management group, with its policies, roles and network. To keep subscriptions from leaving or entering the tenant, restrict directory transfers in the subscription policies.
+Not sufficient reasons: one subscription per region (only data sovereignty justifies it) or per small application. For chargeback inside a subscription, tags are enough. Large organizations automate creation with **subscription vending**: a request produces a subscription already placed in the right management group, with its policies, roles and network. Subscription policies control directory transfers: since May 1, 2026, subscriptions can't leave or enter the directory unless a Global Administrator allows it (*Allow no users* is the default when no policy was set). Only a Global Administrator with a direct assignment, after elevating access, edits these policies, and can exempt specific users.
 
 Resource groups follow other rules:
 
@@ -144,7 +144,7 @@ Licences decide between two plausible answers:
 | Licence | Brings |
 | --- | --- |
 | Microsoft Entra ID P1 | Conditional Access with terms of use, HR-driven provisioning |
-| Microsoft Entra ID P2 | PIM, access reviews and entitlement management in their basic form |
+| Microsoft Entra ID P2 | PIM, access reviews (of active and inactive users, with decision helpers for inactive users) and entitlement management in their basic form |
 | Microsoft Entra ID Governance | Lifecycle workflows and the advanced capabilities: reviews limited to inactive users, machine learning recommendations, automatic assignment policies |
 
 Who manages PIM depends on the roles: Privileged Role Administrator (or Global Administrator) for Microsoft Entra roles; Owner or User Access Administrator of the resource for Azure roles.

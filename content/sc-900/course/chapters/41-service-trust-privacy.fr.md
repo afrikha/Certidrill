@@ -14,14 +14,15 @@ Ce que vous y trouvez :
 | Catégorie | Contenu |
 | --- | --- |
 | **Certifications, réglementations et normes** | Des informations sur l'implémentation et la conception de la sécurité, qui montrent comment les services cloud Microsoft respectent les normes et les réglementations : ISO/IEC, SOC, RGPD, FedRAMP, PCI DSS et d'autres |
-| **Rapports, livres blancs et artefacts** | Des documents généraux : continuité d'activité et reprise d'activité, rapports de tests d'intrusion et d'évaluations de sécurité menés par des tiers, confidentialité et protection des données, FAQ et livres blancs |
+| **Rapports, livres blancs et artefacts** | Des documents généraux : ressources sur l'IA (conformité, sécurité et confidentialité des solutions d'IA comme Microsoft Copilot), continuité d'activité et reprise d'activité, rapports de tests d'intrusion et d'évaluations de sécurité menés par des tiers, confidentialité et protection des données, FAQ et livres blancs |
 | **Ressources sectorielles et régionales** | Des documents par secteur (services financiers, soins de santé et sciences de la vie, médias et divertissements, gouvernement des États-Unis) et par région |
 | **Ressources pour votre organisation** | Les documents qui s'appliquent à votre organisation, restreints par locataire selon son abonnement et ses autorisations |
 
-Deux points pratiques :
+Points pratiques :
 
 - **Accès** : le site est public, mais certaines ressources exigent de vous connecter avec votre compte de services cloud Microsoft (un compte d'organisation Microsoft Entra) et d'accepter l'accord de confidentialité de Microsoft pour les documents de conformité.
 - **Ma bibliothèque** : vous enregistrez des documents au même endroit avec **Enregistrer dans la bibliothèque**, et les **Paramètres de notification** envoient un e-mail quand un document enregistré est mis à jour.
+- **Tous les documents** (All Documents) liste tous les documents disponibles, avec un filtre par service cloud ; **Mon historique de téléchargement** (My Download History) montre les documents téléchargés au cours des 18 derniers mois.
 
 | Besoin | Réponse |
 | --- | --- |
@@ -46,8 +47,8 @@ L'approche de Microsoft en matière de confidentialité repose sur l'engagement 
 
 Détails utiles :
 
-- Les sous-traitants qui ont besoin d'accéder à vos données ne peuvent exécuter que les fonctions pour lesquelles ils ont été engagés, et sont liés par les mêmes engagements contractuels de confidentialité.
-- Si un gouvernement ou une autorité chargée de l'application de la loi demande vos données, Microsoft ne les divulgue pas, sauf selon vos instructions ou quand la loi l'exige, et vous en informe quand la loi le permet.
+- Sous **Vous contrôlez vos données** : les sous-traitants qui ont besoin d'accéder à vos données ne peuvent exécuter que les fonctions pour lesquelles ils ont été engagés, et sont liés par les mêmes engagements contractuels de confidentialité ; les sous-traitants ultérieurs autorisés sont audités au préalable.
+- Si un gouvernement ou une autorité chargée de l'application de la loi demande vos données, Microsoft ne les divulgue pas, sauf selon vos instructions ou quand la loi l'exige, et, quand la loi le permet, vous en informe rapidement, vous fournit une copie de la demande et redirige le demandeur vers vous.
 
 > **Conseil d'examen.** Des affirmations comme « Microsoft utilise les données des clients pour la publicité » ou « Microsoft donne aux gouvernements un accès direct aux données des clients » sont toujours fausses. « Le client possède et contrôle ses données » est toujours vraie.
 

@@ -1,0 +1,539 @@
+chapter: 32-query-performance
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp300-qz-32-01
+    objective: "3.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a SQL Server 2022 instance on an Azure virtual machine. Query Store is enabled with the default settings on a database named **SalesDB**.
+
+        After an unexpected restart of the virtual machine, the Query Store data of the last minutes before the restart was missing. You need to reduce the amount of Query Store data that can be lost when the instance stops unexpectedly.
+
+        Which Query Store option should you lower?
+      fr: |
+        Vous disposez d'une instance SQL Server 2022 sur une machine virtuelle Azure. Le Magasin des requêtes est activé avec les paramètres par défaut sur une base de données nommée **SalesDB**.
+
+        Après un redémarrage inattendu de la machine virtuelle, les données du Magasin des requêtes des dernières minutes avant le redémarrage manquaient. Vous devez réduire la quantité de données du Magasin des requêtes qui peut être perdue quand l'instance s'arrête de manière inattendue.
+
+        Quelle option du Magasin des requêtes devez-vous diminuer ?
+    body:
+      options:
+        - { id: a, text: "INTERVAL_LENGTH_MINUTES" }
+        - { id: b, text: "DATA_FLUSH_INTERVAL_SECONDS" }
+        - { id: c, text: "STALE_QUERY_THRESHOLD_DAYS" }
+        - { id: d, text: "MAX_STORAGE_SIZE_MB" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Query Store collects its data in memory and writes it to disk asynchronously, every `DATA_FLUSH_INTERVAL_SECONDS` (900 seconds, or 15 minutes, by default). Data not yet flushed is lost if the instance stops unexpectedly, so a lower value reduces the possible loss, at the cost of more frequent writes.
+        fr: |
+          Le Magasin des requêtes collecte ses données en mémoire et les écrit sur disque de façon asynchrone, toutes les `DATA_FLUSH_INTERVAL_SECONDS` (900 secondes, soit 15 minutes, par défaut). Les données pas encore écrites sont perdues si l'instance s'arrête de manière inattendue : une valeur plus faible réduit donc la perte possible, au prix d'écritures plus fréquentes.
+      options:
+        a: { en: "INTERVAL_LENGTH_MINUTES sets the aggregation window of the runtime statistics, not how often data is persisted to disk.", fr: "INTERVAL_LENGTH_MINUTES définit la fenêtre d'agrégation des statistiques d'exécution, pas la fréquence d'écriture des données sur disque." }
+        c: { en: "STALE_QUERY_THRESHOLD_DAYS controls how long data is kept before age-based cleanup.", fr: "STALE_QUERY_THRESHOLD_DAYS détermine combien de temps les données sont conservées avant le nettoyage basé sur l'ancienneté." }
+        d: { en: "MAX_STORAGE_SIZE_MB limits the size of Query Store on disk; it doesn't change when in-memory data is written.", fr: "MAX_STORAGE_SIZE_MB limite la taille du Magasin des requêtes sur disque ; il ne change pas le moment où les données en mémoire sont écrites." }
+    references:
+      - title: ALTER DATABASE SET Options (Transact-SQL) - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-database-transact-sql-set-options
+
+  # ------------------------------------------------------------------ 2
+  - id: dp300-qz-32-02
+    objective: "3.2.4"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have an Azure SQL database named **ClaimsDB**. Many requests of ClaimsDB wait with the `RESOURCE_SEMAPHORE` wait type.
+
+        You need to list, for each running query, the memory it requested, the memory it was granted and how long it has waited for its grant.
+
+        Which dynamic management view should you join to `sys.dm_exec_requests`?
+      fr: |
+        Vous disposez d'une base de données Azure SQL nommée **ClaimsDB**. De nombreuses requêtes de ClaimsDB attendent avec le type d'attente `RESOURCE_SEMAPHORE`.
+
+        Vous devez lister, pour chaque requête en cours d'exécution, la mémoire qu'elle a demandée, la mémoire qui lui a été accordée et la durée de son attente d'allocation.
+
+        Quelle vue de gestion dynamique devez-vous joindre à `sys.dm_exec_requests` ?
+    body:
+      options:
+        - { id: a, text: "sys.dm_db_wait_stats" }
+        - { id: b, text: "sys.dm_db_resource_stats" }
+        - { id: c, text: "sys.dm_exec_query_memory_grants" }
+        - { id: d, text: "sys.dm_exec_query_stats" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `RESOURCE_SEMAPHORE` means that queries wait for a memory grant before they can start. `sys.dm_exec_query_memory_grants`, joined to `sys.dm_exec_requests` on `session_id` and `request_id`, shows `requested_memory_kb`, `granted_memory_kb` (NULL while the query still waits) and `wait_time_ms` for each query.
+        fr: |
+          `RESOURCE_SEMAPHORE` signifie que des requêtes attendent une allocation de mémoire avant de pouvoir démarrer. `sys.dm_exec_query_memory_grants`, jointe à `sys.dm_exec_requests` sur `session_id` et `request_id`, affiche `requested_memory_kb`, `granted_memory_kb` (NULL tant que la requête attend) et `wait_time_ms` pour chaque requête.
+      options:
+        a: { en: "sys.dm_db_wait_stats gives cumulative waits by wait type for the database, not the grant of each running query.", fr: "sys.dm_db_wait_stats fournit les attentes cumulées par type d'attente pour la base, pas l'allocation de chaque requête en cours." }
+        b: { en: "sys.dm_db_resource_stats gives resource percentages every 15 seconds, with no detail per query.", fr: "sys.dm_db_resource_stats fournit des pourcentages de ressources toutes les 15 secondes, sans détail par requête." }
+        d: { en: "sys.dm_exec_query_stats aggregates completed executions of cached plans; it doesn't show the current grant of a running query.", fr: "sys.dm_exec_query_stats agrège les exécutions terminées des plans en cache ; elle ne montre pas l'allocation actuelle d'une requête en cours." }
+    references:
+      - title: Monitor Performance Using DMVs - Azure SQL Database & SQL database in Microsoft Fabric
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/monitoring-with-dmvs
+
+  # ------------------------------------------------------------------ 3
+  - id: dp300-qz-32-03
+    objective: "3.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        You manage an Azure SQL database named **CrmDB**. Users report that their updates hang. You query `sys.dm_exec_requests` for the requests whose `blocking_session_id` isn't 0 and for the sessions they point to. The query returns only the following rows.
+
+        | session_id | status | blocking_session_id | wait_type |
+        | --- | --- | --- | --- |
+        | 58 | suspended | 71 | LCK_M_U |
+        | 63 | suspended | 58 | LCK_M_S |
+        | 71 | suspended | 85 | LCK_M_X |
+        | 77 | suspended | 71 | LCK_M_U |
+
+        Which session is the head blocker?
+      fr: |
+        Vous gérez une base de données Azure SQL nommée **CrmDB**. Les utilisateurs signalent que leurs mises à jour restent bloquées. Vous interrogez `sys.dm_exec_requests` pour obtenir les requêtes dont `blocking_session_id` est différent de 0 et les sessions qu'elles désignent. La requête ne renvoie que les lignes suivantes.
+
+        | session_id | status | blocking_session_id | wait_type |
+        | --- | --- | --- | --- |
+        | 58 | suspended | 71 | LCK_M_U |
+        | 63 | suspended | 58 | LCK_M_S |
+        | 71 | suspended | 85 | LCK_M_X |
+        | 77 | suspended | 71 | LCK_M_U |
+
+        Quelle session est le bloqueur de tête ?
+    body:
+      options:
+        - { id: a, text: "58" }
+        - { id: b, text: "63" }
+        - { id: c, text: "71" }
+        - { id: d, text: "85" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Following `blocking_session_id` leads from 63 to 58, from 58 and 77 to 71, and from 71 to 85, which is blocked by nobody: 85 heads the chain. It has no row because `sys.dm_exec_requests` lists only requests that are executing; a sleeping session that keeps an open transaction appears in `sys.dm_exec_sessions` with an `open_transaction_count` above 0.
+        fr: |
+          Suivre `blocking_session_id` mène de 63 à 58, de 58 et 77 à 71, puis de 71 à 85, que personne ne bloque : 85 est en tête de la chaîne. Il n'a pas de ligne car `sys.dm_exec_requests` ne liste que les requêtes en cours d'exécution ; une session en veille qui garde une transaction ouverte apparaît dans `sys.dm_exec_sessions` avec un `open_transaction_count` supérieur à 0.
+      options:
+        a: { en: "Session 58 blocks 63 but is itself blocked by 71.", fr: "La session 58 bloque 63 mais est elle-même bloquée par 71." }
+        b: { en: "Session 63 is at the end of the chain: it blocks nobody.", fr: "La session 63 est en bout de chaîne : elle ne bloque personne." }
+        c: { en: "Session 71 blocks 58 and 77, but it waits on a lock held by 85.", fr: "La session 71 bloque 58 et 77, mais elle attend un verrou détenu par 85." }
+    references:
+      - title: Understand and Resolve Blocking Problems - Azure SQL Database
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/understand-resolve-blocking
+
+  # ------------------------------------------------------------------ 4
+  - id: dp300-qz-32-04
+    objective: "3.2.7"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have an Azure SQL managed instance named **MI1**. Every night, a job bulk loads about 3 million rows with recent ShipDate values into a table named **dbo.Shipments**. The next morning, a report that filters on the latest ShipDate values is slow. The report runs with `OPTION (RECOMPILE)`.
+
+        The actual execution plan of the report shows an Index Seek on dbo.Shipments with an estimated number of rows of 1 and an actual number of rows of 2,900,000, followed by a Nested Loops join and a Key Lookup that executes 2,900,000 times. The plan shows no warning.
+
+        What is the most likely cause of the poor plan?
+      fr: |
+        Vous disposez d'une instance managée Azure SQL nommée **MI1**. Chaque nuit, un travail charge en bloc environ 3 millions de lignes avec des valeurs ShipDate récentes dans une table nommée **dbo.Shipments**. Le lendemain matin, un rapport qui filtre sur les dernières valeurs de ShipDate est lent. Le rapport s'exécute avec `OPTION (RECOMPILE)`.
+
+        Le plan d'exécution réel du rapport montre un Index Seek sur dbo.Shipments avec un nombre de lignes estimé de 1 et un nombre de lignes réel de 2 900 000, suivi d'une jointure Nested Loops et d'un Key Lookup exécuté 2 900 000 fois. Le plan n'affiche aucun avertissement.
+
+        Quelle est la cause la plus probable de ce mauvais plan ?
+    body:
+      options:
+        - { id: a, text: { en: "The statistics on ShipDate are out of date: the newly loaded values aren't in the histogram.", fr: "Les statistiques sur ShipDate sont obsolètes : les valeurs chargées récemment ne figurent pas dans l'histogramme." } }
+        - { id: b, text: { en: "The bulk load fragmented the index on ShipDate, which slows down each Key Lookup.", fr: "Le chargement en bloc a fragmenté l'index sur ShipDate, ce qui ralentit chaque Key Lookup." } }
+        - { id: c, text: { en: "The plan was compiled for a parameter value that matched only one row.", fr: "Le plan a été compilé pour une valeur de paramètre qui ne correspondait qu'à une seule ligne." } }
+        - { id: d, text: { en: "The memory grant of the query was too small, so the join spilled to tempdb.", fr: "L'allocation de mémoire de la requête était trop petite, si bien que la jointure a débordé dans tempdb." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A huge gap between estimated and actual rows points to statistics that don't describe the data. Values added after the last statistics update on an ascending key such as ShipDate fall outside the histogram, so the optimizer estimates one row and picks Nested Loops with a Key Lookup per row. Updating the statistics after the load (`UPDATE STATISTICS dbo.Shipments`) gives a correct estimate.
+        fr: |
+          Un très grand écart entre les lignes estimées et réelles indique des statistiques qui ne décrivent pas les données. Les valeurs ajoutées après la dernière mise à jour des statistiques sur une clé croissante comme ShipDate sortent de l'histogramme : l'optimiseur estime une ligne et choisit Nested Loops avec un Key Lookup par ligne. Mettre à jour les statistiques après le chargement (`UPDATE STATISTICS dbo.Shipments`) donne une estimation correcte.
+      options:
+        b: { en: "Fragmentation can slow reads, but it doesn't change the row estimate from 2.9 million to 1.", fr: "La fragmentation peut ralentir les lectures, mais elle ne fait pas passer l'estimation de 2,9 millions à 1." }
+        c: { en: "With OPTION (RECOMPILE), the plan is compiled for the current values at each run, so parameter sniffing doesn't apply.", fr: "Avec OPTION (RECOMPILE), le plan est compilé pour les valeurs actuelles à chaque exécution : la détection de paramètres ne s'applique pas." }
+        d: { en: "A spill shows as a warning in the actual plan, and this plan shows none.", fr: "Un débordement apparaît comme un avertissement dans le plan réel, et ce plan n'en affiche aucun." }
+    references:
+      - title: Statistics - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/statistics/statistics
+
+  # ------------------------------------------------------------------ 5
+  - id: dp300-qz-32-05
+    objective: "3.2.6"
+    difficulty: 2
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        You review the three queries that consume the most resources in an Azure SQL database named **AppDB**, and you must recommend one change for each.
+
+        How should you complete the recommendations? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous examinez les trois requêtes qui consomment le plus de ressources dans une base de données Azure SQL nommée **AppDB**, et vous devez recommander une modification pour chacune.
+
+        Comment devez-vous compléter les recommandations ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: text
+      template:
+        en: |
+          Query 1 performs millions of logical reads, and its plan scans a large table with the predicate `WHERE LEFT(AccountCode, 3) = 'EU-'` to return a few rows: [[q1]].
+
+          Query 2 has a high CPU time but few logical reads; it runs a `WHILE` loop that updates one row per iteration: [[q2]].
+
+          Query 3 waits with `RESOURCE_SEMAPHORE`, and its actual plan shows a Hash Match spill to tempdb with estimated rows far below the actual rows: [[q3]].
+        fr: |
+          La requête 1 effectue des millions de lectures logiques, et son plan analyse une grande table avec le prédicat `WHERE LEFT(AccountCode, 3) = 'EU-'` pour renvoyer quelques lignes : [[q1]].
+
+          La requête 2 a un temps processeur élevé mais peu de lectures logiques ; elle exécute une boucle `WHILE` qui met à jour une ligne par itération : [[q2]].
+
+          La requête 3 attend avec `RESOURCE_SEMAPHORE`, et son plan réel montre un débordement de Hash Match dans tempdb avec des lignes estimées très inférieures aux lignes réelles : [[q3]].
+      slots:
+        - id: q1
+          options:
+            - { id: sarg, text: { en: "rewrite the predicate so that it can use an index seek", fr: "réécrire le prédicat pour qu'il puisse utiliser une recherche d'index" } }
+            - { id: set1, text: { en: "replace the logic with one set-based statement", fr: "remplacer la logique par une seule instruction ensembliste" } }
+            - { id: stats1, text: { en: "update the statistics used by the plan", fr: "mettre à jour les statistiques utilisées par le plan" } }
+            - { id: dop1, text: { en: "add `OPTION (MAXDOP 1)` to the query", fr: "ajouter `OPTION (MAXDOP 1)` à la requête" } }
+        - id: q2
+          options:
+            - { id: sarg2, text: { en: "rewrite the predicate so that it can use an index seek", fr: "réécrire le prédicat pour qu'il puisse utiliser une recherche d'index" } }
+            - { id: set, text: { en: "replace the logic with one set-based statement", fr: "remplacer la logique par une seule instruction ensembliste" } }
+            - { id: stats2, text: { en: "update the statistics used by the plan", fr: "mettre à jour les statistiques utilisées par le plan" } }
+            - { id: dop2, text: { en: "add `OPTION (MAXDOP 1)` to the query", fr: "ajouter `OPTION (MAXDOP 1)` à la requête" } }
+        - id: q3
+          options:
+            - { id: sarg3, text: { en: "rewrite the predicate so that it can use an index seek", fr: "réécrire le prédicat pour qu'il puisse utiliser une recherche d'index" } }
+            - { id: set3, text: { en: "replace the logic with one set-based statement", fr: "remplacer la logique par une seule instruction ensembliste" } }
+            - { id: stats, text: { en: "update the statistics used by the plan", fr: "mettre à jour les statistiques utilisées par le plan" } }
+            - { id: dop3, text: { en: "add `OPTION (MAXDOP 1)` to the query", fr: "ajouter `OPTION (MAXDOP 1)` à la requête" } }
+    answer:
+      values: { q1: sarg, q2: set, q3: stats }
+    explanation:
+      correct:
+        en: |
+          Resource clues pick the fix. A function applied to the column makes the predicate non-SARGable; rewriting it, for example as `AccountCode LIKE 'EU-%'` (a constant prefix with no leading wildcard), lets it seek on an index of AccountCode. High CPU with few reads comes from row-by-row logic, which one set-based statement replaces. A memory grant wait with a spill and an estimate far below the actual rows comes from bad estimates, which current statistics correct.
+        fr: |
+          Les indices de ressources désignent la correction. Une fonction appliquée à la colonne rend le prédicat non SARGable ; le réécrire, par exemple en `AccountCode LIKE 'EU-%'` (un préfixe constant sans caractère générique en tête), lui permet d'effectuer une recherche dans un index sur AccountCode. Un processeur élevé avec peu de lectures vient d'une logique ligne par ligne, qu'une seule instruction ensembliste remplace. Une attente d'allocation de mémoire avec un débordement et une estimation très inférieure aux lignes réelles vient de mauvaises estimations, que des statistiques à jour corrigent.
+      options:
+        dop1: { en: "A serial plan still scans every row; parallelism isn't the cause of the reads.", fr: "Un plan en série analyse toujours toutes les lignes ; le parallélisme n'est pas la cause des lectures." }
+        dop2: { en: "Each iteration touches one row; the cost comes from the number of iterations, not from parallelism.", fr: "Chaque itération touche une ligne ; le coût vient du nombre d'itérations, pas du parallélisme." }
+        dop3: { en: "Limiting parallelism doesn't fix an estimate that is far too low, so the grant stays too small.", fr: "Limiter le parallélisme ne corrige pas une estimation beaucoup trop basse : l'allocation reste trop petite." }
+    references:
+      - title: Statistics - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/statistics/statistics
+      - title: Performance Tuning Guidance for Applications and Databases - Azure SQL Database
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/performance-guidance
+
+  # ------------------------------------------------------------------ 6
+  - id: dp300-qz-32-06
+    objective: "3.2.8"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Contoso has the following resources:
+
+        | Name | Type | Region |
+        | --- | --- | --- |
+        | DB1 | Azure SQL database | West Europe |
+        | DB2 | Azure SQL database | East US 2 |
+        | MI1 | Azure SQL managed instance | Canada Central |
+        | SQLVM1 | SQL Server 2022 on an Azure virtual machine | East US 2 |
+        | DB3 | Azure SQL database | North Europe |
+
+        Contoso plans to stream the SQLInsights log to a Log Analytics workspace so that Intelligent Insights detects performance degradation and reports its root cause.
+
+        For which two resources can Contoso use Intelligent Insights?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso dispose des ressources suivantes :
+
+        | Nom | Type | Région |
+        | --- | --- | --- |
+        | DB1 | Base de données Azure SQL | Europe Ouest |
+        | DB2 | Base de données Azure SQL | USA Est 2 |
+        | MI1 | Instance managée Azure SQL | Canada Centre |
+        | SQLVM1 | SQL Server 2022 sur une machine virtuelle Azure | USA Est 2 |
+        | DB3 | Base de données Azure SQL | Europe Nord |
+
+        Contoso prévoit de diffuser le journal SQLInsights vers un espace de travail Log Analytics pour qu'Intelligent Insights détecte les dégradations de performances et en indique la cause racine.
+
+        Pour quelles deux ressources Contoso peut-il utiliser Intelligent Insights ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: DB1 }
+        - { id: b, text: DB2 }
+        - { id: c, text: { en: "The databases of MI1", fr: "Les bases de données de MI1" } }
+        - { id: d, text: { en: "The databases of SQLVM1", fr: "Les bases de données de SQLVM1" } }
+        - { id: e, text: DB3 }
+    answer: { optionIds: [b, c] }
+    explanation:
+      correct:
+        en: |
+          Intelligent Insights is a preview feature of Azure SQL Database and Azure SQL Managed Instance, configured with a diagnostic setting that streams the SQLInsights log. It isn't available in the West Europe, North Europe, West US 1 and East US 1 regions, so only DB2 in East US 2 and the databases of MI1 in Canada Central qualify.
+        fr: |
+          Intelligent Insights est une fonctionnalité en préversion d'Azure SQL Database et d'Azure SQL Managed Instance, configurée par un paramètre de diagnostic qui diffuse le journal SQLInsights. Elle n'est pas disponible dans les régions Europe Ouest, Europe Nord, USA Ouest 1 et USA Est 1 : seules DB2 en USA Est 2 et les bases de données de MI1 en Canada Centre conviennent.
+      options:
+        a: { en: "West Europe is one of the regions where Intelligent Insights isn't available.", fr: "Europe Ouest fait partie des régions où Intelligent Insights n'est pas disponible." }
+        d: { en: "Intelligent Insights applies to Azure SQL Database and SQL Managed Instance, not to SQL Server on a virtual machine.", fr: "Intelligent Insights s'applique à Azure SQL Database et à SQL Managed Instance, pas à SQL Server sur une machine virtuelle." }
+        e: { en: "North Europe is one of the regions where Intelligent Insights isn't available.", fr: "Europe Nord fait partie des régions où Intelligent Insights n'est pas disponible." }
+    references:
+      - title: Monitor database performance with Intelligent Insights (preview) - Azure SQL Database & Azure SQL Managed Instance
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/intelligent-insights-overview
+
+  # ------------------------------------------------------------------ 7
+  - id: dp300-qz-32-07
+    objective: "3.2.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has an Azure SQL database named **HelpdeskDB**. The table **dbo.Tickets** has 50 million rows and a clustered primary key on **TicketID**. About 1 percent of the rows have a Status of `'Open'`; closed tickets are updated often by an archiving process.
+
+        A stored procedure runs the following query thousands of times per hour:
+
+        ```text
+        SELECT TicketID, AssignedTo, Priority
+        FROM dbo.Tickets
+        WHERE Status = 'Open' AND CreatedDate >= @Since
+        ORDER BY CreatedDate;
+        ```
+
+        You need an index that lets the query seek on CreatedDate without a Key Lookup or a Sort. The solution must minimize the storage and the maintenance cost of the index, and dbo.Tickets must stay available while the index is built.
+
+        Which statement should you run?
+      fr: |
+        Fabrikam dispose d'une base de données Azure SQL nommée **HelpdeskDB**. La table **dbo.Tickets** compte 50 millions de lignes et a une clé primaire cluster sur **TicketID**. Environ 1 % des lignes ont un Status `'Open'` ; les tickets fermés sont souvent mis à jour par un processus d'archivage.
+
+        Une procédure stockée exécute la requête suivante des milliers de fois par heure :
+
+        ```text
+        SELECT TicketID, AssignedTo, Priority
+        FROM dbo.Tickets
+        WHERE Status = 'Open' AND CreatedDate >= @Since
+        ORDER BY CreatedDate;
+        ```
+
+        Vous avez besoin d'un index qui permet à la requête d'effectuer une recherche sur CreatedDate sans Key Lookup ni Sort. La solution doit réduire au minimum le stockage et le coût de maintenance de l'index, et dbo.Tickets doit rester disponible pendant la création de l'index.
+
+        Quelle instruction devez-vous exécuter ?
+    body:
+      options:
+        - { id: a, text: "CREATE NONCLUSTERED INDEX IX_Tickets_Open ON dbo.Tickets (Status, CreatedDate) INCLUDE (AssignedTo, Priority) WITH (ONLINE = ON);" }
+        - { id: b, text: "CREATE NONCLUSTERED INDEX IX_Tickets_Open ON dbo.Tickets (CreatedDate) INCLUDE (AssignedTo, Priority) WHERE Status LIKE 'Open%' WITH (ONLINE = ON);" }
+        - { id: c, text: "CREATE NONCLUSTERED INDEX IX_Tickets_Open ON dbo.Tickets (CreatedDate) INCLUDE (AssignedTo, Priority) WHERE Status = 'Open' WITH (ONLINE = ON);" }
+        - { id: d, text: "CREATE NONCLUSTERED INDEX IX_Tickets_Open ON dbo.Tickets (AssignedTo, Priority) INCLUDE (CreatedDate) WHERE Status = 'Open' WITH (ONLINE = ON);" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A filtered index on `Status = 'Open'` stores only the 1 percent of open tickets, so it's small and isn't maintained when the archiving process updates closed tickets. CreatedDate as the key supports the range seek and the ORDER BY, and the INCLUDE columns, plus the clustered key TicketID that every nonclustered index carries, cover the query. Status needn't be a column of the index because the filter is equivalent to the query predicate and the query doesn't return Status.
+        fr: |
+          Un index filtré sur `Status = 'Open'` ne stocke que le 1 % de tickets ouverts : il est petit et n'est pas maintenu quand le processus d'archivage met à jour les tickets fermés. CreatedDate comme clé prend en charge la recherche par plage et l'ORDER BY, et les colonnes INCLUDE, plus la clé cluster TicketID que porte tout index non cluster, couvrent la requête. Status n'a pas besoin d'être une colonne de l'index, car le filtre équivaut au prédicat de la requête et la requête ne renvoie pas Status.
+      options:
+        a: { en: "This index covers the query and supports the seek, but it indexes all 50 million rows and is maintained on every update of a closed ticket.", fr: "Cet index couvre la requête et permet la recherche, mais il indexe les 50 millions de lignes et est maintenu à chaque mise à jour d'un ticket fermé." }
+        b: { en: "A filter predicate accepts only simple comparison operators; LIKE isn't supported in a filtered index.", fr: "Un prédicat de filtre n'accepte que des opérateurs de comparaison simples ; LIKE n'est pas pris en charge dans un index filtré." }
+        d: { en: "With AssignedTo and Priority as keys, CreatedDate can't be sought and the rows must be sorted for the ORDER BY.", fr: "Avec AssignedTo et Priority comme clés, CreatedDate ne permet pas de recherche et les lignes doivent être triées pour l'ORDER BY." }
+    references:
+      - title: Create Filtered Indexes - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/indexes/create-filtered-indexes
+
+  # ------------------------------------------------------------------ 8
+  - id: dp300-qz-32-08
+    objective: "3.2.4"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        You have an Azure SQL managed instance named **MI1**. Company policy keeps Query Store turned off on a database named **ShopDB**. An application generates ad hoc queries that differ only by their literal values, so each variant has its own plan in the plan cache. The CPU usage of MI1 is high.
+
+        You need a Transact-SQL query that returns the 10 groups of queries that differ only by literal values with the highest average CPU time per execution, based on the plans currently in the plan cache.
+
+        How should you complete the query? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'une instance managée Azure SQL nommée **MI1**. La politique de l'entreprise impose que le Magasin des requêtes reste désactivé sur une base de données nommée **ShopDB**. Une application génère des requêtes ad hoc qui ne diffèrent que par leurs valeurs littérales : chaque variante a son propre plan dans le cache des plans. L'utilisation du processeur de MI1 est élevée.
+
+        Vous avez besoin d'une requête Transact-SQL qui renvoie les 10 groupes de requêtes ne différant que par leurs valeurs littérales qui ont le temps processeur moyen par exécution le plus élevé, d'après les plans actuellement présents dans le cache des plans.
+
+        Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        SELECT TOP 10
+               SUM(qs.[[col]]) / SUM(qs.execution_count) AS avg_cpu_us,
+               SUM(qs.execution_count) AS executions,
+               MIN(qs.sql_handle) AS sample_sql_handle
+        FROM [[src]] AS qs
+        GROUP BY qs.[[grp]]
+        ORDER BY avg_cpu_us DESC;
+      slots:
+        - id: col
+          options:
+            - { id: elapsed, text: total_elapsed_time }
+            - { id: worker, text: total_worker_time }
+            - { id: reads, text: total_logical_reads }
+            - { id: rows, text: total_rows }
+        - id: src
+          options:
+            - { id: requests, text: sys.dm_exec_requests }
+            - { id: cached, text: sys.dm_exec_cached_plans }
+            - { id: stats, text: sys.dm_exec_query_stats }
+            - { id: qsrs, text: sys.query_store_runtime_stats }
+        - id: grp
+          options:
+            - { id: phandle, text: plan_handle }
+            - { id: shandle, text: sql_handle }
+            - { id: qphash, text: query_plan_hash }
+            - { id: qhash, text: query_hash }
+    answer:
+      values: { col: worker, src: stats, grp: qhash }
+    explanation:
+      correct:
+        en: |
+          `sys.dm_exec_query_stats` has one row per statement of each cached plan, with `execution_count` and `total_worker_time`, the CPU time in microseconds. `query_hash` is computed on the query logic and is the documented way to aggregate the resource use of queries that differ only by literal values.
+        fr: |
+          `sys.dm_exec_query_stats` comporte une ligne par instruction de chaque plan en cache, avec `execution_count` et `total_worker_time`, le temps processeur en microsecondes. `query_hash` est calculé sur la logique de la requête : c'est le moyen documenté d'agréger l'utilisation des ressources des requêtes qui ne diffèrent que par leurs valeurs littérales.
+      options:
+        elapsed: { en: "total_elapsed_time is the duration, which includes waits, not the CPU time.", fr: "total_elapsed_time est la durée, qui inclut les attentes, pas le temps processeur." }
+        reads: { en: "total_logical_reads measures reads, not CPU.", fr: "total_logical_reads mesure les lectures, pas le processeur." }
+        requests: { en: "sys.dm_exec_requests shows only the requests running now, with no execution count.", fr: "sys.dm_exec_requests ne montre que les requêtes en cours, sans nombre d'exécutions." }
+        cached: { en: "sys.dm_exec_cached_plans lists the plans and their use counts but no CPU statistics.", fr: "sys.dm_exec_cached_plans liste les plans et leur nombre d'utilisations, mais aucune statistique de processeur." }
+        qsrs: { en: "Query Store is turned off on ShopDB, so its runtime statistics are empty.", fr: "Le Magasin des requêtes est désactivé sur ShopDB : ses statistiques d'exécution sont vides." }
+        phandle: { en: "Each literal variant has its own plan, so grouping by plan_handle doesn't merge the variants.", fr: "Chaque variante littérale a son propre plan : grouper par plan_handle ne fusionne pas les variantes." }
+        shandle: { en: "sql_handle identifies each batch text, which differs for every literal variant.", fr: "sql_handle identifie chaque texte de lot, qui diffère pour chaque variante littérale." }
+        qphash: { en: "query_plan_hash groups plans of similar shape, which can merge different queries and split one query that has two plans.", fr: "query_plan_hash regroupe les plans de forme semblable, ce qui peut fusionner des requêtes différentes et séparer une requête qui a deux plans." }
+    references:
+      - title: sys.dm_exec_query_stats (Transact-SQL) - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-exec-query-stats-transact-sql
+
+  # ------------------------------------------------------------------ 9
+  - id: dp300-qz-32-09
+    objective: "3.2.2"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        You have an Azure SQL database named **PayDB** that uses Query Store. A stored procedure that you aren't allowed to modify runs a query with a hard-coded `OPTION (MAXDOP 8)` hint. In Query Store, this query has query_id **214**.
+
+        You run the following statement:
+
+        ```text
+        EXEC sys.sp_query_store_set_hints @query_id = 214,
+             @query_hints = N'OPTION(MAXDOP 2)';
+        ```
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'une base de données Azure SQL nommée **PayDB** qui utilise le Magasin des requêtes. Une procédure stockée que vous n'êtes pas autorisé à modifier exécute une requête avec un indicateur `OPTION (MAXDOP 8)` codé en dur. Dans le Magasin des requêtes, cette requête a le query_id **214**.
+
+        Vous exécutez l'instruction suivante :
+
+        ```text
+        EXEC sys.sp_query_store_set_hints @query_id = 214,
+             @query_hints = N'OPTION(MAXDOP 2)';
+        ```
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "The next executions of query 214 use a maximum degree of parallelism of 2.", fr: "Les prochaines exécutions de la requête 214 utilisent un degré maximal de parallélisme de 2." }
+        - id: s2
+          text: { en: "If the hint couldn't be applied to query 214, each execution of the query would fail until you cleared the hint.", fr: "Si l'indicateur ne pouvait pas être appliqué à la requête 214, chaque exécution de la requête échouerait jusqu'à ce que vous supprimiez l'indicateur." }
+        - id: s3
+          text: { en: "After a failover of PayDB, the hint still applies to query 214.", fr: "Après un basculement de PayDB, l'indicateur s'applique toujours à la requête 214." }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          Query Store hints override hard-coded statement-level hints and plan guides, so MAXDOP 2 replaces the MAXDOP 8 of the code. A hint that can't be applied never blocks the query: it's ignored, and the reason is recorded in `sys.query_store_query_hints` (`last_query_hint_failure_reason_desc`). Hints are persisted in Query Store, so they survive restarts and failovers.
+        fr: |
+          Les indicateurs du Magasin des requêtes remplacent les indicateurs codés en dur au niveau de l'instruction et les repères de plan : MAXDOP 2 remplace donc le MAXDOP 8 du code. Un indicateur qui ne peut pas être appliqué ne bloque jamais la requête : il est ignoré, et la raison est enregistrée dans `sys.query_store_query_hints` (`last_query_hint_failure_reason_desc`). Les indicateurs sont conservés dans le Magasin des requêtes : ils survivent aux redémarrages et aux basculements.
+      options:
+        s2: { en: "The query keeps running without the hint; check query_hint_failure_count and the failure reason in sys.query_store_query_hints.", fr: "La requête continue de s'exécuter sans l'indicateur ; consultez query_hint_failure_count et la raison de l'échec dans sys.query_store_query_hints." }
+    references:
+      - title: Query Store Hints - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/performance/query-store-hints
+
+  # ------------------------------------------------------------------ 10
+  - id: dp300-qz-32-10
+    objective: "3.2.3"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Litware has an Azure virtual machine named **SQLVM1** that runs SQL Server 2025. A database named **OrdersDB** uses the default database options, and all the applications use the read committed isolation level.
+
+        During peaks, `UPDATE` statements that modify different rows of the same tables block each other, and reports block the updates. You need to enable optimized locking for OrdersDB, including lock after qualification. The solution must not require any change to the application code.
+
+        Which three statements should you run? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware dispose d'une machine virtuelle Azure nommée **SQLVM1** qui exécute SQL Server 2025. Une base de données nommée **OrdersDB** utilise les options de base de données par défaut, et toutes les applications utilisent le niveau d'isolation read committed.
+
+        Pendant les pics, des instructions `UPDATE` qui modifient des lignes différentes des mêmes tables se bloquent mutuellement, et les rapports bloquent les mises à jour. Vous devez activer le verrouillage optimisé pour OrdersDB, y compris le verrouillage après qualification. La solution ne doit exiger aucune modification du code de l'application.
+
+        Quelles sont les trois instructions que vous devez exécuter ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: "ALTER DATABASE OrdersDB SET ACCELERATED_DATABASE_RECOVERY = ON;" }
+        - { id: b, text: "ALTER DATABASE OrdersDB SET ALLOW_SNAPSHOT_ISOLATION ON;" }
+        - { id: c, text: "ALTER DATABASE OrdersDB SET AUTO_UPDATE_STATISTICS_ASYNC ON;" }
+        - { id: d, text: "ALTER DATABASE OrdersDB SET OPTIMIZED_LOCKING = ON;" }
+        - { id: e, text: "ALTER DATABASE OrdersDB SET READ_COMMITTED_SNAPSHOT ON;" }
+        - { id: f, text: "ALTER TABLE dbo.Orders SET (LOCK_ESCALATION = DISABLE);" }
+    answer: { optionIds: [a, d, e] }
+    explanation:
+      correct:
+        en: |
+          In SQL Server 2025, optimized locking is off by default and can be enabled per database with `SET OPTIMIZED_LOCKING = ON`, but accelerated database recovery must be enabled first. Its lock after qualification component works only when read committed snapshot isolation is on; RCSI also stops the reports from blocking the updates, with no change to the read committed applications.
+        fr: |
+          Dans SQL Server 2025, le verrouillage optimisé est désactivé par défaut et s'active base par base avec `SET OPTIMIZED_LOCKING = ON`, mais la récupération de base de données accélérée doit être activée d'abord. Son composant de verrouillage après qualification ne fonctionne que si l'isolation de capture instantanée read committed (RCSI) est activée ; RCSI empêche aussi les rapports de bloquer les mises à jour, sans modifier les applications en read committed.
+      options:
+        b: { en: "Snapshot isolation is used only by sessions that request it with SET TRANSACTION ISOLATION LEVEL SNAPSHOT, which is a code change, and it isn't required by optimized locking.", fr: "L'isolation de capture instantanée n'est utilisée que par les sessions qui le demandent avec SET TRANSACTION ISOLATION LEVEL SNAPSHOT, ce qui est une modification du code, et le verrouillage optimisé ne l'exige pas." }
+        c: { en: "Asynchronous statistics updates change when plans see new statistics; they have nothing to do with locking.", fr: "Les mises à jour asynchrones des statistiques changent le moment où les plans voient de nouvelles statistiques ; elles n'ont rien à voir avec le verrouillage." }
+        f: { en: "Disabling lock escalation on one table isn't part of optimized locking and doesn't stop readers from blocking writers.", fr: "Désactiver l'escalade de verrous sur une table ne fait pas partie du verrouillage optimisé et n'empêche pas les lecteurs de bloquer les écrivains." }
+    references:
+      - title: Optimized Locking - SQL Server
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/performance/optimized-locking

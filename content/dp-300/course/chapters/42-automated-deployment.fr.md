@@ -58,7 +58,7 @@ output serverFqdn string = sqlServer.properties.fullyQualifiedDomainName
 | Élément | Règle |
 | --- | --- |
 | `sku.name` | `GP_Gen5` (General Purpose provisionné), `GP_S_Gen5` (serverless), `BC_Gen5`, `HS_Gen5`, ou les noms DTU (`Basic`, `S0`, `P1`) ; `capacity` = vCores ou DTU |
-| `autoPauseDelay`, `minCapacity` | Serverless uniquement ; `autoPauseDelay: -1` désactive la pause automatique |
+| `autoPauseDelay`, `minCapacity` | Serverless uniquement ; `autoPauseDelay: -1` désactive la pause automatique. La pause automatique est en disponibilité générale en General Purpose et en préversion en Hyperscale |
 | `requestedBackupStorageRedundancy` | `Local`, `Zone`, `Geo`, `GeoZone` |
 | `@secure()` | La valeur n'est ni journalisée ni affichée dans l'historique des déploiements |
 | `parent` / noms enfants | Une ressource enfant a besoin de son parent : parent absent = `ParentResourceNotFound` |
@@ -192,7 +192,7 @@ La journalisation de débogage ne s'active que depuis PowerShell (`-DeploymentDe
 | `AuthorizationFailed` | Rôle manquant (par exemple SQL Server Contributor) ou fournisseur de ressources non inscrit | Attribuer le rôle, inscrire `Microsoft.Sql` |
 | `RequestDisallowedByPolicy` | Une attribution Azure Policy refuse la ressource (par exemple l'accès réseau public, la région) | Se conformer à la stratégie ou obtenir une exemption |
 | `Conflict` | Opération non autorisée dans l'état actuel de la ressource (une autre opération en cours) | Attendre et réessayer |
-| `DeploymentQuotaExceeded` | 800 déploiements dans l'historique du groupe | Le nettoyage de l'historique est automatique à partir de 700 entrées (jusqu'à 600) sauf s'il est bloqué par un verrou `CanNotDelete` ou l'absence de l'autorisation `Microsoft.Resources/deployments/delete` ; supprimez les anciens déploiements |
+| `DeploymentQuotaExceeded` | 800 déploiements dans l'historique du groupe | Le nettoyage de l'historique est automatique à partir de 700 entrées (jusqu'à 600), et se déclenche aussi lors d'une opération de simulation (what-if) ou d'une validation, sauf s'il est bloqué par un verrou `CanNotDelete` sur le groupe de ressources ou l'abonnement, l'absence de l'autorisation `Microsoft.Resources/deployments/delete`, ou la fonctionnalité d'abonnement `DisableDeploymentGrooming` (la limite de 800 s'applique toujours) ; supprimez les anciens déploiements |
 
 Un nom de serveur doit être unique au niveau mondial (il devient `name.database.windows.net`) : un nom déjà pris fait échouer le déploiement, et `uniqueString()` l'évite.
 

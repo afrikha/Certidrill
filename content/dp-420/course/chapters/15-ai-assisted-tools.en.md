@@ -53,7 +53,9 @@ Host-specific methods:
 | Claude Code | `/plugin install cosmosdb@claude-plugins-official` |
 | Gemini CLI | `gemini extensions install https://github.com/AzureCosmosDB/cosmosdb-agent-kit` |
 | Agent Package Manager (APM) | `apm install AzureCosmosDB/cosmosdb-agent-kit` |
-| OpenAI Codex | Add the marketplace with the Codex CLI, then install from the ChatGPT desktop app |
+| OpenAI Codex | `codex plugin marketplace add AzureCosmosDB/cosmosdb-agent-kit`, then install from the Plugins Directory of the ChatGPT desktop app |
+| Grok Build | `grok plugin marketplace add AzureCosmosDB/cosmosdb-agent-kit`, then `grok plugin install cosmosdb --trust` |
+| Kimi Code CLI | `/plugins install https://github.com/AzureCosmosDB/cosmosdb-agent-kit`, then `/reload` |
 
 Choose the project or user installation scope your host documents, and don't install the same skill through two methods in the same host.
 

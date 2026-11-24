@@ -1,21 +1,21 @@
-Deux réseaux virtuels ne communiquent jamais par défaut. Le peering les relie par le réseau principal de Microsoft, le transit par passerelle leur fait partager une même passerelle VPN ou ExpressRoute, les routes définies par l'utilisateur font passer leur trafic par une appliance, et Azure Virtual Network Manager construit et impose tout cela à grande échelle. Les questions d'examen décrivent une topologie et demandent quel paramètre, de quel côté, il manque.
+Deux réseaux virtuels ne communiquent jamais par défaut. Le peering les relie par le réseau principal de Microsoft, le transit par passerelle leur fait partager une même passerelle VPN ou ExpressRoute, les itinéraires définis par l'utilisateur font passer leur trafic par une appliance, et Azure Virtual Network Manager construit et impose tout cela à grande échelle. Les questions d'examen décrivent une topologie et demandent quel paramètre, de quel côté, il manque.
 
 <!-- section: service-chaining | objectives: 1.3.1 -->
 ## Concevoir le chaînage de services et le transit par passerelle
 
-Dans une conception hub-and-spoke, le hub héberge les composants partagés (un pare-feu ou une autre appliance virtuelle réseau, une passerelle VPN ou ExpressRoute, Azure Route Server) et chaque spoke est appairé au hub. Deux mécanismes rendent le hub utile :
+Dans une conception hub-and-spoke, le hub héberge les composants partagés (un pare-feu ou une autre appliance virtuelle réseau, une passerelle VPN ou ExpressRoute, Azure Route Server) et chaque spoke est relié au hub par peering. Deux mécanismes rendent le hub utile :
 
 | Mécanisme | Ce qu'il fait | Comment le configurer |
 | --- | --- | --- |
-| Chaînage de services | Envoie le trafic d'un spoke vers une appliance ou une passerelle du hub appairé | Une route définie par l'utilisateur dans le spoke dont le tronçon suivant est l'adresse IP privée de l'appliance (ou d'un équilibreur de charge interne placé devant elle), ou la passerelle de réseau virtuel |
+| Chaînage de services | Envoie le trafic d'un spoke vers une appliance ou une passerelle du hub relié par peering | Un itinéraire défini par l'utilisateur dans le spoke dont le tronçon suivant est l'adresse IP privée de l'appliance (ou d'un équilibreur de charge interne placé devant elle), ou la passerelle de réseau virtuel |
 | Transit par passerelle | Permet aux spokes d'utiliser la passerelle du hub pour joindre les réseaux locaux ou les autres réseaux virtuels qui y sont connectés | Les paramètres de peering des deux côtés : le hub autorise sa passerelle à transférer le trafic, le spoke utilise la passerelle distante |
 
-Le peering n'est **pas transitif**. Si Spoke1 et Spoke2 sont tous deux appairés au Hub, Spoke1 ne peut pas joindre Spoke2 par le Hub. Les options :
+Le peering n'est **pas transitif**. Si Spoke1 et Spoke2 sont tous deux reliés au Hub par peering, Spoke1 ne peut pas joindre Spoke2 par le Hub. Les options :
 
 | Exigence | Solution |
 | --- | --- |
 | Le trafic entre spokes doit être inspecté | Des UDR dans les deux spokes vers le pare-feu du hub, le **trafic transféré** autorisé sur les peerings, le transfert IP activé sur l'interface réseau de l'appliance |
-| Trafic entre spokes avec la latence la plus faible, sans inspection | Appairer directement les spokes, ou utiliser la connectivité directe (maillage) de Virtual Network Manager |
+| Trafic entre spokes avec la latence la plus faible, sans inspection | Relier directement les spokes par peering, ou utiliser la connectivité directe (maillage) de Virtual Network Manager |
 | Les spokes doivent joindre le réseau local par une seule passerelle | Le transit par passerelle depuis le hub |
 | Les spokes doivent apprendre les routes d'une appliance sans UDR par spoke | Azure Route Server dans le hub, les spokes utilisant la passerelle distante ou le Route Server |
 
@@ -47,14 +47,14 @@ Exigences et comportement :
 - Autorisations : **Network Contributor**, ou un rôle personnalisé avec `Microsoft.Network/virtualNetworks/virtualNetworkPeerings/write`, `read` et `delete`.
 - Aucune interruption à la création d'un peering. Dans une même région, la latence est celle d'un réseau unique, et la bande passante n'est limitée que par la taille de la machine virtuelle. Le trafic de peering est facturé en entrée et en sortie.
 - La résolution de noms Azure par défaut ne traverse pas un peering : utilisez des zones DNS privées ou un DNS personnalisé.
-- Après l'appairage d'un réseau joint par des clients point à site, téléchargez et réinstallez le package du client VPN pour que les clients reçoivent les nouvelles routes.
+- Après la création d'un peering pour un réseau joint par des clients point à site, téléchargez et réinstallez le package du client VPN pour que les clients reçoivent les nouvelles routes.
 
 Chaque lien a quatre paramètres, formulés du point de vue du réseau local (`vnet-1`) :
 
 | Paramètre du portail | Par défaut | Effet |
 | --- | --- | --- |
-| Autoriser « vnet-1 » à accéder au réseau virtuel appairé | Coché | Le trafic circule ; l'étiquette de service `VirtualNetwork` inclut alors le réseau appairé. Le décocher bloque le trafic sans supprimer le peering |
-| Autoriser « vnet-1 » à recevoir le trafic transféré du réseau virtuel appairé | Décoché | Accepte le trafic qui n'est pas né dans le réseau appairé, par exemple celui que transfère son NVA. Ne crée aucune route |
+| Autoriser « vnet-1 » à accéder au réseau virtuel appairé | Coché | Le trafic circule ; l'étiquette de service `VirtualNetwork` inclut alors le réseau relié par peering. Le décocher bloque le trafic sans supprimer le peering |
+| Autoriser « vnet-1 » à recevoir le trafic transféré du réseau virtuel appairé | Décoché | Accepte le trafic qui n'est pas né dans le réseau relié par peering, par exemple celui que transfère son NVA. Ne crée aucune route |
 | Autoriser la passerelle ou le serveur de routes dans « vnet-1 » à transférer le trafic vers le réseau virtuel appairé | Décoché | Transit par passerelle, côté hub. Exige une passerelle ou un Route Server dans `vnet-1` |
 | Permettre à « vnet-1 » d'utiliser la passerelle distante ou le serveur de routes des réseaux virtuels appairés | Décoché | Transit par passerelle, côté spoke. Exige le paramètre de transfert de l'autre côté |
 
@@ -79,11 +79,11 @@ Add-AzVirtualNetworkPeering -Name spoke1-to-hub -VirtualNetwork $spoke -RemoteVi
 
 Autres opérations que décrivent les questions :
 
-- **Redimensionner un espace d'adressage appairé** : ajoutez, supprimez ou modifiez une plage d'un réseau virtuel appairé sans interruption, puis **synchronisez** chaque lien de peering (portail ou PowerShell). Lancez la synchronisation après chaque redimensionnement.
-- **Peering de sous-réseaux** : appaire des sous-réseaux choisis au lieu de tout l'espace d'adressage (`--peer-complete-vnet false` avec `--local-subnet-names` et `--remote-subnet-names`). Il exige l'inscription de l'abonnement et se configure avec Azure CLI, PowerShell, des modèles ARM, l'API ou Terraform, pas avec le portail.
-- **Dépannage** : les itinéraires effectifs d'une interface réseau affichent une route de type de tronçon suivant **Peering de réseaux virtuels** (Virtual network peering) par plage d'adresses du réseau appairé. Pas de route alors que le peering est **Connecté** : attendez et réessayez, puis vérifiez les groupes de sécurité réseau avec Network Watcher.
+- **Redimensionner l'espace d'adressage d'un réseau relié par peering** : ajoutez, supprimez ou modifiez une plage d'un réseau virtuel relié par peering sans interruption, puis **synchronisez** chaque lien de peering (portail ou PowerShell). Lancez la synchronisation après chaque redimensionnement.
+- **Peering de sous-réseaux** : relie par peering des sous-réseaux choisis au lieu de tout l'espace d'adressage (`--peer-complete-vnet false` avec `--local-subnet-names` et `--remote-subnet-names`). Il exige l'inscription de l'abonnement et se configure avec Azure CLI, PowerShell, des modèles ARM, l'API ou Terraform, pas avec le portail.
+- **Dépannage** : les itinéraires effectifs d'une interface réseau affichent une route de type de tronçon suivant **Peering de réseaux virtuels** (Virtual network peering) par plage d'adresses du réseau relié par peering. Pas de route alors que le peering est **Connecté** : attendez et réessayez, puis vérifiez les groupes de sécurité réseau avec Network Watcher.
 
-> **Piège d'examen.** « VNet1 est appairé à VNet2, VNet2 à VNet3 ; VM1 dans VNet1 ne joint pas VM3 dans VNet3. » La solution est un peering direct VNet1-VNet3, ou un NVA dans VNet2 avec des UDR et le **trafic transféré** autorisé. Activer le transit par passerelle ne route pas entre spokes.
+> **Piège d'examen.** « VNet1 est relié par peering à VNet2, VNet2 à VNet3 ; VM1 dans VNet1 ne joint pas VM3 dans VNet3. » La solution est un peering direct VNet1-VNet3, ou un NVA dans VNet2 avec des UDR et le **trafic transféré** autorisé. Activer le transit par passerelle ne route pas entre spokes.
 
 <!-- section: virtual-network-manager | objectives: 1.3.3 -->
 ## Gérer la connectivité avec Azure Virtual Network Manager
@@ -109,7 +109,7 @@ Un réseau virtuel peut appartenir à plusieurs groupes réseau. Les changements
 | Topologie / option | Résultat |
 | --- | --- |
 | Maillage (mesh) | Chaque réseau virtuel du groupe se connecte à tous les autres par un **groupe connecté** (type de tronçon suivant `ConnectedGroup` ; aucun peering n'apparaît sous **Peerings**). Régional par défaut ; le **maillage global** relie les régions |
-| Hub-and-spoke | Le gestionnaire crée des peerings entre le hub et chaque spoke. Le hub peut aussi être un hub Virtual WAN (connexions de réseau virtuel) |
+| Hub-and-spoke | Le gestionnaire crée des peerings entre le hub et chaque spoke. Un hub Virtual WAN peut aussi servir de hub (connexions de réseau virtuel), en préversion : sans SLA, déconseillé en production |
 | Connectivité directe (par groupe de spokes) | Ajoute un groupe connecté entre les spokes de ce groupe seulement ; les spokes de groupes différents ne communiquent toujours pas |
 | Utiliser le hub en tant que passerelle | Transit par passerelle pour les spokes ; activé par défaut dans le portail. Sans passerelle dans le hub, le peering du spoke vers le hub échoue |
 | Suppression des peerings existants | Supprime les peerings qui ne correspondent pas à la configuration, même manuels |
@@ -118,8 +118,8 @@ Un réseau virtuel peut appartenir à plusieurs groupes réseau. Les changements
 
 | Limite | Valeur |
 | --- | --- |
-| Spokes appairés à un hub par une configuration hub-and-spoke | 1 000 |
-| Réseaux virtuels par groupe connecté | 250 par défaut ; jusqu'à 3 000 avec la fonctionnalité haute capacité |
+| Spokes reliés par peering à un hub par une configuration hub-and-spoke | 1 000 |
+| Réseaux virtuels par groupe connecté | 250 par défaut ; jusqu'à 3 000 avec un groupe connecté haute capacité (fonctionnalité en préversion `AllowHighScaleConnectedGroup` et formulaire d'activation) |
 | Points de terminaison privés par groupe connecté | 2 000 par défaut ; jusqu'à 20 000 avec l'option haute capacité |
 | Groupes connectés auxquels un réseau virtuel peut appartenir | 2 (limite ajustable) |
 
@@ -148,6 +148,6 @@ Pour vérifier le résultat sur un réseau virtuel, ouvrez **Network Manager** d
 - Le peering n'est pas transitif ; le trafic entre spokes passe par un peering direct, un groupe connecté, ou un NVA avec des UDR et le **trafic transféré** autorisé.
 - Transit par passerelle : le hub autorise sa passerelle à transférer le trafic, le spoke utilise la passerelle distante ; le spoke n'a pas de passerelle à lui ; pas avec la référence SKU VPN Basic.
 - Le peering exige des espaces d'adressage disjoints et deux liens qui affichent tous deux **Connecté** ; il fonctionne entre régions, abonnements et locataires.
-- Après le redimensionnement d'un espace d'adressage appairé, synchronisez les liens de peering.
+- Après le redimensionnement de l'espace d'adressage d'un réseau relié par peering, synchronisez les liens de peering.
 - Gestionnaire de réseau : étendue et fonctionnalités, groupes réseau (statiques ou Azure Policy), configurations, puis déploiement par région ; rien ne s'applique avant le déploiement.
 - Le maillage et la connectivité directe créent des groupes connectés (tronçon suivant `ConnectedGroup`), pas des peerings ; le hub-and-spoke crée des peerings.

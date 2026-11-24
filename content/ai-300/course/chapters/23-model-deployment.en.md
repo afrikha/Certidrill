@@ -65,9 +65,9 @@ az ml online-deployment create --file blue-deployment.yml --all-traffic
 - The **scoring script** has `init()` (runs once when the container starts or is updated: load the model) and `run()` (runs on every request).
 - **MLflow models** use no-code deployment: omit `code_configuration` and `environment`; a curated environment and a generated scoring script are used, and the signature produces the swagger.
 - `instance_count`: at least **3** for high availability. Quota is reserved as `ceil(1.2 × instances) × cores of the SKU`: the extra 20 % is kept for upgrades.
-- `request_settings`: `request_timeout_ms` defaults to 5,000 (maximum 180,000); `max_concurrent_requests_per_instance` defaults to 1.
+- `request_settings`: `request_timeout_ms` defaults to 5,000 (maximum 180,000); `max_concurrent_requests_per_instance` defaults to 1. With the Azure Machine Learning inference server or inference images, a value above 1 also needs the model to handle concurrent requests: pass `WORKER_COUNT` as an environment variable. `max_queue_wait_ms` is deprecated: raise `request_timeout_ms` to cover queue delays.
 - Probes (`liveness_probe`, `readiness_probe`): `initial_delay` 10 s, `period` 10 s, `timeout` 2 s, `failure_threshold` 30 by default. Raise `initial_delay` for a model that loads slowly.
-- `egress_public_network_access: disabled` blocks outbound internet from the deployment; inbound scoring goes through the workspace private endpoint.
+- `egress_public_network_access: disabled` (legacy network isolation method) limits the deployment to the workspace resources secured in the virtual network and downloads the model, code and images through private endpoints; it can't be changed after creation. Microsoft strongly recommends a **workspace managed virtual network** instead; with it, don't set this flag. Inbound scoring goes through the workspace private endpoint.
 - **Autoscale** uses Azure Monitor autoscale rules on the deployment: metric based (CPU above 70 %) or schedule based (business hours), or both.
 
 > **Exam tip.** `--all-traffic` on `az ml online-deployment create` sends 100 % of the endpoint's traffic to the new deployment. Without it, a new deployment gets 0 %: the endpoint keeps serving through the existing deployments.
@@ -160,7 +160,7 @@ REST clients reach a deployment directly with the header `azureml-model-deployme
 | 404 | No deployment with positive traffic weight |
 | 408 | Request exceeded `request_timeout_ms` |
 | 424 | The model container returned a non-200 response: read `ms-azureml-model-error-statuscode` and `ms-azureml-model-error-reason` |
-| 429 | Too many pending requests (more than `2 × max_concurrent_requests_per_instance × instance_count`) or rate limit: back off, scale out |
+| 429 | Too many pending requests (at most `2 × max_concurrent_requests_per_instance × instance_count` process in parallel; the excess is rejected; check that `WORKER_COUNT` is passed) or requests per second over the endpoint limits: back off, scale out |
 | 500 | Platform infrastructure failure |
 
 > **Exam trap.** A 404 right after a successful deployment usually means the new deployment has 0 % traffic and no other deployment has any: set traffic or invoke with `--deployment-name`. A 424 is the model's own error, not the platform's.

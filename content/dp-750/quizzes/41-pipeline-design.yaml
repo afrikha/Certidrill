@@ -1,0 +1,552 @@
+chapter: 41-pipeline-design
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp750-qz-41-01
+    objective: "4.1.5"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        At Contoso, the notebook **./utils/cleaning** defines the Python functions `normalize_phone()` and `drop_test_rows()`. The notebooks of the bronze and silver steps must call these functions directly, in their own Spark session.
+
+        What should each step notebook use?
+      fr: |
+        Chez Contoso, le notebook **./utils/cleaning** définit les fonctions Python `normalize_phone()` et `drop_test_rows()`. Les notebooks des étapes bronze et silver doivent appeler ces fonctions directement, dans leur propre session Spark.
+
+        Qu'est-ce que chaque notebook d'étape doit utiliser ?
+    body:
+      options:
+        - { id: a, text: { en: "`dbutils.notebook.run(\"./utils/cleaning\", 0, {})` in its first cell", fr: "`dbutils.notebook.run(\"./utils/cleaning\", 0, {})` dans sa première cellule" } }
+        - { id: b, text: { en: "`%run ./utils/cleaning` in a cell by itself", fr: "`%run ./utils/cleaning` dans une cellule à part" } }
+        - { id: c, text: { en: "A job task that runs ./utils/cleaning, on which its own task depends", fr: "Une tâche de job qui exécute ./utils/cleaning, dont sa propre tâche dépend" } }
+        - { id: d, text: { en: "`dbutils.jobs.taskValues.get()` with the name of each function", fr: "`dbutils.jobs.taskValues.get()` avec le nom de chaque fonction" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `%run` runs the other notebook inline, in the caller's session, so the functions and variables it defines become available to the caller. The command must be alone in its cell.
+        fr: |
+          `%run` exécute l'autre notebook en ligne, dans la session de l'appelant : les fonctions et les variables qu'il définit deviennent disponibles pour l'appelant. La commande doit être seule dans sa cellule.
+      options:
+        a: { en: "`dbutils.notebook.run()` starts a separate ephemeral run; its functions don't exist in the caller's session, and it returns only a string.", fr: "`dbutils.notebook.run()` démarre une exécution éphémère distincte ; ses fonctions n'existent pas dans la session de l'appelant, et elle ne renvoie qu'une chaîne." }
+        c: { en: "A separate task runs in its own session: the functions it defines aren't available to the downstream notebook.", fr: "Une tâche distincte s'exécute dans sa propre session : les fonctions qu'elle définit ne sont pas disponibles pour le notebook en aval." }
+        d: { en: "Task values pass small JSON values between tasks; they can't carry Python functions.", fr: "Les valeurs de tâche transmettent de petites valeurs JSON entre les tâches ; elles ne peuvent pas transporter de fonctions Python." }
+    references:
+      - title: Orchestrate Databricks notebooks and modularize code
+        url: https://learn.microsoft.com/en-us/azure/databricks/notebooks/notebook-workflows
+
+  # ------------------------------------------------------------------ 2
+  - id: dp750-qz-41-02
+    objective: "4.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys streams booking events from **tailspin.bronze.bookings**. For each micro-batch, the step must call an internal pricing REST API to get a rate for each booking, and then run a `MERGE` into **tailspin.silver.bookings** whose conditions depend on that rate.
+
+        What should you use for this step?
+      fr: |
+        Tailspin Toys traite en streaming les événements de réservation de **tailspin.bronze.bookings**. Pour chaque micro-lot, l'étape doit appeler une API REST interne de tarification pour obtenir un tarif par réservation, puis exécuter un `MERGE` dans **tailspin.silver.bookings** dont les conditions dépendent de ce tarif.
+
+        Que devez-vous utiliser pour cette étape ?
+    body:
+      options:
+        - { id: a, text: { en: "A materialized view in a Lakeflow Spark Declarative Pipelines pipeline", fr: "Une vue matérialisée dans un pipeline Lakeflow Spark Declarative Pipelines" } }
+        - { id: b, text: { en: "An AUTO CDC flow in a Lakeflow Spark Declarative Pipelines pipeline", fr: "Un flux AUTO CDC dans un pipeline Lakeflow Spark Declarative Pipelines" } }
+        - { id: c, text: { en: "A notebook task that runs a Structured Streaming query with foreachBatch", fr: "Une tâche de notebook qui exécute une requête Structured Streaming avec foreachBatch" } }
+        - { id: d, text: { en: "A temporary view in a Lakeflow Spark Declarative Pipelines pipeline", fr: "Une vue temporaire dans un pipeline Lakeflow Spark Declarative Pipelines" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Calls to external APIs and fine control of each write, such as a custom `foreachBatch` that runs a `MERGE` with its own conditions, are imperative logic that belongs in a notebook. A pipeline declares datasets whose code must stay free of side effects, and it chooses itself how to update them.
+        fr: |
+          Les appels d'API externes et le contrôle fin de chaque écriture, comme un `foreachBatch` personnalisé qui exécute un `MERGE` avec ses propres conditions, sont de la logique impérative qui relève d'un notebook. Un pipeline déclare des jeux de données dont le code doit rester sans effet de bord, et il choisit lui-même comment les mettre à jour.
+      options:
+        a: { en: "A materialized view declares a result that the pipeline keeps consistent; it doesn't let you call an API or write your own MERGE per batch.", fr: "Une vue matérialisée déclare un résultat que le pipeline maintient cohérent ; elle ne permet ni d'appeler une API ni d'écrire votre propre MERGE par lot." }
+        b: { en: "AUTO CDC applies CDC changes by key and sequence; it doesn't run custom merge conditions computed from an API call.", fr: "AUTO CDC applique des modifications CDC par clé et par séquence ; il n'exécute pas de conditions de merge personnalisées calculées à partir d'un appel d'API." }
+        d: { en: "A temporary view is an intermediate dataset that isn't published; it can't write to tailspin.silver.bookings with a MERGE.", fr: "Une vue temporaire est un jeu de données intermédiaire non publié ; elle ne peut pas écrire dans tailspin.silver.bookings avec un MERGE." }
+    references:
+      - title: Pipeline concepts
+        url: https://learn.microsoft.com/en-us/azure/databricks/ldp/concepts
+
+  # ------------------------------------------------------------------ 3
+  - id: dp750-qz-41-03
+    objective: "4.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has a Lakeflow job named **sales_daily** with a job parameter named **run_date**. The SQL task **load_day** runs a query that has a parameter named **day**, and the notebook task **check_day** reads a widget named **day**.
+
+        You need both tasks to receive the value of run_date in their day parameter, including when an operator starts the job with another run_date value.
+
+        What should you set as the value of the day parameter of both tasks?
+      fr: |
+        Fabrikam dispose d'un job Lakeflow nommé **sales_daily** avec un paramètre de job nommé **run_date**. La tâche SQL **load_day** exécute une requête qui a un paramètre nommé **day**, et la tâche de notebook **check_day** lit un widget nommé **day**.
+
+        Les deux tâches doivent recevoir la valeur de run_date dans leur paramètre day, y compris quand un opérateur démarre le job avec une autre valeur de run_date.
+
+        Que devez-vous définir comme valeur du paramètre day des deux tâches ?
+    body:
+      options:
+        - { id: a, text: "`{{job.start_time.iso_date}}`" }
+        - { id: b, text: "`{{tasks.sales_daily.values.run_date}}`" }
+        - { id: c, text: "`{{run_date}}`" }
+        - { id: d, text: "`{{job.parameters.run_date}}`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A job parameter is referenced with the dynamic value reference `{{job.parameters.<name>}}`, which is replaced at run time by the value of the run, default or overridden. Because the task parameter is named day and not run_date, each task maps it explicitly with this reference.
+        fr: |
+          Un paramètre de job se référence avec la référence de valeur dynamique `{{job.parameters.<name>}}`, remplacée à l'exécution par la valeur de l'exécution, par défaut ou remplacée. Comme le paramètre de tâche se nomme day et non run_date, chaque tâche le mappe explicitement avec cette référence.
+      options:
+        a: { en: "This reference gives the date on which the run started, not the run_date value that an operator can override.", fr: "Cette référence donne la date de début de l'exécution, pas la valeur run_date qu'un opérateur peut remplacer." }
+        b: { en: "`tasks.<task_name>.values` reads a task value set by an upstream task; sales_daily is the job, not a task, and sets no task value.", fr: "`tasks.<task_name>.values` lit une valeur de tâche définie par une tâche en amont ; sales_daily est le job, pas une tâche, et ne définit aucune valeur de tâche." }
+        c: { en: "A reference outside a known namespace isn't resolved: it is passed as the literal text.", fr: "Une référence hors d'un espace de noms connu n'est pas résolue : elle est transmise comme texte littéral." }
+    references:
+      - title: Dynamic value references
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/dynamic-value-references
+
+  # ------------------------------------------------------------------ 4
+  - id: dp750-qz-41-04
+    objective: "4.1.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Woodgrove Bank has a Lakeflow job whose notebook task **load_rates** has a timeout of 15 minutes and a retry policy with two retries. The retry interval is short.
+
+        Tonight, the first two attempts each fail with a transient error after 10 minutes, and the third attempt succeeds after 12 minutes.
+
+        What is the result of load_rates?
+      fr: |
+        Woodgrove Bank dispose d'un job Lakeflow dont la tâche de notebook **load_rates** a un délai d'expiration de 15 minutes et une stratégie de nouvelle tentative avec deux nouvelles tentatives. L'intervalle entre les tentatives est court.
+
+        Cette nuit, les deux premières tentatives échouent chacune sur une erreur transitoire au bout de 10 minutes, et la troisième tentative réussit au bout de 12 minutes.
+
+        Quel est le résultat de load_rates ?
+    body:
+      options:
+        - { id: a, text: { en: "It times out during the second attempt, because the timeout covers all the attempts together.", fr: "Elle expire pendant la deuxième tentative, car le délai d'expiration couvre l'ensemble des tentatives." } }
+        - { id: b, text: { en: "It fails after the first attempt, because a task that has a timeout isn't retried.", fr: "Elle échoue après la première tentative, car une tâche qui a un délai d'expiration n'est pas relancée." } }
+        - { id: c, text: { en: "It succeeds, because the timeout applies to each attempt separately.", fr: "Elle réussit, car le délai d'expiration s'applique à chaque tentative séparément." } }
+        - { id: d, text: { en: "It fails after the second attempt, because the retry intervals count toward the timeout.", fr: "Elle échoue après la deuxième tentative, car les intervalles entre tentatives comptent dans le délai d'expiration." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          When a task has both a timeout and retries, the timeout applies to each retry. Every attempt here ends before 15 minutes, so the two failures are retried and the third attempt completes: the task succeeds about 32 minutes after it started.
+        fr: |
+          Quand une tâche a à la fois un délai d'expiration et des nouvelles tentatives, le délai s'applique à chaque nouvelle tentative. Ici, chaque tentative se termine avant 15 minutes : les deux échecs sont relancés et la troisième tentative aboutit, si bien que la tâche réussit environ 32 minutes après son démarrage.
+      options:
+        a: { en: "The timeout isn't shared by the attempts: each retry gets the full 15 minutes.", fr: "Le délai d'expiration n'est pas partagé entre les tentatives : chaque nouvelle tentative dispose des 15 minutes complètes." }
+        b: { en: "A timeout and a retry policy can be combined; the failed attempts are retried.", fr: "Un délai d'expiration et une stratégie de nouvelle tentative peuvent être combinés ; les tentatives en échec sont relancées." }
+        d: { en: "The timeout is measured per attempt, so the time between attempts doesn't consume it.", fr: "Le délai d'expiration se mesure par tentative : le temps entre les tentatives ne le consomme pas." }
+    references:
+      - title: Configure and edit tasks in Lakeflow Jobs
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/configure-task
+
+  # ------------------------------------------------------------------ 5
+  - id: dp750-qz-41-05
+    objective: "4.1.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware creates a Lakeflow Spark Declarative Pipelines pipeline from **Jobs & Pipelines > New > ETL pipeline**, with the default catalog **litware** and the default schema **sales**. A SQL source file of the pipeline contains the following statement.
+
+        ```sql
+        CREATE OR REFRESH MATERIALIZED VIEW revenue_by_day
+        AS SELECT order_day, sum(amount) AS revenue
+        FROM orders_silver
+        GROUP BY order_day;
+        ```
+
+        orders_silver is a streaming table defined in another source file of the same pipeline, also without a catalog or schema name. Where do analysts find revenue_by_day after the first update?
+      fr: |
+        Litware crée un pipeline Lakeflow Spark Declarative Pipelines depuis **Jobs & Pipelines > New > ETL pipeline**, avec le catalogue par défaut **litware** et le schéma par défaut **sales**. Un fichier source SQL du pipeline contient l'instruction suivante.
+
+        ```sql
+        CREATE OR REFRESH MATERIALIZED VIEW revenue_by_day
+        AS SELECT order_day, sum(amount) AS revenue
+        FROM orders_silver
+        GROUP BY order_day;
+        ```
+
+        orders_silver est une table de diffusion en continu définie dans un autre fichier source du même pipeline, elle aussi sans nom de catalogue ni de schéma. Où les analystes trouvent-ils revenue_by_day après la première mise à jour ?
+    body:
+      options:
+        - { id: a, text: { en: "`litware.sales.revenue_by_day` in Unity Catalog", fr: "`litware.sales.revenue_by_day` dans Unity Catalog" } }
+        - { id: b, text: "`hive_metastore.default.revenue_by_day`" }
+        - { id: c, text: { en: "Nowhere: a dataset without a schema name is private to the pipeline", fr: "Nulle part : un jeu de données sans nom de schéma est privé au pipeline" } }
+        - { id: d, text: { en: "In a schema named after the pipeline in the litware catalog", fr: "Dans un schéma portant le nom du pipeline dans le catalogue litware" } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          The default catalog and schema of a pipeline are where datasets are read from and written to when the code doesn't qualify their names. New pipelines publish to Unity Catalog, so revenue_by_day is created as litware.sales.revenue_by_day, and orders_silver is read from the same schema.
+        fr: |
+          Le catalogue et le schéma par défaut d'un pipeline sont ceux où les jeux de données sont lus et écrits quand le code ne qualifie pas leur nom. Les nouveaux pipelines publient dans Unity Catalog : revenue_by_day est donc créée sous le nom litware.sales.revenue_by_day, et orders_silver est lue dans le même schéma.
+      options:
+        b: { en: "New pipelines use Unity Catalog by default, not the legacy Hive metastore.", fr: "Les nouveaux pipelines utilisent Unity Catalog par défaut, pas l'ancien metastore Hive." }
+        c: { en: "Only temporary views are private to the pipeline; a materialized view is published to the default schema.", fr: "Seules les vues temporaires sont privées au pipeline ; une vue matérialisée est publiée dans le schéma par défaut." }
+        d: { en: "Unqualified names resolve to the default schema that you set, not to a schema derived from the pipeline name.", fr: "Les noms non qualifiés se résolvent dans le schéma par défaut que vous avez défini, pas dans un schéma dérivé du nom du pipeline." }
+    references:
+      - title: Configure pipelines
+        url: https://learn.microsoft.com/en-us/azure/databricks/ldp/configure-pipeline
+
+  # ------------------------------------------------------------------ 6
+  - id: dp750-qz-41-06
+    objective: "4.1.3"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Litware has a Lakeflow job named **ingest_sources**. Its Python notebook task **list_sources** reads a control table and builds the variable `sources`, a list such as `[{"table": "crm_accounts", "mode": "full"}, {"table": "erp_invoices", "mode": "incremental"}]`. The list changes every day.
+
+        The For each task **load_sources** depends on list_sources. Its nested notebook task **load_one** must run once per element of the list, with its **table_name** parameter set to the table of that element.
+
+        How should you complete the configuration? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware dispose d'un job Lakeflow nommé **ingest_sources**. Sa tâche de notebook Python **list_sources** lit une table de contrôle et construit la variable `sources`, une liste comme `[{"table": "crm_accounts", "mode": "full"}, {"table": "erp_invoices", "mode": "incremental"}]`. La liste change chaque jour.
+
+        La tâche For each **load_sources** dépend de list_sources. Sa tâche de notebook imbriquée **load_one** doit s'exécuter une fois par élément de la liste, avec son paramètre **table_name** défini sur la table de cet élément.
+
+        Comment devez-vous compléter la configuration ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: text
+      template: |
+        # Last cell of list_sources
+        [[publish]]
+
+        Task: load_sources (For each)
+          Inputs:      [[inputs]]
+          Concurrency: 4
+          Nested task: load_one (Notebook)
+            Parameter table_name = [[table]]
+      slots:
+        - id: publish
+          options:
+            - { id: exit, text: "dbutils.notebook.exit(json.dumps(sources))" }
+            - { id: taskvalue, text: "dbutils.jobs.taskValues.set(key=\"sources\", value=sources)" }
+            - { id: widget, text: "dbutils.widgets.text(\"sources\", json.dumps(sources))" }
+        - id: inputs
+          options:
+            - { id: values, text: "{{tasks.list_sources.values.sources}}" }
+            - { id: state, text: "{{tasks.list_sources.result_state}}" }
+            - { id: param, text: "{{job.parameters.sources}}" }
+        - id: table
+          options:
+            - { id: input, text: "{{input}}" }
+            - { id: inputtable, text: "{{input.table}}" }
+            - { id: tvtable, text: "{{tasks.list_sources.values.sources.table}}" }
+    answer:
+      values: { publish: taskvalue, inputs: values, table: inputtable }
+    explanation:
+      correct:
+        en: |
+          list_sources publishes the list as a task value with `dbutils.jobs.taskValues.set()`, and the Inputs of the For each task reference it with `{{tasks.list_sources.values.sources}}`. Each element is an object, so the nested task reads one of its fields with `{{input.<key>}}`: `{{input.table}}` gives the table name of the current element.
+        fr: |
+          list_sources publie la liste comme valeur de tâche avec `dbutils.jobs.taskValues.set()`, et les Inputs de la tâche For each la référencent par `{{tasks.list_sources.values.sources}}`. Chaque élément est un objet : la tâche imbriquée lit donc l'un de ses champs avec `{{input.<key>}}`. `{{input.table}}` donne le nom de la table de l'élément en cours.
+      options:
+        exit: { en: "The exit value of a notebook isn't available to other tasks through a dynamic value reference.", fr: "La valeur de sortie d'un notebook n'est pas accessible aux autres tâches par une référence de valeur dynamique." }
+        param: { en: "A job parameter is set when the run starts; a task can't change it for the tasks that follow.", fr: "Un paramètre de job est fixé au démarrage de l'exécution ; une tâche ne peut pas le modifier pour les tâches suivantes." }
+        input: { en: "`{{input}}` is the whole element, here a JSON object with table and mode, not the table name alone.", fr: "`{{input}}` est l'élément entier, ici un objet JSON avec table et mode, pas le seul nom de la table." }
+    references:
+      - title: Use a For each task to run another task in a loop
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/for-each
+      - title: Dynamic value references
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/dynamic-value-references
+
+  # ------------------------------------------------------------------ 7
+  - id: dp750-qz-41-07
+    objective: "4.1.4"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Northwind Traders has a Lakeflow job with two notebook tasks. **load_txn** has a retry policy with two retries and runs the following code. **publish_txn** depends on load_txn with the default Run if condition. The job sends an email notification on failure.
+
+        ```python
+        try:
+            load_transactions(run_date)
+        except Exception as e:
+            log_error(e)
+            dbutils.notebook.exit("FAILED")
+        ```
+
+        Last night, `load_transactions()` raised an exception.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind Traders dispose d'un job Lakeflow avec deux tâches de notebook. **load_txn** a une stratégie de nouvelle tentative avec deux nouvelles tentatives et exécute le code suivant. **publish_txn** dépend de load_txn avec la condition Run if par défaut. Le job envoie une notification par e-mail en cas d'échec.
+
+        ```python
+        try:
+            load_transactions(run_date)
+        except Exception as e:
+            log_error(e)
+            dbutils.notebook.exit("FAILED")
+        ```
+
+        La nuit dernière, `load_transactions()` a levé une exception.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "publish_txn ran after load_txn.", fr: "publish_txn s'est exécutée après load_txn." }
+        - id: s2
+          text: { en: "load_txn was retried twice before the job sent the failure notification.", fr: "load_txn a été relancée deux fois avant que le job n'envoie la notification d'échec." }
+        - id: s3
+          text: { en: "If `dbutils.notebook.exit(\"FAILED\")` is replaced with `raise`, the retry policy reruns load_txn after such an exception.", fr: "Si `dbutils.notebook.exit(\"FAILED\")` est remplacé par `raise`, la stratégie de nouvelle tentative relance load_txn après une telle exception." }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          `dbutils.notebook.exit()` ends the notebook normally and only returns a string, so load_txn is reported as succeeded: publish_txn runs, nothing is retried and no failure notification is sent. Re-raising the exception makes the task fail, which triggers the retry policy and, after the last attempt, the failure notification and the Upstream failed status of publish_txn.
+        fr: |
+          `dbutils.notebook.exit()` termine le notebook normalement et ne fait que renvoyer une chaîne : load_txn est donc signalée comme réussie, publish_txn s'exécute, rien n'est relancé et aucune notification d'échec n'est envoyée. Relever l'exception fait échouer la tâche, ce qui déclenche la stratégie de nouvelle tentative puis, après la dernière tentative, la notification d'échec et l'état Upstream failed de publish_txn.
+      options:
+        s2: { en: "The retry policy reruns failed task runs only; a notebook that ends with exit() succeeded.", fr: "La stratégie de nouvelle tentative ne relance que les exécutions de tâche en échec ; un notebook qui se termine par exit() a réussi." }
+    references:
+      - title: Orchestrate Databricks notebooks and modularize code
+        url: https://learn.microsoft.com/en-us/azure/databricks/notebooks/notebook-workflows
+      - title: Configure and edit tasks in Lakeflow Jobs
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/configure-task
+
+  # ------------------------------------------------------------------ 8
+  - id: dp750-qz-41-08
+    objective: "4.1.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum has a Lakeflow job named **stock_nightly** with the following notebook tasks:
+
+        | Task | Depends on | Run if | Action |
+        | --- | --- | --- | --- |
+        | load_primary | | | Loads adatum.bronze.stock from the warehouse API |
+        | load_backup | load_primary | All failed | Loads adatum.bronze.stock from the backup export files |
+        | build_silver | load_primary, load_backup | ? | Builds adatum.silver.stock |
+
+        You need to set the Run if condition of build_silver. build_silver must run whenever the day's stock was loaded, by load_primary or by load_backup. It must not run when neither task loaded the data.
+
+        Which Run if condition should you set?
+      fr: |
+        Adatum dispose d'un job Lakeflow nommé **stock_nightly** avec les tâches de notebook suivantes :
+
+        | Tâche | Depends on | Run if | Action |
+        | --- | --- | --- | --- |
+        | load_primary | | | Charge adatum.bronze.stock depuis l'API de l'entrepôt |
+        | load_backup | load_primary | All failed | Charge adatum.bronze.stock depuis les fichiers d'export de secours |
+        | build_silver | load_primary, load_backup | ? | Construit adatum.silver.stock |
+
+        Vous devez définir la condition Run if de build_silver. build_silver doit s'exécuter chaque fois que le stock du jour a été chargé, par load_primary ou par load_backup. Elle ne doit pas s'exécuter quand aucune des deux tâches n'a chargé les données.
+
+        Quelle condition Run if devez-vous définir ?
+    body:
+      options:
+        - { id: a, text: All succeeded }
+        - { id: b, text: None failed }
+        - { id: c, text: All done }
+        - { id: d, text: At least one succeeded }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          When load_primary succeeds, load_backup doesn't meet its All failed condition and is excluded; when load_primary fails, load_backup runs. At least one succeeded is therefore true in both successful cases (load_primary succeeded, or load_backup succeeded) and false when both failed, in which case build_silver is marked Upstream failed.
+        fr: |
+          Quand load_primary réussit, load_backup ne remplit pas sa condition All failed et est exclue ; quand load_primary échoue, load_backup s'exécute. At least one succeeded est donc vraie dans les deux cas de réussite (load_primary a réussi, ou load_backup a réussi) et fausse quand les deux ont échoué : build_silver est alors marquée Upstream failed.
+      options:
+        a: { en: "All succeeded works when load_primary succeeds, because the excluded load_backup counts as successful, but it fails when load_backup saves the day after load_primary failed.", fr: "All succeeded fonctionne quand load_primary réussit, car load_backup exclue compte comme réussie, mais elle échoue quand load_backup rattrape l'échec de load_primary." }
+        b: { en: "None failed is false as soon as load_primary failed, even when load_backup then loaded the data.", fr: "None failed est fausse dès que load_primary a échoué, même si load_backup a ensuite chargé les données." }
+        c: { en: "All done runs build_silver even when both loads failed, which the requirement forbids.", fr: "All done exécute build_silver même quand les deux chargements ont échoué, ce que l'exigence interdit." }
+    references:
+      - title: Configure task dependencies
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/run-if
+
+  # ------------------------------------------------------------------ 9
+  - id: dp750-qz-41-09
+    objective: "4.1.6"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso is writing the SQL source file of a Lakeflow Spark Declarative Pipelines pipeline whose default catalog and schema are **contoso.sales**. A CRM synchronization updates the rows of **contoso.crm.customers** in place every hour.
+
+        The pipeline must meet the following requirements:
+
+        - **orders_clean** casts and filters the rows of orders_bronze. It is an intermediate step that must not be published to the catalog.
+        - **customer_revenue** joins orders_clean with contoso.crm.customers. It must be published and stay consistent with both sources, including customer updates.
+
+        How should you complete the code? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso écrit le fichier source SQL d'un pipeline Lakeflow Spark Declarative Pipelines dont le catalogue et le schéma par défaut sont **contoso.sales**. Une synchronisation CRM met à jour sur place les lignes de **contoso.crm.customers** toutes les heures.
+
+        Le pipeline doit satisfaire les exigences suivantes :
+
+        - **orders_clean** convertit et filtre les lignes de orders_bronze. C'est une étape intermédiaire qui ne doit pas être publiée dans le catalogue.
+        - **customer_revenue** joint orders_clean à contoso.crm.customers. Ce jeu de données doit être publié et rester cohérent avec les deux sources, y compris les mises à jour des clients.
+
+        Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        CREATE OR REFRESH STREAMING TABLE orders_bronze
+        AS SELECT *, _metadata.file_path AS source_file
+        FROM STREAM read_files('/Volumes/contoso/landing/orders/', format => 'json');
+
+        [[clean]] orders_clean
+        AS SELECT CAST(order_id AS BIGINT) AS order_id, customer_id,
+                  CAST(amount AS DECIMAL(12, 2)) AS amount
+        FROM orders_bronze
+        WHERE amount IS NOT NULL;
+
+        CREATE OR REFRESH [[gold]] customer_revenue
+        AS SELECT c.customer_id, c.segment, sum(o.amount) AS revenue
+        FROM orders_clean AS o
+        JOIN [[cust]] AS c ON o.customer_id = c.customer_id
+        GROUP BY c.customer_id, c.segment;
+      slots:
+        - id: clean
+          options:
+            - { id: view, text: "CREATE VIEW" }
+            - { id: temp, text: "CREATE TEMPORARY VIEW" }
+            - { id: st, text: "CREATE OR REFRESH STREAMING TABLE" }
+            - { id: mv, text: "CREATE OR REFRESH MATERIALIZED VIEW" }
+        - id: gold
+          options:
+            - { id: st, text: "STREAMING TABLE" }
+            - { id: mv, text: "MATERIALIZED VIEW" }
+        - id: cust
+          options:
+            - { id: stream, text: "STREAM(contoso.crm.customers)" }
+            - { id: batch, text: "contoso.crm.customers" }
+    answer:
+      values: { clean: temp, gold: mv, cust: batch }
+    explanation:
+      correct:
+        en: |
+          A temporary view is private to the pipeline and isn't added to the catalog, which fits an intermediate step. customer_revenue joins and aggregates a source whose rows are updated, so it must be a materialized view, which recomputes its results to reflect the current state of its sources. A materialized view reads its sources as batch, without `STREAM`.
+        fr: |
+          Une vue temporaire est privée au pipeline et n'est pas ajoutée au catalogue, ce qui convient à une étape intermédiaire. customer_revenue joint et agrège une source dont les lignes sont mises à jour : ce doit donc être une vue matérialisée, qui recalcule ses résultats pour refléter l'état actuel de ses sources. Une vue matérialisée lit ses sources en batch, sans `STREAM`.
+      options:
+        view: { en: "`CREATE VIEW` in a pipeline publishes the view to the catalog and schema of the pipeline.", fr: "`CREATE VIEW` dans un pipeline publie la vue dans le catalogue et le schéma du pipeline." }
+        st: { en: "A streaming table expects an append-only source and is published; it fits neither the intermediate step nor an aggregate over updated rows.", fr: "Une table de diffusion en continu attend une source en ajout seul et est publiée ; elle ne convient ni à l'étape intermédiaire ni à un agrégat sur des lignes mises à jour." }
+        stream: { en: "A streaming read fails when its source receives updates, and a materialized view doesn't read its sources as streams.", fr: "Une lecture en streaming échoue quand sa source reçoit des mises à jour, et une vue matérialisée ne lit pas ses sources comme des flux." }
+    references:
+      - title: CREATE TEMPORARY VIEW (pipelines)
+        url: https://learn.microsoft.com/en-us/azure/databricks/ldp/developer/ldp-sql-ref-create-temporary-view
+      - title: Pipeline concepts
+        url: https://learn.microsoft.com/en-us/azure/databricks/ldp/concepts
+
+  # ------------------------------------------------------------------ 10
+  - id: dp750-qz-41-10
+    objective: "4.1.1"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Fabrikam is designing a Lakeflow job named **retail_nightly**. Every task uses the default Run if condition, All succeeded.
+
+        | Task | Reads | Action |
+        | --- | --- | --- |
+        | ingest_crm | CRM API | Writes fabrikam.bronze.customers |
+        | ingest_pos | Point-of-sale files | Writes fabrikam.bronze.sales |
+        | dim_customer | fabrikam.bronze.customers | Merges into fabrikam.gold.dim_customer |
+        | fact_sales | fabrikam.bronze.sales, fabrikam.gold.dim_customer | Merges into fabrikam.gold.fact_sales |
+        | validate_sales | fabrikam.gold.fact_sales | Raises an exception when the totals don't reconcile; depends on fact_sales |
+        | publish_reports | fabrikam.gold tables | Refreshes the reports of the business users |
+        | optimize_gold | fabrikam.gold tables | Runs OPTIMIZE on the gold tables |
+
+        The job must meet the following requirements:
+
+        - Minimize the time before the reports are refreshed.
+        - No fact may reference a customer that isn't yet in dim_customer.
+        - The business users must see only reconciled data.
+        - Table maintenance must start only after the reports are refreshed.
+
+        Which tasks should you select in the Depends on setting of each task? To answer, drag the appropriate values to the correct tasks. Each value may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam conçoit un job Lakeflow nommé **retail_nightly**. Chaque tâche utilise la condition Run if par défaut, All succeeded.
+
+        | Tâche | Lit | Action |
+        | --- | --- | --- |
+        | ingest_crm | API du CRM | Écrit fabrikam.bronze.customers |
+        | ingest_pos | Fichiers des points de vente | Écrit fabrikam.bronze.sales |
+        | dim_customer | fabrikam.bronze.customers | Fusionne dans fabrikam.gold.dim_customer |
+        | fact_sales | fabrikam.bronze.sales, fabrikam.gold.dim_customer | Fusionne dans fabrikam.gold.fact_sales |
+        | validate_sales | fabrikam.gold.fact_sales | Lève une exception quand les totaux ne concordent pas ; dépend de fact_sales |
+        | publish_reports | Tables fabrikam.gold | Actualise les rapports des utilisateurs métier |
+        | optimize_gold | Tables fabrikam.gold | Exécute OPTIMIZE sur les tables gold |
+
+        Le job doit satisfaire les exigences suivantes :
+
+        - Réduire au minimum le délai avant l'actualisation des rapports.
+        - Aucun fait ne doit référencer un client qui n'est pas encore dans dim_customer.
+        - Les utilisateurs métier ne doivent voir que des données rapprochées.
+        - La maintenance des tables ne doit commencer qu'après l'actualisation des rapports.
+
+        Quelles tâches devez-vous sélectionner dans le paramètre Depends on de chaque tâche ? Pour répondre, faites glisser les valeurs appropriées vers les tâches correctes. Chaque valeur peut être utilisée une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: crm, text: ingest_crm }
+        - { id: pos, text: ingest_pos }
+        - { id: both, text: "ingest_crm, ingest_pos" }
+        - { id: posdim, text: "ingest_pos, dim_customer" }
+        - { id: fact, text: fact_sales }
+        - { id: validate, text: validate_sales }
+        - { id: publish, text: publish_reports }
+      targets:
+        - { id: t_dim, text: dim_customer }
+        - { id: t_fact, text: fact_sales }
+        - { id: t_publish, text: publish_reports }
+        - { id: t_optimize, text: optimize_gold }
+    answer:
+      mapping: { t_dim: crm, t_fact: posdim, t_publish: validate, t_optimize: publish }
+    explanation:
+      correct:
+        en: |
+          A task only needs to wait for the tasks that produce what it reads: dim_customer waits for ingest_crm alone, so it runs in parallel with ingest_pos. fact_sales reads the sales and the dimension, so the dimension is loaded before the facts. publish_reports waits for validate_sales, so a failed reconciliation stops the publication, and optimize_gold runs last, off the critical path.
+        fr: |
+          Une tâche n'a besoin d'attendre que les tâches qui produisent ce qu'elle lit : dim_customer attend uniquement ingest_crm et s'exécute donc en parallèle de ingest_pos. fact_sales lit les ventes et la dimension : la dimension est donc chargée avant les faits. publish_reports attend validate_sales, si bien qu'un rapprochement en échec arrête la publication, et optimize_gold s'exécute en dernier, hors du chemin critique.
+      options:
+        both: { en: "Making dim_customer wait for ingest_pos as well delays the dimension, and so the reports, for no data reason.", fr: "Faire attendre aussi ingest_pos à dim_customer retarde la dimension, donc les rapports, sans raison liée aux données." }
+        pos: { en: "fact_sales depending on ingest_pos only could run before dim_customer and reference unknown customers.", fr: "Si fact_sales ne dépendait que de ingest_pos, elle pourrait s'exécuter avant dim_customer et référencer des clients inconnus." }
+        fact: { en: "Publishing right after fact_sales skips the reconciliation: unreconciled data could reach the business users.", fr: "Publier juste après fact_sales contourne le rapprochement : des données non rapprochées pourraient atteindre les utilisateurs métier." }
+    references:
+      - title: Configure task dependencies
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/run-if

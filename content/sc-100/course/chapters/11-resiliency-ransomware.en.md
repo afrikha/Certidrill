@@ -78,6 +78,8 @@ The **secure backups** checklist of the recovery step:
 3. Protect backups against deliberate erasure and encryption. **Strong**: require out-of-band steps (multifactor authentication or a PIN) before online backups can be modified. **Strongest**: keep backups in online immutable storage, such as Azure Blob immutable storage, or fully offline or off-site.
 4. Protect the documents needed for recovery: restore procedures, the configuration management database (CMDB) and network diagrams. Attackers deliberately target them.
 
+Microsoft gives a priority order for the most important applications: identity systems, human life, financial systems, product or service enablement, then security (minimum). The prioritized backup list also becomes the prioritized restore list.
+
 The data protection checklist adds: move user data to OneDrive and SharePoint, designate protected folders (controlled folder access in Microsoft Defender), and reduce broad write and delete permissions on file shares and SharePoint, then monitor so that they don't reappear.
 
 For hybrid and multicloud estates, apply the same requirements everywhere: backups administered by separate identities, immutable or offline copies, protected recovery documents and tested restores.

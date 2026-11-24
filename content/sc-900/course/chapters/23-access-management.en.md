@@ -19,7 +19,7 @@ A policy has two parts. **Assignments** say when it applies; all of them must be
 | Control | Options |
 | --- | --- |
 | **Block** | Deny access; the most restrictive decision |
-| **Grant** | Allow access, possibly on condition: require multifactor authentication, require an authentication strength, require a compliant device, require a Microsoft Entra hybrid joined device, require an approved client app or an app protection policy, require a password change, require terms of use |
+| **Grant** | Allow access, possibly on condition: require multifactor authentication, require an authentication strength, require a compliant device, require a Microsoft Entra hybrid joined device, require an app protection policy (the older "require approved client app" control retired in early March 2026), require a password change, require terms of use |
 | **Session** | Limit the experience after access is granted: sign-in frequency, application-enforced restrictions, Conditional Access App Control with Microsoft Defender for Cloud Apps |
 
 An **authentication strength** specifies which combinations of methods are accepted; three are built in: multifactor authentication, passwordless MFA and phishing-resistant MFA.
@@ -63,7 +63,7 @@ Commonly applied policies:
 | Service-specific roles | Exchange Administrator, Intune Administrator, SharePoint Administrator, Teams Administrator |
 | Cross-service roles | Security Administrator, Compliance Administrator |
 
-A **role assignment** attaches a role definition to a security principal (a user, a group or a service principal) at a **scope**: the whole tenant, an administrative unit, or a single resource such as one application.
+A **role assignment** attaches a role definition to a security principal (a user, a role-assignable group or a service principal) at a **scope**: the whole tenant, an administrative unit, or a single resource such as one application. A group can receive a Microsoft Entra role only if it was created as role-assignable, which requires P1 or P2 and assigned (not dynamic) membership.
 
 Apply **least privilege**: someone who only manages users gets User Administrator, not Global Administrator, which limits the damage if the account is compromised.
 

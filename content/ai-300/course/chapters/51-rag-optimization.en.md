@@ -52,7 +52,7 @@ Results below the value are excluded even if fewer than `k` remain, and filterin
 
 | Lever | Effect |
 | --- | --- |
-| HNSW (`m`, `efConstruction`, `efSearch`) vs exhaustive KNN | HNSW is approximate and fast; exhaustive KNN scans every vector (`"exhaustive": true` per query). Higher `efSearch` and `efConstruction` improve recall at the cost of latency and compute |
+| HNSW (`m`, `efConstruction`, `efSearch`) vs exhaustive KNN | HNSW is approximate and fast; exhaustive KNN scans every vector (`"exhaustive": true` per query). Tuning these parameters trades recall against latency, memory and disk footprint (defaults `m` 4, `efConstruction` 400, `efSearch` 500) |
 | Similarity metric | `cosine` for Azure OpenAI embedding models |
 | Filters on keyword or entity fields | Remove irrelevant documents; `vectorFilterMode` is `preFilter` (default), `postFilter` (may return fewer than `top`) or `strictPostFilter` (preview) |
 | Query rewriting | Fixes vague queries, missing keywords and extra words |
@@ -68,7 +68,7 @@ Results below the value are excluded even if fewer than `k` remain, and filterin
 | The right document is never in the candidates | Larger `k`, hybrid search, query rewriting |
 | Multi-part questions answered partly | Query decomposition |
 
-> **Exam trap.** A vector `threshold` belongs on a single pure vector query. On a hybrid query the fused `@search.score` is an RRF score, not a similarity, so a 0.8 cut-off would remove everything. To drop weak hybrid results, rerank and keep the top N.
+> **Exam trap.** Learn recommends a minimum threshold only on a single pure vector query. On a hybrid query the fused `@search.score` is an RRF score, not a similarity, so a 0.8 cut-off on that fused score would remove everything (a `vectorSimilarity` threshold filters only the vector results, before fusion). To drop weak hybrid results, rerank and keep the top N.
 
 <!-- section: embedding-models | objectives: 5.1.2 -->
 ## Selecting and fine-tuning embedding models
@@ -95,7 +95,7 @@ The **same embedding model** must embed the chunks and the queries; the vector f
 }
 ```
 
-With no `apiKey` or `authIdentity`, the skill uses the search service's system-assigned identity, which needs **Cognitive Services OpenAI User** on the model resource. The skill accepts at most 8,000 tokens of text (split first). The embeddings API accepts up to 8,192 tokens per input, 2,048 inputs per request and 300,000 tokens per request in total.
+With no `apiKey` or `authIdentity`, the skill uses the search service's system-assigned identity, which needs **Cognitive Services OpenAI User** on the model resource. The skill accepts at most 8,000 tokens of text (split first). Learn recommends a deployment for the skill that is separate from the query vectorizer's deployment (same model), to tune each one and tell indexer traffic from query traffic. The embeddings API accepts up to 8,192 tokens per input, 2,048 inputs per request and 300,000 tokens per request in total.
 
 Selection flow from the Azure Architecture Center:
 
@@ -112,6 +112,8 @@ Why vocabulary matters: a word outside the model's vocabulary is split into subw
 | Highest accuracy on general content | `text-embedding-3-large` |
 | Domain jargon the general models miss | A domain model, else a fine-tuned general model |
 | Images or diagrams | Convert to text with Content Understanding, then embed with a text model |
+
+**Migrating to another embedding model.** A vector field's dimensions can't change, and equal dimensions don't make two models compatible. Changing a vectorizer or a deployment name doesn't regenerate stored vectors, and raw vector scores aren't comparable across models, so review score thresholds. With built-in indexers, rebuild a new index from the source data with a new indexer; a second vector field in the same index is an option only for push ingestion. `Cohere-embed-v3-english` and `Cohere-embed-v3-multilingual` are deprecated since November 15, 2026 and retire on February 15, 2027 (replacements `Cohere-embed-v5-fast` and `Cohere-embed-v5-pro`).
 
 > **Exam trap.** Embedding queries with a different model, or a different `dimensions` value, than the indexed chunks silently breaks vector search. Upgrading the embedding model is a full re-indexing project, not a configuration change of the query.
 
@@ -213,7 +215,7 @@ Test **positive queries** (the data contains the answer: metrics should approach
 1. Set the **decision criteria before** running (for example a minimum average score and a cost or latency ceiling), so results can't be rationalized afterward.
 2. Change **one variable at a time** (chunk size, embedding model, weight, reranker, prompt); with several changes you can't tell which one caused the difference.
 3. Run both variants against the **same test dataset** and evaluators, recording quality, tokens and latency.
-4. Select both runs in Foundry and choose **Compare**, with the baseline set: each cell shows a **t-test** result (ImprovedStrong at p 0.001 or less, ImprovedWeak up to 0.05, Inconclusive with too few examples or p 0.05 and above), with sample size and p-value on hover. The comparison view isn't saved.
+4. Select both runs in Foundry and choose **Compare**, with the baseline set: each cell shows a **t-test** result (ImprovedStrong at p 0.001 or less, ImprovedWeak up to 0.05, in the desired direction; DegradedStrong and DegradedWeak, same bands, in the wrong direction; ChangedStrong and ChangedWeak when the desired direction is neutral; Inconclusive with too few examples or p 0.05 and above), with sample size and p-value on hover. The comparison view isn't saved.
 5. For an online test, route a share of live traffic to the variant (for example weighted backends in API Management) and watch continuous evaluation, latency and token metrics per variant before a full rollout.
 
 > **Exam tip.** "Is the new chunk size better, or is it noise?" → compare the two evaluation runs and read the statistical significance. "Inconclusive" means more test rows are needed, not that the variants are equal.

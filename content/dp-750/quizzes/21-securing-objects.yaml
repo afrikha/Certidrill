@@ -1,0 +1,520 @@
+chapter: 21-securing-objects
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp750-qz-21-01
+    objective: "2.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Last month, an administrator at Northwind ran the following statement:
+
+        `GRANT SELECT ON SCHEMA nw_prod.gold TO analysts;`
+
+        Today, you run `REVOKE SELECT ON TABLE nw_prod.gold.payroll FROM analysts;`. The statement succeeds, but members of the **analysts** group can still query **nw_prod.gold.payroll**.
+
+        What explains this result?
+      fr: |
+        Le mois dernier, un administrateur de Northwind a exécuté l'instruction suivante :
+
+        `GRANT SELECT ON SCHEMA nw_prod.gold TO analysts;`
+
+        Aujourd'hui, vous exécutez `REVOKE SELECT ON TABLE nw_prod.gold.payroll FROM analysts;`. L'instruction réussit, mais les membres du groupe **analysts** peuvent toujours interroger **nw_prod.gold.payroll**.
+
+        Qu'est-ce qui explique ce résultat ?
+    body:
+      options:
+        - { id: a, text: { en: "The analysts keep SELECT through the grant on the schema, which the table inherits.", fr: "Les analystes conservent SELECT par le privilège accordé sur le schéma, dont la table hérite." } }
+        - { id: b, text: { en: "The revocation takes effect only after the SQL warehouse of the analysts restarts.", fr: "La révocation ne prend effet qu'après le redémarrage de l'entrepôt SQL des analystes." } }
+        - { id: c, text: { en: "The REVOKE was ignored because USE SCHEMA must be revoked before SELECT.", fr: "Le REVOKE a été ignoré, car USE SCHEMA doit être révoqué avant SELECT." } }
+        - { id: d, text: { en: "The REVOKE applies to direct members only, not to members of nested groups.", fr: "Le REVOKE ne s'applique qu'aux membres directs, pas aux membres des groupes imbriqués." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A privilege granted on a schema applies to all current and future tables of that schema. The REVOKE on the table removes only a table-level grant, which didn't exist, and REVOKE succeeds even when the privilege was never granted. To remove the access, revoke SELECT at the level where it was granted, the schema, and grant it again table by table if needed.
+        fr: |
+          Un privilège accordé sur un schéma s'applique à toutes les tables actuelles et futures de ce schéma. Le REVOKE sur la table ne retire qu'un privilège accordé au niveau de la table, qui n'existait pas, et REVOKE réussit même si le privilège n'a jamais été accordé. Pour retirer l'accès, révoquez SELECT au niveau où il a été accordé, le schéma, puis accordez-le de nouveau table par table si nécessaire.
+      options:
+        b: { en: "Privilege changes don't wait for a compute restart; the access remains because of the schema-level grant.", fr: "Les modifications de privilèges n'attendent pas un redémarrage du calcul ; l'accès subsiste à cause du privilège accordé au niveau du schéma." }
+        c: { en: "No order is imposed between revocations; REVOKE SELECT on the table ran, but there was no table-level grant to remove.", fr: "Aucun ordre n'est imposé entre les révocations ; le REVOKE SELECT sur la table s'est exécuté, mais il n'y avait aucun privilège au niveau de la table à retirer." }
+        d: { en: "The grant and the revocation both target the group as a whole; the access comes from the schema-level grant.", fr: "L'octroi et la révocation visent tous deux le groupe dans son ensemble ; l'accès vient du privilège accordé au niveau du schéma." }
+    references:
+      - title: Unity Catalog permissions model concepts - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/access-control/permissions-concepts
+      - title: Manage privileges in Unity Catalog - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/manage-privileges/
+
+  # ------------------------------------------------------------------ 2
+  - id: dp750-qz-21-02
+    objective: "2.1.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum has an Azure key vault named **kv-adatum-etl** that uses the **Vault access policy** permission model. You have no role on the key vault.
+
+        You need to create an Azure Key Vault-backed secret scope that references kv-adatum-etl. The solution must follow the principle of least privilege.
+
+        Which Azure role should you request on kv-adatum-etl?
+      fr: |
+        Adatum dispose d'un coffre de clés Azure nommé **kv-adatum-etl** qui utilise le modèle d'autorisation **Vault access policy** (stratégie d'accès du coffre). Vous n'avez aucun rôle sur le coffre de clés.
+
+        Vous devez créer une étendue de secrets adossée à Azure Key Vault qui référence kv-adatum-etl. La solution doit respecter le principe du moindre privilège.
+
+        Quel rôle Azure devez-vous demander sur kv-adatum-etl ?
+    body:
+      options:
+        - { id: a, text: Owner }
+        - { id: b, text: Key Vault Secrets User }
+        - { id: c, text: Key Vault Contributor }
+        - { id: d, text: Key Vault Reader }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Creating a Key Vault-backed secret scope requires the Key Vault Contributor, Contributor or Owner role on the key vault, because the operation adds an access policy that gives Azure Databricks the Get and List permissions. Key Vault Contributor is the narrowest of these roles: it manages key vaults without the right to assign roles.
+        fr: |
+          Créer une étendue de secrets adossée à Key Vault exige le rôle Key Vault Contributor, Contributor ou Owner sur le coffre de clés, car l'opération ajoute une stratégie d'accès qui donne à Azure Databricks les autorisations Get et List. Key Vault Contributor est le plus restreint de ces rôles : il gère les coffres de clés sans le droit d'attribuer des rôles.
+      options:
+        a: { en: "Owner works, but it also allows assigning roles on the key vault, which is more than required.", fr: "Owner fonctionne, mais il permet aussi d'attribuer des rôles sur le coffre de clés, ce qui dépasse le besoin." }
+        b: { en: "Key Vault Secrets User reads secret values through Azure RBAC; it can't change the vault access policies, and RBAC data roles don't apply under the access policy model.", fr: "Key Vault Secrets User lit les valeurs des secrets par Azure RBAC ; il ne peut pas modifier les stratégies d'accès du coffre, et les rôles de données RBAC ne s'appliquent pas avec le modèle de stratégie d'accès." }
+        d: { en: "Key Vault Reader reads the vault metadata only; it can't add the access policy that scope creation needs.", fr: "Key Vault Reader lit seulement les métadonnées du coffre ; il ne peut pas ajouter la stratégie d'accès dont la création de l'étendue a besoin." }
+    references:
+      - title: Workspace secret scopes - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/security/secrets/workspace-secret-scopes
+
+  # ------------------------------------------------------------------ 3
+  - id: dp750-qz-21-03
+    objective: "2.1.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso runs an on-premises scheduler that must start Lakeflow jobs through the Azure Databricks REST API. In the same run, the scheduler must upload a status file to an Azure storage account. Both operations must use one identity, and no personal credential may be used.
+
+        You need to create the identity. The solution must follow Databricks recommendations.
+
+        What should you create?
+      fr: |
+        Contoso exploite un planificateur local qui doit démarrer des Lakeflow Jobs par l'API REST Azure Databricks. Au cours de la même exécution, le planificateur doit charger un fichier d'état dans un compte de stockage Azure. Les deux opérations doivent utiliser une seule identité, et aucune information d'identification personnelle ne doit être utilisée.
+
+        Vous devez créer l'identité. La solution doit suivre les recommandations de Databricks.
+
+        Que devez-vous créer ?
+    body:
+      options:
+        - { id: a, text: { en: "An Azure Databricks managed service principal with an OAuth secret", fr: "Un principal de service géré par Azure Databricks avec un secret OAuth" } }
+        - { id: b, text: { en: "A Microsoft Entra ID managed service principal added to the Azure Databricks account", fr: "Un principal de service géré par Microsoft Entra ID ajouté au compte Azure Databricks" } }
+        - { id: c, text: { en: "An Access Connector for Azure Databricks with a system-assigned managed identity", fr: "Un Access Connector for Azure Databricks avec une identité managée affectée par le système" } }
+        - { id: d, text: { en: "A Databricks-backed secret scope that stores the personal access token of a workspace admin", fr: "Une étendue de secrets adossée à Databricks qui stocke le jeton d'accès personnel d'un administrateur de l'espace de travail" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Databricks recommends Microsoft Entra ID managed service principals when an identity must authenticate with Azure Databricks and with other Azure resources at the same time. The scheduler can use the same app registration to get Microsoft Entra ID tokens for the storage account and Databricks OAuth or Microsoft Entra ID tokens for Azure Databricks.
+        fr: |
+          Databricks recommande les principaux de service gérés par Microsoft Entra ID quand une identité doit s'authentifier en même temps auprès d'Azure Databricks et d'autres ressources Azure. Le planificateur peut utiliser la même inscription d'application pour obtenir des jetons Microsoft Entra ID pour le compte de stockage, et OAuth Databricks ou des jetons Microsoft Entra ID pour Azure Databricks.
+      options:
+        a: { en: "An Azure Databricks managed service principal authenticates to Azure Databricks only; it can't get a token for the storage account.", fr: "Un principal de service géré par Azure Databricks ne s'authentifie qu'auprès d'Azure Databricks ; il ne peut pas obtenir de jeton pour le compte de stockage." }
+        c: { en: "An access connector gives managed identities to Unity Catalog inside Azure Databricks; an on-premises scheduler can't authenticate with it.", fr: "Un connecteur d'accès fournit des identités managées à Unity Catalog dans Azure Databricks ; un planificateur local ne peut pas s'authentifier avec." }
+        d: { en: "A personal access token is a personal credential tied to a user, which the requirements forbid.", fr: "Un jeton d'accès personnel est une information d'identification personnelle liée à un utilisateur, ce que les exigences interdisent." }
+    references:
+      - title: Service principals - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/admin/users-groups/service-principals
+
+  # ------------------------------------------------------------------ 4
+  - id: dp750-qz-21-04
+    objective: "2.1.2"
+    difficulty: 2
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso has a Unity Catalog table named **contoso.crm.customers** with the STRING columns customer_id, phone and country. Support agents belong to account groups named after their country, such as **FR-support**.
+
+        Users who query the table directly must see the real phone number only when they belong to the support group of the row's country. Other users must see `***`. All the rows and columns must remain visible.
+
+        How should you complete the statements? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso dispose d'une table Unity Catalog nommée **contoso.crm.customers** avec les colonnes STRING customer_id, phone et country. Les agents du support appartiennent à des groupes de compte nommés d'après leur pays, comme **FR-support**.
+
+        Les utilisateurs qui interrogent directement la table doivent voir le vrai numéro de téléphone uniquement s'ils appartiennent au groupe de support du pays de la ligne. Les autres utilisateurs doivent voir `***`. Toutes les lignes et toutes les colonnes doivent rester visibles.
+
+        Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        CREATE FUNCTION contoso.sec.mask_phone[[args]]
+        RETURN CASE WHEN is_account_group_member(country || '-support') THEN phone ELSE '***' END;
+
+        ALTER TABLE contoso.crm.customers
+          [[stmt]] contoso.sec.mask_phone [[clause]];
+      slots:
+        - id: args
+          options:
+            - { id: pc, text: "(phone STRING, country STRING)" }
+            - { id: cp, text: "(country STRING, phone STRING)" }
+            - { id: c, text: "(country STRING)" }
+        - id: stmt
+          options:
+            - { id: mask, text: ALTER COLUMN phone SET MASK }
+            - { id: filter, text: SET ROW FILTER }
+            - { id: maskc, text: ALTER COLUMN country SET MASK }
+        - id: clause
+          options:
+            - { id: using, text: "USING COLUMNS (country)" }
+            - { id: usingboth, text: "USING COLUMNS (phone, country)" }
+            - { id: on, text: "ON (country)" }
+            - { id: match, text: "MATCH COLUMNS (country)" }
+    answer:
+      values: { args: pc, stmt: mask, clause: using }
+    explanation:
+      correct:
+        en: |
+          A column mask hides values without removing rows or columns. The first parameter of the mask function maps to the masked column, phone, and every other input comes from `USING COLUMNS`, here the country column of the same row. The mask is attached with `ALTER COLUMN phone SET MASK`, which passes phone automatically, so `USING COLUMNS` lists country only.
+        fr: |
+          Un masque de colonne masque des valeurs sans retirer de lignes ni de colonnes. Le premier paramètre de la fonction de masque correspond à la colonne masquée, phone, et toute autre entrée vient de `USING COLUMNS`, ici la colonne country de la même ligne. Le masque s'attache avec `ALTER COLUMN phone SET MASK`, qui transmet phone automatiquement ; `USING COLUMNS` ne liste donc que country.
+      options:
+        cp: { en: "The first parameter always receives the masked column, so country would receive the phone value.", fr: "Le premier paramètre reçoit toujours la colonne masquée : country recevrait donc la valeur de phone." }
+        c: { en: "The function needs the phone value as its first parameter to return it to authorized users.", fr: "La fonction a besoin de la valeur de phone comme premier paramètre pour la renvoyer aux utilisateurs autorisés." }
+        filter: { en: "A row filter removes rows, while every row must remain visible.", fr: "Un filtre de lignes retire des lignes, alors que toutes les lignes doivent rester visibles." }
+        maskc: { en: "The values to hide are in phone, not in country.", fr: "Les valeurs à masquer sont dans phone, pas dans country." }
+        usingboth: { en: "phone is already passed as the first argument; listing it again adds an argument that the function doesn't declare.", fr: "phone est déjà transmis comme premier argument ; le lister de nouveau ajoute un argument que la fonction ne déclare pas." }
+        on: { en: "`ON (...)` is the clause of a row filter, not of a column mask.", fr: "`ON (...)` est la clause d'un filtre de lignes, pas d'un masque de colonne." }
+        match: { en: "`MATCH COLUMNS` belongs to ABAC policies, not to a table-level mask.", fr: "`MATCH COLUMNS` appartient aux stratégies ABAC, pas à un masque au niveau de la table." }
+    references:
+      - title: Column mask clause - Azure Databricks - Databricks SQL
+        url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-ddl-column-mask
+
+  # ------------------------------------------------------------------ 5
+  - id: dp750-qz-21-05
+    objective: "2.1.5"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Fabrikam has an external location named **raw_iot** that uses a storage credential backed by the managed identity of an Access Connector for Azure Databricks named **ac-iot**. The managed identity has the Storage Blob Data Contributor role on the Azure Data Lake Storage account.
+
+        You plan to enable file events on raw_iot so that Auto Loader streams use file events. Azure Databricks must create the storage queue and configure the event subscriptions automatically.
+
+        Which three Azure roles should you also assign to the managed identity of ac-iot? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam dispose d'un emplacement externe nommé **raw_iot** qui utilise des informations d'identification de stockage reposant sur l'identité managée d'un Access Connector for Azure Databricks nommé **ac-iot**. L'identité managée dispose du rôle Storage Blob Data Contributor sur le compte Azure Data Lake Storage.
+
+        Vous prévoyez d'activer les événements de fichiers sur raw_iot afin que les flux Auto Loader utilisent les événements de fichiers. Azure Databricks doit créer la file d'attente de stockage et configurer les abonnements aux événements automatiquement.
+
+        Quels sont les trois rôles Azure que vous devez également attribuer à l'identité managée d'ac-iot ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: Storage Queue Data Contributor }
+        - { id: b, text: Storage Blob Delegator }
+        - { id: c, text: Storage Account Contributor }
+        - { id: d, text: EventGrid Data Sender }
+        - { id: e, text: EventGrid EventSubscription Contributor }
+        - { id: f, text: Storage Queue Data Message Processor }
+    answer: { optionIds: [a, c, e] }
+    explanation:
+      correct:
+        en: |
+          Storage Queue Data Contributor lets Azure Databricks subscribe to the file change notifications in the storage queue. Storage Account Contributor lets it create the queue and configure event routing, and EventGrid EventSubscription Contributor lets it create the Event Grid subscriptions that send the events to the queue. Without the last two roles, you would have to create the queue and the subscription manually.
+        fr: |
+          Storage Queue Data Contributor permet à Azure Databricks de s'abonner aux notifications de modification de fichiers dans la file d'attente de stockage. Storage Account Contributor lui permet de créer la file d'attente et de configurer le routage des événements, et EventGrid EventSubscription Contributor lui permet de créer les abonnements Event Grid qui envoient les événements vers la file d'attente. Sans ces deux derniers rôles, il faudrait créer la file d'attente et l'abonnement manuellement.
+      options:
+        b: { en: "Storage Blob Delegator is needed to scope Storage Blob Data Contributor to one container, not for file events.", fr: "Storage Blob Delegator sert à limiter Storage Blob Data Contributor à un conteneur, pas aux événements de fichiers." }
+        d: { en: "EventGrid Data Sender publishes events to an Event Grid topic; it doesn't create event subscriptions.", fr: "EventGrid Data Sender publie des événements vers une rubrique Event Grid ; il ne crée pas d'abonnements aux événements." }
+        f: { en: "Storage Queue Data Message Processor reads and deletes messages but is not the role that Azure Databricks documents for file events.", fr: "Storage Queue Data Message Processor lit et supprime des messages, mais ce n'est pas le rôle qu'Azure Databricks documente pour les événements de fichiers." }
+    references:
+      - title: Use Azure managed identities in Unity Catalog to access storage - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/connect/unity-catalog/cloud-storage/azure-managed-identities
+
+  # ------------------------------------------------------------------ 6
+  - id: dp750-qz-21-06
+    objective: "2.1.3"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Woodgrove Bank has an Azure key vault named **kv-wgb-apps** that uses the Azure role-based access control permission model. It stores the secrets of several Azure applications that read them through Azure RBAC role assignments. The security policy forbids any change to the permission model of kv-wgb-apps.
+
+        Data engineers need the password of an Azure SQL Database login in their Azure Databricks notebooks, through a secret scope. The security team must create and rotate this password in Azure Key Vault, and a rotation must require no change in Azure Databricks. The solution must minimize administrative effort.
+
+        What should you do?
+      fr: |
+        Woodgrove Bank dispose d'un coffre de clés Azure nommé **kv-wgb-apps** qui utilise le modèle d'autorisation de contrôle d'accès en fonction du rôle Azure. Il stocke les secrets de plusieurs applications Azure qui les lisent par des attributions de rôles Azure RBAC. La stratégie de sécurité interdit toute modification du modèle d'autorisation de kv-wgb-apps.
+
+        Les ingénieurs de données ont besoin du mot de passe d'une connexion Azure SQL Database dans leurs notebooks Azure Databricks, par une étendue de secrets. L'équipe de sécurité doit créer et faire tourner ce mot de passe dans Azure Key Vault, et une rotation ne doit exiger aucune modification dans Azure Databricks. La solution doit réduire au minimum l'effort administratif.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Assign Key Vault Secrets User on kv-wgb-apps to the Azure Databricks application, and then create a Key Vault-backed scope on kv-wgb-apps.", fr: "Attribuer Key Vault Secrets User sur kv-wgb-apps à l'application Azure Databricks, puis créer une étendue adossée à Key Vault sur kv-wgb-apps." } }
+        - { id: b, text: { en: "Add an access policy with Get and List for the Azure Databricks application to kv-wgb-apps, and then create a Key Vault-backed scope on it.", fr: "Ajouter à kv-wgb-apps une stratégie d'accès avec Get et List pour l'application Azure Databricks, puis créer une étendue adossée à Key Vault sur ce coffre." } }
+        - { id: c, text: { en: "Create a key vault that uses the Vault access policy model, store the password in it, and then create a Key Vault-backed scope on it.", fr: "Créer un coffre de clés qui utilise le modèle Vault access policy, y stocker le mot de passe, puis créer une étendue adossée à Key Vault sur ce coffre." } }
+        - { id: d, text: { en: "Create a Databricks-backed scope, and have the security team update the password in it with the Databricks CLI at each rotation.", fr: "Créer une étendue adossée à Databricks, et faire mettre à jour le mot de passe par l'équipe de sécurité avec Databricks CLI à chaque rotation." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Key Vault-backed secret scopes support only the Vault access policy permission model, and kv-wgb-apps must keep Azure RBAC. A separate key vault that uses access policies can back the scope: the security team manages and rotates the password in that vault, and the scope, a read-only interface, returns the new value with no change in Azure Databricks.
+        fr: |
+          Les étendues de secrets adossées à Key Vault ne prennent en charge que le modèle d'autorisation Vault access policy, et kv-wgb-apps doit conserver Azure RBAC. Un coffre de clés distinct qui utilise des stratégies d'accès peut adosser l'étendue : l'équipe de sécurité gère et fait tourner le mot de passe dans ce coffre, et l'étendue, une interface en lecture seule, renvoie la nouvelle valeur sans modification dans Azure Databricks.
+      options:
+        a: { en: "Key Vault-backed scopes don't support a vault that uses Azure RBAC, whatever role the Azure Databricks application holds.", fr: "Les étendues adossées à Key Vault ne prennent pas en charge un coffre qui utilise Azure RBAC, quel que soit le rôle de l'application Azure Databricks." }
+        b: { en: "The scope requires the vault itself to use the access policy model; kv-wgb-apps keeps Azure RBAC, which the policy doesn't allow changing.", fr: "L'étendue exige que le coffre lui-même utilise le modèle de stratégie d'accès ; kv-wgb-apps conserve Azure RBAC, que la stratégie interdit de modifier." }
+        d: { en: "The password would be stored and rotated in Azure Databricks instead of Azure Key Vault, and each rotation would need a change in Azure Databricks.", fr: "Le mot de passe serait stocké et renouvelé dans Azure Databricks au lieu d'Azure Key Vault, et chaque rotation exigerait une modification dans Azure Databricks." }
+    references:
+      - title: Workspace secret scopes - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/security/secrets/workspace-secret-scopes
+      - title: Secret management - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/security/secrets/
+
+  # ------------------------------------------------------------------ 7
+  - id: dp750-qz-21-07
+    objective: "2.1.1"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Litware has a Unity Catalog catalog named **fin_prod** owned by the group **fin-admins**. The schema **fin_prod.ledger** is owned by the group **fin-stewards**. The table **fin_prod.ledger.entries** is owned by the service principal that loads it.
+
+        The group **fin-eng** has the following grants, and no other privilege:
+
+        - USE CATALOG on fin_prod
+        - ALL PRIVILEGES on the schema fin_prod.ledger
+
+        Raj is a member of fin-eng only. Mei is a member of fin-admins only. Neither of them is a metastore admin.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware dispose d'un catalogue Unity Catalog nommé **fin_prod** dont le propriétaire est le groupe **fin-admins**. Le propriétaire du schéma **fin_prod.ledger** est le groupe **fin-stewards**. La table **fin_prod.ledger.entries** a pour propriétaire le principal de service qui la charge.
+
+        Le groupe **fin-eng** dispose des privilèges suivants, et d'aucun autre :
+
+        - USE CATALOG sur fin_prod
+        - ALL PRIVILEGES sur le schéma fin_prod.ledger
+
+        Raj est membre de fin-eng uniquement. Mei est membre de fin-admins uniquement. Aucun d'eux n'est administrateur du metastore.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "Raj can insert rows into fin_prod.ledger.entries.", fr: "Raj peut insérer des lignes dans fin_prod.ledger.entries." }
+        - id: s2
+          text: { en: "Raj can grant SELECT on fin_prod.ledger.entries to the auditors group.", fr: "Raj peut accorder SELECT sur fin_prod.ledger.entries au groupe auditors." }
+        - id: s3
+          text: { en: "Mei can grant SELECT on fin_prod.ledger.entries to the auditors group.", fr: "Mei peut accorder SELECT sur fin_prod.ledger.entries au groupe auditors." }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          ALL PRIVILEGES on the schema gives every applicable privilege, including USE SCHEMA, SELECT and MODIFY, and it is inherited by the tables of the schema, so Raj can insert rows. ALL PRIVILEGES doesn't include MANAGE, and Raj owns nothing, so he can't grant. Privileges can be granted by the owner of the object, by the owner of its catalog or schema, by a holder of MANAGE or by a metastore admin: Mei belongs to the catalog owner.
+        fr: |
+          ALL PRIVILEGES sur le schéma donne tous les privilèges applicables, y compris USE SCHEMA, SELECT et MODIFY, et les tables du schéma en héritent ; Raj peut donc insérer des lignes. ALL PRIVILEGES n'inclut pas MANAGE, et Raj n'est propriétaire de rien ; il ne peut donc pas accorder de privilèges. Peuvent accorder des privilèges le propriétaire de l'objet, le propriétaire de son catalogue ou de son schéma, un détenteur de MANAGE ou un administrateur du metastore : Mei appartient au propriétaire du catalogue.
+      options:
+        s2: { en: "ALL PRIVILEGES excludes MANAGE, so it gives data access but not the right to grant to others.", fr: "ALL PRIVILEGES exclut MANAGE : il donne l'accès aux données, mais pas le droit d'accorder des privilèges à d'autres." }
+    references:
+      - title: Manage privileges in Unity Catalog - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/manage-privileges/
+      - title: Unity Catalog privileges reference - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/manage-privileges/privileges
+
+  # ------------------------------------------------------------------ 8
+  - id: dp750-qz-21-08
+    objective: "2.1.4"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Tailspin Toys automates four workloads that access Azure Databricks or its data. Personal credentials are forbidden, and the solution must follow Databricks recommendations.
+
+        Which identity should you use for each workload? To answer, drag the appropriate identities to the correct workloads. Each identity may be used once, more than once, or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin Toys automatise quatre charges de travail qui accèdent à Azure Databricks ou à ses données. Les informations d'identification personnelles sont interdites, et la solution doit suivre les recommandations de Databricks.
+
+        Quelle identité devez-vous utiliser pour chaque charge de travail ? Pour répondre, faites glisser les identités appropriées vers les charges de travail correspondantes. Chaque identité peut être utilisée une fois, plusieurs fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: true
+      items:
+        - { id: dbxsp, text: { en: "Azure Databricks managed service principal with OAuth M2M", fr: "Principal de service géré par Azure Databricks avec OAuth M2M" } }
+        - { id: entrasp, text: { en: "Microsoft Entra ID managed service principal", fr: "Principal de service géré par Microsoft Entra ID" } }
+        - { id: mi, text: { en: "Managed identity of an Access Connector for Azure Databricks", fr: "Identité managée d'un Access Connector for Azure Databricks" } }
+        - { id: pat, text: { en: "Personal access token of a workspace admin stored in a secret scope", fr: "Jeton d'accès personnel d'un administrateur de l'espace de travail stocké dans une étendue de secrets" } }
+      targets:
+        - id: deploy
+          text: { en: "An Azure DevOps pipeline runs databricks bundle deploy against the workspace and accesses no other Azure resource.", fr: "Un pipeline Azure DevOps exécute databricks bundle deploy sur l'espace de travail et n'accède à aucune autre ressource Azure." }
+        - id: onprem
+          text: { en: "An on-premises application calls the Jobs API of the workspace and reads blobs from an Azure storage account with the same identity.", fr: "Une application locale appelle l'API Jobs de l'espace de travail et lit des objets blob d'un compte de stockage Azure avec la même identité." }
+        - id: cred
+          text: { en: "A Unity Catalog storage credential reaches an ADLS Gen2 account that allows only selected networks, with no secret to rotate.", fr: "Des informations d'identification de stockage Unity Catalog atteignent un compte ADLS Gen2 qui n'autorise que des réseaux sélectionnés, sans secret à faire tourner." }
+        - id: legacy
+          text: { en: "A legacy notebook not yet migrated to Unity Catalog sets fs.azure.account.oauth2 Spark properties to read ADLS Gen2.", fr: "Un notebook hérité non encore migré vers Unity Catalog définit les propriétés Spark fs.azure.account.oauth2 pour lire ADLS Gen2." }
+    answer:
+      mapping: { deploy: dbxsp, onprem: entrasp, cred: mi, legacy: entrasp }
+    explanation:
+      correct:
+        en: |
+          Databricks recommends Azure Databricks managed service principals for automation that only targets Azure Databricks, and Microsoft Entra ID managed service principals when the same identity must also reach other Azure resources. The legacy OAuth Spark configuration needs the application ID, client secret and tenant endpoint of a Microsoft Entra ID service principal. Unity Catalog storage credentials should use the access connector's managed identity, the only option that passes network rules and needs no secret.
+        fr: |
+          Databricks recommande les principaux de service gérés par Azure Databricks pour l'automatisation qui ne vise qu'Azure Databricks, et les principaux de service gérés par Microsoft Entra ID quand la même identité doit aussi atteindre d'autres ressources Azure. La configuration Spark OAuth héritée exige l'ID d'application, le secret client et le point de terminaison du locataire d'un principal de service Microsoft Entra ID. Les informations d'identification de stockage Unity Catalog doivent utiliser l'identité managée du connecteur d'accès, seule option qui franchit les règles réseau sans secret.
+      options:
+        pat: { en: "A workspace admin's token is a personal credential: it breaks when the admin leaves and is forbidden here.", fr: "Le jeton d'un administrateur est une information d'identification personnelle : il cesse de fonctionner quand l'administrateur part, et il est interdit ici." }
+        dbxsp: { en: "An Azure Databricks managed service principal can't authenticate to Azure Storage, so it fits only the pipeline that targets Azure Databricks alone.", fr: "Un principal de service géré par Azure Databricks ne peut pas s'authentifier auprès du Stockage Azure ; il ne convient donc qu'au pipeline qui vise uniquement Azure Databricks." }
+        mi: { en: "The access connector's identity is used by Unity Catalog inside Azure Databricks; an on-premises application or a session Spark configuration can't use it.", fr: "L'identité du connecteur d'accès est utilisée par Unity Catalog dans Azure Databricks ; une application locale ou une configuration Spark de session ne peut pas l'utiliser." }
+    references:
+      - title: Service principals - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/admin/users-groups/service-principals
+      - title: Use Azure managed identities in Unity Catalog to access storage - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/connect/unity-catalog/cloud-storage/azure-managed-identities
+
+  # ------------------------------------------------------------------ 9
+  - id: dp750-qz-21-09
+    objective: "2.1.5"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Adatum created an Access Connector for Azure Databricks named **ac-hr** with a user-assigned managed identity named **id-hr**. id-hr has the Storage Blob Data Contributor role on the Azure Data Lake Storage account **sthrdata**.
+
+        You are a metastore admin. You must create a storage credential named **cred_hr** that uses id-hr. Members of the account group **hr-eng**, who are not admins, must then create external locations on sthrdata that use cred_hr. The solution must follow the principle of least privilege.
+
+        How should you complete the commands? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum a créé un Access Connector for Azure Databricks nommé **ac-hr** avec une identité managée affectée par l'utilisateur nommée **id-hr**. id-hr dispose du rôle Storage Blob Data Contributor sur le compte Azure Data Lake Storage **sthrdata**.
+
+        Vous êtes administrateur du metastore. Vous devez créer des informations d'identification de stockage nommées **cred_hr** qui utilisent id-hr. Les membres du groupe de compte **hr-eng**, qui ne sont pas administrateurs, doivent ensuite créer des emplacements externes sur sthrdata qui utilisent cred_hr. La solution doit respecter le principe du moindre privilège.
+
+        Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: bash
+      template: |
+        databricks storage-credentials create --json '{
+          "name": "cred_hr",
+          "azure_managed_identity": {
+            "access_connector_id": "/subscriptions/<id>/resourceGroups/rg-hr/providers/Microsoft.Databricks/accessConnectors/ac-hr",
+            [[key]]: "/subscriptions/<id>/resourceGroups/rg-hr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-hr"
+          }
+        }'
+
+        # SQL, run by the metastore admin
+        GRANT CREATE EXTERNAL LOCATION ON [[first]] TO `hr-eng`;
+        GRANT CREATE EXTERNAL LOCATION ON [[second]] cred_hr TO `hr-eng`;
+      slots:
+        - id: key
+          options:
+            - { id: miid, text: "\"managed_identity_id\"" }
+            - { id: appid, text: "\"application_id\"" }
+            - { id: dirid, text: "\"directory_id\"" }
+            - { id: secret, text: "\"client_secret\"" }
+        - id: first
+          options:
+            - { id: metastore, text: METASTORE }
+            - { id: catalog, text: CATALOG hr_prod }
+            - { id: schema, text: SCHEMA hr_prod.raw }
+        - id: second
+          options:
+            - { id: storagecred, text: STORAGE CREDENTIAL }
+            - { id: extloc, text: EXTERNAL LOCATION }
+            - { id: connection, text: CONNECTION }
+            - { id: volume, text: VOLUME }
+    answer:
+      values: { key: miid, first: metastore, second: storagecred }
+    explanation:
+      correct:
+        en: |
+          When the access connector uses a user-assigned managed identity, the storage credential specifies the resource ID of that identity in `managed_identity_id`, next to the connector ID. To create an external location, a principal needs `CREATE EXTERNAL LOCATION` on both the metastore and the storage credential that the location references, so you grant it at those two levels and nowhere else.
+        fr: |
+          Quand le connecteur d'accès utilise une identité managée affectée par l'utilisateur, les informations d'identification de stockage indiquent l'ID de ressource de cette identité dans `managed_identity_id`, à côté de l'ID du connecteur. Pour créer un emplacement externe, un principal a besoin de `CREATE EXTERNAL LOCATION` à la fois sur le metastore et sur les informations d'identification de stockage que l'emplacement référence ; vous l'accordez donc à ces deux niveaux et nulle part ailleurs.
+      options:
+        appid: { en: "application_id belongs to a Microsoft Entra ID service principal credential, not to a managed identity credential.", fr: "application_id appartient à des informations d'identification de principal de service Microsoft Entra ID, pas à des informations d'identification d'identité managée." }
+        dirid: { en: "directory_id is the tenant of a service principal credential; a managed identity credential doesn't use it.", fr: "directory_id est le locataire d'informations d'identification de principal de service ; des informations d'identification d'identité managée ne l'utilisent pas." }
+        secret: { en: "A managed identity has no client secret: avoiding secrets is the reason to use it.", fr: "Une identité managée n'a pas de secret client : éviter les secrets est la raison de l'utiliser." }
+        catalog: { en: "External locations are metastore-level objects; a catalog grant doesn't allow creating them.", fr: "Les emplacements externes sont des objets de niveau metastore ; un privilège sur un catalogue ne permet pas d'en créer." }
+        schema: { en: "External locations are metastore-level objects; a schema grant doesn't allow creating them.", fr: "Les emplacements externes sont des objets de niveau metastore ; un privilège sur un schéma ne permet pas d'en créer." }
+        extloc: { en: "cred_hr is a storage credential, and the privilege is required on the credential that the new locations reference.", fr: "cred_hr est un objet d'informations d'identification de stockage, et le privilège est exigé sur les informations d'identification que les nouveaux emplacements référencent." }
+    references:
+      - title: Use Azure managed identities in Unity Catalog to access storage - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/connect/unity-catalog/cloud-storage/azure-managed-identities
+      - title: Unity Catalog privileges reference - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/manage-privileges/privileges
+
+  # ------------------------------------------------------------------ 10
+  - id: dp750-qz-21-10
+    objective: "2.1.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Contoso protects the Unity Catalog table **contoso.hr.payroll** with a table-level row filter on the region column and a column mask named **contoso.sec.mask_salary** on the salary column. The workspace is enabled for serverless compute.
+
+        Several teams submit requests. The row filter and the column mask must stay on the table.
+
+        Which two requests can be met?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso protège la table Unity Catalog **contoso.hr.payroll** avec un filtre de lignes au niveau de la table sur la colonne region et un masque de colonne nommé **contoso.sec.mask_salary** sur la colonne salary. L'espace de travail est activé pour le calcul serverless.
+
+        Plusieurs équipes soumettent des demandes. Le filtre de lignes et le masque de colonne doivent rester sur la table.
+
+        Quelles sont les deux demandes qui peuvent être satisfaites ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Data scientists query the table from dedicated access mode compute on Databricks Runtime 15.4 LTS, with the filter and mask applied.", fr: "Les scientifiques des données interrogent la table depuis un calcul en mode d'accès Dedicated sous Databricks Runtime 15.4 LTS, avec le filtre et le masque appliqués." } }
+        - { id: b, text: { en: "Auditors query the table as it was at the end of last month by using TIMESTAMP AS OF, with the filter and mask applied.", fr: "Les auditeurs interrogent la table telle qu'elle était à la fin du mois dernier avec TIMESTAMP AS OF, avec le filtre et le masque appliqués." } }
+        - { id: c, text: { en: "QA engineers create a shallow clone of the table in a test schema to run their regression tests against it.", fr: "Les ingénieurs QA créent un clone superficiel de la table dans un schéma de test pour y exécuter des tests de régression." } }
+        - { id: d, text: { en: "A new row filter on contoso.hr.bonus looks up the region of each employee in the contoso.hr.payroll table.", fr: "Un nouveau filtre de lignes sur contoso.hr.bonus recherche la région de chaque employé dans contoso.hr.payroll." } }
+        - { id: e, text: { en: "An engineer with MANAGE and SELECT on the table, EXECUTE on a new function and usage privileges replaces the salary mask.", fr: "Un ingénieur qui a MANAGE et SELECT sur la table, EXECUTE sur une nouvelle fonction et les privilèges d'utilisation remplace le masque de salary." } }
+    answer: { optionIds: [a, e] }
+    explanation:
+      correct:
+        en: |
+          Dedicated access mode can read tables with row filters or column masks from Databricks Runtime 15.4 LTS, when the workspace is enabled for serverless compute, because the filtering runs on serverless compute. Changing a mask on an existing table requires ownership, or MANAGE and SELECT on the table, plus EXECUTE on the function and the usage privileges on its catalog and schema.
+        fr: |
+          Le mode d'accès Dedicated peut lire des tables avec filtres de lignes ou masques de colonne à partir de Databricks Runtime 15.4 LTS quand l'espace de travail est activé pour le calcul serverless, car le filtrage s'exécute sur du calcul serverless. Modifier un masque sur une table existante exige d'en être propriétaire, ou MANAGE et SELECT sur la table, plus EXECUTE sur la fonction et les privilèges d'utilisation sur son catalogue et son schéma.
+      options:
+        b: { en: "Time travel isn't supported on tables with table-level row filters or column masks.", fr: "Le voyage dans le temps n'est pas pris en charge sur les tables qui ont des filtres de lignes ou des masques de colonne au niveau de la table." }
+        c: { en: "Deep and shallow clones aren't supported on tables with row filters or column masks.", fr: "Les clones profonds et superficiels ne sont pas pris en charge sur les tables qui ont des filtres de lignes ou des masques de colonne." }
+        d: { en: "Row filters and column masks can't reference tables that also have active row filters or column masks, and payroll has both.", fr: "Les filtres de lignes et les masques de colonne ne peuvent pas référencer des tables qui ont elles-mêmes des filtres de lignes ou des masques de colonne actifs, et payroll a les deux." }
+    references:
+      - title: Row filters and column masks - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/
+      - title: Column mask clause - Azure Databricks - Databricks SQL
+        url: https://learn.microsoft.com/en-us/azure/databricks/sql/language-manual/sql-ref-syntax-ddl-column-mask

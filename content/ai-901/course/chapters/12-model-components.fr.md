@@ -28,13 +28,13 @@ Le **catalogue de modèles** de Foundry répertorie des modèles de Microsoft, d
 
 | Besoin | Type de modèle | Exemples cités par Microsoft Learn |
 | --- | --- | --- |
-| Conversation, réponse aux questions, rédaction et résumé de texte | Modèle de conversation (génération de texte) | GPT-4.1, modèles de conversation GPT-5, Claude, Mistral Large |
+| Conversation, réponse aux questions, rédaction et résumé de texte | Modèle de conversation (génération de texte) | GPT-4.1, Claude, Mistral Large |
 | Raisonnement en plusieurs étapes, planification, agents qui enchaînent des outils | Modèle de raisonnement | Famille GPT-5 |
 | Gros volume, faible latence ou faible coût ; applications légères | Modèle plus petit ou SLM | Variantes « mini » et « nano », Phi-4 |
 | Recherche sémantique, comparaison du sens de textes | Modèle d'embedding | text-embedding-3-small |
 | Invites contenant des images ou de l'audio en plus du texte | Modèle multimodal | GPT-4.1, Phi-4-multimodal-instruct |
-| Créer une image à partir d'une description | Modèle de génération d'images | Famille GPT-Image-1, FLUX |
-| Créer une vidéo | Modèle de génération de vidéos | Sora |
+| Créer une image à partir d'une description | Modèle de génération d'images | Famille GPT-Image-1 (GPT-Image-1.5, GPT-Image-1-Mini), FLUX |
+| Créer une vidéo | Modèle de génération de vidéos | Sora 2 (préversion) |
 | Une tâche bien définie avec une sortie prévisible et structurée | Un outil Foundry (Foundry Tools) plutôt qu'un modèle du catalogue | Azure Language, Azure Speech, Azure Content Understanding |
 
 > **Piège d'examen.** Un modèle d'embedding renvoie des vecteurs, pas du texte : il ne peut pas tenir une conversation. Un modèle de conversation qui n'accepte que du texte ne peut pas décrire une image ; il faut un modèle multimodal. Lisez la fonctionnalité exigée par la question avant de regarder les noms de modèles.
@@ -59,7 +59,7 @@ Le type de déploiement décide où les requêtes sont traitées et comment vous
 | **Provisioned** (global, zone de données ou régional) | Les trois mêmes choix | Unités de débit approvisionné (PTU) réservées | Un gros volume prévisible et une latence régulière |
 | **Batch** (global ou zone de données) | Les mêmes choix | Environ 50 % moins cher, résultats visés sous 24 heures | De gros traitements qui n'ont pas besoin d'une réponse immédiate |
 
-Un déploiement qui reçoit plus de jetons ou de requêtes que sa limite ne le permet subit une **limitation** (throttling) : l'application reçoit des erreurs de limite de débit. Des invites plus longues et un nombre maximal de jetons de sortie plus élevé consomment davantage la limite. Les remèdes : abaisser le nombre maximal de jetons de sortie, envoyer moins de requêtes simultanées ou relever la limite TPM.
+Un déploiement qui reçoit plus de jetons ou de requêtes que sa limite ne le permet subit une **limitation** (throttling) : l'application reçoit des erreurs de limite de débit. La limite compte les jetons réellement envoyés et générés, pas le nombre maximal de jetons de sortie fixé dans la requête : un plafond plus élevé ne réserve rien. Les remèdes : raccourcir les invites, limiter la sortie générée à ce dont le scénario a besoin, envoyer moins de requêtes simultanées ou les étaler dans le temps, réessayer avec un délai d'attente croissant (backoff), relever le TPM attribué au déploiement, ou passer en batch le travail qui peut attendre.
 
 > **Piège d'examen.** Batch est moins cher mais pas en temps réel : ne le choisissez jamais pour une application de conversation. « Garder le traitement dans l'UE » désigne un déploiement de zone de données, pas Global Standard.
 
@@ -73,7 +73,7 @@ Les paramètres se règlent dans le terrain de jeu ou se passent dans la requêt
 | **Instructions système** | Fixent le rôle, le ton et les règles du modèle pour toute la conversation | « Vous êtes un assistant de support. Répondez en trois puces. » |
 | **Température** | Contrôle le caractère aléatoire. Une valeur basse donne des réponses ciblées et reproductibles ; une valeur haute des réponses variées et créatives | Basse pour les faits et l'extraction ; plus haute pour un remue-méninges ou de la fiction |
 | **Top P** | Une autre façon de contrôler le caractère aléatoire | Modifiez la température ou Top P, pas les deux à la fois |
-| **Nombre maximal de jetons de sortie** | Plafonne la longueur de la réponse ; influe aussi sur la consommation de jetons et la limitation | Maîtriser les coûts et le temps de réponse |
+| **Nombre maximal de jetons de sortie** | Plafonne la longueur de la réponse ; seuls les jetons réellement générés comptent dans la limite TPM | Maîtriser les coûts et le temps de réponse |
 
 > **Piège d'examen.** Baisser la température rend les réponses plus régulières ; cela ne les raccourcit pas et ne garantit pas qu'elles soient vraies. Le nombre maximal de jetons de sortie coupe la réponse quand le plafond est atteint ; il ne demande pas au modèle d'être concis. Pour obtenir une réponse courte, dites-le dans les instructions.
 

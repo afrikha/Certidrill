@@ -5,7 +5,7 @@ Un hôte de session est un bureau Windows partagé et joignable de partout : il 
 
 Les hôtes de session sont des machines virtuelles Azure : Defender pour le cloud les protège comme n'importe quel serveur.
 
-- **CSPM de base** (gratuit) : le degré de sécurisation (secure score) et les recommandations, avec **Correctif rapide** (Quick Fix) pour certaines d'entre elles.
+- **CSPM de base** (gratuit) : le degré de sécurisation (secure score) et les recommandations, avec un bouton **Corriger** (Fix, via Prendre des mesures > Corriger) pour certaines d'entre elles.
 - **Fonctionnalités de sécurité renforcée** : activez le plan **Defender pour serveurs** sur l'abonnement (ou sur des ressources choisies) pour obtenir la protection contre les menaces, l'évaluation des vulnérabilités et les tableaux de bord de conformité réglementaire (par exemple PCI DSS).
 
 | Besoin | Plan |
@@ -17,7 +17,7 @@ Les hôtes de session sont des machines virtuelles Azure : Defender pour le clou
 Recommandations de Microsoft pour Azure Virtual Desktop :
 
 - Traitez les recommandations du **degré de sécurisation** ; corrigez dans l'image quand le constat porte sur le système d'exploitation, sinon le prochain redéploiement le fait réapparaître.
-- Installez un produit **EDR** sur chaque hôte de session. Sur les hôtes de session Windows Server avec Defender pour le cloud activé, Defender for Endpoint est déployé par l'intégration ; sur un système d'exploitation Windows client (y compris multisession), déployez Defender for Endpoint (voir plus bas) ou un EDR tiers.
+- Installez un produit **EDR** sur chaque hôte de session. Sur les hôtes de session Windows Server avec Defender pour le cloud activé, Defender for Endpoint est déployé par l'intégration ; sur un système d'exploitation Windows client (y compris multisession), déployez Defender for Endpoint (voir plus bas) ou un EDR tiers. Sur Windows Entreprise multisession, la licence Defender for Endpoint vient soit de Defender pour serveurs pour la machine virtuelle, soit d'une licence pour chaque utilisateur (Defender for Endpoint Plan 1 ou Plan 2, Windows Entreprise E3 ou E5, Microsoft 365 E3 ou E5).
 - Utilisez la **gestion des vulnérabilités** de Defender for Endpoint, exposée dans Defender pour le cloud, pour trouver les logiciels vulnérables sur les hôtes et dans l'image.
 
 > **Piège d'examen.** Defender pour le cloud ne corrige pas et ne recrée pas les hôtes de session. Une recommandation sur des mises à jour manquantes se corrige dans l'image de référence et par le redéploiement des hôtes ; Defender pour le cloud ne fait que la signaler.
@@ -32,7 +32,7 @@ Microsoft Defender Antivirus est intégré à Windows 11 et Windows 10 Entrepris
 | **Définir l'emplacement des informations de sécurité pour les clients VDI** (Define security intelligence location for VDI clients) | Un partage de fichiers qui reçoit une seule fois les mises à jour décompressées, pour que chaque machine virtuelle ne les télécharge et ne les décompresse pas (`Set-MpPreference -SharedSignaturesPath`) |
 | Répartir aléatoirement les heures d'analyse planifiée | Activé, pour que tous les hôtes n'analysent pas au même moment |
 | Activer l'analyse rapide de rattrapage | Activé pour les hôtes non persistants qui manquent les analyses planifiées |
-| Analyse après une mise à jour des informations de sécurité | Ne se désactive que pour des images déjà analysées, au prix de la protection |
+| Analyse après une mise à jour des informations de sécurité | À laisser activée en production ; ne la désactivez que pendant la création de l'image de base (après une analyse rapide), car la désactiver réduit la protection |
 | Supprimer les notifications, interface sans affichage | Activé : les utilisateurs ne voient pas les fenêtres de Defender |
 | Comportement de fusion des administrateurs locaux | Désactivé : seule la stratégie centrale s'applique |
 | Protection cloud, protection contre les falsifications | Activées |
@@ -43,10 +43,11 @@ Les **exclusions FSLogix** sont obligatoires quand les profils sont des conteneu
 
 | Type | Exclusions |
 | --- | --- |
-| Conteneurs sur le partage | `\\<server>\<share>\*\*.VHD`, `*.VHDX` et leurs fichiers `.lock`, `.meta`, `.metadata` |
+| Conteneurs sur le partage | `\\<server>\<share>\*\*.VHD`, `*.VHD.lock`, `*.VHD.meta`, `*.VHD.metadata`, et de même pour `*.VHDX` |
 | Disques temporaires locaux | `%TEMP%\*\*.VHD`, `%TEMP%\*\*.VHDX`, `%WINDIR%\TEMP\*\*.VHD`, `%WINDIR%\TEMP\*\*.VHDX` |
-| Cloud Cache | `%ProgramData%\FSLogix\Cache\*`, `%ProgramData%\FSLogix\Proxy\*` |
-| Processus | `frxsvc.exe`, `frxccds.exe` |
+| Cloud Cache | `%ProgramData%\FSLogix\Cache\*`, `%ProgramData%\FSLogix\Proxy\*` (à adapter si vous déplacez le dossier de cache ou de proxy) |
+| Processus et pilotes | `frxsvc.exe`, `frxccds.exe` ; `frxdrv.sys`, `frxdrvvt.sys`, `frxccd.sys` |
+| Dossiers FSLogix, clés de Registre et points de montage | `C:\Program Files\FSLogix\Apps\`, `C:\ProgramData\FSLogix\`, `C:\Users\%username%\AppData\Local\FSLogix\` ; `HKLM\SOFTWARE\FSLogix\`, `HKLM\SOFTWARE\Policies\FSLogix\` ; les points de montage des VHD(X) de profil |
 
 ```powershell
 Set-MpPreference -SharedSignaturesPath "\\fs01.contoso.com\mdatp$\wdav-update"
@@ -91,9 +92,11 @@ Les hôtes de session n'ont besoin d'**aucun port entrant** depuis Internet : l'
 | `catalogartifact.azureedge.net` | TCP 443 | `AzureFrontDoor.Frontend` |
 | `mrsglobalsteus2prod.blob.core.windows.net` (mises à jour de l'agent) | TCP 443 | `Storage` |
 | `azkms.core.windows.net` (activation Windows) | TCP 1688 | `Internet` |
+| `*.service.windows.cloud.microsoft` (trafic du service) ; `*.windows.cloud.microsoft` et `*.windows.static.microsoft` n'ont pas d'étiquette | TCP 443 | `WindowsVirtualDesktop` |
+| `51.5.0.0/16` (connectivité RDP relayée) | UDP 3478 | `WindowsVirtualDesktop` |
 | `169.254.169.254` (IMDS), `168.63.129.16` (plateforme) | TCP 80 et autres | Jamais via un proxy ni intercepté |
 
-Vérifiez l'accès avec l'**outil d'URL de l'agent Azure Virtual Desktop** (Azure Virtual Desktop Agent URL Tool) sur un hôte de session.
+Les points de terminaison de certificats (`oneocsp.microsoft.com`, `www.microsoft.com`, `ctldl.windowsupdate.com` et d'autres) utilisent TCP 80. Vérifiez l'accès avec l'**outil d'URL de l'agent Azure Virtual Desktop** (Azure Virtual Desktop Agent URL Tool) sur un hôte de session.
 
 **NSG.** Associez un NSG au sous-réseau des hôtes de session : refusez l'entrant depuis Internet (les règles par défaut le font déjà), autorisez RDP 3389 uniquement depuis le sous-réseau Azure Bastion ou un sous-réseau d'administration et, si vous restreignez le sortant, autorisez les étiquettes de service ci-dessus avant une règle de refus. Utilisez des groupes de sécurité d'application pour regrouper les hôtes.
 
@@ -122,10 +125,10 @@ Les administrateurs ont parfois besoin de RDP vers un hôte de session hors d'Az
 
 | Option | Fonctionnement | Conditions requises |
 | --- | --- | --- |
-| **Azure Bastion** | RDP sur TLS 443 depuis le portail Azure (ou le client natif) vers l'adresse IP privée de l'hôte ; pas d'adresse IP publique sur la machine virtuelle | `AzureBastionSubnet` dans le réseau virtuel (ou un réseau appairé), une référence SKU Bastion qui prend en charge les fonctions voulues (client natif et connexion par adresse IP exigent Standard ou Premium) ; le NSG des hôtes autorise 3389 depuis le sous-réseau Bastion |
-| **Accès JIT aux machines virtuelles** (Defender pour le cloud) | Le port d'administration est fermé par défaut ; un utilisateur autorisé demande l'accès, et une règle temporaire ouvre le port pour l'adresse IP du demandeur pendant une durée limitée | **Defender pour serveurs Plan 2** ; un NSG ou le Pare-feu Azure devant la machine virtuelle ; valeurs par défaut sous Windows : port 3389, 3 heures au maximum |
+| **Azure Bastion** | RDP sur TLS 443 depuis le portail Azure (ou le client natif) vers l'adresse IP privée de l'hôte ; pas d'adresse IP publique sur la machine virtuelle | `AzureBastionSubnet` dans le réseau virtuel (ou un réseau virtuel connecté par peering), une référence SKU Bastion qui prend en charge les fonctions voulues (client natif et connexion par adresse IP exigent Standard ou Premium) ; le NSG des hôtes autorise 3389 depuis le sous-réseau Bastion |
+| **Accès JIT aux machines virtuelles** (Defender pour le cloud) | Le port d'administration est fermé par défaut ; un utilisateur autorisé demande l'accès, et une règle temporaire ouvre le port pour l'adresse IP du demandeur pendant une durée limitée | **Defender pour serveurs Plan 2** ; un NSG ou le Pare-feu Azure devant la machine virtuelle (un Pare-feu Azure contrôlé par Azure Firewall Manager n'est pas pris en charge) ; valeurs par défaut sous Windows : port 3389, 3 heures au maximum |
 
-L'accès JIT s'active depuis Defender pour le cloud (Protections de charge de travail > Accès juste-à-temps aux machines virtuelles) ou depuis la machine virtuelle (Configuration). Demander l'accès exige `Microsoft.Security/locations/jitNetworkAccessPolicies/initiate/action` plus des lectures sur la machine virtuelle, les cartes réseau et les adresses IP publiques ; configurer la stratégie exige `jitNetworkAccessPolicies/write` et `Microsoft.Compute/virtualMachines/write`. Chaque demande est journalisée dans le journal d'activité.
+L'accès JIT s'active depuis Defender pour le cloud (Protections de charge de travail > Accès juste-à-temps aux machines virtuelles) ou depuis la machine virtuelle (Configuration). Demander l'accès exige `Microsoft.Security/locations/jitNetworkAccessPolicies/initiate/action` et `jitNetworkAccessPolicies/*/read` plus des lectures sur la machine virtuelle, les cartes réseau et les adresses IP publiques ; configurer la stratégie exige `jitNetworkAccessPolicies/write` et `Microsoft.Compute/virtualMachines/write`. Chaque demande est journalisée dans le journal d'activité.
 
 > **Conseil d'examen.** « Pas d'adresse IP publique sur les hôtes de session et connexion depuis le navigateur » = Azure Bastion. « Port fermé sauf quand un administrateur le demande, pour quelques heures, depuis son adresse IP » = JIT, qui exige Defender pour serveurs Plan 2.
 
@@ -167,7 +170,7 @@ Quand des dossiers sont redirigés (déplacement des dossiers connus OneDrive), 
 <!-- section: trusted-launch-confidential | objectives: 2.2.7 -->
 ## Trusted launch et machines virtuelles confidentielles Azure
 
-**Trusted launch** (lancement sécurisé) est le type de sécurité par défaut des hôtes de session créés dans le portail et satisfait aux exigences de Windows 11. Il exige des machines virtuelles de **génération 2** et une taille prise en charge, et ne prend pas en charge les images managées (utilisez Azure Compute Gallery).
+**Trusted launch** (lancement sécurisé) est le type de sécurité par défaut des hôtes de session créés dans le portail et satisfait aux exigences de Windows 11. Il exige des machines virtuelles de **génération 2** et une taille prise en charge, et ne prend pas en charge les images managées (utilisez Azure Compute Gallery). Les machines virtuelles Gen1 existantes peuvent être mises à niveau vers Gen2 avec Trusted launch.
 
 | Fonctionnalité | Protège contre |
 | --- | --- |

@@ -105,7 +105,7 @@ A pull request closes an issue automatically when its description or one of its 
 
 Default subscriptions are predefined and enabled; administrators choose which ones are available, and each user can opt out of a default, team or project subscription. Notifications are delivered by email (to the user's preferred email address, the same for all organizations) or through a service hook to another service.
 
-> **Exam trap.** The `@CurrentIteration`, `@Follows`, `@MyRecentActivity`, `@RecentMentions`, `@RecentProjectActivity` and `@TeamAreas` query macros work in the web portal only, not in notification filters, Excel exports or the REST API.
+> **Exam trap.** The `@CurrentIteration`, `@Follows`, `@MyRecentActivity`, `@RecentMentions`, `@RecentProjectActivity` and `@TeamAreas` query macros work in the web portal only: a query that uses them doesn't work when opened in Visual Studio (Team Explorer), Excel or Project, and `@CurrentIteration` doesn't work in the REST API.
 
 <!-- section: tracking-integration | objectives: 1.1.3 -->
 ## Integrating work tracking with repositories
@@ -122,7 +122,7 @@ Work is tracked where the team plans, and linked to where the code lives. Three 
 
 **Azure Boards with Azure Repos.** Mention a work item with `#1423` in a commit message or a pull request to link it. When completing a pull request, the **Complete associated work items after merging** option transitions the linked items. The branch policy **Check for linked work items** blocks pull requests without a work item.
 
-**Azure Boards with GitHub.** Connect the project to the GitHub repositories (configuration steps in the collaboration chapter). Then `AB#1423` in a commit message, a pull request description or an issue description links the work item, and the links appear in the work item's **Development** section and in the pull request. You can also create a GitHub branch from a work item (**Work item actions > New GitHub branch**).
+**Azure Boards with GitHub.** Connect the project to the GitHub repositories (configuration steps in the collaboration chapter). Then `AB#1423` in a commit message, a pull request description or an issue description links the work item, and the links appear in the work item's **Development** section and in the pull request. You can also create a GitHub branch from a work item (**Work item actions > New GitHub branch**). When a linked branch is deleted, typically after its merge, its link is removed from the work item automatically.
 
 | Fact | Value |
 | --- | --- |
@@ -151,7 +151,7 @@ Traceability answers three questions: which code implements this requirement (so
 
 For YAML pipelines, enable **Automatically link new work items in this build** in the pipeline settings: after the run, an **Integrated in build** link appears on each work item linked to the commits of the build. When a pull request is created from a branch linked to a work item, the pull request is linked too, and so is the merge commit.
 
-`AB#` mentions also move work items. In a pull request description, `Fixes AB#1423` moves the item to the first state of the Resolved category (or of the Completed category if there is none) when the pull request is merged into the default branch; `Closed AB#1423` moves it to the Closed state.
+`AB#` mentions also move work items. In a pull request description, `Fixes AB#1423` moves the item to the first state of the Resolved category (or of the Completed category if there is none) when the pull request is merged into the default branch; `Closed AB#1423` moves it to the Closed state. In the Agile process, Learn's state category table puts only the Bug's Resolved state in the Resolved category, so to move a user story to Resolved, write the state name: `Resolved AB#1423`.
 
 > **Exam trap.** In `Fixes AB#123, AB#124, AB#125`, all three items are linked but only the first one changes state. To transition all three, repeat the keyword: `Fixes AB#123, Fixes AB#124, Fixes AB#125`.
 

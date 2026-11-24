@@ -65,7 +65,7 @@ Les métriques de disque d'Azure Monitor distinguent les deux goulets d'étrangl
 | --- | --- |
 | Data Disk IOPS Consumed Percentage, Data Disk Bandwidth Consumed Percentage | La limite propre du disque plafonne les E/S |
 | VM Cached / Uncached IOPS Consumed Percentage, VM Cached / Uncached Bandwidth Consumed Percentage | La limite de stockage de la machine virtuelle plafonne les E/S, même si les disques sont sous leurs limites |
-| Data Disk Latency, Data Disk Queue Depth | Temps de réponse et file d'attente (latence uniquement pour les disques SCSI, pas NVMe) |
+| Data Disk Latency (préversion), Data Disk Queue Depth | Temps de réponse et file d'attente (latence uniquement pour les disques SCSI, pas NVMe) |
 | Data Disk Used Burst IO / BPS Credits Percentage | Consommation des crédits de bursting des SSD Premium |
 
 Les métriques de pourcentage consommé n'existent que sur les séries de machines virtuelles qui prennent en charge le stockage Premium. Pour HANA, alertez sur la latence de `/hana/log` et sur la capacité de `/hana/data` et `/hana/shared`.
@@ -82,15 +82,15 @@ Autres sources :
 
 | Outil Network Watcher | Usage pour SAP |
 | --- | --- |
-| Moniteur de connexion | Latence et accessibilité continues entre serveurs d'applications, base de données et site local |
-| Résolution des problèmes de connexion | Test ponctuel d'une machine virtuelle vers un hôte et un port, par exemple le port SQL HANA |
+| Moniteur de connexion | Latence et accessibilité continues entre serveurs d'applications, base de données et site local ; les sources de type machine virtuelle Azure ont besoin de l'extension Network Watcher Agent |
+| Résolution des problèmes de connexion | Test ponctuel d'une machine virtuelle vers un hôte et un port, par exemple le port SQL HANA ; aucune extension d'agent nécessaire |
 | Vérification des flux IP | Un paquet est-il autorisé ou refusé sur une carte réseau, et par quelle règle |
 | Diagnostics NSG | Même vérification au niveau d'une machine virtuelle, d'un groupe identique ou d'Application Gateway |
 | Tronçon suivant | Problèmes de routage, par exemple un trafic envoyé vers une NVA entre niveaux |
 | Règles de sécurité effectives | Règles appliquées à une carte réseau |
 | Capture de paquets, résolution des problèmes VPN, Topologie | Capture à distance sur une machine virtuelle, diagnostic des passerelles, vue du réseau |
 
-Journaux de flux : **les journaux de flux NSG sont mis hors service le 30 septembre 2027** et n'acceptent plus de nouvelles créations ; utilisez les **journaux de flux de réseau virtuel**, analysés avec **traffic analytics**. Azure Monitor fournit aussi des métriques pour les circuits ExpressRoute, les passerelles VPN et les équilibreurs de charge.
+Journaux de flux : **les journaux de flux NSG sont mis hors service le 30 septembre 2027** et n'acceptent plus de nouvelles créations ; utilisez les **journaux de flux de réseau virtuel**, analysés avec **traffic analytics**. Après cette date, Azure supprime les ressources de journaux de flux NSG et arrête traffic analytics sur ces journaux ; les enregistrements déjà présents dans le stockage sont conservés. Azure Monitor fournit aussi des métriques pour les circuits ExpressRoute, les passerelles VPN et les équilibreurs de charge.
 
 Pour la latence SAP elle-même, mesurez avec `niping`, la mise en réseau accélérée activée ; `ping` n'utilise pas le chemin accéléré.
 
@@ -159,7 +159,7 @@ Depuis la VIS, vous démarrez ou arrêtez tout le niveau application (ASCS et se
 | Délai | Les opérations de plus de 300 secondes s'interrompent ; la supervision continue de mettre à jour l'état |
 | Même machine virtuelle | Plusieurs instances d'application sur une machine virtuelle s'arrêtent une à la fois |
 
-Prérequis : rôle **Azure Center for SAP solutions administrator** sur la VIS ; `sapstartsrv` en cours d'exécution sur toutes les machines virtuelles ; pour le démarrage, machines virtuelles en cours d'exécution (ou `--start-vm`) ; pour la haute disponibilité, `sap_vendor_cluster_connector` installé sur l'instance ASCS ; pour HANA, mode maintenance du cluster **Disabled** pour arrêter et **Enabled** pour démarrer.
+Prérequis : rôle **Azure Center for SAP solutions administrator** sur la VIS ; `sapstartsrv` en cours d'exécution sur toutes les machines virtuelles ; pour le démarrage, machines virtuelles en cours d'exécution (ou `--start-vm`) ; pour la haute disponibilité, Pacemaker de SUSE ou RHEL ou le clustering de basculement Windows Server (aucun autre logiciel de cluster n'est pris en charge) et `sap_vendor_cluster_connector` installé sur l'instance ASCS ; pour HANA, mode maintenance du cluster **Disabled** pour arrêter et **Enabled** pour démarrer.
 
 ```bash
 az workloads sap-virtual-instance stop --resource-group rg-sap-dev --name DEV --deallocate-vm true
@@ -180,7 +180,7 @@ Inscrire un système existant :
 
 | Pris en charge | Non pris en charge |
 | --- | --- |
-| NetWeaver ABAP ; Windows, SUSE, RHEL ; HANA, Db2, SQL Server, Oracle, MaxDB, SAP ASE ; plusieurs instances d'application sur une machine virtuelle | Pile Java et double pile ; HANA scale-out, MCOS, MCOD ; HANA Large Instances ; systèmes répartis sur des réseaux virtuels appairés ; IPv6 ; plusieurs SID sur les mêmes machines virtuelles |
+| NetWeaver ABAP ; Windows, SUSE, RHEL ; HANA, Db2, SQL Server, Oracle, MaxDB, SAP ASE ; plusieurs instances d'application sur une machine virtuelle | Pile Java et double pile ; HANA scale-out, MCOS, MCOD ; HANA Large Instances ; systèmes répartis sur des réseaux virtuels connectés par peering ; IPv6 ; plusieurs SID sur les mêmes machines virtuelles |
 
 Opérations : vue d'ensemble avec état et intégrité, propriétés des instances, onglet **Supervision** (processeur, IOPS du disque de données de la base), Quality Insights, analyse des coûts des machines virtuelles, disques et équilibreurs de charge. Supprimer une VIS supprime la VIS, ses ressources enfants et son groupe de ressources managé, mais **pas** les machines virtuelles, les disques et les cartes réseau ; c'est irréversible, et le système peut être réinscrit.
 

@@ -66,7 +66,7 @@ param adminLogin string
 @secure()
 param adminPassword string
 
-resource sqlServer 'Microsoft.Sql/servers@2022-05-01-preview' = {
+resource sqlServer 'Microsoft.Sql/servers@2023-08-01' = {
   name: 'sql-contoso-prod'
   location: location
   properties: {
@@ -75,7 +75,7 @@ resource sqlServer 'Microsoft.Sql/servers@2022-05-01-preview' = {
   }
 }
 
-resource sqlDb 'Microsoft.Sql/servers/databases@2022-05-01-preview' = {
+resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01' = {
   parent: sqlServer
   name: 'SalesDb'
   location: location
@@ -141,7 +141,7 @@ az sql mi create -g RG1 -n mi-contoso -l westeurope \
 | One inventory of instances and databases | Azure portal, Azure Resource Graph |
 | Pay-as-you-go SQL Server licensing billed through Azure | Instead of buying licenses |
 | Extended Security Updates for out-of-support versions | Subscription billed through Azure |
-| Microsoft Defender for Cloud, best practices assessment | Need Azure Monitor Agent |
+| Microsoft Defender for Cloud, best practices assessment | Defender uses its Defender for SQL extension. The assessment runs on Windows only, needs a Log Analytics workspace in the same subscription and installs Azure Monitor Agent if it is missing |
 | Microsoft Entra authentication | SQL Server 2022 or later |
 | Migration assessment and database migration | Readiness, SKU recommendation, migration to Managed Instance |
 | Automated backups, point-in-time restore, automatic updates | Not available with the "license only" license type |
@@ -156,6 +156,7 @@ The license type decides features: "license only" gets inventory, Entra authenti
 | Microsoft Entra authentication only | Yes (no logins, only users for Entra principals) |
 | SQL authentication, elastic pools, failover groups, Always Encrypted, ledger, long-term retention | No: Azure SQL Database |
 | More than 32 vCores or more than 4 TB | No: Azure SQL Database |
+| Let a user connect with a T-SQL `GRANT` only | No: connecting needs a Fabric workspace role or at least the Read item permission; SQL permissions (and a `DENY`) then apply inside the database |
 
 <!-- section: plan-partitioning | objectives: 1.1.5 -->
 ## Planning table partitioning

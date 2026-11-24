@@ -62,7 +62,7 @@ Explicitly **not supported**:
 | Non-HANA DBMS data and log | Premium SSD, Premium SSD v2, Ultra Disk | Standard HDD in any case, Standard SSD for production |
 
 - Premium SSD for `/hana/log` on M-series and Mv2-series requires **Write Accelerator**; Premium SSD v2 and Ultra Disk meet the HANA latency targets without it and don't support it.
-- Premium SSD v2 and Ultra Disk can't be used with VMs in availability sets.
+- Ultra Disk can't be used with VMs in availability sets. Premium SSD v2 can, but only in a few regions without availability zones and after the subscription is registered for the feature.
 - Database files use **LRS** managed disks only; zone or geo redundancy of disks isn't a resilience method for a DBMS.
 
 **Network.**

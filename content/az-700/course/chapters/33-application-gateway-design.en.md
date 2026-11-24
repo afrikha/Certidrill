@@ -158,7 +158,7 @@ Common fixes:
 | Server with a wildcard certificate serving several host names | Custom probe with a specific host name for SNI |
 | App Service backend unhealthy with the default probe (host 127.0.0.1) | Pick host name from backend settings, with the backend settings picking the host name from the target |
 
-> **Exam trap.** A probe that's too slow to fail sends traffic to a dead server for a while: time to detection is about the interval multiplied by the unhealthy threshold. Lowering the interval or the threshold detects failures sooner.
+> **Exam trap.** A probe that's too slow to fail sends traffic to a dead server for a while: time to detection is the first failed probe plus the unhealthy threshold multiplied by the interval (Learn's example: 20 + 2 × 20 = 60 seconds). On v2 the retries wait for the interval; v1 sends them in quick succession. Lowering the interval or the threshold detects failures sooner.
 
 <!-- section: key-points -->
 ## Key points

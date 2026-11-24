@@ -46,7 +46,7 @@ Prerequisite permission: read and write on the Sentinel workspace.
 | Minimal | A small set that might indicate a threat: 4624, 4625, 4688, 1102, account and group changes. No full audit trail | Lowest volume of the predefined sets |
 | Custom | Events matched by XPath queries | Exactly the event IDs you need |
 
-Filtering happens **at the source**: events excluded by the DCR are never sent, which is how you reduce ingestion costs. XPath rules: AMA supports XPath 1.0 only, up to 20 expressions per box and up to 100 boxes per rule; `contains` and `starts-with` aren't supported. Each entry has the form `LogName!XPath`:
+Filtering happens **at the source**: events excluded by the DCR are never sent, which is how you reduce ingestion costs. XPath rules: AMA supports XPath 1.0 only, and data collection rules support up to 20 expressions (`Get-WinEvent` supports 23); `contains` and `starts-with` aren't supported. Each entry has the form `LogName!XPath`:
 
 ```text
 Security!*[System[(EventID=4624 or EventID=4625 or EventID=4688)]]
@@ -128,7 +128,7 @@ sudo wget -O Forwarder_AMA_installer.py https://raw.githubusercontent.com/Azure/
 
 Required roles: Virtual Machine Contributor or Azure Connected Machine Resource Administrator to deploy the agent, Monitoring Contributor to create the DCR, and a role with `Microsoft.Resources/deployments/*`.
 
-> **Exam trap.** If Syslog and CEF use the same facility, messages are ingested twice, in `Syslog` and in `CommonSecurityLog`. Send CEF on facilities that the Syslog DCR doesn't collect, or add a transformation to the Syslog DCR that drops CEF messages.
+> **Exam trap.** If Syslog and CEF use the same facility, messages are ingested twice, in `Syslog` and in `CommonSecurityLog`. Send CEF on facilities that the Syslog DCR doesn't collect, or add a transformation to the Syslog DCR that drops CEF messages. Since AMA 1.41, `ProcessName` might not contain "CEF" for vendors that don't follow the RFC 3164 or RFC 5424 header format, so filter on both `ProcessName` and `SyslogMessage` (`CEF:0`).
 
 ```kusto
 CommonSecurityLog
@@ -153,7 +153,7 @@ In the policy wizard, the assignment applies to resources created **after** assi
 
 > **Exam trap.** "Make sure that all existing and future key vaults of the subscription send their logs" requires both the policy assignment and a remediation task. Without the remediation task, only new key vaults are configured.
 
-The **Azure Activity** connector collects subscription-level events (Resource Manager operations, service health, write operations) into `AzureActivity` through diagnostic settings; DCR transformations aren't supported for this table. If the legacy connection method is still in use, select **Disconnect All** on the connector page before configuring the new one. The activity log itself keeps 90 days; there is no ingestion charge for activity logs sent to a workspace.
+The **Azure Activity** connector collects subscription-level events (Resource Manager operations, service health, write operations) into `AzureActivity` through diagnostic settings; DCR transformations aren't supported for this table. If the legacy connection method is still in use, select **Disconnect All** on the connector page before configuring the new one. The activity log itself keeps 90 days; there is no ingestion charge for activity logs sent to a workspace, and retention is charged only beyond the default 90 days.
 
 ```kusto
 AzureActivity
@@ -206,7 +206,7 @@ Rules to remember:
 - After a schema change, update the DCRs yourself: Azure Monitor doesn't.
 - Permissions: `Microsoft.OperationalInsights/workspaces/*` to manage the table (Log Analytics Contributor) and `Microsoft.Insights/dataCollectionRules/write` to create the DCR (Monitoring Contributor).
 
-Data reaches the table through **Custom Logs via AMA** (text files on a server) or the **Logs Ingestion API**. For the API: register a Microsoft Entra app, create the table first, create the DCR, then assign the app the **Monitoring Metrics Publisher** role on the DCR. A data collection endpoint is needed only with private link or when the DCR has no logs ingestion endpoint. The API requires TLS 1.2 or later.
+Data reaches the table through **Custom Logs via AMA** (text files on a server) or the **Logs Ingestion API**. For the API: register a Microsoft Entra app, create the table first, create the DCR, then assign the app the **Monitoring Metrics Publisher** role on the DCR. A data collection endpoint is needed only with private link or when the DCR has no logs ingestion endpoint; the portal custom log wizard, however, always asks for one, so create it first in the workspace's region. The API requires TLS 1.2 or later.
 
 ```kusto
 // DCR transformation: build TimeGenerated and keep only useful columns
@@ -222,7 +222,7 @@ source
 
 - Connector = table: `SecurityEvent` (AMA), `WindowsEvent` (WEF), `Syslog`, `CommonSecurityLog` (CEF), `AzureActivity`, `_CL` custom tables.
 - Non-Azure machines need Azure Arc before any AMA-based connector; DCRs filter at the source to cut costs.
-- Event sets: All, Common (full audit trail), Minimal (threat-oriented, no audit trail), Custom (XPath 1.0, 20 expressions per box).
+- Event sets: All, Common (full audit trail), Minimal (threat-oriented, no audit trail), Custom (XPath 1.0, up to 20 expressions).
 - WEF centralizes collection on a WEC server; Network Service in Event Log Readers; built-in rules on `SecurityEvent` don't see `WindowsEvent` data.
 - Syslog and CEF through one Linux forwarder; separate the facilities to avoid duplicates.
 - Azure Policy assignment plus remediation task for existing resources; Owner at the assignment scope.

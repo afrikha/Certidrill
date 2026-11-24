@@ -3,7 +3,7 @@ Every subnet has a route table that Azure builds for you. Routing questions ask 
 <!-- section: user-defined-routes | objectives: 1.3.4 -->
 ## Designing and implementing user-defined routes
 
-Azure creates **system routes** for every subnet: the virtual network's address ranges (next hop **Virtual network**), 0.0.0.0/0 (**Internet**), and **None** for 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 and 100.64.0.0/10 unless a range is in the address space. Optional system routes appear when you add a peering (**Virtual network peering**), a gateway (**Virtual network gateway**, for prefixes of local network gateways or learned by BGP) or a service endpoint (`VirtualNetworkServiceEndpoint`).
+Azure creates **system routes** for every subnet: the virtual network's address ranges (next hop **Virtual network**), 0.0.0.0/0 (**Internet**), and **None** for 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 and 100.64.0.0/10 unless a range is in the address space. Optional system routes appear when you add a peering (**Virtual network peering**), a gateway (**Virtual network gateway**, for prefixes of local network gateways or learned by BGP) or a service endpoint (`VirtualNetworkServiceEndpoint`). The default table also has None routes for a few other reserved ranges (127.0.0.0/8, 157.59.0.0/16, 104.146.0.0/17, 104.147.0.0/16). A 0.0.0.0/0 route with next hop **Virtual network gateway** removes the default None routes, and in Learn's routing example a 0.0.0.0/0 user-defined route removes those for 10.0.0.0/8, 192.168.0.0/16 and 100.64.0.0/10: an effective routes exhibit then has no such None rows.
 
 | UDR next hop type (CLI value) | Use |
 | --- | --- |
@@ -68,7 +68,7 @@ Side effects of a 0.0.0.0/0 route to a gateway or an appliance:
 - Resources in the subnet are no longer reachable directly from the internet (RDP or SSH to a public IP fails): inbound traffic must go through the device that handles the default route.
 - A NAT gateway on the subnet is bypassed: a UDR to an appliance or a gateway wins over the NAT gateway.
 
-**Azure Firewall** with forced tunneling needs the **Firewall Management NIC**: a subnet named **AzureFirewallManagementSubnet** (/26 minimum) with its own public IP address, whose only allowed route is a default route to the internet. Then add a default route on **AzureFirewallSubnet** toward the on-premises device or NVA (or enable **Propagate gateway routes** there). DNAT isn't supported in forced tunneling mode. Enabling the Management NIC on an existing Standard or Premium firewall requires stopping and restarting it; Basic firewalls always have one.
+**Azure Firewall** with forced tunneling needs the **Firewall Management NIC**: a subnet named **AzureFirewallManagementSubnet** (/26 minimum) with its own public IP address (same SKU, tier and location as the firewall's public IP address), whose only allowed route is a default route to the internet, with **Propagate gateway routes** disabled. Then add a default route on **AzureFirewallSubnet** toward the on-premises device or NVA (or enable **Propagate gateway routes** there). Learn states that DNAT isn't supported with forced tunneling, because inbound internet connections would return through the forced path (asymmetric routing), and adds that firewalls with a Management NIC still support DNAT. Enabling the Management NIC on an existing Standard or Premium firewall requires stopping and restarting it; Basic firewalls always have one.
 
 <!-- section: diagnose-routing | objectives: 1.3.7 -->
 ## Diagnosing and resolving routing issues

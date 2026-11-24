@@ -33,7 +33,7 @@ Sentinel fonctionne dans des environnements multiclouds et multiplateformes, à 
 La détection s'appuie sur plusieurs mécanismes :
 
 - **Détection par règles** : les règles d'analyse, avec des modèles écrits par les experts en sécurité de Microsoft.
-- **Machine learning** : des bases de référence comportementales signalent les écarts, et le moteur **Fusion** corrèle des signaux de faible gravité venus de plusieurs sources en un seul incident de haute fiabilité, ce qui révèle les attaques en plusieurs étapes.
+- **Machine learning** : des bases de référence comportementales signalent les écarts, et le moteur **Fusion** corrèle des signaux de faible gravité venus de plusieurs sources en un seul incident de haute fiabilité, ce qui révèle les attaques en plusieurs étapes. Dans un espace de travail intégré au portail Microsoft Defender, Fusion est désactivé et le moteur de corrélation de Microsoft Defender XDR fait ce travail.
 - **Correspondance avec le renseignement sur les menaces** : les données sont comparées à des flux d'adresses IP, de domaines et d'URL connus comme malveillants.
 - **Couverture MITRE ATT&CK** : une vue des techniques d'attaque que vos règles couvrent, et des lacunes.
 
@@ -72,7 +72,7 @@ Les incidents sont examinés dans le **portail Microsoft Defender**, dans une fi
 
 - SIEM : collecter, corréler et analyser les données de partout, émettre des alertes et des incidents. SOAR : orchestrer les outils et automatiser la réponse avec des playbooks.
 - Microsoft Sentinel est un SIEM et un SOAR natif cloud.
-- Quatre étapes : collecter (connecteurs de données), détecter (règles d'analyse, Fusion, renseignement sur les menaces), examiner (incidents, repérage), répondre (règles d'automatisation, playbooks).
+- Quatre étapes : collecter (connecteurs de données), détecter (règles d'analyse, Fusion ou, dans le portail Defender, le moteur de corrélation de Defender XDR, renseignement sur les menaces), examiner (incidents, repérage), répondre (règles d'automatisation, playbooks).
 - Les playbooks sont construits sur Azure Logic Apps ; les règles d'automatisation décident quand ils s'exécutent.
 - Les classeurs visualisent, le hub de contenu déploie des solutions, les watchlists apportent vos propres données de référence.
 - Sentinel s'utilise dans le portail Microsoft Defender ; la prise en charge dans le portail Azure prend fin après le 31 mars 2027.

@@ -30,7 +30,7 @@ CustomerID,FirstName,City
 </Customers>
 ```
 
-Avro, Parquet et Delta Lake sont des **formats de fichiers optimisés** : ils ne se lisent pas dans un éditeur de texte, mais ils se compressent bien et se traitent vite. ORC (Optimized Row Columnar) est un autre format en colonnes que vous pouvez rencontrer parmi les réponses proposées.
+Avro, Parquet et Delta Lake sont des **formats de fichiers optimisés** : ils ne se lisent pas dans un éditeur de texte, mais ils se compressent bien et se traitent vite.
 
 > **Piège d'examen.** Parquet est **en colonnes**, Avro est **orienté ligne**. « Ne lire que quelques colonnes d'un très gros fichier » désigne Parquet ; « un en-tête JSON suivi d'enregistrements binaires » désigne Avro.
 
@@ -71,7 +71,7 @@ Les **bases de données non relationnelles** n'appliquent pas de schéma relatio
 | Stockage scalable et économique de fichiers binaires et d'autres données non structurées | **Stockage Blob Azure** (conteneurs d'objets blob d'un compte de stockage) |
 | Partages de fichiers réseau comme ceux d'un réseau d'entreprise | **Azure Files** |
 | Stockage clé-valeur pour des applications qui lisent et écrivent rapidement des valeurs | **Stockage Table Azure** |
-| Lac de données : fichiers organisés en dossiers pour l'analytique à grande échelle | **Azure Data Lake Storage Gen2** (Stockage Blob avec un espace de noms hiérarchique) |
+| Lac de données : fichiers organisés en dossiers pour l'analytique à grande échelle | **Azure Data Lake Storage** (Stockage Blob avec un espace de noms hiérarchique) |
 | Une plateforme d'analytique fournie sous forme de logiciel en tant que service (SaaS), avec un lac de données partagé (OneLake) | **Microsoft Fabric** |
 
 Les conteneurs d'objets blob, les partages de fichiers et les tables sont trois services du même compte de **Stockage Azure**.

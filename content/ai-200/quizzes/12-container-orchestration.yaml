@@ -1,0 +1,486 @@
+chapter: 12-container-orchestration
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ai200-qz-12-01
+    objective: "1.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware's container app **ca-lex-search** reads its Azure OpenAI key from the environment variable `OPENAI_API_KEY`, which references an app secret. The secret is a Key Vault reference to `https://kv-lex.vault.azure.net/secrets/openai-key`, read with the app's managed identity.
+
+        The security team creates a new version of `openai-key` in kv-lex. What happens next?
+      fr: |
+        L'application conteneur **ca-lex-search** de Litware lit sa clé Azure OpenAI dans la variable d'environnement `OPENAI_API_KEY`, qui référence un secret de l'application. Ce secret est une référence Key Vault vers `https://kv-lex.vault.azure.net/secrets/openai-key`, lue avec l'identité managée de l'application.
+
+        L'équipe de sécurité crée une nouvelle version d'`openai-key` dans kv-lex. Que se passe-t-il ensuite ?
+    body:
+      options:
+        - { id: a, text: { en: "Nothing changes until you deploy a new revision that references the secret again.", fr: "Rien ne change tant que vous ne déployez pas une nouvelle révision qui référence de nouveau le secret." } }
+        - { id: b, text: { en: "Within 24 hours, the app reads the new version, and replicas receive it at their next scale-out.", fr: "Sous 24 heures, l'application lit la nouvelle version, et les réplicas la reçoivent au prochain scale-out." } }
+        - { id: c, text: { en: "Within 30 minutes, the app reads the new version, and the active revisions that use it restart.", fr: "Sous 30 minutes, l'application lit la nouvelle version, et les révisions actives qui l'utilisent redémarrent." } }
+        - { id: d, text: { en: "The app creates a new revision with the new value, and traffic moves to it once it is ready.", fr: "L'application crée une nouvelle révision avec la nouvelle valeur, et le trafic y passe dès qu'elle est prête." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The reference has no version, so the app follows the latest version of the secret: Container Apps retrieves a new version within 30 minutes. Active revisions that use the secret in an environment variable restart automatically to pick up the new value.
+        fr: |
+          La référence n'a pas de version : l'application suit donc la dernière version du secret, et Container Apps récupère une nouvelle version sous 30 minutes. Les révisions actives qui utilisent le secret dans une variable d'environnement redémarrent automatiquement pour prendre en compte la nouvelle valeur.
+      options:
+        a: { en: "That is the behavior of a versioned reference or of a value stored in the app; an unversioned Key Vault reference follows rotation.", fr: "C'est le comportement d'une référence avec version ou d'une valeur stockée dans l'application ; une référence Key Vault sans version suit la rotation." }
+        b: { en: "The 24-hour refresh is the behavior of App Service Key Vault references; Container Apps picks up new versions within 30 minutes and restarts the revisions.", fr: "Le rafraîchissement sous 24 heures est le comportement des références Key Vault d'App Service ; Container Apps prend en compte les nouvelles versions sous 30 minutes et redémarre les révisions." }
+        d: { en: "Secrets belong to the application configuration, not to the template: a change of their value never creates a revision.", fr: "Les secrets appartiennent à la configuration de l'application, pas au modèle : un changement de leur valeur ne crée jamais de révision." }
+    references:
+      - title: Manage secrets in Azure Container Apps
+        url: https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets
+
+  # ------------------------------------------------------------------ 2
+  - id: ai200-qz-12-02
+    objective: "1.2.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A developer at Fabrikam writes the manifest `rag-secrets.yaml`, which defines a Kubernetes Secret whose `data` field holds the Azure OpenAI key, and plans to commit it to Git with the other manifests of the AKS deployment.
+
+        Which statement about this file is true?
+      fr: |
+        Un développeur de Fabrikam rédige le manifeste `rag-secrets.yaml`, qui définit un Secret Kubernetes dont le champ `data` contient la clé Azure OpenAI, et prévoit de le valider dans Git avec les autres manifestes du déploiement AKS.
+
+        Quelle affirmation concernant ce fichier est vraie ?
+    body:
+      options:
+        - { id: a, text: { en: "Its values are only Base64-encoded, so anyone who can read the file can decode the key.", fr: "Ses valeurs sont seulement encodées en Base64 : toute personne qui peut lire le fichier peut décoder la clé." } }
+        - { id: b, text: { en: "Its values are encrypted by the cluster when the file is applied, so the Git copy is protected.", fr: "Ses valeurs sont chiffrées par le cluster quand le fichier est appliqué : la copie dans Git est donc protégée." } }
+        - { id: c, text: { en: "Its values are protected as long as the Secret is created in a namespace of its own.", fr: "Ses valeurs sont protégées tant que le Secret est créé dans un espace de noms qui lui est propre." } }
+        - { id: d, text: { en: "Its values are protected because the nodes keep Secrets in tmpfs instead of on disk.", fr: "Ses valeurs sont protégées, car les nœuds conservent les Secrets dans tmpfs plutôt que sur disque." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A raw Secret manifest contains the secret data in Base64, an encoding that anyone can reverse. Treat the file as sensitive and never commit it to source control; keep the key in Azure Key Vault instead, for example with the Secrets Store CSI Driver.
+        fr: |
+          Un manifeste de Secret brut contient les données secrètes en Base64, un encodage que n'importe qui peut inverser. Traitez le fichier comme sensible et ne le validez jamais dans le contrôle de code source ; conservez plutôt la clé dans Azure Key Vault, par exemple avec le pilote CSI du magasin des secrets.
+      options:
+        b: { en: "Encryption at rest applies to Secrets stored in etcd, inside the cluster; it does nothing for the copy of the file in Git.", fr: "Le chiffrement au repos s'applique aux Secrets stockés dans etcd, à l'intérieur du cluster ; il ne protège en rien la copie du fichier dans Git." }
+        c: { en: "A namespace limits which pods can use the Secret; it doesn't protect the values written in the file.", fr: "Un espace de noms limite les pods qui peuvent utiliser le Secret ; il ne protège pas les valeurs écrites dans le fichier." }
+        d: { en: "tmpfs keeps the Secret off the disks of the nodes; it doesn't protect the manifest stored in the repository.", fr: "tmpfs évite d'écrire le Secret sur les disques des nœuds ; il ne protège pas le manifeste stocké dans le dépôt." }
+    references:
+      - title: Security concepts for applications and clusters in Azure Kubernetes Service (AKS)
+        url: https://learn.microsoft.com/en-us/azure/aks/concepts-security
+
+  # ------------------------------------------------------------------ 3
+  - id: ai200-qz-12-03
+    objective: "1.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys deploys an FAQ assistant named **ca-faq** with `az containerapp create`, external ingress and target port 8000. The command sets no scale option and no scale rule.
+
+        ca-faq receives no requests for several hours every night. How does ca-faq scale?
+      fr: |
+        Tailspin Toys déploie un assistant de FAQ nommé **ca-faq** avec `az containerapp create`, une entrée externe et le port cible 8000. La commande ne définit aucune option de mise à l'échelle ni aucune règle de mise à l'échelle.
+
+        ca-faq ne reçoit aucune requête pendant plusieurs heures chaque nuit. Comment ca-faq est-elle mise à l'échelle ?
+    body:
+      options:
+        - { id: a, text: { en: "Between 1 and 10 replicas on CPU usage, so one replica keeps running at night.", fr: "Entre 1 et 10 réplicas selon l'utilisation du processeur : un réplica continue de tourner la nuit." } }
+        - { id: b, text: { en: "Between 0 and 10 replicas on HTTP traffic, so no replica runs at night.", fr: "Entre 0 et 10 réplicas selon le trafic HTTP : aucun réplica ne tourne la nuit." } }
+        - { id: c, text: { en: "Exactly one replica at all times, because scaling requires a scale rule.", fr: "Exactement un réplica en permanence, car la mise à l'échelle exige une règle." } }
+        - { id: d, text: { en: "Between 0 and 1 replica on HTTP traffic, because no maximum was set.", fr: "Entre 0 et 1 réplica selon le trafic HTTP, car aucun maximum n'a été défini." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          When no scale rule is defined, Container Apps applies a default HTTP rule with a minimum of 0 and a maximum of 10 replicas. With ingress enabled, requests drive the rule: the app scales to zero when idle, which costs nothing, and starts replicas again when requests arrive.
+        fr: |
+          Quand aucune règle de mise à l'échelle n'est définie, Container Apps applique une règle HTTP par défaut avec un minimum de 0 et un maximum de 10 réplicas. L'entrée étant activée, les requêtes pilotent la règle : l'application descend à zéro au repos, ce qui ne coûte rien, et redémarre des réplicas quand des requêtes arrivent.
+      options:
+        a: { en: "CPU scaling needs a custom rule, and the default minimum is 0, not 1.", fr: "La mise à l'échelle sur le processeur exige une règle personnalisée, et le minimum par défaut est 0, pas 1." }
+        c: { en: "A default HTTP rule applies when none is defined, and the default minimum is 0.", fr: "Une règle HTTP par défaut s'applique quand aucune n'est définie, et le minimum par défaut est 0." }
+        d: { en: "The default maximum is 10 replicas, not 1.", fr: "Le maximum par défaut est de 10 réplicas, pas 1." }
+    references:
+      - title: Set scaling rules in Azure Container Apps
+        url: https://learn.microsoft.com/en-us/azure/container-apps/scale-app
+
+  # ------------------------------------------------------------------ 4
+  - id: ai200-qz-12-04
+    objective: "1.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum deploys a summarization API to the AKS cluster **aks-adt** from manifests that reference images in the Azure container registry **cradatum**, which uses the RBAC Registry Permissions mode. A developer who has the Contributor role on the subscription runs `az aks update --name aks-adt --resource-group rg-adt --attach-acr cradatum`, and the command fails with an authorization error.
+
+        The nodes must pull the images without any registry credential stored in the cluster. What should you do?
+      fr: |
+        Adatum déploie une API de résumé sur le cluster AKS **aks-adt** à partir de manifestes qui référencent des images du registre de conteneurs Azure **cradatum**, qui utilise le mode RBAC Registry Permissions. Un développeur qui dispose du rôle Contributor sur l'abonnement exécute `az aks update --name aks-adt --resource-group rg-adt --attach-acr cradatum`, et la commande échoue avec une erreur d'autorisation.
+
+        Les nœuds doivent tirer les images sans aucune information d'identification de registre stockée dans le cluster. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Assign the developer the AcrPush role on cradatum, and then run the command again.", fr: "Attribuer au développeur le rôle AcrPush sur cradatum, puis exécuter de nouveau la commande." } }
+        - { id: b, text: { en: "Create an image pull secret with the admin credentials of cradatum in the cluster.", fr: "Créer dans le cluster un secret de tirage d'image avec les informations d'administrateur de cradatum." } }
+        - { id: c, text: { en: "Have a user with the Owner role on the subscription run the same command.", fr: "Faire exécuter la même commande par un utilisateur qui dispose du rôle Owner sur l'abonnement." } }
+        - { id: d, text: { en: "Run the command again with `--detach-acr cradatum` first, and then with `--attach-acr`.", fr: "Exécuter d'abord la commande avec `--detach-acr cradatum`, puis avec `--attach-acr`." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `--attach-acr` creates an AcrPull role assignment for the kubelet identity of the cluster, and it uses the permissions of the user who runs it. Contributor can't create role assignments, so a user with Owner (or another role that can assign roles) must run it. The nodes then pull with their managed identity, with no credential in the cluster.
+        fr: |
+          `--attach-acr` crée une attribution du rôle AcrPull pour l'identité kubelet du cluster, et utilise les autorisations de l'utilisateur qui l'exécute. Contributor ne peut pas créer d'attributions de rôle : un utilisateur Owner (ou disposant d'un autre rôle capable d'attribuer des rôles) doit l'exécuter. Les nœuds tirent ensuite les images avec leur identité managée, sans information d'identification dans le cluster.
+      options:
+        a: { en: "AcrPush grants push and pull access to images; it doesn't allow the developer to create role assignments.", fr: "AcrPush donne un accès en envoi et en tirage aux images ; il ne permet pas au développeur de créer des attributions de rôle." }
+        b: { en: "An image pull secret stores registry credentials in the cluster, which the requirement forbids.", fr: "Un secret de tirage d'image stocke des informations d'identification de registre dans le cluster, ce que l'exigence interdit." }
+        d: { en: "`--detach-acr` removes a role assignment, which needs the same permissions; it doesn't fix the missing right to assign roles.", fr: "`--detach-acr` supprime une attribution de rôle, ce qui exige les mêmes autorisations ; il ne corrige pas l'absence du droit d'attribuer des rôles." }
+    references:
+      - title: Authenticate with Azure Container Registry (ACR) from Azure Kubernetes Service (AKS)
+        url: https://learn.microsoft.com/en-us/azure/aks/cluster-container-registry-integration
+
+  # ------------------------------------------------------------------ 5
+  - id: ai200-qz-12-05
+    objective: "1.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso deploys a new version of the Deployment **rerank-api** in the namespace `search` of an AKS cluster. The selector of the Service rerank-api matches the labels of the new pods. The pods show the status **Running** but `0/1` in the **READY** column, and the Service has no ready endpoints.
+
+        The events of `kubectl describe pod` show `Readiness probe failed: HTTP probe failed with statuscode: 404`. The new version serves its health check on `/healthz` instead of `/health`. What should you do?
+      fr: |
+        Contoso déploie une nouvelle version du Deployment **rerank-api** dans l'espace de noms `search` d'un cluster AKS. Le sélecteur du Service rerank-api correspond aux étiquettes des nouveaux pods. Les pods affichent l'état **Running**, mais `0/1` dans la colonne **READY**, et le Service n'a aucun point de terminaison prêt.
+
+        Les événements de `kubectl describe pod` affichent `Readiness probe failed: HTTP probe failed with statuscode: 404`. La nouvelle version expose son contrôle d'intégrité sur `/healthz` au lieu de `/health`. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Change the `path` of the readiness probe to `/healthz` in the Deployment, and apply the manifest.", fr: "Remplacer le `path` de la sonde de disponibilité par `/healthz` dans le Deployment, puis appliquer le manifeste." } }
+        - { id: b, text: { en: "Change the `targetPort` of the Service to the port of the readiness probe, and apply the manifest.", fr: "Remplacer le `targetPort` du Service par le port de la sonde de disponibilité, puis appliquer le manifeste." } }
+        - { id: c, text: { en: "Add a liveness probe on `/healthz` to the Deployment, and apply the manifest.", fr: "Ajouter une sonde d'activité sur `/healthz` au Deployment, puis appliquer le manifeste." } }
+        - { id: d, text: { en: "Raise `resources.limits.memory` of the container in the Deployment, and apply the manifest.", fr: "Augmenter `resources.limits.memory` du conteneur dans le Deployment, puis appliquer le manifeste." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A pod whose readiness probe fails stays Running but not ready, and Kubernetes keeps it out of the Service endpoints. The 404 shows that the probe calls a path that the new version no longer serves: pointing the probe to `/healthz` makes the pods ready, and the Service starts routing to them.
+        fr: |
+          Un pod dont la sonde de disponibilité échoue reste Running mais pas prêt, et Kubernetes le tient à l'écart des points de terminaison du Service. Le code 404 montre que la sonde appelle un chemin que la nouvelle version ne sert plus : pointer la sonde vers `/healthz` rend les pods prêts, et le Service commence à leur transmettre le trafic.
+      options:
+        b: { en: "The probe reached the container and got a 404, so the port is right; `targetPort` doesn't change which pods are ready.", fr: "La sonde a atteint le conteneur et reçu un 404 : le port est donc correct ; `targetPort` ne change pas les pods prêts." }
+        c: { en: "A liveness probe only restarts failing containers; the failing readiness probe would still keep the pods out of the endpoints.", fr: "Une sonde d'activité ne fait que redémarrer les conteneurs défaillants ; la sonde de disponibilité en échec tiendrait toujours les pods à l'écart des points de terminaison." }
+        d: { en: "A memory limit that is too low gives `OOMKilled` restarts, not a probe that receives a 404.", fr: "Une limite de mémoire trop basse provoque des redémarrages `OOMKilled`, pas une sonde qui reçoit un 404." }
+    references:
+      - title: Troubleshoot connection issues to pods or services within an AKS cluster (internal traffic)
+        url: https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/connectivity/troubleshoot-connection-pods-services-same-cluster
+
+  # ------------------------------------------------------------------ 6
+  - id: ai200-qz-12-06
+    objective: "1.2.3"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Woodgrove Bank deploys a compliance chatbot to AKS. In the namespace `chat`:
+
+        - the Kubernetes Secret **chat-secrets** holds the Azure OpenAI key under the key `openai-key`;
+        - the ConfigMap **chat-prompts** holds one prompt template per key.
+
+        The container must read the key from the environment variable `OPENAI_API_KEY`, and it must read each prompt template as a file under `/app/prompts`. How should you complete the Deployment manifest? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank déploie un chatbot de conformité sur AKS. Dans l'espace de noms `chat` :
+
+        - le Secret Kubernetes **chat-secrets** contient la clé Azure OpenAI sous la clé `openai-key` ;
+        - le ConfigMap **chat-prompts** contient un modèle de prompt par clé.
+
+        Le conteneur doit lire la clé dans la variable d'environnement `OPENAI_API_KEY`, et il doit lire chaque modèle de prompt comme un fichier sous `/app/prompts`. Comment devez-vous compléter le manifeste du Deployment ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: yaml
+      template: |
+        spec:
+          containers:
+            - name: chat
+              image: crwoodgrove.azurecr.io/chat/api:3.2.0
+              env:
+                - name: OPENAI_API_KEY
+                  [[src]]:
+                    [[keyref]]:
+                      name: chat-secrets
+                      key: openai-key
+              volumeMounts:
+                - name: prompts
+                  mountPath: /app/prompts
+          volumes:
+            - name: prompts
+              [[voltype]]:
+                name: chat-prompts
+      slots:
+        - id: src
+          options:
+            - { id: valuefrom, text: valueFrom }
+            - { id: envfrom, text: envFrom }
+            - { id: value, text: value }
+        - id: keyref
+          options:
+            - { id: secretkeyref, text: secretKeyRef }
+            - { id: configmapkeyref, text: configMapKeyRef }
+            - { id: secretref, text: secretRef }
+            - { id: fieldref, text: fieldRef }
+        - id: voltype
+          options:
+            - { id: configmap, text: configMap }
+            - { id: secret, text: secret }
+            - { id: emptydir, text: emptyDir }
+            - { id: pvc, text: persistentVolumeClaim }
+    answer:
+      values: { src: valuefrom, keyref: secretkeyref, voltype: configmap }
+    explanation:
+      correct:
+        en: |
+          An entry of `env` gets its value from another object through `valueFrom`; `secretKeyRef` names the Secret and the key whose value becomes the variable. A ConfigMap mounted through a `configMap` volume becomes one file per key in the mount path, so each prompt template appears as a file under `/app/prompts`.
+        fr: |
+          Une entrée de `env` obtient sa valeur d'un autre objet par `valueFrom` ; `secretKeyRef` désigne le Secret et la clé dont la valeur devient la variable. Un ConfigMap monté par un volume `configMap` devient un fichier par clé dans le chemin de montage : chaque modèle de prompt apparaît donc comme un fichier sous `/app/prompts`.
+      options:
+        envfrom: { en: "`envFrom` sits at the container level and imports all the keys of an object; it isn't a property of one `env` entry.", fr: "`envFrom` se place au niveau du conteneur et importe toutes les clés d'un objet ; ce n'est pas une propriété d'une entrée de `env`." }
+        value: { en: "`value` takes a literal string, which would put the key in the manifest.", fr: "`value` prend une chaîne littérale, ce qui écrirait la clé dans le manifeste." }
+        configmapkeyref: { en: "`configMapKeyRef` reads a key of a ConfigMap; the key is in the Secret chat-secrets.", fr: "`configMapKeyRef` lit une clé d'un ConfigMap ; la clé se trouve dans le Secret chat-secrets." }
+        secretref: { en: "`secretRef` is used under `envFrom` to import a whole Secret; it doesn't select one key for one variable.", fr: "`secretRef` s'utilise sous `envFrom` pour importer un Secret entier ; il ne sélectionne pas une clé pour une variable." }
+        fieldref: { en: "`fieldRef` exposes fields of the pod itself, such as its name or namespace.", fr: "`fieldRef` expose des champs du pod lui-même, comme son nom ou son espace de noms." }
+        secret: { en: "A `secret` volume mounts a Secret; the prompt templates are in a ConfigMap.", fr: "Un volume `secret` monte un Secret ; les modèles de prompt se trouvent dans un ConfigMap." }
+        emptydir: { en: "An `emptyDir` volume starts empty; it doesn't contain the keys of chat-prompts.", fr: "Un volume `emptyDir` démarre vide ; il ne contient pas les clés de chat-prompts." }
+        pvc: { en: "A `persistentVolumeClaim` mounts persistent storage, not the content of a ConfigMap.", fr: "Un `persistentVolumeClaim` monte un stockage persistant, pas le contenu d'un ConfigMap." }
+    references:
+      - title: Azure Key Vault provider for Secrets Store CSI Driver for Azure Kubernetes Service (AKS) configuration options
+        url: https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-configuration-options
+      - title: "Quickstart: Use Azure App Configuration in Azure Kubernetes Service"
+        url: https://learn.microsoft.com/en-us/azure/azure-app-configuration/quickstart-azure-kubernetes-service
+
+  # ------------------------------------------------------------------ 7
+  - id: ai200-qz-12-07
+    objective: "1.2.4"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Proseware runs its document pipeline on an AKS cluster, where Container insights sends data to the Log Analytics workspace **log-prose** with its default collection settings, and on the container app **ca-indexer**, whose environment also sends its logs to log-prose. After an incident, you must write four queries.
+
+        Which table should each query use? To answer, drag the appropriate tables to the correct queries. Each table may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Proseware exécute son pipeline de documents sur un cluster AKS, dont Container insights envoie les données à l'espace de travail Log Analytics **log-prose** avec ses paramètres de collecte par défaut, et sur l'application conteneur **ca-indexer**, dont l'environnement envoie aussi ses journaux à log-prose. Après un incident, vous devez écrire quatre requêtes.
+
+        Quelle table chaque requête doit-elle utiliser ? Pour répondre, faites glisser les tables appropriées vers les requêtes correctes. Chaque table peut être utilisée une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: podinv, text: KubePodInventory }
+        - { id: nodeinv, text: KubeNodeInventory }
+        - { id: events, text: KubeEvents }
+        - { id: logv2, text: ContainerLogV2 }
+        - { id: acasys, text: ContainerAppSystemLogs_CL }
+        - { id: acacon, text: ContainerAppConsoleLogs_CL }
+      targets:
+        - { id: t1, text: { en: "Restart count and status of each container of the `chunker` pods during the incident", fr: "Nombre de redémarrages et état de chaque conteneur des pods `chunker` pendant l'incident" } }
+        - { id: t2, text: { en: "Nodes of the cluster that weren't Ready during the incident", fr: "Nœuds du cluster qui n'étaient pas Ready pendant l'incident" } }
+        - { id: t3, text: { en: "Warning events with the reason FailedScheduling for the `chunker` pods", fr: "Événements Warning de motif FailedScheduling pour les pods `chunker`" } }
+        - { id: t4, text: { en: "The error code reported when a new revision of ca-indexer failed to provision", fr: "Le code d'erreur signalé quand le provisionnement d'une nouvelle révision de ca-indexer a échoué" } }
+    answer:
+      mapping: { t1: podinv, t2: nodeinv, t3: events, t4: acasys }
+    explanation:
+      correct:
+        en: |
+          KubePodInventory records the pods and their containers with their status and restart counts, and KubeNodeInventory records the nodes and their status. KubeEvents holds the Kubernetes events; Normal events aren't collected by default, but Warning events such as FailedScheduling are. A failed revision provisioning, with its error code such as `ErrImagePull`, is a system event of Container Apps, stored in ContainerAppSystemLogs_CL.
+        fr: |
+          KubePodInventory enregistre les pods et leurs conteneurs avec leur état et leur nombre de redémarrages, et KubeNodeInventory enregistre les nœuds et leur état. KubeEvents contient les événements Kubernetes ; les événements Normal ne sont pas collectés par défaut, mais les événements Warning comme FailedScheduling le sont. Un échec de provisionnement de révision, avec son code d'erreur comme `ErrImagePull`, est un événement système de Container Apps, stocké dans ContainerAppSystemLogs_CL.
+      options:
+        logv2: { en: "ContainerLogV2 holds what the containers write to stdout and stderr, not their status, the nodes or the Kubernetes events.", fr: "ContainerLogV2 contient ce que les conteneurs écrivent sur stdout et stderr, pas leur état, les nœuds ni les événements Kubernetes." }
+        acacon: { en: "ContainerAppConsoleLogs_CL holds the output of the containers; a revision that fails to provision reports its error in the system logs.", fr: "ContainerAppConsoleLogs_CL contient la sortie des conteneurs ; une révision dont le provisionnement échoue signale son erreur dans les journaux système." }
+    references:
+      - title: Query container logs in Azure Monitor
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-log-query
+      - title: Monitor logs in Azure Container Apps with Log Analytics
+        url: https://learn.microsoft.com/en-us/azure/container-apps/log-monitoring
+
+  # ------------------------------------------------------------------ 8
+  - id: ai200-qz-12-08
+    objective: "1.2.1"
+    difficulty: 3
+    status: draft
+    type: ordering
+    stem:
+      en: |
+        Adatum runs a tutoring assistant named **ca-tutor** in Azure Container Apps in multiple revision mode. The revision **ca-tutor--v8** receives 100 percent of the traffic. The previous revision, **ca-tutor--v7**, was deactivated yesterday.
+
+        Users report a regression in ca-tutor--v8. You need to send all the traffic back to ca-tutor--v7 itself, without creating a new revision, and then stop running ca-tutor--v8.
+
+        Which three actions should you perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+      fr: |
+        Adatum exécute un assistant de tutorat nommé **ca-tutor** dans Azure Container Apps en mode de révision Multiple. La révision **ca-tutor--v8** reçoit 100 % du trafic. La révision précédente, **ca-tutor--v7**, a été désactivée hier.
+
+        Des utilisateurs signalent une régression dans ca-tutor--v8. Vous devez renvoyer tout le trafic vers ca-tutor--v7 elle-même, sans créer de nouvelle révision, puis arrêter l'exécution de ca-tutor--v8.
+
+        Quelles sont les trois actions à effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste des actions vers la zone de réponse et classez-les dans l'ordre correct.
+    body:
+      count: 3
+      actions:
+        - { id: activate, text: { en: "Run `az containerapp revision activate` for ca-tutor--v7.", fr: "Exécuter `az containerapp revision activate` pour ca-tutor--v7." } }
+        - { id: traffic, text: { en: "Run `az containerapp ingress traffic set` with the weight 100 for ca-tutor--v7.", fr: "Exécuter `az containerapp ingress traffic set` avec la pondération 100 pour ca-tutor--v7." } }
+        - { id: deactivate, text: { en: "Run `az containerapp revision deactivate` for ca-tutor--v8.", fr: "Exécuter `az containerapp revision deactivate` pour ca-tutor--v8." } }
+        - { id: copy, text: { en: "Run `az containerapp revision copy` from ca-tutor--v7.", fr: "Exécuter `az containerapp revision copy` à partir de ca-tutor--v7." } }
+        - { id: single, text: { en: "Run `az containerapp revision set-mode` with the mode single.", fr: "Exécuter `az containerapp revision set-mode` avec le mode single." } }
+        - { id: restart, text: { en: "Run `az containerapp revision restart` for ca-tutor--v8.", fr: "Exécuter `az containerapp revision restart` pour ca-tutor--v8." } }
+    answer:
+      sequence: [activate, traffic, deactivate]
+    explanation:
+      correct:
+        en: |
+          An inactive revision can be activated again at any time, and it keeps its original template, so ca-tutor--v7 runs exactly the previous version. Once it is active, multiple revision mode lets you give it 100 percent of the traffic. Only then do you deactivate ca-tutor--v8, which no longer receives traffic; inactive revisions aren't billed.
+        fr: |
+          Une révision inactive peut être réactivée à tout moment, et elle conserve son modèle d'origine : ca-tutor--v7 exécute donc exactement la version précédente. Une fois qu'elle est active, le mode de révision Multiple permet de lui donner 100 % du trafic. Ce n'est qu'ensuite que vous désactivez ca-tutor--v8, qui ne reçoit plus de trafic ; les révisions inactives ne sont pas facturées.
+      options:
+        copy: { en: "`revision copy` creates a new revision based on ca-tutor--v7, which the requirement excludes.", fr: "`revision copy` crée une nouvelle révision fondée sur ca-tutor--v7, ce que l'exigence exclut." }
+        single: { en: "In single mode, all the traffic goes to the latest revision, ca-tutor--v8, and the other revisions are deprovisioned.", fr: "En mode Single, tout le trafic va à la dernière révision, ca-tutor--v8, et les autres révisions sont déprovisionnées." }
+        restart: { en: "Restarting ca-tutor--v8 runs the same faulty version again; it doesn't move any traffic.", fr: "Redémarrer ca-tutor--v8 relance la même version défectueuse ; cela ne déplace aucun trafic." }
+    references:
+      - title: Update and deploy changes in Azure Container Apps
+        url: https://learn.microsoft.com/en-us/azure/container-apps/revisions
+      - title: az containerapp revision
+        url: https://learn.microsoft.com/en-us/cli/azure/containerapp/revision
+
+  # ------------------------------------------------------------------ 9
+  - id: ai200-qz-12-09
+    objective: "1.2.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam deploys an embedding API named **ca-embed** to Azure Container Apps with HTTP ingress enabled and the target port set to 80. The container definition contains no health probe. The application listens on port 8000.
+
+        The new revision never becomes ready: it shows the running status **Degraded** with `0/1 replicas ready`. The console logs show that the application started and is listening on port 8000.
+
+        You need ca-embed to run healthy replicas that serve requests through its ingress. What should you do?
+      fr: |
+        Fabrikam déploie une API d'incorporations nommée **ca-embed** sur Azure Container Apps avec l'entrée HTTP activée et le port cible défini sur 80. La définition du conteneur ne contient aucune sonde d'intégrité. L'application écoute sur le port 8000.
+
+        La nouvelle révision ne devient jamais prête : elle affiche l'état d'exécution **Degraded** avec `0/1 replicas ready`. Les journaux de la console montrent que l'application a démarré et écoute sur le port 8000.
+
+        Vous devez faire en sorte que ca-embed exécute des réplicas sains qui servent les requêtes par son entrée. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Deploy a new revision whose readiness probe checks port 8000, and keep target port 80.", fr: "Déployer une nouvelle révision dont la sonde de disponibilité vérifie le port 8000, et garder le port cible 80." } }
+        - { id: b, text: { en: "Deploy a new revision whose readiness probe waits 60 seconds, and keep target port 80.", fr: "Déployer une nouvelle révision dont la sonde de disponibilité attend 60 secondes, et garder le port cible 80." } }
+        - { id: c, text: { en: "Change the transport of the ingress to HTTP/2, and keep target port 80.", fr: "Passer le transport de l'entrée en HTTP/2, et garder le port cible 80." } }
+        - { id: d, text: { en: "Change the target port of the ingress to 8000, and keep the default probes.", fr: "Passer le port cible de l'entrée à 8000, et garder les sondes par défaut." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          With ingress enabled and no probe defined, Container Apps adds default TCP startup, readiness and liveness probes on the ingress target port. Nothing listens on port 80, so the probes fail and no replica becomes ready. Setting the target port to 8000, the port the application listens on, makes the default probes succeed and sends the ingress traffic to the right port.
+        fr: |
+          Quand l'entrée est activée et qu'aucune sonde n'est définie, Container Apps ajoute des sondes TCP par défaut de démarrage, de disponibilité et d'activité sur le port cible de l'entrée. Rien n'écoute sur le port 80 : les sondes échouent et aucun réplica ne devient prêt. Définir le port cible sur 8000, le port d'écoute de l'application, fait réussir les sondes par défaut et envoie le trafic de l'entrée vers le bon port.
+      options:
+        a: { en: "Even with a passing readiness probe, the ingress would still forward requests to target port 80, where nothing listens.", fr: "Même avec une sonde de disponibilité qui réussit, l'entrée transmettrait toujours les requêtes au port cible 80, où rien n'écoute." }
+        b: { en: "A longer delay helps slow starters, but the application already listens; the probes target a port that never answers.", fr: "Un délai plus long aide les applications lentes à démarrer, mais l'application écoute déjà ; les sondes visent un port qui ne répond jamais." }
+        c: { en: "The transport must match the clients, but the failure comes from the port: nothing listens on port 80.", fr: "Le transport doit correspondre aux clients, mais l'échec vient du port : rien n'écoute sur le port 80." }
+    references:
+      - title: Troubleshoot a container app
+        url: https://learn.microsoft.com/en-us/azure/container-apps/troubleshooting
+
+  # ------------------------------------------------------------------ 10
+  - id: ai200-qz-12-10
+    objective: "1.2.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Northwind Traders runs a summarization worker named **ca-sum-worker** in Azure Container Apps in single revision mode. Ingress is disabled. The worker reads the Service Bus queue `summaries` in the namespace **sb-nw**. Each replica processes up to 5 messages at the same time, and each message makes one Azure OpenAI call. The Azure OpenAI quota allows at most 60 concurrent calls.
+
+        The system-assigned managed identity of ca-sum-worker already has the role required by the scaler. You need to configure scaling to meet the following requirements:
+
+        - No replica runs when the queue is empty.
+        - One replica is added for every 10 messages waiting in the queue.
+        - The worker can use the full quota but never exceeds it.
+        - No connection string is stored in the app.
+
+        How should you complete the command? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind Traders exécute un worker de résumé nommé **ca-sum-worker** dans Azure Container Apps en mode de révision Single. L'entrée est désactivée. Le worker lit la file d'attente Service Bus `summaries` de l'espace de noms **sb-nw**. Chaque réplica traite jusqu'à 5 messages en même temps, et chaque message effectue un appel Azure OpenAI. Le quota Azure OpenAI autorise au plus 60 appels simultanés.
+
+        L'identité managée affectée par le système de ca-sum-worker dispose déjà du rôle exigé par le scaler. Vous devez configurer la mise à l'échelle pour satisfaire les exigences suivantes :
+
+        - Aucun réplica ne tourne quand la file est vide.
+        - Un réplica est ajouté pour chaque tranche de 10 messages en attente dans la file.
+        - Le worker peut utiliser tout le quota sans jamais le dépasser.
+        - Aucune chaîne de connexion n'est stockée dans l'application.
+
+        Comment devez-vous compléter la commande ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    shuffle: false
+    body:
+      layout: code
+      language: bash
+      template: |
+        az containerapp update --resource-group rg-nw --name ca-sum-worker \
+          --min-replicas [[min]] --max-replicas [[max]] \
+          --scale-rule-name summaries-queue --scale-rule-type azure-servicebus \
+          --scale-rule-metadata "queueName=summaries" "namespace=sb-nw" "messageCount=[[count]]" \
+          --scale-rule-identity system
+      slots:
+        - id: min
+          options:
+            - { id: m0, text: "0" }
+            - { id: m1, text: "1" }
+            - { id: m5, text: "5" }
+        - id: max
+          options:
+            - { id: x6, text: "6" }
+            - { id: x10, text: "10" }
+            - { id: x12, text: "12" }
+            - { id: x60, text: "60" }
+        - id: count
+          options:
+            - { id: c5, text: "5" }
+            - { id: c10, text: "10" }
+            - { id: c12, text: "12" }
+            - { id: c60, text: "60" }
+    answer:
+      values: { min: m0, max: x12, count: c10 }
+    explanation:
+      correct:
+        en: |
+          `--min-replicas 0` lets the worker scale to zero, and the Service Bus rule wakes it when messages arrive, even without ingress. `messageCount` is the target number of messages per replica, so 10 gives one replica per 10 waiting messages (`ceil(queue length / 10)`). Each replica makes up to 5 calls at once, so 12 replicas make at most 60 concurrent calls: `--max-replicas 12` uses the full quota without exceeding it. `--scale-rule-identity system` authenticates the rule without a connection string.
+        fr: |
+          `--min-replicas 0` permet au worker de descendre à zéro, et la règle Service Bus le réveille quand des messages arrivent, même sans entrée. `messageCount` est le nombre cible de messages par réplica : 10 donne un réplica par tranche de 10 messages en attente (`ceil(longueur de la file / 10)`). Chaque réplica effectue jusqu'à 5 appels à la fois : 12 réplicas effectuent donc au plus 60 appels simultanés, et `--max-replicas 12` utilise tout le quota sans le dépasser. `--scale-rule-identity system` authentifie la règle sans chaîne de connexion.
+      options:
+        m1: { en: "A minimum of 1 keeps a replica running when the queue is empty.", fr: "Un minimum de 1 garde un réplica en cours d'exécution quand la file est vide." }
+        m5: { en: "A minimum of 5 keeps five replicas running when the queue is empty.", fr: "Un minimum de 5 garde cinq réplicas en cours d'exécution quand la file est vide." }
+        x6: { en: "6 replicas make at most 30 concurrent calls: half of the quota stays unused.", fr: "6 réplicas effectuent au plus 30 appels simultanés : la moitié du quota reste inutilisée." }
+        x10: { en: "10 is the default maximum; 10 replicas make at most 50 calls, below the quota.", fr: "10 est le maximum par défaut ; 10 réplicas effectuent au plus 50 appels, sous le quota." }
+        x60: { en: "60 replicas could make up to 300 concurrent calls, five times the quota.", fr: "60 réplicas pourraient effectuer jusqu'à 300 appels simultanés, cinq fois le quota." }
+        c5: { en: "5 is the number of messages a replica processes at once, not the backlog per replica that the requirement sets.", fr: "5 est le nombre de messages qu'un réplica traite à la fois, pas l'arriéré par réplica fixé par l'exigence." }
+        c12: { en: "12 is the replica limit derived from the quota, not the number of waiting messages per replica.", fr: "12 est la limite de réplicas déduite du quota, pas le nombre de messages en attente par réplica." }
+        c60: { en: "60 would add one replica per 60 waiting messages.", fr: "60 ajouterait un réplica par tranche de 60 messages en attente." }
+    references:
+      - title: Set scaling rules in Azure Container Apps
+        url: https://learn.microsoft.com/en-us/azure/container-apps/scale-app

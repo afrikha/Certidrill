@@ -66,7 +66,7 @@ Les destinations ne s'appliquent qu'aux requêtes tabulaires, pas aux fonctions 
 
 Regardez d'abord l'erreur de la cellule, puis la page de détail de l'application Spark : **Logs** (Livy, Prelaunch, Driver) et **Diagnostics** (analyse des erreurs par le conseiller Spark). Les journaux peuvent manquer si le travail est resté en file d'attente ou si le cluster n'a pas pu être créé.
 
-**Limites de capacité.** Une unité de capacité donne deux VCores Spark, avec une rafale (bursting) jusqu'à trois fois (une F64 atteint 384 VCores). Quand la capacité est entièrement utilisée, un notebook interactif échoue avec :
+**Limites de capacité.** Une unité de capacité donne deux VCores Spark, avec une rafale (bursting) jusqu'à trois fois (une F64 atteint 384 VCores). Exceptions : une F2 monte à 20 VCores, et une capacité d'évaluation n'a ni rafale (128 VCores) ni file d'attente. Un administrateur de capacité peut activer **Disable job-level bursting**, qui limite une tâche aux VCores de base (128 sur une F64). Quand la capacité est entièrement utilisée, un notebook interactif échoue avec :
 
 ```text
 [TooManyRequestsForCapacity] HTTP Response code 430: This Spark job can't be run because you have hit a Spark compute or API rate limit. To run this Spark job, cancel an active Spark job through the Monitoring hub, or choose a larger capacity SKU or try again later.
@@ -136,7 +136,7 @@ Le délai par défaut de `run()` est de 90 secondes : un notebook enfant long é
 | Délai d'expiration | Par défaut 4 minutes pour les requêtes, 10 pour les commandes de gestion, 1 heure au maximum | Optimiser, ou définir `servertimeout` |
 | Erreur de complexité de requête | Très longues chaînes de `or`, énorme `union *`, imbrication profonde | Réécrire avec `in()`, réduire les tables et les colonnes |
 
-Un raccourci dans une base de données KQL s'interroge avec `external_table('MyShortcut')` ; un raccourci de base de données ne fonctionne qu'au sein du même locataire et de la même région, et l'utilisateur a besoin d'autorisations sur les deux bases de données.
+Un raccourci dans une base de données KQL s'interroge avec `external_table('MyShortcut')` ; un raccourci de base de données doit être dans la même région que sa base de données source (les locataires peuvent être différents), et le créer à partir d'un URI de cluster demande au moins des autorisations de contributeur sur les données sources.
 
 <!-- section: eventstream-errors | objectives: 3.2.5 -->
 ## Erreurs de flux d'événements
@@ -158,7 +158,7 @@ Les sources avec schéma (schémas du registre de schémas) ne peuvent alimenter
 <!-- section: tsql-errors | objectives: 3.2.6 -->
 ## Erreurs T-SQL
 
-**Conflits écriture-écriture.** Un entrepôt utilise uniquement l'isolation d'instantané (un `SET TRANSACTION ISOLATION LEVEL` est ignoré) et un verrouillage au niveau de la table. Deux transactions qui font `UPDATE`, `DELETE` ou `MERGE` sur la même table entrent en conflit même si elles touchent des lignes différentes : la première à valider gagne, l'autre échoue avec l'erreur **24556** ou **24706** (« Snapshot isolation transaction aborted due to update conflict »). Correction : réessayer avec une temporisation exponentielle, éviter les mises à jour concurrentes sur la même table, garder des transactions courtes. `INSERT` crée de nouveaux fichiers et entre rarement en conflit ; un `MERGE` est en conflit même s'il ne fait qu'ajouter des lignes.
+**Conflits écriture-écriture.** Un entrepôt utilise uniquement l'isolation d'instantané (un changement de niveau d'isolation en T-SQL est ignoré à l'exécution, et `SET TRANSACTION ISOLATION LEVEL` figure dans la liste des commandes non prises en charge) et un verrouillage au niveau de la table. Deux transactions qui font `UPDATE`, `DELETE` ou `MERGE` sur la même table entrent en conflit même si elles touchent des lignes différentes : la première à valider gagne, l'autre échoue avec l'erreur **24556** ou **24706** (« Snapshot isolation transaction aborted due to update conflict »). Correction : réessayer avec une temporisation exponentielle, éviter les mises à jour concurrentes sur la même table, garder des transactions courtes. `INSERT` crée de nouveaux fichiers et entre rarement en conflit ; un `MERGE` est en conflit même s'il ne fait qu'ajouter des lignes.
 
 **Instructions qui échouent :**
 
@@ -166,7 +166,7 @@ Les sources avec schéma (schémas du registre de schémas) ne peuvent alimenter
 | --- | --- |
 | `INSERT`, `UPDATE` ou `CREATE TABLE` échoue sur le point de terminaison d'analytique SQL | Le point de terminaison est en lecture seule pour les tables ; écrivez dans un entrepôt ou avec Spark (vues, fonctions et procédures peuvent être créées) |
 | `CREATE TABLE` avec `datetime`, `money`, `nvarchar`, `tinyint` échoue | Non pris en charge dans les tables : utilisez `datetime2` (jusqu'à 6 chiffres fractionnaires), `decimal`, `varchar` (classement UTF-8), `smallint` |
-| `ALTER TABLE` échoue | Seuls l'ajout de colonnes nullables, la suppression de colonnes et l'ajout ou la suppression de clés primaires, uniques et étrangères `NOT ENFORCED` sont pris en charge ; renommez avec `sp_rename` |
+| `ALTER TABLE` échoue | Seuls l'ajout de colonnes nullables, la suppression de colonnes et l'ajout ou la suppression de clés primaires, uniques et étrangères `NOT ENFORCED` sont pris en charge (`ALTER COLUMN` est en préversion) ; renommez avec `sp_rename` |
 | Déclencheur, vue matérialisée, requête récursive, `SET ROWCOUNT`, synonyme | Non pris en charge dans Fabric Warehouse |
 | Point d'enregistrement, transaction nommée ou distribuée | Non pris en charge |
 | Une nouvelle table du lakehouse n'est pas visible depuis le point de terminaison | Délai de synchronisation des métadonnées (en général moins d'une minute) ; actualisez les métadonnées du point de terminaison |

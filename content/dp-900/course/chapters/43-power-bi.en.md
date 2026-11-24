@@ -29,7 +29,7 @@ In Microsoft Fabric, Power BI content lives in **workspaces** next to the other 
 | **Pages** | One or more pages | A single page |
 | **Source** | One semantic model | Visuals pinned from one or more reports |
 | **Filtering and slicing** | Yes | No |
-| **Data alerts** | No | Yes, on tiles |
+| **Data alerts** | No classic data alerts; an alert on a report visual is created with Fabric Activator | Yes, on card, KPI and gauge tiles with numeric data |
 | **Created in** | Power BI Desktop or the Power BI service | The Power BI service only |
 
 - A **tile** is a visual **pinned** to a dashboard; selecting it usually opens the report it comes from.
@@ -56,7 +56,7 @@ An analytical model, called a **semantic model** in Power BI and Microsoft Fabri
 | Storage mode | Where the data is | Remember |
 | --- | --- | --- |
 | **Import** | Copied into the model, in memory | Fast queries; the data is only as current as the last refresh |
-| **DirectQuery** | Left in the source; each query is sent to it | No scheduled refresh; current data; for volumes too large to import |
+| **DirectQuery** | Left in the source; each query is sent to it | No data refresh to schedule (dashboard tiles still refresh their cache about every hour); current data; for volumes too large to import |
 | **Direct Lake** | Delta tables in OneLake, loaded directly into memory | In-memory speed without copying the data into the model; Microsoft Fabric |
 
 > **Exam tip.** Numbers to add up are in the fact table; the words after "by" (by product, by month, by city) are dimensions.

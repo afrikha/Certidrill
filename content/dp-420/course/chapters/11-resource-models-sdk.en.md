@@ -25,7 +25,7 @@ Write RU are the same at every level. Bounded staleness minimums: K = 10 writes 
 
 **Session tokens** are per partition. A client that didn't write to a partition has no token for it, and its reads there behave like eventual. When several application instances serve the same user (a web farm), pass the token from the write response to the next read; recreating the client clears its token cache.
 
-A client or a single request can **relax** the consistency of reads (never strengthen it beyond the account default). After changing the account default, restart the applications so that SDK clients are recreated.
+With the `ConsistencyLevel` option, a client or a single request can only **relax** the consistency of reads (never strengthen it beyond the account default). The exception is `ReadConsistencyStrategy` (preview, .NET SDK 3.46+ and Java SDK 4.69+, Direct mode only), which can set a stronger read per request. After changing the account default, restart the applications so that SDK clients are recreated.
 
 ```text
 // C#: relax reads for this client only
@@ -88,7 +88,7 @@ To estimate a budget, multiply each operation's measured charge by its rate per 
 
 Microsoft's rule: average the highest normalized utilization of each hour over the month. Below 66 %, autoscale is estimated to cost less; above, stay on manual. With multi-region writes, prefer autoscale (same rate). Learn's example rates (single write region): manual $0.008 and autoscale $0.012 per 100 RU/s per hour.
 
-**Where throughput is set.** On a **container** (dedicated, reserved for it, backed by the SLA; recommended) or on a **database** (shared by up to 25 containers, no guarantee per container, one busy container can throttle the others). Both can be mixed: a container with its own RU/s inside a shared database. Shared versus dedicated is chosen at creation and can't be converted: move the data to a new container (container copy jobs).
+**Where throughput is set.** On a **container** (dedicated, reserved for it, backed by the SLA; recommended) or on a **database** (shared by up to 25 containers, no guarantee per container, one busy container can throttle the others; not recommended for most workloads). Both can be mixed: a container with its own RU/s inside a shared database. Shared versus dedicated is chosen at creation and can't be converted: move the data to a new container (container copy jobs).
 
 Minimum RU/s you can scale down to:
 
@@ -239,14 +239,14 @@ container = client.get_database_client("sales").get_container_client("orders")
 | No keys in configuration | `DefaultAzureCredential` or a managed identity, plus a Cosmos DB data plane role |
 | Sparse traffic, ephemeral port exhaustion | `PortReuseMode = PrivatePortPool`, `IdleTcpConnectionTimeout` of 20 minutes to 24 hours |
 
-Use `async`/`await` everywhere: `.Result`, `.Wait()` and `GetAwaiter().GetResult()` block threads. Log `response.Diagnostics` when a request is slower than your threshold. The .NET SDK needs an explicit `Newtonsoft.Json` 13.0.3 or later package reference, even when you serialize your types with `UseSystemTextJsonSerializerWithOptions`.
+Use `async`/`await` everywhere: `.Result`, `.Wait()` and `GetAwaiter().GetResult()` block threads. Log `response.Diagnostics` when a request is slower than your threshold. The .NET SDK needs an explicit `Newtonsoft.Json` 13.0.3 or later package reference (13.0.4 or later with SDK 3.54.0+), even when you serialize your types with `UseSystemTextJsonSerializerWithOptions`.
 
 > **Exam trap.** If direct mode is used and ports 10000 to 20000 are blocked, requests fail with 503 Service Unavailable: switch to Gateway or open the ports.
 
 <!-- section: key-points -->
 ## Key points
 
-- Default consistency is Session; Strong and bounded staleness double the read RU, and Strong excludes multi-region writes. Clients can only relax reads.
+- Default consistency is Session; Strong and bounded staleness double the read RU, and Strong excludes multi-region writes. `ConsistencyLevel` on a client or request can only relax reads (`ReadConsistencyStrategy`, in preview, can strengthen them).
 - 1 RU = point read of a 1 KB item; writes grow with size and indexed properties; RU/s apply in every region.
 - Manual for steady load, autoscale (0.1 × `Tmax` to `Tmax`, 1.5 × rate) for variable load, serverless for intermittent single-region load.
 - Partition key, unique keys, conflict policy, capacity mode and shared versus dedicated throughput are fixed at creation.

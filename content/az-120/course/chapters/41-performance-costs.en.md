@@ -78,7 +78,8 @@ Rules for SAP:
 
 - The target size must be supported for SAP (SAP Note 1928533), and for HANA it must be in the SAP HANA hardware directory.
 - Resizing restarts the VM. If the new size isn't available on the current hardware cluster, all VMs of the availability set must be shut down and resized.
-- You can't resize directly between a series with a temporary disk and one without; Generation 1 VMs can't move to Generation 2-only families such as Mv2.
+- Linux VMs can resize between sizes with and without a local temporary disk. Windows VMs can't: they resize only from a size with a temporary disk to another one, or from a diskless size to another one (workaround: move `pagefile.sys` to C:, snapshot the OS disk and create a new diskless VM from the snapshot).
+- Generation 1 VMs can't be resized to Generation 2-only families such as Mv2. An existing Generation 1 VM can become Generation 2 only by upgrading it to Trusted launch (deallocated VM, supported size and OS); otherwise, deploy a new VM.
 - Some VM families can't share a proximity placement group, which can block a resize.
 
 ```bash

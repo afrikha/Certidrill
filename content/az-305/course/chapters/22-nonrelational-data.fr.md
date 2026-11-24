@@ -17,7 +17,7 @@ Les données semi-structurées (documents JSON, entités clé-valeur, graphes) v
 
 **Clé de partition.** Une partition logique (une valeur de clé de partition) contient au plus 20 Go ; une partition physique fournit jusqu'à 10 000 unités de requête par seconde (RU/s) et 50 Go. Une bonne clé a une cardinalité élevée, répartit uniformément le stockage et les requêtes et sert de filtre dans la plupart des requêtes. Elle ne peut pas être modifiée sur place : il faut copier les données dans un nouveau conteneur.
 
-**Cohérence.** Cinq niveaux, définis par défaut au niveau du compte (Session par défaut) et que l'on peut seulement assouplir par requête :
+**Cohérence.** Cinq niveaux, définis par défaut au niveau du compte (Session par défaut) et que l'on peut seulement assouplir par requête avec le remplacement classique (une stratégie de lecture en préversion des SDK Java et .NET, en mode direct, peut aussi renforcer une lecture) :
 
 | Niveau | Garantie | Usage type |
 | --- | --- | --- |
@@ -63,7 +63,7 @@ Le **type de compte de stockage** détermine les services et la redondance dispo
 
 **Azure Data Lake Storage** n'est pas un service distinct : c'est un ensemble de capacités du Stockage Blob, débloquées par l'espace de noms hiérarchique. Renommer ou supprimer un répertoire devient une seule opération atomique, l'accès est contrôlé par Azure RBAC et par des ACL POSIX sur les répertoires et les fichiers, et le tarif est celui du Stockage Blob.
 
-**Azure Files.** Les partages SMB existent sur support SSD (Premium) et HDD (Standard) ; les partages NFS 4.1 n'existent que sur SSD. Les partages SMB prennent en charge l'accès basé sur l'identité avec Active Directory Domain Services local, Microsoft Entra Domain Services ou Microsoft Entra Kerberos.
+**Azure Files.** Les partages SMB existent sur support SSD (Premium) et HDD (Standard) ; les partages NFS 4.1 ne sont en disponibilité générale que sur SSD (NFS sur HDD est en préversion, LRS uniquement), et les partages NFS ne prennent jamais en charge GRS ni GZRS. Pour les nouveaux déploiements NFS, Learn recommande le fournisseur de ressources `Microsoft.FileShares` : un partage de fichiers autonome, sans compte de stockage. Les partages SMB prennent en charge l'accès basé sur l'identité avec Active Directory Domain Services local, Microsoft Entra Domain Services ou Microsoft Entra Kerberos.
 
 > **Piège d'examen.** « Les clients Linux montent le partage en NFS » impose un compte de partages de fichiers Premium (SSD), qui n'a pas de géoredondance : seulement LRS ou ZRS. Une copie dans une autre région doit alors être conçue séparément ; GRS n'est pas une option.
 

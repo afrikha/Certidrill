@@ -26,6 +26,8 @@ featurestore.generate_feature_retrieval_spec(spec_folder, features)
 
 Le fichier doit s'appeler **`feature_retrieval_spec.yaml`** quand vous l'empaquetez avec le modèle, pour que le système le reconnaisse. Utiliser la spécification et le composant intégré est facultatif : le code peut aussi appeler directement `get_offline_features()`, mais plus rien ne lie alors le modèle à sa liste de caractéristiques.
 
+Le composant de récupération de caractéristiques n'exige qu'une de ses entrées `input_model` (un `custom_model`) et `feature_retrieval_spec`, et produit toujours des données Parquet avec `feature_retrieval_spec.yaml` à la racine du dossier de sortie. Quand les données d'entraînement viennent d'une autre méthode, comme `get_offline_features()`, passez la spécification au travail d'entraînement comme entrée et copiez-la dans le dossier du modèle dans le script d'entraînement.
+
 > **Piège d'examen.** La spécification voyage **dans l'artefact du modèle**, pas comme une ressource de données séparée ni comme une variable d'environnement. Un pipeline d'inférence par lots qui reçoit le modèle inscrit l'y trouve ; s'il ne reçoit que les données d'observation, il n'a aucune liste de caractéristiques à récupérer.
 
 <!-- section: mlflow-models | objectives: 2.2.2 -->
@@ -110,20 +112,20 @@ Les principes d'IA responsable de Microsoft sont l'équité, la fiabilité et la
 | Composant | Question traitée | Principe |
 | --- | --- | --- |
 | Analyse des erreurs | Quelles cohortes (sous-groupes de données) ont le taux d'erreur le plus élevé ? | Fiabilité et sécurité |
-| Vue d'ensemble du modèle et métriques d'équité | Les métriques de performances diffèrent-elles entre groupes (âge, genre, région) ? | Équité |
-| Analyse des données | Les données sont-elles équilibrées et représentatives selon les caractéristiques et les cohortes ? | Équité, inclusivité |
+| Vue d'ensemble du modèle et métriques d'équité | Les métriques de performances diffèrent-elles entre groupes (âge, genre, région) ? | Équité et inclusivité |
+| Analyse des données | Les données sont-elles équilibrées et représentatives selon les caractéristiques et les cohortes ? | Équité |
 | Importance des caractéristiques (explications du modèle) | Quelles caractéristiques déterminent les prédictions, globalement et pour une ligne ? | Transparence |
-| Simulation contrefactuelle (what-if) | Quel changement minimal inverserait une prédiction ? (au moins 10 contrefactuels par point de données) | Transparence, responsabilité |
+| Simulation contrefactuelle (what-if) | Quel changement minimal inverserait une prédiction ? (`total_CFs` : 10 par ligne de test par défaut) | Transparence, responsabilité |
 | Analyse causale | Quel est l'effet de la modification d'une caractéristique de traitement sur un résultat réel ? | Responsabilité |
 
 Exigences et construction :
 
-- Le modèle doit être inscrit **au format MLflow avec la saveur `sklearn`**, chargeable et sérialisable avec pickle. Types de tâches : `classification`, `regression` (et `forecasting`).
+- Le modèle doit être inscrit **au format MLflow avec la saveur `sklearn`**, chargeable et sérialisable avec pickle. Types de tâches : `classification`, `regression` (et `forecasting`). Les modèles MLflow AutoML et les modèles AutoML inscrits depuis l'interface utilisateur ne sont pas pris en charge.
 - Les données d'entraînement et de test sont des entrées **`mltable`**. Par défaut, le jeu de test affiché dans l'interface est limité à 5 000 lignes (`maximum_rows_for_test_dataset`).
-- Le tableau de bord est un pipeline de composants du registre `azureml` : **RAI Insights dashboard constructor** et **Gather RAI Insights dashboard** sont toujours obligatoires, plus au moins un composant d'outil (Add Explanation, Add Causal, Add Counterfactuals, Add Error Analysis), référencés sous la forme `azureml://registries/azureml/components/microsoft_azureml_rai_tabular_insight_constructor/versions/<version>` et ainsi de suite. Le modèle est fourni par le composant Fetch Registered Model. Vous générez le tableau de bord depuis l'interface du studio ou avec la CLI ou le SDK.
+- Le tableau de bord est un pipeline de composants du registre `azureml` : **RAI Insights dashboard constructor** et **Gather RAI Insights dashboard** sont toujours obligatoires, plus au moins un composant d'outil (Add Explanation, Add Causal, Add Counterfactuals, Add Error Analysis), référencés sous la forme `azureml://registries/azureml/components/microsoft_azureml_rai_tabular_insight_constructor/versions/<version>` et ainsi de suite. Le modèle inscrit est passé à l'entrée de modèle du constructeur avec `type: mlflow_model` et `path: azureml:<name>:<version>`. Vous générez le tableau de bord depuis l'interface du studio ou avec la CLI ou le SDK.
 - Une analyse uniquement causale demande quand même un modèle : utilisez `DummyClassifier` ou `DummyRegressor`.
 
-Pour le consulter, ouvrez le modèle inscrit et sélectionnez l'onglet **IA responsable** ; plusieurs tableaux de bord peuvent être attachés à un même modèle. Les fonctionnalités interactives (contrefactuels what-if, graphiques ICE, changement des cohortes de l'analyse des erreurs) demandent une **instance de calcul en cours d'exécution** connectée au tableau de bord. Moindre privilège pour l'utiliser : Reader plus AzureML Compute Operator. La **carte de performance IA responsable** (Responsible AI scorecard, composant `rai_score_card`) exporte un résumé PDF avec des seuils cibles pour les métriques, les principales caractéristiques (10 au maximum) et l'équité en `difference` ou `ratio`, pour les parties prenantes qui n'utilisent pas le studio.
+Pour le consulter, ouvrez le modèle inscrit et sélectionnez l'onglet **IA responsable** ; plusieurs tableaux de bord peuvent être attachés à un même modèle. Les fonctionnalités interactives (contrefactuels what-if, graphiques ICE, changement des cohortes de l'analyse des erreurs) demandent une **instance de calcul en cours d'exécution** connectée au tableau de bord. Moindre privilège pour l'utiliser : Reader plus AzureML Compute Operator. La **carte de performance IA responsable** (Responsible AI scorecard, préversion, composant `rai_score_card`) exporte un résumé PDF avec des seuils cibles pour les métriques, les principales caractéristiques (10 au maximum) et l'équité en `difference` ou `ratio`, pour les parties prenantes qui n'utilisent pas le studio.
 
 > **Piège d'examen.** Une exactitude globale peut masquer un sous-groupe en échec. « Trouver les cohortes où le modèle échoue » relève de l'analyse des erreurs ; « comparer les résultats entre groupes » relève de l'équité ; « expliquer pourquoi ce demandeur a été refusé » relève de l'importance des caractéristiques pour un point de données.
 
@@ -143,7 +145,7 @@ Pour le consulter, ouvrez le modèle inscrit et sélectionnez l'onglet **IA resp
 
 Un modèle ne peut pas être renommé : créez un nouveau nom et inscrivez-le à nouveau. Un cycle de vie type utilise des étiquettes pour l'état (`stage=Staging`, `stage=Prod`, `validated=true`), inscrit chaque modèle réentraîné comme nouvelle version, garde la version de production précédente disponible pour un retour arrière, et archive les versions obsolètes pour alléger les listes sans casser les déploiements ou pipelines qui les référencent encore.
 
-Les **phases** (stages) MLflow (`Staging`, `Production`, `Archived`, définies avec `transition_model_version_stage`) n'existent qu'à travers le SDK MLflow dans Azure Machine Learning : elles ne sont pas affichées dans le studio, ne peuvent pas être lues avec la CLI ou le SDK Azure Machine Learning, et vous ne pouvez pas déployer « depuis une phase ». Utilisez plutôt des étiquettes ou des versions explicites.
+Les **phases** (stages) MLflow (`Staging`, `Production`, `Archived`, définies avec `transition_model_version_stage`) n'existent qu'à travers le SDK MLflow dans Azure Machine Learning : elles ne sont pas affichées dans le studio, ne peuvent pas être lues avec la CLI ou le SDK Azure Machine Learning, et vous ne pouvez pas déployer « depuis une phase ». Utilisez plutôt des étiquettes ou des versions explicites. Ne les confondez pas avec le paramètre `--stage` de `az ml model create`, `update` et `list` (« Stage of the model » dans la référence de la CLI) : les phases MLflow ne peuvent toujours pas être lues avec la CLI Azure Machine Learning.
 
 > **Piège d'examen.** Archiver n'est pas supprimer. Une version archivée disparaît des requêtes de liste comme `az ml model list`, mais un déploiement ou un travail qui référence `churn-classifier:2` continue de fonctionner. Pour qu'elle ne soit plus utilisée, mettez à jour les déploiements ; pour l'éliminer, supprimez la version.
 
@@ -153,6 +155,6 @@ Les **phases** (stages) MLflow (`Staging`, `Production`, `Archived`, définies a
 - La spécification de récupération de caractéristiques est générée pendant l'expérimentation, nommée `feature_retrieval_spec.yaml` et empaquetée dans l'artefact du modèle ; l'inférence par lots la lit dans le modèle inscrit.
 - Les modèles MLflow portent un fichier MLmodel, des saveurs et une signature : déploiement sans code, swagger et prise en charge de l'IA responsable.
 - Inscrivez depuis `runs:/` ou `azureml://jobs/...` pour garder la traçabilité ; les versions sont immuables sauf la description et les étiquettes.
-- Tableau de bord IA responsable : modèle MLflow `sklearn`, données `mltable`, constructeur + gather + au moins un outil ; la carte de performance exporte un PDF.
+- Tableau de bord IA responsable : modèle MLflow `sklearn`, données `mltable`, constructeur + gather + au moins un outil ; la carte de performance (préversion) exporte un PDF.
 - Archiver masque sans supprimer ; restaurez le conteneur s'il a été archivé en entier ; le partage copie une version dans un registre.
 - Les phases MLflow ne sont pas visibles des outils Azure Machine Learning : utilisez les étiquettes et les versions.

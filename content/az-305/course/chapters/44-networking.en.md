@@ -30,7 +30,7 @@ The Standard NAT gateway SKU is zonal (a single availability zone). **StandardV2
 | Inspect inbound non-HTTP traffic centrally | Azure Firewall DNAT rule |
 | Administer virtual machines over RDP or SSH without public IPs on them | Azure Bastion |
 
-Azure Bastion SKUs: **Developer** (shared, one connection at a time, no peered virtual networks, not for production), **Basic** (dedicated, reaches peered virtual networks), **Standard** (native client, shareable links, host scaling) and **Premium** (session recording, private-only deployment).
+Azure Bastion SKUs: **Developer** (shared, one connection at a time, no peered virtual networks, not for production), **Basic** (dedicated, reaches peered virtual networks), **Standard** (native client, shareable links, host scaling) and **Premium** (session recording, not available through the native client; private-only deployment, chosen at deployment, with no public IP: on-premises clients need ExpressRoute or VPN and IP-based connection). Learn calls Premium the recommended choice for production deployments.
 
 <!-- section: on-premises-connectivity | objectives: 4.4.2 -->
 ## Connecting Azure to on-premises networks
@@ -40,7 +40,7 @@ Azure Bastion SKUs: **Developer** (shared, one connection at a time, no peered v
 | Site-to-site VPN (VPN Gateway) | IPsec/IKE tunnel over the public internet | An encrypted link at low cost, quick to deploy; internet latency is acceptable |
 | Point-to-site VPN | OpenVPN, IKEv2 or SSTP from individual devices | Remote users. Microsoft Entra ID authentication, with Conditional Access and MFA, requires OpenVPN |
 | ExpressRoute | Private connection through a connectivity provider; never crosses the public internet | Consistent latency, 50 Mbps to 10 Gbps, large data transfers, or a rule that forbids internet transit |
-| ExpressRoute Direct | Dedicated 10, 100 or 400 Gbps ports on the Microsoft network | Massive ingestion, MACsec encryption, physical isolation |
+| ExpressRoute Direct | Dedicated 10, 100 or 400 Gbps ports on the Microsoft network (400 Gbps: limited peering locations, enrollment required) | Massive ingestion, MACsec encryption, physical isolation |
 | Azure Virtual WAN | Microsoft-managed hubs that join VPN, ExpressRoute and virtual networks | Many branches or regions, transit between all of them, minimal administrative effort |
 
 ExpressRoute design facts:
@@ -157,9 +157,9 @@ Traffic Manager routing methods (one per profile; combine them with nested profi
 | --- | --- |
 | Priority | Active/passive failover to a secondary region |
 | Weighted | Gradual migration or a traffic split |
-| Performance | Each user goes to the endpoint with the lowest latency |
+| Performance | Each user goes to the endpoint with the lowest latency, measured from the user's recursive DNS resolver, not from the client |
 | Geographic | Data sovereignty: the endpoint depends on where the DNS query comes from |
-| MultiValue | Return several healthy endpoints in one DNS response |
+| MultiValue | Return several healthy endpoints in one DNS response; every endpoint must be External and given as an IPv4 or IPv6 address |
 | Subnet | Map client IP ranges to specific endpoints |
 
 Azure Front Door **Premium** adds what Standard lacks: Private Link to origins, Microsoft-managed WAF rule sets and bot protection.

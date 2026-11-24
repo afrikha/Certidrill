@@ -9,7 +9,7 @@ Microsoft Foundry s'organise en deux types de ressources Azure, plus les ressour
 | --- | --- | --- |
 | Ressource Foundry | `Microsoft.CognitiveServices/accounts`, kind `AIServices` | Limite d'administration, de sécurité et de supervision : mise en réseau, déploiements de modèles, connexions, consommation du quota |
 | Projet Foundry | `Microsoft.CognitiveServices/accounts/projects` | Travail d'une équipe ou d'un cas d'usage : agents, évaluations, fichiers, jeux de données ; son propre contrôle d'accès |
-| Ressources connectées | Compte de stockage, Azure Key Vault, Azure AI Search, Azure Cosmos DB, Application Insights | Vos données, secrets, index, état des agents et télémétrie, chacun avec ses propres paramètres réseau et d'accès |
+| Ressources connectées | Compte de stockage, Azure Key Vault, Foundry IQ (Azure AI Search), Azure Cosmos DB, Application Insights | Vos données, secrets, index, état des agents et télémétrie, chacun avec ses propres paramètres réseau et d'accès |
 
 Les projets sont des ressources enfants : ils ont leurs propres attributions de rôles mais **partagent** la sécurité réseau, les déploiements de modèles et les connexions de leur ressource Foundry parente. Le point de terminaison du projet est :
 
@@ -27,7 +27,7 @@ Le modèle précédent, un **hub** avec des projets basés sur un hub (construit
 | Isolement réseau ou autre région pour une charge de travail | Une ressource Foundry distincte (réseau et déploiements sont au niveau de la ressource) |
 | Exploration en libre-service dans un abonnement verrouillé | Les administrateurs créent la ressource ; les utilisateurs y ajoutent des projets |
 
-Le **projet par défaut** compte. Le premier projet d'une ressource Foundry est marqué par défaut (`is_default` dans le code). Seul le projet par défaut prend en charge OpenAI Batch, le réglage précis (fine-tuning), les complétions stockées et le réglage précis Speech ; les autres projets prennent en charge Responses, Files et Conversations de l'API OpenAI. Si vous supprimez le projet par défaut, le prochain projet créé devient le projet par défaut. Un projet supprimé ne peut pas être récupéré.
+Le **projet par défaut** compte. Le premier projet d'une ressource Foundry est marqué par défaut (`is_default` dans le code). Seul le projet par défaut prend en charge OpenAI Batch, le réglage précis (fine-tuning) OpenAI, les complétions stockées et le réglage précis Speech ; les autres projets prennent en charge Responses, Files et Conversations de l'API OpenAI. Le réglage précis Language est disponible dans tous les projets. Si vous supprimez le projet par défaut, le prochain projet créé devient le projet par défaut. Un projet supprimé ne peut pas être récupéré.
 
 Les **paramètres de capacité des agents** (où sont stockés l'état des agents, les vecteurs et les fichiers) peuvent être définis sur la ressource Foundry comme valeurs par défaut. Les projets en héritent, sauf s'ils les remplacent par `capabilitySettings` (`blobStore`, `documentStore`, `vectorStore`), qui ne peut être défini qu'à la création du projet. Modifier ensuite les valeurs par défaut de la ressource ne met pas à jour les projets existants. L'identité qui les définit a besoin de Storage Blob Data Contributor sur le compte de stockage et de Cosmos DB Operator sur le compte Azure Cosmos DB ; l'accès à l'exécution de l'identité managée du projet se configure séparément.
 
@@ -35,7 +35,7 @@ Les **connexions** relient une ressource ou un projet à des services externes (
 
 Pour créer une ressource Foundry, il faut un rôle comme **Foundry Account Owner** ou **Foundry Owner** sur l'abonnement ou le groupe de ressources ; pour la créer pour une équipe et donner l'accès aux membres, il faut aussi un rôle qui peut attribuer des rôles, comme **Owner**.
 
-> **Piège d'examen.** Le réglage précis et les travaux Batch échouent dans un deuxième projet de la même ressource Foundry : ces fonctionnalités ne sont disponibles que dans le projet par défaut. Et les points de terminaison privés ou les déploiements ne se définissent pas par projet : ils appartiennent à la ressource Foundry.
+> **Piège d'examen.** Le réglage précis OpenAI et les travaux Batch échouent dans un deuxième projet de la même ressource Foundry : ces fonctionnalités ne sont disponibles que dans le projet par défaut. Et les points de terminaison privés ou les déploiements ne se définissent pas par projet : ils appartiennent à la ressource Foundry.
 
 <!-- section: identity-rbac | objectives: 3.1.2 -->
 ## Gestion des identités et des accès
@@ -74,7 +74,7 @@ Les rôles qui commencent par « Cognitive Services » (sauf Usages Reader) cibl
 
 **Accès sans clé.** RBAC ne s'applique qu'avec l'authentification Microsoft Entra ID. Une clé API donne un accès complet sans restriction de rôle. Les applications utilisent leur identité managée et `DefaultAzureCredential` ; définissez ensuite `disableLocalAuth: true` sur la ressource Foundry pour que les clés cessent de fonctionner.
 
-Quand un utilisateur qui a le droit d'attribuer des rôles crée une ressource Foundry dans le portail Azure ou le portail Foundry, Foundry User lui est attribué automatiquement. Ce n'est pas le cas quand la ressource est déployée avec le SDK, la CLI ou un modèle : ajoutez l'attribution à votre modèle ou à votre script.
+Quand un utilisateur qui a le droit d'attribuer des rôles crée une ressource Foundry dans le portail Azure ou le portail Foundry, Foundry User lui est attribué automatiquement. Ce n'est pas le cas quand la ressource est déployée avec le SDK, la CLI ou un modèle : ajoutez l'attribution à votre modèle ou à votre script. De même, un projet créé dans le portail Foundry par un utilisateur qui peut attribuer des rôles reçoit automatiquement deux attributions : Foundry User pour cet utilisateur et Foundry User pour l'identité managée du projet sur la ressource Foundry.
 
 ```bash
 # Least privilege for an application that calls one agent only
@@ -106,7 +106,7 @@ Seuls les points de terminaison privés à l'état **Approved** (approuvé) tran
 
 Le trafic **sortant** (les agents qui atteignent vos ressources) utilise l'**injection de réseau virtuel** : le client d'agent s'exécute dans votre sous-réseau, qui doit être délégué à `Microsoft.App/environments` et faire /27 ou plus. Utilisez la configuration d'agent standard (vos propres Storage, Azure AI Search et Azure Cosmos DB) pour que les données des agents restent dans votre locataire, et créez un point de terminaison privé sur chacune de ces ressources : ils ne sont pas créés automatiquement. Un réseau managé par Microsoft pour la délégation de sous-réseau existe aussi (`networkInjections.useMicrosoftManagedNetwork`, commandes `az cognitiveservices account managed-network` en préversion).
 
-Les décisions sortantes se prennent au déploiement : vous ne pouvez ni changer le sous-réseau délégué ni ajouter l'injection de réseau à une ressource existante ; vous redéployez. N'utilisez pas `172.17.0.0/16` pour le réseau virtuel (réservé au réseau pont Docker).
+Les décisions sortantes se prennent au déploiement : vous ne pouvez ni changer le sous-réseau délégué ni ajouter l'injection de réseau à une ressource existante ; vous redéployez. N'utilisez pas `172.17.0.0/16` pour le réseau virtuel (réservé au réseau pont Docker). Pour le sous-réseau d'agent, le réseau virtuel et les réseaux connectés par peering ne doivent pas chevaucher `169.254.0.0/16`, `172.30.0.0/16`, `172.31.0.0/16`, `192.0.2.0/24`, `0.0.0.0/8`, `127.0.0.0/8`, `100.100.0.0/17`, `100.100.192.0/19` ni `100.100.224.0/19`, et les adresses des points de terminaison privés doivent éviter `192.168.0.0/24` (réseau du bac à sable des agents hébergés). La ressource Foundry doit être dans la même région que le réseau virtuel ; chaque ressource Foundry a besoin de son propre sous-réseau d'agent (il ne peut pas être partagé), et /24 ou plus est le point de départ pour la production. Pour supprimer une configuration privée, supprimez et purgez la ressource Foundry avant de supprimer le réseau virtuel.
 
 | Outil d'agent | Comportement avec l'injection de réseau |
 | --- | --- |
@@ -211,7 +211,7 @@ Remarques pratiques tirées des modèles Learn : le nom de la ressource doit êt
 ## Points clés
 
 - Ressource Foundry (`accounts`, kind `AIServices`) = réseau, déploiements, connexions ; projets (`accounts/projects`) = agents, évaluations, fichiers, contrôle d'accès.
-- Une ressource par environnement ; un projet par équipe. Batch, réglage précis et complétions stockées uniquement dans le projet par défaut.
+- Une ressource par environnement ; un projet par équipe. OpenAI Batch, réglage précis OpenAI, complétions stockées et réglage précis Speech uniquement dans le projet par défaut.
 - Foundry User pour ceux qui créent et pour les identités managées des projets ; Agent Consumer pour ceux qui appellent ; Account Owner pour les administrateurs ; Usages Reader à l'étendue de l'abonnement pour le quota.
 - Les clés contournent RBAC : identité managée, `DefaultAzureCredential`, puis `disableLocalAuth: true`.
 - Entrant : point de terminaison privé plus `publicNetworkAccess: 'Disabled'` ; sortant : sous-réseau délégué à `Microsoft.App/environments`, /27 ou plus, décidé au déploiement. Les ressources connectées ont besoin de leurs propres points de terminaison privés.

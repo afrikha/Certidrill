@@ -13,7 +13,7 @@ Create one in **Settings > Manage connections and gateways > Connections > New**
 | Connection type | The connector: SQL Server, Azure Data Lake Storage Gen2, Amazon S3, and so on |
 | Authentication method | Depends on the connector: for SQL Server, **Basic**, **OAuth2** or **Service Principal**. OAuth2 tokens can expire during long queries; cross-tenant Entra accounts aren't supported |
 | Privacy level | Optional; used by Power Query when combining sources. No effect on DirectQuery |
-| Gateway use | **This connection can be used with on-premise data gateways and VNet data gateways** (checkbox) |
+| Gateway use | **This connection can be used with on-premise data gateways and VNet data gateways** (checkbox). For cloud connections created through Dataflow Gen2, it isn't currently enforced: every shareable cloud connection works through a gateway if one is present |
 
 Each connection has its **own access list**, separate from workspace roles:
 
@@ -64,7 +64,7 @@ From the hub you **connect** a source (Event Hubs, Service Bus, IoT Hub, Kafka a
 | --- | --- |
 | Use data in ADLS Gen2, S3, Google Cloud Storage, Dataverse or another Fabric item **without copying** it | OneLake shortcut |
 | Keep an operational database (Azure SQL, SQL Server, Cosmos DB, Snowflake, PostgreSQL...) replicated in near real time, no ETL to build | Mirroring |
-| Copy data with incremental or CDC loads from a wizard, no pipeline to design | Copy job |
+| Copy data with incremental or CDC loads from a wizard, no pipeline to design | Copy job (it can also run as a copy job activity in a pipeline) |
 | Move large volumes on a schedule, with orchestration and control flow | Pipeline with a copy activity |
 | Clean, reshape and merge data with Power Query, low code | Dataflow Gen2 |
 | Complex code-based transformation at scale (PySpark, Spark SQL) | Notebook |
@@ -75,10 +75,10 @@ From the hub you **connect** a source (Event Hubs, Service Bus, IoT Hub, Kafka a
 
 - In a lakehouse **Tables** folder, a shortcut must be at the **top level** and point to **Delta** data to appear as a table. In **Files**, any level and any format.
 - Targets: other Fabric items (lakehouse, warehouse, KQL database, mirrored database, SQL database, semantic model) and external storage (ADLS Gen2, Azure Blob Storage, Amazon S3 and S3-compatible, Google Cloud Storage, Dataverse, OneDrive and SharePoint, Iceberg, on-premises through a gateway).
-- Internal shortcuts use the **caller's identity** (passthrough): the user needs read access to the target. External shortcuts use the **connection's** credentials.
+- Internal shortcuts use the **caller's identity** (passthrough): the user needs read access to the target. Exception: through Direct Lake over SQL, or T-SQL in delegated identity mode, the identity of the calling item's owner reaches the target instead; use Direct Lake over OneLake or T-SQL in User's identity mode to check the user's own access. External shortcuts use the **connection's** credentials.
 - **Deleting a shortcut** leaves the target intact; deleting a file **inside** a shortcut deletes it at the target.
 - Caching for S3, S3-compatible, Google Cloud Storage and gateway shortcuts reduces egress: 1 to 28 days, files over 1 GB aren't cached.
-- A warehouse can be a shortcut **target**, but shortcuts are created in lakehouses and KQL databases.
+- A warehouse can be a shortcut **target**, but shortcuts are created in lakehouses and KQL databases. An eventhouse can also hold a **database shortcut**, which shares all or some subitems of another database in the same tenant and region.
 
 **Mirroring** creates a mirrored database item with a SQL analytics endpoint, and replicates the source into Delta tables in OneLake:
 

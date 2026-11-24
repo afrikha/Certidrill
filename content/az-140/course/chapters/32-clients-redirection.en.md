@@ -19,16 +19,19 @@ Features differ by platform. The ones that decide exam answers:
 
 | Feature | Windows | macOS | iOS/iPadOS | Android/Chrome OS | Web browser |
 | --- | --- | --- | --- | --- | --- |
-| Multiple monitors | Yes | Yes | No | No | No |
+| Multiple monitors | Yes | Yes | No | ChromeOS only | No |
 | Multimedia redirection (video playback and calls) | Yes | No | No | No | No |
 | Teams media optimization (WebRTC) | Yes | Yes | Yes | Yes | No |
 | USB and serial port redirection | Yes | No | No | No | No |
-| Printer redirection | Yes | Yes | No | No | Yes |
-| Scanner redirection | Yes | No | No | No | No |
-| RDP Shortpath (managed and public networks) | Yes | Yes | Yes | Yes | No |
-| RDP Multipath | Yes | No | No | No | No |
+| Printer redirection | Yes | Yes (Publisher Imagesetter driver only) | No | No | Yes |
+| Scanner redirection (TWAIN, preview) | Yes | No | No | No | No |
+| RDP Shortpath for managed networks | Yes | Yes | Yes | Yes | No |
+| RDP Shortpath for public networks (STUN/TURN) | Yes | Beta app only | No | Yes | No |
+| RDP Multipath | Yes | Beta app only | No | No | No |
 | Private Link | Yes | Yes | Yes | Yes | No |
 | Drives | Yes | Yes | Yes | Yes | Upload and download only |
+
+Still in preview on some platforms: camera redirection in a web browser, smart card redirection on iOS/iPadOS (YubiKey only), and WebAuthn redirection on macOS, iOS/iPadOS and Android. "Beta app only" means the Windows App for macOS Beta version, not the released app.
 
 > **Exam trap.** A requirement for redirected video playback, a USB device or a COM port means Windows App on **Windows**. The web browser has no RDP Shortpath and no Private Link, and it only uploads and downloads files instead of redirecting drives.
 
@@ -81,7 +84,7 @@ Redirection is controlled at three points, and **the most restrictive setting wi
 | Host pool | RDP properties (portal: host pool > **RDP Properties**, tabs Connection information, Session behavior, Device redirection, Display settings, Advanced) | `redirectclipboard:i:1` |
 | Local device | Registry `HKLM\Software\Microsoft\Terminal Server Client` (`DisableClipboardRedirection`, `DisablePrinterRedirection` = 1), or Intune app protection on iOS/iPadOS, Android and Edge | Blocks one device while others keep the redirection |
 
-Microsoft recommends allowing the redirection on the session hosts, then controlling it with the host pool RDP properties. Clipboard and printer redirection are disabled in the RDP properties of **newly created host pools**.
+Microsoft recommends allowing the redirection on the session hosts, then controlling it with the host pool RDP properties. Clipboard, printer and drive redirection are disabled in the RDP properties of **newly created host pools**.
 
 | Redirection | RDP property | Values |
 | --- | --- | --- |
@@ -171,9 +174,9 @@ Universal Print on multi-session hosts (Windows 11 Enterprise multi-session 22H2
 ## Key points
 
 - Windows App is the client everywhere; the MSI client and the web client lost support in public cloud on March 27, 2026.
-- Only Windows App on Windows offers multimedia redirection, USB and COM port redirection and RDP Multipath; the browser has no RDP Shortpath and no Private Link.
+- Only Windows App on Windows offers multimedia redirection, USB and COM port redirection and RDP Multipath (macOS only in the Beta app); iOS/iPadOS has RDP Shortpath for managed networks only; the browser has no RDP Shortpath and no Private Link.
 - Store installs update through the Store; MSIX installs can be controlled with `DisableAutomaticUpdates`.
-- Redirection = session host policy + host pool RDP property + local device: the most restrictive wins; new host pools disable clipboard and printer redirection.
+- Redirection = session host policy + host pool RDP property + local device: the most restrictive wins; new host pools disable clipboard, printer and drive redirection.
 - Opaque low-level USB redirection needs the driver in the session; high-level redirection needs it locally.
 - MMR = one MSI on session hosts + browser extension, Windows clients only.
 - Printer redirection uses Remote Desktop Easy Print; Universal Print is the cloud alternative, with per-user printers on Windows 11 multi-session.

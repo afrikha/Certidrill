@@ -16,7 +16,7 @@ Un modèle sémantique transforme des tables en couche métier : mode de stockag
 | La source doit être interrogée en direct (quelques secondes de latence), ou les données ne peuvent pas être copiées | DirectQuery |
 | Données déjà dans des tables Delta d'un lakehouse ou d'un entrepôt Fabric, gros volume, pas de fenêtre d'actualisation Import | Direct Lake |
 | Dimension liée à la fois à des tables Import et DirectQuery de la même source | Double (Dual) |
-| Historique importé, lignes du jour en direct | Table hybride : actualisation incrémentielle avec une partition DirectQuery en temps réel |
+| Historique importé, lignes du jour en direct | Table hybride : actualisation incrémentielle avec **Get the latest data in real time with DirectQuery**, qui ajoute une partition DirectQuery en temps réel |
 
 Direct Lake existe en deux variantes : **Direct Lake sur OneLake** (Power BI Desktop ou modélisation web via le **catalogue OneLake** ; peut combiner plusieurs éléments Fabric ; pas de basculement vers DirectQuery) et **Direct Lake sur SQL** (depuis un point de terminaison d'analytique SQL avec **Nouveau modèle sémantique** ; source unique ; bascule en DirectQuery).
 
@@ -159,7 +159,7 @@ Orders YOY % = CALCULATE ( [Orders], 'Time Intelligence'[Time Calculation] = "YO
 ```
 
 - Chaque élément peut avoir sa propre **Chaîne de format dynamique** (par exemple `#,##0.00%` pour YOY%).
-- La **Priorité** (precedence) ordonne plusieurs groupes de calcul appliqués à la même mesure ; la colonne **Ordinal** ordonne les éléments.
+- La **Priorité** (precedence) ordonne plusieurs groupes de calcul appliqués à la même mesure ; les éléments se réordonnent dans la section **Éléments de calcul** du volet **Propriétés** (ou en les déplaçant vers le haut ou vers le bas depuis leur menu contextuel), et la colonne **Ordinal** les trie.
 - Avec un groupe de calcul, les mesures des rapports utilisent le type de données `variant`.
 - Les groupes de calcul n'agissent que sur les mesures explicites.
 
@@ -203,14 +203,14 @@ Le **format de stockage de modèle sémantique volumineux** (Large semantic mode
 Comment l'activer :
 
 - Par modèle : **Paramètres** du modèle sémantique **> Format de stockage de modèle sémantique volumineux > Activé > Appliquer** (après publication).
-- Par espace de travail : **Paramètres** de l'espace de travail **> Premium > Format de stockage par défaut** : format de stockage de modèle sémantique volumineux, pour les nouveaux modèles.
+- Par espace de travail : **Paramètres** de l'espace de travail **> Premium > Format de stockage par défaut** : format de stockage de modèle sémantique volumineux, pour les nouveaux modèles ; un modèle existant nécessite le paramètre par modèle.
 - PowerShell, en tant qu'administrateur de la capacité et de l'espace de travail :
 
 ```powershell
 Set-PowerBIDataset -Id <semantic model ID> -TargetStorageMode PremiumFiles
 ```
 
-Prérequis et limites : références SKU Fabric F, Premium P, Embedded A ou Premium par utilisateur ; les espaces de travail Pro restent à 1 Go. La limite de chargement de Power BI Desktop reste de 10 Go : le modèle la dépasse par actualisation dans le service. Les modèles volumineux utilisent par défaut des segments de 8 millions de lignes. Les modèles sémantiques push ne prennent pas en charge ce format, et l'espace de travail ne peut ensuite plus passer sur une capacité d'une autre région.
+Prérequis et limites : références SKU Fabric F, Premium P, Embedded A ou Premium par utilisateur. Les espaces de travail Pro ne peuvent utiliser ce format que s'ils sont attribués à Reserved Capacity for Pro Workspaces, et leur limite reste de 1 Go ; les modèles sémantiques des espaces de travail Pro ne prennent pas en charge les opérations d'écriture XMLA. La limite de chargement de Power BI Desktop reste de 10 Go : le modèle la dépasse par actualisation dans le service. Les modèles volumineux utilisent par défaut des segments de 8 millions de lignes. Les modèles sémantiques push ne prennent pas en charge ce format, et l'espace de travail ne peut ensuite plus passer sur une capacité d'une autre région.
 
 > **Piège d'examen.** Le format ne rend pas un modèle plus gros que la mémoire de la capacité et ne relève pas la limite de chargement de 10 Go. Pour un modèle qui va grossir, publiez-le petit et chargez l'historique par actualisation incrémentielle.
 
@@ -220,7 +220,7 @@ Prérequis et limites : références SKU Fabric F, Premium P, Embedded A ou Prem
 Un modèle est **composite** quand il mélange des modes de stockage (Import, DirectQuery, Direct Lake), ou des tables DirectQuery de sources différentes. Plusieurs sources Import seules ne forment pas un modèle composite.
 
 - **Groupe de sources** : toutes les tables Import (et Direct Lake) forment un groupe ; chaque source DirectQuery est son propre groupe. Les relations entre groupes sont **limitées** et ont par défaut une cardinalité plusieurs-à-plusieurs.
-- **DirectQuery pour les modèles sémantiques Power BI** : connectez-vous en direct à un modèle publié, sélectionnez **Apporter des modifications à ce modèle**, puis ajoutez des tables ou mesures locales. Le propriétaire a besoin de l'autorisation **Build** sur chaque modèle source ; les lecteurs ont besoin de Read sur le modèle composite et les sources.
+- **DirectQuery pour les modèles sémantiques Power BI** : connectez-vous en direct à un modèle publié, sélectionnez **Apporter des modifications à ce modèle**, puis ajoutez des tables ou mesures locales. Le propriétaire a besoin de l'autorisation **Build** sur chaque modèle source ; les lecteurs ont en général besoin de Read sur le modèle composite et les sources (Build peut être nécessaire quand les rapports sont dans un espace de travail Pro).
 - Le mode **Double** sur les dimensions partagées avec des faits DirectQuery de la même source évite les relations limitées.
 - **Direct Lake sur OneLake** peut se combiner avec des tables Import (modélisation web) ou DirectQuery (outils XMLA). Direct Lake sur SQL ne peut pas faire partie d'un modèle composite.
 
@@ -228,9 +228,9 @@ Un modèle est **composite** quand il mélange des modes de stockage (Import, Di
 | --- | --- |
 | Longueur de chaîne | 3 au maximum |
 | Sécurité au niveau des lignes | S'applique seulement dans le modèle source où elle est définie ; ne peut pas être définie sur des tables distantes |
-| Groupes de calcul sur des sources distantes | Non pris en charge |
+| Groupes de calcul sur des sources distantes | Non pris en charge (résultats de requête indéfinis) |
 | Types de données des colonnes distantes | Non modifiables ; utilisez une colonne calculée |
-| Sources non prises en charge | Modèles de Mon espace de travail, SSAS multidimensionnel, SAP HANA, SAP BW, modèles de streaming |
+| Sources non prises en charge | Modèles de Mon espace de travail, SSAS tabulaire antérieur à 2022, SSAS multidimensionnel, SAP HANA, SAP BW, modèles en temps réel (streaming) et modèles d'exemple, Excel Online Refresh, données importées de fichiers Excel ou CSV dans le service, métriques d'utilisation |
 
 > **Piège d'examen.** Un modèle composite peut envoyer des valeurs d'une source dans les requêtes vers une autre (des noms venant d'Excel dans une clause `WHERE` SQL) : un risque quand les sources ont une sécurité ou un chiffrement différents.
 

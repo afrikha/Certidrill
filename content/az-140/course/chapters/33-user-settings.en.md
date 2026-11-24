@@ -16,8 +16,9 @@ Session host and user settings come from the same two tools as for physical devi
 
 - Use the **settings catalog**. Filter the settings picker on *OS edition == Enterprise multi-session*; user-scope settings show *(User)*. Templates aren't delivered, except certificate profiles (trusted, SCEP, PKCS) and device-tunnel VPN, and appear as *Not applicable*.
 - Device configuration is assigned to device groups, user configuration to user groups: the other way round reports *Error* or *Not applicable*.
-- Hybrid joined hosts enroll with **device credentials** (Group Policy auto-enrollment or Configuration Manager co-management); user-credential enrollment isn't supported. One MDM provider only.
-- Apps install in the system context with **Required** or **Uninstall** intent; *Available* isn't supported.
+- Hybrid joined hosts enroll with **device credentials** (Group Policy auto-enrollment or Configuration Manager co-management); user-credential enrollment isn't supported for multi-session. One MDM provider only. Intune supports multi-session VMs in pooled host pools deployed through Azure Resource Manager.
+- Apps install in the system context with **Required** or **Uninstall** intent; *Available* isn't supported. Web apps (user context) don't apply, and a system-context Win32 app that depends on a user-context app isn't installed.
+- Not supported either: update rings for Windows (manage quality updates with the Windows Update settings of the settings catalog), RemoteApp and MSIX app attach through Intune, and the remote actions Autopilot reset, BitLocker key rotation, Fresh Start, Remote lock, Reset password and Wipe.
 - Compliance policies are device-targeted only; Conditional Access supports user and device configurations.
 - Don't enroll a cloned image of a device already enrolled, and keep FSLogix `RoamIdentity = 0` so tokens don't roam between hosts.
 
@@ -56,7 +57,7 @@ Properties beyond redirection that appear in questions:
 | Reconnect automatically after a network drop | `autoreconnection enabled:i:1` (default) |
 | Single monitor only | `use multimon:i:0` (default 1) |
 | Only some local monitors | `selectedmonitors:s:` with display IDs from `mstsc.exe /l`, requires `use multimon:i:1` |
-| Open in a window instead of full screen | `screen mode id:i:1` (default 2, full screen) |
+| Open in a window instead of full screen | `screen mode id:i:1` (default 2, full screen); overridden when `use multimon:i:1`, the session then opens across all monitors |
 | Scale the session content to the window | `smart sizing:i:1` |
 | Keep the resolution fixed when the window is resized | `dynamic resolution:i:0` (default 1) |
 | Windows key combinations go to the session only in full screen | `keyboardhook:i:2` (default) |
@@ -149,7 +150,7 @@ Update-AzWvdSessionHost -HostPoolName hp-dev -ResourceGroupName rg-avd `
 
 Azure CLI can set the assignment type but can't assign, unassign or reassign personal desktops. Configuring personal desktop assignment requires the **Desktop Virtualization Contributor** role or equivalent.
 
-**Multiple personal desktops per user** in one host pool: set the assignment type to **Direct** and save, then select **Assign multiple desktops to a single user** (load balancer type `MultiplePersistent` in PowerShell). Once enabled it can't be disabled; automatic assignment and pooled host pools aren't supported. Give the hosts friendly names, and allow concurrent FSLogix connections if one profile container serves the pool.
+**Multiple personal desktops per user** in one host pool: set the assignment type to **Direct** and save, then select **Assign multiple desktops to a single user** (load balancer type `MultiplePersistent` in PowerShell, which needs the preview Az.DesktopVirtualization module, version 5.3.0-preview or later). Once enabled it can't be disabled; automatic assignment and pooled host pools aren't supported. Give the hosts friendly names, and allow concurrent FSLogix connections if one profile container serves the pool.
 
 > **Exam trap.** Unassigning a desktop doesn't clean the VM: the previous user's data stays on its OS disk. Reimage or redeploy the session host before giving it to someone else if the data mustn't be kept.
 

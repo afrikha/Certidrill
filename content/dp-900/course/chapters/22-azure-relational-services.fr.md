@@ -24,7 +24,7 @@ Azure SQL Database exécute toujours la dernière version stable du moteur de ba
 | --- | --- | --- |
 | **Base de données unique** | Une base de données avec ses propres ressources, que vous augmentez ou réduisez | Une application dont la charge est prévisible |
 | **Pool élastique** | Plusieurs bases de données partagent un pool de ressources (mémoire, stockage, puissance de traitement) | De nombreuses bases de données dont les pics d'activité n'arrivent pas en même temps : le coût est plus bas que si chacune était dimensionnée pour son pic |
-| Calcul **serverless** | Le calcul se met à l'échelle automatiquement dans une plage et est facturé selon ce que la base de données utilise ; la base de données peut se mettre en pause quand elle est inactive | Usage intermittent ou imprévisible |
+| Calcul **serverless** | Le calcul se met à l'échelle automatiquement dans une plage et est facturé selon ce que la base de données utilise ; dans le niveau de service General Purpose, la base de données peut se mettre en pause quand elle est inactive | Usage intermittent ou imprévisible |
 | Niveau de service **Hyperscale** | Très grandes bases de données, jusqu'à 128 To, avec une mise à l'échelle, une sauvegarde et une restauration rapides | Les bases de données trop grandes pour les autres niveaux |
 
 Fonctionnalités intégrées à retenir : sauvegardes automatisées avec **restauration à un point dans le temps**, réplication des bases de données vers d'autres régions, un contrat SLA de disponibilité qui augmente avec la redondance de zone, chiffrement des données au repos et en transit, audit, et protection contre les menaces avec Microsoft Defender pour SQL.
@@ -34,7 +34,7 @@ Comme le service n'est pas entièrement compatible avec un SQL Server local, des
 <!-- section: managed-instance-and-vms | objectives: 2.2.1 -->
 ## Managed Instance et SQL Server sur Machines Virtuelles Azure
 
-**Azure SQL Managed Instance** est une instance SQL Server complète fournie comme un service. Vous conservez les fonctionnalités de niveau instance comme SQL Server Agent, les requêtes entre bases de données, le CLR, Service Broker et Database Mail, tandis qu'Azure automatise les sauvegardes, l'application des correctifs logiciels et la surveillance. L'instance est déployée dans votre réseau virtuel.
+**Azure SQL Managed Instance** est une instance SQL Server complète fournie comme un service. Vous conservez les fonctionnalités de niveau instance comme SQL Server Agent, les requêtes entre bases de données, le CLR, Service Broker et Database Mail, tandis qu'Azure automatise les sauvegardes, l'application des correctifs logiciels et la surveillance. Sa stratégie de mise à jour fixe le moteur qu'elle suit (Always-up-to-date, SQL Server 2022 ou SQL Server 2025) ; dans tous les cas, Azure installe les mises à jour. L'instance est déployée dans votre réseau virtuel.
 
 **SQL Server sur Machines Virtuelles Azure** est le même SQL Server qu'en local, dans une machine virtuelle. Vous choisissez la version et l'édition, vous avez tous les droits d'administration sur le système de base de données et sur le système d'exploitation, et en contrepartie vous prenez en charge les mises à jour, la configuration, les sauvegardes et la haute disponibilité. Cette option convient aux applications qui ont besoin de fonctionnalités du système d'exploitation indisponibles en PaaS, et aux déploiements hybrides dans lesquels une partie du système reste en local.
 
@@ -74,5 +74,5 @@ Les deux sont des services **PaaS**, déployés sous la forme d'un **Serveur fle
 - SQL Server sur Machines Virtuelles Azure : IaaS, compatibilité totale et contrôle total, vous gérez tout.
 - Azure SQL Managed Instance : PaaS, compatibilité proche de 100 %, fonctionnalités de niveau instance, le choix habituel pour les migrations.
 - Azure SQL Database : PaaS, entièrement managé, pour les nouvelles applications cloud ; base de données unique, pool élastique, serverless, Hyperscale jusqu'à 128 To.
-- Pool élastique : plusieurs bases de données partagent des ressources. Serverless : mise à l'échelle et mise en pause automatiques, facturation à l'usage.
+- Pool élastique : plusieurs bases de données partagent des ressources. Serverless : mise à l'échelle automatique, facturation à l'usage, mise en pause automatique dans le niveau General Purpose.
 - Azure Database pour MySQL et Azure Database pour PostgreSQL : PaaS, Serveur flexible, pour les applications construites sur ces moteurs open source.

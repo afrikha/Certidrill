@@ -55,7 +55,7 @@ Autres points : les **diagnostics de démarrage** montrent une capture d'écran 
 Exigences d'Azure Disk Encryption, le classique de l'examen :
 
 - Un coffre de clés dans la **même région et le même abonnement** que la machine virtuelle, avec la stratégie d'accès **Azure Disk Encryption pour le chiffrement de volume** activée (`EnabledForDiskEncryption`).
-- Une taille et un système pris en charge : pas les machines Basic ou de série A, et assez de mémoire.
+- Une taille prise en charge : pas Basic ni série A, pas les tailles de série v6 avec disque temporaire (Ddsv6, Edsv6...), pas les tailles de série v7 ou plus récentes, pas la famille L, et au moins 2 Go de mémoire. Les disques Ultra et les disques SSD Premium v2 ne peuvent pas être chiffrés par ADE.
 - La machine doit être **en cours d'exécution** : l'extension chiffre les volumes depuis l'intérieur de l'invité.
 - Sous Windows, chiffrez le disque de système d'exploitation avant les disques de données, ou en même temps.
 
@@ -67,6 +67,8 @@ Set-AzVMDiskEncryptionExtension -ResourceGroupName RG1 -VMName VM1 `
 ```bash
 az vm encryption enable -g RG1 -n VM1 --disk-encryption-keyvault kv1 --volume-type All
 ```
+
+Le disque temporaire est chiffré automatiquement sur les tailles de version 5 et ultérieures (Dsv5, Dsv6...) ; sur les tailles plus anciennes, seuls le chiffrement sur l'hôte, ou ADE avec le type de volume `All` (`EncryptFormatAll` sous Linux), le chiffrent.
 
 Chiffrement sur l'hôte : inscrivez la fonctionnalité `EncryptionAtHost` sur l'abonnement, puis activez-la à la création, ou sur une machine existante après l'avoir **libérée**. Il ne se combine pas avec Azure Disk Encryption sur la même machine.
 
@@ -106,7 +108,8 @@ Redimensionnement :
 - Changer de taille **redémarre** la machine.
 - Une machine en marche ne peut prendre qu'une taille disponible sur son cluster matériel actuel. Si la taille n'est pas proposée, **libérez** d'abord la machine : toutes les tailles de la région deviennent disponibles.
 - Dans un **groupe à haute disponibilité**, quand la nouvelle taille n'est pas disponible sur le cluster, **toutes les machines du groupe** doivent être libérées avant le redimensionnement.
-- Les quotas (processeurs virtuels par famille et par région) peuvent bloquer un redimensionnement.
+- Les quotas (processeurs virtuels par famille et total régional) peuvent bloquer un redimensionnement. Ils comptent aussi les machines **libérées** : libérer une machine ne libère aucun quota.
+- Sous Windows, une taille avec disque temporaire local ne peut passer qu'à une autre taille avec disque temporaire, et une taille sans disque temporaire qu'à une taille sans. Les machines Linux peuvent passer de l'une à l'autre.
 
 ```bash
 az vm list-vm-resize-options -g RG1 -n VM1 --output table
@@ -209,8 +212,8 @@ Autres réglages :
 | Réglage | Valeurs |
 | --- | --- |
 | **Stratégie de mise à niveau** (comment les instances reçoivent un changement du modèle) | **Manual** (vous mettez chaque instance à niveau), **Automatic** (toutes d'un coup, dans un ordre aléatoire), **Rolling** (par lots, avec contrôles d'intégrité ; recommandée en production) |
-| **Stratégie de scale-in** (quelle instance est retirée) | **Default** (équilibre les zones et les domaines d'erreur, puis l'ID d'instance le plus élevé), **NewestVM**, **OldestVM** |
-| Protection d'instance | Protéger une instance du scale-in ou des actions du groupe identique |
+| **Stratégie de scale-in** (quelle instance est retirée) | **Default** (équilibre les zones et les domaines d'erreur, puis l'ID d'instance le plus élevé), **NewestVM** ou **OldestVM** (eux aussi après l'équilibrage des zones dans un groupe identique réparti sur plusieurs zones) |
+| Protection d'instance | *Protéger contre le scale-in* bloque le scale-in de la mise à l'échelle automatique ; *protéger contre les actions du groupe identique* bloque aussi la mise à niveau, la réinitialisation (reimage) ou la libération lancées sur le groupe identique. Un utilisateur peut toujours supprimer l'instance |
 | Réparations automatiques d'instances | Remplacer les instances défaillantes (demande l'extension Application Health ou une sonde d'équilibreur de charge) |
 | Zones | Répartir les instances entre zones pour la résilience |
 | Spot | Utiliser des instances Spot pour les charges interruptibles |

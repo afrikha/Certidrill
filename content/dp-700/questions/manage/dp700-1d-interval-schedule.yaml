@@ -7,15 +7,15 @@ stem:
   en: |
     You have a Fabric workspace named Workspace1 that contains a pipeline named PL_Meter. PL_Meter copies rows from an Azure SQL database table named dbo.Readings, which has a ReadingTime column, to a lakehouse.
 
-    Each run of PL_Meter must copy exactly one fixed time slice of dbo.Readings. Consecutive slices must not overlap or leave gaps, even when a run starts a few minutes late. The pipeline must not store any watermark.
+    PL_Meter must run every hour. Each run must copy the rows of dbo.Readings that no earlier run copied: consecutive runs must not overlap or leave gaps, even when a run starts a few minutes late or a run fails and the next one must catch up.
 
-    You need to configure how PL_Meter starts and how its source query receives the slice boundaries. What should you do?
+    You need to configure how PL_Meter starts and how its source query receives the boundaries of the rows to copy. What should you do?
   fr: |
     Vous disposez d'un espace de travail Fabric nommé Workspace1 qui contient un pipeline nommé PL_Meter. PL_Meter copie vers un lakehouse les lignes d'une table de base de données Azure SQL nommée dbo.Readings, qui a une colonne ReadingTime.
 
-    Chaque exécution de PL_Meter doit copier exactement une tranche de temps fixe de dbo.Readings. Les tranches consécutives ne doivent ni se chevaucher ni laisser de trous, même quand une exécution démarre avec quelques minutes de retard. Le pipeline ne doit stocker aucun filigrane.
+    PL_Meter doit s'exécuter toutes les heures. Chaque exécution doit copier les lignes de dbo.Readings qu'aucune exécution précédente n'a copiées : des exécutions consécutives ne doivent ni se chevaucher ni laisser de trous, même quand une exécution démarre avec quelques minutes de retard ou qu'une exécution échoue et que la suivante doit rattraper le retard.
 
-    Vous devez configurer le démarrage de PL_Meter et la façon dont sa requête source reçoit les bornes de la tranche. Que devez-vous faire ?
+    Vous devez configurer le démarrage de PL_Meter et la façon dont sa requête source reçoit les bornes des lignes à copier. Que devez-vous faire ?
 body:
   options:
     - id: a
@@ -32,15 +32,15 @@ body:
         fr: "Ajouter un déclencheur sur les événements de travaux de PL_Meter pour les travaux réussis, et filtrer ReadingTime à partir de @pipeline().TriggerTime."
     - id: d
       text:
-        en: "Add an interval-based schedule, and filter ReadingTime between the Window start time and Window end time trigger parameters."
-        fr: "Ajouter une planification par intervalle, et filtrer ReadingTime entre les paramètres de déclencheur Window start time et Window end time."
+        en: "Add a fixed hourly schedule, and filter ReadingTime between a watermark saved by the last successful run and a new maximum read at run start."
+        fr: "Ajouter une planification fixe toutes les heures, et filtrer ReadingTime entre un filigrane enregistré par la dernière exécution réussie et un nouveau maximum lu au démarrage."
 answer: { optionId: d }
 explanation:
   correct:
     en: |
-      An interval-based schedule (preview) runs the pipeline on fixed, non-overlapping intervals and exposes the boundaries of each interval as the Window start time and Window end time trigger parameters. Because the boundaries belong to the interval, not to the moment the run starts, a late run still processes exactly its own slice.
+      The watermark pattern reads the old watermark from a control table and the new maximum of ReadingTime from the source, copies the rows greater than the old value and up to the new one, and saves the new value only when the copy succeeds. The boundaries come from the data, not from the moment the run starts, so a late run copies exactly the missing rows, and after a failed run the next run catches up from the last saved value.
     fr: |
-      Une planification par intervalle (préversion) exécute le pipeline sur des intervalles fixes sans chevauchement et expose les bornes de chaque intervalle comme paramètres de déclencheur Window start time et Window end time. Comme les bornes appartiennent à l'intervalle, et non au moment où l'exécution démarre, une exécution en retard traite toujours exactement sa propre tranche.
+      Le modèle du filigrane lit l'ancien filigrane dans une table de contrôle et le nouveau maximum de ReadingTime dans la source, copie les lignes strictement supérieures à l'ancienne valeur et jusqu'à la nouvelle, et n'enregistre la nouvelle valeur que si la copie réussit. Les bornes viennent des données, et non du moment où l'exécution démarre : une exécution en retard copie exactement les lignes manquantes, et après une exécution en échec, la suivante rattrape le retard depuis la dernière valeur enregistrée.
   options:
     a: { en: "TriggerTime is the time the trigger actually fired, which can differ from the scheduled time, so consecutive windows can overlap or leave gaps.", fr: "TriggerTime est l'heure à laquelle le déclencheur s'est réellement déclenché, qui peut différer de l'heure planifiée : des fenêtres consécutives peuvent donc se chevaucher ou laisser des trous." }
     b: { en: "utcNow() returns the time the expression is evaluated, so any delay shifts the window and creates gaps or overlaps.", fr: "utcNow() renvoie l'heure d'évaluation de l'expression : tout retard décale la fenêtre et crée des trous ou des chevauchements." }

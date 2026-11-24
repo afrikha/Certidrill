@@ -87,7 +87,7 @@ Installer une solution ajoute des **modèles**, pas du contenu actif. Il faut en
 | Modèle de classeur | **Afficher le modèle**, puis **Enregistrer** pour créer une instance |
 | Requête de repérage | **Exécuter la requête**, ou la cloner pour la personnaliser |
 | Analyseur | Ajouté automatiquement comme fonction de l'espace de travail |
-| Modèle de playbook | **Créer un playbook** |
+| Modèle de playbook (préversion) | **Créer un playbook** |
 
 > **Piège d'examen.** Pour utiliser un seul élément d'une solution, il faut installer toute la solution. Mettre à jour une solution met à jour ses modèles : les règles déjà créées à partir d'un ancien modèle restent inchangées tant que vous ne les modifiez pas.
 
@@ -100,7 +100,7 @@ Les **règles d'automatisation** traitent les incidents de façon centralisée e
 
 | Élément d'une règle d'automatisation | Valeurs |
 | --- | --- |
-| Déclencheur | **Quand un incident est créé**, **Quand un incident est mis à jour**, **Quand une alerte est créée** (alertes des règles planifiées et NRT) |
+| Déclencheur | **Quand un incident est créé**, **Quand un incident est mis à jour**, **Quand une alerte est créée** (alertes des règles d'analyse planifiées, NRT et Microsoft Security ; dans le portail Defender, pas pour les alertes créées par Defender XDR) |
 | Conditions | Propriétés de l'incident avec des opérateurs comme égal à, contient, commence par ; en mise à jour : modifié, modifié de, modifié en, ajouté ; **Mis à jour par**. Le déclencheur d'alerte n'accepte que les règles d'analyse comme condition |
 | Actions | Exécuter un playbook, changer le statut (motif et commentaire de clôture), changer la gravité, attribuer un propriétaire, ajouter des étiquettes, ajouter une tâche |
 | Ordre | Les règles s'exécutent séquentiellement selon leur numéro d'**ordre** ; les actions s'exécutent dans l'ordre listé. Les règles du déclencheur de création passent avant celles du déclencheur de mise à jour |
@@ -144,7 +144,7 @@ Chaque table a deux paramètres : la **rétention d'analyse** et la **rétention
 | Plan Auxiliary (data lake) | Interrogeable pendant toute la rétention totale ; seule la rétention totale est configurable |
 | Réduire la rétention d'analyse | Immédiat ; le reste de la rétention totale devient de la rétention à long terme |
 | Réduire la rétention totale | Les données sont supprimées après un délai de 30 jours, ce qui permet d'annuler la modification |
-| Intégration au data lake | Les données du niveau d'analyse sont aussi disponibles dans le data lake à partir de ce moment, sans frais supplémentaires |
+| Intégration au data lake | Les données du niveau d'analyse sont mises en miroir dans le data lake pour la même période de rétention ; les conserver dans le lake au-delà de la rétention d'analyse est facturé comme stockage data lake |
 | Données uniquement dans le lake | Pas de règles d'analyse, de requêtes de repérage, de classeurs ni de playbooks dessus ; des travaux KQL peuvent les promouvoir vers le niveau d'analyse |
 | Données à long terme d'une table Analytics | Travail de recherche (résultats dans une table `_SRCH`) ou restauration (table `_RST`) |
 
@@ -154,6 +154,8 @@ az monitor log-analytics workspace table update \
   --resource-group rg-sentinel --workspace-name law-contoso-sec \
   --name SecurityEvent --retention-time 180 --total-retention-time 730
 ```
+
+Dans Azure CLI, `--total-retention-time` va jusqu'à 2 556 jours (sept ans) ; pour aller jusqu'à 12 ans, utilisez le portail, l'API REST ou PowerShell (`Update-AzOperationalInsightsTable`).
 
 > **Piège d'examen.** Augmenter la rétention d'analyse pour conserver des journaux d'audit est la réponse coûteuse. Quand l'exigence est « conserver sept ans au moindre coût, interroger occasionnellement », gardez une rétention d'analyse courte et une rétention totale longue.
 

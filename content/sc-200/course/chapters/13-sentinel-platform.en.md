@@ -21,8 +21,8 @@ Tasks that need another role:
 | Create or delete workbooks with Reader or Responder | Add **Workbook Contributor** |
 | Guest user who must assign incidents | Microsoft Sentinel Responder + **Directory Reader** (Microsoft Entra role) |
 | Connect a data source | Write permission on the workspace, plus what the connector requires |
-| Grant Sentinel permission on a playbook resource group | Owner on that resource group |
-| Restrict a team to some tables or resources | Table-level RBAC or resource-context RBAC |
+| Grant Sentinel permission on a playbook resource group | Owner or User Access Administrator on that resource group |
+| Restrict a team to some tables or resources | Table-level RBAC or resource-context RBAC; for new configurations, Azure Monitor recommends granular RBAC (**Log Analytics Data Reader** with role assignment conditions), which also covers row-level access |
 
 Microsoft's recommended assignments: analysts get Responder (plus Playbook Operator), engineers get Contributor (plus Logic App Contributor), a service principal for automation gets Contributor. Owner, Contributor and Reader on the resource group also grant Sentinel access, far too broadly. Assignments are cumulative.
 
@@ -33,7 +33,7 @@ Microsoft's recommended assignments: analysts get Responder (plus Playbook Opera
 | Read the data lake of every workspace | Global Reader, Security Reader, Security Operator, Security Administrator (or Global Administrator) |
 | Read one other workspace in the lake | An Azure role on that workspace, for example Log Analytics Reader or Microsoft Sentinel Reader |
 | Write with KQL jobs or notebooks, manage data lake jobs | Security Operator or Security Administrator (or Global Administrator) |
-| Change table settings in the Defender portal | Unified RBAC **Data (manage)** (Data operations), or Log Analytics Contributor on the workspace |
+| Change table settings in the Defender portal | Unified RBAC **Data (manage)** (Data operations), or Log Analytics Contributor on the workspace; from **Table insights**, Microsoft Sentinel Contributor plus Log Analytics Contributor |
 
 > **Exam trap.** Responder can manage an incident but can't run a playbook on it: add **Playbook Operator**. Contributor can attach a playbook to a rule but can't edit the logic app: that needs **Logic App Contributor**.
 

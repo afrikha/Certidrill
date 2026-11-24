@@ -16,11 +16,11 @@ Principaux services qui prennent en charge les points de terminaison de service 
 | --- | --- | --- |
 | Adresse de destination | Adresse IP publique du service | Adresse IP privée dans votre sous-réseau |
 | Accès depuis le réseau local par VPN ou peering privé ExpressRoute | Non | Oui |
-| Accès depuis un réseau virtuel appairé | Seulement si les sous-réseaux de ce réseau activent leur propre point de terminaison et sont autorisés par la ressource | Oui |
+| Accès depuis un réseau virtuel relié par peering | Seulement si les sous-réseaux de ce réseau activent leur propre point de terminaison et sont autorisés par la ressource | Oui |
 | Étendue de l'accès | Tout le service ; filtrer les comptes de stockage avec une stratégie de point de terminaison de service | Une sous-ressource d'une ressource |
 | Changements DNS | Aucun | Zone `privatelink` nécessaire |
 | Coût | Gratuit | Facturé à l'heure et au Go |
-| Région | Toute région (Azure SQL : même région uniquement) | Ressource dans toute région |
+| Région | Azure SQL : même région uniquement. Stockage : `Microsoft.Storage` pour les comptes de la région du réseau virtuel, `Microsoft.Storage.Global` pour toute région (un seul des deux par sous-réseau) | Ressource dans toute région |
 
 Microsoft recommande les points de terminaison privés pour l'accès privé aux services PaaS. Choisissez un point de terminaison de service quand tous les clients sont dans des sous-réseaux Azure, que le besoin se limite à « autoriser le trafic du sous-réseau X et bloquer internet », et que le coût ou la simplicité comptent.
 
@@ -32,7 +32,7 @@ Microsoft recommande les points de terminaison privés pour l'accès privé aux 
 Un point de terminaison de service est une propriété d'un **sous-réseau**, activée service par service :
 
 - **Portail** : le paramètre **Points de terminaison de service** du sous-réseau, où vous sélectionnez un ou plusieurs services ; ou la page **Points de terminaison de service** du réseau virtuel.
-- Chaque sous-réseau qui a besoin de l'accès doit activer lui-même le point de terminaison : l'activer sur un sous-réseau ne fait rien pour les autres sous-réseaux ni pour les réseaux virtuels appairés.
+- Chaque sous-réseau qui a besoin de l'accès doit activer lui-même le point de terminaison : l'activer sur un sous-réseau ne fait rien pour les autres sous-réseaux ni pour les réseaux virtuels reliés par peering.
 - Un sous-réseau peut activer plusieurs services ; le nombre de points de terminaison de service d'un réseau virtuel n'est pas limité.
 - Toute personne disposant d'un accès en écriture au réseau virtuel peut activer un point de terminaison de service.
 
@@ -131,9 +131,9 @@ Les autres services suivent le même modèle sous d'autres noms : Azure SQL a de
 
 Règles à retenir :
 
-- Ajouter un sous-réseau à une ressource exige l'autorisation `Microsoft.Network/virtualNetworks/subnets/joinViaServiceEndpoint/action` sur ce sous-réseau (comprise dans Network Contributor et Contributor).
+- Ajouter un sous-réseau à une ressource exige l'autorisation `Microsoft.Network/virtualNetworks/subnets/joinViaServiceEndpoint/action` sur ce sous-réseau (comprise dans Network Contributor et Contributor ; pour un compte de stockage, Learn cite aussi Storage Account Contributor). Un rôle dont l'étendue est seulement la ressource n'accorde rien sur le sous-réseau.
 - Le réseau virtuel et la ressource peuvent être dans des abonnements différents du même locataire Microsoft Entra ; Stockage Azure et Azure Key Vault acceptent aussi des sous-réseaux d'un autre locataire.
-- Chaque service limite le nombre de règles de réseau virtuel : 200 pour un compte de stockage ou un coffre de clés, 128 pour Azure SQL, 64 pour Azure Cosmos DB.
+- Chaque service limite le nombre de règles de réseau virtuel : 400 pour un compte de stockage (et 400 règles de réseau IP), 200 pour un coffre de clés, 128 pour Azure SQL, 64 pour Azure Cosmos DB.
 - Une règle de réseau virtuel et une règle IP peuvent coexister. L'accès depuis le réseau local exige la règle IP avec les adresses NAT publiques, puisque les points de terminaison de service ne s'appliquent pas au trafic local.
 - Les requêtes venant d'un réseau non autorisé reçoivent HTTP 403 (ou 404).
 - Les NSG du sous-réseau filtrent toujours le trafic sortant : la règle par défaut **AllowInternetOutBound** laisse sortir le trafic vers le service. Pour refuser internet tout en autorisant le stockage, ajoutez une règle sortante d'autorisation vers l'étiquette de service `Storage` avec une priorité plus haute qu'une règle de refus vers `Internet`.

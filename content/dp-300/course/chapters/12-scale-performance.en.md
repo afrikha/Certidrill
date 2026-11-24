@@ -51,7 +51,7 @@ Converting a database to Hyperscale is online with a cutover of usually under a 
 
 | | General Purpose | Next-gen General Purpose | Business Critical |
 | --- | --- | --- | --- |
-| Storage | Remote, 5 to 10 ms, up to 16 TB | Elastic SAN, 3 to 5 ms, up to 32 TB | Local SSD, 1 to 2 ms, up to 4 TB (16 TB with premium-series hardware) |
+| Storage | Remote, 5 to 10 ms, up to 16 TB | Elastic SAN, 3 to 5 ms, up to 32 TB | Local SSD, 1 to 2 ms, up to 4 TB on standard-series; premium-series up to 5.5 TB, or 16 TB with 64 vCores or more in major regions |
 | Databases per instance | 100 | 500 | 100 |
 | IOPS | 500 to 7,500 per file, depending on file size | 3 free IOPS per GB of storage, more can be bought | 4,000 IOPS per vCore |
 | In-memory OLTP | No | No | Yes |
@@ -60,7 +60,7 @@ Converting a database to Hyperscale is online with a cutover of usually under a 
 
 Hardware sets the memory per vCore: standard-series 5.1 GB, premium-series 7 GB, memory optimized premium-series 13.6 GB. Memory-hungry workloads move to memory optimized premium-series rather than to more vCores.
 
-Scaling vCores, storage or the tier is done in the portal (**Compute + storage**), with `az sql mi update` or `Set-AzSqlInstance`. The instance stays available during the operation and is unavailable only during the final failover. Business Critical operations, and any change between General Purpose and Business Critical, **seed** data to new replicas, so their duration grows with data size. Next-gen General Purpose sets IOPS and memory independently:
+Scaling vCores, storage or the tier is done in the portal (**Compute + storage**), with `az sql mi update` or `Set-AzSqlInstance`. The instance stays available during the operation and is unavailable only during the final failover. Business Critical operations, and any change between General Purpose and Business Critical, **seed** data to new replicas, so their duration grows with data size. Next-gen General Purpose sets IOPS independently of storage; on premium-series hardware, Next-gen General Purpose and Business Critical can also set memory independently of vCores (flexible memory, billed per GB):
 
 ```bash
 az sql mi update -g RG1 -n mi-contoso -e GeneralPurpose --gpv2 true --iops 6000
@@ -69,7 +69,7 @@ az sql mi update -g RG1 -n mi-contoso -e GeneralPurpose --gpv2 true --iops 6000
 Performance levers specific to Managed Instance:
 
 - **General Purpose file IOPS** depend on the file size: pre-growing a busy data or log file raises its IOPS and throughput limits.
-- **Log write throughput** is capped per vCore (4.5 MiB/s per vCore in General Purpose, 16 MiB/s per vCore in Business Critical); a write-heavy load that hits the cap needs more vCores or Business Critical.
+- **Log write throughput** is capped per vCore, up to an instance maximum: General Purpose 4.5 MiB/s per vCore, at most 120 MiB/s; Next-gen General Purpose 6 MiB/s per vCore, at most 220 MiB/s (buying IOPS doesn't raise it); Business Critical 16 MiB/s per vCore, at most 160 MiB/s on standard-series or 192 MiB/s on premium-series. A write-heavy load that hits the per-vCore cap needs more vCores or another tier.
 - `tempdb` supports up to 128 files; in General Purpose its size is limited to 24 GB per vCore.
 - **Instance pools** host several General Purpose instances on shared, pre-provisioned resources: 2-vCore instances exist only in a pool, and an instance is created in about 10 minutes. Good for migrating many small instances; the drawback is a possible noisy neighbor.
 

@@ -20,8 +20,8 @@ Sécurité DevOps dans Defender for Cloud :
 | Fonctionnalité | CSPM de base | Defender CSPM |
 | --- | --- | --- |
 | Inventaire des ressources DevOps, recommandations sur les mauvaises configurations de l'environnement DevOps | Oui | Oui |
-| Recommandations sur les vulnérabilités du code, les mauvaises configurations IaC, les secrets exposés, les vulnérabilités open source | Oui (nécessite un analyseur : GitHub Advanced Security, Microsoft Security DevOps ou l'analyse du code sans agent) | Oui |
-| Annotations des demandes de tirage (Azure DevOps), requêtes SBOM, mappage du code au cloud | Non | Oui |
+| Recommandations sur les vulnérabilités du code, les mauvaises configurations IaC, les secrets exposés, les vulnérabilités open source | Oui (nécessite un analyseur : GitHub Advanced Security, Microsoft Security DevOps ou l'analyse du code sans agent, en préversion ; GitLab exige GitLab Ultimate) | Oui |
+| Annotations des demandes de tirage (Azure DevOps), requêtes SBOM (Azure DevOps et GitHub, après une analyse du code sans agent), mappage du code au cloud | Non | Oui |
 | Analyse des chemins d'attaque et explorateur de sécurité cloud avec le contexte DevOps | Non | Oui |
 
 > **Piège d'examen.** Connecter GitHub à Defender for Cloud n'analyse rien en soi : les résultats sur les secrets et les dépendances viennent de GitHub Advanced Security, et les annotations des demandes de tirage et les chemins d'attaque exigent Defender CSPM.
@@ -116,7 +116,7 @@ Protéger les identités de charge de travail (Microsoft Entra Workload ID) :
 
 | Contrôle | Fait |
 | --- | --- |
-| Accès conditionnel pour les identités de charge de travail | Licence **Workload Identities Premium** ; **principaux de service monolocataires** uniquement (ni identités managées, ni applications multilocataires) ; conditions : emplacement et risque du principal de service ; octroi : **Block** uniquement |
+| Accès conditionnel pour les identités de charge de travail | Licence **Workload Identities Premium** ; **principaux de service monolocataires** uniquement (ni identités managées, ni applications multilocataires) ; conditions : emplacement et risque du principal de service ; octroi : **Block** uniquement ; principaux de service sélectionnés directement dans la stratégie (une stratégie attribuée à un groupe qui les contient n'est pas appliquée), cible **All resources** |
 | ID Protection pour les identités de charge de travail | Détecte des risques comme des informations d'identification divulguées |
 | Révisions d'accès | Réviser les principaux de service affectés à des rôles d'annuaire privilégiés ; le moyen de gouverner les identités managées |
 
@@ -141,6 +141,8 @@ Les **identités d'agent** (Microsoft Entra Agent ID) sont une catégorie distin
 
 L'autorisation au niveau des objets reste le travail du back-end : la passerelle ne peut pas savoir si l'utilisateur A a le droit de lire la commande 42.
 
+Pour servir les consommateurs internes et externes depuis une seule instance et n'exposer qu'un sous-ensemble des API sur Internet, déployez API Management dans un **réseau virtuel interne** derrière **Application Gateway WAF_v2** : les clients internes l'atteignent directement, les clients externes uniquement par le WAF.
+
 **Defender for APIs** est un plan distinct de Defender for Cloud pour les **API publiées dans Azure API Management** : inventaire, constats sur les API externes, non authentifiées ou inactives (aucun trafic depuis 30 jours), classification des API qui traitent des données sensibles et détection à l'exécution des menaces, y compris le Top 10 OWASP des API. Avec Defender CSPM, ses données apparaissent dans l'explorateur de sécurité cloud.
 
 > **Piège d'examen.** Defender for APIs détecte et recommande ; il n'applique rien. La limitation, la validation des jetons et la validation du schéma sont des stratégies d'API Management.
@@ -153,15 +155,15 @@ Azure WAF protège les applications HTTP et HTTPS contre les attaques courantes 
 | Plateforme | À choisir quand | Fonctionnalités WAF |
 | --- | --- | --- |
 | Azure Front Door **Premium** | Utilisateurs dans le monde entier, origines multirégions, bloquer les attaques en périphérie | Default Rule Set managé, Bot Manager, règles personnalisées et de limitation du débit, filtrage géographique |
-| Azure Front Door **Standard** | Distribution mondiale avec des règles personnalisées uniquement | Règles personnalisées uniquement |
+| Azure Front Door **Standard** | Distribution mondiale avec des règles personnalisées uniquement | Règles personnalisées uniquement, qui incluent les règles de limitation du débit et de filtrage géographique |
 | Application Gateway **WAF_v2** | Applications régionales ou internes, stratégies par site ou par URI dans un réseau virtuel | Ensembles de règles managés, Bot Manager, règles personnalisées et de limitation du débit |
-| Application Gateway for Containers | Entrée (ingress) Kubernetes | Stratégie WAF |
+| Application Gateway for Containers | Entrée (ingress) Kubernetes | Stratégie WAF attachée aux ressources de l'API Gateway : Default Rule Set 2.1 uniquement (pas de CRS), Bot Manager |
 
 Règles de conception :
 
 - Superposez Front Door en périphérie et Application Gateway dans la région quand il faut à la fois une protection mondiale et des stratégies privées propres à certains chemins ; verrouillez l'origine pour qu'elle n'accepte que le trafic venant de Front Door.
 - Déployez en mode **Détection**, ajustez les faux positifs avec des exclusions, puis passez en mode **Prévention**.
-- Application Gateway v1 a été mis hors service le 28 avril 2026 : les conceptions utilisent WAF_v2. Front Door (classique) sera mis hors service le 31 mars 2027.
+- Application Gateway v1 a été mis hors service le 28 avril 2026 : les conceptions utilisent WAF_v2. Front Door (classique) sera mis hors service le 31 mars 2027 : la migration vers Standard ou Premium se fait sans temps d'arrêt, une stratégie WAF classique avec des règles managées fait passer le profil en Premium (sans rétrogradation ensuite), et le passage aux nouveaux points de terminaison doit être terminé au plus tard le 31 mars 2028.
 - Le WAF ne couvre que la couche 7 : Azure DDoS Protection traite les attaques volumétriques, Azure Firewall et les NSG filtrent les autres protocoles.
 - Envoyez les journaux WAF vers Log Analytics et Microsoft Sentinel ; Defender for Cloud recommande un WAF pour les applications exposées à Internet.
 

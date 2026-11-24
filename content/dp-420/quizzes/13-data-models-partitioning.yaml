@@ -1,0 +1,499 @@
+chapter: 13-data-models-partitioning
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp420-qz-13-01
+    objective: "1.3.4"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are choosing the partition key of a read-heavy Azure Cosmos DB for NoSQL container. Microsoft recommends choosing a key that minimizes cross-partition queries once the container needs more than a few physical partitions.
+
+        Which container characteristics indicate that the container needs more than a few physical partitions?
+      fr: |
+        Vous choisissez la clé de partition d'un conteneur Azure Cosmos DB for NoSQL à forte lecture. Microsoft recommande de choisir une clé qui réduit les requêtes entre partitions dès que le conteneur a besoin de plus de quelques partitions physiques.
+
+        Quelles caractéristiques du conteneur indiquent qu'il a besoin de plus de quelques partitions physiques ?
+    body:
+      options:
+        - { id: a, text: { en: "More than 4,000 RU/s provisioned or more than 20 GB stored", fr: "Plus de 4 000 RU/s provisionnées ou plus de 20 Go stockés" } }
+        - { id: b, text: { en: "More than 10,000 RU/s provisioned or more than 50 GB stored", fr: "Plus de 10 000 RU/s provisionnées ou plus de 50 Go stockés" } }
+        - { id: c, text: { en: "More than 30,000 RU/s provisioned or more than 100 GB stored", fr: "Plus de 30 000 RU/s provisionnées ou plus de 100 Go stockés" } }
+        - { id: d, text: { en: "More than 100,000 RU/s provisioned or more than 1 TB stored", fr: "Plus de 100 000 RU/s provisionnées ou plus de 1 To stocké" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Microsoft considers that a container needs more than a few physical partitions when it has more than 30,000 RU/s provisioned or stores more than 100 GB. Below that, most containers have one or two physical partitions, and a query without the partition key only adds about 2 to 3 RU for each extra physical partition it checks.
+        fr: |
+          Microsoft considère qu'un conteneur a besoin de plus de quelques partitions physiques lorsqu'il a plus de 30 000 RU/s provisionnées ou stocke plus de 100 Go. En dessous, la plupart des conteneurs ont une ou deux partitions physiques, et une requête sans clé de partition n'ajoute qu'environ 2 à 3 RU par partition physique supplémentaire vérifiée.
+      options:
+        a: { en: "20 GB is the limit of one logical partition; a container of this size still fits in a single physical partition.", fr: "20 Go est la limite d'une partition logique ; un conteneur de cette taille tient encore dans une seule partition physique." }
+        b: { en: "10,000 RU/s and 50 GB are the limits of one physical partition: such a container has only two partitions, too few to matter.", fr: "10 000 RU/s et 50 Go sont les limites d'une partition physique : un tel conteneur n'a que deux partitions, trop peu pour compter." }
+        d: { en: "These values are far beyond the threshold: the key already matters at a third of this throughput and a tenth of this storage.", fr: "Ces valeurs dépassent largement le seuil : la clé compte déjà à un tiers de ce débit et à un dixième de ce stockage." }
+    references:
+      - title: Partitioning and horizontal scaling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning
+
+  # ------------------------------------------------------------------ 2
+  - id: dp420-qz-13-02
+    objective: "1.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Wingtip stores two kinds of data in an Azure Cosmos DB for NoSQL database:
+
+        - clickstream events, written 40,000 times per second and only ever read by their `id`;
+        - a product catalog, queried on many different properties.
+
+        Spikes of clickstream ingestion must never throttle catalog queries, and the clickstream events must be indexed as little as possible to lower the RU charge of each write.
+
+        How should you store the data?
+      fr: |
+        Wingtip stocke deux types de données dans une base de données Azure Cosmos DB for NoSQL :
+
+        - des événements de parcours de navigation, écrits 40 000 fois par seconde et lus uniquement par leur `id` ;
+        - un catalogue de produits, interrogé sur de nombreuses propriétés différentes.
+
+        Les pics d'ingestion des événements ne doivent jamais limiter les requêtes du catalogue, et les événements doivent être indexés le moins possible pour réduire le coût en RU de chaque écriture.
+
+        Comment devez-vous stocker les données ?
+    body:
+      options:
+        - { id: a, text: { en: "In one container, with a type property on each item and an indexing policy that excludes the event properties", fr: "Dans un seul conteneur, avec une propriété type sur chaque élément et une stratégie d'indexation qui exclut les propriétés des événements" } }
+        - { id: b, text: { en: "In two containers that share the throughput provisioned on their database", fr: "Dans deux conteneurs qui partagent le débit provisionné sur leur base de données" } }
+        - { id: c, text: { en: "In one container partitioned by /type, with one type value for events and one for products", fr: "Dans un seul conteneur partitionné par /type, avec une valeur de type pour les événements et une pour les produits" } }
+        - { id: d, text: { en: "In two containers, each with its own dedicated throughput and its own indexing policy", fr: "Dans deux conteneurs, chacun avec son propre débit dédié et sa propre stratégie d'indexation" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Throughput and the indexing policy are set per container. Two containers with dedicated throughput isolate the catalog from ingestion spikes, because RU/s provisioned on a container are reserved for it alone, and the events container can use a minimal indexing policy while the catalog keeps a rich one.
+        fr: |
+          Le débit et la stratégie d'indexation se règlent par conteneur. Deux conteneurs à débit dédié isolent le catalogue des pics d'ingestion, car les RU/s provisionnées sur un conteneur lui sont réservées, et le conteneur des événements peut utiliser une stratégie d'indexation minimale tandis que le catalogue garde une indexation riche.
+      options:
+        a: { en: "Excluding paths can reduce the write cost, but one container has one throughput budget: ingestion spikes would still throttle catalog queries.", fr: "Exclure des chemins peut réduire le coût des écritures, mais un seul conteneur a un seul budget de débit : les pics d'ingestion limiteraient toujours les requêtes du catalogue." }
+        b: { en: "Shared database throughput gives no guarantee to a particular container, so the busy events container can consume the catalog's share.", fr: "Le débit partagé de base de données ne garantit rien à un conteneur particulier : le conteneur d'événements, très actif, peut consommer la part du catalogue." }
+        c: { en: "Two partition key values give two logical partitions capped at 10,000 RU/s and 20 GB each, and they still share one throughput and one indexing policy.", fr: "Deux valeurs de clé de partition donnent deux partitions logiques plafonnées à 10 000 RU/s et 20 Go chacune, qui partagent toujours un seul débit et une seule stratégie d'indexation." }
+    references:
+      - title: Provision Throughput for Containers and Databases - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/set-throughput
+
+  # ------------------------------------------------------------------ 3
+  - id: dp420-qz-13-03
+    objective: "1.3.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind stores products in an Azure Cosmos DB for NoSQL container named **products**, partitioned by `/productId`. The `id` of each product item equals its `productId`, and the product page reads it 6,000 times per second with a point read. A product item is about 2 KB.
+
+        Each product also has up to 30 specification sheets of about 40 KB each. The sheets rarely change and are shown only on a **Technical details** tab, opened in 1 percent of the visits. The tab must load all the sheets of a product with a single request, and the product page must remain a point read.
+
+        You need to minimize the total RU consumption. How should you store the specification sheets?
+      fr: |
+        Northwind stocke ses produits dans un conteneur Azure Cosmos DB for NoSQL nommé **products**, partitionné par `/productId`. L'`id` de chaque élément produit est égal à son `productId`, et la page produit le lit 6 000 fois par seconde par une lecture ponctuelle. Un élément produit fait environ 2 Ko.
+
+        Chaque produit a aussi jusqu'à 30 fiches techniques d'environ 40 Ko chacune. Les fiches changent rarement et ne s'affichent que dans un onglet **Détails techniques**, ouvert lors de 1 % des visites. L'onglet doit charger toutes les fiches d'un produit en une seule requête, et la page produit doit rester une lecture ponctuelle.
+
+        Vous devez réduire au minimum la consommation totale de RU. Comment devez-vous stocker les fiches techniques ?
+    body:
+      options:
+        - { id: a, text: { en: "Embed the sheets as an array in the product item, because they are bounded and rarely change", fr: "Les incorporer sous forme de tableau dans l'élément produit, car elles sont bornées et changent rarement" } }
+        - { id: b, text: { en: "Store each sheet as its own item in products with the product's productId, and query them by productId", fr: "Stocker chaque fiche comme un élément distinct dans products avec le productId du produit, et les interroger par productId" } }
+        - { id: c, text: { en: "Store each sheet in a container partitioned by /id, list their IDs in the product item, and read each one by ID", fr: "Stocker chaque fiche dans un conteneur partitionné par /id, lister leurs ID dans l'élément produit et lire chacune par son ID" } }
+        - { id: d, text: { en: "Embed the sheets in the product item, and read the product page with a query that projects only its own fields", fr: "Les incorporer dans l'élément produit, et lire la page produit avec une requête qui ne projette que ses propres champs" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Embedding suits data that is queried together, and here the sheets are read in only 1 percent of the visits. Separate sheet items that share the product's partition key value keep the product item at 2 KB for its 6,000 point reads per second, while the tab gets every sheet with one single-partition query on productId.
+        fr: |
+          L'incorporation convient aux données interrogées ensemble, or les fiches ne sont lues que lors de 1 % des visites. Des éléments fiches distincts qui partagent la valeur de clé de partition du produit laissent l'élément produit à 2 Ko pour ses 6 000 lectures ponctuelles par seconde, tandis que l'onglet obtient toutes les fiches par une seule requête sur une partition, filtrée sur productId.
+      options:
+        a: { en: "Bounded data isn't enough: the product item would grow to about 1.2 MB, and each of the 6,000 point reads per second would cost far more RUs.", fr: "Être bornées ne suffit pas : l'élément produit atteindrait environ 1,2 Mo, et chacune des 6 000 lectures ponctuelles par seconde coûterait beaucoup plus de RU." }
+        c: { en: "Reading up to 30 sheets one by one takes up to 30 requests, while the tab must load them with a single request.", fr: "Lire jusqu'à 30 fiches une à une demande jusqu'à 30 requêtes, alors que l'onglet doit les charger en une seule requête." }
+        d: { en: "The product page would no longer be a point read, which the requirement forbids, and the item would still be about 1.2 MB.", fr: "La page produit ne serait plus une lecture ponctuelle, ce que l'exigence interdit, et l'élément ferait toujours environ 1,2 Mo." }
+    references:
+      - title: Data Modeling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/modeling-data
+
+  # ------------------------------------------------------------------ 4
+  - id: dp420-qz-13-04
+    objective: "1.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Proseware is designing a container named **orders** in Azure Cosmos DB for NoSQL. Each order is stored as an order item and a payment item, which both have `id`, `orderId`, `customerId` and `status` properties.
+
+        The order service must create the order item and its payment item in one transactional batch. Every request to the service carries only the `orderId`, and the order page reads both items with one single-partition query. The container will hold 40 million orders, and an order with its payment is smaller than 10 KB.
+
+        Which partition key should you use?
+      fr: |
+        Proseware conçoit un conteneur nommé **orders** dans Azure Cosmos DB for NoSQL. Chaque commande est stockée sous la forme d'un élément commande et d'un élément paiement, qui ont tous deux les propriétés `id`, `orderId`, `customerId` et `status`.
+
+        Le service de commandes doit créer l'élément commande et son élément paiement dans un seul lot transactionnel. Chaque requête adressée au service ne porte que l'`orderId`, et la page de commande lit les deux éléments par une seule requête sur une partition. Le conteneur contiendra 40 millions de commandes, et une commande avec son paiement fait moins de 10 Ko.
+
+        Quelle clé de partition devez-vous utiliser ?
+    body:
+      options:
+        - { id: a, text: "/id" }
+        - { id: b, text: "/orderId" }
+        - { id: c, text: "/customerId" }
+        - { id: d, text: "/status" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A transactional batch only contains operations on items that share one partition key value. With /orderId, the order and its payment form one small logical partition, so they can be written in one batch and read by one single-partition query from the orderId that every request carries. 40 million values give a high cardinality and an even spread.
+        fr: |
+          Un lot transactionnel ne contient que des opérations sur des éléments qui partagent une même valeur de clé de partition. Avec /orderId, la commande et son paiement forment une petite partition logique : ils peuvent être écrits dans un seul lot et lus par une seule requête sur une partition à partir de l'orderId que porte chaque requête. 40 millions de valeurs donnent une forte cardinalité et une répartition uniforme.
+      options:
+        a: { en: "The order and payment items have different ids, so they land in different logical partitions and can't be written in one transactional batch.", fr: "Les éléments commande et paiement ont des id différents : ils tombent dans des partitions logiques différentes et ne peuvent pas être écrits dans un seul lot transactionnel." }
+        c: { en: "Requests carry only the orderId, so the order page couldn't provide the customerId and its query would fan out to every partition.", fr: "Les requêtes ne portent que l'orderId : la page de commande ne pourrait pas fournir le customerId et sa requête toucherait toutes les partitions." }
+        d: { en: "A status has few values and changes during the order's life, and a partition key value can't be updated in place.", fr: "Un statut a peu de valeurs et change au cours de la vie de la commande, alors qu'une valeur de clé de partition ne peut pas être modifiée sur place." }
+    references:
+      - title: Transactional Batch Operations - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/transactional-batch
+      - title: Partitioning and horizontal scaling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning
+
+  # ------------------------------------------------------------------ 5
+  - id: dp420-qz-13-05
+    objective: "1.3.7"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso has an Azure Cosmos DB for NoSQL container named **orders**, partitioned by `/customerId`, with 40,000 RU/s of manual throughput and four physical partitions. Users report slow responses during business hours.
+
+        You review the container:
+
+        - **Normalized RU Consumption (%) By PartitionKeyRangeID** shows all four partition key ranges between 95 and 100 percent during business hours.
+        - **Total Requests by Status Code** shows that 8 percent of the requests return HTTP 429.
+        - The diagnostic logs show the RUs spread evenly across thousands of customerId values.
+
+        What should you do?
+      fr: |
+        Contoso dispose d'un conteneur Azure Cosmos DB for NoSQL nommé **orders**, partitionné par `/customerId`, avec 40 000 RU/s de débit manuel et quatre partitions physiques. Les utilisateurs signalent des réponses lentes pendant les heures ouvrées.
+
+        Vous examinez le conteneur :
+
+        - **Normalized RU Consumption (%) By PartitionKeyRangeID** montre les quatre plages de clés de partition entre 95 et 100 % pendant les heures ouvrées.
+        - **Total Requests by Status Code** montre que 8 % des requêtes renvoient HTTP 429.
+        - Les journaux de diagnostic montrent des RU réparties uniformément sur des milliers de valeurs de customerId.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Increase the provisioned throughput of the orders container", fr: "Augmenter le débit provisionné du conteneur orders" } }
+        - { id: b, text: { en: "Move the data to a new container with the hierarchical key /customerId, /id", fr: "Déplacer les données vers un nouveau conteneur avec la clé hiérarchique /customerId, /id" } }
+        - { id: c, text: { en: "Take no action, because the SDK retries the HTTP 429 responses automatically", fr: "Ne rien faire, car le SDK relance automatiquement les réponses HTTP 429" } }
+        - { id: d, text: { en: "Append a random suffix from 1 to 100 to the customerId partition key values", fr: "Ajouter un suffixe aléatoire de 1 à 100 aux valeurs de clé de partition customerId" } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Every partition key range is saturated and the RUs are spread evenly, so there is no hot partition: the container as a whole lacks throughput. When normalized RU consumption stays near 100 percent across several ranges and more than 5 percent of the requests are rate-limited, the recommended action is to increase the throughput.
+        fr: |
+          Toutes les plages de clés de partition sont saturées et les RU sont réparties uniformément : il n'y a pas de partition chaude, c'est le conteneur dans son ensemble qui manque de débit. Quand la consommation de RU normalisée reste proche de 100 % sur plusieurs plages et que plus de 5 % des requêtes sont limitées, l'action recommandée est d'augmenter le débit.
+      options:
+        b: { en: "A hierarchical key fixes a tenant that outgrows one logical partition; here no customer is hot, so the load would stay the same.", fr: "Une clé hiérarchique corrige un locataire qui dépasse une partition logique ; ici aucun client n'est chaud, la charge resterait donc la même." }
+        c: { en: "A 429 rate of 1 to 5 percent with acceptable latency is healthy; 8 percent with slow responses calls for more throughput.", fr: "Un taux de 429 de 1 à 5 % avec une latence acceptable est sain ; 8 % avec des réponses lentes exige plus de débit." }
+        d: { en: "A suffix spreads the load of a hot key; the load is already even, and every per-customer query would fan out over 100 values.", fr: "Un suffixe répartit la charge d'une clé chaude ; la charge est déjà uniforme, et chaque requête par client devrait parcourir 100 valeurs." }
+    references:
+      - title: Monitor Normalized Request Units - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-normalized-request-units
+
+  # ------------------------------------------------------------------ 6
+  - id: dp420-qz-13-06
+    objective: "1.3.5"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Litware builds an IoT platform on Azure Cosmos DB for NoSQL for six industrial customers (tenants). Each tenant has about 20,000 devices.
+
+        Litware creates a new container named **telemetry** with a hierarchical partition key made of `/tenantId`, `/deviceId` and `/id`, in that order, and 120,000 RU/s of manual throughput. From the first day, each tenant will write telemetry at about 15,000 RU/s. All queries filter on tenantId and deviceId.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware développe une plateforme IoT sur Azure Cosmos DB for NoSQL pour six clients industriels (locataires). Chaque locataire a environ 20 000 appareils.
+
+        Litware crée un nouveau conteneur nommé **telemetry** avec une clé de partition hiérarchique composée de `/tenantId`, `/deviceId` et `/id`, dans cet ordre, et 120 000 RU/s de débit manuel. Dès le premier jour, chaque locataire écrira de la télémétrie à environ 15 000 RU/s. Toutes les requêtes filtrent sur tenantId et deviceId.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "When ingestion starts, all the writes of one tenant are served by a single physical partition.", fr: "Au démarrage de l'ingestion, toutes les écritures d'un locataire sont servies par une seule partition physique." } }
+        - { id: s2, text: { en: "Raising the throughput to 240,000 RU/s before ingestion starts lets each tenant write at 15,000 RU/s without being rate-limited.", fr: "Porter le débit à 240 000 RU/s avant le début de l'ingestion permet à chaque locataire d'écrire à 15 000 RU/s sans être limité." } }
+        - { id: s3, text: { en: "After a tenant's data grows beyond 50 GB and its physical partition splits, the tenant's writes can be spread over more than one physical partition.", fr: "Une fois que les données d'un locataire dépassent 50 Go et que sa partition physique s'est fractionnée, les écritures du locataire peuvent se répartir sur plus d'une partition physique." } }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          Hierarchical partition keys keep all the items of one first-level value on the same physical partition until it reaches 50 GB and splits. With only six tenants, each tenant's writes start on one physical partition, which serves at most 10,000 RU/s, whatever the container's total. Adding RU/s creates more physical partitions but doesn't spread a single tenant; only splits do, once the tenant has enough data. A low-cardinality first level is the weak point of this design for a write-heavy workload.
+        fr: |
+          Les clés de partition hiérarchiques gardent tous les éléments d'une même valeur de premier niveau sur la même partition physique jusqu'à ce qu'elle atteigne 50 Go et se fractionne. Avec seulement six locataires, les écritures de chaque locataire démarrent sur une seule partition physique, qui sert au plus 10 000 RU/s, quel que soit le total du conteneur. Ajouter des RU/s crée davantage de partitions physiques mais ne répartit pas un même locataire ; seuls les fractionnements le font, une fois que le locataire a assez de données. Un premier niveau de faible cardinalité est le point faible de cette conception pour une charge à forte écriture.
+      options:
+        s2: { en: "A tenant's writes stay on one physical partition, capped at 10,000 RU/s, until its data splits; more container RU/s doesn't change that.", fr: "Les écritures d'un locataire restent sur une partition physique, plafonnée à 10 000 RU/s, jusqu'au fractionnement de ses données ; plus de RU/s sur le conteneur n'y change rien." }
+    references:
+      - title: Hierarchical Partition Keys - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/hierarchical-partition-keys
+
+  # ------------------------------------------------------------------ 7
+  - id: dp420-qz-13-07
+    objective: "1.3.6"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Fabrikam stores vehicle telemetry in an existing Azure Cosmos DB for NoSQL container named **trips**. The container is partitioned by `/partitionKey` and can't be recreated. The application, written in C#, computes the `partitionKey` value of each item before writing it.
+
+        There are 100,000 vehicles, each identified by a vehicle identification number (VIN). Every vehicle writes a reading every 10 seconds, and almost all the writes concern the current date. A vehicle produces less than 50 MB of data per day. You have the following requirements:
+
+        - Spread the writes of a day evenly across many logical partitions.
+        - Write the last reading of a trip and the vehicle's daily summary item in one transactional batch.
+        - Let a support tool, which runs in other processes, read the daily summary of a vehicle with a point read from its VIN and the date.
+
+        Which two formulas for `partitionKey` meet the requirements? Each correct answer presents a complete solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam stocke la télémétrie de ses véhicules dans un conteneur Azure Cosmos DB for NoSQL existant nommé **trips**. Le conteneur est partitionné par `/partitionKey` et ne peut pas être recréé. L'application, écrite en C#, calcule la valeur `partitionKey` de chaque élément avant de l'écrire.
+
+        Il y a 100 000 véhicules, chacun identifié par un numéro d'identification de véhicule (VIN). Chaque véhicule écrit une mesure toutes les 10 secondes, et presque toutes les écritures concernent la date du jour. Un véhicule produit moins de 50 Mo de données par jour. Vous avez les exigences suivantes :
+
+        - Répartir uniformément les écritures d'une journée sur de nombreuses partitions logiques.
+        - Écrire la dernière mesure d'un trajet et l'élément de synthèse quotidienne du véhicule dans un seul lot transactionnel.
+        - Permettre à un outil de support, qui s'exécute dans d'autres processus, de lire la synthèse quotidienne d'un véhicule par une lecture ponctuelle à partir de son VIN et de la date.
+
+        Quelles sont les deux formules de `partitionKey` qui répondent aux exigences ? Chaque bonne réponse constitue une solution complète.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "The VIN followed by the date, such as 1HGCM82633A004352-2026-11-24", fr: "Le VIN suivi de la date, par exemple 1HGCM82633A004352-2026-11-24" } }
+        - { id: b, text: { en: "The date followed by 1 plus a SHA-256 hash of the VIN modulo 400, such as 2026-11-24.137", fr: "La date suivie de 1 plus un hachage SHA-256 du VIN modulo 400, par exemple 2026-11-24.137" } }
+        - { id: c, text: { en: "The date followed by a random number from 1 to 400 drawn for each item, such as 2026-11-24.288", fr: "La date suivie d'un nombre aléatoire de 1 à 400 tiré pour chaque élément, par exemple 2026-11-24.288" } }
+        - { id: d, text: { en: "The date followed by 1 plus the VIN's string.GetHashCode() value modulo 400, such as 2026-11-24.52", fr: "La date suivie de 1 plus la valeur string.GetHashCode() du VIN modulo 400, par exemple 2026-11-24.52" } }
+        - { id: e, text: { en: "The date alone, such as 2026-11-24, so that a day's items stay together", fr: "La date seule, par exemple 2026-11-24, pour que les éléments d'une journée restent ensemble" } }
+    answer: { optionIds: [a, b] }
+    explanation:
+      correct:
+        en: |
+          Both formulas give the reading and the summary of one vehicle and one date the same partition key value, which a transactional batch requires, and both can be recomputed by any process from the VIN and the date for a point read. Concatenating the VIN and the date spreads a day's writes over 100,000 values; a suffix calculated from a stable hash of the VIN spreads them over 400 values, each holding about 250 vehicles, so well below 20 GB per day.
+        fr: |
+          Les deux formules donnent la même valeur de clé de partition à la mesure et à la synthèse d'un même véhicule pour une même date, ce qu'exige un lot transactionnel, et tout processus peut les recalculer à partir du VIN et de la date pour une lecture ponctuelle. La concaténation du VIN et de la date répartit les écritures d'une journée sur 100 000 valeurs ; un suffixe calculé à partir d'un hachage stable du VIN les répartit sur 400 valeurs, d'environ 250 véhicules chacune, donc bien en dessous de 20 Go par jour.
+      options:
+        c: { en: "A random suffix gives the reading and the summary different values, so they can't share a batch, and the support tool can't compute the value to read.", fr: "Un suffixe aléatoire donne des valeurs différentes à la mesure et à la synthèse, qui ne peuvent donc pas partager un lot, et l'outil de support ne peut pas calculer la valeur à lire." }
+        d: { en: "string.GetHashCode() returns different values in different processes, so the support tool would compute another suffix and miss the item.", fr: "string.GetHashCode() renvoie des valeurs différentes selon les processus : l'outil de support calculerait un autre suffixe et ne trouverait pas l'élément." }
+        e: { en: "All the writes of the day would go to one logical partition, capped at 10,000 RU/s and 20 GB: a hot partition.", fr: "Toutes les écritures de la journée iraient dans une seule partition logique, plafonnée à 10 000 RU/s et 20 Go : une partition chaude." }
+    references:
+      - title: Create a Synthetic Partition Key - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/synthetic-partition-keys
+      - title: Transactional Batch Operations - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/transactional-batch
+
+  # ------------------------------------------------------------------ 8
+  - id: dp420-qz-13-08
+    objective: "1.3.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin operates 300,000 smart parcel lockers in 1,200 sites and stores one 1-KB state item per locker in Azure Cosmos DB for NoSQL. The workload is as follows:
+
+        - The mobile app reads the state of one locker 20,000 times per second. It knows only the locker ID, scanned from a QR code.
+        - Lockers update their state 30,000 times per second.
+        - A site dashboard lists the lockers of one site. Each site's dashboard refreshes once per minute.
+        - A few lockers are moved to another site every month.
+
+        You need to design the container so that the total RU consumption is as low as possible.
+
+        What should you do?
+      fr: |
+        Tailspin exploite 300 000 consignes à colis connectées sur 1 200 sites et stocke un élément d'état de 1 Ko par consigne dans Azure Cosmos DB for NoSQL. La charge de travail est la suivante :
+
+        - L'application mobile lit l'état d'une consigne 20 000 fois par seconde. Elle ne connaît que l'ID de la consigne, lu dans un QR code.
+        - Les consignes mettent à jour leur état 30 000 fois par seconde.
+        - Un tableau de bord de site liste les consignes d'un site. Le tableau de bord de chaque site s'actualise une fois par minute.
+        - Quelques consignes sont déplacées vers un autre site chaque mois.
+
+        Vous devez concevoir le conteneur pour que la consommation totale de RU soit la plus faible possible.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Partition the container by /siteId so that each dashboard refresh is a single-partition query", fr: "Partitionner le conteneur par /siteId pour que chaque actualisation de tableau de bord soit une requête sur une partition" } }
+        - { id: b, text: { en: "Use the hierarchical key /siteId, /lockerId so that both the dashboard and the app target few partitions", fr: "Utiliser la clé hiérarchique /siteId, /lockerId pour que le tableau de bord et l'application ciblent peu de partitions" } }
+        - { id: c, text: { en: "Partition the container by /lockerId, use the locker ID as id, and run the dashboard as a cross-partition query", fr: "Partitionner le conteneur par /lockerId, utiliser l'ID de la consigne comme id et exécuter le tableau de bord en requête entre partitions" } }
+        - { id: d, text: { en: "Store one item per site that embeds the state of all its lockers, and read it with a point read", fr: "Stocker un élément par site qui incorpore l'état de toutes ses consignes, et le lire par une lecture ponctuelle" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The model must favor the most frequent operations. With /lockerId and id equal to the locker ID, the 20,000 reads per second are 1-RU point reads, and the 30,000 updates per second are spread over 300,000 values. The dashboard becomes a cross-partition query, but at about 20 queries per second in total it costs little, and moving a locker to another site is a plain update of the siteId property.
+        fr: |
+          Le modèle doit favoriser les opérations les plus fréquentes. Avec /lockerId et un id égal à l'ID de la consigne, les 20 000 lectures par seconde sont des lectures ponctuelles à 1 RU, et les 30 000 mises à jour par seconde se répartissent sur 300 000 valeurs. Le tableau de bord devient une requête entre partitions, mais avec environ 20 requêtes par seconde au total il coûte peu, et déplacer une consigne vers un autre site n'est qu'une mise à jour de la propriété siteId.
+      options:
+        a: { en: "The app knows only the locker ID, so each of its 20,000 reads per second becomes a query that fans out; a move also needs a delete and a create.", fr: "L'application ne connaît que l'ID de la consigne : chacune de ses 20 000 lectures par seconde devient une requête sur toutes les partitions ; un déplacement exige aussi une suppression et une création." }
+        b: { en: "A point read needs the full key, including the siteId that the app doesn't know, and a locker that moves would change its partition key value.", fr: "Une lecture ponctuelle exige la clé complète, y compris le siteId que l'application ne connaît pas, et une consigne déplacée changerait de valeur de clé de partition." }
+        d: { en: "A site item of up to hundreds of 1-KB states is rewritten at each of the 30,000 updates per second, and large sites can exceed the 2 MB item limit.", fr: "Un élément site de centaines d'états de 1 Ko serait réécrit à chacune des 30 000 mises à jour par seconde, et les grands sites peuvent dépasser la limite de 2 Mo par élément." }
+    references:
+      - title: Partitioning and horizontal scaling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning
+      - title: Data Modeling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/modeling-data
+
+  # ------------------------------------------------------------------ 9
+  - id: dp420-qz-13-09
+    objective: "1.3.7"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        You review the design of a monitoring application built on Azure Cosmos DB for NoSQL:
+
+        - A container named **devices** is partitioned by `/deviceId` and holds one item per device.
+        - Every minute, the application reads the device item, appends the new reading (about 250 bytes of JSON) to a `readings` array in the item, and replaces the item. Readings are never removed.
+        - **devices** is one of nine containers in a database that has 10,000 RU/s of shared throughput. The other eight containers have a steady load.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous examinez la conception d'une application de supervision basée sur Azure Cosmos DB for NoSQL :
+
+        - Un conteneur nommé **devices** est partitionné par `/deviceId` et contient un élément par appareil.
+        - Chaque minute, l'application lit l'élément de l'appareil, ajoute la nouvelle mesure (environ 250 octets de JSON) à un tableau `readings` de l'élément, puis remplace l'élément. Les mesures ne sont jamais supprimées.
+        - **devices** est l'un des neuf conteneurs d'une base de données dotée de 10 000 RU/s de débit partagé. Les huit autres conteneurs ont une charge stable.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "If the design isn't changed, replacing a device item starts to fail within the first week.", fr: "Si la conception n'est pas modifiée, le remplacement d'un élément d'appareil commence à échouer dès la première semaine." } }
+        - { id: s2, text: { en: "Raising the database throughput to 40,000 RU/s guarantees the devices container at least 4,000 RU/s.", fr: "Porter le débit de la base de données à 40 000 RU/s garantit au conteneur devices au moins 4 000 RU/s." } }
+        - { id: s3, text: { en: "The RU charge of each replace of a device item grows from one day to the next.", fr: "Le coût en RU de chaque remplacement d'un élément d'appareil augmente d'un jour à l'autre." } }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          A reading per minute adds about 1,440 × 250 bytes, or 360 KB, per day, so a device item reaches the 2 MB item limit after five to six days: the array is unbounded and must become one item per reading. The RU charge of a write grows with the size of the item, so each replace costs more than the day before. Shared database throughput gives no guarantee to any single container, whatever the total.
+        fr: |
+          Une mesure par minute ajoute environ 1 440 × 250 octets, soit 360 Ko, par jour : un élément d'appareil atteint la limite de 2 Mo par élément au bout de cinq à six jours. Le tableau n'est pas borné et doit devenir un élément par mesure. Le coût en RU d'une écriture augmente avec la taille de l'élément, donc chaque remplacement coûte plus que la veille. Le débit partagé de base de données ne garantit rien à un conteneur particulier, quel que soit le total.
+      options:
+        s2: { en: "Containers that share database throughput have no guaranteed share; the other containers can consume most of the 40,000 RU/s.", fr: "Les conteneurs qui partagent le débit de la base de données n'ont aucune part garantie ; les autres conteneurs peuvent consommer l'essentiel des 40 000 RU/s." }
+    references:
+      - title: Data Modeling - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/modeling-data
+      - title: Provision Throughput for Containers and Databases - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/set-throughput
+
+  # ------------------------------------------------------------------ 10
+  - id: dp420-qz-13-10
+    objective: "1.3.8"
+    difficulty: 3
+    status: draft
+    shuffle: false
+    type: dropdown
+    stem:
+      en: |
+        Adatum plans a container in an Azure Cosmos DB for NoSQL account that has one write region and one read region (two regions in total). The account uses Session consistency. You measured the RU charge of each operation at that consistency level. At peak, the container serves:
+
+        - 3,000 point reads per second at 1 RU each;
+        - 400 writes per second at 10 RU each;
+        - 150 queries per second at 20 RU each.
+
+        The peak lasts 4 hours every day. During the other 20 hours, the traffic stays at or below 1,000 RU/s.
+
+        Use these rates: standard (manual) throughput $0.008 and autoscale throughput $0.012 per 100 RU/s per hour. Use 30 days per month. The container must never be rate-limited by lack of provisioned throughput.
+
+        How should you complete the estimate? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum prévoit un conteneur dans un compte Azure Cosmos DB for NoSQL qui a une région d'écriture et une région de lecture (deux régions au total). Le compte utilise la cohérence Session. Vous avez mesuré le coût en RU de chaque opération à ce niveau de cohérence. Au pic, le conteneur sert :
+
+        - 3 000 lectures ponctuelles par seconde à 1 RU chacune ;
+        - 400 écritures par seconde à 10 RU chacune ;
+        - 150 requêtes par seconde à 20 RU chacune.
+
+        Le pic dure 4 heures chaque jour. Pendant les 20 autres heures, le trafic reste inférieur ou égal à 1 000 RU/s.
+
+        Utilisez ces tarifs : débit standard (manuel) 0,008 $ et débit avec mise à l'échelle automatique 0,012 $ par 100 RU/s et par heure. Comptez 30 jours par mois. Le conteneur ne doit jamais être limité faute de débit provisionné.
+
+        Comment devez-vous compléter l'estimation ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: text
+      template:
+        en: |
+          In standard (manual) mode, the container must be provisioned with [[ru]].
+
+          The standard (manual) throughput costs [[manual]] per month for the account.
+
+          Autoscale with a maximum of 10,000 RU/s costs [[auto]] per month for the account.
+        fr: |
+          En mode standard (manuel), le conteneur doit être provisionné avec [[ru]].
+
+          Le débit standard (manuel) coûte [[manual]] par mois pour le compte.
+
+          La mise à l'échelle automatique avec un maximum de 10 000 RU/s coûte [[auto]] par mois pour le compte.
+      slots:
+        - id: ru
+          options:
+            - { id: ru3550, text: { en: "3,550 RU/s", fr: "3 550 RU/s" } }
+            - { id: ru10k, text: { en: "10,000 RU/s", fr: "10 000 RU/s" } }
+            - { id: ru20k, text: { en: "20,000 RU/s", fr: "20 000 RU/s" } }
+            - { id: ru30k, text: { en: "30,000 RU/s", fr: "30 000 RU/s" } }
+        - id: manual
+          options:
+            - { id: m576, text: { en: "$576", fr: "576 $" } }
+            - { id: m864, text: { en: "$864", fr: "864 $" } }
+            - { id: m1152, text: { en: "$1,152", fr: "1 152 $" } }
+            - { id: m2304, text: { en: "$2,304", fr: "2 304 $" } }
+        - id: auto
+          options:
+            - { id: a216, text: { en: "$216", fr: "216 $" } }
+            - { id: a288, text: { en: "$288", fr: "288 $" } }
+            - { id: a432, text: { en: "$432", fr: "432 $" } }
+            - { id: a1728, text: { en: "$1,728", fr: "1 728 $" } }
+    answer:
+      values: { ru: ru10k, manual: m1152, auto: a432 }
+    explanation:
+      correct:
+        en: |
+          The peak needs 3,000 × 1 + 400 × 10 + 150 × 20 = 10,000 RU/s; that value is set on the container and billed in each of the two regions. Manual: 100 × $0.008 = $0.80 per hour per region, × 2 regions × 24 hours × 30 days = $1,152. Autoscale bills the highest RU/s reached each hour and never less than 10 percent of the maximum: per region and per day, 4 × 100 × $0.012 + 20 × 10 × $0.012 = $7.20, × 2 regions × 30 days = $432, so autoscale is cheaper here.
+        fr: |
+          Le pic exige 3 000 × 1 + 400 × 10 + 150 × 20 = 10 000 RU/s ; cette valeur est définie sur le conteneur et facturée dans chacune des deux régions. Manuel : 100 × 0,008 $ = 0,80 $ par heure et par région, × 2 régions × 24 heures × 30 jours = 1 152 $. La mise à l'échelle automatique facture les RU/s les plus élevées atteintes dans chaque heure, et jamais moins de 10 % du maximum : par région et par jour, 4 × 100 × 0,012 $ + 20 × 10 × 0,012 $ = 7,20 $, × 2 régions × 30 jours = 432 $ ; elle est donc moins chère ici.
+      options:
+        ru3550: { en: "3,550 is the number of operations per second, not their RU charge.", fr: "3 550 est le nombre d'opérations par seconde, pas leur coût en RU." }
+        ru20k: { en: "RU/s are set once on the container; the second region multiplies the bill, not the provisioned value.", fr: "Les RU/s se définissent une fois sur le conteneur ; la seconde région multiplie la facture, pas la valeur provisionnée." }
+        m576: { en: "$576 bills only one region; provisioned RU/s are billed in every region of the account.", fr: "576 $ ne facture qu'une région ; les RU/s provisionnées sont facturées dans chaque région du compte." }
+        a288: { en: "$288 bills only the peak hours; autoscale still bills 10 percent of the maximum, 1,000 RU/s, in the other hours.", fr: "288 $ ne facture que les heures de pic ; la mise à l'échelle automatique facture toujours 10 % du maximum, soit 1 000 RU/s, les autres heures." }
+        a1728: { en: "$1,728 bills the maximum during all 24 hours; autoscale bills the highest RU/s actually reached in each hour.", fr: "1 728 $ facture le maximum pendant les 24 heures ; la mise à l'échelle automatique facture les RU/s les plus élevées réellement atteintes dans chaque heure." }
+    references:
+      - title: How to Choose Between Manual and Autoscale - Azure Cosmos DB
+        url: https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-choose-offer

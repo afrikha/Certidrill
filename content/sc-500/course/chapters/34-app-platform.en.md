@@ -60,7 +60,7 @@ Authentication options:
 | Admin user | Single-user tests | **Disabled by default**; full push and pull, no RBAC; avoid |
 | Non-Entra tokens with scope maps | Repository-scoped access for external systems | All tiers |
 
-Authorization: **AcrPull** (pull), **AcrPush** (push and pull), **AcrDelete**. A registry in the permissions mode **RBAC Registry + ABAC Repository Permissions** uses **Container Registry Repository Reader / Writer / Contributor** with ABAC conditions to scope access to specific repositories; in that mode, Owner, Contributor and Reader have no data plane access.
+Authorization: **AcrPull** (pull), **AcrPush** (push and pull), **AcrDelete**. The **Container Registry Repository Reader / Writer / Contributor** roles work in both permissions modes: Reader for orchestrators that pull images (AKS, Container Apps, Container Instances), Writer for CI/CD pipelines that push, Contributor when they also delete. A registry in the permissions mode **RBAC Registry + ABAC Repository Permissions** uses **Container Registry Repository Reader / Writer / Contributor** with ABAC conditions to scope access to specific repositories; in that mode, AcrPull, AcrPush and AcrDelete aren't honored, and Owner, Contributor and Reader have no data plane access (AcrPull maps to Repository Reader plus **Container Registry Repository Catalog Lister**). Switching to that mode invalidates the credentials issued before the switch: clients get HTTP 401 until they refresh them.
 
 | Feature | Tier |
 | --- | --- |
@@ -185,8 +185,8 @@ Policies run in the **inbound**, **backend**, **outbound** and **on-error** sect
 | Validate an OAuth token from any issuer | `validate-jwt` |
 | Validate a Microsoft Entra token (audience, claims) | `validate-azure-ad-token` |
 | Allow or block caller IPs | `ip-filter` |
-| Limit rate per subscription / per key (IP, claim) | `rate-limit` / `rate-limit-by-key` (not in Consumption) |
-| Volume quota per subscription / per key | `quota` / `quota-by-key` (not in Consumption) |
+| Limit rate per subscription / per key (IP, claim) | `rate-limit` (all tiers) / `rate-limit-by-key` (not in Consumption) |
+| Volume quota per subscription / per key | `quota` (all tiers, product scope only) / `quota-by-key` (Developer, Basic, Standard, Premium) |
 | APIM authenticates to the back end without secrets | `authentication-managed-identity` |
 | Client certificate to the back end / validate the caller's certificate | `authentication-certificate` / `validate-client-certificate` |
 | Reject oversized or malformed bodies | `validate-content` (also `validate-parameters`, `validate-headers`) |
@@ -204,7 +204,7 @@ Policies run in the **inbound**, **backend**, **outbound** and **on-error** sect
 </inbound>
 ```
 
-To make APIM the only path to the back end, also lock the back end itself: access restrictions or a private endpoint on the App Service or function app, and back-end authentication that APIM's managed identity satisfies.
+To make APIM the only path to the back end, also lock the back end itself: access restrictions or a private endpoint on the App Service or function app, and back-end authentication that APIM's managed identity satisfies. An instance can't be upgraded from or downgraded to the Consumption tier: an API that needs `rate-limit-by-key` must be published through an instance in another tier.
 
 > **Exam trap.** `rate-limit` and `quota` count per **subscription key**; to throttle per caller IP or per user claim, use the `-by-key` variants.
 

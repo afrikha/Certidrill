@@ -16,7 +16,7 @@ Certaines données doivent être analysées dès leur arrivée : relevés de cap
 
 La latence est le délai entre l'arrivée des données et la disponibilité du résultat. Le traitement par lots traite de gros volumes à un moment opportun, par exemple la nuit, mais toutes les données d'entrée doivent être prêtes avant le démarrage du travail et une seule erreur peut arrêter tout le lot.
 
-La plupart des solutions à grande échelle **combinent les deux** : le traitement de flux alimente des tableaux de bord en temps réel et écrit aussi ses résultats dans un magasin de données, où ils rejoignent les données traitées par lots pour l'analyse historique. Une technologie de streaming peut aussi simplement capturer les données pour un traitement par lots ultérieur.
+La plupart des solutions à grande échelle **combinent les deux** : le traitement de flux alimente des tableaux de bord en temps réel et écrit aussi ses résultats dans un magasin de données, où ils rejoignent les données traitées par lots pour l'analyse historique. Un modèle courant de cette combinaison est l'**architecture lambda**. Une technologie de streaming peut aussi simplement capturer les données pour un traitement par lots ultérieur.
 
 > **Piège d'examen.** Des données qui arrivent en continu ne sont pas forcément traitées en flux. Si les ventes du jour sont chargées et analysées chaque nuit, c'est un traitement par lots : ce qui décide, c'est le moment où les données sont traitées, à l'arrivée ou regroupées, plus tard.
 
@@ -24,13 +24,13 @@ La plupart des solutions à grande échelle **combinent les deux** : le traiteme
 ## Éléments d'une solution de traitement de flux
 
 1. Un **événement** génère des données : le signal d'un capteur, une publication sur un réseau social, une entrée de journal.
-2. Les données sont capturées dans une **source de streaming**. Dans les solutions robustes, c'est une file d'attente, qui conserve l'ordre des événements.
+2. Les données sont capturées dans une **source de streaming**. Dans les solutions plus avancées, c'est une file d'attente, qui garantit que les événements sont traités dans l'ordre et que chacun n'est traité qu'une seule fois.
 3. Une **requête perpétuelle** s'exécute sur les événements entrants : elle sélectionne, projette et agrège des valeurs sur des périodes appelées **fenêtres** (le nombre de relevés par minute).
 4. Les résultats sont écrits dans une sortie, appelée **récepteur** (sink) : un fichier, une table de base de données, un tableau de bord en temps réel ou une autre file d'attente.
 
 | Étape | Services |
 | --- | --- |
-| **Sources** | **Azure Event Hubs** : ingestion de gros volumes d'événements. **Azure IoT Hub** : similaire, optimisé pour les appareils de l'Internet des objets (IoT). **Apache Kafka** : solution d'ingestion open source, souvent utilisée avec Spark. **Azure Data Lake Storage Gen2** : en général pour les lots, utilisable aussi comme source de streaming |
+| **Sources** | **Azure Event Hubs** : ingestion de gros volumes d'événements ; les événements d'une même partition sont remis dans l'ordre, avec une remise au moins une fois (at-least-once). **Azure IoT Hub** : similaire, optimisé pour les appareils de l'Internet des objets (IoT). **Apache Kafka** : solution d'ingestion open source, souvent utilisée avec Spark. **Azure Data Lake Storage Gen2** : en général pour les lots, utilisable aussi comme source de streaming |
 | **Récepteurs** | Azure Event Hubs, pour mettre les résultats en file d'attente en vue d'un autre traitement. Azure Data Lake Storage Gen2, OneLake ou le Stockage Blob Azure, pour les conserver sous forme de fichiers. Azure SQL Database, Azure Databricks ou Microsoft Fabric, pour les conserver dans des tables. **Power BI**, pour les afficher en temps réel |
 
 <!-- section: real-time-services | objectives: 4.2.2 -->

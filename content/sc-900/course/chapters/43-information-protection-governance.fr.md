@@ -11,7 +11,7 @@ La classification identifie le contenu sensible pour que les étiquettes, la DLP
 | **Classifieurs entraînables** (trainable classifiers) | Par **ce qu'est le contenu**, grâce au machine learning entraîné sur des exemples | Contrats, factures, CV, harcèlement |
 
 - Les types d'informations sensibles sont **intégrés**, d'**entité nommée** (noms de personnes, adresses postales, termes médicaux), **personnalisés** (vos identifiants d'employé) ou à **correspondance exacte des données (EDM, exact data match)**, qui recherche des valeurs exactes tirées d'une base de vos données sensibles.
-- Les classifieurs entraînables sont **préentraînés** par Microsoft et prêts à l'emploi, ou **personnalisés** : vous fournissez des échantillons du contenu à reconnaître.
+- Les classifieurs entraînables sont **préentraînés** par Microsoft et prêts à l'emploi, ou **personnalisés** : vous fournissez des échantillons du contenu à reconnaître. Les classifieurs personnalisés ne prennent en charge que le contenu en anglais.
 
 > **Conseil d'examen.** Un format fixe comme un numéro : type d'informations sensibles. Une catégorie de document qu'aucun modèle ne décrit : classifieur entraînable.
 
@@ -27,7 +27,7 @@ Les deux outils se trouvent sous **Protection des informations** dans le portail
 | Avantage | Voir combien de données sensibles existent et où, jusqu'à l'élément lui-même | Vérifier que les contrôles en place sont efficaces |
 | Accès | Très restreint, car il peut montrer le contenu des fichiers : des groupes de rôles précis (Content Explorer List viewer, Content Explorer Content viewer) | Les données viennent du journal d'audit de Microsoft 365 |
 
-Le portail nomme aussi **Data explorer** la version plus récente de l'Explorateur de contenu.
+Sous Explorateurs, **Data explorer** est désormais la vue principale et consolidée de ces éléments ; l'**Explorateur de contenu (classique)** reste disponible avec son ancienne interface, organisée par emplacement.
 
 <!-- section: sensitivity-labels | objectives: 4.3.3 -->
 ## Étiquettes de confidentialité et stratégies d'étiquetage
@@ -43,7 +43,7 @@ Une **étiquette de confidentialité** (sensitivity label) est une marque appliq
 | **Chiffrer** | Les e-mails, les invitations à des réunions et les documents : seuls les utilisateurs ou les groupes que vous choisissez peuvent les ouvrir |
 | **Marquer le contenu** | En-têtes, pieds de page et filigranes dans les applications Office |
 | **Protéger des conteneurs** | Contrôler la confidentialité et le partage externe de Teams, des groupes Microsoft 365 et des sites SharePoint |
-| **Être appliquée automatiquement** | Ou être recommandée à l'utilisateur, quand des types d'informations sensibles sont détectés |
+| **Être appliquée automatiquement** | Dans les applications Office, appliquée ou recommandée quand des types d'informations sensibles ou des classifieurs entraînables sont détectés (l'utilisateur peut refuser l'étiquette) ; une stratégie d'étiquetage automatique étiquette le contenu déjà présent dans SharePoint, OneDrive ou Exchange, sans recommandation |
 | **Classifier seulement** | Aucune protection, juste une marque pour les rapports |
 
 Les étiquettes ne font rien tant qu'elles ne sont pas publiées. Une **stratégie d'étiquetage de confidentialité** publie des étiquettes pour des utilisateurs et des groupes choisis, et peut aussi :

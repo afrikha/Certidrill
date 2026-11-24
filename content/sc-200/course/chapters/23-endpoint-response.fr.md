@@ -54,6 +54,7 @@ Points qui décident des réponses :
 - Sous Linux, ajouter ou modifier une règle `iptables` sur un appareil isolé lève l'isolation.
 - Restrict app execution exige l'Antivirus Microsoft Defender et s'appuie sur une stratégie d'intégrité du code App Control (WDAC).
 - Isoler un appareil exige un rôle avec l'autorisation **Active remediation actions**, et l'appareil doit appartenir à un groupe d'appareils accessible à l'utilisateur.
+- L'isolation est levée automatiquement au bout de sept jours. Si l'appareil est hors connexion quand l'isolation est soumise, Defender pour point de terminaison réessaie pendant trois jours au plus ; au-delà, isolez-le de nouveau une fois qu'il est actif.
 
 Le **package d'investigation** est une collecte unique d'artefacts forensiques. Sous Windows, il contient entre autres :
 
@@ -81,7 +82,7 @@ La réponse dynamique donne un shell distant sur un appareil pour l'analyse fore
 
 - **Settings > Endpoints > Advanced features** : activez **Live response** ; **Live response for servers** pour Windows Server ; **Live response unsigned script execution** seulement si des scripts PowerShell non signés doivent s'exécuter. Seul un administrateur ou un utilisateur autorisé à gérer les paramètres du portail modifie ces paramètres.
 - L'utilisateur a besoin d'un rôle avec l'autorisation **Live response capabilities** : **Basic** donne les commandes en lecture seule, **Advanced** ajoute les commandes qui modifient l'appareil ou chargent des fichiers.
-- Charger un fichier dans la bibliothèque depuis la console exige l'autorisation **Manage security settings**.
+- Charger un fichier dans la bibliothèque depuis la console exige l'autorisation **Manage security settings** ; le charger depuis la page **Library management** ne l'exige pas.
 
 | Limite | Valeur |
 | --- | --- |
@@ -92,11 +93,11 @@ La réponse dynamique donne un shell distant sur un appareil pour l'analyse fore
 | Délai d'expiration d'une commande | 10 minutes (30 minutes pour `getfile`, `findfile` et `run`) |
 | Taille de fichier pour `getfile` | 3 Go |
 | Taille d'un fichier de la bibliothèque | 250 Mo |
-| Taille de fichier pour `putfile` | 300 Mo sous Windows |
+| Taille de fichier pour `putfile` | 300 Mo sous Windows, 10 Mo sur les autres plateformes |
 
 | Commandes de base (lecture) | Commandes avancées (modification) |
 | --- | --- |
-| `cd`, `dir`, `processes`, `services`, `connections`, `drivers`, `registry`, `scheduledtasks`, `persistence`, `startupfolders`, `fileinfo`, `findfile`, `getfile`, `jobs`, `fg`, `status` | `library`, `putfile`, `run`, `remediate`, `undo`, `analyze` (Windows) ; `scan`, `collect`, `isolate`, `release` (macOS ou Linux) |
+| `cd`, `dir`, `processes`, `services`, `connections`, `drivers`, `registry`, `scheduledtasks`, `persistence`, `startupfolders`, `fileinfo`, `findfile`, `getfile`, `jobs`, `fg`, `status` | `library`, `putfile`, `run`, `remediate`, `undo`, `analyze` (Windows) ; `scan`, `collect` (macOS ou Linux) ; `isolate`, `release` (macOS uniquement) |
 
 ```text
 getfile "C:\Users\ana\AppData\Local\Temp\invoice.js" &
@@ -117,7 +118,7 @@ processes -output json
 <!-- section: evidence-entities | objectives: 2.2.3 -->
 ## Enquêtes sur les preuves et les entités
 
-Dans un incident, l'onglet **Evidence and Response** liste les entités trouvées dans ses alertes (fichiers, processus, services, adresses IP, URL, e-mails), chacune avec un **verdict** (Malicious, Suspicious, Clean) et un **état de correction**. Les actions de correction en attente d'approbation (**Pending approval**) s'approuvent ou se rejettent là ou dans l'**Action center**. L'onglet **Assets** regroupe les appareils, les utilisateurs, les boîtes aux lettres, les applications et les ressources cloud.
+Dans un incident, l'onglet **Evidence and Response** liste les entités trouvées dans ses alertes (fichiers, processus, services, adresses IP, URL, e-mails), chacune avec un **verdict** (Malicious, Suspicious, Clean) et un **état de correction**. Les actions de correction en attente d'approbation (**Pending approval**) s'approuvent ou se rejettent là ou dans l'**Action center**. L'onglet **Assets** regroupe les appareils, les utilisateurs, les boîtes aux lettres et les applications.
 
 Chaque entité a sa propre page :
 
@@ -163,20 +164,23 @@ Actions qu'elle peut prendre :
 | Désactiver un utilisateur (Active Directory, et Microsoft Entra ID s'il est synchronisé) | Defender for Identity |
 | Révoquer la session d'un utilisateur, suspendre un utilisateur | Microsoft Entra ID |
 | Agir sur une application OAuth compromise | Defender for Cloud Apps |
+| Safeboot hardening, GPO hardening, proactive user containment (protection prédictive) | Defender for Endpoint |
 
-**Contain user** bloque pour ce compte les protocoles entrants liés à l'attaque (ouvertures de session réseau, RPC, SMB, RDP) sur les appareils intégrés, met fin à ses sessions distantes et ne désactive pas le compte ; il est levé automatiquement. **Contain IP** s'applique aux adresses d'appareils non découverts ou non intégrés.
+La suspension d'un utilisateur dans Okta et l'attachement d'une stratégie de refus à un utilisateur AWS, par les connecteurs Microsoft Sentinel, sont en préversion.
+
+**Contain user** bloque pour ce compte les protocoles entrants liés à l'attaque (ouvertures de session réseau, RPC, SMB, RDP) sur les appareils intégrés, met fin à ses sessions distantes et ne désactive pas le compte ; il est levé automatiquement dans les cinq jours, et l'annuler plus tôt (**Undo** dans l'Action center ou sur l'utilisateur) exige Global Administrator. **Contain IP** s'applique aux adresses d'appareils non découverts ou non intégrés.
 
 Démarche de correction :
 
 1. Ouvrez l'incident et lisez la carte de synthèse et le graphe de l'incident.
-2. Dans l'onglet **Activities**, filtrez **Performed by: AttackDisruption** et lisez la colonne **Policy status** (**Active**, **Inactive**, **Not applicable**, **No status**) pour voir ce qui est encore appliqué.
+2. Dans l'onglet **Activities** (le suivi des actions y est en préversion), filtrez **Performed by: AttackDisruption** et lisez la colonne **Policy status** (préversion : **Active**, **Inactive**, **Not applicable**, **No status**) pour voir ce qui est encore appliqué.
 3. Examinez et corrigez la cause racine (réinitialiser les informations d'identification, supprimer la persistance, nettoyer les appareils).
 4. Libérez les ressources : dans le graphe de l'incident, sélectionnez la ressource puis **Release from containment** (appareil) ou **Enable user** (compte), ou utilisez le volet de détails de l'action dans l'**Action center**.
 
 ```kusto
 DisruptionAndResponseEvents
 | where Timestamp > ago(30d)
-| project Timestamp, ActionType, AttackDisruptionCategory, DeviceName, AccountUpn, RemoteIP
+| project Timestamp, ActionType, DeviceName, SourceUserName, SourceIpAddress, PolicyName
 | order by Timestamp desc
 ```
 
@@ -185,7 +189,7 @@ DeviceEvents
 | where ActionType contains "ContainedUser"
 ```
 
-La première requête liste les actions automatiques dans toute l'organisation ; la seconde trouve les connexions ou accès bloqués parce qu'un utilisateur a été contenu (`ContainedDevice` pour un appareil contenu).
+La première requête (`DisruptionAndResponseEvents` est une table en préversion) liste les événements d'interruption d'attaque dans toute l'organisation (blocages et applications des stratégies d'interruption déclenchées, et actions automatiques effectuées) ; la seconde trouve les connexions ou accès bloqués parce qu'un utilisateur a été contenu (`ContainedDevice` pour un appareil contenu).
 
 > **Piège d'examen.** Libérer la ressource est la dernière étape, pas la première : libérer avant la fin de l'enquête permet à l'attaquant de reprendre. Et les ressources qui ne doivent jamais être contenues automatiquement (un serveur critique, un compte de service) sont **exclues** des actions de réponse automatisées à l'avance, pas libérées après chaque incident.
 
@@ -197,4 +201,4 @@ La première requête liste les actions automatiques dans toute l'organisation ;
 - Package d'investigation = collecte forensique fixe ; réponse dynamique = shell interactif, scripts de la bibliothèque, autorisation Basic ou Advanced.
 - Réponse dynamique : 1 session par appareil, expiration après 30 minutes d'inactivité, `getfile` jusqu'à 3 Go.
 - Stop and quarantine agit là où le fichier a été vu (1 000 appareils) ; un indicateur bloque partout et pour l'avenir.
-- Incidents d'interruption d'attaque : étiquette, bannière, carte de synthèse ; vérifier l'onglet Activities, corriger, puis libérer depuis le graphe de l'incident ou l'Action center.
+- Incidents d'interruption d'attaque : étiquette, bannière, carte de synthèse ; vérifier l'onglet Activities (préversion), corriger, puis libérer depuis le graphe de l'incident ou l'Action center.

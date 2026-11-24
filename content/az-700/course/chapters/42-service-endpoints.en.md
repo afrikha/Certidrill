@@ -20,7 +20,7 @@ Main services that support service endpoints: Azure Storage (`Microsoft.Storage`
 | Scope of access | The whole service; filter storage accounts with a service endpoint policy | One subresource of one resource |
 | DNS changes | None | `privatelink` zone required |
 | Cost | Free | Charged per hour and per GB |
-| Region | Any region (Azure SQL: same region only) | Resource in any region |
+| Region | Azure SQL: same region only. Storage: `Microsoft.Storage` for accounts in the virtual network's region, `Microsoft.Storage.Global` for any region (only one of the two per subnet) | Resource in any region |
 
 Microsoft recommends private endpoints for private access to PaaS services. Choose a service endpoint when the clients are all in Azure subnets, the requirement is only to "allow traffic from subnet X and block the internet", and cost or simplicity matters.
 
@@ -131,9 +131,9 @@ Other services use the same model under different names: Azure SQL has **virtual
 
 Rules to remember:
 
-- Adding a subnet to a resource requires the permission `Microsoft.Network/virtualNetworks/subnets/joinViaServiceEndpoint/action` on that subnet (included in Network Contributor and Contributor).
+- Adding a subnet to a resource requires the permission `Microsoft.Network/virtualNetworks/subnets/joinViaServiceEndpoint/action` on that subnet (included in Network Contributor and Contributor; for a storage account, Learn also names Storage Account Contributor). A role scoped only to the resource grants nothing on the subnet.
 - The virtual network and the resource can be in different subscriptions of the same Microsoft Entra tenant; Azure Storage and Azure Key Vault also accept subnets from another tenant.
-- Each service limits the number of virtual network rules: 200 for a storage account or a key vault, 128 for Azure SQL, 64 for Azure Cosmos DB.
+- Each service limits the number of virtual network rules: 400 for a storage account (and 400 IP network rules), 200 for a key vault, 128 for Azure SQL, 64 for Azure Cosmos DB.
 - A virtual network rule and an IP rule can coexist. On-premises access needs the IP rule with the public NAT addresses, since service endpoints don't apply to on-premises traffic.
 - Requests from a network that isn't allowed get HTTP 403 (or 404).
 - NSGs on the subnet still filter outbound traffic: the default **AllowInternetOutBound** rule lets service traffic leave. To deny the internet but allow storage, add an outbound allow rule to the `Storage` service tag with a higher priority than a deny rule to `Internet`.

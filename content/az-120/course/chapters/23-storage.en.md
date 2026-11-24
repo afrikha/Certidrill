@@ -18,7 +18,7 @@ Only four storage types are certified for SAP HANA `/hana/data` and `/hana/log`:
 | Type | Key facts |
 | --- | --- |
 | Premium SSD | Performance fixed by size tier (P10, P15...); bursting on disks up to 512 GiB; host caching; Write Accelerator on M family |
-| Premium SSD v2 | Size, IOPS and throughput set independently; 3,000 IOPS and 125 MB/s included per disk; no host caching, no bursting, not an OS disk; zonal VMs in most regions; performance changes four times per 24 hours |
+| Premium SSD v2 | Size, IOPS and throughput set independently; 3,000 IOPS and 125 MB/s included per disk; no host caching, no bursting, not an OS disk; zonal VMs in most regions (availability sets only in a few regions without availability zones, after feature registration); performance changes four times per 24 hours |
 | Ultra Disk | Lowest latency; data disks only, created empty; no caching; single VM or availability zones, **not availability sets**; IOPS and throughput adjustable without restart |
 | Azure NetApp Files | NFS (and SMB) volumes; under 1 ms; service levels; snapshots; cross-zone and cross-region replication |
 | Azure Files (SSD) | NFS v4.1 or SMB shares; LRS or ZRS; for shared SAP file systems, never for database files |
@@ -68,8 +68,8 @@ sudo mkfs.xfs /dev/vg_hana_data_HN1/hana_data
 | --- | --- | --- |
 | Azure Backup for SAP HANA | HANA databases, streamed through Backint | Backint certified; minimum RPO 15 minutes; requires running the pre-registration script on the HANA VM |
 | Azure Backup HANA instance snapshots | HANA data disks, HANA-consistent | Instant backup and restore; snapshots stay on Standard HDD storage, not in the vault |
-| Azure VM backup | Whole VM (application servers, central services) | Doesn't back up Write Accelerator OS disks or Ultra Disks |
-| Managed disk incremental snapshots | Individual disks | Stored on Standard HDD, ZRS where available; up to 500 per disk; Premium SSD v2 and Ultra Disk snapshots usable only after the background copy completes |
+| Azure VM backup | Whole VM (application servers, central services) | Backs up Write Accelerator data disks (no snapshot of a Write Accelerator OS disk); Ultra Disk and Premium SSD v2 need the Enhanced policy; shared disks aren't supported |
+| Managed disk incremental snapshots | Individual disks | Stored on Standard HDD, ZRS where available; up to 500 per disk; Premium SSD v2 and Ultra Disk snapshots usable only after the background copy completes, unless instant access is enabled when the snapshot is created; at most three in-progress snapshots per disk |
 | Azure NetApp Files snapshots | Volumes | Space-efficient; application-consistent for HANA with **AzAcSnap** (or SnapCenter) |
 
 Application-consistent HANA snapshot on Azure NetApp Files:
@@ -152,6 +152,7 @@ Order of operations: stop the database using the disk; for a volume striped over
 | Azure Files and Azure NetApp Files | Encrypted at rest; customer-managed keys supported | Encryption in transit: SMB 3 encryption, or TLS for NFS through the AZNFS mount helper |
 
 - **ADE retires on September 15, 2028**: after that date, ADE-encrypted disks fail to unlock at reboot. Migrate to **encryption at host**, which is Microsoft's recommendation for new VMs.
+- Migration from ADE to encryption at host isn't in place: it needs new disks and new VMs, and ADE can't be disabled on a Linux OS disk.
 - ADE uses VM CPU and doesn't work with custom Linux images; SSE and encryption at host have neither limit.
 
 > **Exam tip.** "Encrypt the temporary disk and the cache of an SAP VM without CPU overhead" points to encryption at host, not ADE.
@@ -179,7 +180,7 @@ Design rules:
 
 - **NFS v4.1 is mandatory** for `/hana/data` and `/hana/log`; v3 is allowed only for shared and backup volumes.
 - Same region and same or peered virtual network; delegated subnet (`/25` recommended).
-- Latency from the database VM must stay **below 1 ms**: place volumes in the **same availability zone** as the VM, or use the **application volume group for SAP HANA**, which places data and log volumes on different storage controllers.
+- Latency from the database VM must stay **below 1 ms**: place volumes in the **same availability zone** as the VM (enough in most regions), or use the **application volume group for SAP HANA**, which places data and log volumes on different storage controllers. With a proximity placement group, the application volume group needs a Microsoft request to pin the availability set to hardware, which limits later VM size and family changes: keep that method for systems that need the lowest latency.
 - One NFS session writes 1.2 to 1.4 GB/s; `nconnect` adds sessions.
 - Volumes resize online, without unmounting or stopping HANA.
 - HANA scale-out with **standby nodes** requires Azure NetApp Files.
@@ -206,7 +207,7 @@ Azure Files serves the **shared SAP file systems**, never database files.
 NFS rules for SAP:
 
 - Choose **ZRS** when the VMs are spread across zones: data is replicated synchronously across three zones, and NFS clients move to a healthy zone without remounting.
-- Select **No root squash**, use a **private endpoint**, and either deselect "Require secure transfer for REST API operations" (otherwise the mount times out) or use encryption in transit with the AZNFS mount helper (`fstype aznfs`).
+- Select **No root squash**, use a **private endpoint**, and either use encryption in transit with the AZNFS mount helper (`fstype aznfs`) or, to mount without TLS, disable **Require Encryption in Transit for NFS** on the storage account. That setting is enabled by default on accounts created in the portal; while it's not selected, **Secure transfer required** controls NFS, and a non-TLS mount times out if it's on.
 - One `sapmnt` share per SAP system, no other use for `sapmnt` and `saptrans`, at most about five SAP systems per storage account, production and non-production in different accounts.
 - `/usr/sap/<SID>/J<nr>` of SAP Java systems isn't supported on NFS Azure Files.
 - Azure Files has no automatic cross-region replication.
@@ -224,7 +225,7 @@ SMB rules for SAP (Windows): run the Azure Files script that joins the storage a
 | HANA scale-out with standby node | Azure NetApp Files |
 | File share for a Windows ASCS/SCS cluster | SMB Azure Files (or Azure NetApp Files SMB) |
 
-> **Exam trap.** Azure Files ZRS is synchronous across zones, but it doesn't replicate to another region: cross-region disaster recovery of `sapmnt` needs another mechanism.
+> **Exam trap.** Azure Files ZRS is synchronous across zones, but it doesn't replicate to another region: cross-region disaster recovery of `sapmnt` needs another mechanism. Learn lists custom replication (such as rsync) for NFS on Azure Files, and cross-region replication for Azure NetApp Files.
 
 <!-- section: key-points -->
 ## Key points

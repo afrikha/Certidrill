@@ -72,16 +72,18 @@ Azure Pipelines caching facts: caches are scoped to the pipeline and branch, imm
 | Number of agents in self-hosted pools, Maximum agents in Managed DevOps Pools | Capacity per pool, still capped by the self-hosted parallel jobs |
 | `maxParallel` on a matrix, `max-parallel` in GitHub | Leave capacity for other pipelines |
 | Exclusive lock check, `lockBehavior: sequential` or `runLatest` | Serialize deployments to a shared environment |
-| GitHub `concurrency` group | One run at a time per group; `cancel-in-progress: true` cancels the older run |
+| GitHub `concurrency` group | One running and one pending run per group: a new run cancels the pending one; `cancel-in-progress: true` also cancels the running one |
 | `batch: true` on CI | Group pushes during a run into one run |
 
-Parallel jobs can't be dedicated to a project or a pool, and runs waiting for approval or a check don't consume one. GitHub-hosted runners have concurrency limits per plan: 20 jobs on Free, 40 on Pro, 60 on Team and 500 on Enterprise for standard runners, with a macOS limit of 5 (50 on Enterprise).
+Parallel jobs can't be dedicated to a project or a pool, and runs waiting for approval or a check don't consume one, nor do server jobs and releases that deploy to a deployment group. GitHub-hosted runners have concurrency limits per plan: 20 jobs on Free, 40 on Pro, 60 on Team and 500 on Enterprise for standard runners, with a macOS limit of 5 (50 on Enterprise).
 
 ```yaml
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: false      # queue deployments instead of cancelling them
+  cancel-in-progress: false      # don't cancel the deployment in progress
 ```
+
+Without a `queue` setting, a group keeps one pending run, and a newer run cancels it. `queue: max` keeps up to 100 pending runs, processed in order, and can't be combined with `cancel-in-progress: true`.
 
 > **Exam tip.** Pipelines queue for a long time while agents are idle on a self-hosted pool? The limit is the number of self-hosted parallel jobs, not the agents: buy more parallel jobs.
 
@@ -97,7 +99,7 @@ concurrency:
 | Days to keep pull request runs | Same, for PR runs |
 | Number of recent runs to retain per pipeline | Always kept: for Azure Repos, per pipeline, default branch and each protected branch |
 
-A run is deleted only when it is older than the configured days, isn't among the recent runs to keep, isn't retained indefinitely and isn't retained by a release. Deleting it removes logs, artifacts, symbols, test results and metadata. To keep a production run longer, add a **retention lease** (Leases REST API from a script, with `$(System.DefinitionId)` and `$(Build.BuildId)`) or retain it from the run's menu. Policies run once a day.
+A run is deleted only when it is older than the configured days, isn't among the recent runs to keep, isn't retained indefinitely and isn't retained by a release. The recent-runs rule keeps only succeeded and partially succeeded runs. Deleting a run removes logs, artifacts, symbols, test results and metadata; test run retention is a separate setting (**Project settings > Test > Retention**). To keep a production run longer, add a **retention lease** (Leases REST API from a script, with `$(System.DefinitionId)` and `$(Build.BuildId)`) or retain it from the run's menu. Policies run once a day.
 
 **Packages.** Packages in Azure Artifacts aren't governed by run retention. A Feed Owner enables **package retention** on the feed:
 
@@ -115,7 +117,7 @@ A version is deleted only when both conditions are met. **Packages promoted to a
 <!-- section: classic-to-yaml | objectives: 3.6.5 -->
 ## Migrating a classic pipeline to YAML
 
-**Classic build pipelines** can be exported: open the pipeline definition (not a run), select the three-dot menu, then **Export to YAML**. Then create a YAML pipeline, paste the file, fix what didn't convert and run it. **Classic release pipelines** have no YAML export: rewrite them by hand.
+**Classic build pipelines** can be exported: open the pipeline definition (not a run), select the three-dot menu, then **Export to YAML**. Then create a YAML pipeline, paste the file, fix what didn't convert and run it. **Classic release pipelines** have no YAML export: export each task individually and rebuild the stages as deployment jobs.
 
 | Classic element | YAML equivalent |
 | --- | --- |

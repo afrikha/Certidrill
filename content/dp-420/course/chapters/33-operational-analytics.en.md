@@ -61,7 +61,7 @@ az cosmosdb sql role definition create -a cosmos-litware -g rg-litware --body '{
 }'
 ```
 
-An account with public network access disabled behind a private endpoint can be mirrored: add the capability `EnableFabricNetworkAclBypass`, authorize the Fabric workspace with `--network-acl-bypass-resource-ids`, create a virtual network data gateway and an OAuth 2.0 connection, then create the mirrored database with the Fabric REST API. The workspace must be in the account's region. Ongoing replication travels over the Microsoft network, not through the private endpoint.
+An account with public network access disabled behind a private endpoint can be mirrored: add the capability `EnableFabricNetworkAclBypass`, authorize the Fabric workspace with `--network-acl-bypass-resource-ids`, create a virtual network data gateway and an OAuth 2.0 connection, then create the mirrored database with the Fabric REST API. The workspace must be in the account's region, the `Microsoft.PowerPlatform` resource provider must be registered on the subscription (the gateway uses it to link into the virtual network), and the gateway subnet must be a dedicated `/27` or larger subnet delegated to `Microsoft.PowerPlatform/vnetaccesslinks`. Ongoing replication travels over the Microsoft network, not through the private endpoint.
 
 Cost: replication compute is free, mirror storage in OneLake is free up to a limit tied to the capacity size, queries consume Fabric capacity, and a capacity in another region than the account adds egress cost and latency.
 
@@ -80,9 +80,9 @@ Cost: replication compute is free, mirror storage in OneLake is free up to a lim
 | Failed | Fatal error, intervention required |
 | Paused | Database level only: the Fabric capacity was paused and resumed |
 
-The table list shows **Rows replicated** (cumulative inserts, updates and deletes applied) and **Last completed** (last refresh from the source). Status is also available through the mirroring REST API.
+The table list shows **Rows replicated** (cumulative inserts, updates and deletes applied) and **Last completed** (last refresh from the source). Status is also available through the Fabric mirroring REST API or SDK.
 
-For history and alerting, enable **workspace monitoring**: execution logs land in the `MirroredDatabaseTableExecution` table of the monitoring KQL database, with `OperationName` (`AddTable`, `Snapshotting`, `Replicating`, `StartReseeding`, `FailTable`...), `SourceTableName`, `ProcessedRows`, `ProcessedBytes`, `ReplicatorBatchLatency` (seconds), `ErrorType` (`UserError` or `SystemError`) and `ErrorMessage`.
+For history and alerting, enable **workspace monitoring**: the mirrored database operation logs (preview) land in the `MirroredDatabaseTableExecution` table of the monitoring KQL database, with `OperationName` (`AddTable`, `Snapshotting`, `Replicating`, `StartReseeding`, `FailTable`...), `SourceTableName`, `ProcessedRows`, `ProcessedBytes`, `ReplicatorBatchLatency` (seconds), `ErrorType` (`UserError` or `SystemError`) and `ErrorMessage`.
 
 ```kusto
 MirroredDatabaseTableExecution
@@ -109,7 +109,7 @@ Management actions:
 | Container deleted and recreated with the same name | The table holds only the new container's data |
 | Source database deleted | Replication fails; OneLake data stays until you delete the mirror |
 
-> **Exam tip.** To confirm that the mirror is current, compare **Last completed** and **Rows replicated** with the live source (read-only **Source database** view), and look at `ReplicatorBatchLatency` in the workspace monitoring logs.
+> **Exam tip.** To confirm that the mirror is current, compare **Last completed** and **Rows replicated** with the live source (read-only **Source database** view), and look at `ReplicatorBatchLatency` in the workspace monitoring logs (preview).
 
 <!-- section: query-tsql | objectives: 3.3.3 -->
 ## Query mirrored JSON with T-SQL
@@ -252,6 +252,6 @@ Other settings: bulk writes are on by default (`spark.cosmos.write.bulk.enabled`
 - Cosmos DB in Fabric: same engine, autoscale only, billed in CUs, Microsoft Entra ID only, gateway mode, single region, always mirrored to OneLake.
 - Azure Cosmos DB: multi-region writes, serverless or manual throughput, private endpoints, customer-managed keys; mirror it for analytics.
 - Mirroring needs API for NoSQL, continuous backup and no multi-region writes; authentication is a read-write key or Entra with `readMetadata` + `readAnalytics`; replication consumes no RU.
-- Monitor with the replication statuses and `MirroredDatabaseTableExecution`. A restart reseeds everything.
+- Monitor with the replication statuses (portal or REST API) and, in preview, `MirroredDatabaseTableExecution`. A restart reseeds everything.
 - T-SQL on the read-only SQL analytics endpoint, nested JSON expanded with `OPENJSON`.
 - Spark reads the mirror through a Lakehouse shortcut; the `cosmos.oltp` connector writes results back (RUs, write strategy, throughput control).

@@ -35,7 +35,7 @@ Decision table:
 
 > **Exam trap.** Synchronous commit means zero data loss but adds latency to every commit; across regions use **asynchronous** commit and accept an RPO greater than zero. Automatic failover requires synchronous commit.
 
-> **Exam tip.** A geo-secondary used only for DR, with no read workload, can be designated a license-free **standby** replica in SQL Database, and a DR-only replica in a SQL Managed Instance failover group gets free vCores matching the primary. "Minimize cost" plus "secondary isn't used" points to that option.
+> **Exam tip.** A geo-secondary used only for DR, with no read workload, can be designated a license-free **standby** replica in SQL Database (provisioned vCore General Purpose or Business Critical single databases only), and a DR-only replica in a SQL Managed Instance failover group gets free vCores matching the primary (setting **Failover rights**, on the secondary instance). "Minimize cost" plus "secondary isn't used" points to that option.
 
 <!-- section: hybrid-hadr | objectives: 5.1.2 -->
 ## HA/DR for hybrid deployments
@@ -57,7 +57,9 @@ Managed Instance link facts that decide answers:
 - Only user databases are replicated: logins, SQL Server Agent jobs and other server-level objects must be recreated on the instance.
 - Authentication between the two sides is certificate-based; the link uses the instance's VNet-local endpoint, not a public or private endpoint.
 - An instance that uses the link can't be part of a failover group.
-- If the managed instance replica is designated for DR only, you pay no SQL Server license for its vCores (hybrid failover benefit).
+- TDE: export the database encryption key of SQL Server to Azure Key Vault and configure BYOK TDE on the instance before creating the link. A managed instance database encrypted with a service-managed TDE key can't be linked to SQL Server.
+- Several databases in one link (multiple-database link mode) need SQL Server 2022 CU28 or SQL Server 2025 CU11, Enterprise or Developer edition, with the mode enabled on every SQL Server replica.
+- If the managed instance replica is designated for DR only, you pay no SQL Server license for its vCores (hybrid failover benefit, **Hybrid failover rights**).
 
 > **Exam trap.** An availability group that spans on-premises and Azure as one Windows cluster needs the domain and the cluster extended to Azure. A **distributed** availability group links two separate availability groups on two clusters, which is the usual design between datacenters or regions.
 
@@ -70,7 +72,7 @@ Managed Instance link facts that decide answers:
 | --- | --- | --- |
 | Basic, Standard, General Purpose | Remote storage: stateless compute, data and log files on remote Azure storage | On failure a new compute node attaches the storage; failover takes longer, there's no readable replica |
 | Premium, Business Critical | Local storage: primary plus up to three secondary replicas on local SSD, like an availability group | Fast failover; one secondary serves read-only connections through read scale-out at no extra charge |
-| Hyperscale | Distributed: compute replicas, page servers, log service, storage | Optional high availability replicas are the failover targets; at least one is required for zone redundancy |
+| Hyperscale | Distributed: compute replicas, page servers, log service, storage | Optional high availability replicas are the failover targets; zone redundancy needs at least one, plus zone-redundant or geo-zone-redundant backup storage, and is set at creation only (to change it later, use a database copy, a point-in-time restore or a geo-replica) |
 
 Zone redundancy is available for General Purpose, Business Critical, Hyperscale and Premium, not for Basic or Standard. Within a region, both locally redundant and zone-redundant availability have an RPO of zero.
 
@@ -80,7 +82,7 @@ Zone redundancy is available for General Purpose, Business Critical, Hyperscale 
 | --- | --- | --- |
 | Offering | SQL Database | SQL Database and SQL Managed Instance |
 | Unit of failover | One database | A group of databases (SQL Database) or all user databases of the instance (SQL Managed Instance) |
-| Readable secondaries | Up to four, any region, including the primary's | One secondary server or instance, in another region |
+| Readable secondaries | Up to four, any region, including the primary's | One secondary server or instance, in another region (SQL Database: up to four secondary servers in preview) |
 | Connection string after failover | Changes to the new server | Unchanged: read-write and read-only listeners |
 | Microsoft-managed (automatic) failover option | No | Yes, but customer-managed is recommended |
 

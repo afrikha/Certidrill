@@ -34,7 +34,7 @@ for row in results:
 | `read_item(item, partition_key)` | **Lecture ponctuelle** : le moyen le moins cher d'obtenir un élément quand l'`id` et la clé de partition sont connus |
 | `query_items(query, parameters, partition_key)` | Requête limitée à une partition logique. Sans `partition_key`, le client synchrone exige `enable_cross_partition_query=True` (requête sur toutes les partitions, plus de RU et de latence) ; le client asynchrone (`azure.cosmos.aio`) exécute les requêtes interpartitions par défaut |
 | `parameters` | Liste de `{"name": "@x", "value": ...}` : ne construisez jamais le SQL par concaténation de chaînes |
-| En-têtes de réponse | `response.get_response_headers()["x-ms-request-charge"]` donne le coût en RU d'une opération ponctuelle |
+| En-têtes de réponse | `container.client_connection.last_response_headers["x-ms-request-charge"]` donne le coût en RU de la dernière opération |
 
 **Accès sans clé.** Les opérations sur les données avec Microsoft Entra ID utilisent les **rôles de plan de données propres à Cosmos DB**, pas des rôles Azure RBAC comme Contributor : **Cosmos DB Built-in Data Reader** et **Cosmos DB Built-in Data Contributor** (ID `00000000-0000-0000-0000-000000000002`). Ils s'attribuent avec l'interface CLI, PowerShell ou Bicep ; la page Contrôle d'accès (IAM) du portail ne les gère pas.
 
@@ -123,14 +123,9 @@ La valeur par défaut du compte s'applique à chaque conteneur. Avec le remplace
 <!-- section: vector-search | objectives: 2.1.3 -->
 ## Stocker des incorporations et exécuter une recherche de similarité vectorielle
 
-**1. Activer la recherche vectorielle sur le compte** (approuvée automatiquement, peut prendre 15 minutes ; non prise en charge avec le débit partagé) :
+La recherche vectorielle est activée par défaut : il n'y a aucune fonctionnalité à inscrire ni aucune capacité de compte à activer. Elle n'est pas prise en charge sur les comptes à débit partagé. Pour les conteneurs à clés de partition hiérarchiques, Learn demande de contacter l'équipe Azure Cosmos DB afin que le compte soit configuré pour ce schéma de partitionnement.
 
-```bash
-az cosmosdb update --resource-group rg-rag --name cosmos-rag \
-  --capabilities EnableNoSQLVectorSearch
-```
-
-**2. Créer le conteneur avec une stratégie d'incorporation vectorielle et un index vectoriel :**
+**1. Créer le conteneur avec une stratégie d'incorporation vectorielle et un index vectoriel :**
 
 ```text
 vector_embedding_policy = {
@@ -169,7 +164,7 @@ container = database.create_container(
 
 > **Piège d'examen.** La stratégie d'incorporation vectorielle et les index vectoriels ne peuvent pas être modifiés par un remplacement du conteneur : pour changer les dimensions, la fonction de distance ou le type d'index, supprimez la stratégie ou l'index vectoriel puis ajoutez-le de nouveau (ou créez un nouveau conteneur). La recherche vectorielle ne peut pas être désactivée sur un conteneur une fois activée. Un modèle d'incorporation à 3 072 dimensions ne peut pas utiliser `flat`.
 
-**3. Interroger avec `VectorDistance` :**
+**2. Interroger avec `VectorDistance` :**
 
 ```text
 query_vector = embed("How do I rotate the storage key?")   # same model as the stored vectors
@@ -284,5 +279,5 @@ for doc in changes:
 - Accès sans clé = `DefaultAzureCredential` plus un rôle de plan de données Cosmos DB (Built-in Data Reader / Data Contributor) attribué avec `az cosmosdb sql role assignment create`, pas le rôle Azure RBAC Contributor.
 - Excluez les chemins jamais interrogés pour réduire les RU d'écriture ; index composites pour les `ORDER BY` multipropriétés et les filtres égalité plus plage ; le chemin le plus précis l'emporte.
 - Session = lecture de ses propres écritures, niveau par défaut ; les lectures Strong et Bounded staleness coûtent deux fois plus de RU ; Strong est impossible avec plusieurs régions d'écriture.
-- Vecteurs : activez `EnableNoSQLVectorSearch`, déclarez la stratégie d'incorporation (path, dataType, dimensions, distanceFunction) et un index vectoriel (`flat` jusqu'à 505 dimensions, `quantizedFlat`, `diskANN` jusqu'à 4 096) ; interrogez avec `SELECT TOP N ... ORDER BY VectorDistance(...)`.
+- Vecteurs : activés par défaut, sans capacité de compte ; déclarez la stratégie d'incorporation (path, dataType, dimensions, distanceFunction) et un index vectoriel (`flat` jusqu'à 505 dimensions, `quantizedFlat`, `diskANN` jusqu'à 4 096) ; interrogez avec `SELECT TOP N ... ORDER BY VectorDistance(...)`.
 - Flux de modification : insertions et mises à jour, pas de suppressions en mode dernière version ; processeur = conteneur surveillé + conteneur de baux + instances + délégué, au moins une fois ; Python utilise le déclencheur Functions ou `query_items_change_feed`.

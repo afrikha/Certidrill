@@ -72,7 +72,7 @@ $job | Set-AzSqlElasticJob -IntervalType Day -IntervalCount 1 -StartTime (Get-Da
 | Scheduled jobs on SQL Server on Azure Virtual Machines | SQL Server Agent on the VM |
 | Control-plane tasks: scale a database, export a BACPAC, rotate a setting, start or stop resources | Azure Automation runbook (PowerShell with the Az modules) |
 | Event-driven or low-code workflow that calls SQL and other services | Azure Logic Apps or Azure Functions |
-| Orchestrate T-SQL tasks for SQL database in Microsoft Fabric | Fabric pipelines, monitored in the Monitoring hub |
+| Orchestrate T-SQL tasks for SQL database in Microsoft Fabric (no SQL Server Agent, no elastic jobs) | Scheduled Data Factory pipelines or Apache Airflow jobs |
 
 > **Exam trap.** SQL Server Agent doesn't exist in Azure SQL Database, and multiserver administration (MSX/TSX) isn't available on SQL Managed Instance. "Run the same script on all databases of three logical servers" = elastic jobs.
 

@@ -165,7 +165,7 @@ Les métriques d'index ajoutent une surcharge : activez-les pendant le dépannag
 
 Modifier la stratégie d'indexation n'affecte pas la disponibilité en lecture ni en écriture ; la transformation s'exécute en arrière-plan et sa progression se lit avec le SDK. Tant qu'un nouvel index composite n'est pas construit, le moteur continue d'utiliser les index de plage existants. Pour remplacer un index, ajoutez le nouveau, attendez la fin de la transformation, puis supprimez l'ancien.
 
-> **Conseil d'examen.** Le stockage raconte la même histoire : l'onglet Storage d'Insights compare la taille des données à celle de l'index. Un index proche de la taille des données révèle une stratégie d'indexation qui indexe des chemins qu'aucune requête n'utilise.
+> **Conseil d'examen.** Le stockage raconte la même histoire : l'onglet Storage d'Insights compare la taille des données à celle de l'index. Un index proche de la taille des données révèle une stratégie d'indexation qui indexe des chemins qu'aucune requête n'utilise. Les métriques Data Usage et Index Usage correspondantes sont `DataUsageV2` et `IndexUsageV2` ; les métriques d'origine `DataUsage` et `IndexUsage` sont dépréciées.
 
 <!-- section: latency | objectives: 2.3.4 -->
 ## Surveiller la latence de bout en bout par rapport aux objectifs de service
@@ -179,7 +179,7 @@ Le SLA d'Azure Cosmos DB couvre **moins de 10 ms pour les lectures et écritures
 | `Diagnostics.GetClientElapsedTime()` | Réponse du SDK | Temps complet vu par l'application, nouvelles tentatives comprises |
 | `BELatencyInMs` dans le `StoreResult` des diagnostics | Diagnostics du SDK | Temps du back-end pour un appel direct |
 
-L'ancienne métrique Server Side Latency est dépréciée. Les métriques de latence sont collectées sans configuration, se fractionnent par `DatabaseName`, `CollectionName`, `OperationType`, `Region` ou `PublicAPIType`, et restent consultables 30 jours dans la vue des métriques.
+L'ancienne métrique Server Side Latency est dépréciée. Les métriques de latence sont collectées sans configuration, se fractionnent par `DatabaseName`, `CollectionName`, `OperationType`, `Region` ou `PublicAPIType`, et sont stockées 93 jours (un même graphique de la vue des métriques affiche au plus 30 jours).
 
 Journalisez les diagnostics quand une requête dépasse votre objectif ou échoue :
 
@@ -228,6 +228,8 @@ Créez une règle depuis le compte (Supervision > Alertes) ou depuis Azure Monit
 | Disponibilité sous la cible | Service Availability | Minimum, granularité horaire |
 | Partition logique proche de 20 Go | Recherche dans les journaux sur `CDBPartitionKeyStatistics` | `SizeKb` au-dessus d'un seuil |
 | Clés du compte régénérées | Journal d'activité | Opération sur les clés du compte |
+
+L'exemple de Learn pour les 429 utilise le signal **Total Request Units** avec la même dimension `StatusCode` = 429, l'agrégation Total et Greater than 100 ; **Total Requests** ne prend en charge que l'agrégation Count.
 
 Paramètres à connaître : seuil **statique** (valeur fixe) ou seuil **dynamique** (apprentissage automatique sur l'historique de la métrique) ; type d'agrégation, granularité d'agrégation et fréquence d'évaluation ; les dimensions filtrent la métrique (code d'état, base de données, conteneur). Un **groupe d'actions** (nom unique dans le groupe de ressources, nom court utilisé dans les notifications) envoie des notifications par e-mail, SMS, push ou appel vocal, ou exécute une fonction Azure ou une autre action.
 
@@ -289,7 +291,7 @@ CDBPartitionKeyRUConsumption
 | Quelle partition logique approche 20 Go ? | `CDBPartitionKeyStatistics.SizeKb` |
 | Qui a modifié la stratégie d'indexation ? | `CDBControlPlaneRequests` |
 
-> **Conseil d'examen.** Les métriques sont gratuites, préagrégées et conservées 90 jours ; les journaux coûtent en ingestion et en stockage mais détaillent chaque requête. Choisissez les journaux quand la question exige une valeur de clé de partition, un texte de requête ou l'`ActivityId` d'une requête précise.
+> **Conseil d'examen.** Les métriques sont gratuites, préagrégées et stockées 93 jours ; les journaux coûtent en ingestion et en stockage mais détaillent chaque requête. Choisissez les journaux quand la question exige une valeur de clé de partition, un texte de requête ou l'`ActivityId` d'une requête précise.
 
 <!-- section: key-points -->
 ## Points clés

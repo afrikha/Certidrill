@@ -1,0 +1,430 @@
+chapter: 12-scale-performance
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp300-qz-12-01
+    objective: "1.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You plan to scale an Azure SQL Database database named **OrdersDb** from 4 to 8 vCores in the General Purpose service tier during business hours.
+
+        What happens to the application when the scaling operation completes?
+      fr: |
+        Vous prévoyez de faire passer une base de données Azure SQL Database nommée **OrdersDb** de 4 à 8 vCores au niveau de service General Purpose pendant les heures ouvrées.
+
+        Que se passe-t-il pour l'application quand l'opération de mise à l'échelle se termine ?
+    body:
+      options:
+        - { id: a, text: { en: "Open connections move to the new compute together with their transactions, so the application sees no interruption.", fr: "Les connexions ouvertes passent sur le nouveau calcul avec leurs transactions : l'application ne voit aucune interruption." } }
+        - { id: b, text: { en: "The database was offline for the whole operation and becomes available again, as after a restore of the database.", fr: "La base était hors connexion pendant toute l'opération et redevient disponible, comme après une restauration de la base." } }
+        - { id: c, text: { en: "Open connections are terminated and uncommitted transactions are rolled back, so the application must reconnect.", fr: "Les connexions ouvertes sont fermées et les transactions non validées sont restaurées : l'application doit se reconnecter." } }
+        - { id: d, text: { en: "The database was read-only during the operation, and write connections are accepted again automatically.", fr: "La base était en lecture seule pendant l'opération, et les connexions en écriture sont de nouveau acceptées automatiquement." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Scaling restarts the database engine process, on another machine if needed, as an online operation: the database stays usable while the new compute is prepared. When the switch happens, open connections are terminated and uncommitted transactions are rolled back, a short break that retry logic for transient errors absorbs.
+        fr: |
+          La mise à l'échelle redémarre le processus du moteur de base de données, sur une autre machine si nécessaire, en tant qu'opération en ligne : la base reste utilisable pendant la préparation du nouveau calcul. Au moment du basculement, les connexions ouvertes sont fermées et les transactions non validées sont restaurées, une courte coupure que la logique de nouvelle tentative pour les erreurs temporaires absorbe.
+      options:
+        a: { en: "Connections don't survive the switch to the new engine process: they're terminated and must be reopened.", fr: "Les connexions ne survivent pas au passage vers le nouveau processus du moteur : elles sont fermées et doivent être rouvertes." }
+        b: { en: "Scaling is online: the database stays available until the final switch, and no restore takes place.", fr: "La mise à l'échelle est en ligne : la base reste disponible jusqu'au basculement final, et aucune restauration n'a lieu." }
+        d: { en: "The database accepts reads and writes during the operation; it isn't switched to read-only.", fr: "La base accepte les lectures et les écritures pendant l'opération ; elle ne passe pas en lecture seule." }
+    references:
+      - title: Dynamically scale database resources with minimal downtime - Azure SQL Database & Azure SQL Managed Instance
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/scale-resources
+
+  # ------------------------------------------------------------------ 2
+  - id: dp300-qz-12-02
+    objective: "1.2.5"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have an Azure SQL database named **CatalogDb**. The table **dbo.Products** stores optional product attributes in 300 sparse columns.
+
+        You run `ALTER TABLE dbo.Products REBUILD WITH (DATA_COMPRESSION = PAGE);`, and the statement fails. What is the cause?
+      fr: |
+        Vous disposez d'une base de données Azure SQL nommée **CatalogDb**. La table **dbo.Products** stocke des attributs facultatifs de produits dans 300 colonnes éparses.
+
+        Vous exécutez `ALTER TABLE dbo.Products REBUILD WITH (DATA_COMPRESSION = PAGE);` et l'instruction échoue. Quelle en est la cause ?
+    body:
+      options:
+        - { id: a, text: { en: "PAGE compression requires ROW compression to be applied first.", fr: "La compression PAGE exige d'appliquer d'abord la compression ROW." } }
+        - { id: b, text: { en: "PAGE compression applies only to columnstore indexes.", fr: "La compression PAGE s'applique uniquement aux index columnstore." } }
+        - { id: c, text: { en: "A rebuild in Azure SQL Database requires ONLINE = ON.", fr: "Une reconstruction dans Azure SQL Database exige ONLINE = ON." } }
+        - { id: d, text: { en: "Data compression is incompatible with sparse columns.", fr: "La compression des données est incompatible avec les colonnes éparses." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Data compression is incompatible with sparse columns: a table that contains sparse columns can't be compressed, and sparse columns can't be added to a compressed table. To compress dbo.Products, the sparse columns would have to be redesigned first.
+        fr: |
+          La compression des données est incompatible avec les colonnes éparses : une table qui contient des colonnes éparses ne peut pas être compressée, et des colonnes éparses ne peuvent pas être ajoutées à une table compressée. Pour compresser dbo.Products, il faudrait d'abord revoir la conception des colonnes éparses.
+      options:
+        a: { en: "PAGE compression already includes row compression; no prior step is needed.", fr: "La compression PAGE inclut déjà la compression de ligne ; aucune étape préalable n'est nécessaire." }
+        b: { en: "PAGE compression is a rowstore option; columnstore indexes use COLUMNSTORE or COLUMNSTORE_ARCHIVE.", fr: "La compression PAGE est une option rowstore ; les index columnstore utilisent COLUMNSTORE ou COLUMNSTORE_ARCHIVE." }
+        c: { en: "ONLINE = ON is optional: an offline rebuild is allowed and would still fail because of the sparse columns.", fr: "ONLINE = ON est facultatif : une reconstruction hors connexion est autorisée et échouerait quand même à cause des colonnes éparses." }
+    references:
+      - title: Data compression
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/data-compression/data-compression
+
+  # ------------------------------------------------------------------ 3
+  - id: dp300-qz-12-03
+    objective: "1.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have an Azure SQL managed instance named **MI-ETL** in the General Purpose service tier (not Next-gen General Purpose) with 8 vCores. A nightly load writes heavily to a database named **StageDb**.
+
+        During the load, the log write throughput of the instance stays at the instance limit of 36 MiB/s, while CPU usage stays below 40 percent. MI-ETL must stay in the General Purpose service tier.
+
+        You need to increase the log write throughput available to the load. What should you do?
+      fr: |
+        Vous disposez d'une instance Azure SQL Managed Instance nommée **MI-ETL** au niveau de service General Purpose (pas Next-gen General Purpose), avec 8 vCores. Un chargement nocturne écrit massivement dans une base de données nommée **StageDb**.
+
+        Pendant le chargement, le débit d'écriture du journal de l'instance reste à la limite de l'instance, 36 Mio/s, tandis que l'utilisation du processeur reste sous 40 %. MI-ETL doit rester au niveau de service General Purpose.
+
+        Vous devez augmenter le débit d'écriture du journal disponible pour le chargement. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Grow the transaction log file of StageDb", fr: "Agrandir le fichier journal des transactions de StageDb" } }
+        - { id: b, text: { en: "Increase the number of vCores of MI-ETL to 16", fr: "Passer le nombre de vCores de MI-ETL à 16" } }
+        - { id: c, text: { en: "Add data files to tempdb on MI-ETL", fr: "Ajouter des fichiers de données à tempdb sur MI-ETL" } }
+        - { id: d, text: { en: "Move MI-ETL to memory optimized premium-series hardware", fr: "Passer MI-ETL sur du matériel série Premium à mémoire optimisée" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          In General Purpose, the log write throughput of a managed instance is capped per vCore: 4.5 MiB/s per vCore, so 36 MiB/s with 8 vCores. Doubling the vCores raises the instance cap to 72 MiB/s while staying in General Purpose; low CPU usage doesn't mean that vCores are useless here.
+        fr: |
+          En General Purpose, le débit d'écriture du journal d'une instance managée est plafonné par vCore : 4,5 Mio/s par vCore, soit 36 Mio/s avec 8 vCores. Doubler les vCores relève le plafond de l'instance à 72 Mio/s en restant en General Purpose ; une faible utilisation du processeur ne signifie pas que des vCores supplémentaires sont inutiles ici.
+      options:
+        a: { en: "The per-database log rate depends on the log file size, but the limit reached here is the instance limit, which a larger file doesn't raise.", fr: "Le débit du journal par base dépend de la taille du fichier journal, mais la limite atteinte ici est celle de l'instance, qu'un fichier plus grand ne relève pas." }
+        c: { en: "More tempdb files reduce allocation contention in tempdb; they don't change the log write throughput of StageDb.", fr: "Davantage de fichiers tempdb réduisent la contention d'allocation dans tempdb ; ils ne changent pas le débit d'écriture du journal de StageDb." }
+        d: { en: "Memory optimized hardware raises the memory per vCore, not the log write throughput cap, which depends on the vCores.", fr: "Le matériel à mémoire optimisée augmente la mémoire par vCore, pas le plafond de débit du journal, qui dépend des vCores." }
+    references:
+      - title: Overview of Azure SQL Managed Instance resource limits
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/resource-limits
+
+  # ------------------------------------------------------------------ 4
+  - id: dp300-qz-12-04
+    objective: "1.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a SQL Server 2022 database on an Azure virtual machine. The table **dbo.Events** is partitioned by month, and its indexes are aligned.
+
+        Every night, a job updates millions of rows of the current month's partition. At the same time, a correction job that updates rows of older partitions is blocked, because the locks of the nightly job escalate to a table lock.
+
+        You need to reduce the blocking. Lock escalation must stay enabled to limit lock memory. What should you run?
+      fr: |
+        Vous disposez d'une base de données SQL Server 2022 sur une machine virtuelle Azure. La table **dbo.Events** est partitionnée par mois, et ses index sont alignés.
+
+        Chaque nuit, un travail met à jour des millions de lignes de la partition du mois en cours. Au même moment, un travail de correction qui met à jour des lignes de partitions plus anciennes est bloqué, car les verrous du travail nocturne s'escaladent en un verrou de table.
+
+        Vous devez réduire le blocage. L'escalade de verrous doit rester activée pour limiter la mémoire des verrous. Que devez-vous exécuter ?
+    body:
+      options:
+        - { id: a, text: "`ALTER DATABASE CURRENT SET READ_COMMITTED_SNAPSHOT ON;`" }
+        - { id: b, text: "`ALTER TABLE dbo.Events SET (LOCK_ESCALATION = DISABLE);`" }
+        - { id: c, text: "`ALTER TABLE dbo.Events SET (LOCK_ESCALATION = TABLE);`" }
+        - { id: d, text: "`ALTER TABLE dbo.Events SET (LOCK_ESCALATION = AUTO);`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          With `LOCK_ESCALATION = AUTO`, the locks of a partitioned table escalate to the partition instead of the whole table. The nightly job then locks only the current month's partition, and the correction job can update the older partitions while escalation still limits lock memory.
+        fr: |
+          Avec `LOCK_ESCALATION = AUTO`, les verrous d'une table partitionnée s'escaladent vers la partition au lieu de la table entière. Le travail nocturne ne verrouille alors que la partition du mois en cours, et le travail de correction peut mettre à jour les partitions plus anciennes, tandis que l'escalade limite toujours la mémoire des verrous.
+      options:
+        a: { en: "Row versioning stops readers from being blocked by writers; two jobs that update rows still need exclusive locks.", fr: "La gestion des versions de ligne évite que les lecteurs soient bloqués par les écrivains ; deux travaux qui mettent à jour des lignes ont toujours besoin de verrous exclusifs." }
+        b: { en: "DISABLE prevents lock escalation in most cases, which breaks the requirement to keep escalation to limit lock memory.", fr: "DISABLE empêche l'escalade de verrous dans la plupart des cas, ce qui enfreint l'exigence de garder l'escalade pour limiter la mémoire des verrous." }
+        c: { en: "TABLE is the default setting, the one that escalates to a table lock and causes the blocking.", fr: "TABLE est le paramètre par défaut, celui qui escalade vers un verrou de table et provoque le blocage." }
+    references:
+      - title: Partitioned tables and indexes
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/partitions/partitioned-tables-and-indexes
+
+  # ------------------------------------------------------------------ 5
+  - id: dp300-qz-12-05
+    objective: "1.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso is deploying SQL Server 2022 on Azure virtual machines for a production OLTP workload of moderate size that needs 16 vCores. The data and log files will be stored on Premium SSD v2 disks.
+
+        Following Microsoft's performance checklist for SQL Server on Azure Virtual Machines, the solution must provide the best price-performance.
+
+        Which virtual machine series should you choose?
+      fr: |
+        Contoso déploie SQL Server 2022 sur des machines virtuelles Azure pour une charge de travail OLTP de production de taille moyenne qui a besoin de 16 vCores. Les fichiers de données et de journal seront stockés sur des disques SSD Premium v2.
+
+        Conformément à la liste de vérification des performances de Microsoft pour SQL Server sur les machines virtuelles Azure, la solution doit offrir le meilleur rapport prix-performances.
+
+        Quelle série de machines virtuelles devez-vous choisir ?
+    body:
+      options:
+        - { id: a, text: { en: "Mbdsv3-series, memory optimized", fr: "Série Mbdsv3, à mémoire optimisée" } }
+        - { id: b, text: { en: "Ebdsv5-series, memory optimized", fr: "Série Ebdsv5, à mémoire optimisée" } }
+        - { id: c, text: { en: "Dsv5-series, general purpose", fr: "Série Dsv5, usage général" } }
+        - { id: d, text: { en: "Fsv2-series, compute optimized", fr: "Série Fsv2, optimisée pour le calcul" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The checklist recommends memory optimized sizes with 4 or more vCores, and the Ebdsv5-series provides the best price-performance for most production SQL Server workloads. It's also the series that Microsoft pairs with Premium SSD v2 for the best price-performance of storage.
+        fr: |
+          La liste de vérification recommande des tailles à mémoire optimisée avec 4 vCores ou plus, et la série Ebdsv5 offre le meilleur rapport prix-performances pour la plupart des charges de travail SQL Server de production. C'est aussi la série que Microsoft associe aux disques SSD Premium v2 pour le meilleur rapport prix-performances du stockage.
+      options:
+        a: { en: "Mbdsv3 offers the best overall performance for mission-critical OLTP and data warehouses, at a higher cost than this moderate workload needs.", fr: "Mbdsv3 offre les meilleures performances globales pour l'OLTP critique et les entrepôts de données, à un coût plus élevé que ce qu'exige cette charge moyenne." }
+        c: { en: "General purpose sizes have less memory per vCore; the checklist recommends memory optimized sizes for SQL Server.", fr: "Les tailles à usage général ont moins de mémoire par vCore ; la liste de vérification recommande des tailles à mémoire optimisée pour SQL Server." }
+        d: { en: "Compute optimized sizes have the least memory per vCore, and SQL Server performance depends heavily on memory.", fr: "Les tailles optimisées pour le calcul ont le moins de mémoire par vCore, et les performances de SQL Server dépendent fortement de la mémoire." }
+    references:
+      - title: "Checklist: Best practices for SQL Server on Azure VMs"
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/performance-guidelines-best-practices-checklist
+
+  # ------------------------------------------------------------------ 6
+  - id: dp300-qz-12-06
+    objective: "1.2.1"
+    difficulty: 3
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        Adatum hosts 36 tenant databases in Azure SQL Database. You plan to move them into one elastic pool in the General Purpose service tier. Monitoring over the past month shows the following:
+
+        - On average, each database uses 0.5 vCores.
+        - A database at its peak uses 3.5 vCores.
+        - At most five databases peak at the same time.
+
+        Storage isn't a constraint. The pool sizes that you are considering are 16, 20, 40 and 128 vCores.
+
+        You need to choose the smallest pool size that meets the sizing guidance for elastic pools. Which pool size should you choose?
+      fr: |
+        Adatum héberge 36 bases de données de locataires dans Azure SQL Database. Vous prévoyez de les déplacer dans un pool élastique au niveau de service General Purpose. La supervision du mois écoulé montre ce qui suit :
+
+        - En moyenne, chaque base utilise 0,5 vCore.
+        - Une base à son pic utilise 3,5 vCores.
+        - Au plus cinq bases atteignent leur pic en même temps.
+
+        Le stockage n'est pas une contrainte. Les tailles de pool que vous envisagez sont 16, 20, 40 et 128 vCores.
+
+        Vous devez choisir la plus petite taille de pool qui respecte les recommandations de dimensionnement des pools élastiques. Quelle taille de pool devez-vous choisir ?
+    body:
+      options:
+        - { id: a, text: "16 vCores" }
+        - { id: b, text: "20 vCores" }
+        - { id: c, text: "40 vCores" }
+        - { id: d, text: "128 vCores" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The vCores of a pool are estimated as MAX(number of databases × average use, concurrently peaking databases × peak use) = MAX(36 × 0.5, 5 × 3.5) = MAX(18, 17.5) = 18 vCores. The smallest size above this estimate is 20 vCores; with storage not a constraint, no further adjustment is needed.
+        fr: |
+          Les vCores d'un pool s'estiment par MAX(nombre de bases × utilisation moyenne, bases en pic simultané × utilisation de pic) = MAX(36 × 0,5 ; 5 × 3,5) = MAX(18 ; 17,5) = 18 vCores. La plus petite taille au-dessus de cette estimation est 20 vCores ; comme le stockage n'est pas une contrainte, aucun autre ajustement n'est nécessaire.
+      options:
+        a: { en: "16 vCores is below both estimates: below the 18 vCores of the average use and the 17.5 vCores of the concurrent peaks.", fr: "16 vCores est sous les deux estimations : sous les 18 vCores de l'utilisation moyenne et les 17,5 vCores des pics simultanés." }
+        c: { en: "40 vCores adds the two estimates (18 + 17.5); the guidance takes the larger of the two, not their sum.", fr: "40 vCores additionne les deux estimations (18 + 17,5) ; la recommandation prend la plus grande des deux, pas leur somme." }
+        d: { en: "128 vCores assumes that all 36 databases peak at the same time (36 × 3.5), which removes the benefit of a pool.", fr: "128 vCores suppose que les 36 bases atteignent leur pic en même temps (36 × 3,5), ce qui supprime l'intérêt d'un pool." }
+    references:
+      - title: Elastic pools help you manage and scale multiple databases in Azure SQL Database
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/database/elastic-pool-overview
+
+  # ------------------------------------------------------------------ 7
+  - id: dp300-qz-12-07
+    objective: "1.2.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has an Azure SQL managed instance named **MI-BI** in the General Purpose service tier (not Next-gen General Purpose) with 8 vCores on standard-series hardware and 1 TB of reserved storage. MI-BI hosts 400 GB of data.
+
+        A nightly aggregation needs about 300 GB of tempdb space and fails because tempdb is full. The number of vCores of MI-BI can't change because of licensing.
+
+        You need to ensure that the aggregation completes. What should you do?
+      fr: |
+        Litware dispose d'une instance Azure SQL Managed Instance nommée **MI-BI** au niveau de service General Purpose (pas Next-gen General Purpose), avec 8 vCores sur du matériel série Standard et 1 To de stockage réservé. MI-BI héberge 400 Go de données.
+
+        Une agrégation nocturne a besoin d'environ 300 Go d'espace dans tempdb et échoue parce que tempdb est plein. Le nombre de vCores de MI-BI ne peut pas changer pour des raisons de licence.
+
+        Vous devez faire en sorte que l'agrégation se termine. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Increase the reserved storage of MI-BI to 2 TB and keep 8 vCores", fr: "Porter le stockage réservé de MI-BI à 2 To en gardant 8 vCores" } }
+        - { id: b, text: { en: "Upgrade MI-BI to Next-gen General Purpose and buy additional IOPS", fr: "Mettre à niveau MI-BI vers Next-gen General Purpose et acheter des IOPS supplémentaires" } }
+        - { id: c, text: { en: "Add tempdb data files until tempdb has 128 data files", fr: "Ajouter des fichiers de données tempdb jusqu'à 128 fichiers de données" } }
+        - { id: d, text: { en: "Change MI-BI to the Business Critical service tier and keep 8 vCores", fr: "Passer MI-BI au niveau de service Business Critical en gardant 8 vCores" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          In General Purpose, tempdb is limited to 24 GB per vCore, so 192 GB with 8 vCores, whatever the reserved storage. In Business Critical, tempdb can use the currently available instance storage, here about 600 GB of the 1 TB, without changing the number of vCores.
+        fr: |
+          En General Purpose, tempdb est limité à 24 Go par vCore, soit 192 Go avec 8 vCores, quel que soit le stockage réservé. En Business Critical, tempdb peut utiliser le stockage d'instance actuellement disponible, ici environ 600 Go sur 1 To, sans changer le nombre de vCores.
+      options:
+        a: { en: "The General Purpose tempdb limit depends on the vCores, so more reserved storage leaves it at 192 GB.", fr: "La limite tempdb de General Purpose dépend des vCores : davantage de stockage réservé la laisse à 192 Go." }
+        b: { en: "Next-gen General Purpose keeps the General Purpose tempdb limit of 24 GB per vCore; more IOPS don't add tempdb space.", fr: "Next-gen General Purpose conserve la limite tempdb de General Purpose, 24 Go par vCore ; davantage d'IOPS n'ajoutent pas d'espace à tempdb." }
+        c: { en: "128 files is the maximum number of tempdb files; more files spread the allocations but don't raise the size limit.", fr: "128 fichiers est le nombre maximal de fichiers tempdb ; davantage de fichiers répartissent les allocations mais ne relèvent pas la limite de taille." }
+    references:
+      - title: Overview of Azure SQL Managed Instance resource limits
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/resource-limits
+
+  # ------------------------------------------------------------------ 8
+  - id: dp300-qz-12-08
+    objective: "1.2.3"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Tailspin runs SQL Server 2022 on an Azure virtual machine named **SQLVM7**. A review of SQLVM7 finds the following problems.
+
+        You need to recommend a setting that addresses each problem, by following Microsoft's performance checklist for SQL Server on Azure Virtual Machines.
+
+        Which setting should you recommend for each problem? To answer, drag the appropriate settings to the correct problems. Each setting may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin exécute SQL Server 2022 sur une machine virtuelle Azure nommée **SQLVM7**. Un audit de SQLVM7 relève les problèmes suivants.
+
+        Vous devez recommander un paramètre qui traite chaque problème, en suivant la liste de vérification des performances de Microsoft pour SQL Server sur les machines virtuelles Azure.
+
+        Quel paramètre devez-vous recommander pour chaque problème ? Pour répondre, faites glisser les paramètres appropriés vers les problèmes correspondants. Chaque paramètre peut être utilisé une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: ifi, text: { en: "Instant file initialization", fr: "Initialisation instantanée des fichiers" } }
+        - { id: lpim, text: { en: "Lock pages in memory", fr: "Verrouiller les pages en mémoire" } }
+        - { id: maxmem, text: { en: "Max server memory", fr: "Mémoire maximale du serveur (max server memory)" } }
+        - { id: accnet, text: { en: "Accelerated Networking", fr: "Mise en réseau accélérée" } }
+        - { id: backup, text: { en: "Backup compression", fr: "Compression de la sauvegarde" } }
+        - { id: wa, text: Write Accelerator }
+      targets:
+        - { id: grow, text: { en: "Data file autogrowth and database restores are slow because the new space of the data files is filled with zeros.", fr: "La croissance automatique des fichiers de données et les restaurations de bases sont lentes, car le nouvel espace des fichiers de données est rempli de zéros." } }
+        - { id: paged, text: { en: "The SQL Server error log reports that Windows paged out a significant part of the SQL Server process memory.", fr: "Le journal des erreurs de SQL Server signale que Windows a déchargé sur disque une partie importante de la mémoire du processus SQL Server." } }
+        - { id: os, text: { en: "The Memory\\Available Bytes counter of the operating system stays close to zero because SQL Server uses almost all the memory.", fr: "Le compteur Memory\\Available Bytes du système d'exploitation reste proche de zéro, car SQL Server utilise presque toute la mémoire." } }
+        - { id: net, text: { en: "Network traffic between the application servers and SQLVM7 shows high latency and uses significant CPU on SQLVM7.", fr: "Le trafic réseau entre les serveurs d'applications et SQLVM7 présente une latence élevée et consomme beaucoup de processeur sur SQLVM7." } }
+    answer: { mapping: { grow: ifi, paged: lpim, os: maxmem, net: accnet } }
+    explanation:
+      correct:
+        en: |
+          Instant file initialization skips zeroing new data file space, which speeds up autogrowth and restores. Lock pages in memory stops Windows from paging out the buffer pool, while a max server memory limit leaves enough memory for the operating system, monitored with Memory\Available Bytes. Accelerated Networking lowers network latency and the CPU used for networking, and the checklist asks that it be enabled.
+        fr: |
+          L'initialisation instantanée des fichiers évite de remplir de zéros le nouvel espace des fichiers de données, ce qui accélère la croissance automatique et les restaurations. Verrouiller les pages en mémoire empêche Windows de décharger le pool de mémoires tampons, tandis qu'une limite de mémoire maximale du serveur laisse assez de mémoire au système d'exploitation, surveillée avec Memory\Available Bytes. La mise en réseau accélérée réduit la latence réseau et le processeur consommé par le réseau, et la liste de vérification demande de l'activer.
+      options:
+        backup: { en: "Backup compression shrinks backup files and backup IO; it doesn't fix data file growth, memory or network problems.", fr: "La compression de la sauvegarde réduit les fichiers et les E/S de sauvegarde ; elle ne règle ni la croissance des fichiers, ni la mémoire, ni le réseau." }
+        wa: { en: "Write Accelerator lowers the write latency of log disks on M-series virtual machines; it doesn't address these problems.", fr: "Write Accelerator réduit la latence d'écriture des disques de journal sur les machines virtuelles de série M ; il ne traite pas ces problèmes." }
+    references:
+      - title: "Checklist: Best practices for SQL Server on Azure VMs"
+        url: https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/windows/performance-guidelines-best-practices-checklist
+
+  # ------------------------------------------------------------------ 9
+  - id: dp300-qz-12-09
+    objective: "1.2.4"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        You have an Azure SQL database that contains a table named **dbo.Events**. The table and all its indexes are partitioned on the **EventDate** column (`date`) by using the following objects.
+
+        ```sql
+        CREATE PARTITION FUNCTION pfEventDate (date)
+            AS RANGE RIGHT FOR VALUES ('2026-01-01', '2026-02-01', '2026-03-01');
+
+        CREATE PARTITION SCHEME psEventDate
+            AS PARTITION pfEventDate ALL TO ([PRIMARY]);
+        ```
+
+        Today is April 20, 2026. dbo.Events contains rows from November 1, 2025, to today, and no partition maintenance has run since the table was created.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'une base de données Azure SQL qui contient une table nommée **dbo.Events**. La table et tous ses index sont partitionnés sur la colonne **EventDate** (`date`) à l'aide des objets suivants.
+
+        ```sql
+        CREATE PARTITION FUNCTION pfEventDate (date)
+            AS RANGE RIGHT FOR VALUES ('2026-01-01', '2026-02-01', '2026-03-01');
+
+        CREATE PARTITION SCHEME psEventDate
+            AS PARTITION pfEventDate ALL TO ([PRIMARY]);
+        ```
+
+        Nous sommes le 20 avril 2026. dbo.Events contient des lignes du 1er novembre 2025 à aujourd'hui, et aucune maintenance des partitions n'a été exécutée depuis la création de la table.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "`SELECT $PARTITION.pfEventDate('2026-02-15');` returns 3.", fr: "`SELECT $PARTITION.pfEventDate('2026-02-15');` renvoie 3." } }
+        - { id: s2, text: { en: "After `ALTER PARTITION SCHEME psEventDate NEXT USED [PRIMARY];`, running `ALTER PARTITION FUNCTION pfEventDate() SPLIT RANGE ('2026-04-01');` moves no rows and generates almost no log.", fr: "Après `ALTER PARTITION SCHEME psEventDate NEXT USED [PRIMARY];`, l'exécution de `ALTER PARTITION FUNCTION pfEventDate() SPLIT RANGE ('2026-04-01');` ne déplace aucune ligne et ne génère presque aucun journal." } }
+        - { id: s3, text: { en: "`TRUNCATE TABLE dbo.Events WITH (PARTITIONS (1));` removes only the rows dated before January 1, 2026.", fr: "`TRUNCATE TABLE dbo.Events WITH (PARTITIONS (1));` supprime uniquement les lignes datées d'avant le 1er janvier 2026." } }
+    answer: { values: { s1: true, s2: false, s3: true } }
+    explanation:
+      correct:
+        en: |
+          With RANGE RIGHT, each boundary starts a partition: partition 1 holds the dates before January 1, 2026, partition 2 January, partition 3 February, and partition 4 March onward, so February 15 is in partition 3 and partition 1 holds November and December 2025. Partition 4 already contains the April rows, so splitting it on April 1 moves them to the new partition, which is slow and heavily logged: split only empty partitions. TRUNCATE with a partition number deallocates the pages of that partition only, because the indexes are aligned.
+        fr: |
+          Avec RANGE RIGHT, chaque limite commence une partition : la partition 1 contient les dates antérieures au 1er janvier 2026, la partition 2 janvier, la partition 3 février et la partition 4 mars et la suite ; le 15 février est donc dans la partition 3, et la partition 1 contient novembre et décembre 2025. La partition 4 contient déjà les lignes d'avril : la fractionner au 1er avril les déplace vers la nouvelle partition, ce qui est lent et fortement journalisé ; ne fractionnez que des partitions vides. TRUNCATE avec un numéro de partition désalloue les pages de cette seule partition, car les index sont alignés.
+    references:
+      - title: ALTER PARTITION FUNCTION (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-partition-function-transact-sql
+      - title: TRUNCATE TABLE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/truncate-table-transact-sql
+
+  # ------------------------------------------------------------------ 10
+  - id: dp300-qz-12-10
+    objective: "1.2.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have an Azure SQL managed instance that hosts a database named **LogsDb**. The table **dbo.AppLog** is a heap with one nonclustered index.
+
+        Three months ago, you ran `ALTER TABLE dbo.AppLog REBUILD WITH (DATA_COMPRESSION = PAGE);`. Since then, the application has added millions of rows by using single-row INSERT statements. sys.partitions still reports PAGE compression for the heap, but the space used by dbo.AppLog has grown much faster than expected.
+
+        You need to apply PAGE compression to the rows added since the rebuild. What should you do?
+      fr: |
+        Vous disposez d'une instance Azure SQL Managed Instance qui héberge une base de données nommée **LogsDb**. La table **dbo.AppLog** est un segment de mémoire (heap) avec un index non cluster.
+
+        Il y a trois mois, vous avez exécuté `ALTER TABLE dbo.AppLog REBUILD WITH (DATA_COMPRESSION = PAGE);`. Depuis, l'application a ajouté des millions de lignes avec des instructions INSERT d'une seule ligne. sys.partitions indique toujours la compression PAGE pour le segment de mémoire, mais l'espace utilisé par dbo.AppLog a augmenté bien plus vite que prévu.
+
+        Vous devez appliquer la compression PAGE aux lignes ajoutées depuis la reconstruction. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Run `ALTER INDEX ALL ON dbo.AppLog REBUILD WITH (DATA_COMPRESSION = PAGE);`", fr: "Exécuter `ALTER INDEX ALL ON dbo.AppLog REBUILD WITH (DATA_COMPRESSION = PAGE);`" } }
+        - { id: b, text: { en: "Change the application to insert rows with `INSERT INTO ... WITH (TABLOCK)`", fr: "Modifier l'application pour insérer les lignes avec `INSERT INTO ... WITH (TABLOCK)`" } }
+        - { id: c, text: { en: "Run `ALTER TABLE dbo.AppLog REBUILD WITH (DATA_COMPRESSION = PAGE);` again", fr: "Exécuter de nouveau `ALTER TABLE dbo.AppLog REBUILD WITH (DATA_COMPRESSION = PAGE);`" } }
+        - { id: d, text: { en: "Apply ROW compression to the nonclustered index of dbo.AppLog", fr: "Appliquer la compression ROW à l'index non cluster de dbo.AppLog" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          On a heap configured for PAGE compression, new pages allocated by ordinary DML don't use PAGE compression until the heap is rebuilt. Running `ALTER TABLE ... REBUILD` with the PAGE option again compresses every page of the heap, including the pages added by the single-row inserts.
+        fr: |
+          Sur un segment de mémoire configuré pour la compression PAGE, les nouvelles pages allouées par des opérations DML ordinaires n'utilisent pas la compression PAGE tant que le segment n'est pas reconstruit. Exécuter de nouveau `ALTER TABLE ... REBUILD` avec l'option PAGE compresse toutes les pages du segment, y compris celles ajoutées par les insertions d'une seule ligne.
+      options:
+        a: { en: "ALTER INDEX ALL rebuilds the indexes of the table, here the nonclustered index; a heap isn't an index, so its pages stay as they are.", fr: "ALTER INDEX ALL reconstruit les index de la table, ici l'index non cluster ; un segment de mémoire n'est pas un index, ses pages restent donc inchangées." }
+        b: { en: "INSERT ... WITH (TABLOCK) page-compresses a heap only when it has no nonclustered index, and it wouldn't compress the rows already added.", fr: "INSERT ... WITH (TABLOCK) ne compresse un segment de mémoire au niveau page que s'il n'a aucun index non cluster, et ne compresserait pas les lignes déjà ajoutées." }
+        d: { en: "Nonclustered indexes have their own compression setting; compressing the index doesn't change the pages of the heap.", fr: "Les index non cluster ont leur propre paramètre de compression ; compresser l'index ne change pas les pages du segment de mémoire." }
+    references:
+      - title: Data compression
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/data-compression/data-compression

@@ -10,7 +10,7 @@ Content Understanding est un service Foundry : il faut une ressource Foundry. Un
 | Extraction de contenu | OCR, marques de sélection, codes-barres, formules, disposition (paragraphes, tableaux, figures, sections, ordre de lecture) ; transcription pour l'audio et la vidéo | `enableOcr`, `enableLayout`, `enableFormula`, `enableBarcode` (tous à `true` par défaut) |
 | Segmentation et classification | Découpe un fichier en sections logiques et classe chacune, éventuellement en la routant vers un autre analyseur | `contentCategories`, `enableSegment` |
 | Extraction de champs | Remplit les champs d'un schéma, à l'aide d'un modèle génératif | `fieldSchema`, `models` |
-| Confiance et ancrage | Un score de 0 à 1 et l'emplacement source (page, cadre englobant) de chaque valeur de champ | `estimateFieldSourceAndConfidence` |
+| Confiance et ancrage | Un score de 0 à 1 et l'emplacement source (page, cadre englobant) de chaque valeur de champ ; analyseurs de documents, toutes les méthodes de champ | `estimateFieldSourceAndConfidence`, ou `estimateSourceAndConfidence` sur un champ (prioritaire sur le paramètre de l'analyseur) |
 
 L'extraction de champs a trois méthodes :
 
@@ -26,11 +26,12 @@ Les analyseurs prédéfinis couvrent les cas courants :
 | --- | --- | --- |
 | `prebuilt-read` | Mots, paragraphes, formules, codes-barres (OCR) | Non |
 | `prebuilt-layout` | Le texte plus les tableaux, figures, sections, liens hypertexte | Non |
+| `prebuilt-digitalParse` | Le contenu des fichiers numériques, lu dans leur structure interne (pas pour les fichiers numérisés : utilisez `prebuilt-read` ou `prebuilt-layout`) | Non |
 | `prebuilt-invoice`, `prebuilt-receipt`, `prebuilt-contract`, `prebuilt-idDocument`... | Les champs d'un domaine sans écrire de schéma | Oui |
 | `prebuilt-documentSearch`, `prebuilt-imageSearch`, `prebuilt-audioSearch`, `prebuilt-videoSearch` | Du Markdown et des descriptions pour le RAG | Oui |
 | `prebuilt-document`, `prebuilt-image`, `prebuilt-audio`, `prebuilt-video` | Les analyseurs de base dont dérivent les analyseurs personnalisés | Via l'analyseur personnalisé |
 
-Le service a besoin d'un modèle de complétion de conversation et d'un modèle d'embedding déployés dans la ressource Foundry. Les analyseurs prédéfinis y font référence par des alias (`prebuilt-analyzer-completion`, `prebuilt-analyzer-completion-mini`, `prebuilt-analyzer-embedding`) associés à vos déploiements, soit comme valeurs par défaut de la ressource, soit à chaque requête avec `modelDeployments`. Vous payez les compteurs de Content Understanding plus les jetons des déploiements connectés, et les garde-fous de ces déploiements s'appliquent.
+Le service a besoin d'un modèle de complétion de conversation et d'un modèle d'embedding déployés dans la ressource Foundry. Les analyseurs prédéfinis y font référence par des alias (`prebuilt-analyzer-completion`, `prebuilt-analyzer-completion-mini` pour les analyseurs `prebuilt-*Search`, `prebuilt-analyzer-embedding`) associés à vos déploiements, soit comme valeurs par défaut de la ressource, soit à chaque requête avec `modelDeployments`. Vous payez les compteurs de Content Understanding plus les jetons des déploiements connectés, et les garde-fous de ces déploiements s'appliquent. Rôles intégrés : Cognitive Service Content Understanding Owner, Contributor et Reader.
 
 | Besoin | Choisissez |
 | --- | --- |
@@ -126,7 +127,7 @@ POST {endpoint}/contentunderstanding/analyzers/fabrikamClaimAnalyzer:analyze?api
 GET  the Operation-Location URL until the status is Succeeded
 ```
 
-L'analyse est asynchrone. Le résultat contient une liste `contents` dont les entrées portent `markdown` et `fields` ; avec l'estimation de la confiance, chaque champ porte aussi sa confiance et sa source. En Python, `ContentUnderstandingClient.begin_analyze(analyzer_id=..., inputs=[...])` renvoie un poller, et `poller.result()` renvoie ce résultat.
+L'analyse est asynchrone. Le résultat contient une liste `contents` dont les entrées portent `markdown` et `fields` ; avec l'estimation de la confiance, chaque champ porte aussi sa confiance et sa source. En Python, `ContentUnderstandingClient.begin_analyze(analyzer_id=..., inputs=[...])` renvoie un poller, et `poller.result()` renvoie ce résultat. L'analyse asynchrone d'un fichier PDF ou TIFF accepte jusqu'à 2 000 pages par défaut.
 
 Choisissez la sortie selon le consommateur :
 
@@ -152,9 +153,9 @@ Un analyseur de classification liste des catégories, chacune avec une descripti
 }
 ```
 
-Ajoutez une catégorie `other` : sans elle, chaque page est forcée dans l'une de vos catégories. Une catégorie sans `analyzerId` est classée mais pas analysée. La classification travaille par page (la plus petite unité), avec jusqu'à 200 catégories, et sans données d'entraînement.
+Ajoutez une catégorie `other` : sans elle, chaque page est forcée dans l'une de vos catégories. Une catégorie sans `analyzerId` est classée mais pas analysée. La classification travaille par page (la plus petite unité), avec jusqu'à 200 catégories, et sans données d'entraînement. Un analyseur vidéo n'accepte qu'une seule entrée `contentCategories` : pour la vidéo, les catégories servent à la segmentation.
 
-> **Piège d'examen.** `models` prend des noms de modèles ou des alias associés à des déploiements, pas votre nom de déploiement, et les champs `extract` exigent l'estimation de la source et de la confiance. Une question qui met `"method": "extract"` pour une valeur qui n'est pas écrite dans le document (un résumé, un niveau de risque) utilise la mauvaise méthode : prenez `generate` ou `classify`.
+> **Piège d'examen.** `models` prend des noms de modèles ou des alias associés à des déploiements, pas votre nom de déploiement, et les champs `extract` exigent l'estimation de la source et de la confiance. `extract` n'est pris en charge que par les analyseurs de documents : un analyseur audio, vidéo ou d'image utilise `generate` ou `classify`. La confiance et la source ne se limitent pas à `extract` : les analyseurs de documents les renvoient aussi pour les champs `generate` et `classify`. Une question qui met `"method": "extract"` pour une valeur qui n'est pas écrite dans le document (un résumé, un niveau de risque) utilise la mauvaise méthode : prenez `generate` ou `classify`.
 
 <!-- section: key-points -->
 ## Points clés
@@ -163,5 +164,5 @@ Ajoutez une catégorie `other` : sans elle, chaque page est forcée dans l'une d
 - `prebuilt-read` et `prebuilt-layout` ne demandent aucun modèle génératif ; l'extraction de champs et les analyseurs RAG utilisent des déploiements de complétion et d'embedding associés par des alias.
 - `prebuilt-documentSearch` fournit un Markdown prêt pour le RAG, avec descriptions de figures, résumé et blocs.
 - Analyseur personnalisé : `baseAnalyzerId`, `config`, `fieldSchema` avec `type`, `method` (`extract`, `generate`, `classify`) et `description`, `models`.
-- `estimateFieldSourceAndConfidence` ajoute la confiance et l'emplacement source de chaque valeur : la base de la révision humaine et des citations.
+- `estimateFieldSourceAndConfidence` ajoute la confiance et l'emplacement source de chaque valeur, pour toutes les méthodes de champ d'un analyseur de documents : la base de la révision humaine et des citations. `extract` est réservé aux analyseurs de documents.
 - L'analyse est asynchrone : interrogez `Operation-Location`, ou `begin_analyze` puis `poller.result()`.

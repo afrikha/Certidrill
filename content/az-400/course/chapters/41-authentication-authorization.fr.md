@@ -20,7 +20,7 @@ Toute identité de charge de travail dans Microsoft Entra ID est un principal de
 | Un outil hors d'Azure qui ne gère qu'un secret client ou un certificat | Principal de service avec certificat (durée de vie la plus courte possible, stocké dans Key Vault) |
 | Vous ne pouvez pas créer d'inscriptions d'application dans le locataire | Identité managée attribuée par l'utilisateur avec une information d'identification fédérée |
 
-La **fédération d'identité de charge de travail** permet à une inscription d'application ou à une identité managée **attribuée par l'utilisateur** de faire confiance aux jetons d'un fournisseur d'identité externe (GitHub Actions, Azure Pipelines, Kubernetes, Google Cloud, AWS) et de les échanger contre des jetons d'accès Microsoft Entra. Une information d'identification fédérée compare `issuer`, `subject` et `audience` en respectant la casse ; l'audience recommandée est `api://AzureADTokenExchange`. Une application ou une identité managée attribuée par l'utilisateur accepte au maximum **20** informations d'identification fédérées.
+La **fédération d'identité de charge de travail** permet à une inscription d'application ou à une identité managée **attribuée par l'utilisateur** d'approuver les jetons d'un fournisseur d'identité externe (GitHub Actions, Azure Pipelines, Kubernetes, Google Cloud, AWS) et de les échanger contre des jetons d'accès Microsoft Entra. Une information d'identification fédérée compare `issuer`, `subject` et `audience` en respectant la casse ; l'audience recommandée est `api://AzureADTokenExchange`. Une application ou une identité managée attribuée par l'utilisateur accepte au maximum **20** informations d'identification fédérées.
 
 > **Piège d'examen.** Une identité managée attribuée par le système ne peut pas porter d'information d'identification fédérée et ne fonctionne que pour du code exécuté sur sa propre ressource Azure. Un exécuteur hébergé par GitHub ou un agent hébergé par Microsoft n'est pas votre ressource Azure : il faut la fédération d'identité de charge de travail, pas « activer l'identité managée ».
 
@@ -97,7 +97,7 @@ Une **connexion de service** stocke la façon dont un pipeline s'authentifie aup
 | Inscription d'application ou identité managée (manuelle) | La création automatique a échoué ou l'identité est gérée par une autre équipe ; fédération ou secret |
 | Secret, identité managée affectée à l'agent, profil de publication | Rétrocompatibilité uniquement |
 
-Niveaux d'étendue : abonnement (éventuellement restreint à un groupe de ressources), groupe d'administration ou espace de travail Machine Learning. Une connexion de principal de service **automatique** existante utilisée par **un seul projet** se convertit en fédération d'identité de charge de travail avec **Convert** (retour arrière possible pendant sept jours) ; une connexion créée manuellement ou partagée entre projets ne peut pas l'être.
+Niveaux d'étendue : abonnement (éventuellement restreint à un groupe de ressources), groupe d'administration ou espace de travail Machine Learning ; une connexion manuelle avec un principal de service existant ne propose qu'abonnement ou groupe d'administration. Une connexion de principal de service **automatique** existante utilisée par **un seul projet** se convertit en fédération d'identité de charge de travail avec **Convert** (retour arrière possible pendant sept jours) ; une connexion créée manuellement ou partagée entre projets ne peut pas l'être. Les nouvelles connexions à fédération d'identité de charge de travail utilisent l'émetteur Microsoft Entra (`https://login.microsoftonline.com/<tenant-id>`) ; une connexion qui utilise encore l'émetteur Azure DevOps (`https://vstoken.dev.azure.com`) doit être convertie avec **Update** sur la connexion de service avant le retrait de cet émetteur le 1er juillet 2027.
 
 Sécuriser une connexion de service :
 
@@ -175,7 +175,7 @@ Dans Azure DevOps, le **niveau d'accès** décide quelles fonctionnalités un ut
 | Stakeholder (partie prenante) | Gratuit, nombre d'utilisateurs illimité : éléments de travail, tableaux (limités), tableaux de bord, pages wiki, consultation des builds et des mises en production, **approbation des mises en production qui lui sont attribuées** ; pas de code Azure Repos, ne peut pas créer de pipelines |
 | Basic | La plupart des fonctionnalités, dont Repos, Pipelines, Artifacts, Boards |
 | Basic + Test Plans | Basic plus Azure Test Plans |
-| Visual Studio subscriber | Détecté automatiquement à partir de l'abonnement (Professional donne Basic, Enterprise donne Basic + Test Plans) |
+| Visual Studio subscriber | Détecté automatiquement à partir de l'abonnement (Professional donne Basic, Test Professional et MSDN Platforms donnent Basic + Test Plans, Enterprise donne VS Enterprise) ; à attribuer plutôt que Basic pour ne rien facturer avant la première connexion |
 | GitHub Enterprise | Les utilisateurs disposant d'une licence GitHub Enterprise reçoivent Basic |
 
 ```bash

@@ -193,11 +193,13 @@ GROUP BY DATE(order_ts);
 
 `STREAM` donne une sémantique de streaming : la source doit être en ajout seul, sinon utilisez l'option `skipChangeCommits`. La vue matérialisée lit `orders_silver` sans `STREAM`, en mode batch.
 
+Les pipelines Unity Catalog qui utilisent le mode de publication par défaut acceptent aussi `CREATE VIEW` : la vue est créée dans le catalogue et le schéma cibles du pipeline, mais elle n'accepte aucune attente, ne peut pas contenir de requête de streaming et ne peut pas servir de source de streaming. Une vue `CREATE TEMPORARY VIEW` est privée au pipeline et n'est pas ajoutée au catalogue.
+
 Paramètres et comportement d'exécution :
 
 | Paramètre | Valeurs |
 | --- | --- |
-| Mode du pipeline | **Triggered** (par défaut) : traite les données disponibles, puis s'arrête. **Continuous** : traite les données à leur arrivée sur un cluster toujours actif |
+| Mode du pipeline | **Triggered** (par défaut) : traite les données disponibles, puis s'arrête. **Continuous** : traite les données à leur arrivée sur un cluster toujours actif. Pour les nouveaux pipelines continus, Databricks recommande un **job continu** avec le mode laissé sur Triggered (le mode Continuous intégré est déconseillé) ; un job qui exécute le pipeline l'emporte toujours sur ce paramètre |
 | Run as | Identité qui exécute le pipeline et possède ses tables ; un principal de service est recommandé |
 | Configuration / paramètres | Paramètres Spark et paramètres clé-valeur référencés par le code source |
 | Calcul classique (si non serverless) | Stratégie, mise à l'échelle automatique améliorée, nombre minimal et maximal de workers, Photon |
@@ -215,4 +217,4 @@ Un **Run now** manuel depuis l'éditeur réutilise le cluster et désactive les 
 - Transmettez des valeurs par les valeurs de tâche (`{{tasks.<task>.values.<key>}}`) et les paramètres de job ; `==` dans If/else compare des chaînes.
 - Gérez les erreurs de façon visible : relever l'exception, écritures idempotentes pour les nouvelles tentatives, délai d'expiration par tentative.
 - `dbutils.notebook.run` renvoie la chaîne de `dbutils.notebook.exit` et lève une exception en cas d'échec ; `%run` intègre le code en ligne.
-- Pipelines : tables de diffusion en continu pour les sources en ajout seul, vues matérialisées pour les jointures et les agrégats ; déclenché et serverless par défaut.
+- Pipelines : tables de diffusion en continu pour les sources en ajout seul, vues matérialisées pour les jointures et les agrégats ; déclenché et serverless par défaut ; traitement continu par un job continu.

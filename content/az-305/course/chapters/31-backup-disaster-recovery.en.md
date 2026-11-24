@@ -56,7 +56,8 @@ The workload decides the vault type:
 | Frequency | Once a day (RPO up to 24 hours) | Several times a day, as often as every 4 hours |
 | Instant restore snapshots | 1 to 5 days (2 by default) | 1 to 30 days (7 by default), zone-redundant |
 | Ultra Disk, Premium SSD v2 | Not supported | Supported |
-| Change of policy type | Can move to Enhanced | Can't return to Standard |
+| Trusted Launch virtual machines | Only through Azure CLI 2.73.0+, Azure PowerShell Az 14.0.0+ or REST API 2025-01-01+ | Supported |
+| Change of policy type | Can move to Enhanced (migration in preview) | Can't return to Standard |
 
 **Cross Region Restore** restores in the paired region at any time, for drills or during an outage. It requires a geo-redundant vault, and the secondary region can lag by up to 36 hours.
 
@@ -82,7 +83,7 @@ Vault storage is geo-redundant by default, or locally redundant or zone-redundan
 <!-- section: database-backup | objectives: 3.1.3 -->
 ## Backup and recovery for databases
 
-**Azure SQL Database and SQL Managed Instance** back themselves up: full backups every week, differential backups every 12 or 24 hours, transaction log backups about every 10 minutes.
+**Azure SQL Database and SQL Managed Instance** back themselves up: full backups every week, differential backups every 12 or 24 hours, transaction log backups every 5 to 10 minutes.
 
 | Capability | What it gives |
 | --- | --- |
@@ -119,14 +120,14 @@ Backups alone give a slow regional recovery. Compare the objectives:
 <!-- section: unstructured-backup | objectives: 3.1.4 -->
 ## Backup and recovery for unstructured data
 
-**Blobs.** Azure Backup offers two modes, both managed from a Backup vault:
+**Blobs.** Azure Backup offers two modes, both managed from a Backup vault. A new backup policy always includes vaulted backup (selected by default, it can't be turned off) and can add operational backup: an operational-only policy can no longer be created, but existing policies are unchanged.
 
 | | Operational backup | Vaulted backup |
 | --- | --- | --- |
 | Where the data is | Stays in the source storage account | Copied to the Backup vault |
 | How | Continuous: point-in-time restore, versioning, change feed and soft delete | Scheduled copies, retained according to the policy |
 | Restore | To any point in time, into the source account only | To the source account or to a different storage account |
-| Protects against | Accidental deletion or corruption of block blobs | Also the deletion of containers or of the storage account itself |
+| Protects against | Accidental deletion or corruption of block blobs; a delete lock that it applies to the account guards against accidental deletion of the account | Also the deletion of containers or of the storage account itself |
 | Limits | Retention up to 360 days; block blobs in standard general-purpose v2 accounts | Recovery points only at the scheduled times |
 
 **Azure Files.** Snapshot backup keeps share snapshots in the storage account: restoring a share or single files is fast, but the snapshots disappear with the account. Vaulted backup transfers the data to the Recovery Services vault: an off-site copy that survives the loss of the account and can be restored in another region. For on-premises file servers, synchronize them with Azure File Sync and back up the Azure file share, or use the MARS agent on the servers.

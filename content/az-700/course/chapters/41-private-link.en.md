@@ -36,7 +36,7 @@ A private endpoint has these properties:
 
 | Property | Meaning |
 | --- | --- |
-| Subnet | Where the network interface and its IP address go (dynamic by default, static optional) |
+| Subnet | Where the network interface and its IP address go (dynamic by default, static optional except for AKS, Application Gateway, HDInsight, Recovery Services vaults and third-party Private Link services) |
 | Private-link resource | Resource ID or, for a Private Link service, its alias |
 | Target subresource | The group ID from the table above |
 | Connection approval method | **Automatic** if you have the approval permission on the resource, otherwise **manual** with a request message |
@@ -98,7 +98,7 @@ The setting affects every private endpoint of the subnet; other resources of the
 
 - An NSG can allow only some sources to reach the endpoint, and an **application security group** can contain private endpoints.
 - Each private endpoint adds a **/32 system route** to its virtual network and peered networks. To send that traffic through a firewall, a user-defined route needs a prefix **equal to or more specific than the virtual network address space**, for example 10.1.0.0/16 for a /16 network. A 0.0.0.0/0 route doesn't override the /32. The firewall should apply SNAT so that return traffic follows the same path.
-- Effective routes and effective security rules aren't displayed for the endpoint's network interface, and NSG flow logs don't record inbound traffic to it.
+- Effective routes and effective security rules aren't displayed for the endpoint's network interface, and NSG flow logs don't record inbound traffic to it (NSG flow logs retire on September 30, 2027 and can no longer be created: virtual network flow logs replace them).
 
 **3. The service itself.** Disable public network access, or keep its firewall restricted, so that only the private path remains.
 
@@ -203,7 +203,7 @@ Routing is rarely the problem; **DNS** is. On-premises DNS servers can't query 1
 | Azure DNS Private Resolver (recommended) | Conditional forwarder to the IP address of the resolver's **inbound endpoint** | Resolver in a virtual network linked to the `privatelink` zones |
 | DNS forwarder (VM or Azure Firewall DNS proxy) | Conditional forwarder to the forwarder's IP address | Forwarder in a linked virtual network, forwarding to 168.63.129.16 |
 
-The conditional forwarder targets the **public** zone name: `blob.core.windows.net`, `database.windows.net`, `vaultcore.azure.net`. The CNAME chain then leads to the `privatelink` name, which Azure resolves with the private zone.
+The conditional forwarder targets the **public** zone name: `blob.core.windows.net`, `database.windows.net`, and both `vault.azure.net` and `vaultcore.azure.net` for Key Vault. The CNAME chain then leads to the `privatelink` name, which Azure resolves with the private zone.
 
 For a **Private Link service** of your own, there's no recommended `privatelink` zone: publish the name your clients use (for example `orders.fabrikam.internal`) as an A record pointing to the consumer's private endpoint IP, in a private DNS zone reached through the resolver or directly in the on-premises DNS.
 

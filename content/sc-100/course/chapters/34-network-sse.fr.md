@@ -22,7 +22,7 @@ Comment évaluer une conception proposée :
 | Faiblesse de la proposition | Correction |
 | --- | --- |
 | Machines virtuelles avec des adresses IP publiques pour l'administration | Azure Bastion ou accès juste-à-temps, sans adresse IP publique |
-| Spokes appairés directement entre eux | Faire passer le trafic entre spokes par le pare-feu du hub |
+| Spokes connectés directement entre eux par peering | Faire passer le trafic entre spokes par le pare-feu du hub |
 | PaaS joignable sur son point de terminaison public « avec une règle de pare-feu » | Point de terminaison privé plus accès au réseau public désactivé |
 | Point de terminaison de service utilisé pour empêcher l'exfiltration de données | Point de terminaison privé (les points de terminaison de service ne restreignent pas l'instance atteinte) |
 | Règle NSG pour n'autoriser la sortie que vers `*.contoso.com` | Règle d'application du Pare-feu Azure (les NSG ne filtrent pas les FQDN) |
@@ -42,7 +42,7 @@ Fonctionnalités à évaluer :
 | --- | --- |
 | Filtrage du contenu web | Autoriser ou bloquer par **catégorie web**, **FQDN** ou URL ; HTTP est comparé sur l'URL, HTTPS sur le SNI sauf si l'inspection TLS est activée |
 | Inspection TLS | Déchiffre le HTTPS pour une catégorisation plus fidèle et des règles sur les méthodes HTTP |
-| Filtrage par renseignement sur les menaces | Bloque les destinations malveillantes connues |
+| Filtrage par renseignement sur les menaces | Bloque les destinations malveillantes connues ; évalué après l'inspection TLS et le filtrage du contenu web, et les indicateurs d'URL ne s'appliquent au HTTPS qu'avec l'inspection TLS |
 | Accès conditionnel universel | Accès conditionnel pour toutes les destinations Internet, même les applications non fédérées avec Microsoft Entra ID |
 | Protection contre l'injection de prompt, DLP, découverte du shadow AI | Contrôles sur l'IA générative et les données qui sortent par le web |
 | Contrôles réseau pour les agents | Même filtrage pour le trafic des agents IA (exige une licence Microsoft Agent 365) |
@@ -69,7 +69,7 @@ Par rapport aux autres filtres : le filtrage du contenu web de Defender for Endp
 | Fonctionnalité | Exigence satisfaite |
 | --- | --- |
 | Connectivité directe aux services Microsoft | Chemin optimisé et journalisé vers Microsoft 365 depuis n'importe où |
-| **Vérification du réseau conforme** | L'accès conditionnel exige que l'accès passe par Global Secure Access, ce qui aide contre la relecture de jetons volés depuis d'autres réseaux, sans maintenir de listes d'adresses IP |
+| **Vérification du réseau conforme** | L'accès conditionnel exige que l'accès passe par Global Secure Access, ce qui aide contre la relecture de jetons volés depuis d'autres réseaux, sans maintenir de listes d'adresses IP ; la vérification est propre au locataire qui la configure (un utilisateur d'un autre locataire ne peut pas la satisfaire) |
 | **Restrictions de locataire universelles** | Les utilisateurs ne peuvent se connecter qu'aux locataires et applications autorisés par votre stratégie de restrictions de locataire : bloque l'exfiltration de données vers des locataires étrangers et des comptes personnels |
 | **Restauration de l'adresse IP source** | L'adresse IP publique d'origine de l'utilisateur apparaît dans les journaux de connexion et les détections de risque d'Entra ID, au lieu de l'adresse IP de la périphérie |
 | Journaux enrichis Microsoft 365 | Journaux de trafic détaillés pour Microsoft 365 |
@@ -86,7 +86,7 @@ Les restrictions de locataire v2 (TRv2) exigent Entra ID P1 et une application c
 
 | Application | Couverture |
 | --- | --- |
-| Restrictions de locataire universelles (client Global Secure Access ou réseau distant) | Plan d'authentification sur toutes les plateformes et tous les navigateurs, sans proxy d'entreprise ; plan de données pour Microsoft Graph |
+| Restrictions de locataire universelles (client Global Secure Access ou réseau distant) | Plan d'authentification sur toutes les plateformes et tous les navigateurs, sans proxy d'entreprise ; plan de données pour Microsoft Graph (la protection du plan de données est en préversion) |
 | Proxy d'entreprise qui injecte l'en-tête `sec-Restrict-Tenant-Access-Policy` | Plan d'authentification uniquement, exige le déchiffrement TLS du trafic de connexion |
 | Stratégie de groupe Windows (préversion) | Plans d'authentification et de données (SharePoint, OneDrive, Exchange, Teams) sur les appareils Windows |
 
@@ -108,6 +108,8 @@ TRv2 ne s'applique pas quand les utilisateurs accèdent à leur propre locataire
 | SSO Kerberos | Authentification unique aux applications intégrées à AD DS avec les identifiants Microsoft Entra |
 
 Licences : la licence **Microsoft Entra Private Access** (autonome ou dans Microsoft Entra Suite), avec Microsoft Entra ID P1. Accès privé peut fonctionner à côté d'un SSE tiers qui gère le trafic Internet.
+
+Les segments ne peuvent pas se chevaucher entre deux applications Accès privé, seulement entre une application par application et Quick Access. Les utilisateurs doivent être attribués à l'application directement ou par un groupe attribué à celle-ci : les groupes imbriqués ne sont pas pris en charge.
 
 | Exigence | À recommander |
 | --- | --- |

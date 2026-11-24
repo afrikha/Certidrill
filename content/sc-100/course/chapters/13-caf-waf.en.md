@@ -23,7 +23,7 @@ The **CAF Secure methodology** applies security to every phase, because a gap in
 | Govern | Securely govern the estate |
 | Manage | Securely manage the estate |
 
-The methodology builds on three ideas. **Security posture modernization** aligns with the Zero Trust adoption framework, prioritizes by measurable risk reduction and automates validation (policy, infrastructure as code, continuous compliance scanning, secure score in Defender for Cloud). **Incident preparation** covers readiness, detection, triage, containment, eradication, recovery and lessons learned. The **CIA triad** maps to controls: confidentiality (encryption, key management, identity, segmentation, classification), integrity (hashing, signing, immutable storage, version control, secure update supply chains), availability (redundancy, autoscaling, backup and disaster recovery).
+The methodology builds on three ideas. **Security posture modernization** aligns with the Zero Trust adoption framework, prioritizes by measurable risk reduction and automates validation (policy, infrastructure as code, continuous compliance scanning, secure score in Defender for Cloud). **Incident preparation** covers readiness, detection, triage, containment, eradication, recovery and post-incident learning. The **CIA triad** maps to controls: confidentiality (encryption, key management, identity, segmentation, classification), integrity (hashing, signing, immutable storage, version control, secure update supply chains), availability (redundancy, autoscaling, backup and disaster recovery).
 
 The WAF **Security pillar** gives a design review checklist of 12 recommendations:
 
@@ -103,7 +103,7 @@ The reference implementation includes Defender for Cloud, Microsoft Sentinel, Az
 <!-- section: devsecops | objectives: 1.3.5 -->
 ## A DevSecOps process aligned with CAF
 
-CAF's guidance for secure DevOps environments applies the three Zero Trust principles to the development platform. The threat areas are developer workstations, release pipelines and test environments that give access to production data. DevSecOps "shifts left": security moves from a production-only concern into planning and development, with the controls of WAF SE:02 (secure development lifecycle) and SE:11 (testing).
+Microsoft's guidance for secure DevOps environments applies the three Zero Trust principles to the development platform; the CAF secure DevOps page now leads to the Zero Trust article "Secure the developer environment for Zero Trust". The threat areas are developer workstations, release pipelines and test environments that give access to production data. For the developer environment, the article recommends accounts controlled by the identity provider (GitHub Enterprise Managed Users), SSH certificates for repository access, branch protection, extensions from verified publishers, and OpenID Connect federation instead of stored Azure credentials. DevSecOps "shifts left": security moves from a production-only concern into planning and development, with the controls of WAF SE:02 (secure development lifecycle) and SE:11 (testing).
 
 | Stage | Practice | Microsoft and GitHub solutions |
 | --- | --- | --- |

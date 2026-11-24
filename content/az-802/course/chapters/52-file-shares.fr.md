@@ -28,6 +28,8 @@ Get-SmbShareAccess -Name Finance
 | Limiter les connexions simultanées | `-ConcurrentUserLimit` (0 = illimité, la valeur par défaut) |
 | Chiffrer le trafic de ce seul partage | `-EncryptData $true` |
 
+Les partages continuellement disponibles écrivent les données directement sur le disque, sans mise en mémoire tampon : ils sont plus lents pour la redirection de dossiers, les fichiers hors connexion, les profils utilisateur itinérants, les dossiers de base et les copies de gros fichiers, et ils sont incompatibles avec FSRM. Réservez-les à des charges de travail comme Hyper-V et SQL Server.
+
 > **Piège d'examen.** Un utilisateur qui a Modification en NTFS mais Lire sur le partage peut seulement lire par le réseau ; le même utilisateur connecté localement sur le serveur peut modifier. Quand « l'accès fonctionne en local mais pas depuis le réseau », vérifiez les autorisations de partage.
 
 Depuis Windows Server 2025, la création d'un partage active le groupe de pare-feu **File and Printer Sharing (Restrictive)**, qui n'ouvre plus les ports NetBIOS 137 à 139.
@@ -149,7 +151,7 @@ Valeurs par défaut à connaître :
 - **SMB 1.0** n'est plus installé par défaut depuis Windows Server version 1709 ; supprimez-le là où il reste, car il contourne l'intégrité de pré-authentification de SMB 3.1.1.
 - Windows Server 2025 **exige par défaut la signature des connexions sortantes**. Les contrôleurs de domaine exigent la signature de leurs clients (SYSVOL, NETLOGON).
 - SMB 3.1.1 négocie par défaut le chiffrement **AES-128-GCM** ; AES-256-GCM et AES-256-CCM sont disponibles depuis Windows Server 2022.
-- Quand le chiffrement est exigé, un client SMB 3 incapable de chiffrer est rejeté avec **Accès refusé** et l'événement 1003 dans `Microsoft-Windows-SmbServer/Operational`.
+- Quand le chiffrement est exigé et que `RejectUnencryptedAccess` garde sa valeur par défaut (`$true`), un client qui ne prend pas en charge SMB 3.x (clients SMB 1.0 compris) est rejeté avec **Accès refusé** et l'événement 1003 dans `Microsoft-Windows-SmbServer/Operational`.
 - **SMB Multichannel** utilise automatiquement plusieurs chemins réseau et il est indispensable à SMB Direct (voir le chapitre sur le stockage).
 
 > **Piège d'examen.** Le chiffrement SMB ne protège que les données en transit. Les données au repos relèvent de BitLocker, et le chiffrement SMB ne dépend ni d'EFS ni de BitLocker.
