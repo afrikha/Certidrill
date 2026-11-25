@@ -53,6 +53,15 @@ describe("localizeDocsUrl", () => {
       expect(localizeDocsUrl(url, "fr")).toBe(url);
     }
     expect(isDocsUrl("https://repost.aws.example.com/x", VENDORS.aws)).toBe(false);
+    // github.com is shared: only the allowed organizations and repositories count as CNCF documentation.
+    expect(isDocsUrl("https://github.com/kubernetes/community/blob/master/README.md", VENDORS.cncf)).toBe(true);
+    expect(isDocsUrl("https://github.com/cncf/toc", VENDORS.cncf)).toBe(true);
+    expect(isDocsUrl("https://github.com/GoogleContainerTools/distroless", VENDORS.cncf)).toBe(true);
+    expect(isDocsUrl("https://github.com/aquasecurity/trivy/blob/main/docs/guide/configuration/filtering.md", VENDORS.cncf)).toBe(true);
+    expect(isDocsUrl("https://github.com/someone/kubernetes", VENDORS.cncf)).toBe(false);
+    expect(isDocsUrl("https://github.com/aquasecurity/other-tool", VENDORS.cncf)).toBe(false);
+    expect(isDocsUrl("https://github.com/kubernetes-evil/x", VENDORS.cncf)).toBe(false);
+    expect(isDocsUrl("https://github.com/", VENDORS.cncf)).toBe(false);
     // Not the documentation: a look-alike host is left alone.
     expect(localizeDocsUrl("https://docs.aws.amazon.com.example.com/x", "fr")).toBe("https://docs.aws.amazon.com.example.com/x");
   });

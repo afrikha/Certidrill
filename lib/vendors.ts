@@ -17,6 +17,12 @@ export interface Vendor {
   docsName: string;
   /** Hosts that the references of questions and chapters may point to. */
   docsHosts: readonly string[];
+  /**
+   * For a shared host (github.com), the only paths allowed on it: an
+   * organization ("/kubernetes/") or a repository ("/docker/docs/"). Any
+   * other path of that host is not the vendor's documentation.
+   */
+  docsPaths?: Readonly<Record<string, readonly string[]>>;
   /** The same documentation page in the reader's language; a page of another site as it is. */
   localizeDocsUrl: (url: string, locale: DocsLocale) => string;
   /** The page without its language, to compare the English and French links of a chapter. */
@@ -75,6 +81,14 @@ export const VENDORS: Record<VendorKey, Vendor> = {
       "goharbor.io", "gvisor.dev", "katacontainers.io", "kubescape.io", "trivy.dev", "kubewarden.io",
       "slsa.dev", "csrc.nist.gov", "nvlpubs.nist.gov", "attack.mitre.org", "owasp.org", "community.owasp.org",
     ],
+    // github.com is shared: the organizations of the Kubernetes and CNCF projects, and the repositories of the other tools the curriculum names.
+    docsPaths: {
+      "github.com": [
+        "/kubernetes/", "/kubernetes-sigs/", "/kubernetes-csi/", "/cncf/", "/opencontainers/", "/containernetworking/", "/open-policy-agent/",
+        "/goharbor/", "/cilium/", "/kata-containers/", "/kubescape/", "/open-gitops/", "/sigstore/", "/falcosecurity/", "/spdx/",
+        "/aquasecurity/kube-bench/", "/aquasecurity/trivy/", "/docker/docs/", "/google/gvisor/", "/GoogleContainerTools/distroless/",
+      ],
+    },
     // English only: the Kubernetes certifications are not offered in French.
     localizeDocsUrl: (url) => url,
     docsPage: (url) => url,
@@ -104,9 +118,18 @@ function hostOf(url: string): string | null {
   }
 }
 
-/** True when the address is on one of the vendor's documentation hosts (https only). */
+/**
+ * True when the address is on one of the vendor's documentation hosts (https
+ * only) and, on a shared host, under one of the paths allowed on it.
+ */
 export function isDocsUrl(url: string, vendor: Vendor): boolean {
-  return url.startsWith("https://") && vendor.docsHosts.includes(hostOf(url) ?? "");
+  const host = hostOf(url);
+  if (!url.startsWith("https://") || !host || !vendor.docsHosts.includes(host)) return false;
+  const paths = vendor.docsPaths?.[host];
+  if (!paths) return true;
+  // Owners and repositories are case-insensitive on GitHub.
+  const path = new URL(url).pathname.toLowerCase();
+  return paths.some((p) => path.startsWith(p.toLowerCase()) || `${path}/` === p.toLowerCase());
 }
 
 /** The vendor whose documentation the address is on, or null. */
