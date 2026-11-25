@@ -498,16 +498,29 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
 export const REPORTS_BEFORE_REVIEW = 3;
 
 /**
+ * Whether a chapter quiz question was answered (validated) in one of the
+ * user's attempts: a question of the chapter's bank that the user has not
+ * reached yet cannot be reported.
+ */
+async function answeredInQuiz(db: PrismaClient, userId: string, questionId: string): Promise<boolean> {
+  const attempts = await db.quizAttempt.findMany({
+    where: { userId, chapter: { quizQuestions: { some: { id: questionId, usage: QUIZ_USAGE } } } },
+    select: { results: true },
+  });
+  return attempts.some((a) => Object.values((a.results ?? {}) as Record<string, { questionId?: string } | undefined>).some((r) => r?.questionId === questionId));
+}
+
+/**
  * Records a report; only for a question the user has seen in a finished
  * attempt. A user has at most one open report per question (a new report
  * replaces their reason and comment), and the review threshold counts distinct
  * users, so a single account cannot take a question out of the exams.
  */
 export async function reportQuestion(db: PrismaClient, { questionId, userId, reason, comment }: { questionId: string; userId: string; reason: ReportReason; comment?: string }) {
-  // Seen in a finished mock exam, or in one of the user's attempts at its chapter quiz.
+  // Seen in a finished mock exam, or answered in one of the user's attempts at its chapter quiz.
   const seen =
-    (await db.attemptItem.count({ where: { questionId, attempt: { userId, status: { in: ["submitted", "expired"] } } } })) ||
-    (await db.question.count({ where: { id: questionId, usage: QUIZ_USAGE, chapter: { quizAttempts: { some: { userId } } } } }));
+    (await db.attemptItem.count({ where: { questionId, attempt: { userId, status: { in: ["submitted", "expired"] } } } })) > 0 ||
+    (await answeredInQuiz(db, userId, questionId));
   if (!seen) throw new SessionError("not_found");
   const data = { reason, comment: comment?.trim() || null };
   const existing = await db.questionReport.findFirst({ where: { questionId, userId, status: "open" }, select: { id: true } });

@@ -202,6 +202,11 @@ describe("the student flow (§3, §5)", () => {
     // A quiz question is reported like an exam question.
     await expect(reportQuestion(db, { questionId: "az104-qz-11-02", userId: free.userId, reason: "ambiguous" })).resolves.toBeTruthy();
     await expect(reportQuestion(db, { questionId: "az104-qz-11-02", userId: full.userId, reason: "ambiguous" })).rejects.toThrow();
+    // Started but not reached: a question of the chapter's bank the user has not answered yet cannot be reported.
+    const other = await startQuiz(db, { certification: "az-104", chapter, viewer: full, locale: "en", seed: "s1" });
+    await answerQuizQuestion(db, { attemptId: other.id, position: 1, response: null, viewer: full, locale: "en" });
+    await expect(reportQuestion(db, { questionId: other.step.question.id, userId: full.userId, reason: "typo" })).resolves.toBeTruthy();
+    await expect(reportQuestion(db, { questionId: "az104-qz-11-02", userId: full.userId, reason: "ambiguous" })).rejects.toThrow();
   });
 
   it("keeps the best result after a worse attempt, lists the sections to reread, resumes an attempt in progress", async () => {
